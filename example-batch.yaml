@@ -1,0 +1,21 @@
+jobs:
+  - name: "vm-export-1"
+    vm_path: "/data/vm/win11-2"
+    output_path: "/tmp/export-win11-2"
+    options:
+      parallel_downloads: 4
+      remove_cdrom: true
+
+  - name: "vm-export-2"
+    vm_path: "/data/vm/XX-bimalc-esx8.0-win2019-x86_64 - Clone"
+    output_path: "/tmp/export-win2019"
+    options:
+      parallel_downloads: 4
+      remove_cdrom: true
+
+  - name: "vm-export-3"
+    vm_path: "/data/vm/esx8.0-rhel8.10-efi-with-two-same-vgs"
+    output_path: "/tmp/export-rhel8"
+    options:
+      parallel_downloads: 4
+      remove_cdrom: false
