@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,6 +17,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pterm/pterm"
 
+	"hyper2kvm-providers/config"
+	"hyper2kvm-providers/logger"
 	"hyper2kvm-providers/providers/vsphere"
 )
 
@@ -100,23 +103,62 @@ func (m model) Init() tea.Cmd {
 
 func loadVMs(daemonURL string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := apiRequestWithTimeout(daemonURL+"/vms/list", "GET", "", nil, 180*time.Second)
-		if err != nil {
-			return vmsLoadedMsg{err: err}
-		}
-		defer resp.Body.Close()
-
-		body, _ := io.ReadAll(resp.Body)
-		var result struct {
-			VMs []vsphere.VMInfo `json:"vms"`
+		// Check if environment variables are set for direct connection
+		if os.Getenv("GOVC_URL") != "" {
+			return loadVMsFromEnvironment()
 		}
 
-		if err := json.Unmarshal(body, &result); err != nil {
-			return vmsLoadedMsg{err: err}
-		}
-
-		return vmsLoadedMsg{vms: result.VMs}
+		// Fall back to daemon API
+		return loadVMsFromDaemon(daemonURL)
 	}
+}
+
+func loadVMsFromEnvironment() tea.Msg {
+	// Load config from environment
+	cfg := config.FromEnvironment()
+
+	// Validate required fields
+	if cfg.VCenterURL == "" || cfg.Username == "" || cfg.Password == "" {
+		return vmsLoadedMsg{err: fmt.Errorf("missing required environment variables: GOVC_URL, GOVC_USERNAME, GOVC_PASSWORD")}
+	}
+
+	// Create logger (quiet for TUI)
+	log := logger.New("error")
+
+	// Create vSphere client
+	ctx := context.Background()
+	client, err := vsphere.NewVSphereClient(ctx, cfg, log)
+	if err != nil {
+		return vmsLoadedMsg{err: fmt.Errorf("connect to vCenter: %w", err)}
+	}
+	defer client.Close()
+
+	// List VMs
+	vms, err := client.ListVMs(ctx)
+	if err != nil {
+		return vmsLoadedMsg{err: fmt.Errorf("list VMs: %w", err)}
+	}
+
+	return vmsLoadedMsg{vms: vms}
+}
+
+func loadVMsFromDaemon(daemonURL string) tea.Msg {
+	resp, err := apiRequestWithTimeout(daemonURL+"/vms/list", "GET", "", nil, 180*time.Second)
+	if err != nil {
+		return vmsLoadedMsg{err: err}
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var result struct {
+		VMs []vsphere.VMInfo `json:"vms"`
+	}
+
+	if err := json.Unmarshal(body, &result); err != nil {
+		return vmsLoadedMsg{err: err}
+	}
+
+	return vmsLoadedMsg{vms: result.VMs}
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -434,7 +476,13 @@ func (m model) View() string {
 		return m.renderDone()
 	}
 
-	return "Loading VMs from daemon..."
+	// Show loading message based on connection mode
+	if os.Getenv("GOVC_URL") != "" {
+		return "Loading VMs from vCenter (direct connection)...\n\n" +
+			infoStyle.Render(fmt.Sprintf("vCenter: %s", os.Getenv("GOVC_URL")))
+	}
+	return "Loading VMs from daemon...\n\n" +
+		infoStyle.Render(fmt.Sprintf("Daemon: %s", m.daemonURL))
 }
 
 func (m model) renderSelection() string {
@@ -720,14 +768,42 @@ func (m model) renderError() string {
 	}
 
 	b.WriteString(helpStyle.Render("Troubleshooting:"))
-	b.WriteString("\n")
-	b.WriteString("  • Check that hyper2kvmd daemon is running:\n")
-	b.WriteString("    sudo systemctl status hyper2kvmd\n\n")
-	b.WriteString("  • Check daemon logs:\n")
-	b.WriteString("    sudo journalctl -u hyper2kvmd -f\n\n")
-	b.WriteString("  • Verify daemon is accessible:\n")
-	b.WriteString(fmt.Sprintf("    curl %s/vms/list\n\n", m.daemonURL))
-	b.WriteString("  • Check vCenter credentials in /etc/hyper2kvm/config.yaml\n\n")
+	b.WriteString("\n\n")
+
+	// Check connection mode and provide relevant troubleshooting
+	if os.Getenv("GOVC_URL") != "" {
+		b.WriteString(infoStyle.Render("  Connection Mode: Direct (using environment variables)"))
+		b.WriteString("\n\n")
+		b.WriteString("  • Verify environment variables are set:\n")
+		b.WriteString(fmt.Sprintf("    GOVC_URL=%s\n", os.Getenv("GOVC_URL")))
+		b.WriteString(fmt.Sprintf("    GOVC_USERNAME=%s\n", os.Getenv("GOVC_USERNAME")))
+		b.WriteString("    GOVC_PASSWORD=*** (set: ")
+		if os.Getenv("GOVC_PASSWORD") != "" {
+			b.WriteString("yes)\n")
+		} else {
+			b.WriteString("no)\n")
+		}
+		b.WriteString(fmt.Sprintf("    GOVC_INSECURE=%s\n\n", os.Getenv("GOVC_INSECURE")))
+		b.WriteString("  • Test vCenter connection manually:\n")
+		b.WriteString("    govc about\n\n")
+		b.WriteString("  • Check vCenter is accessible:\n")
+		b.WriteString(fmt.Sprintf("    ping %s\n\n", os.Getenv("GOVC_URL")))
+	} else {
+		b.WriteString(infoStyle.Render("  Connection Mode: Daemon API"))
+		b.WriteString("\n\n")
+		b.WriteString("  • Check that hyper2kvmd daemon is running:\n")
+		b.WriteString("    sudo systemctl status hyper2kvmd\n\n")
+		b.WriteString("  • Check daemon logs:\n")
+		b.WriteString("    sudo journalctl -u hyper2kvmd -f\n\n")
+		b.WriteString("  • Verify daemon is accessible:\n")
+		b.WriteString(fmt.Sprintf("    curl %s/vms/list\n\n", m.daemonURL))
+		b.WriteString("  • Check vCenter credentials in /etc/hyper2kvm/config.yaml\n\n")
+		b.WriteString("  • OR use direct connection by setting environment:\n")
+		b.WriteString("    export GOVC_URL='https://vcenter/sdk'\n")
+		b.WriteString("    export GOVC_USERNAME='user@vsphere.local'\n")
+		b.WriteString("    export GOVC_PASSWORD='password'\n")
+		b.WriteString("    export GOVC_INSECURE=1\n\n")
+	}
 
 	b.WriteString(helpStyle.Render("Press 'q' to quit"))
 	b.WriteString("\n")
