@@ -1,6 +1,6 @@
 # Interactive VM Migration Guide
 
-The `h2kvmctl migrate` command provides an intuitive, terminal-based UI for selecting and migrating VMs from VMware to KVM.
+The `h2kvmctl migrate` command provides an intuitive, terminal-based UI for selecting and migrating VMs from multiple cloud providers to KVM.
 
 ## 🎮 Overview
 
@@ -9,7 +9,7 @@ Interactive migration mode allows you to:
 - Select multiple VMs for migration
 - View detailed VM information and migration summary
 - Confirm migration settings before starting
-- Automatically export VMs from vCenter
+- Automatically export VMs from source cloud provider
 - Auto-convert VMDKs to qcow2 format
 - Optionally import to libvirt
 
