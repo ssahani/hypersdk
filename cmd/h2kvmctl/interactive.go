@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -99,7 +100,7 @@ func (m model) Init() tea.Cmd {
 
 func loadVMs(daemonURL string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := apiRequestWithTimeout(daemonURL+"/vms/list", "GET", "", nil, 120000)
+		resp, err := apiRequestWithTimeout(daemonURL+"/vms/list", "GET", "", nil, 180*time.Second)
 		if err != nil {
 			return vmsLoadedMsg{err: err}
 		}
