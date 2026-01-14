@@ -1,10 +1,10 @@
-# Getting Started with hyper2kvm-vsphere
+# Getting Started with hyper2kvm-providers
 
-Welcome to **hyper2kvm-vsphere** - the Go implementation of the hyper2kvm migration toolkit!
+Welcome to **hyper2kvm-providers** - the Go implementation of the hyper2kvm migration toolkit!
 
 ---
 
-## 🎯 What is hyper2kvm-vsphere?
+## 🎯 What is hyper2kvm-providers?
 
 A high-performance, daemon-based VM export system that provides:
 
@@ -35,7 +35,7 @@ export GOVC_INSECURE=1
 #### Option A: Interactive Mode (Beginner-Friendly)
 
 ```bash
-cd ~/go/hyper2kvm
+cd ~/projects/hyper2kvm-providers
 ./build/hyper2kvm
 ```
 

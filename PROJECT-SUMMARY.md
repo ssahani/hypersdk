@@ -1,9 +1,9 @@
-# hyper2kvm-vsphere - Project Summary
+# hyper2kvm-providers - Project Summary
 
-**Official Project Name:** `hyper2kvm-vsphere`  
-**Status:** ✅ Production Ready  
-**Date:** 2026-01-17  
-**Version:** 1.0.0
+**Official Project Name:** `hyper2kvm-providers`
+**Status:** ✅ Production Ready
+**Date:** 2026-01-17
+**Version:** 0.0.1
 
 ---
 
@@ -82,7 +82,7 @@ A complete, production-ready VM export system with three powerful tools:
 ## 📁 Project Structure
 
 ```
-~/go/hyper2kvm/  (hyper2kvm-vsphere)
+~/projects/hyper2kvm-providers/
 ├── build/
 │   ├── hyper2kvm      (19 MB) - CLI
 │   ├── hyper2kvmd     (20 MB) - Daemon
@@ -98,11 +98,12 @@ A complete, production-ready VM export system with three powerful tools:
 │   ├── jobs/manager.go        - Job manager
 │   └── api/server.go          - REST API
 │
-├── vsphere/
-│   ├── client.go              - vSphere connection
-│   ├── export.go              - Export logic
-│   ├── vm_operations.go       - VM management
-│   └── types.go               - Type definitions
+├── providers/
+│   └── vsphere/
+│       ├── client.go          - vSphere connection
+│       ├── export.go          - Export logic
+│       ├── vm_operations.go   - VM management
+│       └── types.go           - Type definitions
 │
 ├── progress/
 │   └── reporter.go            - Progress abstraction
@@ -113,7 +114,7 @@ A complete, production-ready VM export system with three powerful tools:
 ├── logger/
 │   └── logger.go              - Logging
 │
-├── go.mod                     - Module: hyper2kvm-vsphere
+├── go.mod                     - Module: hyper2kvm-providers
 ├── README.md                  - Main documentation
 ├── GETTING-STARTED.md         - Quick start guide
 ├── DAEMON-README.md           - Daemon architecture
@@ -127,7 +128,7 @@ A complete, production-ready VM export system with three powerful tools:
 
 ### Start Daemon
 ```bash
-cd ~/go/hyper2kvm
+cd ~/projects/hyper2kvm-providers
 export GOVC_URL='https://vcenter.example.com/sdk'
 export GOVC_USERNAME='administrator@vsphere.local'
 export GOVC_PASSWORD='your-password'
@@ -354,7 +355,7 @@ else:
 This project complements the Python `hyper2kvm` project:
 
 - **Python hyper2kvm** - Full migration workflow, conversion
-- **hyper2kvm-vsphere** - High-performance export, API
+- **hyper2kvm-providers** - High-performance export, API
 
 Together they provide a complete migration solution:
 1. Export with `hyper2kvmd` (fast, concurrent)
