@@ -11,13 +11,13 @@ const (
 )
 
 type VMInfo struct {
-	Name       string
-	Path       string
-	PowerState string
-	GuestOS    string
-	MemoryMB   int32
-	NumCPU     int32
-	Storage    int64
+	Name       string `json:"name"`
+	Path       string `json:"path"`
+	PowerState string `json:"power_state"`
+	GuestOS    string `json:"guest_os"`
+	MemoryMB   int32  `json:"memory_mb"`
+	NumCPU     int32  `json:"num_cpu"`
+	Storage    int64  `json:"storage_bytes"`
 }
 
 type ExportResult struct {
