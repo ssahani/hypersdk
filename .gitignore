@@ -1,8 +1,8 @@
 # Binaries
 build/
-hyper2kvm
-hyper2kvmd
-h2kvmctl
+/hyper2kvm
+/hyper2kvmd
+/h2kvmctl
 *.exe
 *.dll
 *.so
