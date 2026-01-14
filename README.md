@@ -55,7 +55,7 @@
 |--------|---------|----------|
 | `hyper2kvm` | Interactive CLI | Manual exports with beautiful UI |
 | `hyper2kvmd` | Background daemon | Automation, REST API, batch processing |
-| `h2kvmctl` | Control CLI | Manage daemon, query jobs, monitor progress |
+| `h2kvmctl` | Migration Commander | Interactive TUI migration, daemon control, job management |
 
 ## 🚀 Quick Start
 
