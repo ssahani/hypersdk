@@ -128,7 +128,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case vmsLoadedMsg:
 		if msg.err != nil {
 			m.err = msg.err
-			return m, tea.Quit
+			m.phase = "error"
+			return m, nil
+		}
+
+		if len(msg.vms) == 0 {
+			m.err = fmt.Errorf("no VMs found - check daemon connection and vCenter credentials")
+			m.phase = "error"
+			return m, nil
 		}
 
 		m.vms = make([]vmItem, len(msg.vms))
@@ -139,6 +146,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch m.phase {
+		case "error":
+			if msg.String() == "q" || msg.String() == "ctrl+c" {
+				return m, tea.Quit
+			}
 		case "select":
 			return m.handleSelectionKeys(msg)
 		case "confirm":
@@ -405,11 +416,9 @@ func (m model) convertAll() tea.Cmd {
 }
 
 func (m model) View() string {
-	if m.err != nil {
-		return errorStyle.Render(fmt.Sprintf("Error: %v\n", m.err))
-	}
-
 	switch m.phase {
+	case "error":
+		return m.renderError()
 	case "select":
 		return m.renderSelection()
 	case "confirm":
@@ -424,7 +433,7 @@ func (m model) View() string {
 		return m.renderDone()
 	}
 
-	return "Loading..."
+	return "Loading VMs from daemon..."
 }
 
 func (m model) renderSelection() string {
@@ -698,6 +707,33 @@ func (m model) renderConvert() string {
 	return b.String()
 }
 
+func (m model) renderError() string {
+	var b strings.Builder
+
+	b.WriteString(errorStyle.Render("❌ Error"))
+	b.WriteString("\n\n")
+
+	if m.err != nil {
+		b.WriteString(m.err.Error())
+		b.WriteString("\n\n")
+	}
+
+	b.WriteString(helpStyle.Render("Troubleshooting:"))
+	b.WriteString("\n")
+	b.WriteString("  • Check that hyper2kvmd daemon is running:\n")
+	b.WriteString("    sudo systemctl status hyper2kvmd\n\n")
+	b.WriteString("  • Check daemon logs:\n")
+	b.WriteString("    sudo journalctl -u hyper2kvmd -f\n\n")
+	b.WriteString("  • Verify daemon is accessible:\n")
+	b.WriteString(fmt.Sprintf("    curl %s/vms/list\n\n", m.daemonURL))
+	b.WriteString("  • Check vCenter credentials in /etc/hyper2kvm/config.yaml\n\n")
+
+	b.WriteString(helpStyle.Render("Press 'q' to quit"))
+	b.WriteString("\n")
+
+	return b.String()
+}
+
 func (m model) renderDone() string {
 	var b strings.Builder
 
@@ -863,17 +899,49 @@ func runInteractive(daemonURL, outputDir string, autoConvert, autoImport bool) {
 	pterm.Info.Println("🎮 Entering interactive mode...")
 	pterm.Println()
 
+	// Check if we have a TTY
+	if !isatty() {
+		pterm.Error.Println("❌ Interactive mode requires a terminal (TTY)")
+		pterm.Info.Println("")
+		pterm.Info.Println("Please run this command inside tmux or a real terminal:")
+		pterm.Info.Println("")
+		pterm.Info.Println("  Method 1: Start tmux first")
+		pterm.Info.Println("    tmux")
+		pterm.Info.Println("    h2kvmctl migrate")
+		pterm.Info.Println("")
+		pterm.Info.Println("  Method 2: Use the helper script")
+		pterm.Info.Println("    /tmp/start-migration-tui.sh")
+		pterm.Info.Println("")
+		os.Exit(1)
+	}
+
 	// Run bubbletea program
 	p := tea.NewProgram(
 		initialModel(daemonURL, outputDir, autoConvert, autoImport),
 		tea.WithAltScreen(),
 	)
 
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		pterm.Error.Printfln("Error running interactive mode: %v", err)
+		os.Exit(1)
+	}
+
+	// Check if there was an error in the final model
+	if m, ok := finalModel.(model); ok && m.err != nil {
+		pterm.Println()
+		pterm.Error.Printfln("Migration error: %v", m.err)
 		os.Exit(1)
 	}
 
 	pterm.Println()
 	pterm.Success.Println("✅ Interactive migration complete!")
+}
+
+func isatty() bool {
+	fileInfo, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }
