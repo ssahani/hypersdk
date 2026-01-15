@@ -72,10 +72,12 @@ func NewEnhancedServer(manager *jobs.Manager, log logger.Logger, addr string, co
 		}
 	}
 
-	// Initialize webhook manager if webhooks are configured
-	if len(config.Webhooks) > 0 {
+	// Initialize webhook manager if webhooks array exists (even if empty)
+	if config.Webhooks != nil {
 		es.webhookMgr = webhooks.NewManager(config.Webhooks, log)
-		log.Info("webhooks enabled", "count", len(config.Webhooks))
+		if len(config.Webhooks) > 0 {
+			log.Info("webhooks enabled", "count", len(config.Webhooks))
+		}
 	}
 
 	// Initialize scheduler
