@@ -23,6 +23,11 @@ import (
 	"hypersdk/progress"
 )
 
+const (
+	// maxFilenameLength is the maximum allowed filename length on most filesystems
+	maxFilenameLength = 255
+)
+
 // sanitizeVMName sanitizes a VM name for safe use in file paths
 func sanitizeVMName(name string) string {
 	// Replace directory separators and path traversal attempts
@@ -49,8 +54,8 @@ func sanitizeVMName(name string) string {
 	}
 
 	// Limit length
-	if len(name) > 255 {
-		name = name[:255]
+	if len(name) > maxFilenameLength {
+		name = name[:maxFilenameLength]
 	}
 
 	return name

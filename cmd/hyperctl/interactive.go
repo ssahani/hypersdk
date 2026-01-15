@@ -22,6 +22,17 @@ import (
 	"hypersdk/providers/vsphere"
 )
 
+const (
+	// maxFilenameLength is the maximum allowed filename length on most filesystems
+	maxFilenameLength = 255
+
+	// jobPollInterval is the interval for polling job status
+	jobPollInterval = 2 * time.Second
+
+	// maxJobPollTime is the maximum time to poll for job completion
+	maxJobPollTime = 30 * time.Minute
+)
+
 // Styles
 var (
 	titleStyle = lipgloss.NewStyle().
@@ -382,11 +393,67 @@ func (m model) exportVM(index int) tea.Cmd {
 		}
 		defer resp.Body.Close()
 
-		// Wait for job to complete
-		// For now, just mark as done
-		// TODO: Poll job status
+		// Parse response to get job ID
+		var submitResp struct {
+			JobIDs []string `json:"job_ids"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&submitResp); err != nil {
+			return exportDoneMsg{index: index, err: fmt.Errorf("failed to parse submit response: %w", err)}
+		}
+		if len(submitResp.JobIDs) == 0 {
+			return exportDoneMsg{index: index, err: fmt.Errorf("no job ID returned")}
+		}
+		jobID := submitResp.JobIDs[0]
 
-		return exportDoneMsg{index: index, err: nil}
+		// Poll job status until completion
+		startTime := time.Now()
+		ticker := time.NewTicker(jobPollInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ticker.C:
+				// Check if we've exceeded max poll time
+				if time.Since(startTime) > maxJobPollTime {
+					return exportDoneMsg{index: index, err: fmt.Errorf("job polling timeout after %v", maxJobPollTime)}
+				}
+
+				// Query job status
+				statusResp, err := apiRequest(m.daemonURL+"/jobs/status/"+jobID, "GET", "", nil)
+				if err != nil {
+					return exportDoneMsg{index: index, err: fmt.Errorf("failed to check job status: %w", err)}
+				}
+
+				var job struct {
+					Status string `json:"status"`
+					Error  string `json:"error,omitempty"`
+				}
+				if err := json.NewDecoder(statusResp.Body).Decode(&job); err != nil {
+					statusResp.Body.Close()
+					return exportDoneMsg{index: index, err: fmt.Errorf("failed to parse job status: %w", err)}
+				}
+				statusResp.Body.Close()
+
+				// Check job status
+				switch job.Status {
+				case "completed":
+					return exportDoneMsg{index: index, err: nil}
+				case "failed":
+					errMsg := job.Error
+					if errMsg == "" {
+						errMsg = "unknown error"
+					}
+					return exportDoneMsg{index: index, err: fmt.Errorf("job failed: %s", errMsg)}
+				case "cancelled":
+					return exportDoneMsg{index: index, err: fmt.Errorf("job was cancelled")}
+				case "pending", "running":
+					// Continue polling
+					continue
+				default:
+					return exportDoneMsg{index: index, err: fmt.Errorf("unknown job status: %s", job.Status)}
+				}
+			}
+		}
 	}
 }
 
@@ -892,8 +959,8 @@ func sanitizeFilename(name string) string {
 	}
 
 	// Limit length to prevent filesystem issues
-	if len(name) > 255 {
-		name = name[:255]
+	if len(name) > maxFilenameLength {
+		name = name[:maxFilenameLength]
 	}
 
 	return name

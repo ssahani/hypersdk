@@ -16,6 +16,17 @@ import (
 	"hypersdk/providers/vsphere"
 )
 
+const (
+	// Shutdown timeout for graceful termination of running jobs
+	shutdownTimeout = 30 * time.Second
+
+	// Default timeout for lease operations
+	leaseWaitTimeout = 5 * time.Minute
+
+	// Default timeout for download operations
+	downloadTimeout = 60 * time.Minute
+)
+
 // Manager handles job lifecycle and execution
 type Manager struct {
 	jobs      map[string]*models.Job
@@ -253,7 +264,7 @@ func (m *Manager) Shutdown() {
 	select {
 	case <-done:
 		m.logger.Info("all jobs completed gracefully")
-	case <-time.After(30 * time.Second):
+	case <-time.After(shutdownTimeout):
 		m.logger.Warn("shutdown timeout reached, some jobs may still be running")
 	}
 }

@@ -28,10 +28,19 @@ type JobDefinition struct {
 	Options     *ExportOptions `json:"options,omitempty" yaml:"options,omitempty"`
 	VCenterURL  string         `json:"vcenter_url,omitempty" yaml:"vcenter_url,omitempty"`
 	Username    string         `json:"username,omitempty" yaml:"username,omitempty"`
-	Password    string         `json:"password,omitempty" yaml:"password,omitempty"`
+	Password    string         `json:"-" yaml:"password,omitempty"` // Excluded from JSON to prevent exposure
 	Insecure    bool           `json:"insecure,omitempty" yaml:"insecure,omitempty"`
 	Datacenter  string         `json:"datacenter,omitempty" yaml:"datacenter,omitempty"`
 	CreatedAt   time.Time      `json:"created_at" yaml:"created_at"`
+}
+
+// Redacted returns a copy of JobDefinition with sensitive fields redacted for logging
+func (jd JobDefinition) Redacted() JobDefinition {
+	redacted := jd
+	if redacted.Password != "" {
+		redacted.Password = "***REDACTED***"
+	}
+	return redacted
 }
 
 // ExportOptions represents export configuration
