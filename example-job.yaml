@@ -1,7 +1,0 @@
-name: "example-vm-export"
-vm_path: "/data/vm/XX-bimalc-esx8.0-win2019-x86_64 - Clone"
-output_path: "/tmp/export-test-vm"
-options:
-  parallel_downloads: 4
-  remove_cdrom: true
-  show_individual_progress: false
