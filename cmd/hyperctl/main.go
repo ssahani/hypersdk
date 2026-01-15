@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -102,6 +103,15 @@ func main() {
 	listJSON := listCmd.Bool("json", false, "Output in JSON format")
 	listFilter := listCmd.String("filter", "", "Filter VMs by name (case-insensitive)")
 
+	grepCmd := flag.NewFlagSet("grep", flag.ExitOnError)
+	grepRegex := grepCmd.Bool("E", false, "Use extended regular expressions")
+	grepIgnoreCase := grepCmd.Bool("i", false, "Case-insensitive matching")
+	grepInvert := grepCmd.Bool("v", false, "Invert match (show non-matching)")
+	grepCount := grepCmd.Bool("c", false, "Count matching VMs")
+	grepNamesOnly := grepCmd.Bool("l", false, "List VM names only")
+	grepField := grepCmd.String("f", "name", "Field to search (name, path, os, power, all)")
+	grepJSON := grepCmd.Bool("json", false, "Output in JSON format")
+
 	vmCmd := flag.NewFlagSet("vm", flag.ExitOnError)
 	vmOperation := vmCmd.String("op", "", "Operation: shutdown, poweroff, remove-cdrom, info")
 	vmPath := vmCmd.String("path", "", "VM path (e.g. /data/vm/my-vm)")
@@ -144,6 +154,15 @@ func main() {
 		listCmd.Parse(os.Args[2:])
 		handleList(*daemonURL, *listJSON, *listFilter)
 
+	case "grep":
+		grepCmd.Parse(os.Args[2:])
+		if len(grepCmd.Args()) < 1 {
+			pterm.Error.Println("Pattern required. Usage: hyperctl grep [OPTIONS] PATTERN")
+			os.Exit(1)
+		}
+		pattern := grepCmd.Args()[0]
+		handleGrep(*daemonURL, pattern, *grepRegex, *grepIgnoreCase, *grepInvert, *grepCount, *grepNamesOnly, *grepField, *grepJSON)
+
 	case "vm":
 		vmCmd.Parse(os.Args[2:])
 		handleVM(*daemonURL, *vmOperation, *vmPath, *vmTimeout)
@@ -185,6 +204,13 @@ func showUsage() {
 		{"list", "List VMs from vCenter", "hyperctl list"},
 		{"list -json", "List VMs (JSON output)", "hyperctl list -json"},
 		{"list -filter", "Filter VMs by name", "hyperctl list -filter rhel"},
+		{"grep PATTERN", "Search VMs (grep-like)", "hyperctl grep ubuntu"},
+		{"grep -i PATTERN", "Case-insensitive search", "hyperctl grep -i windows"},
+		{"grep -E PATTERN", "Regex search", "hyperctl grep -E '^web-.*'"},
+		{"grep -v PATTERN", "Invert match", "hyperctl grep -v test"},
+		{"grep -c PATTERN", "Count matches", "hyperctl grep -c production"},
+		{"grep -l PATTERN", "List names only", "hyperctl grep -l ubuntu"},
+		{"grep -f field", "Search specific field", "hyperctl grep -f os centos"},
 	}
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -194,6 +220,9 @@ func showUsage() {
 		Render()
 
 	pterm.Println()
+
+	// Grep field options
+	pterm.Info.Println("Grep fields: name, path, os, power, all")
 
 	// VM Operations Commands
 	pterm.DefaultSection.Println("🔧 VM Operations")
@@ -479,6 +508,141 @@ func handleList(daemonURL string, jsonOutput bool, filter string) {
 	} else {
 		// Display in nice table format
 		displayVMs(vms)
+	}
+}
+
+func handleGrep(daemonURL, pattern string, useRegex, ignoreCase, invert, count, namesOnly bool, field string, jsonOutput bool) {
+	// Only show spinner if not in JSON/count/names-only mode
+	var spinner *pterm.SpinnerPrinter
+	if !jsonOutput && !count && !namesOnly {
+		spinner, _ = pterm.DefaultSpinner.Start("🔍 Searching VMs...")
+	}
+
+	// Fetch all VMs
+	resp, err := apiRequestWithTimeout(daemonURL+"/vms/list", "GET", "", nil, 120*time.Second)
+	if err != nil {
+		if spinner != nil {
+			spinner.Fail(fmt.Sprintf("Failed to fetch VMs: %v", err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		if spinner != nil {
+			spinner.Fail(fmt.Sprintf("Server error: %s", string(body)))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", string(body))
+		}
+		os.Exit(1)
+	}
+
+	var vmResp struct {
+		VMs       []vsphere.VMInfo `json:"vms"`
+		Total     int              `json:"total"`
+		Timestamp time.Time        `json:"timestamp"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&vmResp); err != nil {
+		if spinner != nil {
+			spinner.Fail(fmt.Sprintf("Failed to parse response: %v", err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		os.Exit(1)
+	}
+
+	// Compile pattern (regex or literal)
+	var matcher func(string) bool
+	if useRegex {
+		flags := ""
+		if ignoreCase {
+			flags = "(?i)"
+		}
+		re, err := regexp.Compile(flags + pattern)
+		if err != nil {
+			pterm.Error.Printfln("Invalid regex pattern: %v", err)
+			os.Exit(1)
+		}
+		matcher = re.MatchString
+	} else {
+		// Literal string matching
+		searchPattern := pattern
+		if ignoreCase {
+			searchPattern = strings.ToLower(pattern)
+			matcher = func(s string) bool {
+				return strings.Contains(strings.ToLower(s), searchPattern)
+			}
+		} else {
+			matcher = func(s string) bool {
+				return strings.Contains(s, searchPattern)
+			}
+		}
+	}
+
+	// Filter VMs based on field and pattern
+	var matches []vsphere.VMInfo
+	for _, vm := range vmResp.VMs {
+		var matchText string
+		switch field {
+		case "name":
+			matchText = vm.Name
+		case "path":
+			matchText = vm.Path
+		case "os":
+			matchText = vm.GuestOS
+		case "power":
+			matchText = vm.PowerState
+		case "all":
+			// Search across all fields
+			matchText = fmt.Sprintf("%s %s %s %s", vm.Name, vm.Path, vm.GuestOS, vm.PowerState)
+		default:
+			pterm.Error.Printfln("Invalid field: %s. Use: name, path, os, power, all", field)
+			os.Exit(1)
+		}
+
+		matched := matcher(matchText)
+		if invert {
+			matched = !matched
+		}
+
+		if matched {
+			matches = append(matches, vm)
+		}
+	}
+
+	if spinner != nil {
+		spinner.Success(fmt.Sprintf("✅ Found %d matching VMs", len(matches)))
+	}
+
+	// Output format
+	if count {
+		// Just print count
+		fmt.Println(len(matches))
+	} else if namesOnly {
+		// Print VM names only (one per line)
+		for _, vm := range matches {
+			fmt.Println(vm.Name)
+		}
+	} else if jsonOutput {
+		// JSON output
+		output, _ := json.MarshalIndent(map[string]interface{}{
+			"vms":       matches,
+			"total":     len(matches),
+			"pattern":   pattern,
+			"field":     field,
+			"timestamp": time.Now(),
+		}, "", "  ")
+		fmt.Println(string(output))
+	} else {
+		// Display in table format
+		if len(matches) == 0 {
+			pterm.Info.Println("No matching VMs found")
+			return
+		}
+		displayVMs(matches)
 	}
 }
 
