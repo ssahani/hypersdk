@@ -71,21 +71,28 @@ type vmItem struct {
 }
 
 type model struct {
-	vms           []vmItem
-	cursor        int
-	height        int
-	width         int
+	vms            []vmItem
+	filteredVMs    []vmItem // Filtered/searched VMs
+	cursor         int
+	height         int
+	width          int
 	daemonURL      string
 	outputDir      string
 	autoConvert    bool
 	autoImport     bool
-	phase          string // "select", "confirm", "run-mode", "export", "convert", "done"
+	phase          string // "select", "confirm", "run-mode", "export", "convert", "done", "detail", "filter", "sort"
 	currentExport  int
 	message        string
 	err            error
 	confirmConvert bool
 	confirmImport  bool
 	runMode        string // "terminal" or "service"
+	searchQuery    string // Current search query
+	sortMode       string // "name", "cpu", "memory", "storage", "power"
+	filterPower    string // "", "on", "off" - filter by power state
+	filterOS       string // Filter by OS type
+	showDetail     bool   // Show detailed view of current VM
+	dryRun         bool   // Preview mode without executing
 }
 
 type vmsLoadedMsg struct {
@@ -105,6 +112,11 @@ func initialModel(daemonURL, outputDir string, autoConvert, autoImport bool) mod
 		autoConvert: autoConvert,
 		autoImport:  autoImport,
 		phase:       "select",
+		sortMode:    "name", // Default sort by name
+		filterPower: "",     // No power filter by default
+		filterOS:    "",     // No OS filter by default
+		searchQuery: "",     // No search by default
+		dryRun:      false,  // Execute by default
 	}
 }
 
@@ -206,6 +218,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case "select":
 			return m.handleSelectionKeys(msg)
+		case "search":
+			return m.handleSearchKeys(msg)
+		case "detail":
+			return m.handleDetailKeys(msg)
 		case "confirm":
 			return m.handleConfirmKeys(msg)
 		case "run-mode":
@@ -243,6 +259,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	vms := m.getVisibleVMs()
+
 	switch msg.String() {
 	case "ctrl+c", "q":
 		return m, tea.Quit
@@ -253,26 +271,95 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "down", "j":
-		if m.cursor < len(m.vms)-1 {
+		if m.cursor < len(vms)-1 {
 			m.cursor++
 		}
 
 	case " ":
-		if m.cursor < len(m.vms) {
-			m.vms[m.cursor].selected = !m.vms[m.cursor].selected
+		// Toggle selection for current visible VM
+		if m.cursor < len(vms) {
+			selectedVM := vms[m.cursor]
+			// Find in original array and toggle
+			for i := range m.vms {
+				if m.vms[i].vm.Path == selectedVM.vm.Path {
+					m.vms[i].selected = !m.vms[i].selected
+					break
+				}
+			}
 		}
 
 	case "a":
-		// Select all
+		// Select all (in current filtered view)
+		visibleVMs := m.getVisibleVMs()
+		// Mark items in original array
 		for i := range m.vms {
-			m.vms[i].selected = true
+			for _, visible := range visibleVMs {
+				if m.vms[i].vm.Path == visible.vm.Path {
+					m.vms[i].selected = true
+					break
+				}
+			}
 		}
 
 	case "n":
-		// Deselect all
+		// Deselect all (in current filtered view)
+		visibleVMs := m.getVisibleVMs()
+		// Unmark items in original array
 		for i := range m.vms {
-			m.vms[i].selected = false
+			for _, visible := range visibleVMs {
+				if m.vms[i].vm.Path == visible.vm.Path {
+					m.vms[i].selected = false
+					break
+				}
+			}
 		}
+
+	case "/":
+		// Enter search mode
+		m.phase = "search"
+		m.searchQuery = ""
+		m.message = "Enter search query (name/path)..."
+		return m, nil
+
+	case "s":
+		// Cycle sort mode
+		m.cycleSortMode()
+		m.applyFiltersAndSort()
+		m.message = fmt.Sprintf("Sorted by: %s", m.sortMode)
+		return m, nil
+
+	case "f":
+		// Toggle power filter
+		m.togglePowerFilter()
+		m.applyFiltersAndSort()
+		return m, nil
+
+	case "d", "i":
+		// Show detail view of current VM
+		if m.cursor < len(m.getVisibleVMs()) {
+			m.showDetail = true
+			m.phase = "detail"
+		}
+		return m, nil
+
+	case "r":
+		// Toggle dry-run mode
+		m.dryRun = !m.dryRun
+		if m.dryRun {
+			m.message = "🔍 DRY-RUN mode enabled (preview only)"
+		} else {
+			m.message = "✅ DRY-RUN mode disabled (will execute)"
+		}
+		return m, nil
+
+	case "c":
+		// Clear all filters
+		m.searchQuery = ""
+		m.filterPower = ""
+		m.filterOS = ""
+		m.applyFiltersAndSort()
+		m.message = "Filters cleared"
+		return m, nil
 
 	case "enter":
 		// Go to confirmation
@@ -329,14 +416,90 @@ func (m model) handleRunModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "1", "t", "T":
 		// Run in terminal (interactive)
 		m.runMode = "terminal"
+		if m.dryRun {
+			// Dry-run mode: just show preview and exit
+			m.phase = "done"
+			m.message = "🔍 DRY-RUN complete: No actual migration performed\nSelected VMs were previewed but not exported"
+			return m, tea.Quit
+		}
 		m.phase = "export"
 		m.currentExport = 0
 		return m, m.exportNext()
 
 	case "2", "s", "S":
 		// Run as systemd service (background)
+		if m.dryRun {
+			m.message = "⚠️  Cannot create systemd service in dry-run mode"
+			return m, nil
+		}
 		m.runMode = "service"
 		return m, m.createSystemdService()
+	}
+
+	return m, nil
+}
+
+func (m model) handleSearchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "ctrl+[":
+		// Exit search mode
+		m.phase = "select"
+		m.searchQuery = ""
+		m.applyFiltersAndSort()
+		m.message = "Search cancelled"
+		return m, nil
+
+	case "enter":
+		// Apply search and return to selection
+		m.phase = "select"
+		m.applyFiltersAndSort()
+		if len(m.filteredVMs) == 0 {
+			m.message = fmt.Sprintf("No VMs match query: %s", m.searchQuery)
+		} else {
+			m.message = fmt.Sprintf("Found %d VMs matching: %s", len(m.filteredVMs), m.searchQuery)
+		}
+		return m, nil
+
+	case "backspace", "ctrl+h":
+		// Remove last character
+		if len(m.searchQuery) > 0 {
+			m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+		}
+		return m, nil
+
+	default:
+		// Add character to search query (only printable characters)
+		if len(msg.String()) == 1 && msg.String()[0] >= 32 && msg.String()[0] <= 126 {
+			m.searchQuery += msg.String()
+		}
+		return m, nil
+	}
+}
+
+func (m model) handleDetailKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "b", "backspace":
+		// Exit detail view
+		m.phase = "select"
+		m.showDetail = false
+		m.message = ""
+		return m, nil
+
+	case "enter", "space":
+		// Select/deselect current VM and return to list
+		vms := m.getVisibleVMs()
+		if m.cursor < len(vms) {
+			vms[m.cursor].selected = !vms[m.cursor].selected
+		}
+		m.phase = "select"
+		m.showDetail = false
+		return m, nil
 	}
 
 	return m, nil
@@ -526,6 +689,10 @@ func (m model) View() string {
 		return m.renderError()
 	case "select":
 		return m.renderSelection()
+	case "search":
+		return m.renderSearch()
+	case "detail":
+		return m.renderDetail()
 	case "confirm":
 		return m.renderConfirm()
 	case "run-mode":
@@ -559,7 +726,10 @@ func (m model) renderSelection() string {
 		return b.String()
 	}
 
-	// Selected count
+	// Get visible VMs (filtered/sorted)
+	vms := m.getVisibleVMs()
+
+	// Selected count (across all VMs, not just visible)
 	selectedCount := 0
 	for _, item := range m.vms {
 		if item.selected {
@@ -567,21 +737,29 @@ func (m model) renderSelection() string {
 		}
 	}
 
-	b.WriteString(infoStyle.Render(fmt.Sprintf("📊 Total VMs: %d | ✅ Selected: %d", len(m.vms), selectedCount)))
+	// Status bar with filter info
+	statusText := fmt.Sprintf("📊 Total VMs: %d | Visible: %d | ✅ Selected: %d", len(m.vms), len(vms), selectedCount)
+	if m.searchQuery != "" {
+		statusText += fmt.Sprintf(" | 🔍 Search: %s", m.searchQuery)
+	}
+	if m.filterPower != "" {
+		statusText += fmt.Sprintf(" | ⚡ Power: %s", m.filterPower)
+	}
+	b.WriteString(infoStyle.Render(statusText))
 	b.WriteString("\n\n")
 
-	// VM list (show window of items)
+	// VM list (show window of items from visible VMs)
 	start := m.cursor - 10
 	if start < 0 {
 		start = 0
 	}
 	end := start + 20
-	if end > len(m.vms) {
-		end = len(m.vms)
+	if end > len(vms) {
+		end = len(vms)
 	}
 
 	for i := start; i < end; i++ {
-		item := m.vms[i]
+		item := vms[i]
 
 		// Cursor indicator
 		cursor := "  "
@@ -624,18 +802,149 @@ func (m model) renderSelection() string {
 	b.WriteString("\n")
 	b.WriteString(titleStyle.Render("🎯 Controls:"))
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("↑/k: Move up | ↓/j: Move down | Space: Select/deselect VM"))
+	b.WriteString(helpStyle.Render("Navigation: ↑/k: Up | ↓/j: Down | Space: Select/deselect | Enter: Continue →"))
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("a: Select all VMs | n: Deselect all VMs"))
+	b.WriteString(helpStyle.Render("Selection:  a: Select all | n: Deselect all"))
 	b.WriteString("\n")
-	b.WriteString(successStyle.Render("Enter: Continue to confirmation →"))
-	b.WriteString(" ")
+	b.WriteString(helpStyle.Render("Search:     /: Search VMs | s: Cycle sort ("+m.sortMode+") | f: Filter power | c: Clear filters"))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("View:       d/i: Detail view | r: Toggle dry-run"))
+	if m.dryRun {
+		b.WriteString(" ")
+		b.WriteString(infoStyle.Render("[DRY-RUN]"))
+	}
+	b.WriteString(" | ")
 	b.WriteString(errorStyle.Render("q: Quit"))
 
 	if m.message != "" {
 		b.WriteString("\n\n")
 		b.WriteString(infoStyle.Render(m.message))
 	}
+
+	return b.String()
+}
+
+func (m model) renderSearch() string {
+	var b strings.Builder
+
+	// Title
+	b.WriteString(titleStyle.Render("🔍 Search VMs"))
+	b.WriteString("\n\n")
+
+	// Search input
+	b.WriteString(infoStyle.Render("Type to search by name, path, or OS:"))
+	b.WriteString("\n\n")
+
+	// Search box
+	searchBox := fmt.Sprintf("Search: %s█", m.searchQuery)
+	b.WriteString(selectedStyle.Render(searchBox))
+	b.WriteString("\n\n")
+
+	// Preview results
+	if m.searchQuery != "" {
+		// Apply filter temporarily to show preview
+		tempModel := m
+		tempModel.applyFiltersAndSort()
+
+		b.WriteString(titleStyle.Render(fmt.Sprintf("Preview: %d matches", len(tempModel.filteredVMs))))
+		b.WriteString("\n\n")
+
+		// Show first few matches
+		maxPreview := 10
+		if len(tempModel.filteredVMs) < maxPreview {
+			maxPreview = len(tempModel.filteredVMs)
+		}
+
+		for i := 0; i < maxPreview; i++ {
+			item := tempModel.filteredVMs[i]
+			vmInfo := fmt.Sprintf("  • %-40s | %s | %d CPU | %.1f GB",
+				truncate(item.vm.Name, 40),
+				colorPowerState(item.vm.PowerState),
+				item.vm.NumCPU,
+				float64(item.vm.MemoryMB)/1024)
+
+			b.WriteString(unselectedStyle.Render(vmInfo))
+			b.WriteString("\n")
+		}
+
+		if len(tempModel.filteredVMs) > maxPreview {
+			b.WriteString("\n")
+			b.WriteString(helpStyle.Render(fmt.Sprintf("  ... and %d more", len(tempModel.filteredVMs)-maxPreview)))
+			b.WriteString("\n")
+		}
+	} else {
+		b.WriteString(helpStyle.Render("Start typing to search..."))
+		b.WriteString("\n")
+	}
+
+	// Help
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Enter: Apply search | Esc: Cancel | Backspace: Delete character | q: Quit"))
+
+	return b.String()
+}
+
+func (m model) renderDetail() string {
+	var b strings.Builder
+
+	vms := m.getVisibleVMs()
+	if m.cursor >= len(vms) {
+		m.phase = "select"
+		return m.renderSelection()
+	}
+
+	item := vms[m.cursor]
+
+	// Title
+	b.WriteString(titleStyle.Render("📊 VM Details"))
+	b.WriteString("\n\n")
+
+	// VM Name (large)
+	b.WriteString(selectedStyle.Bold(true).Render(item.vm.Name))
+	b.WriteString("\n\n")
+
+	// Basic Info
+	b.WriteString(titleStyle.Render("Basic Information"))
+	b.WriteString("\n")
+	details := fmt.Sprintf(
+		"Path:        %s\n"+
+			"Power State: %s\n"+
+			"Guest OS:    %s\n",
+		item.vm.Path,
+		item.vm.PowerState,
+		item.vm.GuestOS,
+	)
+	b.WriteString(infoStyle.Render(details))
+	b.WriteString("\n\n")
+
+	// Hardware
+	b.WriteString(titleStyle.Render("Hardware"))
+	b.WriteString("\n")
+	hardware := fmt.Sprintf(
+		"CPUs:        %d\n"+
+			"Memory:      %.1f GB (%d MB)\n"+
+			"Storage:     %s (%d bytes)\n",
+		item.vm.NumCPU,
+		float64(item.vm.MemoryMB)/1024,
+		item.vm.MemoryMB,
+		formatBytes(item.vm.Storage),
+		item.vm.Storage,
+	)
+	b.WriteString(infoStyle.Render(hardware))
+	b.WriteString("\n\n")
+
+	// Selection Status
+	b.WriteString(titleStyle.Render("Selection"))
+	b.WriteString("\n")
+	if item.selected {
+		b.WriteString(successStyle.Render("✓ Selected for migration"))
+	} else {
+		b.WriteString(unselectedStyle.Render("Not selected"))
+	}
+	b.WriteString("\n\n")
+
+	// Help
+	b.WriteString(helpStyle.Render("Space/Enter: Toggle selection | Esc/b: Back to list | q: Quit"))
 
 	return b.String()
 }
@@ -718,10 +1027,15 @@ func (m model) renderConfirm() string {
 	}
 
 	// Confirmation prompt
-	b.WriteString(successStyle.Bold(true).Render("⚡ Start Migration for Selected VMs?"))
-	b.WriteString("\n\n")
-
-	b.WriteString(infoStyle.Render("This will export, convert, and optionally import the selected VMs."))
+	if m.dryRun {
+		b.WriteString(infoStyle.Bold(true).Render("🔍 DRY-RUN MODE: Preview Only (No Actual Migration)"))
+		b.WriteString("\n\n")
+		b.WriteString(helpStyle.Render("In dry-run mode, you'll see what would be migrated without performing actual migration."))
+	} else {
+		b.WriteString(successStyle.Bold(true).Render("⚡ Start Migration for Selected VMs?"))
+		b.WriteString("\n\n")
+		b.WriteString(infoStyle.Render("This will export, convert, and optionally import the selected VMs."))
+	}
 	b.WriteString("\n\n")
 
 	b.WriteString(helpStyle.Render("y/Y: Yes, proceed | n/N: No, go back | Esc/b: Back to VM selection | q: Quit"))
@@ -735,6 +1049,14 @@ func (m model) renderRunMode() string {
 	// Title
 	b.WriteString(titleStyle.Render("🔧 Choose Execution Mode"))
 	b.WriteString("\n\n")
+
+	// Dry-run indicator
+	if m.dryRun {
+		b.WriteString(infoStyle.Bold(true).Render("🔍 DRY-RUN MODE ACTIVE"))
+		b.WriteString("\n")
+		b.WriteString(helpStyle.Render("(Preview only - no actual migration will be performed)"))
+		b.WriteString("\n\n")
+	}
 
 	// Explanation
 	b.WriteString(infoStyle.Render("How would you like to run the migration?"))
@@ -979,6 +1301,145 @@ func boolToYesNo(b bool) string {
 		return successStyle.Render("Yes ✓")
 	}
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("No")
+}
+
+// getVisibleVMs returns the current filtered/sorted view of VMs
+func (m model) getVisibleVMs() []vmItem {
+	if len(m.filteredVMs) > 0 {
+		return m.filteredVMs
+	}
+	return m.vms
+}
+
+// cycleSortMode cycles through sort modes
+func (m *model) cycleSortMode() {
+	switch m.sortMode {
+	case "name":
+		m.sortMode = "cpu"
+	case "cpu":
+		m.sortMode = "memory"
+	case "memory":
+		m.sortMode = "storage"
+	case "storage":
+		m.sortMode = "power"
+	case "power":
+		m.sortMode = "name"
+	default:
+		m.sortMode = "name"
+	}
+}
+
+// togglePowerFilter cycles through power filter options
+func (m *model) togglePowerFilter() {
+	switch m.filterPower {
+	case "":
+		m.filterPower = "on"
+		m.message = "Filter: Show powered ON VMs only"
+	case "on":
+		m.filterPower = "off"
+		m.message = "Filter: Show powered OFF VMs only"
+	case "off":
+		m.filterPower = ""
+		m.message = "Filter: Show all VMs"
+	default:
+		m.filterPower = ""
+	}
+}
+
+// applyFiltersAndSort applies current filters and sorting to the VM list
+func (m *model) applyFiltersAndSort() {
+	// Start with all VMs
+	filtered := make([]vmItem, 0, len(m.vms))
+
+	for _, item := range m.vms {
+		// Apply search filter
+		if m.searchQuery != "" {
+			query := strings.ToLower(m.searchQuery)
+			nameMatch := strings.Contains(strings.ToLower(item.vm.Name), query)
+			pathMatch := strings.Contains(strings.ToLower(item.vm.Path), query)
+			osMatch := strings.Contains(strings.ToLower(item.vm.GuestOS), query)
+
+			if !nameMatch && !pathMatch && !osMatch {
+				continue
+			}
+		}
+
+		// Apply power filter
+		if m.filterPower == "on" && item.vm.PowerState != "poweredOn" {
+			continue
+		}
+		if m.filterPower == "off" && item.vm.PowerState == "poweredOn" {
+			continue
+		}
+
+		// Apply OS filter
+		if m.filterOS != "" {
+			if !strings.Contains(strings.ToLower(item.vm.GuestOS), strings.ToLower(m.filterOS)) {
+				continue
+			}
+		}
+
+		filtered = append(filtered, item)
+	}
+
+	// Apply sorting
+	switch m.sortMode {
+	case "cpu":
+		// Sort by CPU count (descending)
+		for i := 0; i < len(filtered); i++ {
+			for j := i + 1; j < len(filtered); j++ {
+				if filtered[i].vm.NumCPU < filtered[j].vm.NumCPU {
+					filtered[i], filtered[j] = filtered[j], filtered[i]
+				}
+			}
+		}
+	case "memory":
+		// Sort by memory (descending)
+		for i := 0; i < len(filtered); i++ {
+			for j := i + 1; j < len(filtered); j++ {
+				if filtered[i].vm.MemoryMB < filtered[j].vm.MemoryMB {
+					filtered[i], filtered[j] = filtered[j], filtered[i]
+				}
+			}
+		}
+	case "storage":
+		// Sort by storage (descending)
+		for i := 0; i < len(filtered); i++ {
+			for j := i + 1; j < len(filtered); j++ {
+				if filtered[i].vm.Storage < filtered[j].vm.Storage {
+					filtered[i], filtered[j] = filtered[j], filtered[i]
+				}
+			}
+		}
+	case "power":
+		// Sort by power state (ON first)
+		for i := 0; i < len(filtered); i++ {
+			for j := i + 1; j < len(filtered); j++ {
+				if filtered[i].vm.PowerState != "poweredOn" && filtered[j].vm.PowerState == "poweredOn" {
+					filtered[i], filtered[j] = filtered[j], filtered[i]
+				}
+			}
+		}
+	case "name":
+		// Sort by name (ascending)
+		for i := 0; i < len(filtered); i++ {
+			for j := i + 1; j < len(filtered); j++ {
+				if strings.ToLower(filtered[i].vm.Name) > strings.ToLower(filtered[j].vm.Name) {
+					filtered[i], filtered[j] = filtered[j], filtered[i]
+				}
+			}
+		}
+	}
+
+	m.filteredVMs = filtered
+
+	// Adjust cursor if needed
+	if m.cursor >= len(filtered) && len(filtered) > 0 {
+		m.cursor = len(filtered) - 1
+	}
+	if m.cursor < 0 && len(filtered) > 0 {
+		m.cursor = 0
+	}
 }
 
 func (m model) createSystemdService() tea.Cmd {
