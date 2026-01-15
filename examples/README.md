@@ -256,10 +256,12 @@ virsh dominfo my-vm
 
 ## 🔗 Related Documentation
 
-- [hyperctl Features](../docs/H2KVMCTL-FEATURES.md)
-- [VM Export Guide](../docs/VM-EXPORT-GUIDE.md)
-- [API Reference](../docs/API.md)
+- [Interactive Mode Guide](../docs/user-guides/01-interactive-mode.md)
+- [Hyperctl Features](../docs/features/02-hyperctl-features.md)
+- [VM Export Guide](../docs/user-guides/02-vm-export-guide.md)
+- [Daemon API Reference](../docs/api/01-daemon-api.md)
 - [Getting Started](../GETTING-STARTED.md)
+- [Documentation Index](../docs/00-INDEX.md)
 
 ## 📝 Creating Your Own Job Files
 

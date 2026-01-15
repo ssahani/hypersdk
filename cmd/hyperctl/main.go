@@ -112,6 +112,21 @@ func main() {
 	grepField := grepCmd.String("f", "name", "Field to search (name, path, os, power, all)")
 	grepJSON := grepCmd.Bool("json", false, "Output in JSON format")
 
+	// ripgrep-style command (rg)
+	rgCmd := flag.NewFlagSet("rg", flag.ExitOnError)
+	rgSmartCase := rgCmd.Bool("S", false, "Smart case (case-insensitive if pattern is lowercase)")
+	rgIgnoreCase := rgCmd.Bool("i", false, "Case-insensitive matching")
+	rgInvert := rgCmd.Bool("v", false, "Invert match (show non-matching)")
+	rgCount := rgCmd.Bool("c", false, "Count matching VMs")
+	rgCountMatches := rgCmd.Bool("count-matches", false, "Count individual matches (not just VMs)")
+	rgNamesOnly := rgCmd.Bool("l", false, "List VM names only")
+	rgFilesWithoutMatch := rgCmd.Bool("files-without-match", false, "List VMs that don't match")
+	rgColor := rgCmd.String("color", "auto", "Colorize output (auto, always, never)")
+	rgStats := rgCmd.Bool("stats", false, "Show search statistics")
+	rgMultiline := rgCmd.Bool("U", false, "Enable multiline matching")
+	rgMaxCount := rgCmd.Int("m", 0, "Stop after N matches (0 = unlimited)")
+	rgJSON := rgCmd.Bool("json", false, "Output in JSON format")
+
 	vmCmd := flag.NewFlagSet("vm", flag.ExitOnError)
 	vmOperation := vmCmd.String("op", "", "Operation: shutdown, poweroff, remove-cdrom, info")
 	vmPath := vmCmd.String("path", "", "VM path (e.g. /data/vm/my-vm)")
@@ -162,6 +177,16 @@ func main() {
 		}
 		pattern := grepCmd.Args()[0]
 		handleGrep(*daemonURL, pattern, *grepRegex, *grepIgnoreCase, *grepInvert, *grepCount, *grepNamesOnly, *grepField, *grepJSON)
+
+	case "rg":
+		rgCmd.Parse(os.Args[2:])
+		if len(rgCmd.Args()) < 1 {
+			pterm.Error.Println("Pattern required. Usage: hyperctl rg [OPTIONS] PATTERN [PATTERN2 ...]")
+			os.Exit(1)
+		}
+		patterns := rgCmd.Args()
+		handleRipgrep(*daemonURL, patterns, *rgSmartCase, *rgIgnoreCase, *rgInvert, *rgCount, *rgCountMatches,
+			*rgNamesOnly, *rgFilesWithoutMatch, *rgColor, *rgStats, *rgMultiline, *rgMaxCount, *rgJSON)
 
 	case "vm":
 		vmCmd.Parse(os.Args[2:])
@@ -223,6 +248,33 @@ func showUsage() {
 
 	// Grep field options
 	pterm.Info.Println("Grep fields: name, path, os, power, all")
+
+	pterm.Println()
+
+	// Ripgrep-style search
+	pterm.DefaultSection.Println("🔎 Advanced Search (ripgrep)")
+	rgCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"rg PATTERN", "Smart search (auto case-insensitive)", "hyperctl rg ubuntu"},
+		{"rg -S PATTERN", "Smart case matching", "hyperctl rg -S Ubuntu"},
+		{"rg -i PATTERN", "Case-insensitive", "hyperctl rg -i WINDOWS"},
+		{"rg PAT1 PAT2", "Multiple patterns (OR)", "hyperctl rg web db"},
+		{"rg -v PATTERN", "Invert match", "hyperctl rg -v test"},
+		{"rg -c PATTERN", "Count matching VMs", "hyperctl rg -c prod"},
+		{"rg --count-matches", "Count all matches", "hyperctl rg --count-matches server"},
+		{"rg -l PATTERN", "List names only", "hyperctl rg -l ubuntu"},
+		{"rg --stats PATTERN", "Show search statistics", "hyperctl rg --stats web"},
+		{"rg -m N PATTERN", "Limit to N matches", "hyperctl rg -m 10 prod"},
+		{"rg --color always", "Force colored output", "hyperctl rg --color always web"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(rgCommands).
+		Render()
+
+	pterm.Println()
 
 	// VM Operations Commands
 	pterm.DefaultSection.Println("🔧 VM Operations")
@@ -644,6 +696,373 @@ func handleGrep(daemonURL, pattern string, useRegex, ignoreCase, invert, count, 
 		}
 		displayVMs(matches)
 	}
+}
+
+func handleRipgrep(daemonURL string, patterns []string, smartCase, ignoreCase, invert, count, countMatches,
+	namesOnly, filesWithoutMatch bool, color string, stats, multiline bool, maxCount int, jsonOutput bool) {
+
+	startTime := time.Now()
+
+	// Only show spinner if not in JSON/count/names-only mode
+	var spinner *pterm.SpinnerPrinter
+	if !jsonOutput && !count && !namesOnly && !filesWithoutMatch && !stats {
+		spinner, _ = pterm.DefaultSpinner.Start("🔍 Searching VMs with ripgrep...")
+	}
+
+	// Fetch all VMs
+	resp, err := apiRequestWithTimeout(daemonURL+"/vms/list", "GET", "", nil, 120*time.Second)
+	if err != nil {
+		if spinner != nil {
+			spinner.Fail(fmt.Sprintf("Failed to fetch VMs: %v", err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		if spinner != nil {
+			spinner.Fail(fmt.Sprintf("Server error: %s", string(body)))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %s\n", string(body))
+		}
+		os.Exit(1)
+	}
+
+	var vmResp struct {
+		VMs       []vsphere.VMInfo `json:"vms"`
+		Total     int              `json:"total"`
+		Timestamp time.Time        `json:"timestamp"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&vmResp); err != nil {
+		if spinner != nil {
+			spinner.Fail(fmt.Sprintf("Failed to parse response: %v", err))
+		} else {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		}
+		os.Exit(1)
+	}
+
+	// Compile all patterns
+	type matcherInfo struct {
+		pattern string
+		matcher func(string) bool
+	}
+	var matchers []matcherInfo
+
+	for _, pattern := range patterns {
+		// Smart case: if pattern is all lowercase, ignore case
+		shouldIgnoreCase := ignoreCase
+		if smartCase && !ignoreCase {
+			isAllLower := true
+			for _, r := range pattern {
+				if r >= 'A' && r <= 'Z' {
+					isAllLower = false
+					break
+				}
+			}
+			if isAllLower {
+				shouldIgnoreCase = true
+			}
+		}
+
+		// Compile regex pattern
+		flags := ""
+		if shouldIgnoreCase {
+			flags = "(?i)"
+		}
+		if multiline {
+			flags += "(?s)" // . matches newlines
+		}
+
+		re, err := regexp.Compile(flags + pattern)
+		if err != nil {
+			pterm.Error.Printfln("Invalid regex pattern %q: %v", pattern, err)
+			os.Exit(1)
+		}
+
+		matchers = append(matchers, matcherInfo{
+			pattern: pattern,
+			matcher: re.MatchString,
+		})
+	}
+
+	// Statistics tracking
+	var statsData struct {
+		VMsSearched    int
+		VMsMatched     int
+		TotalMatches   int
+		Patterns       []string
+		ElapsedTime    time.Duration
+		BytesSearched  int64
+		MatchesByField map[string]int
+	}
+	statsData.Patterns = patterns
+	statsData.MatchesByField = make(map[string]int)
+
+	// Search all VMs
+	type matchResult struct {
+		vm            vsphere.VMInfo
+		matchCount    int
+		matchedFields []string
+	}
+	var matches []matchResult
+	matchedCount := 0
+
+	for _, vm := range vmResp.VMs {
+		statsData.VMsSearched++
+
+		// Build searchable text from all VM fields
+		searchText := fmt.Sprintf("%s\n%s\n%s\n%s",
+			vm.Name, vm.Path, vm.GuestOS, vm.PowerState)
+		statsData.BytesSearched += int64(len(searchText))
+
+		// Check if any pattern matches
+		vmMatched := false
+		totalMatchesInVM := 0
+		matchedFields := make(map[string]bool)
+
+		for _, m := range matchers {
+			// Check each field separately to track which fields matched
+			fields := map[string]string{
+				"name":  vm.Name,
+				"path":  vm.Path,
+				"os":    vm.GuestOS,
+				"power": vm.PowerState,
+			}
+
+			for fieldName, fieldValue := range fields {
+				if m.matcher(fieldValue) {
+					vmMatched = true
+					matchedFields[fieldName] = true
+					if countMatches {
+						// Count all occurrences
+						allMatches := regexp.MustCompile(m.pattern).FindAllString(fieldValue, -1)
+						totalMatchesInVM += len(allMatches)
+					}
+				}
+			}
+		}
+
+		// Apply invert flag
+		if invert {
+			vmMatched = !vmMatched
+		}
+
+		if vmMatched {
+			var fieldList []string
+			for field := range matchedFields {
+				fieldList = append(fieldList, field)
+				statsData.MatchesByField[field]++
+			}
+
+			matches = append(matches, matchResult{
+				vm:            vm,
+				matchCount:    totalMatchesInVM,
+				matchedFields: fieldList,
+			})
+			statsData.VMsMatched++
+			statsData.TotalMatches += totalMatchesInVM
+
+			matchedCount++
+			if maxCount > 0 && matchedCount >= maxCount {
+				break
+			}
+		}
+	}
+
+	statsData.ElapsedTime = time.Since(startTime)
+
+	if spinner != nil {
+		spinner.Success(fmt.Sprintf("✅ Found %d matching VMs", len(matches)))
+	}
+
+	// Output based on flags
+	if stats {
+		// Show statistics
+		pterm.Println()
+		pterm.DefaultSection.Println("📊 Search Statistics")
+		pterm.Println()
+
+		statLines := [][]string{
+			{"Metric", "Value"},
+			{"Patterns", strings.Join(statsData.Patterns, ", ")},
+			{"VMs Searched", fmt.Sprintf("%d", statsData.VMsSearched)},
+			{"VMs Matched", fmt.Sprintf("%d", statsData.VMsMatched)},
+			{"Total Matches", fmt.Sprintf("%d", statsData.TotalMatches)},
+			{"Bytes Searched", formatBytes(statsData.BytesSearched)},
+			{"Elapsed Time", statsData.ElapsedTime.String()},
+			{"Search Speed", fmt.Sprintf("%.2f MB/s", float64(statsData.BytesSearched)/statsData.ElapsedTime.Seconds()/1024/1024)},
+		}
+
+		pterm.DefaultTable.
+			WithHasHeader().
+			WithHeaderRowSeparator("-").
+			WithBoxed().
+			WithData(statLines).
+			Render()
+
+		pterm.Println()
+		pterm.DefaultSection.Println("📋 Matches by Field")
+		pterm.Println()
+
+		fieldLines := [][]string{{"Field", "Matches"}}
+		for field, count := range statsData.MatchesByField {
+			fieldLines = append(fieldLines, []string{field, fmt.Sprintf("%d", count)})
+		}
+
+		pterm.DefaultTable.
+			WithHasHeader().
+			WithHeaderRowSeparator("-").
+			WithBoxed().
+			WithData(fieldLines).
+			Render()
+		return
+	}
+
+	if count {
+		// Just print VM count
+		fmt.Println(len(matches))
+		return
+	}
+
+	if countMatches {
+		// Print total matches count
+		fmt.Println(statsData.TotalMatches)
+		return
+	}
+
+	if namesOnly {
+		// Print VM names only (one per line)
+		for _, m := range matches {
+			fmt.Println(m.vm.Name)
+		}
+		return
+	}
+
+	if filesWithoutMatch {
+		// Print VMs that don't match
+		for _, vm := range vmResp.VMs {
+			found := false
+			for _, m := range matches {
+				if m.vm.Name == vm.Name {
+					found = true
+					break
+				}
+			}
+			if !found {
+				fmt.Println(vm.Name)
+			}
+		}
+		return
+	}
+
+	if jsonOutput {
+		// JSON output
+		output, _ := json.MarshalIndent(map[string]interface{}{
+			"vms":       extractVMs(matches),
+			"total":     len(matches),
+			"patterns":  patterns,
+			"stats":     statsData,
+			"timestamp": time.Now(),
+		}, "", "  ")
+		fmt.Println(string(output))
+		return
+	}
+
+	// Default: Display in table format
+	if len(matches) == 0 {
+		pterm.Info.Println("No matching VMs found")
+		return
+	}
+
+	// Determine if we should colorize
+	useColor := (color == "always") || (color == "auto" && isatty())
+
+	if useColor {
+		// Show colorized output with match highlights
+		displayVMsWithHighlight(extractVMs(matches), patterns[0])
+	} else {
+		displayVMs(extractVMs(matches))
+	}
+}
+
+// Helper to extract VMs from match results
+func extractVMs(matches []matchResult) []vsphere.VMInfo {
+	vms := make([]vsphere.VMInfo, len(matches))
+	for i, m := range matches {
+		vms[i] = m.vm
+	}
+	return vms
+}
+
+// Helper to check if stdout is a terminal
+func isatty() bool {
+	fileInfo, err := os.Stdout.Stat()
+	if err != nil {
+		return false
+	}
+	return (fileInfo.Mode() & os.ModeCharDevice) != 0
+}
+
+// Display VMs with pattern highlighting
+func displayVMsWithHighlight(vms []vsphere.VMInfo, pattern string) {
+	// Calculate statistics
+	var poweredOn, poweredOff int
+	for _, vm := range vms {
+		if vm.PowerState == "poweredOn" {
+			poweredOn++
+		} else {
+			poweredOff++
+		}
+	}
+
+	// Summary
+	pterm.Println()
+	summary := fmt.Sprintf("Found %d VMs | 🟢 %d ON | 🔴 %d OFF",
+		len(vms), poweredOn, poweredOff)
+	pterm.Info.Println(summary)
+	pterm.Println()
+
+	// Table header
+	data := [][]string{
+		{"Name", "Path", "Power", "OS", "CPUs", "Memory (GB)", "Storage"},
+	}
+
+	// Compile pattern for highlighting
+	highlightRe := regexp.MustCompile("(?i)" + regexp.QuoteMeta(pattern))
+
+	for _, vm := range vms {
+		powerIcon := "🔴"
+		if vm.PowerState == "poweredOn" {
+			powerIcon = "🟢"
+		}
+
+		// Highlight matches in name
+		name := vm.Name
+		if highlightRe.MatchString(name) {
+			name = pterm.FgLightGreen.Sprint(name)
+		}
+
+		data = append(data, []string{
+			name,
+			truncate(vm.Path, 40),
+			powerIcon,
+			truncate(vm.GuestOS, 20),
+			fmt.Sprintf("%d", vm.NumCPU),
+			fmt.Sprintf("%.1f", float64(vm.MemoryMB)/1024),
+			formatBytes(vm.Storage),
+		})
+	}
+
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(data).
+		Render()
 }
 
 func displayVMs(vms []vsphere.VMInfo) {
