@@ -29,39 +29,35 @@ const (
 
 var (
 	funFacts = []string{
-		"💡 Did you know? hyperctl uses VDDK for lightning-fast disk transfers!",
-		"🚀 Pro tip: Use -json flag for automation and scripting",
-		"⚡ Speed boost: Increase parallel_downloads for faster exports",
-		"🎯 Fun fact: KVM can run VMs faster than VMware in many cases",
-		"💾 Remember: Always remove CD/DVD before migration for smooth imports",
-		"🔥 Parallel downloads can make exports 10x faster!",
-		"🌟 hyperctl is built with love using Go and pterm",
-		"🎨 Enjoying the colors? We use pterm for beautiful terminal output!",
-		"📊 Monitor jobs in real-time with: hyperctl query -status running",
-		"🐧 Linux rocks! Especially with KVM virtualization",
+		"Tip: Use -json flag for automation and scripting",
+		"Tip: Increase parallel_downloads for faster exports",
+		"Tip: Monitor jobs with: hyperctl query -status running",
+		"Tip: Remove CD/DVD devices before migration",
+		"Tip: Use batch files for exporting multiple VMs",
 	}
 
 	motivationalMessages = []string{
-		"🎉 Great job! Your migration skills are impressive!",
-		"✨ Awesome! You're becoming a migration expert!",
-		"🚀 Fantastic! One step closer to cloud-native infrastructure!",
-		"💪 Nice work! Keep those VMs moving!",
-		"🌟 Excellent! Your infrastructure is evolving!",
-		"🎯 Perfect! Migration mastery unlocked!",
-		"⚡ Amazing! Speed and efficiency combined!",
-		"🔥 On fire! Your migration game is strong!",
+		"Operation completed successfully",
+		"Task finished",
+		"Export job submitted",
+		"Configuration updated",
+		"Command executed",
 	}
 )
 
 func showBanner() {
+	// Orange/amber color scheme (Claude-inspired)
+	orange := pterm.NewStyle(pterm.FgLightRed)
+	amber := pterm.NewStyle(pterm.FgYellow)
+
 	banner := pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("h2kvm", pterm.NewStyle(pterm.FgCyan)),
-		pterm.NewLettersFromStringWithStyle("ctl", pterm.NewStyle(pterm.FgLightMagenta)),
+		pterm.NewLettersFromStringWithStyle("HYPER", orange),
+		pterm.NewLettersFromStringWithStyle("CTL", amber),
 	)
 	banner.Render()
 
 	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
-		pterm.LightCyan("Multi-Cloud to KVM Migration Tool\n") +
+		pterm.LightYellow("Multi-Cloud VM Migration Control CLI\n") +
 		pterm.Gray("Version " + version),
 	)
 }
