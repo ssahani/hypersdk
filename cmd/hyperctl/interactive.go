@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -236,12 +237,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.currentExport++
 
 		// Check if all exports done
-		selectedCount := 0
-		for _, item := range m.vms {
-			if item.selected {
-				selectedCount++
-			}
-		}
+		selectedCount := m.countSelected()
 
 		if m.currentExport >= selectedCount {
 			if m.autoConvert {
@@ -279,9 +275,10 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		// Toggle selection for current visible VM
 		if m.cursor < len(vms) {
 			selectedVM := vms[m.cursor]
-			// Find in original array and toggle
+			// Find in original array and toggle using map for O(1) lookup
+			targetPath := selectedVM.vm.Path
 			for i := range m.vms {
-				if m.vms[i].vm.Path == selectedVM.vm.Path {
+				if m.vms[i].vm.Path == targetPath {
 					m.vms[i].selected = !m.vms[i].selected
 					break
 				}
@@ -289,28 +286,28 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "a":
-		// Select all (in current filtered view)
+		// Select all (in current filtered view) - optimized with map
 		visibleVMs := m.getVisibleVMs()
-		// Mark items in original array
+		visiblePaths := make(map[string]bool, len(visibleVMs))
+		for _, vm := range visibleVMs {
+			visiblePaths[vm.vm.Path] = true
+		}
 		for i := range m.vms {
-			for _, visible := range visibleVMs {
-				if m.vms[i].vm.Path == visible.vm.Path {
-					m.vms[i].selected = true
-					break
-				}
+			if visiblePaths[m.vms[i].vm.Path] {
+				m.vms[i].selected = true
 			}
 		}
 
 	case "n":
-		// Deselect all (in current filtered view)
+		// Deselect all (in current filtered view) - optimized with map
 		visibleVMs := m.getVisibleVMs()
-		// Unmark items in original array
+		visiblePaths := make(map[string]bool, len(visibleVMs))
+		for _, vm := range visibleVMs {
+			visiblePaths[vm.vm.Path] = true
+		}
 		for i := range m.vms {
-			for _, visible := range visibleVMs {
-				if m.vms[i].vm.Path == visible.vm.Path {
-					m.vms[i].selected = false
-					break
-				}
+			if visiblePaths[m.vms[i].vm.Path] {
+				m.vms[i].selected = false
 			}
 		}
 
@@ -363,12 +360,7 @@ func (m model) handleSelectionKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		// Go to confirmation
-		selectedCount := 0
-		for _, item := range m.vms {
-			if item.selected {
-				selectedCount++
-			}
-		}
+		selectedCount := m.countSelected()
 
 		if selectedCount == 0 {
 			m.message = "No VMs selected!"
@@ -730,12 +722,7 @@ func (m model) renderSelection() string {
 	vms := m.getVisibleVMs()
 
 	// Selected count (across all VMs, not just visible)
-	selectedCount := 0
-	for _, item := range m.vms {
-		if item.selected {
-			selectedCount++
-		}
-	}
+	selectedCount := m.countSelected()
 
 	// Status bar with filter info
 	statusText := fmt.Sprintf("📊 Total VMs: %d | Visible: %d | ✅ Selected: %d", len(m.vms), len(vms), selectedCount)
@@ -1086,12 +1073,7 @@ func (m model) renderRunMode() string {
 	b.WriteString("\n\n")
 
 	// Selected count reminder
-	selectedCount := 0
-	for _, item := range m.vms {
-		if item.selected {
-			selectedCount++
-		}
-	}
+	selectedCount := m.countSelected()
 	b.WriteString(helpStyle.Render(fmt.Sprintf("Migrating %d VMs", selectedCount)))
 	b.WriteString("\n\n")
 
@@ -1109,12 +1091,7 @@ func (m model) renderRunMode() string {
 func (m model) renderExport() string {
 	var b strings.Builder
 
-	selectedCount := 0
-	for _, item := range m.vms {
-		if item.selected {
-			selectedCount++
-		}
-	}
+	selectedCount := m.countSelected()
 
 	b.WriteString(titleStyle.Render("📦 Exporting VMs"))
 	b.WriteString("\n\n")
@@ -1311,6 +1288,17 @@ func (m model) getVisibleVMs() []vmItem {
 	return m.vms
 }
 
+// countSelected returns the number of selected VMs across all VMs (not just visible)
+func (m model) countSelected() int {
+	count := 0
+	for _, item := range m.vms {
+		if item.selected {
+			count++
+		}
+	}
+	return count
+}
+
 // cycleSortMode cycles through sort modes
 func (m *model) cycleSortMode() {
 	switch m.sortMode {
@@ -1382,62 +1370,53 @@ func (m *model) applyFiltersAndSort() {
 		filtered = append(filtered, item)
 	}
 
-	// Apply sorting
+	// Apply sorting - using sort.Slice for O(n log n) performance
 	switch m.sortMode {
 	case "cpu":
 		// Sort by CPU count (descending)
-		for i := 0; i < len(filtered); i++ {
-			for j := i + 1; j < len(filtered); j++ {
-				if filtered[i].vm.NumCPU < filtered[j].vm.NumCPU {
-					filtered[i], filtered[j] = filtered[j], filtered[i]
-				}
-			}
-		}
+		sort.Slice(filtered, func(i, j int) bool {
+			return filtered[i].vm.NumCPU > filtered[j].vm.NumCPU
+		})
 	case "memory":
 		// Sort by memory (descending)
-		for i := 0; i < len(filtered); i++ {
-			for j := i + 1; j < len(filtered); j++ {
-				if filtered[i].vm.MemoryMB < filtered[j].vm.MemoryMB {
-					filtered[i], filtered[j] = filtered[j], filtered[i]
-				}
-			}
-		}
+		sort.Slice(filtered, func(i, j int) bool {
+			return filtered[i].vm.MemoryMB > filtered[j].vm.MemoryMB
+		})
 	case "storage":
 		// Sort by storage (descending)
-		for i := 0; i < len(filtered); i++ {
-			for j := i + 1; j < len(filtered); j++ {
-				if filtered[i].vm.Storage < filtered[j].vm.Storage {
-					filtered[i], filtered[j] = filtered[j], filtered[i]
-				}
-			}
-		}
+		sort.Slice(filtered, func(i, j int) bool {
+			return filtered[i].vm.Storage > filtered[j].vm.Storage
+		})
 	case "power":
 		// Sort by power state (ON first)
-		for i := 0; i < len(filtered); i++ {
-			for j := i + 1; j < len(filtered); j++ {
-				if filtered[i].vm.PowerState != "poweredOn" && filtered[j].vm.PowerState == "poweredOn" {
-					filtered[i], filtered[j] = filtered[j], filtered[i]
-				}
+		sort.Slice(filtered, func(i, j int) bool {
+			// poweredOn < other states (so ON comes first)
+			if filtered[i].vm.PowerState == "poweredOn" && filtered[j].vm.PowerState != "poweredOn" {
+				return true
 			}
-		}
+			if filtered[i].vm.PowerState != "poweredOn" && filtered[j].vm.PowerState == "poweredOn" {
+				return false
+			}
+			// If both same power state, sort by name
+			return strings.ToLower(filtered[i].vm.Name) < strings.ToLower(filtered[j].vm.Name)
+		})
 	case "name":
 		// Sort by name (ascending)
-		for i := 0; i < len(filtered); i++ {
-			for j := i + 1; j < len(filtered); j++ {
-				if strings.ToLower(filtered[i].vm.Name) > strings.ToLower(filtered[j].vm.Name) {
-					filtered[i], filtered[j] = filtered[j], filtered[i]
-				}
-			}
-		}
+		sort.Slice(filtered, func(i, j int) bool {
+			return strings.ToLower(filtered[i].vm.Name) < strings.ToLower(filtered[j].vm.Name)
+		})
 	}
 
 	m.filteredVMs = filtered
 
-	// Adjust cursor if needed
-	if m.cursor >= len(filtered) && len(filtered) > 0 {
-		m.cursor = len(filtered) - 1
-	}
-	if m.cursor < 0 && len(filtered) > 0 {
+	// Adjust cursor bounds to stay within filtered list
+	if len(filtered) > 0 {
+		if m.cursor >= len(filtered) {
+			m.cursor = len(filtered) - 1
+		} else if m.cursor < 0 {
+			m.cursor = 0
+		}
+	} else {
 		m.cursor = 0
 	}
 }

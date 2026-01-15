@@ -42,3 +42,4 @@ rpmbuild/
 
 # Export directories
 exports/
+export-*/
