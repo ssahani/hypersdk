@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
 	"strings"
 	"time"
@@ -284,6 +285,13 @@ func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Validate server configuration
+		if es.config.Security.APIKey == "" {
+			es.logger.Error("authentication enabled but API key not configured")
+			http.Error(w, "server configuration error", http.StatusInternalServerError)
+			return
+		}
+
 		// Get API key from header or query parameter
 		apiKey := r.Header.Get("X-API-Key")
 		if apiKey == "" {
@@ -296,8 +304,8 @@ func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
 			apiKey = r.URL.Query().Get("api_key")
 		}
 
-		// Validate API key
-		if apiKey != es.config.Security.APIKey {
+		// Validate API key using constant-time comparison to prevent timing attacks
+		if apiKey == "" || subtle.ConstantTimeCompare([]byte(apiKey), []byte(es.config.Security.APIKey)) != 1 {
 			es.logger.Warn("unauthorized API access attempt",
 				"remote", r.RemoteAddr,
 				"path", r.URL.Path,

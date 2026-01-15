@@ -61,7 +61,7 @@ jobs:
         fi
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@v4
       with:
         name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
         path: |
@@ -113,7 +113,7 @@ jobs:
         ls -lh *.rpm
 
     - name: Upload RPM artifacts
-      uses: actions/upload-artifact@v7
+      uses: actions/upload-artifact@v4
       with:
         name: rpm-packages
         path: "*.rpm"
@@ -128,7 +128,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download all artifacts
-      uses: actions/download-artifact@v7
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
 

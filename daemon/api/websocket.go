@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -292,11 +293,21 @@ func (es *EnhancedServer) createUpgrader() websocket.Upgrader {
 				if origin == allowed {
 					return true
 				}
-				// Support wildcard subdomain matching
+				// Support wildcard subdomain matching (e.g., *.example.com)
 				if strings.HasPrefix(allowed, "*.") {
 					domain := strings.TrimPrefix(allowed, "*")
+					// Ensure domain starts with "." (e.g., ".example.com")
+					if !strings.HasPrefix(domain, ".") {
+						domain = "." + domain
+					}
+					// Check if origin ends with domain and has a subdomain
+					// This prevents "evilexample.com" from matching "*.example.com"
 					if strings.HasSuffix(origin, domain) {
-						return true
+						// Ensure it's not just the bare domain without subdomain
+						expectedBare := strings.TrimPrefix(domain, ".")
+						if origin != "http://"+expectedBare && origin != "https://"+expectedBare {
+							return true
+						}
 					}
 				}
 			}
@@ -313,11 +324,20 @@ func (es *EnhancedServer) createUpgrader() websocket.Upgrader {
 func (es *EnhancedServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	// Authentication check
 	if es.config.Security.EnableAuth {
+		// Validate server configuration
+		if es.config.Security.APIKey == "" {
+			es.logger.Error("authentication enabled but API key not configured")
+			http.Error(w, "server configuration error", http.StatusInternalServerError)
+			return
+		}
+
 		apiKey := r.Header.Get("X-API-Key")
 		if apiKey == "" {
 			apiKey = r.URL.Query().Get("api_key")
 		}
-		if apiKey != es.config.Security.APIKey {
+
+		// Use constant-time comparison to prevent timing attacks
+		if apiKey == "" || subtle.ConstantTimeCompare([]byte(apiKey), []byte(es.config.Security.APIKey)) != 1 {
 			es.logger.Warn("WebSocket connection rejected - invalid API key", "remote", r.RemoteAddr)
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
