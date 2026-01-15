@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"hyper-sdk/config"
-	"hyper-sdk/daemon/models"
-	"hyper-sdk/logger"
-	"hyper-sdk/providers/vsphere"
+	"hypersdk/config"
+	"hypersdk/daemon/models"
+	"hypersdk/logger"
+	"hypersdk/providers/vsphere"
 )
 
 // Manager handles job lifecycle and execution

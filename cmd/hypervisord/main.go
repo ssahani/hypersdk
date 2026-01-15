@@ -13,10 +13,10 @@ import (
 
 	"github.com/pterm/pterm"
 
-	"hyper-sdk/config"
-	"hyper-sdk/daemon/api"
-	"hyper-sdk/daemon/jobs"
-	"hyper-sdk/logger"
+	"hypersdk/config"
+	"hypersdk/daemon/api"
+	"hypersdk/daemon/jobs"
+	"hypersdk/logger"
 )
 
 const (

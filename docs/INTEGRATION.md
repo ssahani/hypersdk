@@ -1,6 +1,6 @@
 # Integration with hyper2kvm Python Project
 
-This document describes how to integrate `hyper-sdk` with the main `hyperexport` Python migration toolkit.
+This document describes how to integrate `hypersdk` with the main `hyperexport` Python migration toolkit.
 
 ## Architecture Overview
 
@@ -8,7 +8,7 @@ This document describes how to integrate `hyper-sdk` with the main `hyperexport`
 graph TB
     Python["hyper2kvm (Python)<br/>Main Migration Orchestration Layer<br/>━━━━━━━━━━━━━━━━━<br/>• VM discovery and selection<br/>• Conversion logic (OVF → QCOW2)<br/>• KVM import<br/>• Migration workflow"]
 
-    Go["hyper-sdk (Go)<br/>High-Performance Export Layer<br/>━━━━━━━━━━━━━━━━━<br/>• VM export from multiple clouds<br/>• Parallel downloads<br/>• Progress tracking<br/>• Job management"]
+    Go["hypersdk (Go)<br/>High-Performance Export Layer<br/>━━━━━━━━━━━━━━━━━<br/>• VM export from multiple clouds<br/>• Parallel downloads<br/>• Progress tracking<br/>• Job management"]
 
     Python -->|"HTTP REST API<br/>JSON requests/responses"| Go
 
@@ -28,7 +28,7 @@ graph TB
 
 ### Method 1: Python Client Library (Recommended)
 
-Create a Python client for the hyper-sdk API:
+Create a Python client for the hypersdk API:
 
 ```python
 # hyper2kvm/providers/client.py
@@ -38,7 +38,7 @@ import time
 from typing import Dict, List, Optional
 
 class ProviderClient:
-    """Client for hyper-sdk daemon."""
+    """Client for hypersdk daemon."""
 
     def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url
@@ -141,7 +141,7 @@ class ProviderClient:
 import requests
 
 def export_vm_from_vsphere(vm_path: str, output_path: str) -> str:
-    """Export VM using hyper-sdk."""
+    """Export VM using hypersdk."""
     response = requests.post(
         "http://localhost:8080/jobs/submit",
         json={
@@ -177,7 +177,7 @@ def migrate_vm(vm_path: str, dest_pool: str):
     provider = ProviderClient()
 
     if not provider.health_check():
-        raise Exception("hyper-sdk daemon not running")
+        raise Exception("hypersdk daemon not running")
 
     job_id = provider.submit_export(
         vm_path=vm_path,
@@ -216,7 +216,7 @@ def migrate_vm(vm_path: str, dest_pool: str):
 
 ## Configuration
 
-### Start hyper-sdk Daemon
+### Start hypersdk Daemon
 
 ```bash
 # Option 1: Systemd service
@@ -241,7 +241,7 @@ import os
 import subprocess
 
 def start_provider_daemon(vcenter_url, username, password):
-    """Start hyper-sdk daemon programmatically."""
+    """Start hypersdk daemon programmatically."""
     env = os.environ.copy()
     env.update({
         'GOVC_URL': vcenter_url,
@@ -354,7 +354,7 @@ class TestProviderIntegration(unittest.TestCase):
 
 ```bash
 # Terminal 1: Start daemon
-cd ~/go/hyper-sdk
+cd ~/go/hypersdk
 ./hypervisord
 
 # Terminal 2: Run Python hyper2kvm
@@ -365,8 +365,8 @@ python -m hyper2kvm migrate --vm "/dc/vm/test"
 ### Production
 
 ```bash
-# Install hyper-sdk
-sudo dnf install hyper-sdk
+# Install hypersdk
+sudo dnf install hypersdk
 sudo systemctl enable --now hypervisord
 
 # Install Python hyper2kvm
@@ -398,7 +398,7 @@ hyper2kvm migrate --vm "/dc/vm/prod-web-01"
 
 ## Next Steps
 
-1. Add `hyper-sdk` dependency to `setup.py`:
+1. Add `hypersdk` dependency to `setup.py`:
 ```python
 install_requires=[
     'requests>=2.25.0',

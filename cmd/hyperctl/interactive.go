@@ -17,9 +17,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/pterm/pterm"
 
-	"hyper-sdk/config"
-	"hyper-sdk/logger"
-	"hyper-sdk/providers/vsphere"
+	"hypersdk/config"
+	"hypersdk/logger"
+	"hypersdk/providers/vsphere"
 )
 
 // Styles

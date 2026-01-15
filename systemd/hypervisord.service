@@ -1,6 +1,6 @@
 [Unit]
 Description=Hypervisord - VM Export Daemon
-Documentation=https://github.com/ssahani/hyper-sdk
+Documentation=https://github.com/ssahani/hypersdk
 After=network-online.target
 Wants=network-online.target hyper2kvm-daemon.service
 

@@ -20,7 +20,7 @@ import (
 	"github.com/vmware/govmomi/ovf"
 	"github.com/vmware/govmomi/vim25/types"
 
-	"hyper-sdk/progress"
+	"hypersdk/progress"
 )
 
 // progressWriter implements io.Writer to update progress bar

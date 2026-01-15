@@ -1,14 +1,14 @@
-# hyper-sdk
+# hypersdk
 
 **Multi-cloud VM export provider layer for the hyper2kvm migration toolkit**
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://go.dev/)
-[![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hyper-sdk)
+[![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hypersdk)
 
 ## 🎯 Overview
 
-`hyper-sdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
+`hypersdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
 
 ## 📹 Video Demos
 
@@ -39,7 +39,7 @@ For recording your own demos, see [demos/RECORDING-GUIDE.md](demos/RECORDING-GUI
 ```mermaid
 graph TB
     A[hyper2kvm Python<br/>Main Migration Orchestrator]
-    B[hyper-sdk Go<br/>Provider Layer Abstraction]
+    B[hypersdk Go<br/>Provider Layer Abstraction]
     C[vSphere Provider<br/>Ready]
     D[AWS Provider<br/>Planned]
     E[Azure Provider<br/>Planned]
@@ -87,8 +87,8 @@ graph TB
 
 ```bash
 # Clone repository
-git clone https://github.com/ssahani/hyper-sdk
-cd hyper-sdk
+git clone https://github.com/ssahani/hypersdk
+cd hypersdk
 
 # Build binaries
 go build -o hyper2kvm ./cmd/hyper2kvm
@@ -103,7 +103,7 @@ sudo ./install.sh
 
 ```bash
 # Install package
-sudo dnf install hyper-sdk
+sudo dnf install hypersdk
 
 # Configure
 sudo vi /etc/hypervisord/config.yaml
@@ -280,7 +280,7 @@ while True:
 ### Directory Structure
 
 ```
-hyper-sdk/
+hypersdk/
 ├── cmd/
 │   ├── hyper2kvm/          # Interactive CLI
 │   ├── hypervisord/        # Daemon service
@@ -307,7 +307,7 @@ hyper-sdk/
 │
 ├── config.yaml.example     # Example configuration
 ├── hypervisord.service     # Systemd unit file
-├── hyper-sdk.spec# RPM spec file
+├── hypersdk.spec# RPM spec file
 └── install.sh              # Installation script
 ```
 

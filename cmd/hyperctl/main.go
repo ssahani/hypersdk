@@ -18,8 +18,8 @@ import (
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v3"
 
-	"hyper-sdk/daemon/models"
-	"hyper-sdk/providers/vsphere"
+	"hypersdk/daemon/models"
+	"hypersdk/providers/vsphere"
 )
 
 const (

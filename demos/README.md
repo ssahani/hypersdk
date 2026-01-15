@@ -1,6 +1,6 @@
-# hyper-sdk Demos
+# hypersdk Demos
 
-This directory contains demo scripts and recordings showing how to use hyper-sdk tools.
+This directory contains demo scripts and recordings showing how to use hypersdk tools.
 
 ## Recording Your Own Demos
 
@@ -142,7 +142,7 @@ export GOVC_INSECURE=1
 #!/bin/bash
 # demos/quick-demo.sh
 
-echo "=== hyper-sdk Quick Demo ==="
+echo "=== hypersdk Quick Demo ==="
 echo
 
 echo "1. Check daemon status"
@@ -166,7 +166,7 @@ echo "3. Show version"
 #!/bin/bash
 # demos/full-workflow-demo.sh
 
-echo "=== hyper-sdk Full Workflow Demo ==="
+echo "=== hypersdk Full Workflow Demo ==="
 
 # Step 1: Start daemon
 echo "Starting hypervisord daemon..."
