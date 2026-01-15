@@ -489,7 +489,7 @@ func (m model) renderSelection() string {
 	var b strings.Builder
 
 	// Title
-	b.WriteString(titleStyle.Render("🚀 Interactive VM Migration Tool"))
+	b.WriteString(titleStyle.Render("Interactive VM Migration Tool"))
 	b.WriteString("\n\n")
 
 	if len(m.vms) == 0 {
@@ -648,7 +648,7 @@ func (m model) renderConfirm() string {
 	}
 
 	// Confirmation prompt
-	b.WriteString(successStyle.Bold(true).Render("🚀 Start migration?"))
+	b.WriteString(successStyle.Bold(true).Render("Start migration?"))
 	b.WriteString("\n\n")
 
 	b.WriteString(helpStyle.Render("y: Yes, start migration | n: No, go back | Esc/b: Back to selection | q: Quit"))
@@ -973,7 +973,7 @@ func runInteractive(daemonURL, outputDir string, autoConvert, autoImport bool) {
 	// Show banner first
 	showBanner()
 	pterm.Println()
-	pterm.Info.Println("🎮 Entering interactive mode...")
+	pterm.Info.Println("Entering interactive mode...")
 	pterm.Println()
 
 	// Check if we have a TTY

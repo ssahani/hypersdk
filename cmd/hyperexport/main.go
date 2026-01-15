@@ -76,18 +76,21 @@ func showIntro() {
 	// Clear screen
 	pterm.DefaultCenter.Println()
 
+	// Orange/amber color scheme (Claude-inspired)
+	orange := pterm.NewStyle(pterm.FgLightRed)
+	amber := pterm.NewStyle(pterm.FgYellow)
+
 	// Show big text logo
 	bigText, _ := pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("HYPER", pterm.NewStyle(pterm.FgCyan)),
-		pterm.NewLettersFromStringWithStyle("2", pterm.NewStyle(pterm.FgLightWhite)),
-		pterm.NewLettersFromStringWithStyle("KVM", pterm.NewStyle(pterm.FgLightMagenta)),
+		pterm.NewLettersFromStringWithStyle("HYPER", orange),
+		pterm.NewLettersFromStringWithStyle("EXPORT", amber),
 	).Srender()
 
 	pterm.DefaultCenter.Println(bigText)
 
 	// Show subtitle
-	subtitle := pterm.DefaultCenter.Sprint("Hypervisor to KVM Migration Tool")
-	version := pterm.DefaultCenter.Sprint(pterm.LightCyan("Version 1.0.0 (Go SDK)"))
+	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Interactive VM Export Tool"))
+	version := pterm.DefaultCenter.Sprint(pterm.LightRed("Version 1.0.0"))
 
 	pterm.Println(subtitle)
 	pterm.Println(version)
