@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"hyper2kvm-providers/config"
-	"hyper2kvm-providers/daemon/models"
-	"hyper2kvm-providers/logger"
-	"hyper2kvm-providers/providers/vsphere"
+	"hypervisor-sdk/config"
+	"hypervisor-sdk/daemon/models"
+	"hypervisor-sdk/logger"
+	"hypervisor-sdk/providers/vsphere"
 )
 
 // Manager handles job lifecycle and execution

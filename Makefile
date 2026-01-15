@@ -1,7 +1,9 @@
-.PHONY: all build clean test fmt vet lint docker-build docker-run help
+.PHONY: all build build-daemon build-ctl build-all clean test fmt vet lint docker-build docker-run help install install-daemon install-ctl
 
-# Binary name
-BINARY_NAME=hyper2kvm
+# Binary names
+DAEMON_BINARY=hypervisord
+CTL_BINARY=hyperctl
+EXPORT_BINARY=hyperexport
 
 # Build directory
 BUILD_DIR=build
@@ -17,45 +19,99 @@ GOFMT=$(GOCMD) fmt
 GOVET=$(GOCMD) vet
 
 # Build flags
-LDFLAGS=-ldflags "-s -w"
+LDFLAGS=-ldflags "-s -w -X main.version=$(shell git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+
+# Install paths
+INSTALL_PREFIX=/usr/local
+BIN_DIR=$(INSTALL_PREFIX)/bin
+SYSTEMD_DIR=/etc/systemd/system
 
 # Docker parameters
-DOCKER_IMAGE=hyper2kvm
+DOCKER_IMAGE=hypervisord
 DOCKER_TAG=latest
 
 all: clean build
 
-build: ## Build the binary
-	@echo "🔨 Building $(BINARY_NAME)..."
+build: build-daemon build-ctl build-export ## Build all binaries
+
+build-daemon: ## Build hypervisord daemon
+	@echo "🔨 Building $(DAEMON_BINARY)..."
 	@mkdir -p $(BUILD_DIR)
-	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/hyper2kvm
-	@echo "✅ Build complete: $(BUILD_DIR)/$(BINARY_NAME)"
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY) ./cmd/hypervisord
+	@echo "✅ Build complete: $(BUILD_DIR)/$(DAEMON_BINARY)"
+
+build-ctl: ## Build hyperctl CLI
+	@echo "🔨 Building $(CTL_BINARY)..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY) ./cmd/hyperctl
+	@echo "✅ Build complete: $(BUILD_DIR)/$(CTL_BINARY)"
+
+build-export: ## Build hyperexport interactive CLI
+	@echo "🔨 Building $(EXPORT_BINARY)..."
+	@mkdir -p $(BUILD_DIR)
+	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(EXPORT_BINARY) ./cmd/hyperexport
+	@echo "✅ Build complete: $(BUILD_DIR)/$(EXPORT_BINARY)"
 
 build-linux: ## Build for Linux
-	@echo "🔨 Building $(BINARY_NAME) for Linux..."
+	@echo "🔨 Building for Linux (amd64)..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/hyper2kvm
-	@echo "✅ Build complete: $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64"
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-linux-amd64 ./cmd/hypervisord
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-linux-amd64 ./cmd/hyperctl
+	@echo "✅ Linux builds complete"
 
 build-all: ## Build for all platforms
-	@echo "🔨 Building $(BINARY_NAME) for all platforms..."
+	@echo "🔨 Building for all platforms..."
 	@mkdir -p $(BUILD_DIR)
-	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-amd64 ./cmd/hyper2kvm
-	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-linux-arm64 ./cmd/hyper2kvm
-	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-amd64 ./cmd/hyper2kvm
-	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-darwin-arm64 ./cmd/hyper2kvm
-	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(BINARY_NAME)-windows-amd64.exe ./cmd/hyper2kvm
+	# Linux
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-linux-amd64 ./cmd/hypervisord
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-linux-arm64 ./cmd/hypervisord
+	GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-linux-amd64 ./cmd/hyperctl
+	GOOS=linux GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-linux-arm64 ./cmd/hyperctl
+	# macOS
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-darwin-amd64 ./cmd/hypervisord
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-darwin-arm64 ./cmd/hypervisord
+	GOOS=darwin GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-darwin-amd64 ./cmd/hyperctl
+	GOOS=darwin GOARCH=arm64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-darwin-arm64 ./cmd/hyperctl
+	# Windows
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-windows-amd64.exe ./cmd/hypervisord
+	GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-windows-amd64.exe ./cmd/hyperctl
 	@echo "✅ All builds complete"
 
-install: build ## Install the binary
-	@echo "📦 Installing $(BINARY_NAME)..."
-	@cp $(BUILD_DIR)/$(BINARY_NAME) $(GOPATH)/bin/
-	@echo "✅ Installed to $(GOPATH)/bin/$(BINARY_NAME)"
+install: install-daemon install-ctl ## Install all binaries
+
+install-daemon: build-daemon ## Install hypervisord daemon
+	@echo "📦 Installing $(DAEMON_BINARY)..."
+	@sudo install -m 755 $(BUILD_DIR)/$(DAEMON_BINARY) $(BIN_DIR)/$(DAEMON_BINARY)
+	@sudo install -m 644 systemd/hypervisord.service $(SYSTEMD_DIR)/systemd/hypervisord.service
+	@echo "✅ Installed $(DAEMON_BINARY) to $(BIN_DIR)"
+	@echo "✅ Installed systemd service to $(SYSTEMD_DIR)"
+	@echo ""
+	@echo "To enable and start the service:"
+	@echo "  sudo systemctl daemon-reload"
+	@echo "  sudo systemctl enable hypervisord"
+	@echo "  sudo systemctl start hypervisord"
+
+install-ctl: build-ctl ## Install hyperctl CLI
+	@echo "📦 Installing $(CTL_BINARY)..."
+	@sudo install -m 755 $(BUILD_DIR)/$(CTL_BINARY) $(BIN_DIR)/$(CTL_BINARY)
+	@echo "✅ Installed $(CTL_BINARY) to $(BIN_DIR)"
+
+uninstall: ## Uninstall all binaries and services
+	@echo "🗑️  Uninstalling..."
+	@sudo systemctl stop hypervisord 2>/dev/null || true
+	@sudo systemctl disable hypervisord 2>/dev/null || true
+	@sudo rm -f $(BIN_DIR)/$(DAEMON_BINARY)
+	@sudo rm -f $(BIN_DIR)/$(CTL_BINARY)
+	@sudo rm -f $(BIN_DIR)/$(EXPORT_BINARY)
+	@sudo rm -f $(SYSTEMD_DIR)/systemd/hypervisord.service
+	@sudo systemctl daemon-reload
+	@echo "✅ Uninstall complete"
 
 clean: ## Clean build artifacts
 	@echo "🧹 Cleaning..."
 	@$(GOCLEAN)
 	@rm -rf $(BUILD_DIR)
+	@rm -f coverage.out
 	@echo "✅ Clean complete"
 
 test: ## Run tests
@@ -66,6 +122,10 @@ test: ## Run tests
 test-coverage: test ## Show test coverage
 	@echo "📊 Test coverage:"
 	$(GOCMD) tool cover -func=coverage.out
+
+test-html: test ## Show test coverage in browser
+	@echo "📊 Opening test coverage in browser..."
+	$(GOCMD) tool cover -html=coverage.out
 
 fmt: ## Format code
 	@echo "🎨 Formatting code..."
@@ -110,18 +170,33 @@ docker-run: ## Run Docker container
 		-v $(PWD)/exports:/exports \
 		$(DOCKER_IMAGE):$(DOCKER_TAG)
 
-run: build ## Build and run
-	@echo "🚀 Running $(BINARY_NAME)..."
-	@$(BUILD_DIR)/$(BINARY_NAME)
+run-daemon: build-daemon ## Build and run hypervisord
+	@echo "🚀 Running $(DAEMON_BINARY)..."
+	@$(BUILD_DIR)/$(DAEMON_BINARY)
 
-run-debug: build ## Build and run with debug logging
-	@echo "🐛 Running $(BINARY_NAME) in debug mode..."
-	@LOG_LEVEL=debug $(BUILD_DIR)/$(BINARY_NAME)
+run-ctl: build-ctl ## Build and run hyperctl
+	@echo "🚀 Running $(CTL_BINARY)..."
+	@$(BUILD_DIR)/$(CTL_BINARY)
+
+run-debug: build-daemon ## Build and run with debug logging
+	@echo "🐛 Running $(DAEMON_BINARY) in debug mode..."
+	@LOG_LEVEL=debug $(BUILD_DIR)/$(DAEMON_BINARY)
+
+version: ## Show version information
+	@echo "hypervisord: $(shell git describe --tags --always --dirty 2>/dev/null || echo 'dev')"
+	@echo "Git commit: $(shell git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+	@echo "Build date: $(shell date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
 help: ## Show this help
 	@echo ""
-	@echo "hyper2kvm - Makefile commands:"
+	@echo "hypervisor-sdk - Makefile commands:"
 	@echo ""
+	@echo "Components:"
+	@echo "  hypervisord  - Go daemon for vSphere VM export"
+	@echo "  hyperctl     - Control CLI for managing conversions"
+	@echo "  hyperexport  - Interactive CLI for manual VM exports"
+	@echo ""
+	@echo "Available commands:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
 

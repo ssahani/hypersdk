@@ -81,24 +81,24 @@ jobs:
 
     - name: Build binaries
       run: |
-        go build -v -o hyper2kvm ./cmd/hyper2kvm
-        go build -v -o hyper2kvmd ./cmd/hyper2kvmd
-        go build -v -o h2kvmctl ./cmd/h2kvmctl
+        go build -v -o hyperexport ./cmd/hyperexport
+        go build -v -o hypervisord ./cmd/hypervisord
+        go build -v -o hyperctl ./cmd/hyperctl
 
     - name: Verify binaries
       run: |
-        ./hyper2kvmd --version
-        ./h2kvmctl --version
-        file hyper2kvm hyper2kvmd h2kvmctl
+        ./hypervisord --version
+        ./hyperctl --version
+        file hyperexport hypervisord hyperctl
 
     - name: Upload binaries
       uses: actions/upload-artifact@v4
       with:
         name: binaries
         path: |
-          hyper2kvm
-          hyper2kvmd
-          h2kvmctl
+          hyperexport
+          hypervisord
+          hyperctl
 
   build-rpm:
     name: Build RPM
@@ -120,14 +120,14 @@ jobs:
 
     - name: Create source tarball
       run: |
-        VERSION=$(grep '^Version:' hyper2kvm-providers.spec | awk '{print $2}')
-        mkdir -p hyper2kvm-providers-${VERSION}
-        cp -r * hyper2kvm-providers-${VERSION}/ || true
-        tar czf ~/rpmbuild/SOURCES/hyper2kvm-providers-${VERSION}.tar.gz hyper2kvm-providers-${VERSION}
+        VERSION=$(grep '^Version:' hyperexport-providers.spec | awk '{print $2}')
+        mkdir -p hyperexport-providers-${VERSION}
+        cp -r * hyperexport-providers-${VERSION}/ || true
+        tar czf ~/rpmbuild/SOURCES/hyperexport-providers-${VERSION}.tar.gz hyperexport-providers-${VERSION}
 
     - name: Build RPM
       run: |
-        rpmbuild -ba hyper2kvm-providers.spec
+        rpmbuild -ba hyperexport-providers.spec
 
     - name: Upload RPM
       uses: actions/upload-artifact@v4
@@ -152,22 +152,22 @@ jobs:
         name: binaries
 
     - name: Make binaries executable
-      run: chmod +x hyper2kvm hyper2kvmd h2kvmctl
+      run: chmod +x hyperexport hypervisord hyperctl
 
     - name: Test daemon start
       run: |
         # Test daemon starts with default config
-        timeout 5 ./hyper2kvmd --version || true
+        timeout 5 ./hypervisord --version || true
 
-    - name: Test h2kvmctl
+    - name: Test hyperctl
       run: |
         # Start daemon in background
-        ./hyper2kvmd --addr localhost:9999 > /tmp/daemon.log 2>&1 &
+        ./hypervisord --addr localhost:9999 > /tmp/daemon.log 2>&1 &
         DAEMON_PID=$!
         sleep 3
 
         # Test status endpoint
-        ./h2kvmctl --daemon http://localhost:9999 status || true
+        ./hyperctl --daemon http://localhost:9999 status || true
 
         # Clean up
         kill $DAEMON_PID || true

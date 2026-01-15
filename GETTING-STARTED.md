@@ -1,16 +1,16 @@
-# Getting Started with hyper2kvm-providers
+# Getting Started with hypervisor-sdk
 
-Welcome to **hyper2kvm-providers** - the Go implementation of the hyper2kvm migration toolkit!
+Welcome to **hypervisor-sdk** - the Go implementation of the hyper2kvm migration toolkit!
 
 ---
 
-## 🎯 What is hyper2kvm-providers?
+## 🎯 What is hypervisor-sdk?
 
 A high-performance, daemon-based VM export system that provides:
 
-1. **Interactive CLI** (`hyper2kvm`) - Beautiful terminal UI for manual exports
-2. **Background Daemon** (`hyper2kvmd`) - REST API service for automation
-3. **Control CLI** (`h2kvmctl`) - Manage daemon jobs from command line
+1. **Interactive CLI** (`hyperexport`) - Beautiful terminal UI for manual exports
+2. **Background Daemon** (`hypervisord`) - REST API service for automation
+3. **Control CLI** (`hyperctl`) - Manage daemon jobs from command line
 
 Built with:
 - **govmomi v0.52.0** - VMware vSphere Go SDK
@@ -35,8 +35,8 @@ export GOVC_INSECURE=1
 #### Option A: Interactive Mode (Beginner-Friendly)
 
 ```bash
-cd ~/projects/hyper2kvm-providers
-./build/hyper2kvm
+cd ~/projects/hypervisor-sdk
+./build/hyperexport
 ```
 
 Then:
@@ -48,19 +48,19 @@ Then:
 
 **Terminal 1 - Start Daemon:**
 ```bash
-./build/hyper2kvmd
+./build/hypervisord
 ```
 
 **Terminal 2 - Submit Jobs:**
 ```bash
 # Single VM
-./build/h2kvmctl submit -vm "/datacenter/vm/my-vm" -output "/tmp/export"
+./build/hyperctl submit -vm "/datacenter/vm/my-vm" -output "/tmp/export"
 
 # Or from YAML
-./build/h2kvmctl submit -file example-job.yaml
+./build/hyperctl submit -file example-job.yaml
 
 # Check status
-./build/h2kvmctl query -all
+./build/hyperctl query -all
 ```
 
 ---
@@ -83,20 +83,20 @@ options:
 ### Submit the Job
 
 ```bash
-./build/h2kvmctl submit -file my-export.yaml
+./build/hyperctl submit -file my-export.yaml
 ```
 
 ### Monitor Progress
 
 ```bash
 # Watch all jobs
-./build/h2kvmctl query -all
+./build/hyperctl query -all
 
 # Watch daemon status
-./build/h2kvmctl status
+./build/hyperctl status
 
 # View logs
-tail -f /tmp/hyper2kvmd.log
+tail -f /tmp/hypervisord.log
 ```
 
 ---
@@ -105,7 +105,7 @@ tail -f /tmp/hyper2kvmd.log
 
 ### List All VMs
 
-The interactive CLI (`./build/hyper2kvm`) automatically discovers all VMs.
+The interactive CLI (`./build/hyperexport`) automatically discovers all VMs.
 
 ### Export Multiple VMs (Batch)
 
@@ -128,23 +128,23 @@ jobs:
 
 Submit:
 ```bash
-./build/h2kvmctl submit -file batch-export.yaml
+./build/hyperctl submit -file batch-export.yaml
 ```
 
 ### Cancel a Running Job
 
 ```bash
 # Get job ID first
-./build/h2kvmctl query -all
+./build/hyperctl query -all
 
 # Cancel it
-./build/h2kvmctl cancel -id <job-id>
+./build/hyperctl cancel -id <job-id>
 ```
 
 ### Check What the Daemon is Doing
 
 ```bash
-./build/h2kvmctl status
+./build/hyperctl status
 ```
 
 Output:
@@ -254,13 +254,13 @@ Select a VM to export [type to search]:
 
 1. Copy binary:
    ```bash
-   sudo cp build/hyper2kvmd /usr/local/bin/
+   sudo cp build/hypervisord /usr/local/bin/
    ```
 
-2. Create service file `/etc/systemd/system/hyper2kvmd.service`:
+2. Create service file `/etc/systemd/system/hypervisord.service`:
    ```ini
    [Unit]
-   Description=Hyper2KVM vSphere Daemon
+   Description=Hypervisord - VM Export Daemon
    After=network.target
 
    [Service]
@@ -270,7 +270,7 @@ Select a VM to export [type to search]:
    Environment="GOVC_USERNAME=admin@vsphere.local"
    Environment="GOVC_PASSWORD=secret"
    Environment="GOVC_INSECURE=1"
-   ExecStart=/usr/local/bin/hyper2kvmd
+   ExecStart=/usr/local/bin/hypervisord
    Restart=on-failure
 
    [Install]
@@ -279,9 +279,9 @@ Select a VM to export [type to search]:
 
 3. Enable and start:
    ```bash
-   sudo systemctl enable hyper2kvmd
-   sudo systemctl start hyper2kvmd
-   sudo systemctl status hyper2kvmd
+   sudo systemctl enable hypervisord
+   sudo systemctl start hypervisord
+   sudo systemctl status hypervisord
    ```
 
 ### Environment Variables
@@ -321,7 +321,7 @@ curl -k $GOVC_URL
 
 **Check daemon logs:**
 ```bash
-tail -f /tmp/hyper2kvmd.log
+tail -f /tmp/hypervisord.log
 ```
 
 **Common causes:**
@@ -353,7 +353,7 @@ tail -f /tmp/hyper2kvmd.log
 1. **Start with interactive mode** to understand the workflow
 2. **Use YAML files** for repeatable exports
 3. **Run daemon in background** for automation
-4. **Monitor with h2kvmctl** instead of checking logs
+4. **Monitor with hyperctl** instead of checking logs
 5. **Adjust parallel downloads** based on network speed
 6. **Remove CD/DVD** before export for cleaner OVF files
 
@@ -365,12 +365,12 @@ Try your first export:
 
 ```bash
 # Interactive mode
-./build/hyper2kvm
+./build/hyperexport
 
 # OR daemon mode
-./build/hyper2kvmd &
-./build/h2kvmctl submit -vm "/path/to/your/vm" -output "/tmp/export"
-./build/h2kvmctl query -all
+./build/hypervisord &
+./build/hyperctl submit -vm "/path/to/your/vm" -output "/tmp/export"
+./build/hyperctl query -all
 ```
 
 **Happy migrating! 🎉**

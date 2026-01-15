@@ -1,6 +1,6 @@
 # Integration with hyper2kvm Python Project
 
-This document describes how to integrate `hyper2kvm-providers` with the main `hyper2kvm` Python migration toolkit.
+This document describes how to integrate `hypervisor-sdk` with the main `hyperexport` Python migration toolkit.
 
 ## Architecture Overview
 
@@ -16,7 +16,7 @@ This document describes how to integrate `hyper2kvm-providers` with the main `hy
                   │ HTTP REST API
                   │ JSON requests/responses
 ┌─────────────────▼───────────────────────────────────────────┐
-│          hyper2kvm-providers (Go)                           │
+│          hypervisor-sdk (Go)                           │
 │           High-Performance Export Layer                     │
 │  - VM export from multiple clouds                          │
 │  - Parallel downloads                                       │
@@ -37,7 +37,7 @@ This document describes how to integrate `hyper2kvm-providers` with the main `hy
 
 ### Method 1: Python Client Library (Recommended)
 
-Create a Python client for the hyper2kvm-providers API:
+Create a Python client for the hypervisor-sdk API:
 
 ```python
 # hyper2kvm/providers/client.py
@@ -47,7 +47,7 @@ import time
 from typing import Dict, List, Optional
 
 class ProviderClient:
-    """Client for hyper2kvm-providers daemon."""
+    """Client for hypervisor-sdk daemon."""
 
     def __init__(self, base_url: str = "http://localhost:8080"):
         self.base_url = base_url
@@ -150,7 +150,7 @@ class ProviderClient:
 import requests
 
 def export_vm_from_vsphere(vm_path: str, output_path: str) -> str:
-    """Export VM using hyper2kvm-providers."""
+    """Export VM using hypervisor-sdk."""
     response = requests.post(
         "http://localhost:8080/jobs/submit",
         json={
@@ -186,7 +186,7 @@ def migrate_vm(vm_path: str, dest_pool: str):
     provider = ProviderClient()
 
     if not provider.health_check():
-        raise Exception("hyper2kvm-providers daemon not running")
+        raise Exception("hypervisor-sdk daemon not running")
 
     job_id = provider.submit_export(
         vm_path=vm_path,
@@ -225,12 +225,12 @@ def migrate_vm(vm_path: str, dest_pool: str):
 
 ## Configuration
 
-### Start hyper2kvm-providers Daemon
+### Start hypervisor-sdk Daemon
 
 ```bash
 # Option 1: Systemd service
-sudo systemctl start hyper2kvmd
-sudo systemctl enable hyper2kvmd
+sudo systemctl start hypervisord
+sudo systemctl enable hypervisord
 
 # Option 2: Manual start
 export GOVC_URL='https://vcenter.example.com/sdk'
@@ -238,7 +238,7 @@ export GOVC_USERNAME='administrator@vsphere.local'
 export GOVC_PASSWORD='your-password'
 export GOVC_INSECURE=1
 
-./hyper2kvmd --config /etc/hyper2kvm/config.yaml
+./hypervisord --config /etc/hypervisord/config.yaml
 ```
 
 ### Environment Variables
@@ -250,7 +250,7 @@ import os
 import subprocess
 
 def start_provider_daemon(vcenter_url, username, password):
-    """Start hyper2kvm-providers daemon programmatically."""
+    """Start hypervisor-sdk daemon programmatically."""
     env = os.environ.copy()
     env.update({
         'GOVC_URL': vcenter_url,
@@ -260,7 +260,7 @@ def start_provider_daemon(vcenter_url, username, password):
         'DAEMON_ADDR': 'localhost:8080'
     })
 
-    subprocess.Popen(['hyper2kvmd'], env=env)
+    subprocess.Popen(['hypervisord'], env=env)
 ```
 
 ## Error Handling
@@ -363,8 +363,8 @@ class TestProviderIntegration(unittest.TestCase):
 
 ```bash
 # Terminal 1: Start daemon
-cd ~/go/hyper2kvm-providers
-./hyper2kvmd
+cd ~/go/hypervisor-sdk
+./hypervisord
 
 # Terminal 2: Run Python hyper2kvm
 cd ~/hyper2kvm
@@ -374,9 +374,9 @@ python -m hyper2kvm migrate --vm "/dc/vm/test"
 ### Production
 
 ```bash
-# Install hyper2kvm-providers
-sudo dnf install hyper2kvm-providers
-sudo systemctl enable --now hyper2kvmd
+# Install hypervisor-sdk
+sudo dnf install hypervisor-sdk
+sudo systemctl enable --now hypervisord
 
 # Install Python hyper2kvm
 pip install hyper2kvm
@@ -407,7 +407,7 @@ hyper2kvm migrate --vm "/dc/vm/prod-web-01"
 
 ## Next Steps
 
-1. Add `hyper2kvm-providers` dependency to `setup.py`:
+1. Add `hypervisor-sdk` dependency to `setup.py`:
 ```python
 install_requires=[
     'requests>=2.25.0',

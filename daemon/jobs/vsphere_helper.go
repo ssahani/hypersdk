@@ -5,8 +5,8 @@ package jobs
 import (
 	"time"
 
-	"hyper2kvm-providers/config"
-	"hyper2kvm-providers/providers/vsphere"
+	"hypervisor-sdk/config"
+	"hypervisor-sdk/providers/vsphere"
 )
 
 // GetVSphereClient returns a vSphere client using environment configuration

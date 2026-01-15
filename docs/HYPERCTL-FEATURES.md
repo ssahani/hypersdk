@@ -1,6 +1,6 @@
-# h2kvmctl - Feature Overview
+# hyperctl - Feature Overview
 
-h2kvmctl is a powerful CLI tool for managing VMware vSphere VMs and orchestrating migrations to KVM.
+hyperctl is a powerful CLI tool for managing VMware vSphere VMs and orchestrating migrations to KVM.
 
 ## 🎯 Core Features
 
@@ -8,9 +8,9 @@ h2kvmctl is a powerful CLI tool for managing VMware vSphere VMs and orchestratin
 
 **Command:**
 ```bash
-h2kvmctl list                    # Show all VMs
-h2kvmctl list -json              # JSON output for automation
-h2kvmctl list -filter <name>     # Filter by VM name
+hyperctl list                    # Show all VMs
+hyperctl list -json              # JSON output for automation
+hyperctl list -filter <name>     # Filter by VM name
 ```
 
 **Features:**
@@ -45,16 +45,16 @@ h2kvmctl list -filter <name>     # Filter by VM name
 ...
 └───┴─────────────────┴───────────┴─────┴────────┴─────────┴──────────────┘
 
-💡 Tip: Use 'h2kvmctl list -json' for machine-readable output
-💡 Tip: Use 'h2kvmctl list -filter <name>' to filter VMs
+💡 Tip: Use 'hyperctl list -json' for machine-readable output
+💡 Tip: Use 'hyperctl list -filter <name>' to filter VMs
 ```
 
 ### 2. VM Operations
 
 **Graceful Shutdown:**
 ```bash
-h2kvmctl vm -op shutdown -path /data/vm/my-vm
-h2kvmctl vm -op shutdown -path /data/vm/my-vm -timeout 600  # 10 min timeout
+hyperctl vm -op shutdown -path /data/vm/my-vm
+hyperctl vm -op shutdown -path /data/vm/my-vm -timeout 600  # 10 min timeout
 ```
 - 🔌 Initiates guest OS shutdown
 - ⏱️  Configurable timeout
@@ -62,14 +62,14 @@ h2kvmctl vm -op shutdown -path /data/vm/my-vm -timeout 600  # 10 min timeout
 
 **Force Power Off:**
 ```bash
-h2kvmctl vm -op poweroff -path /data/vm/my-vm
+hyperctl vm -op poweroff -path /data/vm/my-vm
 ```
 - ⚡ Immediate power off
 - 🚨 Use when shutdown fails or VM is unresponsive
 
 **Remove CD/DVD Devices:**
 ```bash
-h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm
+hyperctl vm -op remove-cdrom -path /data/vm/my-vm
 ```
 - 💿 Removes all CD/DVD devices from VM
 - 🎯 Essential before migration to KVM
@@ -77,7 +77,7 @@ h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm
 
 **Get VM Information:**
 ```bash
-h2kvmctl vm -op info -path /data/vm/my-vm
+hyperctl vm -op info -path /data/vm/my-vm
 ```
 - ℹ️  Detailed VM metadata
 - 📊 Power state, resources, guest OS
@@ -106,32 +106,32 @@ h2kvmctl vm -op info -path /data/vm/my-vm
 **Submit Export Job:**
 ```bash
 # From command line
-h2kvmctl submit -vm /data/vm/my-vm -output /tmp/export
+hyperctl submit -vm /data/vm/my-vm -output /tmp/export
 
 # From YAML file
-h2kvmctl submit -file jobs.yaml
+hyperctl submit -file jobs.yaml
 ```
 
 **Query Jobs:**
 ```bash
-h2kvmctl query -all                    # All jobs
-h2kvmctl query -id abc123              # Specific job
-h2kvmctl query -status running         # Filter by status
+hyperctl query -all                    # All jobs
+hyperctl query -id abc123              # Specific job
+hyperctl query -status running         # Filter by status
 ```
 
 **Get Job Details:**
 ```bash
-h2kvmctl jobs/abc123                   # Job details
+hyperctl jobs/abc123                   # Job details
 ```
 
 **Cancel Jobs:**
 ```bash
-h2kvmctl cancel -id abc123,def456      # Cancel multiple jobs
+hyperctl cancel -id abc123,def456      # Cancel multiple jobs
 ```
 
 **Daemon Status:**
 ```bash
-h2kvmctl status
+hyperctl status
 ```
 - 📊 Uptime, total jobs
 - 🔄 Running/completed/failed counts
@@ -216,7 +216,7 @@ jobs:
 
 ## 🔧 API Integration
 
-All h2kvmctl commands interact with hyper2kvmd daemon via REST API:
+All hyperctl commands interact with hypervisord daemon via REST API:
 
 - `GET /vms/list` - List all VMs
 - `POST /vms/shutdown` - Shutdown VM
@@ -235,28 +235,28 @@ All h2kvmctl commands interact with hyper2kvmd daemon via REST API:
 ### 1. VM Discovery Workflow
 ```bash
 # Discover all VMs
-h2kvmctl list
+hyperctl list
 
 # Find Windows VMs
-h2kvmctl list -filter win
+hyperctl list -filter win
 
 # Export list to JSON for processing
-h2kvmctl list -json > vms.json
+hyperctl list -json > vms.json
 
 # Get details of a specific VM
-h2kvmctl vm -op info -path /data/vm/win2022
+hyperctl vm -op info -path /data/vm/win2022
 ```
 
 ### 2. Pre-Migration Preparation
 ```bash
 # Shutdown VM gracefully
-h2kvmctl vm -op shutdown -path /data/vm/my-vm
+hyperctl vm -op shutdown -path /data/vm/my-vm
 
 # Remove CD/DVD devices
-h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm
+hyperctl vm -op remove-cdrom -path /data/vm/my-vm
 
 # Verify VM is ready
-h2kvmctl vm -op info -path /data/vm/my-vm
+hyperctl vm -op info -path /data/vm/my-vm
 ```
 
 ### 3. Automated Migration
@@ -279,10 +279,10 @@ jobs:
 EOF
 
 # Submit batch
-h2kvmctl submit -file migrate-batch.yaml
+hyperctl submit -file migrate-batch.yaml
 
 # Monitor progress
-watch -n 5 'h2kvmctl query -status running'
+watch -n 5 'hyperctl query -status running'
 ```
 
 ## 🚀 Advantages Over govc
@@ -291,7 +291,7 @@ watch -n 5 'h2kvmctl query -status running'
 2. **Migration-Focused**: Built specifically for VM migration workflows
 3. **Job Management**: Asynchronous job submission and tracking
 4. **Batch Operations**: Submit multiple migrations at once
-5. **Integrated**: Works seamlessly with hyper2kvmd daemon
+5. **Integrated**: Works seamlessly with hypervisord daemon
 6. **Modern**: Clean JSON/YAML support for automation
 7. **User-Friendly**: Helpful tips, examples, and error messages
 
@@ -300,21 +300,21 @@ watch -n 5 'h2kvmctl query -status running'
 ### Common Commands
 ```bash
 # Discovery
-h2kvmctl list                                    # List all VMs
-h2kvmctl list -filter rhel -json                 # Find RHEL VMs (JSON)
+hyperctl list                                    # List all VMs
+hyperctl list -filter rhel -json                 # Find RHEL VMs (JSON)
 
 # VM Operations
-h2kvmctl vm -op shutdown -path /data/vm/my-vm    # Shutdown
-h2kvmctl vm -op poweroff -path /data/vm/my-vm    # Power off
-h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm# Remove CD
-h2kvmctl vm -op info -path /data/vm/my-vm        # Get info
+hyperctl vm -op shutdown -path /data/vm/my-vm    # Shutdown
+hyperctl vm -op poweroff -path /data/vm/my-vm    # Power off
+hyperctl vm -op remove-cdrom -path /data/vm/my-vm# Remove CD
+hyperctl vm -op info -path /data/vm/my-vm        # Get info
 
 # Job Management
-h2kvmctl submit -vm /data/vm/my-vm -output /tmp  # Submit job
-h2kvmctl query -all                              # List jobs
-h2kvmctl query -status running                   # Running jobs
-h2kvmctl cancel -id abc123                       # Cancel job
-h2kvmctl status                                  # Daemon status
+hyperctl submit -vm /data/vm/my-vm -output /tmp  # Submit job
+hyperctl query -all                              # List jobs
+hyperctl query -status running                   # Running jobs
+hyperctl cancel -id abc123                       # Cancel job
+hyperctl status                                  # Daemon status
 ```
 
 ### Environment Variables

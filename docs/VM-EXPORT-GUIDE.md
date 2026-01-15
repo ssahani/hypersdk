@@ -1,16 +1,16 @@
-# VM Export Guide with h2kvmctl
+# VM Export Guide with hyperctl
 
-Complete guide to exporting VMware VMs using h2kvmctl and hyper2kvmd.
+Complete guide to exporting VMware VMs using hyperctl and hypervisord.
 
 ## 🎯 Overview
 
-The h2kvmctl tool provides a powerful, user-friendly way to export VMs from vSphere to local storage using VDDK (Virtual Disk Development Kit) for high-performance parallel downloads.
+The hyperctl tool provides a powerful, user-friendly way to export VMs from vSphere to local storage using VDDK (Virtual Disk Development Kit) for high-performance parallel downloads.
 
 ## 📋 Prerequisites
 
-1. **hyper2kvmd daemon running:**
+1. **hypervisord daemon running:**
    ```bash
-   sudo systemctl status hyper2kvmd
+   sudo systemctl status hypervisord
    ```
 
 2. **vCenter credentials configured:**
@@ -33,19 +33,19 @@ The h2kvmctl tool provides a powerful, user-friendly way to export VMs from vSph
 
 ```bash
 # List all VMs
-h2kvmctl list
+hyperctl list
 
 # Find specific VMs
-h2kvmctl list -filter rhel
+hyperctl list -filter rhel
 
 # Export list for processing
-h2kvmctl list -json > available-vms.json
+hyperctl list -json > available-vms.json
 ```
 
 ### 2. Submit Export Job (Command Line)
 
 ```bash
-h2kvmctl submit \
+hyperctl submit \
   -vm "/data/vm/rhel9.4" \
   -output "/tmp/export-rhel9"
 ```
@@ -73,17 +73,17 @@ options:
 
 **Submit:**
 ```bash
-h2kvmctl submit -file export-vm.yaml
+hyperctl submit -file export-vm.yaml
 ```
 
 ### 4. Monitor Job Progress
 
 ```bash
 # Query specific job
-h2kvmctl query -id 8f9e1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b
+hyperctl query -id 8f9e1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b
 
 # Watch running jobs
-watch -n 2 'h2kvmctl query -status running'
+watch -n 2 'hyperctl query -status running'
 
 # Get detailed job status
 curl -s http://localhost:8080/jobs/8f9e1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b | jq
@@ -156,7 +156,7 @@ jobs:
 
 **Submit batch:**
 ```bash
-h2kvmctl submit -file batch-export.yaml
+hyperctl submit -file batch-export.yaml
 ```
 
 ### Batch Export (JSON)
@@ -228,15 +228,15 @@ EXPORT_DIR="/migrations/app01"
 VM_NAME="app01"
 
 echo "🔍 Step 1: Discover and inspect VM..."
-h2kvmctl vm -op info -path "$VM_PATH"
+hyperctl vm -op info -path "$VM_PATH"
 
 echo ""
 echo "🔌 Step 2: Shutdown VM gracefully..."
-h2kvmctl vm -op shutdown -path "$VM_PATH" -timeout 300
+hyperctl vm -op shutdown -path "$VM_PATH" -timeout 300
 
 echo ""
 echo "💿 Step 3: Remove CD/DVD devices..."
-h2kvmctl vm -op remove-cdrom -path "$VM_PATH"
+hyperctl vm -op remove-cdrom -path "$VM_PATH"
 
 echo ""
 echo "📦 Step 4: Export VM..."
@@ -250,7 +250,7 @@ options:
   show_individual_progress: true
 EOF
 
-JOB_OUTPUT=$(h2kvmctl submit -file /tmp/export-${VM_NAME}.yaml)
+JOB_OUTPUT=$(hyperctl submit -file /tmp/export-${VM_NAME}.yaml)
 JOB_ID=$(echo "$JOB_OUTPUT" | grep "Job ID:" | awk '{print $4}')
 
 echo "Job ID: $JOB_ID"
@@ -301,7 +301,7 @@ chmod +x migrate-vm.sh
 
 ```bash
 # Verify VM is ready
-h2kvmctl vm -op info -path /data/vm/my-vm
+hyperctl vm -op info -path /data/vm/my-vm
 
 # Check VM has VMware Tools installed
 # (for clean shutdown)
@@ -336,20 +336,20 @@ watch -n 1 'ifstat -i eth0'
 iostat -x 2
 
 # Check daemon logs
-sudo journalctl -u hyper2kvmd -f
+sudo journalctl -u hypervisord -f
 ```
 
 ### 4. Handle Errors
 
 ```bash
 # Query failed jobs
-h2kvmctl query -status failed
+hyperctl query -status failed
 
 # Get error details
 curl -s http://localhost:8080/jobs/{job-id} | jq '.error'
 
 # Retry failed export
-h2kvmctl submit -vm /data/vm/my-vm -output /migrations/my-vm
+hyperctl submit -vm /data/vm/my-vm -output /migrations/my-vm
 ```
 
 ## 📊 Real-World Examples
@@ -392,12 +392,12 @@ jobs:
 
 **Submit:**
 ```bash
-h2kvmctl submit -file dev-environment.yaml
+hyperctl submit -file dev-environment.yaml
 ```
 
 **Monitor:**
 ```bash
-watch -n 5 'h2kvmctl query -status running'
+watch -n 5 'hyperctl query -status running'
 ```
 
 ### Example 2: Export Single Large Database (500GB)
@@ -416,10 +416,10 @@ options:
 **Submit:**
 ```bash
 # Ensure VM is shutdown first
-h2kvmctl vm -op shutdown -path /data/vm/production/oracle-db -timeout 600
+hyperctl vm -op shutdown -path /data/vm/production/oracle-db -timeout 600
 
 # Submit export
-h2kvmctl submit -file large-db-export.yaml
+hyperctl submit -file large-db-export.yaml
 ```
 
 ## 🔧 Troubleshooting
@@ -429,14 +429,14 @@ h2kvmctl submit -file large-db-export.yaml
 **Solution:**
 ```bash
 # Check daemon logs
-sudo journalctl -u hyper2kvmd -n 50
+sudo journalctl -u hypervisord -n 50
 
 # Verify vCenter connectivity
 govc ls /data/vm/my-vm
 
 # Cancel and retry
-h2kvmctl cancel -id {job-id}
-h2kvmctl submit -vm /data/vm/my-vm -output /migrations/my-vm
+hyperctl cancel -id {job-id}
+hyperctl submit -vm /data/vm/my-vm -output /migrations/my-vm
 ```
 
 ### Issue: Slow Download Speed
@@ -462,12 +462,12 @@ df -h /migrations
 rm -rf /migrations/old-exports/*
 
 # Retry export
-h2kvmctl submit -file export.yaml
+hyperctl submit -file export.yaml
 ```
 
 ## 📚 Additional Resources
 
-- [h2kvmctl Features Overview](H2KVMCTL-FEATURES.md)
+- [hyperctl Features Overview](H2KVMCTL-FEATURES.md)
 - [API Reference](API.md)
 - [Daemon Configuration](../DAEMON-README.md)
 - [Getting Started Guide](../GETTING-STARTED.md)
@@ -476,33 +476,33 @@ h2kvmctl submit -file export.yaml
 
 1. **Use JSON output for scripting:**
    ```bash
-   h2kvmctl list -json | jq -r '.vms[].path' | while read vm; do
-     h2kvmctl submit -vm "$vm" -output "/migrations/$(basename $vm)"
+   hyperctl list -json | jq -r '.vms[].path' | while read vm; do
+     hyperctl submit -vm "$vm" -output "/migrations/$(basename $vm)"
    done
    ```
 
 2. **Monitor all running jobs:**
    ```bash
-   watch -n 2 'h2kvmctl query -status running'
+   watch -n 2 'hyperctl query -status running'
    ```
 
 3. **Export VMs in batches:**
    ```bash
    # Create batch file from VM list
-   h2kvmctl list -filter production -json | \
+   hyperctl list -filter production -json | \
      jq -r '.vms[] | {name: .name, vm_path: .path, output_path: ("/migrations/" + .name)}' | \
      jq -s '{jobs: .}' > batch-export.json
 
    # Submit batch
-   h2kvmctl submit -file batch-export.json
+   hyperctl submit -file batch-export.json
    ```
 
 4. **Automated cleanup:**
    ```bash
    # Remove completed jobs older than 24h
-   h2kvmctl query -status completed | \
+   hyperctl query -status completed | \
      jq -r '.jobs[] | select(.completed_at < (now - 86400)) | .id' | \
-     xargs -I{} h2kvmctl cancel -id {}
+     xargs -I{} hyperctl cancel -id {}
    ```
 
 ---

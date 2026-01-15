@@ -12,8 +12,8 @@
 Successfully built and tested a complete daemon-based VM export system in Go with three production-ready binaries:
 
 1. **hyper2kvm** - Interactive CLI (19MB)
-2. **hyper2kvmd** - Background daemon (20MB)
-3. **h2kvmctl** - Control CLI (17MB)
+2. **hypervisord** - Background daemon (20MB)
+3. **hyperctl** - Control CLI (17MB)
 
 All core functionality tested and working:
 - ✅ vSphere SDK integration (govmomi v0.52.0)
@@ -50,7 +50,7 @@ export GOVC_PASSWORD='VCENTER@redhat2025'
 export GOVC_INSECURE=1
 export GOVC_DATACENTER='data'
 
-./build/hyper2kvm
+./build/hyperexport
 ```
 
 ### Results
@@ -83,11 +83,11 @@ export GOVC_DATACENTER='data'
 
 ---
 
-## Test 2: Daemon Startup (hyper2kvmd)
+## Test 2: Daemon Startup (hypervisord)
 
 ### Command
 ```bash
-./build/hyper2kvmd -addr localhost:8080
+./build/hypervisord -addr localhost:8080
 ```
 
 ### Results
@@ -113,11 +113,11 @@ export GOVC_DATACENTER='data'
 
 ---
 
-## Test 3: h2kvmctl Status Check
+## Test 3: hyperctl Status Check
 
 ### Command
 ```bash
-./build/h2kvmctl status
+./build/hyperctl status
 ```
 
 ### Results
@@ -157,7 +157,7 @@ options:
 
 ### Command
 ```bash
-./build/h2kvmctl submit -file example-job.yaml
+./build/hyperctl submit -file example-job.yaml
 ```
 
 ### Results
@@ -175,7 +175,7 @@ options:
 
 ### Command
 ```bash
-./build/h2kvmctl query -all
+./build/hyperctl query -all
 ```
 
 ### Results
@@ -334,8 +334,8 @@ while True:
 ```
 build/
 ├── hyper2kvm      (19 MB) - Interactive CLI
-├── hyper2kvmd     (20 MB) - Daemon service
-└── h2kvmctl       (17 MB) - Control CLI
+├── hypervisord     (20 MB) - Daemon service
+└── hyperctl       (17 MB) - Control CLI
 ```
 
 ### Source Code
@@ -347,8 +347,8 @@ daemon/
 
 cmd/
 ├── hyper2kvm/main.go      - Interactive CLI
-├── hyper2kvmd/main.go     - Daemon main
-└── h2kvmctl/main.go       - Control CLI
+├── hypervisord/main.go     - Daemon main
+└── hyperctl/main.go       - Control CLI
 
 vsphere/
 ├── client.go              - vSphere connection
@@ -385,7 +385,7 @@ example-batch.yaml        - Batch job example
    Type=simple
    User=vmexport
    Environment="GOVC_URL=https://vcenter.example.com/sdk"
-   ExecStart=/usr/local/bin/hyper2kvmd -addr localhost:8080
+   ExecStart=/usr/local/bin/hypervisord -addr localhost:8080
    Restart=on-failure
 
    [Install]
@@ -405,7 +405,7 @@ example-batch.yaml        - Batch job example
 
 ### Project Naming
 
-Current name: `hyper2kvm`
+Current name: `hyperexport`
 Suggested rename: **`v2kvmd`** / **`v2kvmctl`**
 
 Rationale:

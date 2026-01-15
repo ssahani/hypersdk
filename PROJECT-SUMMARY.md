@@ -1,6 +1,6 @@
-# hyper2kvm-providers - Project Summary
+# hypervisor-sdk - Project Summary
 
-**Official Project Name:** `hyper2kvm-providers`
+**Official Project Name:** `hypervisor-sdk`
 **Status:** ✅ Production Ready
 **Date:** 2026-01-17
 **Version:** 0.0.1
@@ -13,9 +13,9 @@ A complete, production-ready VM export system with three powerful tools:
 
 | Binary | Size | Purpose |
 |--------|------|---------|
-| `hyper2kvm` | 19 MB | Interactive CLI with beautiful pterm UI |
-| `hyper2kvmd` | 20 MB | Background daemon with REST API |
-| `h2kvmctl` | 17 MB | Daemon control CLI tool |
+| `hyperexport` | 19 MB | Interactive CLI with beautiful pterm UI |
+| `hypervisord` | 20 MB | Background daemon with REST API |
+| `hyperctl` | 17 MB | Daemon control CLI tool |
 
 ---
 
@@ -82,16 +82,16 @@ A complete, production-ready VM export system with three powerful tools:
 ## 📁 Project Structure
 
 ```
-~/projects/hyper2kvm-providers/
+~/projects/hypervisor-sdk/
 ├── build/
 │   ├── hyper2kvm      (19 MB) - CLI
-│   ├── hyper2kvmd     (20 MB) - Daemon
-│   └── h2kvmctl       (17 MB) - Control
+│   ├── hypervisord     (20 MB) - Daemon
+│   └── hyperctl       (17 MB) - Control
 │
 ├── cmd/
 │   ├── hyper2kvm/main.go      - Interactive CLI
-│   ├── hyper2kvmd/main.go     - Daemon service
-│   └── h2kvmctl/main.go       - Control CLI
+│   ├── hypervisord/main.go     - Daemon service
+│   └── hyperctl/main.go       - Control CLI
 │
 ├── daemon/
 │   ├── models/job.go          - Job models
@@ -114,7 +114,7 @@ A complete, production-ready VM export system with three powerful tools:
 ├── logger/
 │   └── logger.go              - Logging
 │
-├── go.mod                     - Module: hyper2kvm-providers
+├── go.mod                     - Module: hypervisor-sdk
 ├── README.md                  - Main documentation
 ├── GETTING-STARTED.md         - Quick start guide
 ├── DAEMON-README.md           - Daemon architecture
@@ -128,36 +128,36 @@ A complete, production-ready VM export system with three powerful tools:
 
 ### Start Daemon
 ```bash
-cd ~/projects/hyper2kvm-providers
+cd ~/projects/hypervisor-sdk
 export GOVC_URL='https://vcenter.example.com/sdk'
 export GOVC_USERNAME='administrator@vsphere.local'
 export GOVC_PASSWORD='your-password'
 export GOVC_INSECURE=1
 
-./build/hyper2kvmd
+./build/hypervisord
 ```
 
 ### Submit Job
 ```bash
 # Single VM
-./build/h2kvmctl submit -vm "/datacenter/vm/my-vm" -output "/tmp/export"
+./build/hyperctl submit -vm "/datacenter/vm/my-vm" -output "/tmp/export"
 
 # From file
-./build/h2kvmctl submit -file example-job.yaml
+./build/hyperctl submit -file example-job.yaml
 
 # Batch
-./build/h2kvmctl submit -file example-batch.yaml
+./build/hyperctl submit -file example-batch.yaml
 ```
 
 ### Monitor Progress
 ```bash
-./build/h2kvmctl query -all
-./build/h2kvmctl status
+./build/hyperctl query -all
+./build/hyperctl status
 ```
 
 ### Interactive Mode
 ```bash
-./build/hyper2kvm
+./build/hyperexport
 ```
 
 ---
@@ -352,14 +352,14 @@ else:
 
 ## 🔗 Integration with hyper2kvm
 
-This project complements the Python `hyper2kvm` project:
+This project complements the Python `hyperexport` project:
 
 - **Python hyper2kvm** - Full migration workflow, conversion
-- **hyper2kvm-providers** - High-performance export, API
+- **hypervisor-sdk** - High-performance export, API
 
 Together they provide a complete migration solution:
-1. Export with `hyper2kvmd` (fast, concurrent)
-2. Convert with Python `hyper2kvm`
+1. Export with `hypervisord` (fast, concurrent)
+2. Convert with Python `hyperexport`
 3. Import to KVM
 
 ---
@@ -377,7 +377,7 @@ Everything works as designed:
 - ✅ Well documented
 
 **Current Activity:**
-- Daemon running: `./build/hyper2kvmd`
+- Daemon running: `./build/hypervisord`
 - Active export: 74 GB VM (in progress)
 - Job ID: `aafd6c12-0a97-4f3b-ab92-61a1fccba6fb`
 
