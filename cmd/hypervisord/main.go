@@ -81,8 +81,17 @@ func main() {
 	// Create job manager
 	manager := jobs.NewManager(log)
 
-	// Create API server
-	server := api.NewServer(manager, log, cfg.DaemonAddr)
+	// Create API config
+	apiConfig := &api.Config{}
+	apiConfig.Metrics.Enabled = false
+	apiConfig.Security.EnableAuth = false // Disable auth for local development
+
+	// Create Enhanced API server with Phase 2 features
+	server, err := api.NewEnhancedServer(manager, log, cfg.DaemonAddr, apiConfig)
+	if err != nil {
+		pterm.Error.Printfln("Failed to create server: %v", err)
+		os.Exit(1)
+	}
 
 	// Handle signals for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
@@ -150,12 +159,18 @@ func showEndpoints(addr string) {
 
 	endpoints := [][]string{
 		{"Endpoint", "Method", "Description"},
+		{baseURL + "/", "GET", "Web Dashboard (redirect)"},
+		{baseURL + "/web/dashboard/", "GET", "Web Dashboard UI"},
+		{baseURL + "/ws", "WS", "WebSocket (real-time updates)"},
 		{baseURL + "/health", "GET", "Health check"},
 		{baseURL + "/status", "GET", "Daemon status"},
 		{baseURL + "/jobs/submit", "POST", "Submit job(s) (JSON/YAML)"},
 		{baseURL + "/jobs/query", "POST", "Query jobs"},
 		{baseURL + "/jobs/{id}", "GET", "Get specific job"},
 		{baseURL + "/jobs/cancel", "POST", "Cancel job(s)"},
+		{baseURL + "/schedules", "GET/POST", "Manage schedules"},
+		{baseURL + "/webhooks", "GET/POST", "Manage webhooks"},
+		{baseURL + "/vms/list", "GET", "List discovered VMs"},
 	}
 
 	pterm.DefaultSection.Println("Available API Endpoints")
@@ -165,4 +180,6 @@ func showEndpoints(addr string) {
 		WithBoxed().
 		WithData(endpoints).
 		Render()
+
+	pterm.Info.Printfln("\n📊 Open dashboard in browser: %s/web/dashboard/", baseURL)
 }
