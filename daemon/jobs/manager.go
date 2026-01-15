@@ -24,6 +24,7 @@ type Manager struct {
 	startTime time.Time
 	ctx       context.Context
 	cancel    context.CancelFunc
+	wg        sync.WaitGroup // Track running goroutines
 }
 
 // NewManager creates a new job manager
@@ -66,8 +67,12 @@ func (m *Manager) SubmitJob(def models.JobDefinition) (string, error) {
 	m.jobs[def.ID] = job
 	m.logger.Info("job submitted", "id", def.ID, "name", def.Name, "vm", def.VMPath)
 
-	// Start job in goroutine
-	go m.executeJob(def.ID)
+	// Start job in goroutine with WaitGroup tracking
+	m.wg.Add(1)
+	go func() {
+		defer m.wg.Done()
+		m.executeJob(def.ID)
+	}()
 
 	return def.ID, nil
 }
@@ -99,8 +104,26 @@ func (m *Manager) GetJob(id string) (*models.Job, error) {
 		return nil, fmt.Errorf("job not found: %s", id)
 	}
 
-	// Return a copy to avoid race conditions
+	// Deep copy to avoid race conditions with pointer fields
 	jobCopy := *job
+
+	// Deep copy Progress if present
+	if job.Progress != nil {
+		progressCopy := *job.Progress
+		jobCopy.Progress = &progressCopy
+	}
+
+	// Deep copy Result if present
+	if job.Result != nil {
+		resultCopy := *job.Result
+		// Copy slice fields
+		if len(job.Result.Files) > 0 {
+			resultCopy.Files = make([]string, len(job.Result.Files))
+			copy(resultCopy.Files, job.Result.Files)
+		}
+		jobCopy.Result = &resultCopy
+	}
+
 	return &jobCopy, nil
 }
 
@@ -126,8 +149,25 @@ func (m *Manager) ListJobs(statuses []models.JobStatus, limit int) []*models.Job
 			}
 		}
 
-		// Copy job to avoid race conditions
+		// Deep copy job to avoid race conditions
 		jobCopy := *job
+
+		// Deep copy Progress if present
+		if job.Progress != nil {
+			progressCopy := *job.Progress
+			jobCopy.Progress = &progressCopy
+		}
+
+		// Deep copy Result if present
+		if job.Result != nil {
+			resultCopy := *job.Result
+			if len(job.Result.Files) > 0 {
+				resultCopy.Files = make([]string, len(job.Result.Files))
+				copy(resultCopy.Files, job.Result.Files)
+			}
+			jobCopy.Result = &resultCopy
+		}
+
 		result = append(result, &jobCopy)
 
 		// Apply limit
@@ -199,7 +239,23 @@ func (m *Manager) GetStatus() *models.DaemonStatus {
 // Shutdown gracefully shuts down the manager
 func (m *Manager) Shutdown() {
 	m.logger.Info("shutting down job manager")
+
+	// Cancel context to signal running jobs to stop
 	m.cancel()
+
+	// Wait for all goroutines to complete (with timeout)
+	done := make(chan struct{})
+	go func() {
+		m.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		m.logger.Info("all jobs completed gracefully")
+	case <-time.After(30 * time.Second):
+		m.logger.Warn("shutdown timeout reached, some jobs may still be running")
+	}
 }
 
 // executeJob runs a job (called in goroutine)

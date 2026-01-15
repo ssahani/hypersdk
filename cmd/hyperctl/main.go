@@ -63,14 +63,14 @@ func showBanner() {
 }
 
 func showRandomFact() {
-	rand.Seed(time.Now().UnixNano())
+	// Note: rand is auto-seeded in Go 1.20+, no manual seeding needed
 	fact := funFacts[rand.Intn(len(funFacts))]
 	pterm.Println()
 	pterm.FgLightCyan.Println(fact)
 }
 
 func showMotivation() {
-	rand.Seed(time.Now().UnixNano())
+	// Note: rand is auto-seeded in Go 1.20+, no manual seeding needed
 	msg := motivationalMessages[rand.Intn(len(motivationalMessages))]
 	pterm.Println()
 	pterm.FgLightGreen.Println(msg)

@@ -23,6 +23,39 @@ import (
 	"hypersdk/progress"
 )
 
+// sanitizeVMName sanitizes a VM name for safe use in file paths
+func sanitizeVMName(name string) string {
+	// Replace directory separators and path traversal attempts
+	name = strings.ReplaceAll(name, "/", "-")
+	name = strings.ReplaceAll(name, "\\", "-")
+	name = strings.ReplaceAll(name, "..", "-")
+
+	// Remove null bytes and other invalid characters
+	name = strings.ReplaceAll(name, "\x00", "")
+	name = strings.ReplaceAll(name, ":", "-")
+	name = strings.ReplaceAll(name, "*", "-")
+	name = strings.ReplaceAll(name, "?", "-")
+	name = strings.ReplaceAll(name, "\"", "-")
+	name = strings.ReplaceAll(name, "<", "-")
+	name = strings.ReplaceAll(name, ">", "-")
+	name = strings.ReplaceAll(name, "|", "-")
+
+	// Trim dangerous prefixes/suffixes
+	name = strings.Trim(name, ".-")
+
+	// Default if empty
+	if name == "" {
+		name = "unnamed-vm"
+	}
+
+	// Limit length
+	if len(name) > 255 {
+		name = name[:255]
+	}
+
+	return name
+}
+
 // progressWriter implements io.Writer to update progress bar
 type progressWriter struct {
 	progressBar progress.ProgressReporter
@@ -175,7 +208,9 @@ func (c *VSphereClient) prepareOutputDirectory(path string) (string, error) {
 }
 
 func (c *VSphereClient) createOVFDescriptor(ctx context.Context, vm *object.VirtualMachine, outputDir string) (string, error) {
-	ovfPath := filepath.Join(outputDir, vm.Name()+".ovf")
+	// Sanitize VM name to prevent path traversal
+	sanitizedName := sanitizeVMName(vm.Name())
+	ovfPath := filepath.Join(outputDir, sanitizedName+".ovf")
 
 	// Create OVF manager
 	manager := ovf.NewManager(c.client.Client)
