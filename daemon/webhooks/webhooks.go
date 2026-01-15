@@ -221,7 +221,7 @@ func (m *Manager) SendJobCompleted(job *models.Job) {
 
 	if job.Result != nil {
 		data["ovf_path"] = job.Result.OVFPath
-		data["exported_files"] = job.Result.ExportedFiles
+		data["exported_files"] = job.Result.Files
 	}
 
 	m.Send(EventJobCompleted, data)
@@ -258,8 +258,8 @@ func (m *Manager) SendJobProgress(job *models.Job) {
 		"phase":            job.Progress.Phase,
 		"percent_complete": job.Progress.PercentComplete,
 		"files_done":       job.Progress.FilesDownloaded,
-		"files_total":      job.Progress.FilesTotal,
+		"files_total":      job.Progress.TotalFiles,
 		"bytes_done":       job.Progress.BytesDownloaded,
-		"bytes_total":      job.Progress.BytesTotal,
+		"bytes_total":      job.Progress.TotalBytes,
 	})
 }
