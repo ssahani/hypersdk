@@ -63,6 +63,13 @@ func (es *EnhancedServer) handleAddWebhook(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// Validate webhook URL for security (SSRF prevention)
+	if err := ValidateWebhookURL(webhook.URL, es.config.Security.BlockPrivateIPs); err != nil {
+		es.errorResponse(w, http.StatusBadRequest, "invalid webhook URL: %v", err)
+		es.logger.Warn("webhook URL validation failed", "url", webhook.URL, "error", err)
+		return
+	}
+
 	// Add to config and reinitialize webhook manager
 	es.config.Webhooks = append(es.config.Webhooks, webhook)
 	es.webhookMgr = webhooks.NewManager(es.config.Webhooks, es.logger)
@@ -144,6 +151,13 @@ func (es *EnhancedServer) handleTestWebhook(w http.ResponseWriter, r *http.Reque
 
 	if req.URL == "" {
 		es.errorResponse(w, http.StatusBadRequest, "URL is required")
+		return
+	}
+
+	// Validate webhook URL for security (SSRF prevention)
+	if err := ValidateWebhookURL(req.URL, es.config.Security.BlockPrivateIPs); err != nil {
+		es.errorResponse(w, http.StatusBadRequest, "invalid webhook URL: %v", err)
+		es.logger.Warn("test webhook URL validation failed", "url", req.URL, "error", err)
 		return
 	}
 
