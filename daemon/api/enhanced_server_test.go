@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"testing"
 
 	"hypersdk/daemon/jobs"
@@ -78,7 +79,8 @@ func TestWSHub(t *testing.T) {
 	hub := NewWSHub()
 
 	// Start hub in background
-	go hub.Run()
+	ctx := context.Background()
+	go hub.Run(ctx)
 
 	// Test client count
 	count := hub.GetClientCount()
