@@ -5,8 +5,8 @@ package jobs
 import (
 	"time"
 
-	"hypervisor-sdk/config"
-	"hypervisor-sdk/providers/vsphere"
+	"hyper-sdk/config"
+	"hyper-sdk/providers/vsphere"
 )
 
 // GetVSphereClient returns a vSphere client using environment configuration

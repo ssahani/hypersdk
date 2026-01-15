@@ -1,6 +1,6 @@
-# hypervisor-sdk - Project Summary
+# hyper-sdk - Project Summary
 
-**Official Project Name:** `hypervisor-sdk`
+**Official Project Name:** `hyper-sdk`
 **Status:** ✅ Production Ready
 **Date:** 2026-01-17
 **Version:** 0.0.1
@@ -82,7 +82,7 @@ A complete, production-ready VM export system with three powerful tools:
 ## 📁 Project Structure
 
 ```
-~/projects/hypervisor-sdk/
+~/projects/hyper-sdk/
 ├── build/
 │   ├── hyper2kvm      (19 MB) - CLI
 │   ├── hypervisord     (20 MB) - Daemon
@@ -114,7 +114,7 @@ A complete, production-ready VM export system with three powerful tools:
 ├── logger/
 │   └── logger.go              - Logging
 │
-├── go.mod                     - Module: hypervisor-sdk
+├── go.mod                     - Module: hyper-sdk
 ├── README.md                  - Main documentation
 ├── GETTING-STARTED.md         - Quick start guide
 ├── DAEMON-README.md           - Daemon architecture
@@ -128,7 +128,7 @@ A complete, production-ready VM export system with three powerful tools:
 
 ### Start Daemon
 ```bash
-cd ~/projects/hypervisor-sdk
+cd ~/projects/hyper-sdk
 export GOVC_URL='https://vcenter.example.com/sdk'
 export GOVC_USERNAME='administrator@vsphere.local'
 export GOVC_PASSWORD='your-password'
@@ -355,7 +355,7 @@ else:
 This project complements the Python `hyperexport` project:
 
 - **Python hyper2kvm** - Full migration workflow, conversion
-- **hypervisor-sdk** - High-performance export, API
+- **hyper-sdk** - High-performance export, API
 
 Together they provide a complete migration solution:
 1. Export with `hypervisord` (fast, concurrent)
