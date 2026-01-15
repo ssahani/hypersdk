@@ -390,6 +390,12 @@
                 </button>
                 <button
                     class="tab"
+                    :class="{active: activeTab === 'export'}"
+                    @click="activeTab = 'export'">
+                    🚀 Export
+                </button>
+                <button
+                    class="tab"
                     :class="{active: activeTab === 'vms'}"
                     @click="activeTab = 'vms'; loadVMs()">
                     VMs
@@ -453,6 +459,169 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+
+            <!-- Export Panel -->
+            <div v-if="activeTab === 'export'" class="panel">
+                <h2 style="margin-bottom: 1.5rem;">🚀 VM Export Wizard</h2>
+
+                <!-- Step 1: vCenter Connection -->
+                <div v-if="exportStep === 1" style="max-width: 600px;">
+                    <h3 style="margin-bottom: 1rem; color: #667eea;">Step 1: Connect to vCenter</h3>
+
+                    <div class="form-group">
+                        <label>vCenter Server</label>
+                        <input v-model="vcenterConfig.server" type="text" placeholder="vcenter.example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input v-model="vcenterConfig.username" type="text" placeholder="administrator@vsphere.local">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input v-model="vcenterConfig.password" type="password" placeholder="••••••••">
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="vcenterConfig.insecure" style="width: auto; margin-right: 0.5rem;">
+                            Allow insecure connection (skip SSL verification)
+                        </label>
+                    </div>
+
+                    <button class="btn btn-primary" @click="discoverVMsFromVCenter" :disabled="discoveringVMs">
+                        {{ discoveringVMs ? 'Discovering...' : '🔍 Discover VMs' }}
+                    </button>
+                </div>
+
+                <!-- Step 2: Select VMs -->
+                <div v-if="exportStep === 2">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="color: #667eea;">Step 2: Select VMs to Export</h3>
+                        <button class="btn btn-secondary" @click="exportStep = 1">← Back</button>
+                    </div>
+
+                    <div v-if="discoveredVMs.length === 0" class="empty-state">
+                        <div class="empty-state-icon">💻</div>
+                        <h3>No VMs discovered</h3>
+                        <p>Check your vCenter credentials and try again</p>
+                    </div>
+
+                    <div v-else>
+                        <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f0f7ff; border-radius: 6px;">
+                            <strong>{{ selectedVMs.length }}</strong> of <strong>{{ discoveredVMs.length }}</strong> VMs selected
+                            <button class="btn btn-secondary" style="margin-left: 1rem;" @click="selectAllVMs">Select All</button>
+                            <button class="btn btn-secondary" style="margin-left: 0.5rem;" @click="deselectAllVMs">Deselect All</button>
+                        </div>
+
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" @change="toggleAllVMs" :checked="selectedVMs.length === discoveredVMs.length">
+                                    </th>
+                                    <th>Name</th>
+                                    <th>Path</th>
+                                    <th>Power State</th>
+                                    <th>CPU</th>
+                                    <th>Memory</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="vm in discoveredVMs" :key="vm.path" @click="toggleVM(vm)" style="cursor: pointer;">
+                                    <td>
+                                        <input type="checkbox" :checked="isVMSelected(vm)" @click.stop="toggleVM(vm)">
+                                    </td>
+                                    <td><strong>{{ vm.name }}</strong></td>
+                                    <td><code>{{ vm.path }}</code></td>
+                                    <td>
+                                        <span class="badge" :class="{completed: vm.power_state === 'poweredOn', pending: vm.power_state === 'poweredOff'}">
+                                            {{ vm.power_state }}
+                                        </span>
+                                    </td>
+                                    <td>{{ vm.num_cpu }}</td>
+                                    <td>{{ (vm.memory_mb / 1024).toFixed(1) }} GB</td>
+                                </tr>
+                            </tbody>
+                        </table>
+
+                        <div style="margin-top: 1.5rem;">
+                            <button class="btn btn-primary" @click="exportStep = 3" :disabled="selectedVMs.length === 0">
+                                Next: Configure Export →
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 3: Configure Export -->
+                <div v-if="exportStep === 3" style="max-width: 800px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="color: #667eea;">Step 3: Configure Export</h3>
+                        <button class="btn btn-secondary" @click="exportStep = 2">← Back</button>
+                    </div>
+
+                    <div style="background: #f0f7ff; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem;">
+                        <strong>{{ selectedVMs.length }}</strong> VM(s) selected for export
+                    </div>
+
+                    <div class="form-group">
+                        <label>Export Format</label>
+                        <select v-model="exportConfig.format">
+                            <option value="qcow2">QCOW2 (KVM/QEMU)</option>
+                            <option value="raw">RAW (Generic)</option>
+                            <option value="vmdk">VMDK (VMware)</option>
+                            <option value="ova">OVA (Open Virtualization Archive)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Output Directory</label>
+                        <input v-model="exportConfig.output_dir" type="text" placeholder="/path/to/export/directory">
+                        <small style="color: #666;">Directory where exported VMs will be saved</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Export Method</label>
+                        <select v-model="exportConfig.method">
+                            <option value="vddk">VDDK (Recommended - Faster)</option>
+                            <option value="nbdkit">NBDKit (Alternative)</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="exportConfig.compress" style="width: auto; margin-right: 0.5rem;">
+                            Compress exported disks
+                        </label>
+                    </div>
+
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="exportConfig.thin_provision" style="width: auto; margin-right: 0.5rem;">
+                            Thin provisioning (save space)
+                        </label>
+                    </div>
+
+                    <div style="margin-top: 2rem; padding: 1rem; background: #fff3cd; border-radius: 6px; border-left: 4px solid #ffc107;">
+                        <strong>⚠️ Before starting export:</strong>
+                        <ul style="margin: 0.5rem 0 0 1.5rem;">
+                            <li>Ensure sufficient disk space in output directory</li>
+                            <li>VMs can remain powered on during export</li>
+                            <li>Export progress will be shown in the Jobs tab</li>
+                        </ul>
+                    </div>
+
+                    <div style="margin-top: 1.5rem;">
+                        <button class="btn btn-primary" @click="submitExportJobs" :disabled="submittingJobs">
+                            {{ submittingJobs ? 'Submitting...' : '✨ Start Export' }}
+                        </button>
+                        <button class="btn btn-secondary" @click="resetExportWizard" style="margin-left: 0.5rem;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
             </div>
 
             <!-- Schedules Panel -->
@@ -601,7 +770,7 @@
         createApp({
             data() {
                 return {
-                    activeTab: 'jobs',
+                    activeTab: 'export',
                     status: {},
                     jobs: [],
                     schedules: [],
@@ -614,7 +783,26 @@
                     apiUrl: '/api',
                     ws: null,
                     wsConnected: false,
-                    wsReconnectAttempts: 0
+                    wsReconnectAttempts: 0,
+                    // Export wizard state
+                    exportStep: 1,
+                    vcenterConfig: {
+                        server: '',
+                        username: '',
+                        password: '',
+                        insecure: true
+                    },
+                    discoveredVMs: [],
+                    selectedVMs: [],
+                    exportConfig: {
+                        format: 'qcow2',
+                        output_dir: '/tmp/vm-exports',
+                        method: 'vddk',
+                        compress: false,
+                        thin_provision: true
+                    },
+                    discoveringVMs: false,
+                    submittingJobs: false
                 };
             },
             mounted() {
@@ -810,6 +998,125 @@
                     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
                     const i = Math.floor(Math.log(bytes) / Math.log(k));
                     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                },
+                // Export wizard methods
+                async discoverVMsFromVCenter() {
+                    if (!this.vcenterConfig.server || !this.vcenterConfig.username || !this.vcenterConfig.password) {
+                        alert('Please fill in all vCenter credentials');
+                        return;
+                    }
+
+                    this.discoveringVMs = true;
+                    try {
+                        const response = await axios.get('/vms/list', {
+                            params: {
+                                server: this.vcenterConfig.server,
+                                username: this.vcenterConfig.username,
+                                password: this.vcenterConfig.password,
+                                insecure: this.vcenterConfig.insecure
+                            }
+                        });
+                        this.discoveredVMs = response.data.vms || [];
+                        if (this.discoveredVMs.length > 0) {
+                            this.exportStep = 2;
+                        } else {
+                            alert('No VMs found in vCenter');
+                        }
+                    } catch (error) {
+                        alert('Failed to discover VMs: ' + (error.response?.data?.error || error.message));
+                        console.error('Discovery error:', error);
+                    } finally {
+                        this.discoveringVMs = false;
+                    }
+                },
+                toggleVM(vm) {
+                    const index = this.selectedVMs.findIndex(v => v.path === vm.path);
+                    if (index > -1) {
+                        this.selectedVMs.splice(index, 1);
+                    } else {
+                        this.selectedVMs.push(vm);
+                    }
+                },
+                isVMSelected(vm) {
+                    return this.selectedVMs.some(v => v.path === vm.path);
+                },
+                toggleAllVMs() {
+                    if (this.selectedVMs.length === this.discoveredVMs.length) {
+                        this.selectedVMs = [];
+                    } else {
+                        this.selectedVMs = [...this.discoveredVMs];
+                    }
+                },
+                selectAllVMs() {
+                    this.selectedVMs = [...this.discoveredVMs];
+                },
+                deselectAllVMs() {
+                    this.selectedVMs = [];
+                },
+                async submitExportJobs() {
+                    if (this.selectedVMs.length === 0) {
+                        alert('Please select at least one VM');
+                        return;
+                    }
+
+                    if (!this.exportConfig.output_dir) {
+                        alert('Please specify output directory');
+                        return;
+                    }
+
+                    this.submittingJobs = true;
+                    const jobs = [];
+
+                    try {
+                        for (const vm of this.selectedVMs) {
+                            const jobDefinition = {
+                                vm_path: vm.path,
+                                vcenter: {
+                                    server: this.vcenterConfig.server,
+                                    username: this.vcenterConfig.username,
+                                    password: this.vcenterConfig.password,
+                                    insecure: this.vcenterConfig.insecure
+                                },
+                                output_dir: this.exportConfig.output_dir,
+                                format: this.exportConfig.format,
+                                method: this.exportConfig.method,
+                                compress: this.exportConfig.compress,
+                                thin: this.exportConfig.thin_provision
+                            };
+
+                            const response = await axios.post('/jobs/submit', jobDefinition);
+                            console.log('Job submitted for VM:', vm.name, response.data);
+                            jobs.push(response.data);
+                        }
+
+                        alert(`✅ Successfully submitted ${jobs.length} export job(s)!\n\nCheck the Jobs tab to monitor progress.`);
+                        this.activeTab = 'jobs';
+                        this.loadJobs();
+                        this.resetExportWizard();
+                    } catch (error) {
+                        alert('Failed to submit jobs: ' + (error.response?.data?.error || error.message));
+                        console.error('Submit error:', error);
+                    } finally {
+                        this.submittingJobs = false;
+                    }
+                },
+                resetExportWizard() {
+                    this.exportStep = 1;
+                    this.discoveredVMs = [];
+                    this.selectedVMs = [];
+                    this.vcenterConfig = {
+                        server: '',
+                        username: '',
+                        password: '',
+                        insecure: true
+                    };
+                    this.exportConfig = {
+                        format: 'qcow2',
+                        output_dir: '/tmp/vm-exports',
+                        method: 'vddk',
+                        compress: false,
+                        thin_provision: true
+                    };
                 }
             }
         }).mount('#app');
