@@ -60,16 +60,17 @@ type model struct {
 	cursor        int
 	height        int
 	width         int
-	daemonURL     string
-	outputDir     string
-	autoConvert   bool
-	autoImport    bool
-	phase         string // "select", "confirm", "export", "convert", "done"
-	currentExport int
-	message       string
-	err           error
+	daemonURL      string
+	outputDir      string
+	autoConvert    bool
+	autoImport     bool
+	phase          string // "select", "confirm", "run-mode", "export", "convert", "done"
+	currentExport  int
+	message        string
+	err            error
 	confirmConvert bool
 	confirmImport  bool
+	runMode        string // "terminal" or "service"
 }
 
 type vmsLoadedMsg struct {
@@ -142,6 +143,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.handleSelectionKeys(msg)
 		case "confirm":
 			return m.handleConfirmKeys(msg)
+		case "run-mode":
+			return m.handleRunModeKeys(msg)
 		}
 
 	case exportDoneMsg:
@@ -239,16 +242,41 @@ func (m model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "y", "Y":
-		// Start export
-		m.phase = "export"
-		m.currentExport = 0
-		return m, m.exportNext()
+		// Go to run mode selection
+		m.phase = "run-mode"
+		return m, nil
 
 	case "n", "N":
 		// Cancel and go back
 		m.phase = "select"
-		m.message = "Export cancelled"
+		m.message = "Migration cancelled"
 		return m, nil
+	}
+
+	return m, nil
+}
+
+func (m model) handleRunModeKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c", "q":
+		return m, tea.Quit
+
+	case "escape", "b":
+		// Go back to confirmation
+		m.phase = "confirm"
+		return m, nil
+
+	case "1", "t", "T":
+		// Run in terminal (interactive)
+		m.runMode = "terminal"
+		m.phase = "export"
+		m.currentExport = 0
+		return m, m.exportNext()
+
+	case "2", "s", "S":
+		// Run as systemd service (background)
+		m.runMode = "service"
+		return m, m.createSystemdService()
 	}
 
 	return m, nil
@@ -314,19 +342,61 @@ func (m model) convertAll() tea.Cmd {
 			if item.selected {
 				vmOutputDir := filepath.Join(m.outputDir, sanitizeFilename(item.vm.Name))
 
-				// Find VMDK files
-				vmdkFiles, err := filepath.Glob(filepath.Join(vmOutputDir, "*.vmdk"))
-				if err != nil || len(vmdkFiles) == 0 {
+				// Find OVF file
+				ovfFiles, err := filepath.Glob(filepath.Join(vmOutputDir, "*.ovf"))
+				if err != nil || len(ovfFiles) == 0 {
+					// No OVF file, skip
 					continue
 				}
 
-				// Convert first VMDK to qcow2
-				vmdkFile := vmdkFiles[0]
-				qcow2File := strings.TrimSuffix(vmdkFile, ".vmdk") + ".qcow2"
+				ovfFile := ovfFiles[0]
 
-				cmd := exec.Command("qemu-img", "convert", "-f", "vmdk", "-O", "qcow2", vmdkFile, qcow2File)
-				if err := cmd.Run(); err != nil {
-					return exportDoneMsg{index: i, err: err}
+				// Call hyper2kvm to do the migration
+				// hyper2kvm -input <ovf-file> -output <output-dir>
+				cmd := exec.Command("hyper2kvm",
+					"-input", ovfFile,
+					"-output", vmOutputDir,
+					"-format", "qcow2",
+				)
+
+				// Set environment for hyper2kvm if needed
+				cmd.Env = append(os.Environ())
+
+				// Run hyper2kvm
+				output, err := cmd.CombinedOutput()
+				if err != nil {
+					return exportDoneMsg{
+						index: i,
+						err: fmt.Errorf("hyper2kvm failed for %s: %v\nOutput: %s", item.vm.Name, err, string(output)),
+					}
+				}
+
+				// If auto-import is enabled, also import to libvirt
+				if m.autoImport {
+					// Find the qcow2 file created by hyper2kvm
+					qcow2Files, err := filepath.Glob(filepath.Join(vmOutputDir, "*.qcow2"))
+					if err == nil && len(qcow2Files) > 0 {
+						qcow2File := qcow2Files[0]
+
+						// Import to libvirt using virt-install
+						importCmd := exec.Command("virt-install",
+							"--name", item.vm.Name,
+							"--import",
+							"--disk", qcow2File+",bus=virtio",
+							"--memory", fmt.Sprintf("%d", item.vm.MemoryMB),
+							"--vcpus", fmt.Sprintf("%d", item.vm.NumCPU),
+							"--os-variant", "generic",
+							"--network", "bridge=virbr0",
+							"--graphics", "vnc",
+							"--noautoconsole",
+						)
+
+						if err := importCmd.Run(); err != nil {
+							// Don't fail the whole process if import fails
+							// Just log it
+							fmt.Fprintf(os.Stderr, "Warning: Failed to import %s to libvirt: %v\n", item.vm.Name, err)
+						}
+					}
 				}
 			}
 		}
@@ -344,6 +414,8 @@ func (m model) View() string {
 		return m.renderSelection()
 	case "confirm":
 		return m.renderConfirm()
+	case "run-mode":
+		return m.renderRunMode()
 	case "export":
 		return m.renderExport()
 	case "convert":
@@ -503,7 +575,7 @@ func (m model) renderConfirm() string {
 
 	settings := fmt.Sprintf(
 		"Output Directory: %s\n"+
-			"Auto-convert to qcow2: %s\n"+
+			"Auto-convert to qcow2: %s (using hyper2kvm)\n"+
 			"Auto-import to libvirt: %s\n",
 		m.outputDir,
 		boolToYesNo(m.autoConvert),
@@ -512,11 +584,69 @@ func (m model) renderConfirm() string {
 	b.WriteString(infoStyle.Render(settings))
 	b.WriteString("\n\n")
 
+	if m.autoConvert {
+		b.WriteString(helpStyle.Render("Note: hyper2kvm will convert OVF+VMDK to qcow2 format"))
+		b.WriteString("\n\n")
+	}
+
 	// Confirmation prompt
 	b.WriteString(successStyle.Bold(true).Render("🚀 Start migration?"))
 	b.WriteString("\n\n")
 
 	b.WriteString(helpStyle.Render("y: Yes, start migration | n: No, go back | Esc/b: Back to selection | q: Quit"))
+
+	return b.String()
+}
+
+func (m model) renderRunMode() string {
+	var b strings.Builder
+
+	// Title
+	b.WriteString(titleStyle.Render("🔧 Choose Execution Mode"))
+	b.WriteString("\n\n")
+
+	// Explanation
+	b.WriteString(infoStyle.Render("How would you like to run the migration?"))
+	b.WriteString("\n\n")
+
+	// Option 1: Terminal
+	b.WriteString(titleStyle.Render("1. Run in Terminal (Interactive)"))
+	b.WriteString("\n")
+	b.WriteString(infoStyle.Render(
+		"  ✓ Watch progress in real-time\n"+
+			"  ✓ See immediate feedback\n"+
+			"  ✓ Requires keeping terminal open\n"+
+			"  ⚠  Terminal must stay active during migration",
+	))
+	b.WriteString("\n\n")
+
+	// Option 2: Service
+	b.WriteString(titleStyle.Render("2. Run as Systemd Service (Background)"))
+	b.WriteString("\n")
+	b.WriteString(infoStyle.Render(
+		"  ✓ Runs in background\n"+
+			"  ✓ Can close terminal and come back later\n"+
+			"  ✓ Survives SSH disconnections\n"+
+			"  ✓ Check status with: journalctl -u vm-migration@<job-id>\n"+
+			"  ℹ  Perfect for long migrations or remote work",
+	))
+	b.WriteString("\n\n")
+
+	// Selected count reminder
+	selectedCount := 0
+	for _, item := range m.vms {
+		if item.selected {
+			selectedCount++
+		}
+	}
+	b.WriteString(helpStyle.Render(fmt.Sprintf("Migrating %d VMs", selectedCount)))
+	b.WriteString("\n\n")
+
+	// Prompt
+	b.WriteString(successStyle.Bold(true).Render("Choose execution mode:"))
+	b.WriteString("\n\n")
+
+	b.WriteString(helpStyle.Render("1/t: Terminal | 2/s: Systemd Service | Esc/b: Back | q: Quit"))
 
 	return b.String()
 }
@@ -548,12 +678,46 @@ func (m model) renderExport() string {
 }
 
 func (m model) renderConvert() string {
-	return successStyle.Render("🔄 Converting VMDKs to qcow2...")
+	var b strings.Builder
+
+	b.WriteString(titleStyle.Render("🔄 Converting VMs with hyper2kvm"))
+	b.WriteString("\n\n")
+
+	b.WriteString(infoStyle.Render("Running hyper2kvm for each exported VM..."))
+	b.WriteString("\n\n")
+
+	for _, item := range m.vms {
+		if item.selected {
+			b.WriteString(fmt.Sprintf("⟳ %s - Converting OVF to qcow2...\n", item.vm.Name))
+		}
+	}
+
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("This may take several minutes depending on VM size"))
+
+	return b.String()
 }
 
 func (m model) renderDone() string {
 	var b strings.Builder
 
+	if m.runMode == "service" {
+		// Show service information
+		b.WriteString(successStyle.Render("✅ Migration Service Started!"))
+		b.WriteString("\n\n")
+
+		if m.message != "" {
+			b.WriteString(infoStyle.Render(m.message))
+			b.WriteString("\n\n")
+		}
+
+		b.WriteString(helpStyle.Render("The migration is running in the background.\nYou can safely close this terminal and check back later."))
+		b.WriteString("\n")
+
+		return b.String()
+	}
+
+	// Terminal mode - show completion
 	b.WriteString(successStyle.Render("✅ Migration Complete!"))
 	b.WriteString("\n\n")
 
@@ -562,6 +726,11 @@ func (m model) renderDone() string {
 			vmOutputDir := filepath.Join(m.outputDir, sanitizeFilename(item.vm.Name))
 			b.WriteString(fmt.Sprintf("📁 %s → %s\n", item.vm.Name, vmOutputDir))
 		}
+	}
+
+	if m.message != "" {
+		b.WriteString("\n\n")
+		b.WriteString(infoStyle.Render(m.message))
 	}
 
 	return b.String()
@@ -594,6 +763,97 @@ func boolToYesNo(b bool) string {
 		return successStyle.Render("Yes ✓")
 	}
 	return lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("No")
+}
+
+func (m model) createSystemdService() tea.Cmd {
+	return func() tea.Msg {
+		// Generate unique job ID
+		jobID := fmt.Sprintf("vm-migration-%d", os.Getpid())
+
+		// Create a script file that will be executed by systemd
+		scriptPath := fmt.Sprintf("/tmp/%s.sh", jobID)
+		scriptContent := "#!/bin/bash\n\n"
+		scriptContent += fmt.Sprintf("# VM Migration Script\n")
+		scriptContent += fmt.Sprintf("# Generated by h2kvmctl\n\n")
+
+		// Add export and conversion commands for each selected VM
+		for _, item := range m.vms {
+			if item.selected {
+				vmName := sanitizeFilename(item.vm.Name)
+				vmOutputDir := filepath.Join(m.outputDir, vmName)
+
+				// Create output directory
+				scriptContent += fmt.Sprintf("mkdir -p '%s'\n\n", vmOutputDir)
+
+				// Export VM
+				scriptContent += fmt.Sprintf("echo 'Exporting %s...'\n", item.vm.Name)
+				scriptContent += fmt.Sprintf("# Submit export job via h2kvmctl\n")
+				scriptContent += fmt.Sprintf("h2kvmctl submit -vm '%s' -output '%s'\n\n", item.vm.Path, vmOutputDir)
+
+				// Wait for export to complete (poll job status)
+				scriptContent += fmt.Sprintf("# Wait for export to complete\n")
+				scriptContent += "sleep 10\n\n"
+
+				if m.autoConvert {
+					// Convert with hyper2kvm
+					scriptContent += fmt.Sprintf("echo 'Converting %s with hyper2kvm...'\n", item.vm.Name)
+					scriptContent += fmt.Sprintf("OVF_FILE=$(ls '%s'/*.ovf | head -1)\n", vmOutputDir)
+					scriptContent += fmt.Sprintf("if [ -f \"$OVF_FILE\" ]; then\n")
+					scriptContent += fmt.Sprintf("  hyper2kvm -input \"$OVF_FILE\" -output '%s' -format qcow2\n", vmOutputDir)
+					scriptContent += "fi\n\n"
+				}
+
+				if m.autoImport {
+					// Import to libvirt
+					scriptContent += fmt.Sprintf("echo 'Importing %s to libvirt...'\n", item.vm.Name)
+					scriptContent += fmt.Sprintf("QCOW2_FILE=$(ls '%s'/*.qcow2 | head -1)\n", vmOutputDir)
+					scriptContent += fmt.Sprintf("if [ -f \"$QCOW2_FILE\" ]; then\n")
+					scriptContent += fmt.Sprintf("  virt-install --name '%s' --import --disk \"$QCOW2_FILE\",bus=virtio \\\n", item.vm.Name)
+					scriptContent += fmt.Sprintf("    --memory %d --vcpus %d --os-variant generic \\\n", item.vm.MemoryMB, item.vm.NumCPU)
+					scriptContent += "    --network bridge=virbr0 --graphics vnc --noautoconsole\n"
+					scriptContent += "fi\n\n"
+				}
+			}
+		}
+
+		scriptContent += "echo 'Migration complete!'\n"
+
+		// Write script file
+		if err := os.WriteFile(scriptPath, []byte(scriptContent), 0755); err != nil {
+			return exportDoneMsg{index: -1, err: fmt.Errorf("failed to create script: %v", err)}
+		}
+
+		// Create systemd transient service
+		cmd := exec.Command("systemd-run",
+			"--user",
+			"--unit", jobID,
+			"--description", fmt.Sprintf("VM Migration: %d VMs", len(m.vms)),
+			"--working-directory", m.outputDir,
+			scriptPath,
+		)
+
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			// Try without --user flag (requires sudo)
+			cmd = exec.Command("sudo", "systemd-run",
+				"--unit", jobID,
+				"--description", fmt.Sprintf("VM Migration: %d VMs", len(m.vms)),
+				"--working-directory", m.outputDir,
+				scriptPath,
+			)
+
+			output, err = cmd.CombinedOutput()
+			if err != nil {
+				return exportDoneMsg{index: -1, err: fmt.Errorf("failed to create systemd service: %v\nOutput: %s", err, string(output))}
+			}
+		}
+
+		// Service created successfully
+		m.message = fmt.Sprintf("✅ Migration started as systemd service: %s\n\nCheck status with:\n  journalctl -u %s -f\n\nScript: %s", jobID, jobID, scriptPath)
+		m.phase = "done"
+
+		return exportDoneMsg{index: -1, err: nil}
+	}
 }
 
 func runInteractive(daemonURL, outputDir string, autoConvert, autoImport bool) {
