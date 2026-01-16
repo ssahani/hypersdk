@@ -61,7 +61,7 @@ func showBanner() {
 	banner.Render()
 
 	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
-		pterm.LightCyan("Hyper2KVM Control - VMware to KVM Migration Tool\n") +
+		pterm.LightCyan("Multi-Cloud to KVM Migration Tool\n") +
 		pterm.Gray("Version " + version),
 	)
 }
@@ -179,7 +179,7 @@ func showUsage() {
 	showBanner()
 
 	pterm.Println()
-	pterm.Info.Println("🚀 A powerful CLI for VMware to KVM migration")
+	pterm.Info.Println("🚀 A powerful CLI for multi-cloud to KVM migration")
 	pterm.Println()
 
 	// VM Discovery Commands
