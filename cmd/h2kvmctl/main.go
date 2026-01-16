@@ -116,6 +116,11 @@ func main() {
 	cancelCmd := flag.NewFlagSet("cancel", flag.ExitOnError)
 	cancelID := cancelCmd.String("id", "", "Job ID to cancel (comma-separated for multiple)")
 
+	migrateCmd := flag.NewFlagSet("migrate", flag.ExitOnError)
+	migrateOutput := migrateCmd.String("output", "/tmp/vm-migrations", "Output directory for exports")
+	migrateConvert := migrateCmd.Bool("convert", true, "Auto-convert VMDK to qcow2")
+	migrateImport := migrateCmd.Bool("import", false, "Auto-import to libvirt")
+
 	// Parse global flags
 	flag.Parse()
 
@@ -154,6 +159,10 @@ func main() {
 	case "cancel":
 		cancelCmd.Parse(os.Args[2:])
 		handleCancel(*daemonURL, *cancelID)
+
+	case "migrate", "interactive":
+		migrateCmd.Parse(os.Args[2:])
+		runInteractive(*daemonURL, *migrateOutput, *migrateConvert, *migrateImport)
 
 	case "help", "-h", "--help":
 		showUsage()
@@ -208,6 +217,23 @@ func showUsage() {
 
 	pterm.Println()
 
+	// Interactive Migration
+	pterm.DefaultSection.Println("🎮 Interactive Migration")
+	migrateCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"migrate", "Interactive VM selection & migration", "h2kvmctl migrate"},
+		{"migrate -output", "Set output directory", "h2kvmctl migrate -output /migrations"},
+		{"migrate -convert=false", "Skip auto-conversion to qcow2", "h2kvmctl migrate -convert=false"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(migrateCommands).
+		Render()
+
+	pterm.Println()
+
 	// Job Management Commands
 	pterm.DefaultSection.Println("📦 Job Management")
 	jobCommands := [][]string{
@@ -227,6 +253,10 @@ func showUsage() {
 
 	pterm.Println()
 	pterm.Info.Println("Examples:")
+	pterm.Println("  # Interactive Migration")
+	pterm.Println("  h2kvmctl migrate                                  # Launch interactive mode")
+	pterm.Println("  h2kvmctl migrate -output /migrations              # Custom output directory")
+	pterm.Println()
 	pterm.Println("  # VM Discovery")
 	pterm.Println("  h2kvmctl list                                     # List all VMs")
 	pterm.Println("  h2kvmctl list -json                               # List VMs in JSON format")
