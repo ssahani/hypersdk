@@ -43,6 +43,13 @@ func NewServer(manager *jobs.Manager, log logger.Logger, addr string) *Server {
 	mux.HandleFunc("/jobs/cancel", s.handleCancelJobs)
 	mux.HandleFunc("/jobs/", s.handleGetJob) // /jobs/{id}
 
+	// VM discovery and management
+	mux.HandleFunc("/vms/list", s.handleListVMs)
+	mux.HandleFunc("/vms/info", s.handleVMInfo)
+	mux.HandleFunc("/vms/shutdown", s.handleVMShutdown)
+	mux.HandleFunc("/vms/poweroff", s.handleVMPowerOff)
+	mux.HandleFunc("/vms/remove-cdrom", s.handleVMRemoveCDROM)
+
 	s.httpServer = &http.Server{
 		Addr:         addr,
 		Handler:      s.loggingMiddleware(mux),
