@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -25,6 +26,65 @@ const (
 	defaultDaemonURL = "http://localhost:8080"
 	version          = "0.0.1"
 )
+
+var (
+	funFacts = []string{
+		"💡 Did you know? h2kvmctl uses VDDK for lightning-fast disk transfers!",
+		"🚀 Pro tip: Use -json flag for automation and scripting",
+		"⚡ Speed boost: Increase parallel_downloads for faster exports",
+		"🎯 Fun fact: KVM can run VMs faster than VMware in many cases",
+		"💾 Remember: Always remove CD/DVD before migration for smooth imports",
+		"🔥 Parallel downloads can make exports 10x faster!",
+		"🌟 h2kvmctl is built with love using Go and pterm",
+		"🎨 Enjoying the colors? We use pterm for beautiful terminal output!",
+		"📊 Monitor jobs in real-time with: h2kvmctl query -status running",
+		"🐧 Linux rocks! Especially with KVM virtualization",
+	}
+
+	motivationalMessages = []string{
+		"🎉 Great job! Your migration skills are impressive!",
+		"✨ Awesome! You're becoming a migration expert!",
+		"🚀 Fantastic! One step closer to cloud-native infrastructure!",
+		"💪 Nice work! Keep those VMs moving!",
+		"🌟 Excellent! Your infrastructure is evolving!",
+		"🎯 Perfect! Migration mastery unlocked!",
+		"⚡ Amazing! Speed and efficiency combined!",
+		"🔥 On fire! Your migration game is strong!",
+	}
+)
+
+func showBanner() {
+	banner := pterm.DefaultBigText.WithLetters(
+		pterm.NewLettersFromStringWithStyle("h2kvm", pterm.NewStyle(pterm.FgCyan)),
+		pterm.NewLettersFromStringWithStyle("ctl", pterm.NewStyle(pterm.FgLightMagenta)),
+	)
+	banner.Render()
+
+	pterm.DefaultCenter.WithCenterEachLineSeparately().Println(
+		pterm.LightCyan("Hyper2KVM Control - VMware to KVM Migration Tool\n") +
+		pterm.Gray("Version " + version),
+	)
+}
+
+func showRandomFact() {
+	rand.Seed(time.Now().UnixNano())
+	fact := funFacts[rand.Intn(len(funFacts))]
+	pterm.Println()
+	pterm.FgLightCyan.Println(fact)
+}
+
+func showMotivation() {
+	rand.Seed(time.Now().UnixNano())
+	msg := motivationalMessages[rand.Intn(len(motivationalMessages))]
+	pterm.Println()
+	pterm.FgLightGreen.Println(msg)
+}
+
+func showSuccessArt() {
+	pterm.Println()
+	pterm.DefaultCenter.Println(pterm.LightGreen("✨ ⭐ 🎉 SUCCESS! 🎉 ⭐ ✨"))
+	pterm.Println()
+}
 
 func main() {
 	// Global flags
@@ -106,25 +166,63 @@ func main() {
 }
 
 func showUsage() {
-	pterm.DefaultHeader.Println("h2kvmctl - Hyper2KVM Daemon Control")
+	// Show banner
+	showBanner()
+
+	pterm.Println()
+	pterm.Info.Println("🚀 A powerful CLI for VMware to KVM migration")
 	pterm.Println()
 
-	commands := [][]string{
-		{"Command", "Description"},
-		{"submit", "Submit job(s) to daemon"},
-		{"list", "List available VMs from vCenter"},
-		{"vm", "VM operations (shutdown, poweroff, remove-cdrom, info)"},
-		{"query", "Query job status"},
-		{"status", "Get daemon status"},
-		{"cancel", "Cancel running job(s)"},
-		{"help", "Show this help"},
+	// VM Discovery Commands
+	pterm.DefaultSection.Println("📋 VM Discovery")
+	discoveryCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"list", "List VMs from vCenter", "h2kvmctl list"},
+		{"list -json", "List VMs (JSON output)", "h2kvmctl list -json"},
+		{"list -filter", "Filter VMs by name", "h2kvmctl list -filter rhel"},
 	}
-
 	pterm.DefaultTable.
 		WithHasHeader().
 		WithHeaderRowSeparator("-").
 		WithBoxed().
-		WithData(commands).
+		WithData(discoveryCommands).
+		Render()
+
+	pterm.Println()
+
+	// VM Operations Commands
+	pterm.DefaultSection.Println("🔧 VM Operations")
+	vmCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"vm -op shutdown", "Graceful VM shutdown", "h2kvmctl vm -op shutdown -path /data/vm/my-vm"},
+		{"vm -op poweroff", "Force power off VM", "h2kvmctl vm -op poweroff -path /data/vm/my-vm"},
+		{"vm -op remove-cdrom", "Remove CD/DVD devices", "h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm"},
+		{"vm -op info", "Get VM details", "h2kvmctl vm -op info -path /data/vm/my-vm"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(vmCommands).
+		Render()
+
+	pterm.Println()
+
+	// Job Management Commands
+	pterm.DefaultSection.Println("📦 Job Management")
+	jobCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"submit", "Submit export job", "h2kvmctl submit -vm /data/vm/my-vm -output /tmp"},
+		{"submit -file", "Submit from YAML/JSON", "h2kvmctl submit -file jobs.yaml"},
+		{"query", "Query job status", "h2kvmctl query -all"},
+		{"status", "Show daemon status", "h2kvmctl status"},
+		{"cancel", "Cancel running jobs", "h2kvmctl cancel -id abc123"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(jobCommands).
 		Render()
 
 	pterm.Println()
@@ -441,6 +539,9 @@ func displayVMs(vms []vsphere.VMInfo) {
 	pterm.Println()
 	pterm.Info.Printfln("💡 Tip: Use 'h2kvmctl list -json' for machine-readable output")
 	pterm.Info.Printfln("💡 Tip: Use 'h2kvmctl list -filter <name>' to filter VMs")
+
+	// Show random fun fact
+	showRandomFact()
 }
 
 func formatBytes(bytes int64) string {
@@ -571,12 +672,36 @@ func handleVM(daemonURL, operation, vmPath string, timeout int) {
 		}
 
 		spinner.Success(opResp.Message)
+
+		// Show success celebration
+		showSuccessArt()
 		pterm.Success.Printfln("✅ %s", opResp.Message)
+
+		// Show motivation
+		showMotivation()
+
+		// Show helpful next steps
+		pterm.Println()
+		switch operation {
+		case "shutdown":
+			pterm.Info.Println("💡 Next steps:")
+			pterm.Println("   1. Verify VM is powered off: h2kvmctl vm -op info -path " + vmPath)
+			pterm.Println("   2. Remove CD/DVD: h2kvmctl vm -op remove-cdrom -path " + vmPath)
+			pterm.Println("   3. Export VM: h2kvmctl submit -vm " + vmPath + " -output /tmp/export")
+		case "poweroff":
+			pterm.Info.Println("💡 Next steps:")
+			pterm.Println("   1. Remove CD/DVD: h2kvmctl vm -op remove-cdrom -path " + vmPath)
+			pterm.Println("   2. Export VM: h2kvmctl submit -vm " + vmPath + " -output /tmp/export")
+		case "remove-cdrom":
+			pterm.Info.Println("💡 Next steps:")
+			pterm.Println("   1. Export VM: h2kvmctl submit -vm " + vmPath + " -output /tmp/export")
+			pterm.Println("   2. Monitor export: h2kvmctl query -status running")
+		}
 	}
 }
 
 func handleStatus(daemonURL string) {
-	spinner, _ := pterm.DefaultSpinner.Start("Getting daemon status...")
+	spinner, _ := pterm.DefaultSpinner.Start("📊 Getting daemon status...")
 
 	resp, err := apiRequest(daemonURL+"/status", "GET", "", nil)
 	if err != nil {
@@ -592,25 +717,72 @@ func handleStatus(daemonURL string) {
 	}
 
 	spinner.Success("Retrieved daemon status")
+	pterm.Println()
 
-	// Display status
-	data := [][]string{
-		{"Metric", "Value"},
-		{"Version", status.Version},
-		{"Uptime", status.Uptime},
-		{"Total Jobs", fmt.Sprintf("%d", status.TotalJobs)},
-		{"Running", fmt.Sprintf("%d", status.RunningJobs)},
-		{"Completed", fmt.Sprintf("%d", status.CompletedJobs)},
-		{"Failed", fmt.Sprintf("%d", status.FailedJobs)},
+	// Show connection info
+	pterm.Info.Printfln("🔗 Connected to: %s", daemonURL)
+	pterm.Println()
+
+	// Display main status
+	pterm.DefaultSection.Println("📊 Daemon Status")
+	statusData := [][]string{
+		{"Property", "Value"},
+		{"⚙️  Version", status.Version},
+		{"⏱️  Uptime", status.Uptime},
+		{"📍 URL", daemonURL},
 	}
 
-	pterm.DefaultSection.Println("Daemon Status")
 	pterm.DefaultTable.
 		WithHasHeader().
 		WithHeaderRowSeparator("-").
 		WithBoxed().
-		WithData(data).
+		WithData(statusData).
 		Render()
+
+	pterm.Println()
+
+	// Display job statistics
+	pterm.DefaultSection.Println("📈 Job Statistics")
+
+	// Calculate percentages
+	total := float64(status.TotalJobs)
+	runningPct := 0.0
+	completedPct := 0.0
+	failedPct := 0.0
+	if total > 0 {
+		runningPct = float64(status.RunningJobs) / total * 100
+		completedPct = float64(status.CompletedJobs) / total * 100
+		failedPct = float64(status.FailedJobs) / total * 100
+	}
+
+	jobsData := [][]string{
+		{"Status", "Count", "Percentage"},
+		{"📦 Total Jobs", fmt.Sprintf("%d", status.TotalJobs), "100%"},
+		{"🔄 Running", pterm.LightCyan(fmt.Sprintf("%d", status.RunningJobs)), fmt.Sprintf("%.1f%%", runningPct)},
+		{"✅ Completed", pterm.Green(fmt.Sprintf("%d", status.CompletedJobs)), fmt.Sprintf("%.1f%%", completedPct)},
+		{"❌ Failed", pterm.Red(fmt.Sprintf("%d", status.FailedJobs)), fmt.Sprintf("%.1f%%", failedPct)},
+	}
+
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(jobsData).
+		Render()
+
+	pterm.Println()
+
+	// Show helpful actions
+	if status.RunningJobs > 0 {
+		pterm.Info.Println("💡 You have running jobs:")
+		pterm.Println("   View them: h2kvmctl query -status running")
+	} else if status.TotalJobs == 0 {
+		pterm.Info.Println("💡 No jobs yet. Start by:")
+		pterm.Println("   1. List VMs: h2kvmctl list")
+		pterm.Println("   2. Submit job: h2kvmctl submit -vm /data/vm/my-vm -output /tmp/export")
+	} else {
+		pterm.Success.Println("✅ All jobs completed!")
+	}
 }
 
 func handleCancel(daemonURL, jobIDs string) {
