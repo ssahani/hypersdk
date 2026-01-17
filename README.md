@@ -1,14 +1,14 @@
-# hypervisor-sdk
+# hyper-sdk
 
 **Multi-cloud VM export provider layer for the hyper2kvm migration toolkit**
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://go.dev/)
-[![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hypervisor-sdk)
+[![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hyper-sdk)
 
 ## 🎯 Overview
 
-`hypervisor-sdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
+`hyper-sdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
 
 ### Supported Providers
 
@@ -26,7 +26,7 @@
 └─────────────────┬───────────────────────────────────────────┘
                   │ REST API
 ┌─────────────────▼───────────────────────────────────────────┐
-│             hypervisor-sdk (Go)                        │
+│             hyper-sdk (Go)                        │
 │              Provider Layer Abstraction                     │
 ├─────────────────┬───────────────┬───────────────┬───────────┤
 │   vSphere       │     AWS       │    Azure      │    GCP    │
@@ -63,8 +63,8 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/ssahani/hypervisor-sdk
-cd hypervisor-sdk
+git clone https://github.com/ssahani/hyper-sdk
+cd hyper-sdk
 
 # Build binaries
 go build -o hyper2kvm ./cmd/hyper2kvm
@@ -79,7 +79,7 @@ sudo ./install.sh
 
 ```bash
 # Install package
-sudo dnf install hypervisor-sdk
+sudo dnf install hyper-sdk
 
 # Configure
 sudo vi /etc/hypervisord/config.yaml
@@ -256,7 +256,7 @@ while True:
 ### Directory Structure
 
 ```
-hypervisor-sdk/
+hyper-sdk/
 ├── cmd/
 │   ├── hyper2kvm/          # Interactive CLI
 │   ├── hypervisord/        # Daemon service
@@ -283,7 +283,7 @@ hypervisor-sdk/
 │
 ├── config.yaml.example     # Example configuration
 ├── hypervisord.service     # Systemd unit file
-├── hypervisor-sdk.spec# RPM spec file
+├── hyper-sdk.spec# RPM spec file
 └── install.sh              # Installation script
 ```
 

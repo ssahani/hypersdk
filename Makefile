@@ -189,7 +189,7 @@ version: ## Show version information
 
 help: ## Show this help
 	@echo ""
-	@echo "hypervisor-sdk - Makefile commands:"
+	@echo "hyper-sdk - Makefile commands:"
 	@echo ""
 	@echo "Components:"
 	@echo "  hypervisord  - Go daemon for vSphere VM export"

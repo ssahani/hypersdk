@@ -13,10 +13,10 @@ import (
 
 	"github.com/pterm/pterm"
 
-	"hypervisor-sdk/config"
-	"hypervisor-sdk/daemon/api"
-	"hypervisor-sdk/daemon/jobs"
-	"hypervisor-sdk/logger"
+	"hyper-sdk/config"
+	"hyper-sdk/daemon/api"
+	"hyper-sdk/daemon/jobs"
+	"hyper-sdk/logger"
 )
 
 const (
