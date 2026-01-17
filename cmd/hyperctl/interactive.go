@@ -414,7 +414,7 @@ func (m model) convertAll() tea.Cmd {
 				)
 
 				// Set environment for hyper2kvm if needed
-				cmd.Env = append(os.Environ())
+				cmd.Env = os.Environ()
 
 				// Run hyper2kvm
 				output, err := cmd.CombinedOutput()
