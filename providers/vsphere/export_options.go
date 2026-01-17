@@ -2,7 +2,10 @@
 
 package vsphere
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type ExportOptions struct {
 	Format                 string // "ovf" or "ova"
@@ -10,7 +13,7 @@ type ExportOptions struct {
 	RemoveCDROM            bool
 	ShutdownTimeout        time.Duration
 	ParallelDownloads      int
-	Validate               bool
+	ValidateChecksum       bool  // renamed from Validate to avoid conflict with Validate() method
 	ShowIndividualProgress bool
 	ShowOverallProgress    bool
 }
@@ -21,8 +24,29 @@ func DefaultExportOptions() ExportOptions {
 		RemoveCDROM:            true,
 		ShutdownTimeout:        5 * time.Minute,
 		ParallelDownloads:      3,
-		Validate:               true,
+		ValidateChecksum:       true,
 		ShowIndividualProgress: false,
 		ShowOverallProgress:    true,
 	}
+}
+
+// Validate checks if the export options are valid
+func (opts *ExportOptions) Validate() error {
+	if opts.ParallelDownloads <= 0 {
+		return fmt.Errorf("parallel downloads must be > 0, got %d", opts.ParallelDownloads)
+	}
+
+	if opts.ParallelDownloads > 16 {
+		return fmt.Errorf("parallel downloads must be <= 16, got %d", opts.ParallelDownloads)
+	}
+
+	if opts.Format != "ovf" && opts.Format != "ova" {
+		return fmt.Errorf("format must be 'ovf' or 'ova', got '%s'", opts.Format)
+	}
+
+	if opts.OutputPath == "" {
+		return fmt.Errorf("output path cannot be empty")
+	}
+
+	return nil
 }
