@@ -3,6 +3,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -19,7 +20,8 @@ import (
 
 func TestWSHubBroadcast(t *testing.T) {
 	hub := NewWSHub()
-	go hub.Run()
+	ctx := context.Background()
+	go hub.Run(ctx)
 
 	// Create mock client
 	client := &WSClient{
@@ -55,7 +57,8 @@ func TestWSHubBroadcast(t *testing.T) {
 
 func TestWSHubClientCount(t *testing.T) {
 	hub := NewWSHub()
-	go hub.Run()
+	ctx := context.Background()
+	go hub.Run(ctx)
 
 	// Initially should have 0 clients
 	if count := hub.GetClientCount(); count != 0 {
@@ -86,7 +89,8 @@ func TestWSHubClientCount(t *testing.T) {
 
 func TestWSHubMultipleClients(t *testing.T) {
 	hub := NewWSHub()
-	go hub.Run()
+	ctx := context.Background()
+	go hub.Run(ctx)
 
 	// Register multiple clients
 	clients := make([]*WSClient, 5)
@@ -348,7 +352,8 @@ func TestStartStatusBroadcaster(t *testing.T) {
 
 func TestWSHubBroadcastOverflow(t *testing.T) {
 	hub := NewWSHub()
-	go hub.Run()
+	ctx := context.Background()
+	go hub.Run(ctx)
 
 	// Create client with small buffer
 	client := &WSClient{
