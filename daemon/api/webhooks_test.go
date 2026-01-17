@@ -3,6 +3,8 @@
 package api
 
 import (
+	"context"
+	"hypersdk/daemon/capabilities"
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -16,14 +18,17 @@ import (
 
 func setupWebhookTestServer(t *testing.T, initialWebhooks []webhooks.Webhook) *EnhancedServer {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 
 	config := &Config{
 		Webhooks: initialWebhooks,
 	}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -282,11 +287,14 @@ func TestHandleTestWebhookMissingURL(t *testing.T) {
 
 func TestHandleWebhooksNoManager(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 
 	// Create server without webhook manager
 	server := &EnhancedServer{
-		Server:     NewServer(manager, log, ":8080"),
+		Server:     NewServer(manager, detector, log, ":8080"),
 		webhookMgr: nil, // No webhook manager
 		config:     &Config{},
 	}

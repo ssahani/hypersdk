@@ -31,6 +31,11 @@ func NewGovcExporter(govcPath string, log logger.Logger) *GovcExporter {
 
 // Export performs VM export using govc CLI
 func (e *GovcExporter) Export(ctx context.Context, job *models.JobDefinition, progressCallback func(*models.JobProgress)) (*models.JobResult, error) {
+	// Validate job first
+	if err := e.Validate(job); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
 	e.logger.Info("starting govc export", "vm", job.VMPath, "govc_path", e.govcPath)
 
 	// Set govc environment variables
@@ -146,7 +151,7 @@ func (e *GovcExporter) Validate(job *models.JobDefinition) error {
 		return fmt.Errorf("output_dir is required")
 	}
 
-	if job.VCenter.Server == "" {
+	if job.VCenter == nil || job.VCenter.Server == "" {
 		return fmt.Errorf("vcenter server is required")
 	}
 

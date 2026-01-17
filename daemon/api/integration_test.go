@@ -4,6 +4,7 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/models"
 	"hypersdk/daemon/scheduler"
@@ -23,7 +25,10 @@ import (
 // TestFullIntegrationFlow tests the complete workflow
 func TestFullIntegrationFlow(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 
 	config := &Config{
 		Webhooks: []webhooks.Webhook{
@@ -37,7 +42,7 @@ func TestFullIntegrationFlow(t *testing.T) {
 	config.Database.Path = "" // No DB in test
 	config.Metrics.Enabled = true
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -114,11 +119,14 @@ func TestFullIntegrationFlow(t *testing.T) {
 // TestWebSocketIntegration tests WebSocket with job updates
 func TestWebSocketIntegration(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":0", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":0", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -178,7 +186,10 @@ func TestWebSocketIntegration(t *testing.T) {
 // TestScheduleWebhookIntegration tests schedule + webhook integration
 func TestScheduleWebhookIntegration(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 
 	// Create webhook receiver
 	webhookHits := 0
@@ -199,7 +210,7 @@ func TestScheduleWebhookIntegration(t *testing.T) {
 	}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -228,11 +239,14 @@ func TestScheduleWebhookIntegration(t *testing.T) {
 // TestEnhancedServerShutdown tests graceful shutdown
 func TestEnhancedServerShutdown(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":0", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":0", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -250,11 +264,14 @@ func TestEnhancedServerShutdown(t *testing.T) {
 // TestConcurrentWebSocketClients tests multiple WebSocket clients
 func TestConcurrentWebSocketClients(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":0", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":0", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -314,11 +331,14 @@ func TestConcurrentWebSocketClients(t *testing.T) {
 // TestScheduleCRUDFlow tests complete schedule CRUD operations
 func TestScheduleCRUDFlow(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -390,13 +410,16 @@ func TestScheduleCRUDFlow(t *testing.T) {
 // TestWebhookCRUDFlow tests complete webhook CRUD operations
 func TestWebhookCRUDFlow(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{
 		Webhooks: []webhooks.Webhook{}, // Initialize empty webhooks to enable manager
 	}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}

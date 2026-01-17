@@ -3,6 +3,8 @@
 package api
 
 import (
+	"context"
+	"hypersdk/daemon/capabilities"
 	"bytes"
 	"encoding/json"
 	"net/http"
@@ -17,11 +19,14 @@ import (
 
 func setupTestServer(t *testing.T) *EnhancedServer {
 	log := logger.New("error") // Use error level to reduce test output
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -390,11 +395,14 @@ func TestHandleScheduleStats(t *testing.T) {
 
 func TestHandleScheduleWithNoScheduler(t *testing.T) {
 	log := logger.New("error")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 
 	// Create server without scheduler
 	server := &EnhancedServer{
-		Server:    NewServer(manager, log, ":8080"),
+		Server:    NewServer(manager, detector, log, ":8080"),
 		scheduler: nil, // No scheduler
 	}
 
