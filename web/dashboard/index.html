@@ -1,0 +1,818 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HyperSDK Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem 2rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+
+        .header p {
+            opacity: 0.9;
+            margin-top: 0.5rem;
+        }
+
+        .ws-status {
+            position: absolute;
+            top: 1.5rem;
+            right: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.875rem;
+        }
+
+        .ws-status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            animation: pulse 2s infinite;
+        }
+
+        .ws-status-indicator.connected {
+            background: #44ff44;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+        }
+
+        .stat-card h3 {
+            font-size: 0.875rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.75rem;
+        }
+
+        .stat-card .value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #667eea;
+        }
+
+        .stat-card .label {
+            font-size: 0.875rem;
+            color: #999;
+            margin-top: 0.5rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 0.75rem 1.5rem;
+            background: none;
+            border: none;
+            font-size: 1rem;
+            font-weight: 500;
+            color: #666;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -2px;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table thead {
+            background: #f8f8f8;
+        }
+
+        .table th {
+            text-align: left;
+            padding: 1rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .table td {
+            padding: 1rem;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .table tr:hover {
+            background: #f8f8f8;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .badge.completed {
+            background: #d1f4e0;
+            color: #1a7f3b;
+        }
+
+        .badge.running {
+            background: #cfe8fc;
+            color: #0277bd;
+        }
+
+        .badge.failed {
+            background: #ffd5d5;
+            color: #c62828;
+        }
+
+        .badge.pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5568d3;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #999;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 6px;
+            background: #e0e0e0;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            transition: width 0.3s;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: #999;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .refresh-btn {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: #667eea;
+            color: white;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transition: all 0.2s;
+        }
+
+        .refresh-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+        }
+
+        .form-group {
+            margin-bottom: 1rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #666;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div class="header">
+            <h1>🚀 HyperSDK Dashboard</h1>
+            <p>Multi-Cloud VM Migration Management</p>
+            <div class="ws-status">
+                <div class="ws-status-indicator" :class="{connected: wsConnected}"></div>
+                <span>{{ wsConnected ? 'Live' : 'Connecting...' }}</span>
+            </div>
+        </div>
+
+        <div class="container">
+            <!-- Statistics Cards -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3>Total Jobs</h3>
+                    <div class="value">{{ status.total_jobs || 0 }}</div>
+                    <div class="label">All time</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Running Jobs</h3>
+                    <div class="value" style="color: #0277bd;">{{ status.running_jobs || 0 }}</div>
+                    <div class="label">Active now</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Completed Jobs</h3>
+                    <div class="value" style="color: #1a7f3b;">{{ status.completed_jobs || 0 }}</div>
+                    <div class="label">Successful</div>
+                </div>
+                <div class="stat-card">
+                    <h3>Failed Jobs</h3>
+                    <div class="value" style="color: #c62828;">{{ status.failed_jobs || 0 }}</div>
+                    <div class="label">Needs attention</div>
+                </div>
+            </div>
+
+            <!-- Tabs -->
+            <div class="tabs">
+                <button
+                    class="tab"
+                    :class="{active: activeTab === 'jobs'}"
+                    @click="activeTab = 'jobs'">
+                    Jobs
+                </button>
+                <button
+                    class="tab"
+                    :class="{active: activeTab === 'schedules'}"
+                    @click="activeTab = 'schedules'; loadSchedules()">
+                    Schedules
+                </button>
+                <button
+                    class="tab"
+                    :class="{active: activeTab === 'vms'}"
+                    @click="activeTab = 'vms'; loadVMs()">
+                    VMs
+                </button>
+                <button
+                    class="tab"
+                    :class="{active: activeTab === 'webhooks'}"
+                    @click="activeTab = 'webhooks'; loadWebhooks()">
+                    Webhooks
+                </button>
+            </div>
+
+            <!-- Jobs Panel -->
+            <div v-if="activeTab === 'jobs'" class="panel">
+                <h2 style="margin-bottom: 1rem;">Recent Jobs</h2>
+
+                <div v-if="loading" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading jobs...</p>
+                </div>
+
+                <div v-else-if="jobs.length === 0" class="empty-state">
+                    <div class="empty-state-icon">📦</div>
+                    <h3>No jobs yet</h3>
+                    <p>Submit a job to get started</p>
+                </div>
+
+                <table v-else class="table">
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>VM Path</th>
+                            <th>Status</th>
+                            <th>Progress</th>
+                            <th>Started</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="job in jobs" :key="job.definition.id">
+                            <td><code>{{ job.definition.id.substring(0, 8) }}</code></td>
+                            <td>{{ job.definition.vm_path }}</td>
+                            <td>
+                                <span class="badge" :class="job.status">
+                                    {{ job.status }}
+                                </span>
+                            </td>
+                            <td>
+                                <div v-if="job.progress" style="min-width: 120px;">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" :style="{width: job.progress.percent_complete + '%'}"></div>
+                                    </div>
+                                    <small style="color: #999;">{{ job.progress.percent_complete.toFixed(1) }}%</small>
+                                </div>
+                                <span v-else>-</span>
+                            </td>
+                            <td>{{ formatTime(job.started_at) }}</td>
+                            <td>
+                                <button class="btn btn-secondary btn-sm" @click="viewJob(job)">View</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Schedules Panel -->
+            <div v-if="activeTab === 'schedules'" class="panel">
+                <h2 style="margin-bottom: 1rem;">Scheduled Jobs</h2>
+
+                <div v-if="loadingSchedules" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading schedules...</p>
+                </div>
+
+                <div v-else-if="schedules.length === 0" class="empty-state">
+                    <div class="empty-state-icon">⏰</div>
+                    <h3>No schedules configured</h3>
+                    <p>Create a schedule to automate exports</p>
+                </div>
+
+                <table v-else class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Schedule</th>
+                            <th>Next Run</th>
+                            <th>Status</th>
+                            <th>Run Count</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="schedule in schedules" :key="schedule.id">
+                            <td><strong>{{ schedule.name }}</strong></td>
+                            <td><code>{{ schedule.schedule }}</code></td>
+                            <td>{{ formatTime(schedule.next_run) }}</td>
+                            <td>
+                                <span class="badge" :class="{completed: schedule.enabled, pending: !schedule.enabled}">
+                                    {{ schedule.enabled ? 'Enabled' : 'Disabled' }}
+                                </span>
+                            </td>
+                            <td>{{ schedule.run_count }}</td>
+                            <td>
+                                <button
+                                    class="btn btn-primary btn-sm"
+                                    @click="triggerSchedule(schedule.id)">
+                                    Trigger
+                                </button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- VMs Panel -->
+            <div v-if="activeTab === 'vms'" class="panel">
+                <h2 style="margin-bottom: 1rem;">Discovered VMs</h2>
+
+                <div v-if="loadingVMs" class="loading">
+                    <div class="spinner"></div>
+                    <p>Discovering VMs...</p>
+                </div>
+
+                <div v-else-if="vms.length === 0" class="empty-state">
+                    <div class="empty-state-icon">💻</div>
+                    <h3>No VMs discovered</h3>
+                    <p>Check vCenter connection</p>
+                </div>
+
+                <table v-else class="table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Path</th>
+                            <th>Power State</th>
+                            <th>CPU</th>
+                            <th>Memory</th>
+                            <th>Storage</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="vm in vms" :key="vm.name">
+                            <td><strong>{{ vm.name }}</strong></td>
+                            <td><code>{{ vm.path }}</code></td>
+                            <td>
+                                <span class="badge" :class="{completed: vm.power_state === 'poweredOn', pending: vm.power_state === 'poweredOff'}">
+                                    {{ vm.power_state }}
+                                </span>
+                            </td>
+                            <td>{{ vm.num_cpu }}</td>
+                            <td>{{ (vm.memory_mb / 1024).toFixed(1) }} GB</td>
+                            <td>{{ formatBytes(vm.storage) }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Webhooks Panel -->
+            <div v-if="activeTab === 'webhooks'" class="panel">
+                <h2 style="margin-bottom: 1rem;">Webhook Endpoints</h2>
+
+                <div v-if="loadingWebhooks" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading webhooks...</p>
+                </div>
+
+                <div v-else-if="webhooks.length === 0" class="empty-state">
+                    <div class="empty-state-icon">🔗</div>
+                    <h3>No webhooks configured</h3>
+                    <p>Add a webhook to receive notifications</p>
+                </div>
+
+                <table v-else class="table">
+                    <thead>
+                        <tr>
+                            <th>URL</th>
+                            <th>Events</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr v-for="(webhook, index) in webhooks" :key="index">
+                            <td><code>{{ webhook.url }}</code></td>
+                            <td>{{ webhook.events ? webhook.events.join(', ') : 'all' }}</td>
+                            <td>
+                                <span class="badge" :class="{completed: webhook.enabled, pending: !webhook.enabled}">
+                                    {{ webhook.enabled ? 'Enabled' : 'Disabled' }}
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-primary btn-sm" @click="testWebhook(webhook.url)">Test</button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Refresh Button -->
+        <button class="refresh-btn" @click="refresh" title="Refresh">
+            ↻
+        </button>
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    activeTab: 'jobs',
+                    status: {},
+                    jobs: [],
+                    schedules: [],
+                    vms: [],
+                    webhooks: [],
+                    loading: false,
+                    loadingSchedules: false,
+                    loadingVMs: false,
+                    loadingWebhooks: false,
+                    apiUrl: '/api',
+                    ws: null,
+                    wsConnected: false,
+                    wsReconnectAttempts: 0
+                };
+            },
+            mounted() {
+                this.connectWebSocket();
+                // Fallback polling if WebSocket fails
+                setInterval(() => {
+                    if (!this.wsConnected) {
+                        this.loadStatus();
+                        if (this.activeTab === 'jobs') {
+                            this.loadJobs();
+                        }
+                    }
+                }, 10000); // Fallback refresh every 10 seconds
+            },
+            beforeUnmount() {
+                if (this.ws) {
+                    this.ws.close();
+                }
+            },
+            methods: {
+                connectWebSocket() {
+                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                    const wsUrl = `${protocol}//${window.location.host}/ws`;
+
+                    console.log('Connecting to WebSocket:', wsUrl);
+                    this.ws = new WebSocket(wsUrl);
+
+                    this.ws.onopen = () => {
+                        console.log('WebSocket connected');
+                        this.wsConnected = true;
+                        this.wsReconnectAttempts = 0;
+                    };
+
+                    this.ws.onmessage = (event) => {
+                        try {
+                            const message = JSON.parse(event.data);
+                            this.handleWebSocketMessage(message);
+                        } catch (error) {
+                            console.error('Failed to parse WebSocket message:', error);
+                        }
+                    };
+
+                    this.ws.onerror = (error) => {
+                        console.error('WebSocket error:', error);
+                        this.wsConnected = false;
+                    };
+
+                    this.ws.onclose = () => {
+                        console.log('WebSocket disconnected');
+                        this.wsConnected = false;
+
+                        // Attempt to reconnect with exponential backoff
+                        if (this.wsReconnectAttempts < 5) {
+                            const delay = Math.min(1000 * Math.pow(2, this.wsReconnectAttempts), 30000);
+                            console.log(`Reconnecting in ${delay}ms...`);
+                            setTimeout(() => {
+                                this.wsReconnectAttempts++;
+                                this.connectWebSocket();
+                            }, delay);
+                        }
+                    };
+                },
+                handleWebSocketMessage(message) {
+                    console.log('WebSocket message:', message.type, message.data);
+
+                    switch (message.type) {
+                        case 'status':
+                            this.status = message.data;
+                            break;
+                        case 'jobs':
+                            this.jobs = message.data.jobs || [];
+                            break;
+                        case 'job_update':
+                            this.updateJob(message.data);
+                            break;
+                        case 'schedule_event':
+                            console.log('Schedule event:', message.data);
+                            if (this.activeTab === 'schedules') {
+                                this.loadSchedules();
+                            }
+                            break;
+                        default:
+                            console.log('Unknown message type:', message.type);
+                    }
+                },
+                updateJob(jobData) {
+                    const index = this.jobs.findIndex(j => j.definition.id === jobData.definition.id);
+                    if (index !== -1) {
+                        this.jobs[index] = jobData;
+                    } else {
+                        this.jobs.unshift(jobData);
+                    }
+                    // Update status counts
+                    this.loadStatus();
+                },
+                async loadStatus() {
+                    try {
+                        const response = await axios.get('/status');
+                        this.status = response.data;
+                    } catch (error) {
+                        console.error('Failed to load status:', error);
+                    }
+                },
+                async loadJobs() {
+                    this.loading = true;
+                    try {
+                        const response = await axios.post('/jobs/query', { all: true });
+                        this.jobs = response.data.jobs || [];
+                    } catch (error) {
+                        console.error('Failed to load jobs:', error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                async loadSchedules() {
+                    this.loadingSchedules = true;
+                    try {
+                        const response = await axios.get('/schedules');
+                        this.schedules = response.data.schedules || [];
+                    } catch (error) {
+                        console.error('Failed to load schedules:', error);
+                    } finally {
+                        this.loadingSchedules = false;
+                    }
+                },
+                async loadVMs() {
+                    this.loadingVMs = true;
+                    try {
+                        const response = await axios.get('/vms/list');
+                        this.vms = response.data.vms || [];
+                    } catch (error) {
+                        console.error('Failed to load VMs:', error);
+                    } finally {
+                        this.loadingVMs = false;
+                    }
+                },
+                async loadWebhooks() {
+                    this.loadingWebhooks = true;
+                    try {
+                        const response = await axios.get('/webhooks');
+                        this.webhooks = response.data.webhooks || [];
+                    } catch (error) {
+                        console.error('Failed to load webhooks:', error);
+                    } finally {
+                        this.loadingWebhooks = false;
+                    }
+                },
+                async triggerSchedule(id) {
+                    try {
+                        await axios.post(`/schedules/${id}/trigger`);
+                        alert('Schedule triggered successfully');
+                        this.loadJobs();
+                    } catch (error) {
+                        alert('Failed to trigger schedule: ' + error.message);
+                    }
+                },
+                async testWebhook(url) {
+                    try {
+                        await axios.post('/webhooks/test', { url, event: 'test' });
+                        alert('Test webhook sent');
+                    } catch (error) {
+                        alert('Failed to send test webhook: ' + error.message);
+                    }
+                },
+                viewJob(job) {
+                    alert(`Job Details:\n\nID: ${job.definition.id}\nVM: ${job.definition.vm_path}\nStatus: ${job.status}\nProgress: ${job.progress ? job.progress.percent_complete.toFixed(1) : 0}%`);
+                },
+                refresh() {
+                    this.loadStatus();
+                    switch (this.activeTab) {
+                        case 'jobs':
+                            this.loadJobs();
+                            break;
+                        case 'schedules':
+                            this.loadSchedules();
+                            break;
+                        case 'vms':
+                            this.loadVMs();
+                            break;
+                        case 'webhooks':
+                            this.loadWebhooks();
+                            break;
+                    }
+                },
+                formatTime(timestamp) {
+                    if (!timestamp) return '-';
+                    const date = new Date(timestamp);
+                    return date.toLocaleString();
+                },
+                formatBytes(bytes) {
+                    if (!bytes || bytes === 0) return '0 B';
+                    const k = 1024;
+                    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+                    const i = Math.floor(Math.log(bytes) / Math.log(k));
+                    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+                }
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
