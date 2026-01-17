@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"hyper2kvm-providers/providers/vsphere"
+	"hypervisor-sdk/providers/vsphere"
 )
 
 // VMListResponse represents the response for VM listing

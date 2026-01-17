@@ -5,7 +5,7 @@ package models
 import (
 	"time"
 
-	"hyper2kvm-providers/providers/vsphere"
+	"hypervisor-sdk/providers/vsphere"
 )
 
 // JobStatus represents the current state of a job

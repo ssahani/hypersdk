@@ -1,14 +1,14 @@
-# hyper2kvm-providers
+# hypervisor-sdk
 
 **Multi-cloud VM export provider layer for the hyper2kvm migration toolkit**
 
 [![License: LGPL v3](https://img.shields.io/badge/License-LGPL%20v3-blue.svg)](https://www.gnu.org/licenses/lgpl-3.0)
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?logo=go)](https://go.dev/)
-[![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hyper2kvm-providers)
+[![Production Ready](https://img.shields.io/badge/status-production%20ready-green)](https://github.com/ssahani/hypervisor-sdk)
 
 ## 🎯 Overview
 
-`hyper2kvm-providers` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
+`hypervisor-sdk` is a high-performance, daemon-based VM export system that provides a **provider layer abstraction** for multiple clouds. It handles VM discovery, export, download, and metadata operations across different cloud platforms.
 
 ### Supported Providers
 
@@ -26,7 +26,7 @@
 └─────────────────┬───────────────────────────────────────────┘
                   │ REST API
 ┌─────────────────▼───────────────────────────────────────────┐
-│             hyper2kvm-providers (Go)                        │
+│             hypervisor-sdk (Go)                        │
 │              Provider Layer Abstraction                     │
 ├─────────────────┬───────────────┬───────────────┬───────────┤
 │   vSphere       │     AWS       │    Azure      │    GCP    │
@@ -53,9 +53,9 @@
 
 | Binary | Purpose | Use Case |
 |--------|---------|----------|
-| `hyper2kvm` | Interactive CLI | Manual exports with beautiful UI |
-| `hyper2kvmd` | Background daemon | Automation, REST API, batch processing |
-| `h2kvmctl` | Migration Commander | Interactive TUI migration, daemon control, job management |
+| `hyperexport` | Interactive CLI | Manual exports with beautiful UI |
+| `hypervisord` | Background daemon | Automation, REST API, batch processing |
+| `hyperctl` | Migration Commander | Interactive TUI migration, daemon control, job management |
 
 ## 🚀 Quick Start
 
@@ -63,13 +63,13 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/ssahani/hyper2kvm-providers
-cd hyper2kvm-providers
+git clone https://github.com/ssahani/hypervisor-sdk
+cd hypervisor-sdk
 
 # Build binaries
 go build -o hyper2kvm ./cmd/hyper2kvm
-go build -o hyper2kvmd ./cmd/hyper2kvmd
-go build -o h2kvmctl ./cmd/h2kvmctl
+go build -o hypervisord ./cmd/hypervisord
+go build -o hyperctl ./cmd/hyperctl
 
 # Install (requires root)
 sudo ./install.sh
@@ -79,14 +79,14 @@ sudo ./install.sh
 
 ```bash
 # Install package
-sudo dnf install hyper2kvm-providers
+sudo dnf install hypervisor-sdk
 
 # Configure
-sudo vi /etc/hyper2kvm/config.yaml
+sudo vi /etc/hypervisord/config.yaml
 
 # Start daemon
-sudo systemctl start hyper2kvmd
-sudo systemctl enable hyper2kvmd
+sudo systemctl start hypervisord
+sudo systemctl enable hypervisord
 ```
 
 ### Configuration
@@ -104,7 +104,7 @@ export LOG_LEVEL='info'
 
 #### Option 2: Configuration File
 
-Create `/etc/hyper2kvm/config.yaml`:
+Create `/etc/hypervisord/config.yaml`:
 
 ```yaml
 VCenterURL: "https://vcenter.example.com/sdk"
@@ -122,7 +122,7 @@ DownloadWorkers: 4
 
 ```bash
 # Launch interactive mode
-./hyper2kvm
+./hyperexport
 
 # Beautiful UI will guide you through:
 # 1. VM discovery
@@ -134,29 +134,29 @@ DownloadWorkers: 4
 
 ```bash
 # Start daemon
-./hyper2kvmd --config /etc/hyper2kvm/config.yaml
+./hypervisord --config /etc/hypervisord/config.yaml
 
 # Or with flags
-./hyper2kvmd --addr localhost:8080 --log-level debug
+./hypervisord --addr localhost:8080 --log-level debug
 ```
 
 ### Control CLI
 
 ```bash
 # Submit single VM export
-h2kvmctl submit -vm "/datacenter/vm/my-vm" -output "/tmp/export"
+hyperctl submit -vm "/datacenter/vm/my-vm" -output "/tmp/export"
 
 # Submit from YAML file
-h2kvmctl submit -file job.yaml
+hyperctl submit -file job.yaml
 
 # Query all jobs
-h2kvmctl query -all
+hyperctl query -all
 
 # Get daemon status
-h2kvmctl status
+hyperctl status
 
 # Cancel a job
-h2kvmctl cancel -id <job-id>
+hyperctl cancel -id <job-id>
 ```
 
 ### Job Definition (YAML)
@@ -256,11 +256,11 @@ while True:
 ### Directory Structure
 
 ```
-hyper2kvm-providers/
+hypervisor-sdk/
 ├── cmd/
 │   ├── hyper2kvm/          # Interactive CLI
-│   ├── hyper2kvmd/         # Daemon service
-│   └── h2kvmctl/           # Control CLI
+│   ├── hypervisord/        # Daemon service
+│   └── hyperctl/           # Control CLI
 │
 ├── providers/
 │   ├── vsphere/            # vSphere provider (ready)
@@ -282,8 +282,8 @@ hyper2kvm-providers/
 ├── progress/               # Progress tracking
 │
 ├── config.yaml.example     # Example configuration
-├── hyper2kvmd.service      # Systemd unit file
-├── hyper2kvm-providers.spec# RPM spec file
+├── hypervisord.service     # Systemd unit file
+├── hypervisor-sdk.spec# RPM spec file
 └── install.sh              # Installation script
 ```
 
@@ -326,8 +326,8 @@ The systemd service includes security hardening:
 
 ### Credentials
 
-- Store credentials in config file: `/etc/hyper2kvm/config.yaml`
-- Protect config file: `chmod 600 /etc/hyper2kvm/config.yaml`
+- Store credentials in config file: `/etc/hypervisord/config.yaml`
+- Protect config file: `chmod 600 /etc/hypervisord/config.yaml`
 - Or use environment variables for temporary use
 - Never commit credentials to git
 
@@ -338,8 +338,8 @@ The systemd service includes security hardening:
 ```bash
 # Build all binaries
 go build -o hyper2kvm ./cmd/hyper2kvm
-go build -o hyper2kvmd ./cmd/hyper2kvmd
-go build -o h2kvmctl ./cmd/h2kvmctl
+go build -o hypervisord ./cmd/hypervisord
+go build -o hyperctl ./cmd/hyperctl
 ```
 
 ### Test

@@ -18,8 +18,8 @@ import (
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v3"
 
-	"hyper2kvm-providers/daemon/models"
-	"hyper2kvm-providers/providers/vsphere"
+	"hypervisor-sdk/daemon/models"
+	"hypervisor-sdk/providers/vsphere"
 )
 
 const (
@@ -29,15 +29,15 @@ const (
 
 var (
 	funFacts = []string{
-		"💡 Did you know? h2kvmctl uses VDDK for lightning-fast disk transfers!",
+		"💡 Did you know? hyperctl uses VDDK for lightning-fast disk transfers!",
 		"🚀 Pro tip: Use -json flag for automation and scripting",
 		"⚡ Speed boost: Increase parallel_downloads for faster exports",
 		"🎯 Fun fact: KVM can run VMs faster than VMware in many cases",
 		"💾 Remember: Always remove CD/DVD before migration for smooth imports",
 		"🔥 Parallel downloads can make exports 10x faster!",
-		"🌟 h2kvmctl is built with love using Go and pterm",
+		"🌟 hyperctl is built with love using Go and pterm",
 		"🎨 Enjoying the colors? We use pterm for beautiful terminal output!",
-		"📊 Monitor jobs in real-time with: h2kvmctl query -status running",
+		"📊 Monitor jobs in real-time with: hyperctl query -status running",
 		"🐧 Linux rocks! Especially with KVM virtualization",
 	}
 
@@ -125,7 +125,7 @@ func main() {
 	flag.Parse()
 
 	if *versionFlag {
-		fmt.Printf("h2kvmctl version %s\n", version)
+		fmt.Printf("hyperctl version %s\n", version)
 		os.Exit(0)
 	}
 
@@ -186,9 +186,9 @@ func showUsage() {
 	pterm.DefaultSection.Println("📋 VM Discovery")
 	discoveryCommands := [][]string{
 		{"Command", "Description", "Example"},
-		{"list", "List VMs from vCenter", "h2kvmctl list"},
-		{"list -json", "List VMs (JSON output)", "h2kvmctl list -json"},
-		{"list -filter", "Filter VMs by name", "h2kvmctl list -filter rhel"},
+		{"list", "List VMs from vCenter", "hyperctl list"},
+		{"list -json", "List VMs (JSON output)", "hyperctl list -json"},
+		{"list -filter", "Filter VMs by name", "hyperctl list -filter rhel"},
 	}
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -203,10 +203,10 @@ func showUsage() {
 	pterm.DefaultSection.Println("🔧 VM Operations")
 	vmCommands := [][]string{
 		{"Command", "Description", "Example"},
-		{"vm -op shutdown", "Graceful VM shutdown", "h2kvmctl vm -op shutdown -path /data/vm/my-vm"},
-		{"vm -op poweroff", "Force power off VM", "h2kvmctl vm -op poweroff -path /data/vm/my-vm"},
-		{"vm -op remove-cdrom", "Remove CD/DVD devices", "h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm"},
-		{"vm -op info", "Get VM details", "h2kvmctl vm -op info -path /data/vm/my-vm"},
+		{"vm -op shutdown", "Graceful VM shutdown", "hyperctl vm -op shutdown -path /data/vm/my-vm"},
+		{"vm -op poweroff", "Force power off VM", "hyperctl vm -op poweroff -path /data/vm/my-vm"},
+		{"vm -op remove-cdrom", "Remove CD/DVD devices", "hyperctl vm -op remove-cdrom -path /data/vm/my-vm"},
+		{"vm -op info", "Get VM details", "hyperctl vm -op info -path /data/vm/my-vm"},
 	}
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -221,9 +221,9 @@ func showUsage() {
 	pterm.DefaultSection.Println("🎮 Interactive Migration")
 	migrateCommands := [][]string{
 		{"Command", "Description", "Example"},
-		{"migrate", "Interactive VM selection & migration", "h2kvmctl migrate"},
-		{"migrate -output", "Set output directory", "h2kvmctl migrate -output /migrations"},
-		{"migrate -convert=false", "Skip auto-conversion to qcow2", "h2kvmctl migrate -convert=false"},
+		{"migrate", "Interactive VM selection & migration", "hyperctl migrate"},
+		{"migrate -output", "Set output directory", "hyperctl migrate -output /migrations"},
+		{"migrate -convert=false", "Skip auto-conversion to qcow2", "hyperctl migrate -convert=false"},
 	}
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -238,11 +238,11 @@ func showUsage() {
 	pterm.DefaultSection.Println("📦 Job Management")
 	jobCommands := [][]string{
 		{"Command", "Description", "Example"},
-		{"submit", "Submit export job", "h2kvmctl submit -vm /data/vm/my-vm -output /tmp"},
-		{"submit -file", "Submit from YAML/JSON", "h2kvmctl submit -file jobs.yaml"},
-		{"query", "Query job status", "h2kvmctl query -all"},
-		{"status", "Show daemon status", "h2kvmctl status"},
-		{"cancel", "Cancel running jobs", "h2kvmctl cancel -id abc123"},
+		{"submit", "Submit export job", "hyperctl submit -vm /data/vm/my-vm -output /tmp"},
+		{"submit -file", "Submit from YAML/JSON", "hyperctl submit -file jobs.yaml"},
+		{"query", "Query job status", "hyperctl query -all"},
+		{"status", "Show daemon status", "hyperctl status"},
+		{"cancel", "Cancel running jobs", "hyperctl cancel -id abc123"},
 	}
 	pterm.DefaultTable.
 		WithHasHeader().
@@ -254,28 +254,28 @@ func showUsage() {
 	pterm.Println()
 	pterm.Info.Println("Examples:")
 	pterm.Println("  # Interactive Migration")
-	pterm.Println("  h2kvmctl migrate                                  # Launch interactive mode")
-	pterm.Println("  h2kvmctl migrate -output /migrations              # Custom output directory")
+	pterm.Println("  hyperctl migrate                                  # Launch interactive mode")
+	pterm.Println("  hyperctl migrate -output /migrations              # Custom output directory")
 	pterm.Println()
 	pterm.Println("  # VM Discovery")
-	pterm.Println("  h2kvmctl list                                     # List all VMs")
-	pterm.Println("  h2kvmctl list -json                               # List VMs in JSON format")
-	pterm.Println("  h2kvmctl list -filter rhel                        # Filter VMs by name")
+	pterm.Println("  hyperctl list                                     # List all VMs")
+	pterm.Println("  hyperctl list -json                               # List VMs in JSON format")
+	pterm.Println("  hyperctl list -filter rhel                        # Filter VMs by name")
 	pterm.Println()
 	pterm.Println("  # VM Operations")
-	pterm.Println("  h2kvmctl vm -op shutdown -path /data/vm/my-vm     # Graceful shutdown")
-	pterm.Println("  h2kvmctl vm -op poweroff -path /data/vm/my-vm     # Force power off")
-	pterm.Println("  h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm # Remove CD/DVD")
-	pterm.Println("  h2kvmctl vm -op info -path /data/vm/my-vm         # Get VM info")
+	pterm.Println("  hyperctl vm -op shutdown -path /data/vm/my-vm     # Graceful shutdown")
+	pterm.Println("  hyperctl vm -op poweroff -path /data/vm/my-vm     # Force power off")
+	pterm.Println("  hyperctl vm -op remove-cdrom -path /data/vm/my-vm # Remove CD/DVD")
+	pterm.Println("  hyperctl vm -op info -path /data/vm/my-vm         # Get VM info")
 	pterm.Println()
 	pterm.Println("  # Job Management")
-	pterm.Println("  h2kvmctl submit -file jobs.yaml")
-	pterm.Println("  h2kvmctl submit -vm /DC/vm/test-vm -output /tmp/export")
-	pterm.Println("  h2kvmctl query -all")
-	pterm.Println("  h2kvmctl query -id abc123")
-	pterm.Println("  h2kvmctl query -status running")
-	pterm.Println("  h2kvmctl status")
-	pterm.Println("  h2kvmctl cancel -id abc123,def456")
+	pterm.Println("  hyperctl submit -file jobs.yaml")
+	pterm.Println("  hyperctl submit -vm /DC/vm/test-vm -output /tmp/export")
+	pterm.Println("  hyperctl query -all")
+	pterm.Println("  hyperctl query -id abc123")
+	pterm.Println("  hyperctl query -status running")
+	pterm.Println("  hyperctl status")
+	pterm.Println("  hyperctl cancel -id abc123,def456")
 }
 
 func handleSubmit(daemonURL, filePath, vmPath, outputPath string) {
@@ -567,8 +567,8 @@ func displayVMs(vms []vsphere.VMInfo) {
 		Render()
 
 	pterm.Println()
-	pterm.Info.Printfln("💡 Tip: Use 'h2kvmctl list -json' for machine-readable output")
-	pterm.Info.Printfln("💡 Tip: Use 'h2kvmctl list -filter <name>' to filter VMs")
+	pterm.Info.Printfln("💡 Tip: Use 'hyperctl list -json' for machine-readable output")
+	pterm.Info.Printfln("💡 Tip: Use 'hyperctl list -filter <name>' to filter VMs")
 
 	// Show random fun fact
 	showRandomFact()
@@ -715,17 +715,17 @@ func handleVM(daemonURL, operation, vmPath string, timeout int) {
 		switch operation {
 		case "shutdown":
 			pterm.Info.Println("💡 Next steps:")
-			pterm.Println("   1. Verify VM is powered off: h2kvmctl vm -op info -path " + vmPath)
-			pterm.Println("   2. Remove CD/DVD: h2kvmctl vm -op remove-cdrom -path " + vmPath)
-			pterm.Println("   3. Export VM: h2kvmctl submit -vm " + vmPath + " -output /tmp/export")
+			pterm.Println("   1. Verify VM is powered off: hyperctl vm -op info -path " + vmPath)
+			pterm.Println("   2. Remove CD/DVD: hyperctl vm -op remove-cdrom -path " + vmPath)
+			pterm.Println("   3. Export VM: hyperctl submit -vm " + vmPath + " -output /tmp/export")
 		case "poweroff":
 			pterm.Info.Println("💡 Next steps:")
-			pterm.Println("   1. Remove CD/DVD: h2kvmctl vm -op remove-cdrom -path " + vmPath)
-			pterm.Println("   2. Export VM: h2kvmctl submit -vm " + vmPath + " -output /tmp/export")
+			pterm.Println("   1. Remove CD/DVD: hyperctl vm -op remove-cdrom -path " + vmPath)
+			pterm.Println("   2. Export VM: hyperctl submit -vm " + vmPath + " -output /tmp/export")
 		case "remove-cdrom":
 			pterm.Info.Println("💡 Next steps:")
-			pterm.Println("   1. Export VM: h2kvmctl submit -vm " + vmPath + " -output /tmp/export")
-			pterm.Println("   2. Monitor export: h2kvmctl query -status running")
+			pterm.Println("   1. Export VM: hyperctl submit -vm " + vmPath + " -output /tmp/export")
+			pterm.Println("   2. Monitor export: hyperctl query -status running")
 		}
 	}
 }
@@ -805,11 +805,11 @@ func handleStatus(daemonURL string) {
 	// Show helpful actions
 	if status.RunningJobs > 0 {
 		pterm.Info.Println("💡 You have running jobs:")
-		pterm.Println("   View them: h2kvmctl query -status running")
+		pterm.Println("   View them: hyperctl query -status running")
 	} else if status.TotalJobs == 0 {
 		pterm.Info.Println("💡 No jobs yet. Start by:")
-		pterm.Println("   1. List VMs: h2kvmctl list")
-		pterm.Println("   2. Submit job: h2kvmctl submit -vm /data/vm/my-vm -output /tmp/export")
+		pterm.Println("   1. List VMs: hyperctl list")
+		pterm.Println("   2. Submit job: hyperctl submit -vm /data/vm/my-vm -output /tmp/export")
 	} else {
 		pterm.Success.Println("✅ All jobs completed!")
 	}

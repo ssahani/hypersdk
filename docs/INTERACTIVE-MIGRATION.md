@@ -1,6 +1,6 @@
 # Interactive VM Migration Guide
 
-The `h2kvmctl migrate` command provides an intuitive, terminal-based UI for selecting and migrating VMs from multiple cloud providers to KVM.
+The `hyperctl migrate` command provides an intuitive, terminal-based UI for selecting and migrating VMs from multiple cloud providers to KVM.
 
 ## 🎮 Overview
 
@@ -17,16 +17,16 @@ Interactive migration mode allows you to:
 
 ```bash
 # Launch interactive mode
-h2kvmctl migrate
+hyperctl migrate
 
 # With custom output directory
-h2kvmctl migrate -output /migrations
+hyperctl migrate -output /migrations
 
 # Skip auto-conversion
-h2kvmctl migrate -convert=false
+hyperctl migrate -convert=false
 
 # With libvirt import (requires libvirt setup)
-h2kvmctl migrate -import
+hyperctl migrate -import
 ```
 
 ## 📋 User Interface
@@ -140,17 +140,17 @@ Progress: 1 / 3
 
 **Export to custom directory:**
 ```bash
-h2kvmctl migrate -output /var/lib/libvirt/images
+hyperctl migrate -output /var/lib/libvirt/images
 ```
 
 **Export only (no conversion):**
 ```bash
-h2kvmctl migrate -convert=false -output /exports
+hyperctl migrate -convert=false -output /exports
 ```
 
 **Full automation (export, convert, import):**
 ```bash
-h2kvmctl migrate -output /migrations -import
+hyperctl migrate -output /migrations -import
 ```
 
 ## 🔄 Migration Workflow
@@ -159,7 +159,7 @@ h2kvmctl migrate -output /migrations -import
 
 1. **Launch Interactive Mode:**
    ```bash
-   h2kvmctl migrate -output /migrations
+   hyperctl migrate -output /migrations
    ```
 
 2. **Select VMs:**
@@ -213,7 +213,7 @@ After migration, files are organized as:
 
 ```bash
 # Scenario: Migrate 5 dev VMs to local KVM
-h2kvmctl migrate -output /dev-vms
+hyperctl migrate -output /dev-vms
 
 # In interactive mode:
 1. Filter to dev VMs visually
@@ -227,7 +227,7 @@ h2kvmctl migrate -output /dev-vms
 
 ```bash
 # Scenario: Migrate specific production VMs
-h2kvmctl migrate -output /prod-migration
+hyperctl migrate -output /prod-migration
 
 # In interactive mode:
 1. Browse all VMs
@@ -241,7 +241,7 @@ h2kvmctl migrate -output /prod-migration
 
 ```bash
 # Scenario: Export VMs for archival (no conversion)
-h2kvmctl migrate -output /archives -convert=false
+hyperctl migrate -output /archives -convert=false
 
 # In interactive mode:
 1. Select VMs to archive
@@ -310,10 +310,10 @@ h2kvmctl migrate -output /archives -convert=false
 **Solution:**
 ```bash
 # Check daemon status
-sudo systemctl status hyper2kvmd
+sudo systemctl status hypervisord
 
 # Check daemon logs
-sudo journalctl -u hyper2kvmd -f
+sudo journalctl -u hypervisord -f
 
 # Verify vCenter credentials
 echo $GOVC_URL
@@ -326,7 +326,7 @@ echo $GOVC_URL
 **Solution:**
 ```bash
 # Check daemon logs for specific error
-sudo journalctl -u hyper2kvmd -n 100
+sudo journalctl -u hypervisord -n 100
 
 # Verify network connectivity
 ping vcenter.example.com
@@ -335,7 +335,7 @@ ping vcenter.example.com
 df -h /migrations
 
 # Retry with same selections
-h2kvmctl migrate
+hyperctl migrate
 ```
 
 ### Issue: "Conversion failed"
@@ -376,7 +376,7 @@ virt-install --import --disk /migrations/vm/disk.qcow2 ...
 
 ## 📚 Related Documentation
 
-- [h2kvmctl Features](H2KVMCTL-FEATURES.md) - All CLI features
+- [hyperctl Features](H2KVMCTL-FEATURES.md) - All CLI features
 - [VM Export Guide](VM-EXPORT-GUIDE.md) - Detailed export guide
 - [Examples](../examples/README.md) - Configuration examples
 - [API Reference](API.md) - REST API documentation
@@ -409,10 +409,10 @@ virt-install --import --disk /migrations/vm/disk.qcow2 ...
 First list VMs to understand what's available:
 ```bash
 # See all VMs
-h2kvmctl list
+hyperctl list
 
 # Filter to specific VMs
-h2kvmctl list -filter prod
+hyperctl list -filter prod
 ```
 
 Then launch interactive mode knowing what to look for.
@@ -429,7 +429,7 @@ OUTPUT="/var/lib/migrations"
 mkdir -p "$OUTPUT"
 
 # Launch interactive mode
-h2kvmctl migrate -output "$OUTPUT" -convert -import
+hyperctl migrate -output "$OUTPUT" -convert -import
 
 # Post-migration verification
 for vm_dir in "$OUTPUT"/*; do
@@ -446,10 +446,10 @@ done
 Monitor migration progress:
 ```bash
 # Terminal 1: Run migration
-h2kvmctl migrate
+hyperctl migrate
 
 # Terminal 2: Monitor daemon
-sudo journalctl -u hyper2kvmd -f
+sudo journalctl -u hypervisord -f
 
 # Terminal 3: Monitor resources
 watch -n 1 'df -h /migrations; echo; iostat -x'

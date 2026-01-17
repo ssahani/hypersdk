@@ -1,4 +1,4 @@
-# hyper2kvmd & h2kvmctl - Daemon-Based VM Export System
+# hypervisord & hyperctl - Daemon-Based VM Export System
 
 A high-performance daemon-based architecture for exporting VMs from vSphere to KVM format.
 
@@ -6,14 +6,14 @@ A high-performance daemon-based architecture for exporting VMs from vSphere to K
 
 ### Components
 
-1. **hyper2kvmd** - Background daemon service that:
+1. **hypervisord** - Background daemon service that:
    - Accepts job submissions via REST API (JSON/YAML)
    - Manages concurrent VM export tasks using goroutines
    - Tracks progress for each job in real-time
    - Provides JSON API for status queries
    - Listens on HTTP (default: localhost:8080)
 
-2. **h2kvmctl** - Command-line control tool that:
+2. **hyperctl** - Command-line control tool that:
    - Submits jobs to the daemon
    - Queries job status and progress
    - Lists all running/completed jobs
@@ -37,10 +37,10 @@ export GOVC_PASSWORD='your-password'
 export GOVC_INSECURE=1
 
 # Start daemon
-./build/hyper2kvmd
+./build/hypervisord
 
 # Or specify custom address
-./build/hyper2kvmd -addr localhost:9090
+./build/hypervisord -addr localhost:9090
 ```
 
 The daemon will display available API endpoints and wait for jobs.
@@ -50,19 +50,19 @@ The daemon will display available API endpoints and wait for jobs.
 #### Single VM (Command Line)
 
 ```bash
-./build/h2kvmctl submit -vm "/data/vm/test-vm" -output "/tmp/export-test"
+./build/hyperctl submit -vm "/data/vm/test-vm" -output "/tmp/export-test"
 ```
 
 #### From YAML File
 
 ```bash
-./build/h2kvmctl submit -file example-job.yaml
+./build/hyperctl submit -file example-job.yaml
 ```
 
 #### Batch Jobs (Multiple VMs)
 
 ```bash
-./build/h2kvmctl submit -file example-batch.yaml
+./build/hyperctl submit -file example-batch.yaml
 ```
 
 ### 3. Query Status
@@ -70,33 +70,33 @@ The daemon will display available API endpoints and wait for jobs.
 #### All Jobs
 
 ```bash
-./build/h2kvmctl query -all
+./build/hyperctl query -all
 ```
 
 #### Specific Job
 
 ```bash
-./build/h2kvmctl query -id abc123
+./build/hyperctl query -id abc123
 ```
 
 #### Filter by Status
 
 ```bash
-./build/h2kvmctl query -status running
-./build/h2kvmctl query -status completed,failed
+./build/hyperctl query -status running
+./build/hyperctl query -status completed,failed
 ```
 
 ### 4. Daemon Status
 
 ```bash
-./build/h2kvmctl status
+./build/hyperctl status
 ```
 
 ### 5. Cancel Jobs
 
 ```bash
-./build/h2kvmctl cancel -id abc123
-./build/h2kvmctl cancel -id abc123,def456,ghi789
+./build/hyperctl cancel -id abc123
+./build/hyperctl cancel -id abc123,def456,ghi789
 ```
 
 ## Job File Format
@@ -357,21 +357,21 @@ print(status.json())
 ```bash
 # Build all binaries
 cd ~/go/hyper2kvm
-go build -o build/hyper2kvmd ./cmd/hyper2kvmd
-go build -o build/h2kvmctl ./cmd/h2kvmctl
+go build -o build/hypervisord ./cmd/hypervisord
+go build -o build/hyperctl ./cmd/hyperctl
 go build -o build/hyper2kvm ./cmd/hyper2kvm
 
 # Run tests
 go test ./...
 
 # Build for Linux
-GOOS=linux GOARCH=amd64 go build -o build/hyper2kvmd-linux ./cmd/hyper2kvmd
-GOOS=linux GOARCH=amd64 go build -o build/h2kvmctl-linux ./cmd/h2kvmctl
+GOOS=linux GOARCH=amd64 go build -o build/hypervisord-linux ./cmd/hypervisord
+GOOS=linux GOARCH=amd64 go build -o build/hyperctl-linux ./cmd/hyperctl
 ```
 
 ## Systemd Service
 
-Create `/etc/systemd/system/hyper2kvmd.service`:
+Create `/etc/systemd/system/hypervisord.service`:
 
 ```ini
 [Unit]
@@ -385,7 +385,7 @@ Environment="GOVC_URL=https://vcenter.example.com/sdk"
 Environment="GOVC_USERNAME=administrator@vsphere.local"
 Environment="GOVC_PASSWORD=your-password"
 Environment="GOVC_INSECURE=1"
-ExecStart=/usr/local/bin/hyper2kvmd -addr localhost:8080
+ExecStart=/usr/local/bin/hypervisord -addr localhost:8080
 Restart=on-failure
 RestartSec=5s
 
@@ -395,9 +395,9 @@ WantedBy=multi-user.target
 
 Enable and start:
 ```bash
-sudo systemctl enable hyper2kvmd
-sudo systemctl start hyper2kvmd
-sudo systemctl status hyper2kvmd
+sudo systemctl enable hypervisord
+sudo systemctl start hypervisord
+sudo systemctl status hypervisord
 ```
 
 ## Future Enhancements

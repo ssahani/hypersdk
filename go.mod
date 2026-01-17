@@ -1,4 +1,4 @@
-module hyper2kvm-providers
+module hypervisor-sdk
 
 go 1.24.0
 
