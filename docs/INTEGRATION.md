@@ -4,25 +4,16 @@ This document describes how to integrate `hyper-sdk` with the main `hyperexport`
 
 ## Architecture Overview
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  hyper2kvm (Python)                         │
-│         Main Migration Orchestration Layer                 │
-│  - VM discovery and selection                              │
-│  - Conversion logic (OVF → QCOW2)                          │
-│  - KVM import                                               │
-│  - Migration workflow                                       │
-└─────────────────┬───────────────────────────────────────────┘
-                  │ HTTP REST API
-                  │ JSON requests/responses
-┌─────────────────▼───────────────────────────────────────────┐
-│          hyper-sdk (Go)                           │
-│           High-Performance Export Layer                     │
-│  - VM export from multiple clouds                          │
-│  - Parallel downloads                                       │
-│  - Progress tracking                                        │
-│  - Job management                                           │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    Python["hyper2kvm (Python)<br/>Main Migration Orchestration Layer<br/>━━━━━━━━━━━━━━━━━<br/>• VM discovery and selection<br/>• Conversion logic (OVF → QCOW2)<br/>• KVM import<br/>• Migration workflow"]
+
+    Go["hyper-sdk (Go)<br/>High-Performance Export Layer<br/>━━━━━━━━━━━━━━━━━<br/>• VM export from multiple clouds<br/>• Parallel downloads<br/>• Progress tracking<br/>• Job management"]
+
+    Python -->|"HTTP REST API<br/>JSON requests/responses"| Go
+
+    style Python fill:#4CAF50,stroke:#2E7D32,color:#fff,stroke-width:2px
+    style Go fill:#2196F3,stroke:#1565C0,color:#fff,stroke-width:2px
 ```
 
 ## Why Separate Provider Layer?

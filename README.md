@@ -19,20 +19,27 @@
 
 ### Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                  hyper2kvm (Python)                         │
-│              Main Migration Orchestrator                    │
-└─────────────────┬───────────────────────────────────────────┘
-                  │ REST API
-┌─────────────────▼───────────────────────────────────────────┐
-│             hyper-sdk (Go)                        │
-│              Provider Layer Abstraction                     │
-├─────────────────┬───────────────┬───────────────┬───────────┤
-│   vSphere       │     AWS       │    Azure      │    GCP    │
-│   Provider      │   Provider    │   Provider    │  Provider │
-│   (Ready)       │  (Planned)    │  (Planned)    │ (Planned) │
-└─────────────────┴───────────────┴───────────────┴───────────┘
+```mermaid
+graph TB
+    A[hyper2kvm Python<br/>Main Migration Orchestrator]
+    B[hyper-sdk Go<br/>Provider Layer Abstraction]
+    C[vSphere Provider<br/>Ready]
+    D[AWS Provider<br/>Planned]
+    E[Azure Provider<br/>Planned]
+    F[GCP Provider<br/>Planned]
+
+    A -->|REST API| B
+    B --> C
+    B --> D
+    B --> E
+    B --> F
+
+    style A fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style B fill:#2196F3,stroke:#1565C0,color:#fff
+    style C fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style D fill:#FFC107,stroke:#F57C00,color:#000
+    style E fill:#FFC107,stroke:#F57C00,color:#000
+    style F fill:#FFC107,stroke:#F57C00,color:#000
 ```
 
 ## ✨ Features

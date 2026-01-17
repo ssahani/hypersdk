@@ -157,6 +157,33 @@ hyperctl migrate -output /migrations -import
 
 ### End-to-End Process
 
+```mermaid
+flowchart TD
+    Start([Launch hyperctl migrate]) --> Select[Select VMs<br/>↑/↓ Navigate<br/>Space to select<br/>Enter to continue]
+    Select --> Review[Review & Confirm<br/>VM details<br/>Resource totals<br/>Export settings]
+    Review -->|Press 'y'| Export[Automated Export<br/>VDDK parallel downloads<br/>Real-time progress]
+    Review -->|Press 'n'/Esc| Select
+    Export --> CheckConvert{Conversion<br/>enabled?}
+    CheckConvert -->|Yes| Convert[Automated Conversion<br/>VMDK → QCOW2<br/>qemu-img convert]
+    CheckConvert -->|No| CheckImport
+    Convert --> CheckImport{Import<br/>enabled?}
+    CheckImport -->|Yes| Import[Import to libvirt<br/>virt-install<br/>Network & storage config]
+    CheckImport -->|No| Done([Migration Complete])
+    Import --> Done
+
+    style Start fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style Select fill:#2196F3,stroke:#1565C0,color:#fff
+    style Review fill:#2196F3,stroke:#1565C0,color:#fff
+    style Export fill:#FF9800,stroke:#E65100,color:#fff
+    style Convert fill:#9C27B0,stroke:#6A1B9A,color:#fff
+    style Import fill:#009688,stroke:#00695C,color:#fff
+    style Done fill:#4CAF50,stroke:#2E7D32,color:#fff
+    style CheckConvert fill:#FFC107,stroke:#F57C00,color:#000
+    style CheckImport fill:#FFC107,stroke:#F57C00,color:#000
+```
+
+**Detailed Steps:**
+
 1. **Launch Interactive Mode:**
    ```bash
    hyperctl migrate -output /migrations
