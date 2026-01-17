@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/subtle"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -161,6 +162,19 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 
 	// WebSocket endpoint for real-time updates
 	mux.HandleFunc("/ws", es.handleWebSocket)
+
+	// Serve web dashboard (static files)
+	webDir := filepath.Join(".", "web", "dashboard")
+	fileServer := http.FileServer(http.Dir(webDir))
+	mux.Handle("/web/dashboard/", http.StripPrefix("/web/dashboard/", fileServer))
+	// Redirect root to dashboard
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/web/dashboard/", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	})
 
 	// Schedule management endpoints
 	mux.HandleFunc("/schedules", func(w http.ResponseWriter, r *http.Request) {
