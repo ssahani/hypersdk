@@ -11,7 +11,7 @@ sudo dnf install simplescreenrecorder
 # Record:
 # 1. Open SimpleScreenRecorder
 # 2. Select area to record (your terminal)
-# 3. Output: ~/Videos/hyper-sdk-demo.mp4
+# 3. Output: ~/Videos/hypersdk-demo.mp4
 # 4. Click "Start Recording"
 # 5. Run: ./demos/quick-demo.sh
 # 6. Click "Stop Recording"
@@ -55,7 +55,7 @@ agg demos/hyperctl-demo.cast demos/hyperctl-demo.gif
 gh release create v0.0.1-demo
 
 # 2. Upload video
-gh release upload v0.0.1-demo demos/hyper-sdk-demo.mp4
+gh release upload v0.0.1-demo demos/hypersdk-demo.mp4
 
 # 3. Get URL and add to README
 ```
@@ -83,7 +83,7 @@ git lfs track "demos/*.mp4"
 git lfs track "demos/*.gif"
 
 # Add and commit
-git add .gitattributes demos/hyper-sdk-demo.mp4
+git add .gitattributes demos/hypersdk-demo.mp4
 git commit -m "Add demo video"
 git push
 ```

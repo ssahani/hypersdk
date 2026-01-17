@@ -1,4 +1,4 @@
-module hyper-sdk
+module hypersdk
 
 go 1.24.0
 

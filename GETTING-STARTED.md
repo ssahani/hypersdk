@@ -1,10 +1,10 @@
-# Getting Started with hyper-sdk
+# Getting Started with hypersdk
 
-Welcome to **hyper-sdk** - the Go implementation of the hyper2kvm migration toolkit!
+Welcome to **hypersdk** - the Go implementation of the hyper2kvm migration toolkit!
 
 ---
 
-## 🎯 What is hyper-sdk?
+## 🎯 What is hypersdk?
 
 A high-performance, daemon-based VM export system that provides:
 
@@ -35,7 +35,7 @@ export GOVC_INSECURE=1
 #### Option A: Interactive Mode (Beginner-Friendly)
 
 ```bash
-cd ~/projects/hyper-sdk
+cd ~/projects/hypersdk
 ./build/hyperexport
 ```
 

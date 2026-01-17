@@ -15,8 +15,8 @@ import (
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/soap"
 
-	"hyper-sdk/config"
-	"hyper-sdk/logger"
+	"hypersdk/config"
+	"hypersdk/logger"
 )
 
 type VSphereClient struct {

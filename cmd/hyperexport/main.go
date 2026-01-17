@@ -14,9 +14,9 @@ import (
 
 	"github.com/pterm/pterm"
 
-	"hyper-sdk/config"
-	"hyper-sdk/logger"
-	"hyper-sdk/providers/vsphere"
+	"hypersdk/config"
+	"hypersdk/logger"
+	"hypersdk/providers/vsphere"
 )
 
 func main() {

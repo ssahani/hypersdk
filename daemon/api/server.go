@@ -14,9 +14,9 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"hyper-sdk/daemon/jobs"
-	"hyper-sdk/daemon/models"
-	"hyper-sdk/logger"
+	"hypersdk/daemon/jobs"
+	"hypersdk/daemon/models"
+	"hypersdk/logger"
 )
 
 // Server handles HTTP API requests

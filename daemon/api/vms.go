@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"hyper-sdk/providers/vsphere"
+	"hypersdk/providers/vsphere"
 )
 
 // VMListResponse represents the response for VM listing
