@@ -1,6 +1,6 @@
-# h2kvmctl Examples
+# hyperctl Examples
 
-This directory contains example configuration files for h2kvmctl VM export operations.
+This directory contains example configuration files for hyperctl VM export operations.
 
 ## 📋 Available Examples
 
@@ -34,10 +34,10 @@ options:
 **Usage:**
 ```bash
 # Using YAML
-h2kvmctl submit -file examples/example-vm-export.yaml
+hyperctl submit -file examples/example-vm-export.yaml
 
 # Using JSON
-h2kvmctl submit -file examples/example-vm-export.json
+hyperctl submit -file examples/example-vm-export.json
 ```
 
 ### Batch VM Export
@@ -105,10 +105,10 @@ jobs:
 **Usage:**
 ```bash
 # Using YAML
-h2kvmctl submit -file examples/example-batch-export.yaml
+hyperctl submit -file examples/example-batch-export.yaml
 
 # Using JSON
-h2kvmctl submit -file examples/example-batch-export.json
+hyperctl submit -file examples/example-batch-export.json
 ```
 
 ## 🚀 Complete Migration Workflow
@@ -117,33 +117,33 @@ h2kvmctl submit -file examples/example-batch-export.json
 
 ```bash
 # List all VMs
-h2kvmctl list
+hyperctl list
 
 # Find specific VMs
-h2kvmctl list -filter rhel
+hyperctl list -filter rhel
 
 # Export to JSON for automation
-h2kvmctl list -json > available-vms.json
+hyperctl list -json > available-vms.json
 ```
 
 ### 2. Prepare VM for Migration
 
 ```bash
 # Get VM information
-h2kvmctl vm -op info -path /data/vm/my-vm
+hyperctl vm -op info -path /data/vm/my-vm
 
 # Shutdown VM gracefully (optional but recommended)
-h2kvmctl vm -op shutdown -path /data/vm/my-vm -timeout 300
+hyperctl vm -op shutdown -path /data/vm/my-vm -timeout 300
 
 # Remove CD/DVD devices (required for clean KVM import)
-h2kvmctl vm -op remove-cdrom -path /data/vm/my-vm
+hyperctl vm -op remove-cdrom -path /data/vm/my-vm
 ```
 
 ### 3. Submit Export Job
 
 **Option A: Command Line**
 ```bash
-h2kvmctl submit \
+hyperctl submit \
   -vm /data/vm/my-vm \
   -output /tmp/export-my-vm
 ```
@@ -162,17 +162,17 @@ options:
 EOF
 
 # Submit job
-h2kvmctl submit -file my-export.yaml
+hyperctl submit -file my-export.yaml
 ```
 
 ### 4. Monitor Export Progress
 
 ```bash
 # Query specific job (use Job ID from submit output)
-h2kvmctl query -id abc123-def456-...
+hyperctl query -id abc123-def456-...
 
 # Watch all running jobs
-watch -n 5 'h2kvmctl query -status running'
+watch -n 5 'hyperctl query -status running'
 
 # Get detailed status via API
 curl -s http://localhost:8080/jobs/{job-id} | jq
@@ -242,7 +242,7 @@ virsh dominfo my-vm
 2. **CD/DVD Handling:**
    - Always remove CD/DVD devices before migration
    - Use `remove_cdrom: true` in options OR
-   - Run `h2kvmctl vm -op remove-cdrom` before export
+   - Run `hyperctl vm -op remove-cdrom` before export
 
 3. **Batch Operations:**
    - Group similar VMs together in batch files
@@ -250,13 +250,13 @@ virsh dominfo my-vm
    - Monitor network and disk I/O during exports
 
 4. **Error Handling:**
-   - Check daemon logs: `sudo journalctl -u hyper2kvmd -f`
-   - Query failed jobs: `h2kvmctl query -status failed`
+   - Check daemon logs: `sudo journalctl -u hypervisord -f`
+   - Query failed jobs: `hyperctl query -status failed`
    - Retry failed exports with same configuration
 
 ## 🔗 Related Documentation
 
-- [h2kvmctl Features](../docs/H2KVMCTL-FEATURES.md)
+- [hyperctl Features](../docs/H2KVMCTL-FEATURES.md)
 - [VM Export Guide](../docs/VM-EXPORT-GUIDE.md)
 - [API Reference](../docs/API.md)
 - [Getting Started](../GETTING-STARTED.md)
@@ -267,7 +267,7 @@ virsh dominfo my-vm
 
 ```bash
 # Generate job file from VM list
-h2kvmctl list -filter production -json | \
+hyperctl list -filter production -json | \
   jq -r '.vms[] | {
     name: .name,
     vm_path: .path,
@@ -299,9 +299,9 @@ EOF
 
 # Use template
 create_export_job "web-server" "/data/vm/web-01" "/migrations/web-01"
-h2kvmctl submit -file export-web-server.yaml
+hyperctl submit -file export-web-server.yaml
 ```
 
 ---
 
-**🎉 Happy Migrating with h2kvmctl!**
+**🎉 Happy Migrating with hyperctl!**
