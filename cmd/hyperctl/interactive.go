@@ -49,7 +49,7 @@ var (
 			Foreground(lipgloss.Color("#888888"))
 
 	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#ffaa00")).
+			Foreground(lipgloss.Color("#d97706")). // Deep burnt orange/amber
 			Italic(true)
 
 	helpStyle = lipgloss.NewStyle().
