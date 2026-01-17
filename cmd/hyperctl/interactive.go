@@ -864,10 +864,38 @@ func truncate(s string, maxLen int) string {
 }
 
 func sanitizeFilename(name string) string {
-	// Replace invalid characters
+	// Prevent path traversal and invalid filename characters
+	// Replace directory separators
 	name = strings.ReplaceAll(name, "/", "-")
 	name = strings.ReplaceAll(name, "\\", "-")
+
+	// Replace path traversal attempts
+	name = strings.ReplaceAll(name, "..", "-")
+
+	// Replace other invalid characters
 	name = strings.ReplaceAll(name, " ", "-")
+	name = strings.ReplaceAll(name, "\x00", "") // Remove null bytes
+	name = strings.ReplaceAll(name, ":", "-")   // Colon (problematic on Windows)
+	name = strings.ReplaceAll(name, "*", "-")
+	name = strings.ReplaceAll(name, "?", "-")
+	name = strings.ReplaceAll(name, "\"", "-")
+	name = strings.ReplaceAll(name, "<", "-")
+	name = strings.ReplaceAll(name, ">", "-")
+	name = strings.ReplaceAll(name, "|", "-")
+
+	// Trim leading/trailing dots and dashes (reserved names like "." and "..")
+	name = strings.Trim(name, ".-")
+
+	// Ensure name is not empty after sanitization
+	if name == "" {
+		name = "unnamed-vm"
+	}
+
+	// Limit length to prevent filesystem issues
+	if len(name) > 255 {
+		name = name[:255]
+	}
+
 	return name
 }
 
