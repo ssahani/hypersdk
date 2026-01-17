@@ -31,6 +31,11 @@ func NewCTLExporter(ctlPath string, log logger.Logger) *CTLExporter {
 
 // Export performs VM export using hyperctl CLI
 func (e *CTLExporter) Export(ctx context.Context, job *models.JobDefinition, progressCallback func(*models.JobProgress)) (*models.JobResult, error) {
+	// Validate job first
+	if err := e.Validate(job); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
 	e.logger.Info("starting CTL export", "vm", job.VMPath, "ctl_path", e.ctlPath)
 
 	// Build hyperctl export command
@@ -154,7 +159,7 @@ func (e *CTLExporter) Validate(job *models.JobDefinition) error {
 		return fmt.Errorf("output_dir is required")
 	}
 
-	if job.VCenter.Server == "" {
+	if job.VCenter == nil || job.VCenter.Server == "" {
 		return fmt.Errorf("vcenter server is required")
 	}
 

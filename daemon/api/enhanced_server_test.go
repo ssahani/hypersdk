@@ -6,6 +6,7 @@ import (
 	"context"
 	"testing"
 
+	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/webhooks"
 	"hypersdk/logger"
@@ -15,8 +16,13 @@ func TestEnhancedServerCreation(t *testing.T) {
 	// Create test logger
 	log := logger.New("info")
 
+	// Create capability detector
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+
 	// Create job manager
-	manager := jobs.NewManager(log)
+	manager := jobs.NewManager(log, detector)
 
 	// Create test config
 	config := &Config{
@@ -33,7 +39,7 @@ func TestEnhancedServerCreation(t *testing.T) {
 	config.Metrics.Port = 8080
 
 	// Create enhanced server
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create enhanced server: %v", err)
 	}
@@ -67,7 +73,10 @@ func TestEnhancedServerCreation(t *testing.T) {
 
 func TestJobExecutorAdapter(t *testing.T) {
 	log := logger.New("info")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 
 	adapter := &jobExecutorAdapter{manager: manager}
 

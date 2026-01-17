@@ -65,6 +65,12 @@ func (f *ExporterFactory) CreateExporter(method capabilities.ExportMethod) (Expo
 	}
 }
 
+// GetOrCreateDefault creates an exporter using the default (best available) method
+func (f *ExporterFactory) GetOrCreateDefault() (Exporter, error) {
+	defaultMethod := f.detector.GetDefaultMethod()
+	return f.CreateExporter(defaultMethod)
+}
+
 // GetAvailableMethods returns a list of available export methods in priority order
 func (f *ExporterFactory) GetAvailableMethods() []capabilities.ExportMethod {
 	methods := []capabilities.ExportMethod{

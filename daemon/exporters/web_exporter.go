@@ -28,6 +28,11 @@ func NewWebExporter(log logger.Logger) *WebExporter {
 
 // Export performs VM export using HTTP/NFC protocol
 func (e *WebExporter) Export(ctx context.Context, job *models.JobDefinition, progressCallback func(*models.JobProgress)) (*models.JobResult, error) {
+	// Validate job first
+	if err := e.Validate(job); err != nil {
+		return nil, fmt.Errorf("validation failed: %w", err)
+	}
+
 	e.logger.Info("starting web/HTTP export", "vm", job.VMPath)
 
 	// Create vSphere config from job definition
@@ -102,7 +107,7 @@ func (e *WebExporter) Validate(job *models.JobDefinition) error {
 		return fmt.Errorf("output_dir is required")
 	}
 
-	if job.VCenter.Server == "" {
+	if job.VCenter == nil || job.VCenter.Server == "" {
 		return fmt.Errorf("vcenter server is required")
 	}
 
