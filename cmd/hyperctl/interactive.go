@@ -301,20 +301,15 @@ func (m model) handleConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "ctrl+c", "q":
 		return m, tea.Quit
 
-	case "escape", "b":
+	case "escape", "b", "n", "N":
 		// Go back to selection
 		m.phase = "select"
+		m.message = ""
 		return m, nil
 
 	case "y", "Y":
 		// Go to run mode selection
 		m.phase = "run-mode"
-		return m, nil
-
-	case "n", "N":
-		// Cancel and go back
-		m.phase = "select"
-		m.message = "Migration cancelled"
 		return m, nil
 	}
 
@@ -627,7 +622,15 @@ func (m model) renderSelection() string {
 
 	// Help
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("↑/k: up | ↓/j: down | Space: select | a: select all | n: deselect all | Enter: export | q: quit"))
+	b.WriteString(titleStyle.Render("🎯 Controls:"))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("↑/k: Move up | ↓/j: Move down | Space: Select/deselect VM"))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("a: Select all VMs | n: Deselect all VMs"))
+	b.WriteString("\n")
+	b.WriteString(successStyle.Render("Enter: Continue to confirmation →"))
+	b.WriteString(" ")
+	b.WriteString(errorStyle.Render("q: Quit"))
 
 	if m.message != "" {
 		b.WriteString("\n\n")
@@ -715,10 +718,13 @@ func (m model) renderConfirm() string {
 	}
 
 	// Confirmation prompt
-	b.WriteString(successStyle.Bold(true).Render("Start migration?"))
+	b.WriteString(successStyle.Bold(true).Render("⚡ Start Migration for Selected VMs?"))
 	b.WriteString("\n\n")
 
-	b.WriteString(helpStyle.Render("y: Yes, start migration | n: No, go back | Esc/b: Back to selection | q: Quit"))
+	b.WriteString(infoStyle.Render("This will export, convert, and optionally import the selected VMs."))
+	b.WriteString("\n\n")
+
+	b.WriteString(helpStyle.Render("y/Y: Yes, proceed | n/N: No, go back | Esc/b: Back to VM selection | q: Quit"))
 
 	return b.String()
 }
@@ -768,10 +774,12 @@ func (m model) renderRunMode() string {
 	b.WriteString("\n\n")
 
 	// Prompt
-	b.WriteString(successStyle.Bold(true).Render("Choose execution mode:"))
+	b.WriteString(successStyle.Bold(true).Render("Choose Execution Mode:"))
 	b.WriteString("\n\n")
 
-	b.WriteString(helpStyle.Render("1/t: Terminal | 2/s: Systemd Service | Esc/b: Back | q: Quit"))
+	b.WriteString(helpStyle.Render("1/t: Run in Terminal | 2/s: Run as Systemd Service"))
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("Esc/b: Back to confirmation | q: Quit"))
 
 	return b.String()
 }
