@@ -29,16 +29,28 @@ type Config struct {
 		Enabled bool `yaml:"enabled" json:"enabled"`
 		Port    int  `yaml:"port" json:"port"`
 	} `yaml:"metrics" json:"metrics"`
+	Security struct {
+		APIKey            string   `yaml:"api_key" json:"-"`                      // API key for authentication
+		AllowedOrigins    []string `yaml:"allowed_origins" json:"allowed_origins"` // Allowed WebSocket origins
+		MaxRequestSizeMB  int      `yaml:"max_request_size_mb" json:"max_request_size_mb"`
+		RateLimitPerMin   int      `yaml:"rate_limit_per_min" json:"rate_limit_per_min"`
+		EnableAuth        bool     `yaml:"enable_auth" json:"enable_auth"`
+		TrustedProxies    []string `yaml:"trusted_proxies" json:"trusted_proxies"`
+		BlockPrivateIPs   bool     `yaml:"block_private_ips" json:"block_private_ips"` // Block private IPs in webhooks
+	} `yaml:"security" json:"security"`
 }
 
 // EnhancedServer extends the base server with new features
 type EnhancedServer struct {
 	*Server
-	scheduler  *scheduler.Scheduler
-	webhookMgr *webhooks.Manager
-	store      store.JobStore
-	config     *Config
-	wsHub      *WSHub
+	scheduler       *scheduler.Scheduler
+	webhookMgr      *webhooks.Manager
+	store           store.JobStore
+	config          *Config
+	wsHub           *WSHub
+	statusTicker    *time.Ticker
+	shutdownCtx     context.Context
+	shutdownCancel  context.CancelFunc
 }
 
 // jobExecutorAdapter adapts jobs.Manager to scheduler.JobExecutor interface
@@ -53,12 +65,32 @@ func (a *jobExecutorAdapter) SubmitJob(definition models.JobDefinition) error {
 
 // NewEnhancedServer creates a new enhanced API server with all Phase 1 features
 func NewEnhancedServer(manager *jobs.Manager, log logger.Logger, addr string, config *Config) (*EnhancedServer, error) {
+	// Apply default security settings if not configured
+	if config.Security.MaxRequestSizeMB == 0 {
+		config.Security.MaxRequestSizeMB = 10 // 10MB default
+	}
+	if len(config.Security.AllowedOrigins) == 0 {
+		// Default to localhost for development
+		config.Security.AllowedOrigins = []string{
+			"http://localhost:8080",
+			"https://localhost:8080",
+		}
+	}
+	if config.Security.BlockPrivateIPs {
+		log.Info("webhook private IP blocking enabled")
+	}
+
 	// Create base server
 	baseServer := NewServer(manager, log, addr)
 
+	// Create shutdown context
+	ctx, cancel := context.WithCancel(context.Background())
+
 	es := &EnhancedServer{
-		Server: baseServer,
-		config: config,
+		Server:         baseServer,
+		config:         config,
+		shutdownCtx:    ctx,
+		shutdownCancel: cancel,
 	}
 
 	// Initialize job store if database path is provided
@@ -89,10 +121,11 @@ func NewEnhancedServer(manager *jobs.Manager, log logger.Logger, addr string, co
 	// Set build info for metrics
 	metrics.SetBuildInfo("0.0.1", "go1.24")
 
-	// Initialize WebSocket hub
+	// Initialize WebSocket hub with shutdown context
 	es.wsHub = NewWSHub()
-	go es.wsHub.Run()
-	es.StartStatusBroadcaster()
+	es.wsHub.SetLogger(log)
+	go es.wsHub.Run(es.shutdownCtx)
+	es.statusTicker = es.StartStatusBroadcaster(es.shutdownCtx)
 	log.Info("websocket support enabled")
 
 	// Register enhanced routes
@@ -182,28 +215,110 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	mux.HandleFunc("/webhooks/test", es.handleTestWebhook)
 	mux.HandleFunc("/webhooks/", es.handleDeleteWebhook)
 
-	// Update the HTTP server with new mux
-	es.httpServer.Handler = es.loggingMiddleware(mux)
+	// Update the HTTP server with middleware chain
+	handler := es.loggingMiddleware(mux)
+	handler = es.requestSizeLimitMiddleware(handler)
+	handler = es.authMiddleware(handler)
+	es.httpServer.Handler = handler
 }
 
 // Shutdown gracefully shuts down the enhanced server
 func (es *EnhancedServer) Shutdown(ctx context.Context) error {
 	es.logger.Info("shutting down enhanced API server")
 
+	// Cancel shutdown context to stop background goroutines
+	if es.shutdownCancel != nil {
+		es.shutdownCancel()
+	}
+
+	// Stop status broadcaster ticker
+	if es.statusTicker != nil {
+		es.statusTicker.Stop()
+		es.logger.Debug("status broadcaster stopped")
+	}
+
 	// Stop scheduler
 	if es.scheduler != nil {
 		es.scheduler.Stop()
+		es.logger.Debug("scheduler stopped")
+	}
+
+	// Close WebSocket hub (close all client connections)
+	if es.wsHub != nil {
+		es.wsHub.Shutdown()
+		es.logger.Debug("websocket hub shutdown")
 	}
 
 	// Close store
 	if es.store != nil {
 		if err := es.store.Close(); err != nil {
 			es.logger.Error("failed to close job store", "error", err)
+		} else {
+			es.logger.Debug("job store closed")
 		}
 	}
 
-	// Shutdown HTTP server
-	return es.httpServer.Shutdown(ctx)
+	// Shutdown HTTP server with timeout
+	es.logger.Info("shutting down HTTP server")
+	if err := es.httpServer.Shutdown(ctx); err != nil {
+		es.logger.Error("HTTP server shutdown error", "error", err)
+		return err
+	}
+
+	es.logger.Info("enhanced API server shutdown complete")
+	return nil
+}
+
+// authMiddleware checks API authentication
+func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Skip auth if disabled
+		if !es.config.Security.EnableAuth {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Skip auth for health check
+		if r.URL.Path == "/health" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Get API key from header or query parameter
+		apiKey := r.Header.Get("X-API-Key")
+		if apiKey == "" {
+			apiKey = r.Header.Get("Authorization")
+			if strings.HasPrefix(apiKey, "Bearer ") {
+				apiKey = strings.TrimPrefix(apiKey, "Bearer ")
+			}
+		}
+		if apiKey == "" {
+			apiKey = r.URL.Query().Get("api_key")
+		}
+
+		// Validate API key
+		if apiKey != es.config.Security.APIKey {
+			es.logger.Warn("unauthorized API access attempt",
+				"remote", r.RemoteAddr,
+				"path", r.URL.Path,
+				"method", r.Method)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+// requestSizeLimitMiddleware limits request body size
+func (es *EnhancedServer) requestSizeLimitMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Body != nil {
+			maxBytes := int64(es.config.Security.MaxRequestSizeMB) * 1024 * 1024
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Enhanced middleware with metrics
