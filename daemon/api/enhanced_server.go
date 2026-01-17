@@ -4,7 +4,9 @@ package api
 
 import (
 	"context"
+	"crypto/subtle"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -161,6 +163,19 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	// WebSocket endpoint for real-time updates
 	mux.HandleFunc("/ws", es.handleWebSocket)
 
+	// Serve web dashboard (static files)
+	webDir := filepath.Join(".", "web", "dashboard")
+	fileServer := http.FileServer(http.Dir(webDir))
+	mux.Handle("/web/dashboard/", http.StripPrefix("/web/dashboard/", fileServer))
+	// Redirect root to dashboard
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/" {
+			http.Redirect(w, r, "/web/dashboard/", http.StatusFound)
+			return
+		}
+		http.NotFound(w, r)
+	})
+
 	// Schedule management endpoints
 	mux.HandleFunc("/schedules", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
@@ -284,6 +299,13 @@ func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Validate server configuration
+		if es.config.Security.APIKey == "" {
+			es.logger.Error("authentication enabled but API key not configured")
+			http.Error(w, "server configuration error", http.StatusInternalServerError)
+			return
+		}
+
 		// Get API key from header or query parameter
 		apiKey := r.Header.Get("X-API-Key")
 		if apiKey == "" {
@@ -296,8 +318,8 @@ func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
 			apiKey = r.URL.Query().Get("api_key")
 		}
 
-		// Validate API key
-		if apiKey != es.config.Security.APIKey {
+		// Validate API key using constant-time comparison to prevent timing attacks
+		if apiKey == "" || subtle.ConstantTimeCompare([]byte(apiKey), []byte(es.config.Security.APIKey)) != 1 {
 			es.logger.Warn("unauthorized API access attempt",
 				"remote", r.RemoteAddr,
 				"path", r.URL.Path,
