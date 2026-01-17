@@ -49,19 +49,29 @@ func ValidateWebhookURL(webhookURL string, blockPrivateIPs bool) error {
 
 // isPrivateIP checks if an IP address is in a private range
 func isPrivateIP(ip net.IP) bool {
-	// Private IPv4 ranges
+	// Private IPv4 and IPv6 ranges (RFC 1918, RFC 4193, RFC 6598, RFC 5737, RFC 2544, etc.)
 	privateRanges := []string{
-		"10.0.0.0/8",       // Class A private network
-		"172.16.0.0/12",    // Class B private networks
-		"192.168.0.0/16",   // Class C private networks
-		"127.0.0.0/8",      // Loopback
-		"169.254.0.0/16",   // Link-local
-		"224.0.0.0/4",      // Multicast
-		"240.0.0.0/4",      // Reserved
-		"0.0.0.0/8",        // This network
-		"::1/128",          // IPv6 loopback
-		"fe80::/10",        // IPv6 link-local
-		"fc00::/7",         // IPv6 unique local addresses
+		// IPv4 Private Networks
+		"10.0.0.0/8",       // Class A private network (RFC 1918)
+		"172.16.0.0/12",    // Class B private networks (RFC 1918)
+		"192.168.0.0/16",   // Class C private networks (RFC 1918)
+		"127.0.0.0/8",      // Loopback (RFC 1122)
+		"169.254.0.0/16",   // Link-local (RFC 3927)
+		"224.0.0.0/4",      // Multicast (RFC 5771)
+		"240.0.0.0/4",      // Reserved (RFC 1112)
+		"0.0.0.0/8",        // This network (RFC 1122)
+		// Additional IPv4 Special-Purpose Ranges
+		"100.64.0.0/10",    // Carrier-grade NAT (RFC 6598)
+		"192.0.0.0/24",     // IETF Protocol Assignments (RFC 6890)
+		"192.0.2.0/24",     // TEST-NET-1 (RFC 5737)
+		"198.51.100.0/24",  // TEST-NET-2 (RFC 5737)
+		"203.0.113.0/24",   // TEST-NET-3 (RFC 5737)
+		"198.18.0.0/15",    // Benchmark testing (RFC 2544)
+		// IPv6 Private Networks
+		"::1/128",          // IPv6 loopback (RFC 4291)
+		"fe80::/10",        // IPv6 link-local (RFC 4291)
+		"fc00::/7",         // IPv6 unique local addresses (RFC 4193)
+		"::ffff:0:0/96",    // IPv4-mapped IPv6 addresses (RFC 4291)
 	}
 
 	for _, cidr := range privateRanges {
