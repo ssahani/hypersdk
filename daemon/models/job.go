@@ -97,7 +97,7 @@ type BatchJobDefinition struct {
 	Jobs []JobDefinition `json:"jobs" yaml:"jobs"`
 }
 
-// QueryRequest represents a query from h2kvmctl
+// QueryRequest represents a query from hyperctl
 type QueryRequest struct {
 	JobIDs     []string   `json:"job_ids,omitempty"`     // Specific job IDs to query
 	Status     []JobStatus `json:"status,omitempty"`      // Filter by status
