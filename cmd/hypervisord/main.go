@@ -128,14 +128,19 @@ func main() {
 func showBanner() {
 	pterm.DefaultCenter.Println()
 
+	// Orange/amber color scheme (Claude-inspired)
+	orange := pterm.NewStyle(pterm.FgLightRed)
+	amber := pterm.NewStyle(pterm.FgYellow)
+
 	bigText, _ := pterm.DefaultBigText.WithLetters(
-		pterm.NewLettersFromStringWithStyle("H2KVM", pterm.NewStyle(pterm.FgCyan)),
-		pterm.NewLettersFromStringWithStyle("D", pterm.NewStyle(pterm.FgLightMagenta)),
+		pterm.NewLettersFromStringWithStyle("HYPER", orange),
+		pterm.NewLettersFromStringWithStyle("VISOR", amber),
+		pterm.NewLettersFromStringWithStyle("D", orange),
 	).Srender()
 
 	pterm.DefaultCenter.Println(bigText)
 
-	subtitle := pterm.DefaultCenter.Sprint("Hypervisor to KVM Migration Daemon")
+	subtitle := pterm.DefaultCenter.Sprint(pterm.LightYellow("Multi-Cloud VM Export Daemon"))
 	pterm.Println(subtitle)
 	pterm.Println()
 }
