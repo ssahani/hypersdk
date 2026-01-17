@@ -92,7 +92,7 @@ jobs:
         file hyperexport hypervisord hyperctl
 
     - name: Upload binaries
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: binaries
         path: |
@@ -120,17 +120,17 @@ jobs:
 
     - name: Create source tarball
       run: |
-        VERSION=$(grep '^Version:' hyperexport-providers.spec | awk '{print $2}')
-        mkdir -p hyperexport-providers-${VERSION}
-        cp -r * hyperexport-providers-${VERSION}/ || true
-        tar czf ~/rpmbuild/SOURCES/hyperexport-providers-${VERSION}.tar.gz hyperexport-providers-${VERSION}
+        VERSION=$(grep '^Version:' hypersdk.spec | awk '{print $2}')
+        mkdir -p hypersdk-${VERSION}
+        cp -r * hypersdk-${VERSION}/ || true
+        tar czf ~/rpmbuild/SOURCES/hypersdk-${VERSION}.tar.gz hypersdk-${VERSION}
 
     - name: Build RPM
       run: |
-        rpmbuild -ba hyperexport-providers.spec
+        rpmbuild -ba hypersdk.spec
 
     - name: Upload RPM
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: rpm-packages
         path: |
@@ -147,7 +147,7 @@ jobs:
       uses: actions/checkout@v4
 
     - name: Download binaries
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         name: binaries
 
