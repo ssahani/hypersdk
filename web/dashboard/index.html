@@ -6,7 +6,10 @@
     <title>HyperSDK Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
         * {
             margin: 0;
             padding: 0;
@@ -14,273 +17,508 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f5f5;
-            color: #333;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            background-attachment: fixed;
+            color: #e0e0e0;
+            min-height: 100vh;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        /* Animated background particles */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background:
+                radial-gradient(circle at 20% 50%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(118, 75, 162, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 40% 20%, rgba(236, 72, 153, 0.1) 0%, transparent 50%);
+            animation: float 20s ease-in-out infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(30px, -30px) scale(1.1); }
+            66% { transform: translate(-20px, 20px) scale(0.9); }
         }
 
         .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.9) 0%, rgba(118, 75, 162, 0.9) 100%);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             color: white;
-            padding: 1.5rem 2rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 2rem 2.5rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3), 0 0 60px rgba(102, 126, 234, 0.3);
             position: relative;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 10;
         }
 
         .header h1 {
-            font-size: 1.8rem;
-            font-weight: 600;
+            font-size: 2.2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #fff, #e0e0ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.3);
+            letter-spacing: -0.5px;
         }
 
         .header p {
-            opacity: 0.9;
+            opacity: 0.95;
             margin-top: 0.5rem;
+            font-weight: 400;
+            font-size: 1.05rem;
+            text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
         .ws-status {
             position: absolute;
-            top: 1.5rem;
-            right: 2rem;
+            top: 2rem;
+            right: 2.5rem;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
+            gap: 0.6rem;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            padding: 0.6rem 1.2rem;
+            border-radius: 30px;
             font-size: 0.875rem;
+            font-weight: 500;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .ws-status-indicator {
-            width: 10px;
-            height: 10px;
+            width: 12px;
+            height: 12px;
             border-radius: 50%;
             background: #ff4444;
             animation: pulse 2s infinite;
+            box-shadow: 0 0 10px currentColor;
         }
 
         .ws-status-indicator.connected {
-            background: #44ff44;
+            background: #00ff88;
+            box-shadow: 0 0 15px #00ff88;
         }
 
         @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.1); }
+        }
+
+        .main-layout {
+            display: flex;
+            min-height: calc(100vh - 120px);
+            position: relative;
+            z-index: 1;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem 0;
+            position: sticky;
+            top: 0;
+            height: calc(100vh - 120px);
+        }
+
+        .sidebar-nav {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .sidebar-nav li {
+            margin: 0.25rem 0;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.875rem 1.5rem;
+            color: rgba(255, 255, 255, 0.6);
+            text-decoration: none;
+            transition: all 0.3s;
+            border-left: 3px solid transparent;
+            font-weight: 500;
+        }
+
+        .sidebar-nav a:hover {
+            background: rgba(102, 126, 234, 0.1);
+            color: rgba(255, 255, 255, 0.9);
+            border-left-color: #667eea;
+        }
+
+        .sidebar-nav a.active {
+            background: linear-gradient(90deg, rgba(102, 126, 234, 0.2), transparent);
+            color: #fff;
+            border-left-color: #667eea;
+        }
+
+        .sidebar-nav a i {
+            width: 20px;
+            text-align: center;
         }
 
         .container {
-            max-width: 1400px;
-            margin: 0 auto;
-            padding: 2rem;
+            flex: 1;
+            padding: 2.5rem;
+            overflow-y: auto;
         }
 
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 1.8rem;
+            margin-bottom: 2.5rem;
         }
 
         .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-            transition: transform 0.2s;
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 2rem;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .stat-card:hover::before {
+            opacity: 1;
         }
 
         .stat-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+            transform: translateY(-8px) scale(1.02);
+            box-shadow: 0 16px 48px rgba(102, 126, 234, 0.4);
+            border-color: rgba(102, 126, 234, 0.5);
         }
 
         .stat-card h3 {
-            font-size: 0.875rem;
-            color: #666;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.6);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.75rem;
+            letter-spacing: 1.5px;
+            margin-bottom: 1rem;
+            font-weight: 600;
         }
 
         .stat-card .value {
-            font-size: 2.5rem;
-            font-weight: 700;
-            color: #667eea;
+            font-size: 3rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: 0 0 30px rgba(102, 126, 234, 0.5);
+            position: relative;
         }
 
         .stat-card .label {
-            font-size: 0.875rem;
-            color: #999;
-            margin-top: 0.5rem;
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.5);
+            margin-top: 0.75rem;
+            font-weight: 400;
         }
 
         .tabs {
             display: flex;
             gap: 0.5rem;
             margin-bottom: 1.5rem;
-            border-bottom: 2px solid #e0e0e0;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
         }
 
         .tab {
             padding: 0.75rem 1.5rem;
-            background: none;
+            background: rgba(255, 255, 255, 0.03);
             border: none;
+            border-radius: 12px 12px 0 0;
             font-size: 1rem;
             font-weight: 500;
-            color: #666;
+            color: rgba(255, 255, 255, 0.5);
             cursor: pointer;
             border-bottom: 2px solid transparent;
             margin-bottom: -2px;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
         }
 
         .tab:hover {
-            color: #667eea;
+            color: rgba(255, 255, 255, 0.8);
+            background: rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
         }
 
         .tab.active {
-            color: #667eea;
+            color: #fff;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2), rgba(118, 75, 162, 0.2));
             border-bottom-color: #667eea;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
         }
 
         .panel {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px;
+            padding: 2rem;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .table {
             width: 100%;
             border-collapse: collapse;
+            border-radius: 12px;
+            overflow: hidden;
         }
 
         .table thead {
-            background: #f8f8f8;
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.15), rgba(118, 75, 162, 0.15));
+            backdrop-filter: blur(10px);
         }
 
         .table th {
             text-align: left;
-            padding: 1rem;
+            padding: 1rem 1.5rem;
             font-weight: 600;
             font-size: 0.875rem;
-            color: #666;
+            color: rgba(255, 255, 255, 0.8);
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .table td {
-            padding: 1rem;
-            border-top: 1px solid #e0e0e0;
+            padding: 1rem 1.5rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.9);
         }
 
-        .table tr:hover {
-            background: #f8f8f8;
+        .table tbody tr {
+            transition: all 0.2s;
+        }
+
+        .table tbody tr:hover {
+            background: rgba(102, 126, 234, 0.08);
+            transform: scale(1.01);
+        }
+
+        .table code {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            color: #a0d8f1;
         }
 
         .badge {
             display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
+            padding: 0.3rem 0.9rem;
+            border-radius: 20px;
             font-size: 0.75rem;
             font-weight: 600;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .badge.completed {
-            background: #d1f4e0;
-            color: #1a7f3b;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2));
+            color: #6ee7b7;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
         }
 
         .badge.running {
-            background: #cfe8fc;
-            color: #0277bd;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(37, 99, 235, 0.2));
+            color: #93c5fd;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+            animation: pulse 2s infinite;
         }
 
         .badge.failed {
-            background: #ffd5d5;
-            color: #c62828;
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.2));
+            color: #fca5a5;
+            box-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
         }
 
         .badge.pending {
-            background: #fff3cd;
-            color: #856404;
+            background: linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(217, 119, 6, 0.2));
+            color: #fcd34d;
+            box-shadow: 0 0 15px rgba(245, 158, 11, 0.3);
         }
 
         .btn {
-            padding: 0.5rem 1rem;
+            padding: 0.75rem 1.5rem;
             border: none;
-            border-radius: 6px;
-            font-weight: 500;
+            border-radius: 12px;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.2s;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn:hover::before {
+            width: 300px;
+            height: 300px;
         }
 
         .btn-primary {
-            background: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .btn-primary:hover {
-            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .btn-secondary {
-            background: #e0e0e0;
-            color: #333;
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
         }
 
         .btn-secondary:hover {
-            background: #d0d0d0;
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.1);
         }
 
         .btn-danger {
-            background: #f44336;
+            background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .btn-danger:hover {
-            background: #d32f2f;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(244, 63, 94, 0.6);
+        }
+
+        .btn-sm {
+            padding: 0.5rem 1rem;
+            font-size: 0.85rem;
         }
 
         .empty-state {
             text-align: center;
-            padding: 3rem;
-            color: #999;
+            padding: 4rem 3rem;
+            color: rgba(255, 255, 255, 0.4);
         }
 
         .empty-state-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.6;
+            filter: drop-shadow(0 0 10px rgba(102, 126, 234, 0.3));
+        }
+
+        .empty-state h3 {
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            color: rgba(255, 255, 255, 0.4);
         }
 
         .progress-bar {
             width: 100%;
-            height: 6px;
-            background: #e0e0e0;
-            border-radius: 3px;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
             overflow: hidden;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .progress-fill {
             height: 100%;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            background: linear-gradient(90deg, #667eea, #764ba2, #f093fb);
+            background-size: 200% 100%;
+            animation: shimmer 2s infinite;
             transition: width 0.3s;
+            box-shadow: 0 0 10px rgba(102, 126, 234, 0.5);
+        }
+
+        @keyframes shimmer {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
 
         .loading {
             text-align: center;
-            padding: 2rem;
-            color: #999;
+            padding: 3rem 2rem;
+            color: rgba(255, 255, 255, 0.5);
         }
 
         .spinner {
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #667eea;
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-top: 4px solid #667eea;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 50px;
+            height: 50px;
             animation: spin 1s linear infinite;
-            margin: 0 auto 1rem;
+            margin: 0 auto 1.5rem;
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
         }
 
         @keyframes spin {
@@ -292,42 +530,58 @@
             position: fixed;
             bottom: 2rem;
             right: 2rem;
-            width: 56px;
-            height: 56px;
+            width: 64px;
+            height: 64px;
             border-radius: 50%;
-            background: #667eea;
+            background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
-            border: none;
-            font-size: 1.5rem;
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            font-size: 1.8rem;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-            transition: all 0.2s;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            backdrop-filter: blur(10px);
         }
 
         .refresh-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.6);
+            transform: scale(1.15) rotate(180deg);
+            box-shadow: 0 12px 32px rgba(102, 126, 234, 0.6);
+        }
+
+        .refresh-btn:active {
+            transform: scale(1.05) rotate(180deg);
         }
 
         .form-group {
-            margin-bottom: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .form-group label {
             display: block;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.75rem;
             font-weight: 500;
-            color: #666;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.95rem;
+            letter-spacing: 0.3px;
         }
 
         .form-group input,
         .form-group select,
         .form-group textarea {
             width: 100%;
-            padding: 0.75rem;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
+            padding: 0.9rem 1.2rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
             font-size: 1rem;
+            color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+        }
+
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.3);
         }
 
         .form-group input:focus,
@@ -335,6 +589,306 @@
         .form-group textarea:focus {
             outline: none;
             border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .form-group small {
+            display: block;
+            margin-top: 0.5rem;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.85rem;
+        }
+
+        .form-group input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+        }
+
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff, #667eea);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-header p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.05rem;
+        }
+
+        .info-card {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .info-card h3 {
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 1rem;
+            font-size: 1.2rem;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: rgba(255, 255, 255, 0.6);
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: rgba(255, 255, 255, 0.9);
+            font-weight: 600;
+        }
+
+        /* Search and filter styles */
+        .search-bar {
+            position: relative;
+            margin-bottom: 1.5rem;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 0.9rem 1.2rem 0.9rem 3rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: #667eea;
+            background: rgba(255, 255, 255, 0.08);
+            box-shadow: 0 0 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .search-bar i {
+            position: absolute;
+            left: 1.2rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: rgba(255, 255, 255, 0.4);
+        }
+
+        .filter-chips {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-chip {
+            padding: 0.5rem 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            color: rgba(255, 255, 255, 0.7);
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .filter-chip:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+            color: #fff;
+        }
+
+        .filter-chip.active {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-color: transparent;
+            color: #fff;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        /* Modal styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal {
+            background: rgba(15, 12, 41, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            animation: slideUp 0.3s;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            padding: 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.5rem;
+            color: #fff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+            transform: rotate(90deg);
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        /* Template card */
+        .template-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .template-card:hover {
+            background: rgba(102, 126, 234, 0.1);
+            border-color: #667eea;
+            transform: translateX(5px);
+        }
+
+        .template-card h4 {
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+
+        .template-card p {
+            color: rgba(255, 255, 255, 0.6);
+            font-size: 0.9rem;
+            margin: 0;
+        }
+
+        /* Notification toast */
+        .toast {
+            position: fixed;
+            top: 100px;
+            right: 2rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.4);
+            z-index: 3000;
+            animation: slideInRight 0.3s;
+            min-width: 300px;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(400px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .toast.success {
+            background: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        .toast.error {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+        }
+
+        /* Bulk actions bar */
+        .bulk-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+        }
+
+        .bulk-actions-label {
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 600;
+        }
+
+        /* Keyboard shortcut indicator */
+        .shortcut-hint {
+            position: fixed;
+            bottom: 2rem;
+            left: 2rem;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 1rem;
+            border-radius: 12px;
+            color: rgba(255, 255, 255, 0.8);
+            font-size: 0.85rem;
+            z-index: 1000;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .shortcut-hint kbd {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-family: monospace;
+            margin: 0 0.2rem;
         }
     </style>
 </head>
@@ -349,8 +903,78 @@
             </div>
         </div>
 
-        <div class="container">
-            <!-- Statistics Cards -->
+        <div class="main-layout">
+            <!-- Sidebar Navigation -->
+            <aside class="sidebar">
+                <nav class="sidebar-nav">
+                    <ul>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'overview'" :class="{active: activeTab === 'overview'}">
+                                <i class="fas fa-tachometer-alt"></i>
+                                <span>Overview</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'export'" :class="{active: activeTab === 'export'}">
+                                <i class="fas fa-rocket"></i>
+                                <span>Export Wizard</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'jobs'; loadJobs()" :class="{active: activeTab === 'jobs'}">
+                                <i class="fas fa-tasks"></i>
+                                <span>Jobs</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'vms'; loadVMs()" :class="{active: activeTab === 'vms'}">
+                                <i class="fas fa-server"></i>
+                                <span>Virtual Machines</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'schedules'; loadSchedules()" :class="{active: activeTab === 'schedules'}">
+                                <i class="fas fa-clock"></i>
+                                <span>Schedules</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'webhooks'; loadWebhooks()" :class="{active: activeTab === 'webhooks'}">
+                                <i class="fas fa-webhook"></i>
+                                <span>Webhooks</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'activity'" :class="{active: activeTab === 'activity'}">
+                                <i class="fas fa-history"></i>
+                                <span>Activity Log</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'settings'" :class="{active: activeTab === 'settings'}">
+                                <i class="fas fa-cog"></i>
+                                <span>Settings</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="#" @click.prevent="activeTab = 'about'" :class="{active: activeTab === 'about'}">
+                                <i class="fas fa-info-circle"></i>
+                                <span>About</span>
+                            </a>
+                        </li>
+                    </ul>
+                </nav>
+            </aside>
+
+            <div class="container">
+            <!-- Overview Page -->
+            <div v-if="activeTab === 'overview'">
+                <div class="page-header">
+                    <h2>Dashboard Overview</h2>
+                    <p>Monitor your VM migration operations at a glance</p>
+                </div>
+
+                <!-- Statistics Cards -->
             <div class="stats-grid">
                 <div class="stat-card">
                     <h3>Total Jobs</h3>
@@ -373,44 +997,52 @@
                     <div class="label">Needs attention</div>
                 </div>
             </div>
-
-            <!-- Tabs -->
-            <div class="tabs">
-                <button
-                    class="tab"
-                    :class="{active: activeTab === 'jobs'}"
-                    @click="activeTab = 'jobs'">
-                    Jobs
-                </button>
-                <button
-                    class="tab"
-                    :class="{active: activeTab === 'schedules'}"
-                    @click="activeTab = 'schedules'; loadSchedules()">
-                    Schedules
-                </button>
-                <button
-                    class="tab"
-                    :class="{active: activeTab === 'export'}"
-                    @click="activeTab = 'export'">
-                    🚀 Export
-                </button>
-                <button
-                    class="tab"
-                    :class="{active: activeTab === 'vms'}"
-                    @click="activeTab = 'vms'; loadVMs()">
-                    VMs
-                </button>
-                <button
-                    class="tab"
-                    :class="{active: activeTab === 'webhooks'}"
-                    @click="activeTab = 'webhooks'; loadWebhooks()">
-                    Webhooks
-                </button>
             </div>
 
             <!-- Jobs Panel -->
             <div v-if="activeTab === 'jobs'" class="panel">
-                <h2 style="margin-bottom: 1rem;">Recent Jobs</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="margin: 0;">Jobs Management</h2>
+                    <button class="btn btn-primary btn-sm" @click="loadJobs">
+                        <i class="fas fa-sync"></i> Refresh
+                    </button>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="search-bar">
+                    <i class="fas fa-search"></i>
+                    <input type="text" v-model="jobSearch" placeholder="Search jobs by VM path, ID, or status...">
+                </div>
+
+                <!-- Filter Chips -->
+                <div class="filter-chips">
+                    <div class="filter-chip" :class="{active: jobFilter === 'all'}" @click="jobFilter = 'all'">
+                        <i class="fas fa-list"></i> All ({{ jobs.length }})
+                    </div>
+                    <div class="filter-chip" :class="{active: jobFilter === 'running'}" @click="jobFilter = 'running'">
+                        <i class="fas fa-spinner"></i> Running ({{ jobs.filter(j => j.status === 'running').length }})
+                    </div>
+                    <div class="filter-chip" :class="{active: jobFilter === 'completed'}" @click="jobFilter = 'completed'">
+                        <i class="fas fa-check-circle"></i> Completed ({{ jobs.filter(j => j.status === 'completed').length }})
+                    </div>
+                    <div class="filter-chip" :class="{active: jobFilter === 'failed'}" @click="jobFilter = 'failed'">
+                        <i class="fas fa-times-circle"></i> Failed ({{ jobs.filter(j => j.status === 'failed').length }})
+                    </div>
+                    <div class="filter-chip" :class="{active: jobFilter === 'pending'}" @click="jobFilter = 'pending'">
+                        <i class="fas fa-clock"></i> Pending ({{ jobs.filter(j => j.status === 'pending').length }})
+                    </div>
+                </div>
+
+                <!-- Bulk Actions -->
+                <div v-if="selectedJobs.length > 0" class="bulk-actions">
+                    <span class="bulk-actions-label">{{ selectedJobs.length }} selected</span>
+                    <button class="btn btn-danger btn-sm" @click="bulkCancelJobs">
+                        <i class="fas fa-stop"></i> Cancel Selected
+                    </button>
+                    <button class="btn btn-secondary btn-sm" @click="selectedJobs = []">
+                        <i class="fas fa-times"></i> Clear Selection
+                    </button>
+                </div>
 
                 <div v-if="loading" class="loading">
                     <div class="spinner"></div>
@@ -426,6 +1058,9 @@
                 <table v-else class="table">
                     <thead>
                         <tr>
+                            <th style="width: 50px;">
+                                <input type="checkbox" @change="toggleAllJobs" :checked="selectedJobs.length === filteredJobs.length && filteredJobs.length > 0">
+                            </th>
                             <th>Job ID</th>
                             <th>VM Path</th>
                             <th>Status</th>
@@ -435,11 +1070,15 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <tr v-for="job in jobs" :key="job.definition.id">
+                        <tr v-for="job in filteredJobs" :key="job.definition.id" :class="{selected: isJobSelected(job)}">
+                            <td>
+                                <input type="checkbox" :checked="isJobSelected(job)" @change="toggleJob(job)">
+                            </td>
                             <td><code>{{ job.definition.id.substring(0, 8) }}</code></td>
                             <td>{{ job.definition.vm_path }}</td>
                             <td>
                                 <span class="badge" :class="job.status">
+                                    <i :class="getStatusIcon(job.status)"></i>
                                     {{ job.status }}
                                 </span>
                             </td>
@@ -448,13 +1087,18 @@
                                     <div class="progress-bar">
                                         <div class="progress-fill" :style="{width: job.progress.percent_complete + '%'}"></div>
                                     </div>
-                                    <small style="color: #999;">{{ job.progress.percent_complete.toFixed(1) }}%</small>
+                                    <small style="color: rgba(255,255,255,0.6);">{{ job.progress.percent_complete.toFixed(1) }}%</small>
                                 </div>
                                 <span v-else>-</span>
                             </td>
                             <td>{{ formatTime(job.started_at) }}</td>
                             <td>
-                                <button class="btn btn-secondary btn-sm" @click="viewJob(job)">View</button>
+                                <button class="btn btn-primary btn-sm" @click="viewJobDetails(job)" style="margin-right: 0.5rem;">
+                                    <i class="fas fa-eye"></i> Details
+                                </button>
+                                <button v-if="job.status === 'running'" class="btn btn-danger btn-sm" @click="cancelJob(job)">
+                                    <i class="fas fa-stop"></i>
+                                </button>
                             </td>
                         </tr>
                     </tbody>
@@ -463,7 +1107,12 @@
 
             <!-- Export Panel -->
             <div v-if="activeTab === 'export'" class="panel">
-                <h2 style="margin-bottom: 1.5rem;">🚀 VM Export Wizard</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                    <h2 style="margin: 0;">🚀 VM Export Wizard</h2>
+                    <button class="btn btn-secondary btn-sm" @click="showTemplatesModal = true">
+                        <i class="fas fa-save"></i> Load Template
+                    </button>
+                </div>
 
                 <!-- Step 1: vCenter Connection -->
                 <div v-if="exportStep === 1" style="max-width: 600px;">
@@ -584,10 +1233,23 @@
 
                     <div class="form-group">
                         <label>Export Method</label>
-                        <select v-model="exportConfig.method">
-                            <option value="vddk">VDDK (Recommended - Faster)</option>
-                            <option value="nbdkit">NBDKit (Alternative)</option>
+                        <select v-model="exportConfig.method" :disabled="loadingCapabilities">
+                            <option v-if="loadingCapabilities" value="">Loading available methods...</option>
+                            <option v-for="method in availableExportMethods" :key="method.value" :value="method.value">
+                                {{ method.label }}{{ method.isDefault ? ' (Default)' : '' }}
+                            </option>
+                            <option v-if="!loadingCapabilities && availableExportMethods.length === 0" value="web">
+                                Web (HTTP/Browser-based) - Fallback
+                            </option>
                         </select>
+                        <small v-if="capabilities">
+                            <span v-for="(cap, method) in capabilities" :key="method">
+                                <i :class="cap.available ? 'fas fa-check-circle' : 'fas fa-times-circle'"
+                                   :style="{color: cap.available ? '#10b981' : '#ef4444'}"></i>
+                                {{ method }}
+                            </span>
+                        </small>
+                        <small v-else>Loading capabilities...</small>
                     </div>
 
                     <div class="form-group">
@@ -756,10 +1418,317 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- Activity Log Panel -->
+            <div v-if="activeTab === 'activity'" class="panel">
+                <div class="page-header">
+                    <h2>Activity Log</h2>
+                    <p>Recent system events and job history</p>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-history"></i> Recent Activity</h3>
+                    <div v-for="(job, index) in jobs.slice(0, 10)" :key="index" class="info-row">
+                        <div class="info-label">
+                            <span class="badge" :class="job.status">{{ job.status }}</span>
+                            {{ job.definition.vm_path }}
+                        </div>
+                        <div class="info-value">{{ formatTime(job.started_at) }}</div>
+                    </div>
+                    <div v-if="jobs.length === 0" class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>No activity yet</h3>
+                        <p>Your activity history will appear here</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Settings Panel -->
+            <div v-if="activeTab === 'settings'" class="panel">
+                <div class="page-header">
+                    <h2>Settings</h2>
+                    <p>Configure your HyperSDK preferences</p>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-sliders-h"></i> General Settings</h3>
+                    <div class="form-group">
+                        <label>Default Export Format</label>
+                        <select v-model="settings.defaultFormat" @change="saveSettings">
+                            <option value="qcow2">QCOW2</option>
+                            <option value="raw">RAW</option>
+                            <option value="vmdk">VMDK</option>
+                            <option value="ova">OVA</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Default Export Method</label>
+                        <select v-model="settings.defaultMethod" @change="saveSettings" :disabled="loadingCapabilities">
+                            <option v-if="loadingCapabilities" value="">Loading available methods...</option>
+                            <option v-for="method in availableExportMethods" :key="method.value" :value="method.value">
+                                {{ method.label }}
+                            </option>
+                            <option v-if="!loadingCapabilities && availableExportMethods.length === 0" value="web">
+                                Web (HTTP/Browser-based) - Fallback
+                            </option>
+                        </select>
+                        <small>Selected method will be used as default for new exports</small>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="settings.autoRefresh" @change="saveSettings">
+                            Auto-refresh dashboard every 10 seconds
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="settings.persistWizard" @change="saveSettings">
+                            Remember Export Wizard state across sessions
+                        </label>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-bell"></i> Notifications</h3>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="settings.notifyOnComplete" @change="saveSettings">
+                            Notify when jobs complete
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" v-model="settings.notifyOnError" @change="saveSettings">
+                            Notify when jobs fail
+                        </label>
+                    </div>
+                </div>
+
+                <button class="btn btn-secondary" @click="clearSessionData">
+                    <i class="fas fa-trash"></i> Clear Saved Session Data
+                </button>
+            </div>
+
+            <!-- About Panel -->
+            <div v-if="activeTab === 'about'" class="panel">
+                <div class="page-header">
+                    <h2>About HyperSDK</h2>
+                    <p>System information and version details</p>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-info-circle"></i> Version Information</h3>
+                    <div class="info-row">
+                        <span class="info-label">Version</span>
+                        <span class="info-value">{{ status.version || '0.0.1' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Build</span>
+                        <span class="info-value">{{ status.build_time || 'Development' }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">API Server</span>
+                        <span class="info-value">{{ window.location.host }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">WebSocket</span>
+                        <span class="info-value">
+                            <span class="badge" :class="{completed: wsConnected, failed: !wsConnected}">
+                                {{ wsConnected ? 'Connected' : 'Disconnected' }}
+                            </span>
+                        </span>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-chart-bar"></i> Statistics</h3>
+                    <div class="info-row">
+                        <span class="info-label">Total Jobs Processed</span>
+                        <span class="info-value">{{ status.total_jobs || 0 }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Success Rate</span>
+                        <span class="info-value">
+                            {{ status.total_jobs > 0 ? ((status.completed_jobs / status.total_jobs) * 100).toFixed(1) : 0 }}%
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Active Schedules</span>
+                        <span class="info-value">{{ schedules.filter(s => s.enabled).length }}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Configured Webhooks</span>
+                        <span class="info-value">{{ webhooks.length }}</span>
+                    </div>
+                </div>
+
+                <div class="info-card">
+                    <h3><i class="fas fa-book"></i> Documentation</h3>
+                    <p style="color: rgba(255, 255, 255, 0.7); margin-bottom: 1rem;">
+                        HyperSDK is a multi-cloud VM migration platform supporting VMware vSphere,
+                        with export capabilities to QCOW2, RAW, VMDK, and OVA formats.
+                    </p>
+                    <div class="info-row">
+                        <span class="info-label">GitHub</span>
+                        <span class="info-value">
+                            <a href="https://github.com/hypersdk" target="_blank" style="color: #667eea; text-decoration: none;">
+                                github.com/hypersdk
+                            </a>
+                        </span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">License</span>
+                        <span class="info-value">LGPL-3.0-or-later</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        </div>
+
+        <!-- Job Details Modal -->
+        <div v-if="selectedJobDetails" class="modal-overlay" @click.self="selectedJobDetails = null">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2><i class="fas fa-info-circle"></i> Job Details</h2>
+                    <button class="modal-close" @click="selectedJobDetails = null">×</button>
+                </div>
+                <div class="modal-body">
+                    <div class="info-card">
+                        <h3>Job Information</h3>
+                        <div class="info-row">
+                            <span class="info-label">Job ID</span>
+                            <span class="info-value"><code>{{ selectedJobDetails.definition.id }}</code></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">VM Path</span>
+                            <span class="info-value">{{ selectedJobDetails.definition.vm_path }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Status</span>
+                            <span class="info-value">
+                                <span class="badge" :class="selectedJobDetails.status">{{ selectedJobDetails.status }}</span>
+                            </span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Export Format</span>
+                            <span class="info-value">{{ selectedJobDetails.definition.format || 'N/A' }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Method</span>
+                            <span class="info-value">{{ selectedJobDetails.definition.method || 'N/A' }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Output Directory</span>
+                            <span class="info-value">{{ selectedJobDetails.definition.output_dir || 'N/A' }}</span>
+                        </div>
+                    </div>
+
+                    <div class="info-card" v-if="selectedJobDetails.progress">
+                        <h3>Progress Details</h3>
+                        <div class="info-row">
+                            <span class="info-label">Phase</span>
+                            <span class="info-value">{{ selectedJobDetails.progress.phase || 'N/A' }}</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Progress</span>
+                            <span class="info-value">{{ selectedJobDetails.progress.percent_complete?.toFixed(1) || 0 }}%</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Current Step</span>
+                            <span class="info-value">{{ selectedJobDetails.progress.current_step || 'N/A' }}</span>
+                        </div>
+                        <div class="info-row" v-if="selectedJobDetails.progress.bytes_transferred">
+                            <span class="info-label">Bytes Transferred</span>
+                            <span class="info-value">{{ formatBytes(selectedJobDetails.progress.bytes_transferred) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="info-card" v-if="selectedJobDetails.result">
+                        <h3>Result</h3>
+                        <div class="info-row">
+                            <span class="info-label">Success</span>
+                            <span class="info-value">
+                                <span class="badge" :class="selectedJobDetails.result.success ? 'completed' : 'failed'">
+                                    {{ selectedJobDetails.result.success ? 'Yes' : 'No' }}
+                                </span>
+                            </span>
+                        </div>
+                        <div class="info-row" v-if="selectedJobDetails.result.output_files">
+                            <span class="info-label">Output Files</span>
+                            <span class="info-value">{{ selectedJobDetails.result.output_files.length }}</span>
+                        </div>
+                        <div class="info-row" v-if="selectedJobDetails.result.error">
+                            <span class="info-label">Error</span>
+                            <span class="info-value" style="color: #fca5a5;">{{ selectedJobDetails.result.error }}</span>
+                        </div>
+                    </div>
+
+                    <div class="info-card">
+                        <h3>Timestamps</h3>
+                        <div class="info-row">
+                            <span class="info-label">Started At</span>
+                            <span class="info-value">{{ formatTime(selectedJobDetails.started_at) }}</span>
+                        </div>
+                        <div class="info-row" v-if="selectedJobDetails.completed_at">
+                            <span class="info-label">Completed At</span>
+                            <span class="info-value">{{ formatTime(selectedJobDetails.completed_at) }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Templates Modal -->
+        <div v-if="showTemplatesModal" class="modal-overlay" @click.self="showTemplatesModal = false">
+            <div class="modal">
+                <div class="modal-header">
+                    <h2><i class="fas fa-save"></i> Export Templates</h2>
+                    <button class="modal-close" @click="showTemplatesModal = false">×</button>
+                </div>
+                <div class="modal-body">
+                    <div v-if="exportTemplates.length === 0" class="empty-state">
+                        <div class="empty-state-icon">📋</div>
+                        <h3>No templates saved</h3>
+                        <p>Complete the wizard and save your configuration as a template</p>
+                    </div>
+
+                    <div v-for="(template, index) in exportTemplates" :key="index" class="template-card" @click="loadTemplate(template)">
+                        <h4>{{ template.name }}</h4>
+                        <p>Format: {{ template.config.format }} | Method: {{ template.config.method }}</p>
+                        <button class="btn btn-danger btn-sm" @click.stop="deleteTemplate(index)" style="margin-top: 0.5rem;">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+
+                    <div style="margin-top: 1.5rem;" v-if="exportStep === 3">
+                        <input v-model="newTemplateName" type="text" placeholder="Template name..." class="form-group input" style="margin-bottom: 1rem;">
+                        <button class="btn btn-primary" @click="saveAsTemplate">
+                            <i class="fas fa-save"></i> Save Current Config as Template
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast Notifications -->
+        <div v-for="(toast, index) in toasts" :key="index" class="toast" :class="toast.type" :style="{top: (100 + index * 80) + 'px'}">
+            <strong>{{ toast.title }}</strong>
+            <p style="margin: 0.25rem 0 0;">{{ toast.message }}</p>
+        </div>
+
+        <!-- Keyboard Shortcuts Hint -->
+        <div class="shortcut-hint" v-if="showShortcutHint">
+            <strong>Keyboard Shortcuts:</strong><br>
+            <kbd>?</kbd> Show/hide this help<br>
+            <kbd>O</kbd> Overview<br>
+            <kbd>E</kbd> Export<br>
+            <kbd>J</kbd> Jobs<br>
+            <kbd>V</kbd> VMs<br>
+            <kbd>R</kbd> Refresh
         </div>
 
         <!-- Refresh Button -->
-        <button class="refresh-btn" @click="refresh" title="Refresh">
+        <button class="refresh-btn" @click="refresh" title="Refresh (R)">
             ↻
         </button>
     </div>
@@ -769,8 +1738,12 @@
 
         createApp({
             data() {
+                // Restore from localStorage if available
+                const savedState = this.restoreFromLocalStorage();
+                const savedSettings = JSON.parse(localStorage.getItem('hypersdk_settings') || '{}');
+
                 return {
-                    activeTab: 'export',
+                    activeTab: savedState.activeTab || 'overview',
                     status: {},
                     jobs: [],
                     schedules: [],
@@ -784,38 +1757,154 @@
                     ws: null,
                     wsConnected: false,
                     wsReconnectAttempts: 0,
-                    // Export wizard state
-                    exportStep: 1,
-                    vcenterConfig: {
+                    // Export wizard state (restored from localStorage)
+                    exportStep: savedState.exportStep || 1,
+                    vcenterConfig: savedState.vcenterConfig || {
                         server: '',
                         username: '',
                         password: '',
                         insecure: true
                     },
-                    discoveredVMs: [],
-                    selectedVMs: [],
-                    exportConfig: {
-                        format: 'qcow2',
+                    discoveredVMs: savedState.discoveredVMs || [],
+                    selectedVMs: savedState.selectedVMs || [],
+                    exportConfig: savedState.exportConfig || {
+                        format: savedSettings.defaultFormat || 'qcow2',
                         output_dir: '/tmp/vm-exports',
-                        method: 'vddk',
+                        method: savedSettings.defaultMethod || 'ctl',
                         compress: false,
                         thin_provision: true
                     },
                     discoveringVMs: false,
-                    submittingJobs: false
+                    submittingJobs: false,
+                    // Settings
+                    settings: {
+                        defaultFormat: savedSettings.defaultFormat || 'qcow2',
+                        defaultMethod: savedSettings.defaultMethod || 'ctl',
+                        autoRefresh: savedSettings.autoRefresh !== undefined ? savedSettings.autoRefresh : true,
+                        persistWizard: savedSettings.persistWizard !== undefined ? savedSettings.persistWizard : true,
+                        notifyOnComplete: savedSettings.notifyOnComplete !== undefined ? savedSettings.notifyOnComplete : true,
+                        notifyOnError: savedSettings.notifyOnError !== undefined ? savedSettings.notifyOnError : true
+                    },
+                    // New features
+                    jobSearch: '',
+                    jobFilter: 'all',
+                    selectedJobs: [],
+                    selectedJobDetails: null,
+                    exportTemplates: JSON.parse(localStorage.getItem('hypersdk_templates') || '[]'),
+                    showTemplatesModal: false,
+                    newTemplateName: '',
+                    toasts: [],
+                    showShortcutHint: false,
+                    // Export capabilities
+                    capabilities: null,
+                    loadingCapabilities: false
                 };
             },
+            computed: {
+                filteredJobs() {
+                    let filtered = this.jobs;
+
+                    // Apply status filter
+                    if (this.jobFilter !== 'all') {
+                        filtered = filtered.filter(j => j.status === this.jobFilter);
+                    }
+
+                    // Apply search
+                    if (this.jobSearch) {
+                        const search = this.jobSearch.toLowerCase();
+                        filtered = filtered.filter(j =>
+                            j.definition.id.toLowerCase().includes(search) ||
+                            j.definition.vm_path.toLowerCase().includes(search) ||
+                            j.status.toLowerCase().includes(search)
+                        );
+                    }
+
+                    return filtered;
+                },
+                availableExportMethods() {
+                    if (!this.capabilities) return [];
+
+                    const methods = [];
+                    const methodOrder = ['ctl', 'govc', 'ovftool', 'web'];
+                    const methodLabels = {
+                        ctl: 'CTL (hyperctl)',
+                        govc: 'govc (VMware CLI)',
+                        ovftool: 'ovftool (VMware OVF Tool)',
+                        web: 'Web (HTTP/Browser-based)'
+                    };
+
+                    for (const method of methodOrder) {
+                        const cap = this.capabilities[method];
+                        if (cap && cap.available) {
+                            methods.push({
+                                value: method,
+                                label: methodLabels[method],
+                                priority: cap.priority,
+                                isDefault: method === this.settings.defaultMethod
+                            });
+                        }
+                    }
+
+                    return methods;
+                }
+            },
             mounted() {
+                this.loadStatus();
+                this.loadCapabilities();
                 this.connectWebSocket();
-                // Fallback polling if WebSocket fails
+
+                // Auto-refresh if enabled
                 setInterval(() => {
-                    if (!this.wsConnected) {
+                    if (this.settings.autoRefresh && !this.wsConnected) {
                         this.loadStatus();
                         if (this.activeTab === 'jobs') {
                             this.loadJobs();
                         }
                     }
-                }, 10000); // Fallback refresh every 10 seconds
+                }, 10000);
+
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    // Ignore if typing in input
+                    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                    switch(e.key.toLowerCase()) {
+                        case '?':
+                            this.showShortcutHint = !this.showShortcutHint;
+                            break;
+                        case 'o':
+                            this.activeTab = 'overview';
+                            break;
+                        case 'e':
+                            this.activeTab = 'export';
+                            break;
+                        case 'j':
+                            this.activeTab = 'jobs';
+                            this.loadJobs();
+                            break;
+                        case 'v':
+                            this.activeTab = 'vms';
+                            this.loadVMs();
+                            break;
+                        case 'r':
+                            this.refresh();
+                            break;
+                    }
+                });
+
+                // Request notification permission
+                if ('Notification' in window && Notification.permission === 'default') {
+                    Notification.requestPermission();
+                }
+            },
+            watch: {
+                // Save wizard state to localStorage when it changes
+                exportStep() { this.saveToLocalStorage(); },
+                vcenterConfig: { handler() { this.saveToLocalStorage(); }, deep: true },
+                discoveredVMs() { this.saveToLocalStorage(); },
+                selectedVMs() { this.saveToLocalStorage(); },
+                exportConfig: { handler() { this.saveToLocalStorage(); }, deep: true },
+                activeTab() { this.saveToLocalStorage(); }
             },
             beforeUnmount() {
                 if (this.ws) {
@@ -904,6 +1993,29 @@
                         this.status = response.data;
                     } catch (error) {
                         console.error('Failed to load status:', error);
+                    }
+                },
+                async loadCapabilities() {
+                    this.loadingCapabilities = true;
+                    try {
+                        const response = await axios.get('/capabilities');
+                        this.capabilities = response.data.capabilities;
+
+                        // Update default method from server capabilities if not set
+                        if (response.data.default_method && !this.settings.defaultMethod) {
+                            this.settings.defaultMethod = response.data.default_method;
+                            this.exportConfig.method = response.data.default_method;
+                        }
+
+                        console.log('Capabilities loaded:', this.capabilities);
+                    } catch (error) {
+                        console.error('Failed to load capabilities:', error);
+                        // Fallback to web-only if capabilities endpoint fails
+                        this.capabilities = {
+                            web: { method: 'web', available: true, priority: 4, path: '' }
+                        };
+                    } finally {
+                        this.loadingCapabilities = false;
                     }
                 },
                 async loadJobs() {
@@ -1111,12 +2223,163 @@
                         insecure: true
                     };
                     this.exportConfig = {
-                        format: 'qcow2',
+                        format: this.settings.defaultFormat || 'qcow2',
                         output_dir: '/tmp/vm-exports',
-                        method: 'vddk',
+                        method: this.settings.defaultMethod || 'vddk',
                         compress: false,
                         thin_provision: true
                     };
+                },
+                // LocalStorage methods
+                saveToLocalStorage() {
+                    if (!this.settings.persistWizard) return;
+
+                    const state = {
+                        activeTab: this.activeTab,
+                        exportStep: this.exportStep,
+                        vcenterConfig: this.vcenterConfig,
+                        discoveredVMs: this.discoveredVMs,
+                        selectedVMs: this.selectedVMs,
+                        exportConfig: this.exportConfig
+                    };
+                    localStorage.setItem('hypersdk_wizard_state', JSON.stringify(state));
+                },
+                restoreFromLocalStorage() {
+                    try {
+                        const saved = localStorage.getItem('hypersdk_wizard_state');
+                        if (saved) {
+                            return JSON.parse(saved);
+                        }
+                    } catch (error) {
+                        console.error('Failed to restore from localStorage:', error);
+                    }
+                    return {};
+                },
+                saveSettings() {
+                    localStorage.setItem('hypersdk_settings', JSON.stringify(this.settings));
+                    console.log('Settings saved:', this.settings);
+
+                    // Apply default formats to export config
+                    if (this.exportStep === 1) {
+                        this.exportConfig.format = this.settings.defaultFormat;
+                        this.exportConfig.method = this.settings.defaultMethod;
+                    }
+                },
+                clearSessionData() {
+                    if (confirm('Are you sure you want to clear all saved session data? This will reset the Export Wizard and settings.')) {
+                        localStorage.removeItem('hypersdk_wizard_state');
+                        localStorage.removeItem('hypersdk_settings');
+                        localStorage.removeItem('hypersdk_templates');
+                        alert('Session data cleared! Refreshing page...');
+                        location.reload();
+                    }
+                },
+                // Job management methods
+                toggleJob(job) {
+                    const index = this.selectedJobs.findIndex(j => j.definition.id === job.definition.id);
+                    if (index > -1) {
+                        this.selectedJobs.splice(index, 1);
+                    } else {
+                        this.selectedJobs.push(job);
+                    }
+                },
+                isJobSelected(job) {
+                    return this.selectedJobs.some(j => j.definition.id === job.definition.id);
+                },
+                toggleAllJobs() {
+                    if (this.selectedJobs.length === this.filteredJobs.length) {
+                        this.selectedJobs = [];
+                    } else {
+                        this.selectedJobs = [...this.filteredJobs];
+                    }
+                },
+                viewJobDetails(job) {
+                    this.selectedJobDetails = job;
+                },
+                async cancelJob(job) {
+                    if (!confirm(`Cancel job for ${job.definition.vm_path}?`)) return;
+
+                    try {
+                        await axios.post('/jobs/cancel', { job_ids: [job.definition.id] });
+                        this.showToast('Job Cancelled', `Cancelled export for ${job.definition.vm_path}`, 'success');
+                        this.loadJobs();
+                    } catch (error) {
+                        this.showToast('Error', 'Failed to cancel job: ' + error.message, 'error');
+                    }
+                },
+                async bulkCancelJobs() {
+                    if (!confirm(`Cancel ${this.selectedJobs.length} jobs?`)) return;
+
+                    try {
+                        const jobIds = this.selectedJobs.map(j => j.definition.id);
+                        await axios.post('/jobs/cancel', { job_ids: jobIds });
+                        this.showToast('Jobs Cancelled', `Cancelled ${jobIds.length} jobs`, 'success');
+                        this.selectedJobs = [];
+                        this.loadJobs();
+                    } catch (error) {
+                        this.showToast('Error', 'Failed to cancel jobs: ' + error.message, 'error');
+                    }
+                },
+                getStatusIcon(status) {
+                    const icons = {
+                        running: 'fas fa-spinner fa-spin',
+                        completed: 'fas fa-check-circle',
+                        failed: 'fas fa-times-circle',
+                        pending: 'fas fa-clock'
+                    };
+                    return icons[status] || 'fas fa-question-circle';
+                },
+                // Template methods
+                saveAsTemplate() {
+                    if (!this.newTemplateName) {
+                        this.showToast('Error', 'Please enter a template name', 'error');
+                        return;
+                    }
+
+                    const template = {
+                        name: this.newTemplateName,
+                        config: { ...this.exportConfig },
+                        created: new Date().toISOString()
+                    };
+
+                    this.exportTemplates.push(template);
+                    localStorage.setItem('hypersdk_templates', JSON.stringify(this.exportTemplates));
+                    this.showToast('Template Saved', `Saved template: ${this.newTemplateName}`, 'success');
+                    this.newTemplateName = '';
+                },
+                loadTemplate(template) {
+                    this.exportConfig = { ...template.config };
+                    this.showTemplatesModal = false;
+                    this.showToast('Template Loaded', `Loaded template: ${template.name}`, 'success');
+                },
+                deleteTemplate(index) {
+                    const template = this.exportTemplates[index];
+                    if (!confirm(`Delete template "${template.name}"?`)) return;
+
+                    this.exportTemplates.splice(index, 1);
+                    localStorage.setItem('hypersdk_templates', JSON.stringify(this.exportTemplates));
+                    this.showToast('Template Deleted', `Deleted template: ${template.name}`, 'success');
+                },
+                // Toast notification method
+                showToast(title, message, type = 'info') {
+                    const toast = { title, message, type };
+                    this.toasts.push(toast);
+
+                    // Show browser notification if enabled
+                    if (this.settings.notifyOnComplete && type === 'success' && Notification.permission === 'granted') {
+                        new Notification(title, { body: message, icon: '/favicon.ico' });
+                    }
+                    if (this.settings.notifyOnError && type === 'error' && Notification.permission === 'granted') {
+                        new Notification(title, { body: message, icon: '/favicon.ico' });
+                    }
+
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        const index = this.toasts.indexOf(toast);
+                        if (index > -1) {
+                            this.toasts.splice(index, 1);
+                        }
+                    }, 5000);
                 }
             }
         }).mount('#app');

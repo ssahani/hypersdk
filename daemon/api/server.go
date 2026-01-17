@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/models"
 	"hypersdk/logger"
@@ -22,15 +23,17 @@ import (
 // Server handles HTTP API requests
 type Server struct {
 	manager    *jobs.Manager
+	detector   *capabilities.Detector
 	logger     logger.Logger
 	httpServer *http.Server
 }
 
 // NewServer creates a new API server
-func NewServer(manager *jobs.Manager, log logger.Logger, addr string) *Server {
+func NewServer(manager *jobs.Manager, detector *capabilities.Detector, log logger.Logger, addr string) *Server {
 	s := &Server{
-		manager: manager,
-		logger:  log,
+		manager:  manager,
+		detector: detector,
+		logger:   log,
 	}
 
 	mux := http.NewServeMux()
@@ -38,6 +41,7 @@ func NewServer(manager *jobs.Manager, log logger.Logger, addr string) *Server {
 	// Register routes
 	mux.HandleFunc("/health", s.handleHealth)
 	mux.HandleFunc("/status", s.handleStatus)
+	mux.HandleFunc("/capabilities", s.handleCapabilities)
 	mux.HandleFunc("/jobs/submit", s.handleSubmitJob)
 	mux.HandleFunc("/jobs/query", s.handleQueryJobs)
 	mux.HandleFunc("/jobs/cancel", s.handleCancelJobs)
@@ -106,6 +110,25 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	status := s.manager.GetStatus()
 	s.jsonResponse(w, http.StatusOK, status)
+}
+
+// Get available export capabilities
+func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	caps := s.detector.GetCapabilities()
+	defaultMethod := s.detector.GetDefaultMethod()
+
+	response := map[string]interface{}{
+		"capabilities":   caps,
+		"default_method": defaultMethod,
+		"timestamp":      time.Now(),
+	}
+
+	s.jsonResponse(w, http.StatusOK, response)
 }
 
 // Submit job(s) from JSON, YAML, or file
