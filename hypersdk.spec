@@ -1,10 +1,10 @@
-Name:           hyperexport-providers
+Name:           hypersdk
 Version:        0.0.1
 Release:        1%{?dist}
-Summary:        Multi-cloud VM export providers for hyperexport migration toolkit
+Summary:        High-performance vSphere VM export toolkit
 
 License:        LGPL-3.0-or-later
-URL:            https://github.com/ssahani/hyperexport-providers
+URL:            https://github.com/ssahani/hypersdk
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  golang >= 1.21
@@ -14,13 +14,12 @@ BuildRequires:  git
 Requires:       systemd
 
 %description
-hyperexport-providers is a high-performance, daemon-based VM export system that
-provides a provider layer abstraction for multiple clouds (vSphere, AWS, Azure,
-GCP). It offers:
+hypersdk is a high-performance, daemon-based vSphere VM export system. It offers:
 - Interactive CLI (hyperexport) for manual exports with beautiful terminal UI
 - Background daemon (hypervisord) with REST API for automation
-- Control CLI (hyperctl) for daemon management
-- Support for vSphere today, with AWS/Azure/GCP coming soon
+- Control CLI (hyperctl) for daemon management and job submission
+- Parallel downloads with configurable worker pools
+- YAML/JSON configuration support for batch operations
 
 %prep
 %setup -q
@@ -41,37 +40,37 @@ install -Dm755 hyperctl %{buildroot}%{_bindir}/hyperctl
 install -Dm644 hypervisord.service %{buildroot}%{_unitdir}/hypervisord.service
 
 # Install configuration
-install -Dm644 config.yaml.example %{buildroot}%{_sysconfdir}/hyperexport/config.yaml
+install -Dm644 config.yaml.example %{buildroot}%{_sysconfdir}/hypersdk/config.yaml
 
 # Create data directory
-install -dm755 %{buildroot}%{_sharedstatedir}/hyperexport
-install -dm755 %{buildroot}%{_localstatedir}/log/hyperexport
+install -dm755 %{buildroot}%{_sharedstatedir}/hypersdk
+install -dm755 %{buildroot}%{_localstatedir}/log/hypersdk
 
 # Install documentation
 install -Dm644 README.md %{buildroot}%{_docdir}/%{name}/README.md
 install -Dm644 GETTING-STARTED.md %{buildroot}%{_docdir}/%{name}/GETTING-STARTED.md
-install -Dm644 example-job.yaml %{buildroot}%{_docdir}/%{name}/example-job.yaml
-install -Dm644 example-batch.yaml %{buildroot}%{_docdir}/%{name}/example-batch.yaml
+install -Dm644 examples/example-vm-export.yaml %{buildroot}%{_docdir}/%{name}/example-vm-export.yaml
+install -Dm644 examples/example-batch-export.yaml %{buildroot}%{_docdir}/%{name}/example-batch-export.yaml
 
 %pre
 # Create system user for the daemon if it doesn't exist
-getent group hyperexport >/dev/null || groupadd -r hyperexport
-getent passwd hyperexport >/dev/null || \
-    useradd -r -g hyperexport -d %{_sharedstatedir}/hyperexport \
-    -s /sbin/nologin -c "hyperexport daemon user" hyperexport
+getent group hypersdk >/dev/null || groupadd -r hypersdk
+getent passwd hypersdk >/dev/null || \
+    useradd -r -g hypersdk -d %{_sharedstatedir}/hypersdk \
+    -s /sbin/nologin -c "hypersdk daemon user" hypersdk
 exit 0
 
 %post
 %systemd_post hypervisord.service
 
 # Set ownership
-chown -R hyperexport:hyperexport %{_sharedstatedir}/hyperexport
-chown -R hyperexport:hyperexport %{_localstatedir}/log/hyperexport
+chown -R hypersdk:hypersdk %{_sharedstatedir}/hypersdk
+chown -R hypersdk:hypersdk %{_localstatedir}/log/hypersdk
 
 if [ $1 -eq 1 ]; then
     # First install
-    echo "hyperexport-providers installed successfully!"
-    echo "Edit /etc/hypervisord/config.yaml with your vCenter credentials"
+    echo "hypersdk installed successfully!"
+    echo "Edit /etc/hypersdk/config.yaml with your vCenter credentials"
     echo "Start the daemon: systemctl start hypervisord"
     echo "Enable auto-start: systemctl enable hypervisord"
 fi
@@ -84,23 +83,23 @@ fi
 
 if [ $1 -eq 0 ]; then
     # Uninstall
-    userdel hyperexport 2>/dev/null || true
-    groupdel hyperexport 2>/dev/null || true
+    userdel hypersdk 2>/dev/null || true
+    groupdel hypersdk 2>/dev/null || true
 fi
 
 %files
 %license LICENSE
 %doc README.md GETTING-STARTED.md
-%doc %{_docdir}/%{name}/example-job.yaml
-%doc %{_docdir}/%{name}/example-batch.yaml
+%doc %{_docdir}/%{name}/example-vm-export.yaml
+%doc %{_docdir}/%{name}/example-batch-export.yaml
 %{_bindir}/hyperexport
 %{_bindir}/hypervisord
 %{_bindir}/hyperctl
 %{_unitdir}/hypervisord.service
-%dir %{_sysconfdir}/hyperexport
-%config(noreplace) %{_sysconfdir}/hyperexport/config.yaml
-%attr(0755,hyperexport,hyperexport) %dir %{_sharedstatedir}/hyperexport
-%attr(0755,hyperexport,hyperexport) %dir %{_localstatedir}/log/hyperexport
+%dir %{_sysconfdir}/hypersdk
+%config(noreplace) %{_sysconfdir}/hypersdk/config.yaml
+%attr(0755,hypersdk,hypersdk) %dir %{_sharedstatedir}/hypersdk
+%attr(0755,hypersdk,hypersdk) %dir %{_localstatedir}/log/hypersdk
 
 %changelog
 * Sat Jan 17 2026 Susant Sahani <ssahani@redhat.com> - 0.0.1-1
