@@ -1383,7 +1383,21 @@
                 };
             },
 
-            mounted() {
+            async mounted() {
+                // Check if auth is enabled on the server
+                try {
+                    // Try to access an endpoint - if auth is disabled, this will work without a token
+                    const response = await axios.get('/health');
+                    if (response.status === 200 && !this.isAuthenticated) {
+                        // Auth is disabled, automatically authenticate
+                        this.isAuthenticated = true;
+                        localStorage.setItem('hypersdk_token', 'no-auth-required');
+                    }
+                } catch (error) {
+                    // If this fails and we don't have a token, show login screen
+                    console.log('Auth required or server unavailable');
+                }
+
                 if (this.isAuthenticated) {
                     this.loadStatus();
                     this.loadCapabilities();
