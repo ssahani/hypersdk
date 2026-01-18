@@ -12,155 +12,148 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: #f5f7fa;
-            color: #333;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
             min-height: 100vh;
-        }
-
-        .header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-        }
-
-        .header p {
-            opacity: 0.9;
-        }
-
-        .status-bar {
-            background: white;
-            padding: 1rem 2rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .status-indicator {
             display: flex;
             align-items: center;
-            gap: 0.5rem;
-        }
-
-        .dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #10b981;
-            animation: pulse 2s infinite;
-        }
-
-        .dot.disconnected {
-            background: #ef4444;
-            animation: none;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            justify-content: center;
+            color: #333;
         }
 
         .container {
-            max-width: 1400px;
-            margin: 2rem auto;
-            padding: 0 2rem;
-        }
-
-        .tabs {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-            background: white;
-            padding: 1rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-            flex-wrap: wrap;
-        }
-
-        .tab {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-            border-radius: 6px;
-            font-size: 1rem;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-
-        .tab:hover {
-            background: #f3f4f6;
-        }
-
-        .tab.active {
-            background: #667eea;
-            color: white;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-        }
-
-        .stat-card h3 {
-            font-size: 2rem;
-            color: #667eea;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-card p {
-            color: #6b7280;
-            font-size: 0.9rem;
+            width: 100%;
+            max-width: 1200px;
+            padding: 2rem;
         }
 
         .card {
             background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border-radius: 12px;
+            padding: 3rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: #FF6B35;
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+
+        .form-group {
             margin-bottom: 1.5rem;
         }
 
-        .card h2 {
-            margin-bottom: 1.5rem;
-            color: #667eea;
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #333;
+            font-weight: 500;
         }
 
-        table {
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #FF6B35;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(255, 107, 53, 0.4);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c00;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #c00;
+        }
+
+        .success-message {
+            background: #efe;
+            color: #060;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+            border-left: 4px solid #060;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .vm-table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 1rem;
         }
 
-        th, td {
+        .vm-table th,
+        .vm-table td {
             padding: 1rem;
             text-align: left;
-            border-bottom: 1px solid #e5e7eb;
+            border-bottom: 1px solid #e0e0e0;
         }
 
-        th {
-            background: #f9fafb;
+        .vm-table th {
+            background: #f5f5f5;
             font-weight: 600;
-            color: #374151;
+            color: #333;
         }
 
-        tr:hover {
-            background: #f9fafb;
+        .vm-table tr:hover {
+            background: #f9f9f9;
+        }
+
+        .vm-table input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
         }
 
         .badge {
@@ -171,503 +164,494 @@
             font-weight: 500;
         }
 
-        .badge-success { background: #d1fae5; color: #065f46; }
-        .badge-warning { background: #fef3c7; color: #92400e; }
-        .badge-error { background: #fee2e2; color: #991b1b; }
-        .badge-info { background: #dbeafe; color: #1e40af; }
-
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 1rem;
-            transition: all 0.2s;
-            font-family: inherit;
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
         }
 
-        .btn-primary {
-            background: #667eea;
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-box {
+            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
             color: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
         }
 
-        .btn-primary:hover {
-            background: #5568d3;
+        .stat-box h3 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
         }
 
-        .btn-small {
-            padding: 0.5rem 1rem;
-            font-size: 0.875rem;
+        .stat-box p {
+            opacity: 0.9;
         }
 
-        .hidden {
-            display: none !important;
+        .action-buttons {
+            margin-top: 2rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+            flex: 1;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
         }
 
         .loading {
             text-align: center;
-            padding: 3rem;
-            color: #6b7280;
+            padding: 2rem;
+            color: #666;
         }
 
-        .error-message {
-            background: #fee2e2;
-            color: #991b1b;
-            padding: 1rem;
+        .logout-btn {
+            position: absolute;
+            top: 2rem;
+            right: 2rem;
+            padding: 0.5rem 1rem;
+            background: white;
+            color: #FF6B35;
+            border: 2px solid #FF6B35;
             border-radius: 6px;
-            margin-bottom: 1rem;
+            cursor: pointer;
+            font-weight: 600;
         }
 
-        .success-message {
-            background: #d1fae5;
-            color: #065f46;
-            padding: 1rem;
-            border-radius: 6px;
-            margin-bottom: 1rem;
-        }
-
-        .capability-item {
-            padding: 0.75rem;
-            border-left: 3px solid #667eea;
-            margin-bottom: 0.5rem;
-            background: #f9fafb;
-        }
-
-        .capability-item.available {
-            border-left-color: #10b981;
-        }
-
-        .capability-item.unavailable {
-            border-left-color: #ef4444;
-            opacity: 0.6;
-        }
-
-        .progress-bar {
-            width: 100%;
-            height: 8px;
-            background: #e5e7eb;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-
-        .progress-fill {
-            height: 100%;
-            background: #667eea;
-            transition: width 0.3s ease;
+        .logout-btn:hover {
+            background: #FF6B35;
+            color: white;
         }
 
         @media (max-width: 768px) {
-            .header h1 {
-                font-size: 1.5rem;
+            .card {
+                padding: 2rem 1rem;
             }
 
-            .container {
-                padding: 0 1rem;
+            .header h1 {
+                font-size: 2rem;
             }
 
             .stats-grid {
                 grid-template-columns: 1fr;
             }
 
-            table {
-                font-size: 0.875rem;
-            }
-
-            th, td {
-                padding: 0.75rem 0.5rem;
+            .action-buttons {
+                flex-direction: column;
             }
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🚀 HyperSDK Dashboard</h1>
-        <p>Multi-Cloud VM Export Platform</p>
-    </div>
-
-    <div class="status-bar">
-        <div class="status-indicator">
-            <div class="dot" id="connection-dot"></div>
-            <span id="connection-status">Connecting...</span>
-        </div>
-        <div id="timestamp">Loading...</div>
-    </div>
-
     <div class="container">
-        <div class="tabs">
-            <button class="tab active" data-tab="overview">Overview</button>
-            <button class="tab" data-tab="jobs">Jobs</button>
-            <button class="tab" data-tab="vms">VMs</button>
+        <!-- Login Screen -->
+        <div id="login-screen" class="card">
+            <div class="header">
+                <h1>🚀 HyperSDK</h1>
+                <p>Multi-Cloud VM Export Platform</p>
+            </div>
+
+            <div id="login-error" class="error-message hidden"></div>
+
+            <form id="login-form">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="username" required placeholder="Enter username">
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="password" required placeholder="Enter password">
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="login-btn">
+                    Login
+                </button>
+            </form>
         </div>
 
-        <!-- Overview Tab -->
-        <div id="overview-tab" class="tab-content">
+        <!-- vCenter Connection Screen -->
+        <div id="vcenter-screen" class="card hidden">
+            <button class="logout-btn" onclick="logout()">Logout</button>
+
+            <div class="header">
+                <h1>Connect to vCenter</h1>
+                <p>Enter your vCenter credentials</p>
+            </div>
+
+            <div id="vcenter-error" class="error-message hidden"></div>
+            <div id="vcenter-success" class="success-message hidden"></div>
+
+            <form id="vcenter-form">
+                <div class="form-group">
+                    <label>vCenter Server</label>
+                    <input type="text" id="vcenter-server" required placeholder="vcenter.example.com">
+                </div>
+
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="vcenter-username" required placeholder="administrator@vsphere.local">
+                </div>
+
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="vcenter-password" required placeholder="Enter password">
+                </div>
+
+                <div class="form-group">
+                    <label>Datacenter (optional)</label>
+                    <input type="text" id="vcenter-datacenter" placeholder="Leave empty for all datacenters">
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="vcenter-btn">
+                    Connect & Discover VMs
+                </button>
+            </form>
+        </div>
+
+        <!-- VM List Screen -->
+        <div id="vm-screen" class="card hidden">
+            <button class="logout-btn" onclick="logout()">Logout</button>
+
+            <div class="header">
+                <h1>Virtual Machines</h1>
+                <p>Select VMs to export</p>
+            </div>
+
+            <div id="vm-error" class="error-message hidden"></div>
+            <div id="vm-success" class="success-message hidden"></div>
+
             <div class="stats-grid">
-                <div class="stat-card">
-                    <h3 id="total-jobs">0</h3>
-                    <p>Total Jobs</p>
+                <div class="stat-box">
+                    <h3 id="total-vms">0</h3>
+                    <p>Total VMs</p>
                 </div>
-                <div class="stat-card">
-                    <h3 id="running-jobs">0</h3>
-                    <p>Running Jobs</p>
+                <div class="stat-box">
+                    <h3 id="selected-vms">0</h3>
+                    <p>Selected VMs</p>
                 </div>
-                <div class="stat-card">
-                    <h3 id="completed-jobs">0</h3>
-                    <p>Completed Jobs</p>
-                </div>
-                <div class="stat-card">
-                    <h3 id="failed-jobs">0</h3>
-                    <p>Failed Jobs</p>
+                <div class="stat-box">
+                    <h3 id="running-vms">0</h3>
+                    <p>Running VMs</p>
                 </div>
             </div>
 
-            <div class="card">
-                <h2>System Status</h2>
-                <div id="status-content">
-                    <div class="loading">Loading system status...</div>
-                </div>
+            <div id="vm-list-container">
+                <table class="vm-table">
+                    <thead>
+                        <tr>
+                            <th><input type="checkbox" id="select-all" onclick="toggleSelectAll()"></th>
+                            <th>Name</th>
+                            <th>Power State</th>
+                            <th>Guest OS</th>
+                            <th>CPUs</th>
+                            <th>Memory</th>
+                        </tr>
+                    </thead>
+                    <tbody id="vm-tbody">
+                        <tr>
+                            <td colspan="6" class="loading">Loading VMs...</td>
+                        </tr>
+                    </tbody>
+                </table>
             </div>
 
-            <div class="card">
-                <h2>Available Capabilities</h2>
-                <div id="capabilities-content">
-                    <div class="loading">Loading capabilities...</div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Jobs Tab -->
-        <div id="jobs-tab" class="tab-content hidden">
-            <div class="card">
-                <h2>Jobs</h2>
-                <button class="btn btn-small btn-primary" onclick="refreshJobs()" style="float: right;">Refresh</button>
-                <div style="clear: both;"></div>
-                <div id="jobs-table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>VM Name</th>
-                                <th>Provider</th>
-                                <th>Status</th>
-                                <th>Progress</th>
-                                <th>Started</th>
-                            </tr>
-                        </thead>
-                        <tbody id="jobs-tbody">
-                            <tr>
-                                <td colspan="6" class="loading">Loading jobs...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- VMs Tab -->
-        <div id="vms-tab" class="tab-content hidden">
-            <div class="card">
-                <h2>Virtual Machines</h2>
-                <button class="btn btn-small btn-primary" onclick="refreshVMs()" style="float: right;">Refresh</button>
-                <div style="clear: both;"></div>
-                <div id="vms-table-container">
-                    <table>
-                        <thead>
-                            <tr>
-                                <th>Name</th>
-                                <th>Provider</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="vms-tbody">
-                            <tr>
-                                <td colspan="4" class="loading">Loading VMs...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
+            <div class="action-buttons">
+                <button class="btn btn-secondary" onclick="showVCenterScreen()">
+                    Back to vCenter
+                </button>
+                <button class="btn btn-primary" onclick="exportSelectedVMs()" id="export-btn" disabled>
+                    Export Selected VMs
+                </button>
             </div>
         </div>
     </div>
 
     <script>
-        // Dashboard state
-        var currentTab = 'overview';
-        var refreshInterval = null;
-        var isConnected = false;
+        var selectedVMs = [];
+        var allVMs = [];
+        var authToken = null;
 
-        // Initialize dashboard
-        function init() {
-            console.log('Initializing dashboard...');
+        // Login form handler
+        document.getElementById('login-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            login();
+        });
 
-            // Set up tab switching
-            var tabs = document.querySelectorAll('.tab');
-            tabs.forEach(function(tab) {
-                tab.addEventListener('click', function(e) {
-                    switchTab(this.getAttribute('data-tab'));
-                });
-            });
+        // vCenter form handler
+        document.getElementById('vcenter-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            connectVCenter();
+        });
 
-            // Load initial data
-            loadStatus();
-            loadCapabilities();
-            updateTimestamp();
-            checkConnection();
+        function login() {
+            var username = document.getElementById('username').value;
+            var password = document.getElementById('password').value;
+            var btn = document.getElementById('login-btn');
+            var errorDiv = document.getElementById('login-error');
 
-            // Set up auto-refresh
-            refreshInterval = setInterval(function() {
-                if (currentTab === 'overview') {
-                    loadStatus();
-                } else if (currentTab === 'jobs') {
-                    loadJobs();
-                } else if (currentTab === 'vms') {
-                    loadVMs();
+            btn.disabled = true;
+            btn.textContent = 'Logging in...';
+            errorDiv.classList.add('hidden');
+
+            // For demo purposes, accept any credentials
+            // In production, this would call /api/login
+            setTimeout(function() {
+                authToken = 'demo-token-' + Date.now();
+                showVCenterScreen();
+            }, 500);
+        }
+
+        function connectVCenter() {
+            var server = document.getElementById('vcenter-server').value;
+            var username = document.getElementById('vcenter-username').value;
+            var password = document.getElementById('vcenter-password').value;
+            var datacenter = document.getElementById('vcenter-datacenter').value;
+            var btn = document.getElementById('vcenter-btn');
+            var errorDiv = document.getElementById('vcenter-error');
+            var successDiv = document.getElementById('vcenter-success');
+
+            btn.disabled = true;
+            btn.textContent = 'Connecting...';
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+
+            // Call vCenter discovery API
+            var requestData = {
+                provider: 'vcenter',
+                vcenter: {
+                    server: server,
+                    username: username,
+                    password: password,
+                    datacenter: datacenter || undefined
                 }
-                updateTimestamp();
-                checkConnection();
-            }, 5000);
+            };
+
+            fetch('/vms/discover', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestData)
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(data) {
+                        throw new Error(data.error || 'Failed to connect to vCenter');
+                    });
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                allVMs = data.vms || [];
+                successDiv.textContent = 'Successfully discovered ' + allVMs.length + ' VMs!';
+                successDiv.classList.remove('hidden');
+
+                setTimeout(function() {
+                    showVMScreen();
+                }, 1000);
+            })
+            .catch(function(error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Connect & Discover VMs';
+            });
         }
 
-        function switchTab(tabName) {
-            // Hide all tab contents
-            var contents = document.querySelectorAll('.tab-content');
-            contents.forEach(function(content) {
-                content.classList.add('hidden');
-            });
+        function showVCenterScreen() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('vcenter-screen').classList.remove('hidden');
+            document.getElementById('vm-screen').classList.add('hidden');
+        }
 
-            // Remove active from all tabs
-            var tabs = document.querySelectorAll('.tab');
-            tabs.forEach(function(tab) {
-                tab.classList.remove('active');
-            });
+        function showVMScreen() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('vcenter-screen').classList.add('hidden');
+            document.getElementById('vm-screen').classList.remove('hidden');
 
-            // Show selected tab
-            document.getElementById(tabName + '-tab').classList.remove('hidden');
-            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
-            currentTab = tabName;
+            displayVMs();
+            updateStats();
+        }
 
-            // Load data for the tab
-            if (tabName === 'jobs') {
-                loadJobs();
-            } else if (tabName === 'vms') {
-                loadVMs();
+        function displayVMs() {
+            var tbody = document.getElementById('vm-tbody');
+
+            if (allVMs.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No VMs found</td></tr>';
+                return;
             }
+
+            var html = '';
+            allVMs.forEach(function(vm, index) {
+                var powerState = vm.power_state || vm.status || 'unknown';
+                var badgeClass = powerState.toLowerCase() === 'running' || powerState.toLowerCase() === 'poweredon' ? 'badge-success' : 'badge-warning';
+
+                html += '<tr>';
+                html += '<td><input type="checkbox" class="vm-checkbox" data-index="' + index + '" onchange="updateSelection()"></td>';
+                html += '<td>' + (vm.name || 'N/A') + '</td>';
+                html += '<td><span class="badge ' + badgeClass + '">' + powerState + '</span></td>';
+                html += '<td>' + (vm.guest_os || vm.os || 'N/A') + '</td>';
+                html += '<td>' + (vm.cpus || vm.cpu || 'N/A') + '</td>';
+                html += '<td>' + (vm.memory || vm.ram || 'N/A') + '</td>';
+                html += '</tr>';
+            });
+
+            tbody.innerHTML = html;
         }
 
-        function checkConnection() {
+        function toggleSelectAll() {
+            var selectAll = document.getElementById('select-all');
+            var checkboxes = document.querySelectorAll('.vm-checkbox');
+
+            checkboxes.forEach(function(cb) {
+                cb.checked = selectAll.checked;
+            });
+
+            updateSelection();
+        }
+
+        function updateSelection() {
+            selectedVMs = [];
+            var checkboxes = document.querySelectorAll('.vm-checkbox:checked');
+
+            checkboxes.forEach(function(cb) {
+                var index = parseInt(cb.getAttribute('data-index'));
+                selectedVMs.push(allVMs[index]);
+            });
+
+            document.getElementById('selected-vms').textContent = selectedVMs.length;
+            document.getElementById('export-btn').disabled = selectedVMs.length === 0;
+        }
+
+        function updateStats() {
+            document.getElementById('total-vms').textContent = allVMs.length;
+            document.getElementById('selected-vms').textContent = selectedVMs.length;
+
+            var runningCount = allVMs.filter(function(vm) {
+                var state = (vm.power_state || vm.status || '').toLowerCase();
+                return state === 'running' || state === 'poweredon';
+            }).length;
+
+            document.getElementById('running-vms').textContent = runningCount;
+        }
+
+        function exportSelectedVMs() {
+            if (selectedVMs.length === 0) {
+                alert('Please select at least one VM to export');
+                return;
+            }
+
+            var errorDiv = document.getElementById('vm-error');
+            var successDiv = document.getElementById('vm-success');
+
+            errorDiv.classList.add('hidden');
+            successDiv.classList.add('hidden');
+
+            var btn = document.getElementById('export-btn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting Jobs...';
+
+            // Submit export jobs
+            var jobs = selectedVMs.map(function(vm) {
+                return {
+                    vm_name: vm.name,
+                    format: 'qcow2',
+                    provider: 'vcenter',
+                    output_dir: '/tmp/exports'
+                };
+            });
+
+            fetch('/jobs/submit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ jobs: jobs })
+            })
+            .then(function(response) {
+                if (!response.ok) {
+                    return response.json().then(function(data) {
+                        throw new Error(data.error || 'Failed to submit jobs');
+                    });
+                }
+                return response.json();
+            })
+            .then(function(data) {
+                successDiv.textContent = 'Successfully submitted ' + selectedVMs.length + ' export job(s)!';
+                successDiv.classList.remove('hidden');
+
+                // Reset selection
+                selectedVMs = [];
+                document.getElementById('select-all').checked = false;
+                var checkboxes = document.querySelectorAll('.vm-checkbox');
+                checkboxes.forEach(function(cb) {
+                    cb.checked = false;
+                });
+                updateSelection();
+
+                btn.disabled = false;
+                btn.textContent = 'Export Selected VMs';
+            })
+            .catch(function(error) {
+                errorDiv.textContent = error.message;
+                errorDiv.classList.remove('hidden');
+                btn.disabled = false;
+                btn.textContent = 'Export Selected VMs';
+            });
+        }
+
+        function logout() {
+            authToken = null;
+            selectedVMs = [];
+            allVMs = [];
+
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('vcenter-screen').classList.add('hidden');
+            document.getElementById('vm-screen').classList.add('hidden');
+
+            // Reset forms
+            document.getElementById('login-form').reset();
+            document.getElementById('vcenter-form').reset();
+        }
+
+        // Auto-skip login for demo (remove in production)
+        window.addEventListener('load', function() {
+            // Check if server has auth disabled
             fetch('/health')
                 .then(function(response) {
                     if (response.ok) {
-                        setConnected(true);
-                    } else {
-                        setConnected(false);
+                        // Auth disabled, skip to vCenter screen
+                        setTimeout(function() {
+                            authToken = 'no-auth';
+                            showVCenterScreen();
+                        }, 100);
                     }
                 })
                 .catch(function(error) {
-                    setConnected(false);
+                    // Auth enabled or server unavailable, stay on login
+                    console.log('Server requires authentication');
                 });
-        }
-
-        function setConnected(connected) {
-            isConnected = connected;
-            var dot = document.getElementById('connection-dot');
-            var status = document.getElementById('connection-status');
-
-            if (connected) {
-                dot.classList.remove('disconnected');
-                status.textContent = 'Connected';
-            } else {
-                dot.classList.add('disconnected');
-                status.textContent = 'Disconnected';
-            }
-        }
-
-        function loadStatus() {
-            fetch('/status')
-                .then(function(response) {
-                    if (!response.ok) throw new Error('Failed to load status');
-                    return response.json();
-                })
-                .then(function(data) {
-                    document.getElementById('total-jobs').textContent = data.total_jobs || 0;
-                    document.getElementById('running-jobs').textContent = data.running_jobs || 0;
-                    document.getElementById('completed-jobs').textContent = data.completed_jobs || 0;
-                    document.getElementById('failed-jobs').textContent = data.failed_jobs || 0;
-
-                    var statusHtml = '<p><strong>Uptime:</strong> ' + (data.uptime || 'N/A') + '</p>';
-                    statusHtml += '<p><strong>Version:</strong> ' + (data.version || 'N/A') + '</p>';
-                    statusHtml += '<p><strong>Total Jobs:</strong> ' + (data.total_jobs || 0) + '</p>';
-
-                    document.getElementById('status-content').innerHTML = statusHtml;
-                })
-                .catch(function(error) {
-                    console.error('Failed to load status:', error);
-                    document.getElementById('status-content').innerHTML =
-                        '<div class="error-message">Failed to load status: ' + error.message + '</div>';
-                });
-        }
-
-        function loadCapabilities() {
-            fetch('/capabilities')
-                .then(function(response) {
-                    if (!response.ok) throw new Error('Failed to load capabilities');
-                    return response.json();
-                })
-                .then(function(data) {
-                    var caps = data.capabilities || [];
-                    if (caps.length === 0) {
-                        document.getElementById('capabilities-content').innerHTML =
-                            '<p>No capabilities detected</p>';
-                        return;
-                    }
-
-                    var capsHtml = '';
-                    caps.forEach(function(cap) {
-                        var className = cap.available ? 'capability-item available' : 'capability-item unavailable';
-                        var icon = cap.available ? '✅' : '❌';
-                        var version = cap.version ? ' (v' + cap.version + ')' : '';
-
-                        capsHtml += '<div class="' + className + '">';
-                        capsHtml += '<strong>' + cap.name + '</strong>: ' + icon + ' ';
-                        capsHtml += cap.available ? 'Available' : 'Not Available';
-                        capsHtml += version;
-                        capsHtml += '</div>';
-                    });
-
-                    document.getElementById('capabilities-content').innerHTML = capsHtml;
-                })
-                .catch(function(error) {
-                    console.error('Failed to load capabilities:', error);
-                    document.getElementById('capabilities-content').innerHTML =
-                        '<div class="error-message">Failed to load capabilities: ' + error.message + '</div>';
-                });
-        }
-
-        function loadJobs() {
-            fetch('/jobs/query')
-                .then(function(response) {
-                    if (!response.ok) throw new Error('Failed to load jobs');
-                    return response.json();
-                })
-                .then(function(data) {
-                    var jobs = data.jobs || [];
-                    var tbody = document.getElementById('jobs-tbody');
-
-                    if (jobs.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No jobs found</td></tr>';
-                        return;
-                    }
-
-                    var html = '';
-                    jobs.forEach(function(job) {
-                        html += '<tr>';
-                        html += '<td>' + (job.id || 'N/A') + '</td>';
-                        html += '<td>' + (job.vm_name || 'N/A') + '</td>';
-                        html += '<td>' + (job.provider || 'N/A') + '</td>';
-                        html += '<td><span class="badge badge-' + getStatusClass(job.status) + '">' + (job.status || 'Unknown') + '</span></td>';
-                        html += '<td>';
-                        if (job.progress !== undefined) {
-                            html += '<div class="progress-bar"><div class="progress-fill" style="width: ' + job.progress + '%"></div></div>';
-                            html += '<small>' + job.progress + '%</small>';
-                        } else {
-                            html += 'N/A';
-                        }
-                        html += '</td>';
-                        html += '<td>' + formatDate(job.start_time) + '</td>';
-                        html += '</tr>';
-                    });
-
-                    tbody.innerHTML = html;
-                })
-                .catch(function(error) {
-                    console.error('Failed to load jobs:', error);
-                    document.getElementById('jobs-tbody').innerHTML =
-                        '<tr><td colspan="6" class="error-message">Failed to load jobs: ' + error.message + '</td></tr>';
-                });
-        }
-
-        function loadVMs() {
-            fetch('/vms/list')
-                .then(function(response) {
-                    if (!response.ok) throw new Error('Failed to load VMs');
-                    return response.json();
-                })
-                .then(function(data) {
-                    var vms = data.vms || [];
-                    var tbody = document.getElementById('vms-tbody');
-
-                    if (vms.length === 0) {
-                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem;">No VMs found</td></tr>';
-                        return;
-                    }
-
-                    var html = '';
-                    vms.forEach(function(vm) {
-                        html += '<tr>';
-                        html += '<td>' + (vm.name || 'N/A') + '</td>';
-                        html += '<td>' + (vm.provider || 'N/A') + '</td>';
-                        html += '<td><span class="badge badge-info">' + (vm.status || 'Unknown') + '</span></td>';
-                        html += '<td><button class="btn btn-small btn-primary" onclick="exportVM(\'' + vm.name + '\')">Export</button></td>';
-                        html += '</tr>';
-                    });
-
-                    tbody.innerHTML = html;
-                })
-                .catch(function(error) {
-                    console.error('Failed to load VMs:', error);
-                    document.getElementById('vms-tbody').innerHTML =
-                        '<tr><td colspan="4" class="error-message">Failed to load VMs: ' + error.message + '</td></tr>';
-                });
-        }
-
-        function refreshJobs() {
-            loadJobs();
-        }
-
-        function refreshVMs() {
-            loadVMs();
-        }
-
-        function getStatusClass(status) {
-            var statusLower = (status || '').toLowerCase();
-            if (statusLower === 'completed' || statusLower === 'success') return 'success';
-            if (statusLower === 'running' || statusLower === 'in_progress') return 'info';
-            if (statusLower === 'failed' || statusLower === 'error') return 'error';
-            return 'warning';
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr) return 'N/A';
-            try {
-                var date = new Date(dateStr);
-                return date.toLocaleString();
-            } catch (e) {
-                return 'N/A';
-            }
-        }
-
-        function exportVM(vmName) {
-            alert('Export functionality for ' + vmName + ' - coming soon!');
-        }
-
-        function updateTimestamp() {
-            var now = new Date();
-            document.getElementById('timestamp').textContent = now.toLocaleString();
-        }
-
-        // Initialize when DOM is ready
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
-        } else {
-            init();
-        }
-
-        // Clean up on page unload
-        window.addEventListener('beforeunload', function() {
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
-            }
         });
     </script>
 </body>
