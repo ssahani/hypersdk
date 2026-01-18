@@ -187,6 +187,10 @@ version: ## Show version information
 	@echo "Git commit: $(shell git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
 	@echo "Build date: $(shell date -u '+%Y-%m-%d %H:%M:%S UTC')"
 
+test-rpm: ## Test RPM build locally
+	@echo "📦 Testing RPM build..."
+	@./test_rpmbuild.sh
+
 help: ## Show this help
 	@echo ""
 	@echo "hyper-sdk - Makefile commands:"
