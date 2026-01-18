@@ -15,6 +15,7 @@ import (
 
 	"hypersdk/config"
 	"hypersdk/daemon/api"
+	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/logger"
 )
@@ -78,8 +79,21 @@ func main() {
 	pterm.Info.Printfln("Starting hypervisord daemon v%s", version)
 	pterm.Info.Printfln("API server will listen on: %s", cfg.DaemonAddr)
 
-	// Create job manager
-	manager := jobs.NewManager(log)
+	// Create capability detector
+	pterm.Info.Println("Detecting available export capabilities...")
+	detector := capabilities.NewDetector(log)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := detector.Detect(ctx); err != nil {
+		pterm.Warning.Printfln("Failed to detect capabilities: %v", err)
+	}
+
+	// Display detected capabilities
+	showCapabilities(detector)
+
+	// Create job manager with capability detector
+	manager := jobs.NewManager(log, detector)
 
 	// Create API config
 	apiConfig := &api.Config{}
@@ -87,7 +101,7 @@ func main() {
 	apiConfig.Security.EnableAuth = false // Disable auth for local development
 
 	// Create Enhanced API server with Phase 2 features
-	server, err := api.NewEnhancedServer(manager, log, cfg.DaemonAddr, apiConfig)
+	server, err := api.NewEnhancedServer(manager, detector, log, cfg.DaemonAddr, apiConfig)
 	if err != nil {
 		pterm.Error.Printfln("Failed to create server: %v", err)
 		os.Exit(1)
@@ -154,6 +168,53 @@ func showBanner() {
 	pterm.Println()
 }
 
+func showCapabilities(detector *capabilities.Detector) {
+	caps := detector.GetCapabilities()
+	defaultMethod := detector.GetDefaultMethod()
+
+	capData := [][]string{
+		{"Method", "Available", "Priority", "Path"},
+	}
+
+	// Priority order: ctl, govc, ovftool, web
+	methods := []capabilities.ExportMethod{
+		capabilities.ExportMethodCTL,
+		capabilities.ExportMethodGovc,
+		capabilities.ExportMethodOvftool,
+		capabilities.ExportMethodWeb,
+	}
+
+	for _, method := range methods {
+		if cap, ok := caps[method]; ok {
+			available := "✗"
+			if cap.Available {
+				available = "✓"
+			}
+			isDefault := ""
+			if method == defaultMethod {
+				isDefault = " (default)"
+			}
+			capData = append(capData, []string{
+				string(method) + isDefault,
+				available,
+				fmt.Sprintf("%d", cap.Priority),
+				cap.Path,
+			})
+		}
+	}
+
+	pterm.DefaultSection.Println("Export Capabilities")
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(capData).
+		Render()
+
+	pterm.Success.Printfln("Default export method: %s", defaultMethod)
+	pterm.Println()
+}
+
 func showEndpoints(addr string) {
 	baseURL := fmt.Sprintf("http://%s", addr)
 
@@ -164,6 +225,7 @@ func showEndpoints(addr string) {
 		{baseURL + "/ws", "WS", "WebSocket (real-time updates)"},
 		{baseURL + "/health", "GET", "Health check"},
 		{baseURL + "/status", "GET", "Daemon status"},
+		{baseURL + "/capabilities", "GET", "Export capabilities"},
 		{baseURL + "/jobs/submit", "POST", "Submit job(s) (JSON/YAML)"},
 		{baseURL + "/jobs/query", "POST", "Query jobs"},
 		{baseURL + "/jobs/{id}", "GET", "Get specific job"},

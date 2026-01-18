@@ -10,10 +10,10 @@ import (
 
 	"github.com/google/uuid"
 
-	"hypersdk/config"
+	"hypersdk/daemon/capabilities"
+	"hypersdk/daemon/exporters"
 	"hypersdk/daemon/models"
 	"hypersdk/logger"
-	"hypersdk/providers/vsphere"
 )
 
 const (
@@ -29,24 +29,27 @@ const (
 
 // Manager handles job lifecycle and execution
 type Manager struct {
-	jobs      map[string]*models.Job
-	mu        sync.RWMutex
-	logger    logger.Logger
-	startTime time.Time
-	ctx       context.Context
-	cancel    context.CancelFunc
-	wg        sync.WaitGroup // Track running goroutines
+	jobs            map[string]*models.Job
+	mu              sync.RWMutex
+	logger          logger.Logger
+	startTime       time.Time
+	ctx             context.Context
+	cancel          context.CancelFunc
+	wg              sync.WaitGroup // Track running goroutines
+	exporterFactory *exporters.ExporterFactory
 }
 
 // NewManager creates a new job manager
-func NewManager(log logger.Logger) *Manager {
+func NewManager(log logger.Logger, detector *capabilities.Detector) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
+	factory := exporters.NewExporterFactory(detector, log)
 	return &Manager{
-		jobs:      make(map[string]*models.Job),
-		logger:    log,
-		startTime: time.Now(),
-		ctx:       ctx,
-		cancel:    cancel,
+		jobs:            make(map[string]*models.Job),
+		logger:          log,
+		startTime:       time.Now(),
+		ctx:             ctx,
+		cancel:          cancel,
+		exporterFactory: factory,
 	}
 }
 
@@ -312,83 +315,95 @@ func (m *Manager) executeJob(jobID string) {
 	}
 }
 
-// runExport performs the actual VM export
+// runExport performs the actual VM export using capability-aware exporters
 func (m *Manager) runExport(jobID string, def *models.JobDefinition) error {
-	// Create config from job definition
-	cfg := &config.Config{
-		VCenterURL:      def.VCenterURL,
-		Username:        def.Username,
-		Password:        def.Password,
-		Insecure:        def.Insecure,
-		Timeout:         5 * time.Minute,
-		DownloadWorkers: 4,
-		RetryAttempts:   3,
-		RetryDelay:      5 * time.Second,
-		LogLevel:        "info",
+	// Normalize job definition fields
+	m.normalizeJobDefinition(def)
+
+	// Determine which export method to use
+	method := m.selectExportMethod(def)
+	m.logger.Info("using export method", "method", method, "job", jobID)
+
+	// Create exporter
+	exporter, err := m.exporterFactory.CreateExporter(method)
+	if err != nil {
+		return fmt.Errorf("create exporter: %w", err)
 	}
 
-	// Use environment defaults if not specified in job
-	if cfg.VCenterURL == "" {
-		envCfg := config.FromEnvironment()
-		cfg.VCenterURL = envCfg.VCenterURL
-		cfg.Username = envCfg.Username
-		cfg.Password = envCfg.Password
-		cfg.Insecure = envCfg.Insecure
+	// Validate job definition against exporter requirements
+	if err := exporter.Validate(def); err != nil {
+		return fmt.Errorf("validate job definition: %w", err)
 	}
 
-	// Update progress: connecting
-	m.updateProgress(jobID, &models.JobProgress{
-		Phase: "connecting",
-	})
+	// Progress callback
+	progressCallback := func(progress *models.JobProgress) {
+		m.updateProgress(jobID, progress)
+	}
 
-	// Create vSphere client
+	// Execute export
 	ctx := m.ctx
-	client, err := vsphere.NewVSphereClient(ctx, cfg, m.logger)
+	result, err := exporter.Export(ctx, def, progressCallback)
 	if err != nil {
-		return fmt.Errorf("connect to vSphere: %w", err)
-	}
-	defer client.Close()
-
-	// Update progress: preparing export
-	m.updateProgress(jobID, &models.JobProgress{
-		Phase: "preparing",
-	})
-
-	// Get VM info
-	info, err := client.GetVMInfo(ctx, def.VMPath)
-	if err != nil {
-		return fmt.Errorf("get VM info: %w", err)
-	}
-
-	// Update progress: exporting
-	m.updateProgress(jobID, &models.JobProgress{
-		Phase:       "exporting",
-		TotalFiles:  0, // Will be updated during export
-		TotalBytes:  0,
-	})
-
-	// Perform export
-	opts := def.Options.ToVSphereOptions(def.OutputPath)
-	result, err := client.ExportOVF(ctx, def.VMPath, opts)
-	if err != nil {
-		return fmt.Errorf("export OVF: %w", err)
+		return fmt.Errorf("export failed: %w", err)
 	}
 
 	// Store result
 	m.mu.Lock()
-	job := m.jobs[jobID]
-	job.Result = &models.JobResult{
-		VMName:    info.Name,
-		OutputDir: result.OutputDir,
-		OVFPath:   result.OVFPath,
-		Files:     result.Files,
-		TotalSize: result.TotalSize,
-		Duration:  result.Duration,
-		Success:   true,
+	if job, exists := m.jobs[jobID]; exists {
+		job.Result = result
 	}
 	m.mu.Unlock()
 
 	return nil
+}
+
+// normalizeJobDefinition normalizes fields for backward compatibility
+func (m *Manager) normalizeJobDefinition(def *models.JobDefinition) {
+	// Normalize VCenter config
+	if def.VCenter == nil && (def.VCenterURL != "" || def.Username != "" || def.Password != "") {
+		// Convert old-style fields to new VCenter struct
+		server := def.VCenterURL
+		if server == "" {
+			server = "vcenter.example.com" // fallback
+		}
+		def.VCenter = &models.VCenterConfig{
+			Server:   server,
+			Username: def.Username,
+			Password: def.Password,
+			Insecure: def.Insecure,
+		}
+	}
+
+	// Normalize output paths
+	if def.OutputDir == "" && def.OutputPath != "" {
+		def.OutputDir = def.OutputPath
+	}
+
+	// Normalize export method
+	if def.ExportMethod == "" && def.Method != "" {
+		def.ExportMethod = def.Method
+	}
+
+	// Set defaults
+	if def.Format == "" {
+		def.Format = "ovf"
+	}
+}
+
+// selectExportMethod determines which export method to use
+func (m *Manager) selectExportMethod(def *models.JobDefinition) capabilities.ExportMethod {
+	// If explicitly specified in job, use that
+	if def.ExportMethod != "" {
+		method := capabilities.ExportMethod(def.ExportMethod)
+		if m.exporterFactory.IsAvailable(method) {
+			return method
+		}
+		m.logger.Warn("requested export method not available, using default",
+			"requested", def.ExportMethod)
+	}
+
+	// Use default (highest priority available)
+	return m.exporterFactory.GetDefaultMethod()
 }
 
 // updateProgress updates job progress (thread-safe)

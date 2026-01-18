@@ -3,6 +3,7 @@
 package api
 
 import (
+	"hypersdk/daemon/capabilities"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -161,11 +162,14 @@ func TestWSMessage(t *testing.T) {
 
 func TestBroadcastJobUpdate(t *testing.T) {
 	log := logger.New("info")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -213,11 +217,14 @@ func TestBroadcastJobUpdate(t *testing.T) {
 
 func TestBroadcastScheduleEvent(t *testing.T) {
 	log := logger.New("info")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -255,11 +262,14 @@ func TestBroadcastScheduleEvent(t *testing.T) {
 
 func TestWebSocketUpgrade(t *testing.T) {
 	log := logger.New("info")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}
@@ -314,11 +324,14 @@ func TestWebSocketUpgrade(t *testing.T) {
 
 func TestStartStatusBroadcaster(t *testing.T) {
 	log := logger.New("info")
-	manager := jobs.NewManager(log)
+	detector := capabilities.NewDetector(log)
+	ctx := context.Background()
+	detector.Detect(ctx)
+	manager := jobs.NewManager(log, detector)
 	config := &Config{}
 	config.Metrics.Enabled = false
 
-	server, err := NewEnhancedServer(manager, log, ":8080", config)
+	server, err := NewEnhancedServer(manager, detector, log, ":8080", config)
 	if err != nil {
 		t.Fatalf("Failed to create server: %v", err)
 	}

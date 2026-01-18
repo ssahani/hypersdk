@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/metrics"
 	"hypersdk/daemon/models"
@@ -66,7 +67,7 @@ func (a *jobExecutorAdapter) SubmitJob(definition models.JobDefinition) error {
 }
 
 // NewEnhancedServer creates a new enhanced API server with all Phase 1 features
-func NewEnhancedServer(manager *jobs.Manager, log logger.Logger, addr string, config *Config) (*EnhancedServer, error) {
+func NewEnhancedServer(manager *jobs.Manager, detector *capabilities.Detector, log logger.Logger, addr string, config *Config) (*EnhancedServer, error) {
 	// Apply default security settings if not configured
 	if config.Security.MaxRequestSizeMB == 0 {
 		config.Security.MaxRequestSizeMB = 10 // 10MB default
@@ -83,7 +84,7 @@ func NewEnhancedServer(manager *jobs.Manager, log logger.Logger, addr string, co
 	}
 
 	// Create base server
-	baseServer := NewServer(manager, log, addr)
+	baseServer := NewServer(manager, detector, log, addr)
 
 	// Create shutdown context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -143,6 +144,7 @@ func (es *EnhancedServer) registerEnhancedRoutes() {
 	// Copy existing routes from base server
 	mux.HandleFunc("/health", es.handleHealth)
 	mux.HandleFunc("/status", es.handleStatus)
+	mux.HandleFunc("/capabilities", es.handleCapabilities)
 	mux.HandleFunc("/jobs/submit", es.handleSubmitJob)
 	mux.HandleFunc("/jobs/query", es.handleQueryJobs)
 	mux.HandleFunc("/jobs/cancel", es.handleCancelJobs)
