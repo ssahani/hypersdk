@@ -630,12 +630,27 @@
                 body: JSON.stringify(requestData)
             })
             .then(function(response) {
+                var contentType = response.headers.get('content-type');
+
                 if (!response.ok) {
-                    return response.json().then(function(data) {
-                        throw new Error(data.error || 'Failed to connect to vCenter');
-                    });
+                    // Try to get error message from response
+                    if (contentType && contentType.indexOf('application/json') !== -1) {
+                        return response.json().then(function(data) {
+                            throw new Error(data.error || 'Failed to connect to vCenter (HTTP ' + response.status + ')');
+                        });
+                    } else {
+                        return response.text().then(function(text) {
+                            throw new Error('Server error: ' + text.substring(0, 100));
+                        });
+                    }
                 }
-                return response.json();
+
+                // Parse successful response
+                if (contentType && contentType.indexOf('application/json') !== -1) {
+                    return response.json();
+                } else {
+                    throw new Error('Server returned non-JSON response');
+                }
             })
             .then(function(data) {
                 allVMs = data.vms || [];
@@ -647,7 +662,7 @@
                 }, 1000);
             })
             .catch(function(error) {
-                errorDiv.textContent = error.message;
+                errorDiv.textContent = error.message || 'An error occurred';
                 errorDiv.classList.remove('hidden');
                 btn.disabled = false;
                 btn.textContent = 'Connect & Discover VMs';
@@ -757,12 +772,27 @@
                 body: JSON.stringify({ jobs: jobs })
             })
             .then(function(response) {
+                var contentType = response.headers.get('content-type');
+
                 if (!response.ok) {
-                    return response.json().then(function(data) {
-                        throw new Error(data.error || 'Failed to submit jobs');
-                    });
+                    // Try to get error message from response
+                    if (contentType && contentType.indexOf('application/json') !== -1) {
+                        return response.json().then(function(data) {
+                            throw new Error(data.error || 'Failed to submit jobs (HTTP ' + response.status + ')');
+                        });
+                    } else {
+                        return response.text().then(function(text) {
+                            throw new Error('Server error: ' + text.substring(0, 100));
+                        });
+                    }
                 }
-                return response.json();
+
+                // Parse successful response
+                if (contentType && contentType.indexOf('application/json') !== -1) {
+                    return response.json();
+                } else {
+                    throw new Error('Server returned non-JSON response');
+                }
             })
             .then(function(data) {
                 successDiv.textContent = 'Successfully submitted ' + selectedVMs.length + ' export job(s)!';
@@ -781,7 +811,7 @@
                 btn.textContent = 'Export Selected VMs';
             })
             .catch(function(error) {
-                errorDiv.textContent = error.message;
+                errorDiv.textContent = error.message || 'An error occurred';
                 errorDiv.classList.remove('hidden');
                 btn.disabled = false;
                 btn.textContent = 'Export Selected VMs';
@@ -811,15 +841,26 @@
             fetch('/health')
                 .then(function(response) {
                     if (response.ok) {
-                        setTimeout(function() {
-                            authToken = 'no-auth';
-                            document.getElementById('user-display').textContent = 'Demo User';
-                            showDashboard();
-                        }, 100);
+                        // Check if response is JSON
+                        var contentType = response.headers.get('content-type');
+                        if (contentType && contentType.indexOf('application/json') !== -1) {
+                            return response.json();
+                        } else {
+                            // Health endpoint returned non-JSON, assume auth disabled
+                            return {};
+                        }
                     }
+                    throw new Error('Health check failed');
+                })
+                .then(function() {
+                    setTimeout(function() {
+                        authToken = 'no-auth';
+                        document.getElementById('user-display').textContent = 'Demo User';
+                        showDashboard();
+                    }, 100);
                 })
                 .catch(function(error) {
-                    console.log('Server requires authentication');
+                    console.log('Server requires authentication:', error);
                 });
         });
     </script>
