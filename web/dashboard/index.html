@@ -612,22 +612,16 @@
             errorDiv.classList.add('hidden');
             successDiv.classList.add('hidden');
 
-            var requestData = {
-                provider: 'vcenter',
-                vcenter: {
-                    server: server,
-                    username: username,
-                    password: password,
-                    datacenter: datacenter || undefined
-                }
-            };
+            // Build query parameters for vCenter connection
+            var params = new URLSearchParams({
+                server: server,
+                username: username,
+                password: password,
+                insecure: 'true'
+            });
 
-            fetch('/vms/discover', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestData)
+            fetch('/vms/list?' + params.toString(), {
+                method: 'GET'
             })
             .then(function(response) {
                 var contentType = response.headers.get('content-type');
@@ -653,8 +647,9 @@
                 }
             })
             .then(function(data) {
+                // API returns {vms: [...], total: N, timestamp: ...}
                 allVMs = data.vms || [];
-                successDiv.textContent = 'Successfully discovered ' + allVMs.length + ' VMs!';
+                successDiv.textContent = 'Successfully discovered ' + data.total + ' VMs from vCenter!';
                 successDiv.classList.remove('hidden');
 
                 setTimeout(function() {
@@ -755,15 +750,27 @@
             btn.disabled = true;
             btn.textContent = 'Submitting Jobs...';
 
+            // Get vCenter credentials from form
+            var vcenterServer = document.getElementById('vcenter-server').value;
+            var vcenterUsername = document.getElementById('vcenter-username').value;
+            var vcenterPassword = document.getElementById('vcenter-password').value;
+
             var jobs = selectedVMs.map(function(vm) {
                 return {
-                    vm_name: vm.name,
+                    name: vm.name,
+                    vm_path: vm.name,
+                    output_dir: '/tmp/exports',
                     format: 'qcow2',
-                    provider: 'vcenter',
-                    output_dir: '/tmp/exports'
+                    vcenter: {
+                        server: vcenterServer,
+                        username: vcenterUsername,
+                        password: vcenterPassword,
+                        insecure: true
+                    }
                 };
             });
 
+            // Send jobs to API
             fetch('/jobs/submit', {
                 method: 'POST',
                 headers: {
