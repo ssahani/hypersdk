@@ -284,8 +284,12 @@
                     <input type="password" id="password" required placeholder="Enter password">
                 </div>
 
+                <div style="background: #f0f0f0; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; color: #666;">
+                    <strong>Note:</strong> Authentication is handled via PAM (Pluggable Authentication Modules)
+                </div>
+
                 <button type="submit" class="btn btn-primary" id="login-btn">
-                    Login
+                    Login via PAM
                 </button>
             </form>
         </div>
@@ -295,8 +299,25 @@
             <button class="logout-btn" onclick="logout()">Logout</button>
 
             <div class="header">
-                <h1>Connect to vCenter</h1>
-                <p>Enter your vCenter credentials</p>
+                <h1>🚀 HyperSDK</h1>
+                <p>Multi-Cloud VM Export Platform</p>
+            </div>
+
+            <div style="background: linear-gradient(135deg, #fff5f0 0%, #ffe8d9 100%); padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #FF6B35;">
+                <h3 style="color: #FF6B35; margin-bottom: 0.75rem; font-size: 1.25rem;">About HyperSDK</h3>
+                <p style="color: #333; line-height: 1.6; margin-bottom: 0.5rem;">
+                    HyperSDK is a powerful multi-cloud VM export platform that enables seamless migration and backup of virtual machines
+                    from various hypervisors including VMware vCenter, KVM, and Hyper-V.
+                </p>
+                <p style="color: #666; line-height: 1.6; margin: 0;">
+                    <strong>Key Features:</strong> Automated VM discovery • Parallel export processing • Multiple format support (QCOW2, RAW, VMDK)
+                    • Job scheduling • Audit logging • RESTful API
+                </p>
+            </div>
+
+            <div class="header">
+                <h2 style="font-size: 1.75rem; color: #333;">Connect to vCenter</h2>
+                <p>Enter your vCenter credentials to discover virtual machines</p>
             </div>
 
             <div id="vcenter-error" class="error-message hidden"></div>
