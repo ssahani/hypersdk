@@ -15,24 +15,51 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             color: #333;
         }
 
-        .container {
-            width: 100%;
-            max-width: 1200px;
+        .login-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
             padding: 2rem;
         }
 
+        .main-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 380px;
+            background: #FFF8F3;
+            padding: 2rem;
+            box-shadow: 4px 0 20px rgba(0,0,0,0.1);
+            overflow-y: auto;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+        }
+
         .card {
-            background: white;
+            background: #FFF8F3;
             border-radius: 12px;
             padding: 3rem;
             box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            margin-bottom: 2rem;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .content-card {
+            background: #FFF8F3;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
         }
 
         .header {
@@ -137,17 +164,17 @@
         .vm-table td {
             padding: 1rem;
             text-align: left;
-            border-bottom: 1px solid #e0e0e0;
+            border-bottom: 1px solid #FFE4D6;
         }
 
         .vm-table th {
-            background: #f5f5f5;
+            background: #FFE4D6;
             font-weight: 600;
             color: #333;
         }
 
         .vm-table tr:hover {
-            background: #f9f9f9;
+            background: #FFF0E6;
         }
 
         .vm-table input[type="checkbox"] {
@@ -226,24 +253,64 @@
         }
 
         .logout-btn {
-            position: absolute;
-            top: 2rem;
-            right: 2rem;
-            padding: 0.5rem 1rem;
-            background: white;
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #FFF8F3;
             color: #FF6B35;
             border: 2px solid #FF6B35;
             border-radius: 6px;
             cursor: pointer;
             font-weight: 600;
+            margin-top: 1.5rem;
         }
 
         .logout-btn:hover {
             background: #FF6B35;
-            color: white;
+            color: #FFF8F3;
         }
 
-        @media (max-width: 768px) {
+        .sidebar-header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1.5rem;
+            border-bottom: 2px solid #FFE4D6;
+        }
+
+        .sidebar-header h2 {
+            color: #FF6B35;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .sidebar-section {
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-section h3 {
+            color: #FF6B35;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+        }
+
+        .info-box {
+            background: #FFE4D6;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1.5rem;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        @media (max-width: 968px) {
+            .main-container {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                box-shadow: none;
+            }
+
             .card {
                 padding: 2rem 1rem;
             }
@@ -263,9 +330,9 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Login Screen -->
-        <div id="login-screen" class="card">
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-container">
+        <div class="card">
             <div class="header">
                 <h1>🚀 HyperSDK</h1>
                 <p>Multi-Cloud VM Export Platform</p>
@@ -284,8 +351,8 @@
                     <input type="password" id="password" required placeholder="Enter password">
                 </div>
 
-                <div style="background: #f0f0f0; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; color: #666;">
-                    <strong>Note:</strong> Authentication is handled via PAM (Pluggable Authentication Modules)
+                <div class="info-box">
+                    <strong>Authentication:</strong> Login uses PAM (Pluggable Authentication Modules) for secure system authentication.
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="login-btn">
@@ -293,117 +360,114 @@
                 </button>
             </form>
         </div>
+    </div>
 
-        <!-- vCenter Connection Screen -->
-        <div id="vcenter-screen" class="card hidden">
+    <!-- Main Dashboard (after login) -->
+    <div id="dashboard-screen" class="main-container hidden">
+        <!-- Left Sidebar - vCenter Connection -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>🚀 HyperSDK</h2>
+                <p style="color: #666; font-size: 0.9rem;">Multi-Cloud VM Export</p>
+            </div>
+
+            <div class="info-box">
+                <strong>About HyperSDK</strong><br>
+                Export VMs from VMware vCenter, KVM, and Hyper-V. Features include automated discovery, parallel processing, and multiple export formats.
+            </div>
+
+            <div class="sidebar-section">
+                <h3>vCenter Connection</h3>
+                <div id="vcenter-error" class="error-message hidden"></div>
+                <div id="vcenter-success" class="success-message hidden"></div>
+
+                <form id="vcenter-form">
+                    <div class="form-group">
+                        <label>vCenter Server</label>
+                        <input type="text" id="vcenter-server" required placeholder="vcenter.example.com">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Username</label>
+                        <input type="text" id="vcenter-username" required placeholder="administrator@vsphere.local">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Password</label>
+                        <input type="password" id="vcenter-password" required placeholder="Enter password">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Datacenter (optional)</label>
+                        <input type="text" id="vcenter-datacenter" placeholder="All datacenters">
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="vcenter-btn">
+                        Connect & Discover VMs
+                    </button>
+                </form>
+            </div>
+
             <button class="logout-btn" onclick="logout()">Logout</button>
-
-            <div class="header">
-                <h1>🚀 HyperSDK</h1>
-                <p>Multi-Cloud VM Export Platform</p>
-            </div>
-
-            <div style="background: linear-gradient(135deg, #fff5f0 0%, #ffe8d9 100%); padding: 1.5rem; border-radius: 8px; margin-bottom: 2rem; border-left: 4px solid #FF6B35;">
-                <h3 style="color: #FF6B35; margin-bottom: 0.75rem; font-size: 1.25rem;">About HyperSDK</h3>
-                <p style="color: #333; line-height: 1.6; margin-bottom: 0.5rem;">
-                    HyperSDK is a powerful multi-cloud VM export platform that enables seamless migration and backup of virtual machines
-                    from various hypervisors including VMware vCenter, KVM, and Hyper-V.
-                </p>
-                <p style="color: #666; line-height: 1.6; margin: 0;">
-                    <strong>Key Features:</strong> Automated VM discovery • Parallel export processing • Multiple format support (QCOW2, RAW, VMDK)
-                    • Job scheduling • Audit logging • RESTful API
-                </p>
-            </div>
-
-            <div class="header">
-                <h2 style="font-size: 1.75rem; color: #333;">Connect to vCenter</h2>
-                <p>Enter your vCenter credentials to discover virtual machines</p>
-            </div>
-
-            <div id="vcenter-error" class="error-message hidden"></div>
-            <div id="vcenter-success" class="success-message hidden"></div>
-
-            <form id="vcenter-form">
-                <div class="form-group">
-                    <label>vCenter Server</label>
-                    <input type="text" id="vcenter-server" required placeholder="vcenter.example.com">
-                </div>
-
-                <div class="form-group">
-                    <label>Username</label>
-                    <input type="text" id="vcenter-username" required placeholder="administrator@vsphere.local">
-                </div>
-
-                <div class="form-group">
-                    <label>Password</label>
-                    <input type="password" id="vcenter-password" required placeholder="Enter password">
-                </div>
-
-                <div class="form-group">
-                    <label>Datacenter (optional)</label>
-                    <input type="text" id="vcenter-datacenter" placeholder="Leave empty for all datacenters">
-                </div>
-
-                <button type="submit" class="btn btn-primary" id="vcenter-btn">
-                    Connect & Discover VMs
-                </button>
-            </form>
         </div>
 
-        <!-- VM List Screen -->
-        <div id="vm-screen" class="card hidden">
-            <button class="logout-btn" onclick="logout()">Logout</button>
-
-            <div class="header">
-                <h1>Virtual Machines</h1>
-                <p>Select VMs to export</p>
-            </div>
-
-            <div id="vm-error" class="error-message hidden"></div>
-            <div id="vm-success" class="success-message hidden"></div>
-
-            <div class="stats-grid">
-                <div class="stat-box">
-                    <h3 id="total-vms">0</h3>
-                    <p>Total VMs</p>
-                </div>
-                <div class="stat-box">
-                    <h3 id="selected-vms">0</h3>
-                    <p>Selected VMs</p>
-                </div>
-                <div class="stat-box">
-                    <h3 id="running-vms">0</h3>
-                    <p>Running VMs</p>
+        <!-- Right Content Area - VM List -->
+        <div class="main-content">
+            <div id="welcome-message" class="content-card">
+                <div class="header">
+                    <h1>Welcome to HyperSDK</h1>
+                    <p>Connect to vCenter using the form on the left to discover and export virtual machines</p>
                 </div>
             </div>
 
-            <div id="vm-list-container">
-                <table class="vm-table">
-                    <thead>
-                        <tr>
-                            <th><input type="checkbox" id="select-all" onclick="toggleSelectAll()"></th>
-                            <th>Name</th>
-                            <th>Power State</th>
-                            <th>Guest OS</th>
-                            <th>CPUs</th>
-                            <th>Memory</th>
-                        </tr>
-                    </thead>
-                    <tbody id="vm-tbody">
-                        <tr>
-                            <td colspan="6" class="loading">Loading VMs...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+            <div id="vm-content" class="hidden">
+                <div class="content-card">
+                    <h2 style="color: #FF6B35; margin-bottom: 1.5rem;">Virtual Machines</h2>
 
-            <div class="action-buttons">
-                <button class="btn btn-secondary" onclick="showVCenterScreen()">
-                    Back to vCenter
-                </button>
-                <button class="btn btn-primary" onclick="exportSelectedVMs()" id="export-btn" disabled>
-                    Export Selected VMs
-                </button>
+                    <div id="vm-error" class="error-message hidden"></div>
+                    <div id="vm-success" class="success-message hidden"></div>
+
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <h3 id="total-vms">0</h3>
+                            <p>Total VMs</p>
+                        </div>
+                        <div class="stat-box">
+                            <h3 id="selected-vms">0</h3>
+                            <p>Selected VMs</p>
+                        </div>
+                        <div class="stat-box">
+                            <h3 id="running-vms">0</h3>
+                            <p>Running VMs</p>
+                        </div>
+                    </div>
+
+                    <div id="vm-list-container">
+                        <table class="vm-table">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all" onclick="toggleSelectAll()"></th>
+                                    <th>Name</th>
+                                    <th>Power State</th>
+                                    <th>Guest OS</th>
+                                    <th>CPUs</th>
+                                    <th>Memory</th>
+                                </tr>
+                            </thead>
+                            <tbody id="vm-tbody">
+                                <tr>
+                                    <td colspan="6" class="loading">Loading VMs...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="action-buttons">
+                        <button class="btn btn-primary" onclick="exportSelectedVMs()" id="export-btn" disabled>
+                            Export Selected VMs
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -439,8 +503,13 @@
             // In production, this would call /api/login
             setTimeout(function() {
                 authToken = 'demo-token-' + Date.now();
-                showVCenterScreen();
+                showDashboard();
             }, 500);
+        }
+
+        function showDashboard() {
+            document.getElementById('login-screen').classList.add('hidden');
+            document.getElementById('dashboard-screen').classList.remove('hidden');
         }
 
         function connectVCenter() {
@@ -489,7 +558,7 @@
                 successDiv.classList.remove('hidden');
 
                 setTimeout(function() {
-                    showVMScreen();
+                    showVMContent();
                 }, 1000);
             })
             .catch(function(error) {
@@ -500,16 +569,9 @@
             });
         }
 
-        function showVCenterScreen() {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('vcenter-screen').classList.remove('hidden');
-            document.getElementById('vm-screen').classList.add('hidden');
-        }
-
-        function showVMScreen() {
-            document.getElementById('login-screen').classList.add('hidden');
-            document.getElementById('vcenter-screen').classList.add('hidden');
-            document.getElementById('vm-screen').classList.remove('hidden');
+        function showVMContent() {
+            document.getElementById('welcome-message').classList.add('hidden');
+            document.getElementById('vm-content').classList.remove('hidden');
 
             displayVMs();
             updateStats();
@@ -648,12 +710,17 @@
             allVMs = [];
 
             document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('vcenter-screen').classList.add('hidden');
-            document.getElementById('vm-screen').classList.add('hidden');
+            document.getElementById('dashboard-screen').classList.add('hidden');
+            document.getElementById('welcome-message').classList.remove('hidden');
+            document.getElementById('vm-content').classList.add('hidden');
 
             // Reset forms
             document.getElementById('login-form').reset();
             document.getElementById('vcenter-form').reset();
+
+            // Clear messages
+            document.getElementById('vcenter-error').classList.add('hidden');
+            document.getElementById('vcenter-success').classList.add('hidden');
         }
 
         // Auto-skip login for demo (remove in production)
@@ -662,10 +729,10 @@
             fetch('/health')
                 .then(function(response) {
                     if (response.ok) {
-                        // Auth disabled, skip to vCenter screen
+                        // Auth disabled, skip to dashboard
                         setTimeout(function() {
                             authToken = 'no-auth';
-                            showVCenterScreen();
+                            showDashboard();
                         }, 100);
                     }
                 })
