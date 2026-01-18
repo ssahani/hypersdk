@@ -12,9 +12,10 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #f5f7fa;
             color: #333;
+            min-height: 100vh;
         }
 
         .header {
@@ -56,6 +57,11 @@
             animation: pulse 2s infinite;
         }
 
+        .dot.disconnected {
+            background: #ef4444;
+            animation: none;
+        }
+
         @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
@@ -75,6 +81,7 @@
             padding: 1rem;
             border-radius: 8px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-wrap: wrap;
         }
 
         .tab {
@@ -85,6 +92,7 @@
             border-radius: 6px;
             font-size: 1rem;
             transition: all 0.2s;
+            font-family: inherit;
         }
 
         .tab:hover {
@@ -151,6 +159,10 @@
             color: #374151;
         }
 
+        tr:hover {
+            background: #f9fafb;
+        }
+
         .badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -171,6 +183,7 @@
             cursor: pointer;
             font-size: 1rem;
             transition: all 0.2s;
+            font-family: inherit;
         }
 
         .btn-primary {
@@ -180,6 +193,11 @@
 
         .btn-primary:hover {
             background: #5568d3;
+        }
+
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
         }
 
         .hidden {
@@ -199,6 +217,66 @@
             border-radius: 6px;
             margin-bottom: 1rem;
         }
+
+        .success-message {
+            background: #d1fae5;
+            color: #065f46;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        .capability-item {
+            padding: 0.75rem;
+            border-left: 3px solid #667eea;
+            margin-bottom: 0.5rem;
+            background: #f9fafb;
+        }
+
+        .capability-item.available {
+            border-left-color: #10b981;
+        }
+
+        .capability-item.unavailable {
+            border-left-color: #ef4444;
+            opacity: 0.6;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e5e7eb;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #667eea;
+            transition: width 0.3s ease;
+        }
+
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.5rem;
+            }
+
+            .container {
+                padding: 0 1rem;
+            }
+
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+
+            table {
+                font-size: 0.875rem;
+            }
+
+            th, td {
+                padding: 0.75rem 0.5rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -209,21 +287,21 @@
 
     <div class="status-bar">
         <div class="status-indicator">
-            <div class="dot"></div>
-            <span>Server Running</span>
+            <div class="dot" id="connection-dot"></div>
+            <span id="connection-status">Connecting...</span>
         </div>
         <div id="timestamp">Loading...</div>
     </div>
 
     <div class="container">
         <div class="tabs">
-            <button class="tab active" onclick="showTab('overview')">Overview</button>
-            <button class="tab" onclick="showTab('jobs')">Jobs</button>
-            <button class="tab" onclick="showTab('vms')">VMs</button>
+            <button class="tab active" data-tab="overview">Overview</button>
+            <button class="tab" data-tab="jobs">Jobs</button>
+            <button class="tab" data-tab="vms">VMs</button>
         </div>
 
         <!-- Overview Tab -->
-        <div id="overview-tab">
+        <div id="overview-tab" class="tab-content">
             <div class="stats-grid">
                 <div class="stat-card">
                     <h3 id="total-jobs">0</h3>
@@ -245,19 +323,25 @@
 
             <div class="card">
                 <h2>System Status</h2>
-                <div id="status-content">Loading...</div>
+                <div id="status-content">
+                    <div class="loading">Loading system status...</div>
+                </div>
             </div>
 
             <div class="card">
                 <h2>Available Capabilities</h2>
-                <div id="capabilities-content">Loading...</div>
+                <div id="capabilities-content">
+                    <div class="loading">Loading capabilities...</div>
+                </div>
             </div>
         </div>
 
         <!-- Jobs Tab -->
-        <div id="jobs-tab" class="hidden">
+        <div id="jobs-tab" class="tab-content hidden">
             <div class="card">
                 <h2>Jobs</h2>
+                <button class="btn btn-small btn-primary" onclick="refreshJobs()" style="float: right;">Refresh</button>
+                <div style="clear: both;"></div>
                 <div id="jobs-table-container">
                     <table>
                         <thead>
@@ -281,9 +365,11 @@
         </div>
 
         <!-- VMs Tab -->
-        <div id="vms-tab" class="hidden">
+        <div id="vms-tab" class="tab-content hidden">
             <div class="card">
                 <h2>Virtual Machines</h2>
+                <button class="btn btn-small btn-primary" onclick="refreshVMs()" style="float: right;">Refresh</button>
+                <div style="clear: both;"></div>
                 <div id="vms-table-container">
                     <table>
                         <thead>
@@ -306,171 +392,31 @@
     </div>
 
     <script>
-        // Simple dashboard without authentication
-        let currentTab = 'overview';
+        // Dashboard state
+        var currentTab = 'overview';
+        var refreshInterval = null;
+        var isConnected = false;
 
-        function showTab(tabName) {
-            // Hide all tabs
-            document.querySelectorAll('[id$="-tab"]').forEach(tab => {
-                tab.classList.add('hidden');
+        // Initialize dashboard
+        function init() {
+            console.log('Initializing dashboard...');
+
+            // Set up tab switching
+            var tabs = document.querySelectorAll('.tab');
+            tabs.forEach(function(tab) {
+                tab.addEventListener('click', function(e) {
+                    switchTab(this.getAttribute('data-tab'));
+                });
             });
 
-            // Remove active from all buttons
-            document.querySelectorAll('.tab').forEach(btn => {
-                btn.classList.remove('active');
-            });
-
-            // Show selected tab
-            document.getElementById(tabName + '-tab').classList.remove('hidden');
-            event.target.classList.add('active');
-            currentTab = tabName;
-
-            // Load data for the tab
-            if (tabName === 'jobs') loadJobs();
-            if (tabName === 'vms') loadVMs();
-        }
-
-        async function loadStatus() {
-            try {
-                const response = await fetch('/status');
-                const data = await response.json();
-
-                document.getElementById('total-jobs').textContent = data.total_jobs || 0;
-                document.getElementById('running-jobs').textContent = data.running_jobs || 0;
-                document.getElementById('completed-jobs').textContent = data.completed_jobs || 0;
-                document.getElementById('failed-jobs').textContent = data.failed_jobs || 0;
-
-                const statusHtml = `
-                    <p><strong>Uptime:</strong> ${data.uptime || 'N/A'}</p>
-                    <p><strong>Version:</strong> ${data.version || 'N/A'}</p>
-                    <p><strong>Total Jobs:</strong> ${data.total_jobs || 0}</p>
-                `;
-                document.getElementById('status-content').innerHTML = statusHtml;
-            } catch (error) {
-                console.error('Failed to load status:', error);
-                document.getElementById('status-content').innerHTML =
-                    '<div class="error-message">Failed to load status</div>';
-            }
-        }
-
-        async function loadCapabilities() {
-            try {
-                const response = await fetch('/capabilities');
-                const data = await response.json();
-
-                const caps = data.capabilities || [];
-                if (caps.length === 0) {
-                    document.getElementById('capabilities-content').innerHTML =
-                        '<p>No capabilities detected</p>';
-                    return;
-                }
-
-                const capsHtml = caps.map(cap => `
-                    <div style="padding: 0.5rem 0;">
-                        <strong>${cap.name}</strong>: ${cap.available ? '✅ Available' : '❌ Not Available'}
-                        ${cap.version ? ` (v${cap.version})` : ''}
-                    </div>
-                `).join('');
-
-                document.getElementById('capabilities-content').innerHTML = capsHtml;
-            } catch (error) {
-                console.error('Failed to load capabilities:', error);
-                document.getElementById('capabilities-content').innerHTML =
-                    '<div class="error-message">Failed to load capabilities</div>';
-            }
-        }
-
-        async function loadJobs() {
-            try {
-                const response = await fetch('/jobs/query');
-                const data = await response.json();
-
-                const jobs = data.jobs || [];
-                const tbody = document.getElementById('jobs-tbody');
-
-                if (jobs.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No jobs found</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = jobs.map(job => `
-                    <tr>
-                        <td>${job.id}</td>
-                        <td>${job.vm_name || 'N/A'}</td>
-                        <td>${job.provider || 'N/A'}</td>
-                        <td><span class="badge badge-${getStatusClass(job.status)}">${job.status}</span></td>
-                        <td>${job.progress || 0}%</td>
-                        <td>${formatDate(job.start_time)}</td>
-                    </tr>
-                `).join('');
-            } catch (error) {
-                console.error('Failed to load jobs:', error);
-                document.getElementById('jobs-tbody').innerHTML =
-                    '<tr><td colspan="6" class="error-message">Failed to load jobs</td></tr>';
-            }
-        }
-
-        async function loadVMs() {
-            try {
-                const response = await fetch('/vms/list');
-                const data = await response.json();
-
-                const vms = data.vms || [];
-                const tbody = document.getElementById('vms-tbody');
-
-                if (vms.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem;">No VMs found</td></tr>';
-                    return;
-                }
-
-                tbody.innerHTML = vms.map(vm => `
-                    <tr>
-                        <td>${vm.name}</td>
-                        <td>${vm.provider || 'N/A'}</td>
-                        <td><span class="badge badge-info">${vm.status || 'Unknown'}</span></td>
-                        <td>
-                            <button class="btn btn-primary" onclick="exportVM('${vm.name}')">Export</button>
-                        </td>
-                    </tr>
-                `).join('');
-            } catch (error) {
-                console.error('Failed to load VMs:', error);
-                document.getElementById('vms-tbody').innerHTML =
-                    '<tr><td colspan="4" class="error-message">Failed to load VMs</td></tr>';
-            }
-        }
-
-        function getStatusClass(status) {
-            const statusLower = (status || '').toLowerCase();
-            if (statusLower === 'completed' || statusLower === 'success') return 'success';
-            if (statusLower === 'running' || statusLower === 'in_progress') return 'info';
-            if (statusLower === 'failed' || statusLower === 'error') return 'error';
-            return 'warning';
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr) return 'N/A';
-            const date = new Date(dateStr);
-            return date.toLocaleString();
-        }
-
-        function exportVM(vmName) {
-            alert(`Export functionality for ${vmName} - coming soon!`);
-        }
-
-        function updateTimestamp() {
-            document.getElementById('timestamp').textContent = new Date().toLocaleString();
-        }
-
-        // Initialize
-        document.addEventListener('DOMContentLoaded', () => {
-            console.log('Dashboard loading...');
+            // Load initial data
             loadStatus();
             loadCapabilities();
             updateTimestamp();
+            checkConnection();
 
-            // Auto-refresh every 5 seconds
-            setInterval(() => {
+            // Set up auto-refresh
+            refreshInterval = setInterval(function() {
                 if (currentTab === 'overview') {
                     loadStatus();
                 } else if (currentTab === 'jobs') {
@@ -479,7 +425,249 @@
                     loadVMs();
                 }
                 updateTimestamp();
+                checkConnection();
             }, 5000);
+        }
+
+        function switchTab(tabName) {
+            // Hide all tab contents
+            var contents = document.querySelectorAll('.tab-content');
+            contents.forEach(function(content) {
+                content.classList.add('hidden');
+            });
+
+            // Remove active from all tabs
+            var tabs = document.querySelectorAll('.tab');
+            tabs.forEach(function(tab) {
+                tab.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            document.querySelector('[data-tab="' + tabName + '"]').classList.add('active');
+            currentTab = tabName;
+
+            // Load data for the tab
+            if (tabName === 'jobs') {
+                loadJobs();
+            } else if (tabName === 'vms') {
+                loadVMs();
+            }
+        }
+
+        function checkConnection() {
+            fetch('/health')
+                .then(function(response) {
+                    if (response.ok) {
+                        setConnected(true);
+                    } else {
+                        setConnected(false);
+                    }
+                })
+                .catch(function(error) {
+                    setConnected(false);
+                });
+        }
+
+        function setConnected(connected) {
+            isConnected = connected;
+            var dot = document.getElementById('connection-dot');
+            var status = document.getElementById('connection-status');
+
+            if (connected) {
+                dot.classList.remove('disconnected');
+                status.textContent = 'Connected';
+            } else {
+                dot.classList.add('disconnected');
+                status.textContent = 'Disconnected';
+            }
+        }
+
+        function loadStatus() {
+            fetch('/status')
+                .then(function(response) {
+                    if (!response.ok) throw new Error('Failed to load status');
+                    return response.json();
+                })
+                .then(function(data) {
+                    document.getElementById('total-jobs').textContent = data.total_jobs || 0;
+                    document.getElementById('running-jobs').textContent = data.running_jobs || 0;
+                    document.getElementById('completed-jobs').textContent = data.completed_jobs || 0;
+                    document.getElementById('failed-jobs').textContent = data.failed_jobs || 0;
+
+                    var statusHtml = '<p><strong>Uptime:</strong> ' + (data.uptime || 'N/A') + '</p>';
+                    statusHtml += '<p><strong>Version:</strong> ' + (data.version || 'N/A') + '</p>';
+                    statusHtml += '<p><strong>Total Jobs:</strong> ' + (data.total_jobs || 0) + '</p>';
+
+                    document.getElementById('status-content').innerHTML = statusHtml;
+                })
+                .catch(function(error) {
+                    console.error('Failed to load status:', error);
+                    document.getElementById('status-content').innerHTML =
+                        '<div class="error-message">Failed to load status: ' + error.message + '</div>';
+                });
+        }
+
+        function loadCapabilities() {
+            fetch('/capabilities')
+                .then(function(response) {
+                    if (!response.ok) throw new Error('Failed to load capabilities');
+                    return response.json();
+                })
+                .then(function(data) {
+                    var caps = data.capabilities || [];
+                    if (caps.length === 0) {
+                        document.getElementById('capabilities-content').innerHTML =
+                            '<p>No capabilities detected</p>';
+                        return;
+                    }
+
+                    var capsHtml = '';
+                    caps.forEach(function(cap) {
+                        var className = cap.available ? 'capability-item available' : 'capability-item unavailable';
+                        var icon = cap.available ? '✅' : '❌';
+                        var version = cap.version ? ' (v' + cap.version + ')' : '';
+
+                        capsHtml += '<div class="' + className + '">';
+                        capsHtml += '<strong>' + cap.name + '</strong>: ' + icon + ' ';
+                        capsHtml += cap.available ? 'Available' : 'Not Available';
+                        capsHtml += version;
+                        capsHtml += '</div>';
+                    });
+
+                    document.getElementById('capabilities-content').innerHTML = capsHtml;
+                })
+                .catch(function(error) {
+                    console.error('Failed to load capabilities:', error);
+                    document.getElementById('capabilities-content').innerHTML =
+                        '<div class="error-message">Failed to load capabilities: ' + error.message + '</div>';
+                });
+        }
+
+        function loadJobs() {
+            fetch('/jobs/query')
+                .then(function(response) {
+                    if (!response.ok) throw new Error('Failed to load jobs');
+                    return response.json();
+                })
+                .then(function(data) {
+                    var jobs = data.jobs || [];
+                    var tbody = document.getElementById('jobs-tbody');
+
+                    if (jobs.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No jobs found</td></tr>';
+                        return;
+                    }
+
+                    var html = '';
+                    jobs.forEach(function(job) {
+                        html += '<tr>';
+                        html += '<td>' + (job.id || 'N/A') + '</td>';
+                        html += '<td>' + (job.vm_name || 'N/A') + '</td>';
+                        html += '<td>' + (job.provider || 'N/A') + '</td>';
+                        html += '<td><span class="badge badge-' + getStatusClass(job.status) + '">' + (job.status || 'Unknown') + '</span></td>';
+                        html += '<td>';
+                        if (job.progress !== undefined) {
+                            html += '<div class="progress-bar"><div class="progress-fill" style="width: ' + job.progress + '%"></div></div>';
+                            html += '<small>' + job.progress + '%</small>';
+                        } else {
+                            html += 'N/A';
+                        }
+                        html += '</td>';
+                        html += '<td>' + formatDate(job.start_time) + '</td>';
+                        html += '</tr>';
+                    });
+
+                    tbody.innerHTML = html;
+                })
+                .catch(function(error) {
+                    console.error('Failed to load jobs:', error);
+                    document.getElementById('jobs-tbody').innerHTML =
+                        '<tr><td colspan="6" class="error-message">Failed to load jobs: ' + error.message + '</td></tr>';
+                });
+        }
+
+        function loadVMs() {
+            fetch('/vms/list')
+                .then(function(response) {
+                    if (!response.ok) throw new Error('Failed to load VMs');
+                    return response.json();
+                })
+                .then(function(data) {
+                    var vms = data.vms || [];
+                    var tbody = document.getElementById('vms-tbody');
+
+                    if (vms.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem;">No VMs found</td></tr>';
+                        return;
+                    }
+
+                    var html = '';
+                    vms.forEach(function(vm) {
+                        html += '<tr>';
+                        html += '<td>' + (vm.name || 'N/A') + '</td>';
+                        html += '<td>' + (vm.provider || 'N/A') + '</td>';
+                        html += '<td><span class="badge badge-info">' + (vm.status || 'Unknown') + '</span></td>';
+                        html += '<td><button class="btn btn-small btn-primary" onclick="exportVM(\'' + vm.name + '\')">Export</button></td>';
+                        html += '</tr>';
+                    });
+
+                    tbody.innerHTML = html;
+                })
+                .catch(function(error) {
+                    console.error('Failed to load VMs:', error);
+                    document.getElementById('vms-tbody').innerHTML =
+                        '<tr><td colspan="4" class="error-message">Failed to load VMs: ' + error.message + '</td></tr>';
+                });
+        }
+
+        function refreshJobs() {
+            loadJobs();
+        }
+
+        function refreshVMs() {
+            loadVMs();
+        }
+
+        function getStatusClass(status) {
+            var statusLower = (status || '').toLowerCase();
+            if (statusLower === 'completed' || statusLower === 'success') return 'success';
+            if (statusLower === 'running' || statusLower === 'in_progress') return 'info';
+            if (statusLower === 'failed' || statusLower === 'error') return 'error';
+            return 'warning';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            try {
+                var date = new Date(dateStr);
+                return date.toLocaleString();
+            } catch (e) {
+                return 'N/A';
+            }
+        }
+
+        function exportVM(vmName) {
+            alert('Export functionality for ' + vmName + ' - coming soon!');
+        }
+
+        function updateTimestamp() {
+            var now = new Date();
+            document.getElementById('timestamp').textContent = now.toLocaleString();
+        }
+
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            init();
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
         });
     </script>
 </body>
