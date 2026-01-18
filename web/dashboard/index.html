@@ -163,6 +163,26 @@
             color: #999;
         }
 
+        .password-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .password-toggle input[type="checkbox"] {
+            width: auto;
+            margin: 0;
+        }
+
+        .password-toggle label {
+            margin: 0;
+            font-weight: normal;
+            color: #666;
+            cursor: pointer;
+        }
+
         /* Buttons */
         .btn {
             display: inline-block;
@@ -431,6 +451,10 @@
                 <div class="form-group">
                     <label>Password</label>
                     <input type="password" id="password" required placeholder="Enter your password">
+                    <div class="password-toggle">
+                        <input type="checkbox" id="show-login-password" onchange="togglePassword('password', this.checked)">
+                        <label for="show-login-password">Show password</label>
+                    </div>
                 </div>
 
                 <button type="submit" class="btn btn-primary" id="login-btn" style="width: 100%; margin-top: 1rem;">
@@ -484,6 +508,10 @@
                             <div class="form-group">
                                 <label>Password</label>
                                 <input type="password" id="vcenter-password" required placeholder="Enter vCenter password">
+                                <div class="password-toggle">
+                                    <input type="checkbox" id="show-vcenter-password" onchange="togglePassword('vcenter-password', this.checked)">
+                                    <label for="show-vcenter-password">Show password</label>
+                                </div>
                             </div>
 
                             <div class="form-group">
@@ -559,6 +587,12 @@
         var selectedVMs = [];
         var allVMs = [];
         var authToken = null;
+
+        // Toggle password visibility
+        function togglePassword(fieldId, show) {
+            var field = document.getElementById(fieldId);
+            field.type = show ? 'text' : 'password';
+        }
 
         // Login form handler
         document.getElementById('login-form').addEventListener('submit', function(e) {
