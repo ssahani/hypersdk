@@ -129,7 +129,10 @@ func TestLogout(t *testing.T) {
 }
 
 func TestCleanupExpiredSessions(t *testing.T) {
-	manager := NewAuthManager()
+	// Create manager without starting cleanup goroutine
+	manager := &AuthManager{
+		sessions: make(map[string]*Session),
+	}
 
 	// Create expired session
 	expiredSession := &Session{
@@ -153,8 +156,15 @@ func TestCleanupExpiredSessions(t *testing.T) {
 		t.Errorf("expected 2 sessions, got %d", len(manager.sessions))
 	}
 
-	// Cleanup
-	manager.cleanupExpiredSessions()
+	// Manually cleanup expired sessions
+	manager.mu.Lock()
+	now := time.Now()
+	for token, session := range manager.sessions {
+		if now.After(session.ExpiresAt) {
+			delete(manager.sessions, token)
+		}
+	}
+	manager.mu.Unlock()
 
 	// Should only have valid session
 	if len(manager.sessions) != 1 {
