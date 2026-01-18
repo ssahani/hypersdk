@@ -5,6 +5,7 @@ package queue
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -120,14 +121,27 @@ func TestNewQueueInvalidMaxWorkers(t *testing.T) {
 
 func TestEnqueue(t *testing.T) {
 	handler := func(ctx context.Context, job *Job) error {
-		return nil
+		<-ctx.Done()
+		return ctx.Err()
 	}
 
-	queue, err := NewQueue(DefaultConfig(), handler)
+	config := DefaultConfig()
+	config.MaxWorkers = 2
+	queue, err := NewQueue(config, handler)
 	if err != nil {
 		t.Fatalf("failed to create queue: %v", err)
 	}
-	defer queue.Shutdown(context.Background())
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		queue.Shutdown(ctx)
+	}()
+
+	// Make all workers busy
+	for i := 0; i < config.MaxWorkers; i++ {
+		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
+	}
+	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
 
 	job := &Job{
 		ID:       "test-1",
@@ -145,8 +159,8 @@ func TestEnqueue(t *testing.T) {
 	}
 
 	metrics := queue.GetMetrics()
-	if metrics.JobsEnqueued != 1 {
-		t.Errorf("expected 1 enqueued job, got %d", metrics.JobsEnqueued)
+	if metrics.JobsEnqueued != 3 { // 2 blockers + 1 test job
+		t.Errorf("expected 3 enqueued jobs, got %d", metrics.JobsEnqueued)
 	}
 }
 
@@ -226,12 +240,20 @@ func TestDequeue(t *testing.T) {
 		return ctx.Err()
 	}
 
-	queue, _ := NewQueue(DefaultConfig(), handler)
+	config := DefaultConfig()
+	config.MaxWorkers = 2
+	queue, _ := NewQueue(config, handler)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		queue.Shutdown(ctx)
 	}()
+
+	// Make all workers busy
+	for i := 0; i < config.MaxWorkers; i++ {
+		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
+	}
+	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
 
 	job := &Job{
 		ID:       "test-1",
@@ -274,14 +296,22 @@ func TestPriorityOrdering(t *testing.T) {
 		return ctx.Err()
 	}
 
-	queue, _ := NewQueue(DefaultConfig(), handler)
+	config := DefaultConfig()
+	config.MaxWorkers = 2
+	queue, _ := NewQueue(config, handler)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 		queue.Shutdown(ctx)
 	}()
 
-	// Enqueue jobs with different priorities
+	// First, make all workers busy
+	for i := 0; i < config.MaxWorkers; i++ {
+		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
+	}
+	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
+
+	// Now enqueue jobs with different priorities
 	jobs := []*Job{
 		{ID: "low", Priority: PriorityLow},
 		{ID: "critical", Priority: PriorityCritical},
@@ -309,20 +339,27 @@ func TestPriorityOrdering(t *testing.T) {
 }
 
 func TestFIFOWithinPriority(t *testing.T) {
-	// Track execution order
-	executionOrder := make(chan string, 5)
-
+	// Use a blocking handler to prevent workers from consuming jobs
+	startChan := make(chan struct{})
 	handler := func(ctx context.Context, job *Job) error {
-		executionOrder <- job.ID
+		<-startChan
 		return nil
 	}
 
-	queue, _ := NewQueue(DefaultConfig(), handler)
+	config := DefaultConfig()
+	config.MaxWorkers = 2
+	queue, _ := NewQueue(config, handler)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 		queue.Shutdown(ctx)
 	}()
+
+	// Make all workers busy
+	for i := 0; i < config.MaxWorkers; i++ {
+		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
+	}
+	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
 
 	// Enqueue jobs with same priority
 	for i := 0; i < 5; i++ {
@@ -334,19 +371,20 @@ func TestFIFOWithinPriority(t *testing.T) {
 		time.Sleep(1 * time.Millisecond) // Ensure different timestamps
 	}
 
-	// Verify execution order is FIFO
+	// Dequeue and verify FIFO order
 	expectedOrder := []string{"a", "b", "c", "d", "e"}
-
 	for i, expected := range expectedOrder {
-		select {
-		case jobID := <-executionOrder:
-			if jobID != expected {
-				t.Errorf("job %d: expected %s, got %s", i, expected, jobID)
-			}
-		case <-time.After(2 * time.Second):
-			t.Fatalf("timeout waiting for job %d", i)
+		job, err := queue.Dequeue()
+		if err != nil {
+			t.Fatalf("failed to dequeue job %d: %v", i, err)
+		}
+		if job.ID != expected {
+			t.Errorf("job %d: expected %s, got %s", i, expected, job.ID)
 		}
 	}
+
+	// Unblock workers
+	close(startChan)
 }
 
 func TestJobExecution(t *testing.T) {
@@ -505,15 +543,28 @@ func TestConcurrentEnqueue(t *testing.T) {
 
 func TestIsEmpty(t *testing.T) {
 	handler := func(ctx context.Context, job *Job) error {
-		return nil
+		<-ctx.Done()
+		return ctx.Err()
 	}
 
-	queue, _ := NewQueue(DefaultConfig(), handler)
-	defer queue.Shutdown(context.Background())
+	config := DefaultConfig()
+	config.MaxWorkers = 2
+	queue, _ := NewQueue(config, handler)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		queue.Shutdown(ctx)
+	}()
 
 	if !queue.IsEmpty() {
 		t.Error("expected queue to be empty")
 	}
+
+	// Make all workers busy
+	for i := 0; i < config.MaxWorkers; i++ {
+		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
+	}
+	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
 
 	queue.Enqueue(&Job{ID: "test", Priority: PriorityNormal})
 
@@ -530,6 +581,7 @@ func TestIsFull(t *testing.T) {
 
 	config := DefaultConfig()
 	config.MaxQueueSize = 5
+	config.MaxWorkers = 2
 
 	queue, _ := NewQueue(config, handler)
 	defer func() {
@@ -542,7 +594,13 @@ func TestIsFull(t *testing.T) {
 		t.Error("expected queue to not be full")
 	}
 
-	// Fill the queue
+	// First, make all workers busy
+	for i := 0; i < config.MaxWorkers; i++ {
+		queue.Enqueue(&Job{ID: fmt.Sprintf("blocker-%d", i), Priority: PriorityLow})
+	}
+	time.Sleep(100 * time.Millisecond) // Let workers pick up blocker jobs
+
+	// Now fill the queue
 	for i := 0; i < 5; i++ {
 		queue.Enqueue(&Job{ID: string(rune('a' + i)), Priority: PriorityNormal})
 	}
