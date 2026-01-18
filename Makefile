@@ -193,7 +193,7 @@ test-rpm: ## Test RPM build locally
 
 help: ## Show this help
 	@echo ""
-	@echo "hyper-sdk - Makefile commands:"
+	@echo "hypersdk - Makefile commands:"
 	@echo ""
 	@echo "Components:"
 	@echo "  hypervisord  - Go daemon for vSphere VM export"

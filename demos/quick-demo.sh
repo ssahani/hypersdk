@@ -1,5 +1,5 @@
 #!/bin/bash
-# Quick demo of hyper-sdk tools
+# Quick demo of hypersdk tools
 # Usage: ./demos/quick-demo.sh
 
 set -e
@@ -25,7 +25,7 @@ clear
 echo -e "${BLUE}"
 cat << "EOF"
 ╔═══════════════════════════════════════╗
-║     hyper-sdk Quick Demo              ║
+║     hypersdk Quick Demo               ║
 ║     Multi-Cloud VM Export Toolkit     ║
 ╚═══════════════════════════════════════╝
 EOF
