@@ -19,6 +19,7 @@ import (
 	"github.com/pterm/pterm"
 	"gopkg.in/yaml.v3"
 
+	"hypersdk/cmd/completion"
 	"hypersdk/daemon/models"
 	"hypersdk/providers/vsphere"
 )
@@ -149,6 +150,9 @@ func main() {
 	migrateConvert := migrateCmd.Bool("convert", true, "Auto-convert VMDK to qcow2")
 	migrateImport := migrateCmd.Bool("import", false, "Auto-import to libvirt")
 
+	completionCmd := flag.NewFlagSet("completion", flag.ExitOnError)
+	completionShell := completionCmd.String("shell", "", "Shell type: bash, zsh, fish")
+
 	// Parse global flags
 	flag.Parse()
 
@@ -210,6 +214,10 @@ func main() {
 	case "migrate", "interactive":
 		migrateCmd.Parse(os.Args[2:])
 		runInteractive(*daemonURL, *migrateOutput, *migrateConvert, *migrateImport)
+
+	case "completion":
+		completionCmd.Parse(os.Args[2:])
+		handleCompletion(*completionShell)
 
 	case "help", "-h", "--help":
 		showUsage()
@@ -336,6 +344,23 @@ func showUsage() {
 		Render()
 
 	pterm.Println()
+
+	// Shell Completion
+	pterm.DefaultSection.Println("🔧 Shell Completion")
+	completionCommands := [][]string{
+		{"Command", "Description", "Example"},
+		{"completion -shell bash", "Generate bash completion", "hyperctl completion -shell bash"},
+		{"completion -shell zsh", "Generate zsh completion", "hyperctl completion -shell zsh"},
+		{"completion -shell fish", "Generate fish completion", "hyperctl completion -shell fish"},
+	}
+	pterm.DefaultTable.
+		WithHasHeader().
+		WithHeaderRowSeparator("-").
+		WithBoxed().
+		WithData(completionCommands).
+		Render()
+
+	pterm.Println()
 	pterm.Info.Println("Examples:")
 	pterm.Println("  # Interactive Migration")
 	pterm.Println("  hyperctl migrate                                  # Launch interactive mode")
@@ -360,6 +385,11 @@ func showUsage() {
 	pterm.Println("  hyperctl query -status running")
 	pterm.Println("  hyperctl status")
 	pterm.Println("  hyperctl cancel -id abc123,def456")
+	pterm.Println()
+	pterm.Println("  # Shell Completion")
+	pterm.Println("  hyperctl completion -shell bash > /etc/bash_completion.d/hyperctl")
+	pterm.Println("  hyperctl completion -shell zsh > ${fpath[1]}/_hyperctl")
+	pterm.Println("  hyperctl completion -shell fish > ~/.config/fish/completions/hyperctl.fish")
 }
 
 func handleSubmit(daemonURL, filePath, vmPath, outputPath string) {
@@ -1515,6 +1545,36 @@ func apiRequestWithTimeout(url, method, contentType string, body []byte, timeout
 
 	client := &http.Client{Timeout: timeout}
 	return client.Do(req)
+}
+
+func handleCompletion(shellType string) {
+	if shellType == "" {
+		pterm.Error.Println("Shell type required. Use: -shell bash|zsh|fish")
+		pterm.Println()
+		pterm.Info.Println("Examples:")
+		pterm.Println("  hyperctl completion -shell bash")
+		pterm.Println("  hyperctl completion -shell zsh")
+		pterm.Println("  hyperctl completion -shell fish")
+		pterm.Println()
+
+		// Show installation instructions for all shells
+		for _, shell := range completion.SupportedShells() {
+			pterm.DefaultSection.Printfln("%s Installation", strings.ToUpper(string(shell)))
+			pterm.Println(completion.InstallInstructions(shell))
+		}
+		os.Exit(1)
+	}
+
+	shell := completion.Shell(shellType)
+	script, err := completion.Generate(shell)
+	if err != nil {
+		pterm.Error.Printfln("Error generating completion: %v", err)
+		pterm.Info.Println("Supported shells: bash, zsh, fish")
+		os.Exit(1)
+	}
+
+	// Output the completion script
+	fmt.Println(script)
 }
 
 // GenerateExampleJobFile creates an example job file
