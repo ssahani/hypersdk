@@ -4,12 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HyperSDK Dashboard</title>
-    <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
         * {
             margin: 0;
             padding: 0;
@@ -17,75 +12,48 @@
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
-            background: linear-gradient(135deg, #FFF5E6 0%, #FFFFFF 100%);
-            color: #2d2d2d;
-            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
         }
 
-        /* Top Navigation */
-        .top-nav {
-            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 1.5rem 2rem;
-            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
-            position: sticky;
-            top: 0;
-            z-index: 100;
+            padding: 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
         }
 
-        .top-nav-content {
-            max-width: 1400px;
-            margin: 0 auto;
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .status-bar {
+            background: white;
+            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .logo i {
-            font-size: 2rem;
-        }
-
-        .logo h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .logo p {
-            font-size: 0.85rem;
-            opacity: 0.9;
-            margin-top: 0.25rem;
-        }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.875rem;
-            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: #4CAF50;
+            background: #10b981;
             animation: pulse 2s infinite;
-        }
-
-        .status-indicator.disconnected {
-            background: #f44336;
-            animation: none;
         }
 
         @keyframes pulse {
@@ -93,1636 +61,426 @@
             50% { opacity: 0.5; }
         }
 
-        /* Main Container */
         .container {
             max-width: 1400px;
             margin: 2rem auto;
             padding: 0 2rem;
         }
 
-        /* Tab Navigation */
         .tabs {
             display: flex;
-            gap: 0.5rem;
+            gap: 1rem;
             margin-bottom: 2rem;
             background: white;
-            padding: 0.5rem;
-            border-radius: 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .tab {
-            flex: 1;
-            padding: 1rem 1.5rem;
+            padding: 0.75rem 1.5rem;
             border: none;
             background: transparent;
-            color: #666;
-            font-size: 0.95rem;
-            font-weight: 500;
             cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            transition: all 0.2s;
         }
 
         .tab:hover {
-            background: #FFF5E6;
-            color: #FF6B35;
+            background: #f3f4f6;
         }
 
         .tab.active {
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
+            background: #667eea;
             color: white;
-            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
         }
 
-        /* Cards */
-        .card {
-            background: white;
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
-            margin-bottom: 1.5rem;
-            border: 1px solid #f0f0f0;
-            transition: all 0.3s;
-        }
-
-        .card:hover {
-            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.15);
-            border-color: #FFE0D6;
-        }
-
-        .card-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #2d2d2d;
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-        }
-
-        .card-title i {
-            color: #FF6B35;
-        }
-
-        /* Grid Layout */
-        .grid {
+        .stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 1.5rem;
-        }
-
-        .grid-4 {
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
         }
 
-        /* Stats Cards */
         .stat-card {
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
-            color: white;
-            border-radius: 12px;
+            background: white;
             padding: 1.5rem;
-            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.2);
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
         }
 
         .stat-card h3 {
             font-size: 2rem;
-            font-weight: 700;
+            color: #667eea;
             margin-bottom: 0.5rem;
         }
 
         .stat-card p {
-            opacity: 0.9;
+            color: #6b7280;
             font-size: 0.9rem;
         }
 
-        .stat-card i {
-            font-size: 2.5rem;
-            opacity: 0.3;
-            float: right;
-        }
-
-        /* Buttons */
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
-            color: white;
-            box-shadow: 0 4px 15px rgba(255, 107, 53, 0.3);
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(255, 107, 53, 0.4);
-        }
-
-        .btn-secondary {
+        .card {
             background: white;
-            color: #FF6B35;
-            border: 2px solid #FF6B35;
-        }
-
-        .btn-secondary:hover {
-            background: #FFF5E6;
-        }
-
-        .btn-danger {
-            background: #f44336;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background: #d32f2f;
-        }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* Forms */
-        .form-group {
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
             margin-bottom: 1.5rem;
         }
 
-        .form-group label {
-            display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-            color: #2d2d2d;
+        .card h2 {
+            margin-bottom: 1.5rem;
+            color: #667eea;
         }
 
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 0.75rem 1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 0.95rem;
-            transition: all 0.3s;
-            font-family: 'Inter', sans-serif;
-        }
-
-        .form-group input:focus,
-        .form-group select:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #FF6B35;
-            box-shadow: 0 0 0 3px rgba(255, 107, 53, 0.1);
-        }
-
-        /* Table */
         table {
             width: 100%;
             border-collapse: collapse;
         }
 
-        th {
-            background: #FFF5E6;
-            color: #FF6B35;
-            font-weight: 600;
+        th, td {
+            padding: 1rem;
             text-align: left;
-            padding: 1rem;
-            border-bottom: 2px solid #FFE0D6;
+            border-bottom: 1px solid #e5e7eb;
         }
 
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid #f0f0f0;
+        th {
+            background: #f9fafb;
+            font-weight: 600;
+            color: #374151;
         }
 
-        tr:hover {
-            background: #FFFAF5;
-        }
-
-        /* Badge */
         .badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
             border-radius: 12px;
-            font-size: 0.8rem;
+            font-size: 0.875rem;
             font-weight: 500;
         }
 
-        .badge-success {
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
+        .badge-success { background: #d1fae5; color: #065f46; }
+        .badge-warning { background: #fef3c7; color: #92400e; }
+        .badge-error { background: #fee2e2; color: #991b1b; }
+        .badge-info { background: #dbeafe; color: #1e40af; }
 
-        .badge-warning {
-            background: #fff3e0;
-            color: #ef6c00;
-        }
-
-        .badge-error {
-            background: #ffebee;
-            color: #c62828;
-        }
-
-        .badge-info {
-            background: #e3f2fd;
-            color: #1565c0;
-        }
-
-        .badge-running {
-            background: #e1f5fe;
-            color: #0277bd;
-        }
-
-        .badge-pending {
-            background: #fff9c4;
-            color: #f57f17;
-        }
-
-        /* Progress Bar */
-        .progress {
-            height: 8px;
-            background: #f0f0f0;
-            border-radius: 4px;
-            overflow: hidden;
-            margin: 0.5rem 0;
-        }
-
-        .progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #FF6B35, #F7931E);
-            transition: width 0.3s;
-        }
-
-        /* Alert */
-        .alert {
-            padding: 1rem 1.5rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
-        }
-
-        .alert-info {
-            background: #e3f2fd;
-            color: #1565c0;
-            border-left: 4px solid #1565c0;
-        }
-
-        .alert-warning {
-            background: #fff3e0;
-            color: #ef6c00;
-            border-left: 4px solid #ef6c00;
-        }
-
-        .alert-success {
-            background: #e8f5e9;
-            color: #2e7d32;
-            border-left: 4px solid #2e7d32;
-        }
-
-        /* Wizard Steps */
-        .wizard-steps {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .wizard-step {
-            flex: 1;
-            text-align: center;
-            padding: 1rem;
-            background: white;
-            border-radius: 8px;
-            border: 2px solid #e0e0e0;
-            cursor: pointer;
-            transition: all 0.3s;
-        }
-
-        .wizard-step.active {
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
-            color: white;
-            border-color: #FF6B35;
-        }
-
-        .wizard-step.completed {
-            background: #e8f5e9;
-            border-color: #4CAF50;
-            color: #2e7d32;
-        }
-
-        .wizard-step-number {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: rgba(255, 107, 53, 0.1);
-            color: #FF6B35;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-
-        .wizard-step.active .wizard-step-number {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-        }
-
-        .wizard-step.completed .wizard-step-number {
-            background: #4CAF50;
-            color: white;
-        }
-
-        /* Loading Spinner */
-        .spinner {
-            border: 3px solid #f0f0f0;
-            border-top: 3px solid #FF6B35;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin: 2rem auto;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        /* Checkbox */
-        input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
-            accent-color: #FF6B35;
-            cursor: pointer;
-        }
-
-        /* Empty State */
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: #999;
-        }
-
-        .empty-state i {
-            font-size: 4rem;
-            color: #e0e0e0;
-            margin-bottom: 1rem;
-        }
-
-        /* Refresh Button */
-        .refresh-btn {
-            position: fixed;
-            bottom: 2rem;
-            right: 2rem;
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
-            color: white;
+        .btn {
+            padding: 0.75rem 1.5rem;
             border: none;
-            font-size: 1.5rem;
+            border-radius: 6px;
             cursor: pointer;
-            box-shadow: 0 4px 20px rgba(255, 107, 53, 0.3);
-            transition: all 0.3s;
+            font-size: 1rem;
+            transition: all 0.2s;
         }
 
-        .refresh-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 25px rgba(255, 107, 53, 0.4);
+        .btn-primary {
+            background: #667eea;
+            color: white;
         }
 
-        /* Responsive */
-        @media (max-width: 768px) {
-            .container {
-                padding: 0 1rem;
-            }
-
-            .tabs {
-                flex-wrap: wrap;
-            }
-
-            .tab {
-                flex: 1 1 45%;
-            }
-
-            .grid {
-                grid-template-columns: 1fr;
-            }
+        .btn-primary:hover {
+            background: #5568d3;
         }
 
-        /* Utility Classes */
-        .mt-1 { margin-top: 0.5rem; }
-        .mt-2 { margin-top: 1rem; }
-        .mt-3 { margin-top: 1.5rem; }
-        .mb-1 { margin-bottom: 0.5rem; }
-        .mb-2 { margin-bottom: 1rem; }
-        .mb-3 { margin-bottom: 1.5rem; }
-        .text-center { text-align: center; }
-        .flex { display: flex; }
-        .flex-between { display: flex; justify-content: space-between; align-items: center; }
-        .gap-1 { gap: 0.5rem; }
-        .gap-2 { gap: 1rem; }
-        .w-100 { width: 100%; }
-
-        /* Login Screen */
-        .login-container {
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
-            padding: 2rem;
+        .hidden {
+            display: none !important;
         }
 
-        .login-card {
-            background: white;
-            border-radius: 16px;
+        .loading {
+            text-align: center;
             padding: 3rem;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-            max-width: 450px;
-            width: 100%;
+            color: #6b7280;
         }
 
-        .login-header {
-            text-align: center;
-            margin-bottom: 2rem;
-        }
-
-        .login-header i {
-            font-size: 4rem;
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 1rem;
-        }
-
-        .login-header h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #2d2d2d;
-            margin-bottom: 0.5rem;
-        }
-
-        .login-header p {
-            color: #666;
-            font-size: 0.95rem;
-        }
-
-        .login-error {
-            background: #ffebee;
-            color: #c62828;
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
             padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-            border-left: 4px solid #c62828;
-        }
-
-        /* Logout Button */
-        .logout-btn {
-            background: rgba(255, 255, 255, 0.2);
-            color: white;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            cursor: pointer;
-            transition: all 0.3s;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .logout-btn:hover {
-            background: rgba(255, 255, 255, 0.3);
-        }
-
-        /* Provider Selection */
-        .provider-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .provider-card {
-            padding: 1.5rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: all 0.3s;
-            text-align: center;
-        }
-
-        .provider-card:hover {
-            border-color: #FF6B35;
-            background: #FFF5E6;
-        }
-
-        .provider-card.selected {
-            border-color: #FF6B35;
-            background: linear-gradient(135deg, #FF6B35, #F7931E);
-            color: white;
-        }
-
-        .provider-card i {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
-            display: block;
-        }
-
-        .provider-card.selected i {
-            color: white;
-        }
-
-        .provider-card:not(.selected) i {
-            color: #FF6B35;
+            border-radius: 6px;
+            margin-bottom: 1rem;
         }
     </style>
 </head>
 <body>
-    <div id="app">
-        <!-- Login Screen -->
-        <div v-if="!isAuthenticated" class="login-container">
-            <div class="login-card">
-                <div class="login-header">
-                    <i class="fas fa-rocket"></i>
-                    <h1>HyperSDK</h1>
-                    <p>Multi-Cloud VM Export Platform</p>
+    <div class="header">
+        <h1>🚀 HyperSDK Dashboard</h1>
+        <p>Multi-Cloud VM Export Platform</p>
+    </div>
+
+    <div class="status-bar">
+        <div class="status-indicator">
+            <div class="dot"></div>
+            <span>Server Running</span>
+        </div>
+        <div id="timestamp">Loading...</div>
+    </div>
+
+    <div class="container">
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('overview')">Overview</button>
+            <button class="tab" onclick="showTab('jobs')">Jobs</button>
+            <button class="tab" onclick="showTab('vms')">VMs</button>
+        </div>
+
+        <!-- Overview Tab -->
+        <div id="overview-tab">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <h3 id="total-jobs">0</h3>
+                    <p>Total Jobs</p>
                 </div>
-
-                <div v-if="loginError" class="login-error">
-                    <i class="fas fa-exclamation-circle"></i>
-                    {{ loginError }}
+                <div class="stat-card">
+                    <h3 id="running-jobs">0</h3>
+                    <p>Running Jobs</p>
                 </div>
+                <div class="stat-card">
+                    <h3 id="completed-jobs">0</h3>
+                    <p>Completed Jobs</p>
+                </div>
+                <div class="stat-card">
+                    <h3 id="failed-jobs">0</h3>
+                    <p>Failed Jobs</p>
+                </div>
+            </div>
 
-                <form @submit.prevent="login">
-                    <div class="form-group">
-                        <label>Username</label>
-                        <input v-model="loginForm.username" type="text" placeholder="Enter username" required autofocus>
-                    </div>
+            <div class="card">
+                <h2>System Status</h2>
+                <div id="status-content">Loading...</div>
+            </div>
 
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input v-model="loginForm.password" type="password" placeholder="Enter password" required>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary w-100" :disabled="loggingIn">
-                        <i class="fas" :class="loggingIn ? 'fa-spinner fa-spin' : 'fa-sign-in-alt'"></i>
-                        {{ loggingIn ? 'Logging in...' : 'Login' }}
-                    </button>
-                </form>
+            <div class="card">
+                <h2>Available Capabilities</h2>
+                <div id="capabilities-content">Loading...</div>
             </div>
         </div>
 
-        <!-- Main Dashboard (shown after login) -->
-        <div v-if="isAuthenticated">
-            <!-- Top Navigation -->
-            <div class="top-nav">
-                <div class="top-nav-content">
-                    <div class="logo">
-                        <i class="fas fa-rocket"></i>
-                        <div>
-                            <h1>HyperSDK Dashboard</h1>
-                            <p>Multi-Cloud VM Export Platform</p>
-                        </div>
-                    </div>
-                    <div class="flex gap-2">
-                        <div class="status-badge">
-                            <div class="status-indicator" :class="{ disconnected: !wsConnected }"></div>
-                            <span>{{ wsConnected ? 'Connected' : 'Disconnected' }}</span>
-                        </div>
-                        <button class="logout-btn" @click="logout">
-                            <i class="fas fa-sign-out-alt"></i>
-                            Logout
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Main Container -->
-            <div class="container">
-                <!-- Tab Navigation -->
-                <div class="tabs">
-                    <button class="tab" :class="{ active: activeTab === 'overview' }" @click="activeTab = 'overview'">
-                        <i class="fas fa-home"></i> Overview
-                    </button>
-                    <button class="tab" :class="{ active: activeTab === 'export' }" @click="activeTab = 'export'">
-                        <i class="fas fa-download"></i> Export
-                    </button>
-                    <button class="tab" :class="{ active: activeTab === 'jobs' }" @click="activeTab = 'jobs'">
-                        <i class="fas fa-tasks"></i> Jobs
-                    </button>
-                    <button class="tab" :class="{ active: activeTab === 'vms' }" @click="activeTab = 'vms'">
-                        <i class="fas fa-server"></i> VMs
-                    </button>
-                    <button class="tab" :class="{ active: activeTab === 'settings' }" @click="activeTab = 'settings'">
-                        <i class="fas fa-cog"></i> Settings
-                    </button>
-                </div>
-
-            <!-- Overview Tab -->
-            <div v-show="activeTab === 'overview'">
-                <!-- Stats -->
-                <div class="grid grid-4 mb-3">
-                    <div class="stat-card">
-                        <i class="fas fa-tasks"></i>
-                        <h3>{{ status.total_jobs || 0 }}</h3>
-                        <p>Total Jobs</p>
-                    </div>
-                    <div class="stat-card">
-                        <i class="fas fa-spinner"></i>
-                        <h3>{{ status.running_jobs || 0 }}</h3>
-                        <p>Running Jobs</p>
-                    </div>
-                    <div class="stat-card">
-                        <i class="fas fa-check-circle"></i>
-                        <h3>{{ status.completed_jobs || 0 }}</h3>
-                        <p>Completed</p>
-                    </div>
-                    <div class="stat-card">
-                        <i class="fas fa-server"></i>
-                        <h3>{{ vms.length }}</h3>
-                        <p>Discovered VMs</p>
-                    </div>
-                </div>
-
-                <!-- Capabilities -->
-                <div class="card">
-                    <div class="card-title">
-                        <i class="fas fa-tools"></i>
-                        Export Capabilities
-                    </div>
-                    <div v-if="capabilities.length === 0" class="empty-state">
-                        <i class="fas fa-exclamation-circle"></i>
-                        <p>No export methods detected</p>
-                    </div>
-                    <table v-else>
-                        <thead>
-                            <tr>
-                                <th>Method</th>
-                                <th>Version</th>
-                                <th>Path</th>
-                                <th>Priority</th>
-                                <th>Status</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr v-for="cap in capabilities" :key="cap.method">
-                                <td><strong>{{ cap.method }}</strong></td>
-                                <td>{{ cap.version }}</td>
-                                <td><code>{{ cap.path }}</code></td>
-                                <td>{{ cap.priority }}</td>
-                                <td>
-                                    <span class="badge badge-success">
-                                        <i class="fas fa-check"></i> Available
-                                    </span>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- System Status -->
-                <div class="card">
-                    <div class="card-title">
-                        <i class="fas fa-heartbeat"></i>
-                        System Status
-                    </div>
-                    <div class="grid">
-                        <div>
-                            <strong>Daemon Version:</strong> {{ status.version || 'Unknown' }}
-                        </div>
-                        <div>
-                            <strong>Uptime:</strong> {{ status.uptime || 'N/A' }}
-                        </div>
-                        <div>
-                            <strong>API Endpoint:</strong> <code>{{ window.location.origin }}</code>
-                        </div>
-                        <div>
-                            <strong>WebSocket:</strong>
-                            <span :class="wsConnected ? 'badge badge-success' : 'badge badge-error'">
-                                {{ wsConnected ? 'Connected' : 'Disconnected' }}
-                            </span>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Export Tab -->
-            <div v-show="activeTab === 'export'">
-                <div class="card">
-                    <div class="card-title">
-                        <i class="fas fa-download"></i>
-                        Export Wizard
-                    </div>
-
-                    <!-- Wizard Steps -->
-                    <div class="wizard-steps">
-                        <div class="wizard-step" :class="{ active: exportStep === 1, completed: exportStep > 1 }" @click="exportStep = 1">
-                            <div class="wizard-step-number">1</div>
-                            <div>Select Provider</div>
-                        </div>
-                        <div class="wizard-step" :class="{ active: exportStep === 2, completed: exportStep > 2 }" @click="exportStep = exportStep > 1 ? 2 : exportStep">
-                            <div class="wizard-step-number">2</div>
-                            <div>Select VMs</div>
-                        </div>
-                        <div class="wizard-step" :class="{ active: exportStep === 3, completed: exportStep > 3 }" @click="exportStep = exportStep > 2 ? 3 : exportStep">
-                            <div class="wizard-step-number">3</div>
-                            <div>Configure Export</div>
-                        </div>
-                        <div class="wizard-step" :class="{ active: exportStep === 4 }" @click="exportStep = exportStep > 3 ? 4 : exportStep">
-                            <div class="wizard-step-number">4</div>
-                            <div>Review & Submit</div>
-                        </div>
-                    </div>
-
-                    <!-- Step 1: Provider Selection & Credentials -->
-                    <div v-show="exportStep === 1">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i>
-                            Select your cloud provider and enter credentials to discover available VMs
-                        </div>
-
-                        <h4 class="mb-2">Select Cloud Provider</h4>
-                        <div class="provider-grid">
-                            <div class="provider-card" :class="{ selected: selectedProvider === 'vcenter' }" @click="selectedProvider = 'vcenter'">
-                                <i class="fas fa-server"></i>
-                                <strong>vCenter/vSphere</strong>
-                            </div>
-                            <div class="provider-card" :class="{ selected: selectedProvider === 'azure' }" @click="selectedProvider = 'azure'">
-                                <i class="fab fa-microsoft"></i>
-                                <strong>Azure</strong>
-                            </div>
-                            <div class="provider-card" :class="{ selected: selectedProvider === 'aws' }" @click="selectedProvider = 'aws'">
-                                <i class="fab fa-aws"></i>
-                                <strong>AWS</strong>
-                            </div>
-                            <div class="provider-card" :class="{ selected: selectedProvider === 'gcp' }" @click="selectedProvider = 'gcp'">
-                                <i class="fab fa-google"></i>
-                                <strong>GCP</strong>
-                            </div>
-                        </div>
-
-                        <!-- vCenter Credentials -->
-                        <div v-if="selectedProvider === 'vcenter'">
-                            <h4 class="mb-2">vCenter Credentials</h4>
-                            <div class="form-group">
-                                <label>vCenter Server</label>
-                                <input v-model="vcenterConfig.server" type="text" placeholder="vcenter.example.com">
-                            </div>
-                            <div class="form-group">
-                                <label>Username</label>
-                                <input v-model="vcenterConfig.username" type="text" placeholder="administrator@vsphere.local">
-                            </div>
-                            <div class="form-group">
-                                <label>Password</label>
-                                <input v-model="vcenterConfig.password" type="password" placeholder="••••••••">
-                            </div>
-                            <div class="form-group">
-                                <label>
-                                    <input type="checkbox" v-model="vcenterConfig.insecure">
-                                    Skip SSL verification (insecure)
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- Azure Credentials -->
-                        <div v-if="selectedProvider === 'azure'">
-                            <h4 class="mb-2">Azure Credentials</h4>
-                            <div class="form-group">
-                                <label>Subscription ID</label>
-                                <input v-model="azureConfig.subscription_id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                            </div>
-                            <div class="form-group">
-                                <label>Tenant ID</label>
-                                <input v-model="azureConfig.tenant_id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                            </div>
-                            <div class="form-group">
-                                <label>Client ID</label>
-                                <input v-model="azureConfig.client_id" type="text" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">
-                            </div>
-                            <div class="form-group">
-                                <label>Client Secret</label>
-                                <input v-model="azureConfig.client_secret" type="password" placeholder="••••••••">
-                            </div>
-                            <div class="form-group">
-                                <label>Resource Group</label>
-                                <input v-model="azureConfig.resource_group" type="text" placeholder="my-resource-group">
-                            </div>
-                        </div>
-
-                        <!-- AWS Credentials -->
-                        <div v-if="selectedProvider === 'aws'">
-                            <h4 class="mb-2">AWS Credentials</h4>
-                            <div class="form-group">
-                                <label>Access Key ID</label>
-                                <input v-model="awsConfig.access_key_id" type="text" placeholder="AKIAIOSFODNN7EXAMPLE">
-                            </div>
-                            <div class="form-group">
-                                <label>Secret Access Key</label>
-                                <input v-model="awsConfig.secret_access_key" type="password" placeholder="••••••••">
-                            </div>
-                            <div class="form-group">
-                                <label>Region</label>
-                                <input v-model="awsConfig.region" type="text" placeholder="us-east-1">
-                            </div>
-                        </div>
-
-                        <!-- GCP Credentials -->
-                        <div v-if="selectedProvider === 'gcp'">
-                            <h4 class="mb-2">GCP Credentials</h4>
-                            <div class="form-group">
-                                <label>Project ID</label>
-                                <input v-model="gcpConfig.project_id" type="text" placeholder="my-project-12345">
-                            </div>
-                            <div class="form-group">
-                                <label>Service Account JSON</label>
-                                <textarea v-model="gcpConfig.credentials_json" rows="8" placeholder='{ "type": "service_account", ... }'></textarea>
-                            </div>
-                        </div>
-
-                        <button class="btn btn-primary w-100 mt-2" @click="discoverVMs" :disabled="discovering || !selectedProvider">
-                            <i class="fas" :class="discovering ? 'fa-spinner fa-spin' : 'fa-search'"></i>
-                            {{ discovering ? 'Discovering VMs...' : 'Discover VMs' }}
-                        </button>
-                    </div>
-
-                    <!-- Step 2: Select VMs -->
-                    <div v-show="exportStep === 2">
-                        <div class="alert alert-success">
-                            <i class="fas fa-check-circle"></i>
-                            Found {{ discoveredVMs.length }} VMs. Select the ones you want to export.
-                        </div>
-
-                        <div v-if="discoveredVMs.length === 0" class="empty-state">
-                            <i class="fas fa-inbox"></i>
-                            <p>No VMs discovered</p>
-                        </div>
-
-                        <table v-else>
-                            <thead>
-                                <tr>
-                                    <th><input type="checkbox" @change="toggleAllVMs" :checked="selectedVMs.length === discoveredVMs.length"></th>
-                                    <th>Name</th>
-                                    <th>Power State</th>
-                                    <th>CPU</th>
-                                    <th>Memory</th>
-                                    <th>Disk</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr v-for="vm in discoveredVMs" :key="vm.name">
-                                    <td><input type="checkbox" :value="vm" v-model="selectedVMs"></td>
-                                    <td><strong>{{ vm.name }}</strong></td>
-                                    <td>
-                                        <span class="badge" :class="vm.power_state === 'poweredOn' ? 'badge-success' : 'badge-warning'">
-                                            {{ vm.power_state }}
-                                        </span>
-                                    </td>
-                                    <td>{{ vm.cpu || 'N/A' }}</td>
-                                    <td>{{ vm.memory || 'N/A' }}</td>
-                                    <td>{{ vm.disk || 'N/A' }}</td>
-                                </tr>
-                            </tbody>
-                        </table>
-
-                        <div class="flex-between mt-3">
-                            <button class="btn btn-secondary" @click="exportStep = 1">
-                                <i class="fas fa-arrow-left"></i> Back
-                            </button>
-                            <button class="btn btn-primary" @click="exportStep = 3" :disabled="selectedVMs.length === 0">
-                                Next <i class="fas fa-arrow-right"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Step 3: Configure Export -->
-                    <div v-show="exportStep === 3">
-                        <div class="alert alert-info">
-                            <i class="fas fa-cog"></i>
-                            Configure export settings for {{ selectedVMs.length }} selected VM(s)
-                        </div>
-
-                        <div class="form-group">
-                            <label>Export Format</label>
-                            <select v-model="exportConfig.format">
-                                <option value="qcow2">QCOW2</option>
-                                <option value="raw">RAW</option>
-                                <option value="vmdk">VMDK</option>
-                                <option value="vdi">VDI</option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Export Method</label>
-                            <select v-model="exportConfig.method">
-                                <option v-for="cap in capabilities" :key="cap.method" :value="cap.method">
-                                    {{ cap.method }} - {{ cap.version }}
-                                </option>
-                            </select>
-                        </div>
-
-                        <div class="form-group">
-                            <label>Output Directory</label>
-                            <input v-model="exportConfig.output_dir" type="text" placeholder="/tmp/vm-exports">
-                        </div>
-
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" v-model="exportConfig.compress">
-                                Compress output files
-                            </label>
-                        </div>
-
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" v-model="exportConfig.thin_provision">
-                                Thin provisioning
-                            </label>
-                        </div>
-
-                        <div class="flex-between mt-3">
-                            <button class="btn btn-secondary" @click="exportStep = 2">
-                                <i class="fas fa-arrow-left"></i> Back
-                            </button>
-                            <button class="btn btn-primary" @click="exportStep = 4">
-                                Next <i class="fas fa-arrow-right"></i>
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- Step 4: Review & Submit -->
-                    <div v-show="exportStep === 4">
-                        <div class="alert alert-warning">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            Review your export configuration before submitting
-                        </div>
-
-                        <div class="card">
-                            <h4 class="mb-2">Selected VMs ({{ selectedVMs.length }})</h4>
-                            <ul>
-                                <li v-for="vm in selectedVMs" :key="vm.name">{{ vm.name }}</li>
-                            </ul>
-                        </div>
-
-                        <div class="card mt-2">
-                            <h4 class="mb-2">Export Configuration</h4>
-                            <div class="grid">
-                                <div><strong>Format:</strong> {{ exportConfig.format }}</div>
-                                <div><strong>Method:</strong> {{ exportConfig.method }}</div>
-                                <div><strong>Output:</strong> {{ exportConfig.output_dir }}</div>
-                                <div><strong>Compress:</strong> {{ exportConfig.compress ? 'Yes' : 'No' }}</div>
-                            </div>
-                        </div>
-
-                        <div class="flex-between mt-3">
-                            <button class="btn btn-secondary" @click="exportStep = 3">
-                                <i class="fas fa-arrow-left"></i> Back
-                            </button>
-                            <button class="btn btn-primary" @click="submitExport" :disabled="submittingJobs">
-                                <i class="fas" :class="submittingJobs ? 'fa-spinner fa-spin' : 'fa-paper-plane'"></i>
-                                {{ submittingJobs ? 'Submitting...' : 'Submit Export Jobs' }}
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Jobs Tab -->
-            <div v-show="activeTab === 'jobs'">
-                <div class="card">
-                    <div class="flex-between mb-2">
-                        <div class="card-title">
-                            <i class="fas fa-tasks"></i>
-                            Export Jobs
-                        </div>
-                        <button class="btn btn-primary" @click="loadJobs">
-                            <i class="fas fa-sync"></i> Refresh
-                        </button>
-                    </div>
-
-                    <div v-if="jobs.length === 0" class="empty-state">
-                        <i class="fas fa-inbox"></i>
-                        <p>No export jobs found</p>
-                    </div>
-
-                    <table v-else>
+        <!-- Jobs Tab -->
+        <div id="jobs-tab" class="hidden">
+            <div class="card">
+                <h2>Jobs</h2>
+                <div id="jobs-table-container">
+                    <table>
                         <thead>
                             <tr>
                                 <th>ID</th>
                                 <th>VM Name</th>
+                                <th>Provider</th>
                                 <th>Status</th>
                                 <th>Progress</th>
-                                <th>Format</th>
-                                <th>Created</th>
-                                <th>Actions</th>
+                                <th>Started</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr v-for="job in jobs" :key="job.definition?.id">
-                                <td><code>{{ (job.definition?.id || '').substring(0, 8) }}</code></td>
-                                <td><strong>{{ job.definition?.vm_name || 'N/A' }}</strong></td>
-                                <td>
-                                    <span class="badge" :class="{
-                                        'badge-running': job.status === 'running',
-                                        'badge-success': job.status === 'completed',
-                                        'badge-error': job.status === 'failed',
-                                        'badge-pending': job.status === 'pending'
-                                    }">
-                                        {{ job.status }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <div class="progress">
-                                        <div class="progress-bar" :style="{ width: (job.progress || 0) + '%' }"></div>
-                                    </div>
-                                    <small>{{ job.progress || 0 }}%</small>
-                                </td>
-                                <td>{{ job.definition?.format || 'N/A' }}</td>
-                                <td>{{ formatDate(job.created_at) }}</td>
-                                <td>
-                                    <button class="btn btn-danger" @click="cancelJob(job)" v-if="job.status === 'running' || job.status === 'pending'">
-                                        <i class="fas fa-stop"></i>
-                                    </button>
-                                </td>
+                        <tbody id="jobs-tbody">
+                            <tr>
+                                <td colspan="6" class="loading">Loading jobs...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+        </div>
 
-            <!-- VMs Tab -->
-            <div v-show="activeTab === 'vms'">
-                <div class="card">
-                    <div class="flex-between mb-2">
-                        <div class="card-title">
-                            <i class="fas fa-server"></i>
-                            Virtual Machines
-                        </div>
-                        <button class="btn btn-primary" @click="loadVMs">
-                            <i class="fas fa-sync"></i> Refresh
-                        </button>
-                    </div>
-
-                    <div v-if="vms.length === 0" class="empty-state">
-                        <i class="fas fa-server"></i>
-                        <p>No VMs discovered. Use the Export wizard to connect to vCenter.</p>
-                    </div>
-
-                    <table v-else>
+        <!-- VMs Tab -->
+        <div id="vms-tab" class="hidden">
+            <div class="card">
+                <h2>Virtual Machines</h2>
+                <div id="vms-table-container">
+                    <table>
                         <thead>
                             <tr>
                                 <th>Name</th>
-                                <th>Power State</th>
-                                <th>CPU</th>
-                                <th>Memory</th>
-                                <th>Disk Size</th>
-                                <th>Guest OS</th>
+                                <th>Provider</th>
+                                <th>Status</th>
+                                <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr v-for="vm in vms" :key="vm.name">
-                                <td><strong>{{ vm.name }}</strong></td>
-                                <td>
-                                    <span class="badge" :class="vm.power_state === 'poweredOn' ? 'badge-success' : 'badge-warning'">
-                                        {{ vm.power_state }}
-                                    </span>
-                                </td>
-                                <td>{{ vm.cpu || 'N/A' }}</td>
-                                <td>{{ vm.memory || 'N/A' }}</td>
-                                <td>{{ vm.disk || 'N/A' }}</td>
-                                <td>{{ vm.guest_os || 'N/A' }}</td>
+                        <tbody id="vms-tbody">
+                            <tr>
+                                <td colspan="4" class="loading">Loading VMs...</td>
                             </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-
-            <!-- Settings Tab -->
-            <div v-show="activeTab === 'settings'">
-                <div class="card">
-                    <div class="card-title">
-                        <i class="fas fa-cog"></i>
-                        Dashboard Settings
-                    </div>
-
-                    <div class="form-group">
-                        <label>Default Export Format</label>
-                        <select v-model="settings.defaultFormat" @change="saveSettings">
-                            <option value="qcow2">QCOW2</option>
-                            <option value="raw">RAW</option>
-                            <option value="vmdk">VMDK</option>
-                            <option value="vdi">VDI</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Default Export Method</label>
-                        <select v-model="settings.defaultMethod" @change="saveSettings">
-                            <option v-for="cap in capabilities" :key="cap.method" :value="cap.method">
-                                {{ cap.method }}
-                            </option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label>Auto-refresh Interval (seconds)</label>
-                        <input v-model.number="settings.refreshInterval" type="number" min="5" @change="saveSettings">
-                    </div>
-
-                    <div class="form-group">
-                        <label>
-                            <input type="checkbox" v-model="settings.persistWizard" @change="saveSettings">
-                            Persist Export Wizard state
-                        </label>
-                    </div>
-
-                    <div class="mt-3">
-                        <button class="btn btn-danger" @click="clearSessionData">
-                            <i class="fas fa-trash"></i> Clear All Session Data
-                        </button>
-                    </div>
-                </div>
-
-                <div class="card mt-3">
-                    <div class="card-title">
-                        <i class="fas fa-info-circle"></i>
-                        About
-                    </div>
-                    <p><strong>HyperSDK Dashboard</strong></p>
-                    <p>Version: {{ status.version || '0.0.1' }}</p>
-                    <p>Multi-cloud VM export and management platform</p>
-                    <p class="mt-2">
-                        <a href="https://github.com/hypersdk" target="_blank" style="color: #FF6B35;">
-                            <i class="fab fa-github"></i> GitHub
-                        </a>
-                    </p>
-                </div>
-            </div>
-            </div>
-
-            <!-- Refresh Button -->
-            <button class="refresh-btn" @click="refresh" title="Refresh (R)">
-                <i class="fas fa-sync"></i>
-            </button>
         </div>
     </div>
 
     <script>
-        const { createApp } = Vue;
+        // Simple dashboard without authentication
+        let currentTab = 'overview';
 
-        // Setup axios interceptor for authentication
-        axios.interceptors.request.use(
-            config => {
-                const token = localStorage.getItem('hypersdk_token');
-                if (token) {
-                    config.headers.Authorization = `Bearer ${token}`;
-                }
-                return config;
-            },
-            error => Promise.reject(error)
-        );
+        function showTab(tabName) {
+            // Hide all tabs
+            document.querySelectorAll('[id$="-tab"]').forEach(tab => {
+                tab.classList.add('hidden');
+            });
 
-        axios.interceptors.response.use(
-            response => response,
-            error => {
-                if (error.response && error.response.status === 401) {
-                    localStorage.removeItem('hypersdk_token');
-                    window.location.reload();
-                }
-                return Promise.reject(error);
+            // Remove active from all buttons
+            document.querySelectorAll('.tab').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Show selected tab
+            document.getElementById(tabName + '-tab').classList.remove('hidden');
+            event.target.classList.add('active');
+            currentTab = tabName;
+
+            // Load data for the tab
+            if (tabName === 'jobs') loadJobs();
+            if (tabName === 'vms') loadVMs();
+        }
+
+        async function loadStatus() {
+            try {
+                const response = await fetch('/status');
+                const data = await response.json();
+
+                document.getElementById('total-jobs').textContent = data.total_jobs || 0;
+                document.getElementById('running-jobs').textContent = data.running_jobs || 0;
+                document.getElementById('completed-jobs').textContent = data.completed_jobs || 0;
+                document.getElementById('failed-jobs').textContent = data.failed_jobs || 0;
+
+                const statusHtml = `
+                    <p><strong>Uptime:</strong> ${data.uptime || 'N/A'}</p>
+                    <p><strong>Version:</strong> ${data.version || 'N/A'}</p>
+                    <p><strong>Total Jobs:</strong> ${data.total_jobs || 0}</p>
+                `;
+                document.getElementById('status-content').innerHTML = statusHtml;
+            } catch (error) {
+                console.error('Failed to load status:', error);
+                document.getElementById('status-content').innerHTML =
+                    '<div class="error-message">Failed to load status</div>';
             }
-        );
+        }
 
-        createApp({
-            data() {
-                const savedSettings = JSON.parse(localStorage.getItem('hypersdk_settings') || '{}');
-                const token = localStorage.getItem('hypersdk_token');
+        async function loadCapabilities() {
+            try {
+                const response = await fetch('/capabilities');
+                const data = await response.json();
 
-                return {
-                    // Authentication
-                    isAuthenticated: !!token,
-                    loginForm: {
-                        username: '',
-                        password: ''
-                    },
-                    loginError: '',
-                    loggingIn: false,
-
-                    activeTab: 'overview',
-                    wsConnected: false,
-                    ws: null,
-
-                    // Status
-                    status: {},
-                    capabilities: [],
-
-                    // Jobs
-                    jobs: [],
-
-                    // VMs
-                    vms: [],
-                    discoveredVMs: [],
-                    selectedVMs: [],
-
-                    // Export Wizard
-                    exportStep: 1,
-                    discovering: false,
-                    submittingJobs: false,
-                    selectedProvider: 'vcenter',
-                    vcenterConfig: {
-                        server: '',
-                        username: '',
-                        password: '',
-                        insecure: true
-                    },
-                    azureConfig: {
-                        subscription_id: '',
-                        tenant_id: '',
-                        client_id: '',
-                        client_secret: '',
-                        resource_group: ''
-                    },
-                    awsConfig: {
-                        access_key_id: '',
-                        secret_access_key: '',
-                        region: ''
-                    },
-                    gcpConfig: {
-                        project_id: '',
-                        credentials_json: ''
-                    },
-                    exportConfig: {
-                        format: savedSettings.defaultFormat || 'qcow2',
-                        output_dir: '/tmp/vm-exports',
-                        method: savedSettings.defaultMethod || '',
-                        compress: false,
-                        thin_provision: true
-                    },
-
-                    // Settings
-                    settings: {
-                        defaultFormat: 'qcow2',
-                        defaultMethod: 'ctl',
-                        refreshInterval: 30,
-                        persistWizard: true,
-                        ...savedSettings
-                    }
-                };
-            },
-
-            async mounted() {
-                // Check if auth is enabled on the server
-                try {
-                    // Try to access an endpoint - if auth is disabled, this will work without a token
-                    const response = await axios.get('/health');
-                    if (response.status === 200 && !this.isAuthenticated) {
-                        // Auth is disabled, automatically authenticate
-                        this.isAuthenticated = true;
-                        localStorage.setItem('hypersdk_token', 'no-auth-required');
-                    }
-                } catch (error) {
-                    // If this fails and we don't have a token, show login screen
-                    console.log('Auth required or server unavailable');
+                const caps = data.capabilities || [];
+                if (caps.length === 0) {
+                    document.getElementById('capabilities-content').innerHTML =
+                        '<p>No capabilities detected</p>';
+                    return;
                 }
 
-                if (this.isAuthenticated) {
-                    this.loadStatus();
-                    this.loadCapabilities();
-                    this.loadJobs();
-                    this.loadVMs();
-                    this.connectWebSocket();
+                const capsHtml = caps.map(cap => `
+                    <div style="padding: 0.5rem 0;">
+                        <strong>${cap.name}</strong>: ${cap.available ? '✅ Available' : '❌ Not Available'}
+                        ${cap.version ? ` (v${cap.version})` : ''}
+                    </div>
+                `).join('');
 
-                    // Auto-refresh
-                    setInterval(() => {
-                        if (this.activeTab === 'jobs' && this.isAuthenticated) {
-                            this.loadJobs();
-                        }
-                    }, this.settings.refreshInterval * 1000);
-                }
-
-                // Keyboard shortcuts
-                document.addEventListener('keydown', (e) => {
-                    if (e.key === 'r' || e.key === 'R') {
-                        if (this.isAuthenticated) {
-                            this.refresh();
-                        }
-                    }
-                });
-            },
-
-            beforeUnmount() {
-                if (this.ws) {
-                    this.ws.close();
-                }
-            },
-
-            methods: {
-                async login() {
-                    this.loggingIn = true;
-                    this.loginError = '';
-
-                    try {
-                        const response = await axios.post('/api/login', {
-                            username: this.loginForm.username,
-                            password: this.loginForm.password
-                        });
-
-                        if (response.data.token) {
-                            localStorage.setItem('hypersdk_token', response.data.token);
-                            this.isAuthenticated = true;
-
-                            // Initialize dashboard
-                            this.$nextTick(() => {
-                                this.loadStatus();
-                                this.loadCapabilities();
-                                this.loadJobs();
-                                this.loadVMs();
-                                this.connectWebSocket();
-                            });
-                        } else {
-                            this.loginError = 'Invalid response from server';
-                        }
-                    } catch (error) {
-                        this.loginError = error.response?.data?.error || 'Login failed. Please try again.';
-                    } finally {
-                        this.loggingIn = false;
-                    }
-                },
-
-                async logout() {
-                    try {
-                        await axios.post('/api/logout');
-                    } catch (error) {
-                        console.error('Logout error:', error);
-                    } finally {
-                        localStorage.removeItem('hypersdk_token');
-                        this.isAuthenticated = false;
-                        if (this.ws) {
-                            this.ws.close();
-                        }
-                    }
-                },
-
-                async loadStatus() {
-                    try {
-                        const response = await axios.get('/status');
-                        this.status = response.data;
-                    } catch (error) {
-                        console.error('Failed to load status:', error);
-                    }
-                },
-
-                async loadCapabilities() {
-                    try {
-                        const response = await axios.get('/capabilities');
-                        this.capabilities = response.data.exporters || [];
-                        if (this.capabilities.length > 0 && !this.exportConfig.method) {
-                            this.exportConfig.method = this.capabilities[0].method;
-                        }
-                    } catch (error) {
-                        console.error('Failed to load capabilities:', error);
-                    }
-                },
-
-                async loadJobs() {
-                    try {
-                        const response = await axios.post('/jobs/query', {});
-                        this.jobs = response.data.jobs || [];
-                    } catch (error) {
-                        console.error('Failed to load jobs:', error);
-                    }
-                },
-
-                async loadVMs() {
-                    try {
-                        const response = await axios.get('/vms/list');
-                        this.vms = response.data.vms || [];
-                    } catch (error) {
-                        console.error('Failed to load VMs:', error);
-                    }
-                },
-
-                async discoverVMs() {
-                    // Validate credentials based on selected provider
-                    let credentials = null;
-                    let isValid = false;
-
-                    switch (this.selectedProvider) {
-                        case 'vcenter':
-                            isValid = this.vcenterConfig.server && this.vcenterConfig.username && this.vcenterConfig.password;
-                            credentials = { vcenter: this.vcenterConfig };
-                            break;
-                        case 'azure':
-                            isValid = this.azureConfig.subscription_id && this.azureConfig.tenant_id &&
-                                     this.azureConfig.client_id && this.azureConfig.client_secret &&
-                                     this.azureConfig.resource_group;
-                            credentials = { azure: this.azureConfig };
-                            break;
-                        case 'aws':
-                            isValid = this.awsConfig.access_key_id && this.awsConfig.secret_access_key &&
-                                     this.awsConfig.region;
-                            credentials = { aws: this.awsConfig };
-                            break;
-                        case 'gcp':
-                            isValid = this.gcpConfig.project_id && this.gcpConfig.credentials_json;
-                            credentials = { gcp: this.gcpConfig };
-                            break;
-                    }
-
-                    if (!isValid) {
-                        alert(`Please fill in all ${this.selectedProvider.toUpperCase()} credentials`);
-                        return;
-                    }
-
-                    this.discovering = true;
-                    try {
-                        const requestData = {
-                            provider: this.selectedProvider,
-                            ...credentials
-                        };
-
-                        const response = await axios.post('/vms/discover', requestData);
-                        this.discoveredVMs = response.data.vms || [];
-                        this.exportStep = 2;
-                    } catch (error) {
-                        alert('Failed to discover VMs: ' + (error.response?.data?.error || error.message));
-                    } finally {
-                        this.discovering = false;
-                    }
-                },
-
-                toggleAllVMs() {
-                    if (this.selectedVMs.length === this.discoveredVMs.length) {
-                        this.selectedVMs = [];
-                    } else {
-                        this.selectedVMs = [...this.discoveredVMs];
-                    }
-                },
-
-                async submitExport() {
-                    this.submittingJobs = true;
-                    try {
-                        const jobs = [];
-
-                        // Get the appropriate credentials based on selected provider
-                        let credentials = null;
-                        switch (this.selectedProvider) {
-                            case 'vcenter':
-                                credentials = { vcenter: this.vcenterConfig };
-                                break;
-                            case 'azure':
-                                credentials = { azure: this.azureConfig };
-                                break;
-                            case 'aws':
-                                credentials = { aws: this.awsConfig };
-                                break;
-                            case 'gcp':
-                                credentials = { gcp: this.gcpConfig };
-                                break;
-                        }
-
-                        for (const vm of this.selectedVMs) {
-                            const jobData = {
-                                jobs: [{
-                                    vm_name: vm.name,
-                                    format: this.exportConfig.format,
-                                    output_dir: this.exportConfig.output_dir,
-                                    method: this.exportConfig.method,
-                                    provider: this.selectedProvider,
-                                    ...credentials
-                                }]
-                            };
-
-                            const response = await axios.post('/jobs/submit', jobData);
-                            jobs.push(response.data);
-                        }
-
-                        alert(`Successfully submitted ${jobs.length} export job(s)!`);
-                        this.activeTab = 'jobs';
-                        this.loadJobs();
-                        this.resetExportWizard();
-                    } catch (error) {
-                        alert('Failed to submit jobs: ' + (error.response?.data?.error || error.message));
-                    } finally {
-                        this.submittingJobs = false;
-                    }
-                },
-
-                resetExportWizard() {
-                    this.exportStep = 1;
-                    this.discoveredVMs = [];
-                    this.selectedVMs = [];
-                    this.selectedProvider = 'vcenter';
-                    this.vcenterConfig = {
-                        server: '',
-                        username: '',
-                        password: '',
-                        insecure: true
-                    };
-                    this.azureConfig = {
-                        subscription_id: '',
-                        tenant_id: '',
-                        client_id: '',
-                        client_secret: '',
-                        resource_group: ''
-                    };
-                    this.awsConfig = {
-                        access_key_id: '',
-                        secret_access_key: '',
-                        region: ''
-                    };
-                    this.gcpConfig = {
-                        project_id: '',
-                        credentials_json: ''
-                    };
-                },
-
-                async cancelJob(job) {
-                    if (!confirm('Are you sure you want to cancel this job?')) {
-                        return;
-                    }
-
-                    try {
-                        await axios.post('/jobs/cancel', {
-                            job_ids: [job.definition.id]
-                        });
-                        this.loadJobs();
-                    } catch (error) {
-                        alert('Failed to cancel job: ' + (error.response?.data?.error || error.message));
-                    }
-                },
-
-                connectWebSocket() {
-                    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                    const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-                    this.ws = new WebSocket(wsUrl);
-
-                    this.ws.onopen = () => {
-                        this.wsConnected = true;
-                        console.log('WebSocket connected');
-                    };
-
-                    this.ws.onclose = () => {
-                        this.wsConnected = false;
-                        console.log('WebSocket disconnected');
-
-                        // Reconnect after 5 seconds
-                        setTimeout(() => this.connectWebSocket(), 5000);
-                    };
-
-                    this.ws.onmessage = (event) => {
-                        try {
-                            const data = JSON.parse(event.data);
-                            if (data.type === 'job_update') {
-                                this.loadJobs();
-                            }
-                        } catch (error) {
-                            console.error('WebSocket message error:', error);
-                        }
-                    };
-                },
-
-                saveSettings() {
-                    localStorage.setItem('hypersdk_settings', JSON.stringify(this.settings));
-                    this.exportConfig.format = this.settings.defaultFormat;
-                    this.exportConfig.method = this.settings.defaultMethod;
-                },
-
-                clearSessionData() {
-                    if (confirm('Are you sure you want to clear all session data?')) {
-                        localStorage.clear();
-                        location.reload();
-                    }
-                },
-
-                refresh() {
-                    this.loadStatus();
-                    this.loadJobs();
-                    this.loadVMs();
-                    this.loadCapabilities();
-                },
-
-                formatDate(dateStr) {
-                    if (!dateStr) return 'N/A';
-                    const date = new Date(dateStr);
-                    return date.toLocaleString();
-                }
+                document.getElementById('capabilities-content').innerHTML = capsHtml;
+            } catch (error) {
+                console.error('Failed to load capabilities:', error);
+                document.getElementById('capabilities-content').innerHTML =
+                    '<div class="error-message">Failed to load capabilities</div>';
             }
-        }).mount('#app');
+        }
+
+        async function loadJobs() {
+            try {
+                const response = await fetch('/jobs/query');
+                const data = await response.json();
+
+                const jobs = data.jobs || [];
+                const tbody = document.getElementById('jobs-tbody');
+
+                if (jobs.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem;">No jobs found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = jobs.map(job => `
+                    <tr>
+                        <td>${job.id}</td>
+                        <td>${job.vm_name || 'N/A'}</td>
+                        <td>${job.provider || 'N/A'}</td>
+                        <td><span class="badge badge-${getStatusClass(job.status)}">${job.status}</span></td>
+                        <td>${job.progress || 0}%</td>
+                        <td>${formatDate(job.start_time)}</td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load jobs:', error);
+                document.getElementById('jobs-tbody').innerHTML =
+                    '<tr><td colspan="6" class="error-message">Failed to load jobs</td></tr>';
+            }
+        }
+
+        async function loadVMs() {
+            try {
+                const response = await fetch('/vms/list');
+                const data = await response.json();
+
+                const vms = data.vms || [];
+                const tbody = document.getElementById('vms-tbody');
+
+                if (vms.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 2rem;">No VMs found</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = vms.map(vm => `
+                    <tr>
+                        <td>${vm.name}</td>
+                        <td>${vm.provider || 'N/A'}</td>
+                        <td><span class="badge badge-info">${vm.status || 'Unknown'}</span></td>
+                        <td>
+                            <button class="btn btn-primary" onclick="exportVM('${vm.name}')">Export</button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) {
+                console.error('Failed to load VMs:', error);
+                document.getElementById('vms-tbody').innerHTML =
+                    '<tr><td colspan="4" class="error-message">Failed to load VMs</td></tr>';
+            }
+        }
+
+        function getStatusClass(status) {
+            const statusLower = (status || '').toLowerCase();
+            if (statusLower === 'completed' || statusLower === 'success') return 'success';
+            if (statusLower === 'running' || statusLower === 'in_progress') return 'info';
+            if (statusLower === 'failed' || statusLower === 'error') return 'error';
+            return 'warning';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            return date.toLocaleString();
+        }
+
+        function exportVM(vmName) {
+            alert(`Export functionality for ${vmName} - coming soon!`);
+        }
+
+        function updateTimestamp() {
+            document.getElementById('timestamp').textContent = new Date().toLocaleString();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log('Dashboard loading...');
+            loadStatus();
+            loadCapabilities();
+            updateTimestamp();
+
+            // Auto-refresh every 5 seconds
+            setInterval(() => {
+                if (currentTab === 'overview') {
+                    loadStatus();
+                } else if (currentTab === 'jobs') {
+                    loadJobs();
+                } else if (currentTab === 'vms') {
+                    loadVMs();
+                }
+                updateTimestamp();
+            }, 5000);
+        });
     </script>
 </body>
 </html>
