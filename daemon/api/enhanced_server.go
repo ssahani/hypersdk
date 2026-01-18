@@ -12,6 +12,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"hypersdk/daemon/auth"
 	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/jobs"
 	"hypersdk/daemon/metrics"
@@ -54,6 +55,7 @@ type EnhancedServer struct {
 	statusTicker    *time.Ticker
 	shutdownCtx     context.Context
 	shutdownCancel  context.CancelFunc
+	authMgr         *auth.AuthManager
 }
 
 // jobExecutorAdapter adapts jobs.Manager to scheduler.JobExecutor interface
@@ -131,6 +133,10 @@ func NewEnhancedServer(manager *jobs.Manager, detector *capabilities.Detector, l
 	es.statusTicker = es.StartStatusBroadcaster(es.shutdownCtx)
 	log.Info("websocket support enabled")
 
+	// Initialize authentication manager
+	es.authMgr = auth.NewAuthManager()
+	log.Info("authentication enabled")
+
 	// Register enhanced routes
 	es.registerEnhancedRoutes()
 
@@ -140,6 +146,10 @@ func NewEnhancedServer(manager *jobs.Manager, detector *capabilities.Detector, l
 // registerEnhancedRoutes adds new API endpoints for Phase 1 features
 func (es *EnhancedServer) registerEnhancedRoutes() {
 	mux := http.NewServeMux()
+
+	// Authentication endpoints (no auth required)
+	mux.HandleFunc("/api/login", es.handleLogin)
+	mux.HandleFunc("/api/logout", es.handleLogout)
 
 	// Copy existing routes from base server
 	mux.HandleFunc("/health", es.handleHealth)
