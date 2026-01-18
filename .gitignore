@@ -11,6 +11,7 @@ build/
 # Test binaries
 *.test
 *.out
+coverage.out
 coverage.txt
 
 # Go workspace files

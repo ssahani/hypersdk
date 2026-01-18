@@ -4,7 +4,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ## Quick Start
 
-- **[Getting Started](../GETTING-STARTED.md)** - Quick start guide for new users
+- **[Getting Started](GETTING-STARTED.md)** - Quick start guide for new users
 - **[README](../README.md)** - Project overview and introduction
 
 ## User Guides
@@ -23,7 +23,7 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ### Architecture & API
 - **[Daemon API](api/01-daemon-api.md)** - Daemon REST API reference
-- **[Project Summary](../PROJECT-SUMMARY.md)** - High-level architecture overview
+- **[Project Summary](PROJECT-SUMMARY.md)** - High-level architecture overview
 
 ### Examples
 - **[Examples Index](../examples/README.md)** - Configuration file examples
@@ -31,19 +31,25 @@ Welcome to the HyperSDK documentation. This guide helps you navigate all availab
 
 ## Testing & Development
 
-- **[Test Results](../TEST-RESULTS.md)** - Test coverage and results
+- **[Test Results](TEST-RESULTS.md)** - Test coverage and results
 - **[Recording Guide](../demos/RECORDING-GUIDE.md)** - Creating demo recordings
+
+## Project Organization
+
+- **[Directory Organization](ORGANIZATION.md)** - Repository structure and organization guidelines
+- **[Roadmap](ROADMAP.md)** - Future features and development plans
+- **[New Features](NEW-FEATURES.md)** - Recent feature additions and changes
 
 ## Documentation Structure
 
 ```
 hypersdk/
 ├── README.md                   # Project overview
-├── GETTING-STARTED.md          # Quick start
-├── PROJECT-SUMMARY.md          # Architecture overview
-├── TEST-RESULTS.md             # Test results
 ├── docs/
 │   ├── 00-INDEX.md            # This file
+│   ├── GETTING-STARTED.md     # Quick start guide
+│   ├── PROJECT-SUMMARY.md     # Architecture overview
+│   ├── TEST-RESULTS.md        # Test coverage and results
 │   ├── user-guides/           # Step-by-step guides
 │   │   ├── 01-interactive-mode.md
 │   │   ├── 02-vm-export-guide.md

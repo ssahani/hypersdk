@@ -398,10 +398,10 @@ go mod tidy
 
 ## 📚 Documentation
 
-- [Getting Started Guide](GETTING-STARTED.md) - Quick start tutorial
-- [Architecture Documentation](docs/ARCHITECTURE.md) - Design details
-- [API Reference](docs/API.md) - REST API specification
-- [Configuration Guide](docs/CONFIGURATION.md) - All configuration options
+- [Documentation Index](docs/00-INDEX.md) - Complete documentation catalog
+- [Getting Started Guide](docs/GETTING-STARTED.md) - Quick start tutorial
+- [Project Summary](docs/PROJECT-SUMMARY.md) - Architecture and design overview
+- [Test Results](docs/TEST-RESULTS.md) - Test coverage and results
 - [Provider Guide](docs/PROVIDERS.md) - Adding new providers
 
 ## 🤝 Contributing
