@@ -5,13 +5,20 @@ package jobs
 import (
 	"testing"
 
+	"hypersdk/daemon/capabilities"
 	"hypersdk/daemon/models"
 	"hypersdk/logger"
 )
 
+// Helper to create a test capability detector
+func newTestDetector(log logger.Logger) *capabilities.Detector {
+	return capabilities.NewDetector(log)
+}
+
 func TestNewManager(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	if mgr == nil {
 		t.Fatal("NewManager() returned nil")
@@ -29,7 +36,8 @@ func TestNewManager(t *testing.T) {
 
 func TestSubmitJob(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	jobDef := models.JobDefinition{
 		Name:       "test-job",
@@ -59,7 +67,8 @@ func TestSubmitJob(t *testing.T) {
 
 func TestGetJob(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	jobDef := models.JobDefinition{
 		Name:       "test-job-2",
@@ -89,7 +98,8 @@ func TestGetJob(t *testing.T) {
 
 func TestGetJobNotFound(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	_, err := mgr.GetJob("non-existent-id")
 	if err == nil {
@@ -99,7 +109,8 @@ func TestGetJobNotFound(t *testing.T) {
 
 func TestGetAllJobs(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	// Submit multiple jobs
 	for i := 0; i < 3; i++ {
@@ -122,7 +133,8 @@ func TestGetAllJobs(t *testing.T) {
 
 func TestListJobsByStatus(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	jobDef := models.JobDefinition{
 		Name:       "pending-job",
@@ -146,7 +158,8 @@ func TestListJobsByStatus(t *testing.T) {
 
 func TestCancelJob(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	jobDef := models.JobDefinition{
 		Name:       "cancel-job",
@@ -174,7 +187,8 @@ func TestCancelJob(t *testing.T) {
 
 func TestSubmitBatch(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	// Create batch of job definitions
 	defs := []models.JobDefinition{
@@ -214,7 +228,8 @@ func TestSubmitBatch(t *testing.T) {
 
 func TestGetStatus(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	status := mgr.GetStatus()
 
@@ -237,7 +252,8 @@ func TestGetStatus(t *testing.T) {
 
 func TestShutdown(t *testing.T) {
 	log := logger.New("info")
-	mgr := NewManager(log)
+	detector := newTestDetector(log)
+	mgr := NewManager(log, detector)
 
 	// Should not panic
 	mgr.Shutdown()
