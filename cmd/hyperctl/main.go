@@ -46,6 +46,13 @@ var (
 	}
 )
 
+// matchResult represents a VM search match result
+type matchResult struct {
+	vm            vsphere.VMInfo
+	matchCount    int
+	matchedFields []string
+}
+
 func showBanner() {
 	// Orange/amber color scheme (Claude-inspired)
 	orange := pterm.NewStyle(pterm.FgLightRed)
@@ -803,11 +810,6 @@ func handleRipgrep(daemonURL string, patterns []string, smartCase, ignoreCase, i
 	statsData.MatchesByField = make(map[string]int)
 
 	// Search all VMs
-	type matchResult struct {
-		vm            vsphere.VMInfo
-		matchCount    int
-		matchedFields []string
-	}
 	var matches []matchResult
 	matchedCount := 0
 
@@ -996,15 +998,6 @@ func extractVMs(matches []matchResult) []vsphere.VMInfo {
 		vms[i] = m.vm
 	}
 	return vms
-}
-
-// Helper to check if stdout is a terminal
-func isatty() bool {
-	fileInfo, err := os.Stdout.Stat()
-	if err != nil {
-		return false
-	}
-	return (fileInfo.Mode() & os.ModeCharDevice) != 0
 }
 
 // Display VMs with pattern highlighting
