@@ -5,8 +5,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-
-	"hypersdk/daemon/auth"
 )
 
 // LoginRequest represents a login request
@@ -74,35 +72,4 @@ func (es *EnhancedServer) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "logged out successfully"})
-}
-
-// authMiddleware checks if the request is authenticated
-func (es *EnhancedServer) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth for login endpoint and static files
-		if r.URL.Path == "/api/login" || r.URL.Path == "/health" ||
-			r.URL.Path == "/web/dashboard/" || r.URL.Path == "/" {
-			next(w, r)
-			return
-		}
-
-		token := r.Header.Get("Authorization")
-		if token == "" {
-			http.Error(w, "missing authorization token", http.StatusUnauthorized)
-			return
-		}
-
-		// Remove "Bearer " prefix if present
-		if len(token) > 7 && token[:7] == "Bearer " {
-			token = token[7:]
-		}
-
-		_, err := es.authMgr.ValidateSession(token)
-		if err != nil {
-			http.Error(w, "invalid or expired session", http.StatusUnauthorized)
-			return
-		}
-
-		next(w, r)
-	}
 }

@@ -299,48 +299,58 @@ func (es *EnhancedServer) Shutdown(ctx context.Context) error {
 // authMiddleware checks API authentication
 func (es *EnhancedServer) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth if disabled
+		// Skip auth for login/logout endpoints and static files
+		if r.URL.Path == "/api/login" || r.URL.Path == "/health" ||
+			r.URL.Path == "/" || strings.HasPrefix(r.URL.Path, "/web/dashboard/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		// Try session token authentication first
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			_, err := es.authMgr.ValidateSession(token)
+			if err == nil {
+				// Valid session token
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// Fall back to API key authentication if configured
+		if es.config.Security.EnableAuth && es.config.Security.APIKey != "" {
+			// Get API key from header or query parameter
+			apiKey := r.Header.Get("X-API-Key")
+			if apiKey == "" {
+				apiKey = r.Header.Get("Authorization")
+				if strings.HasPrefix(apiKey, "Bearer ") {
+					apiKey = strings.TrimPrefix(apiKey, "Bearer ")
+				}
+			}
+			if apiKey == "" {
+				apiKey = r.URL.Query().Get("api_key")
+			}
+
+			// Validate API key using constant-time comparison to prevent timing attacks
+			if apiKey != "" && subtle.ConstantTimeCompare([]byte(apiKey), []byte(es.config.Security.APIKey)) == 1 {
+				next.ServeHTTP(w, r)
+				return
+			}
+		}
+
+		// If auth is not enabled and no valid session, allow through
 		if !es.config.Security.EnableAuth {
 			next.ServeHTTP(w, r)
 			return
 		}
 
-		// Skip auth for health check
-		if r.URL.Path == "/health" {
-			next.ServeHTTP(w, r)
-			return
-		}
-
-		// Validate server configuration
-		if es.config.Security.APIKey == "" {
-			es.logger.Error("authentication enabled but API key not configured")
-			http.Error(w, "server configuration error", http.StatusInternalServerError)
-			return
-		}
-
-		// Get API key from header or query parameter
-		apiKey := r.Header.Get("X-API-Key")
-		if apiKey == "" {
-			apiKey = r.Header.Get("Authorization")
-			if strings.HasPrefix(apiKey, "Bearer ") {
-				apiKey = strings.TrimPrefix(apiKey, "Bearer ")
-			}
-		}
-		if apiKey == "" {
-			apiKey = r.URL.Query().Get("api_key")
-		}
-
-		// Validate API key using constant-time comparison to prevent timing attacks
-		if apiKey == "" || subtle.ConstantTimeCompare([]byte(apiKey), []byte(es.config.Security.APIKey)) != 1 {
-			es.logger.Warn("unauthorized API access attempt",
-				"remote", r.RemoteAddr,
-				"path", r.URL.Path,
-				"method", r.Method)
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		next.ServeHTTP(w, r)
+		// Unauthorized
+		es.logger.Warn("unauthorized API access attempt",
+			"remote", r.RemoteAddr,
+			"path", r.URL.Path,
+			"method", r.Method)
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 	})
 }
 
