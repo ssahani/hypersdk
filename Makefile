@@ -55,13 +55,6 @@ DOCKER_REGISTRY ?=
 TEST_TIMEOUT ?= 10m
 TEST_PARALLEL ?= 4
 
-# Colors for output
-CYAN := \033[36m
-GREEN := \033[32m
-YELLOW := \033[33m
-RED := \033[31m
-RESET := \033[0m
-
 # ==================================================================================== #
 # DEVELOPMENT
 # ==================================================================================== #
@@ -73,166 +66,166 @@ all: clean build test ## Clean, build, and test everything
 build: build-daemon build-ctl build-export ## Build all binaries
 
 build-daemon: ## Build hypervisord daemon
-	@echo "$(CYAN)🔨 Building $(DAEMON_BINARY)...$(RESET)"
+	@echo "🔨 Building $(DAEMON_BINARY)..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY) ./cmd/hypervisord
-	@echo "$(GREEN)✅ Build complete: $(BUILD_DIR)/$(DAEMON_BINARY)$(RESET)"
+	@echo "✅ Build complete: $(BUILD_DIR)/$(DAEMON_BINARY)"
 
 build-ctl: ## Build hyperctl CLI
-	@echo "$(CYAN)🔨 Building $(CTL_BINARY)...$(RESET)"
+	@echo "🔨 Building $(CTL_BINARY)..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY) ./cmd/hyperctl
-	@echo "$(GREEN)✅ Build complete: $(BUILD_DIR)/$(CTL_BINARY)$(RESET)"
+	@echo "✅ Build complete: $(BUILD_DIR)/$(CTL_BINARY)"
 
 build-export: ## Build hyperexport interactive CLI
-	@echo "$(CYAN)🔨 Building $(EXPORT_BINARY)...$(RESET)"
+	@echo "🔨 Building $(EXPORT_BINARY)..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(EXPORT_BINARY) ./cmd/hyperexport
-	@echo "$(GREEN)✅ Build complete: $(BUILD_DIR)/$(EXPORT_BINARY)$(RESET)"
+	@echo "✅ Build complete: $(BUILD_DIR)/$(EXPORT_BINARY)"
 
 # ==================================================================================== #
 # TESTING
 # ==================================================================================== #
 
 test: ## Run tests with race detector and coverage
-	@echo "$(CYAN)🧪 Running tests...$(RESET)"
+	@echo "🧪 Running tests..."
 	$(GOTEST) -v -race -timeout=$(TEST_TIMEOUT) -coverprofile=coverage.out ./...
-	@echo "$(GREEN)✅ Tests complete$(RESET)"
+	@echo "✅ Tests complete"
 
 test-quick: ## Run tests without race detector (faster)
-	@echo "$(CYAN)⚡ Running quick tests...$(RESET)"
+	@echo "⚡ Running quick tests..."
 	$(GOTEST) -timeout=$(TEST_TIMEOUT) -coverprofile=coverage.out ./...
-	@echo "$(GREEN)✅ Quick tests complete$(RESET)"
+	@echo "✅ Quick tests complete"
 
 test-short: ## Run only short tests
-	@echo "$(CYAN)⏱️  Running short tests...$(RESET)"
+	@echo "⏱️  Running short tests..."
 	$(GOTEST) -short -timeout=1m ./...
-	@echo "$(GREEN)✅ Short tests complete$(RESET)"
+	@echo "✅ Short tests complete"
 
 test-verbose: ## Run tests with verbose output
-	@echo "$(CYAN)🔍 Running verbose tests...$(RESET)"
+	@echo "🔍 Running verbose tests..."
 	$(GOTEST) -v -race -timeout=$(TEST_TIMEOUT) ./...
 
 test-coverage: test ## Show detailed test coverage
-	@echo "$(CYAN)📊 Test coverage:$(RESET)"
+	@echo "📊 Test coverage:"
 	@$(GOCMD) tool cover -func=coverage.out | tail -1
 
 test-coverage-html: test ## Open test coverage in browser
-	@echo "$(CYAN)📊 Opening test coverage in browser...$(RESET)"
+	@echo "📊 Opening test coverage in browser..."
 	@$(GOCMD) tool cover -html=coverage.out
 
 bench: ## Run benchmarks
-	@echo "$(CYAN)⚡ Running benchmarks...$(RESET)"
+	@echo "⚡ Running benchmarks..."
 	$(GOTEST) -bench=. -benchmem -run=^$$ ./...
-	@echo "$(GREEN)✅ Benchmarks complete$(RESET)"
+	@echo "✅ Benchmarks complete"
 
 bench-compare: ## Run benchmarks and save for comparison
-	@echo "$(CYAN)⚡ Running benchmarks...$(RESET)"
+	@echo "⚡ Running benchmarks..."
 	@mkdir -p $(BUILD_DIR)
 	$(GOTEST) -bench=. -benchmem -run=^$$ ./... | tee $(BUILD_DIR)/bench.txt
-	@echo "$(GREEN)✅ Benchmarks saved to $(BUILD_DIR)/bench.txt$(RESET)"
+	@echo "✅ Benchmarks saved to $(BUILD_DIR)/bench.txt"
 
 # ==================================================================================== #
 # CODE QUALITY
 # ==================================================================================== #
 
 fmt: ## Format code
-	@echo "$(CYAN)🎨 Formatting code...$(RESET)"
+	@echo "🎨 Formatting code..."
 	@$(GOFMT) ./...
-	@echo "$(GREEN)✅ Format complete$(RESET)"
+	@echo "✅ Format complete"
 
 fmt-check: ## Check if code is formatted
-	@echo "$(CYAN)🎨 Checking code formatting...$(RESET)"
-	@test -z "$$(gofmt -l .)" || (echo "$(RED)❌ Code is not formatted. Run 'make fmt'$(RESET)" && exit 1)
-	@echo "$(GREEN)✅ Code is properly formatted$(RESET)"
+	@echo "🎨 Checking code formatting..."
+	@test -z "$$(gofmt -l .)" || (echo "❌ Code is not formatted. Run 'make fmt'" && exit 1)
+	@echo "✅ Code is properly formatted"
 
 vet: ## Run go vet
-	@echo "$(CYAN)🔍 Running go vet...$(RESET)"
+	@echo "🔍 Running go vet..."
 	@$(GOVET) ./...
-	@echo "$(GREEN)✅ Vet complete$(RESET)"
+	@echo "✅ Vet complete"
 
 lint: ## Run golangci-lint
-	@echo "$(CYAN)🔍 Running linter...$(RESET)"
-	@which golangci-lint > /dev/null || (echo "$(YELLOW)⚠️  golangci-lint not found. Install from https://golangci-lint.run/usage/install/$(RESET)"; exit 1)
+	@echo "🔍 Running linter..."
+	@which golangci-lint > /dev/null || (echo "⚠️  golangci-lint not found. Install from https://golangci-lint.run/usage/install/"; exit 1)
 	@golangci-lint run ./... --timeout=5m
-	@echo "$(GREEN)✅ Lint complete$(RESET)"
+	@echo "✅ Lint complete"
 
 lint-fix: ## Run golangci-lint with auto-fix
-	@echo "$(CYAN)🔧 Running linter with auto-fix...$(RESET)"
-	@which golangci-lint > /dev/null || (echo "$(YELLOW)⚠️  golangci-lint not found. Install from https://golangci-lint.run/usage/install/$(RESET)"; exit 1)
+	@echo "🔧 Running linter with auto-fix..."
+	@which golangci-lint > /dev/null || (echo "⚠️  golangci-lint not found. Install from https://golangci-lint.run/usage/install/"; exit 1)
 	@golangci-lint run ./... --fix --timeout=5m
-	@echo "$(GREEN)✅ Lint with auto-fix complete$(RESET)"
+	@echo "✅ Lint with auto-fix complete"
 
 security: ## Run security checks with gosec
-	@echo "$(CYAN)🔒 Running security checks...$(RESET)"
-	@which gosec > /dev/null || (echo "$(YELLOW)⚠️  gosec not found. Install: go install github.com/securego/gosec/v2/cmd/gosec@latest$(RESET)"; exit 1)
+	@echo "🔒 Running security checks..."
+	@which gosec > /dev/null || (echo "⚠️  gosec not found. Install: go install github.com/securego/gosec/v2/cmd/gosec@latest"; exit 1)
 	@gosec -quiet ./...
-	@echo "$(GREEN)✅ Security check complete$(RESET)"
+	@echo "✅ Security check complete"
 
 staticcheck: ## Run staticcheck
-	@echo "$(CYAN)🔍 Running staticcheck...$(RESET)"
-	@which staticcheck > /dev/null || (echo "$(YELLOW)⚠️  staticcheck not found. Install: go install honnef.co/go/tools/cmd/staticcheck@latest$(RESET)"; exit 1)
+	@echo "🔍 Running staticcheck..."
+	@which staticcheck > /dev/null || (echo "⚠️  staticcheck not found. Install: go install honnef.co/go/tools/cmd/staticcheck@latest"; exit 1)
 	@staticcheck ./...
-	@echo "$(GREEN)✅ Staticcheck complete$(RESET)"
+	@echo "✅ Staticcheck complete"
 
 check: fmt-check vet lint test ## Run all checks (format, vet, lint, test)
-	@echo "$(GREEN)✅ All checks passed!$(RESET)"
+	@echo "✅ All checks passed!"
 
 ci: check security ## Run all CI checks
-	@echo "$(GREEN)✅ All CI checks passed!$(RESET)"
+	@echo "✅ All CI checks passed!"
 
 # ==================================================================================== #
 # DEPENDENCIES
 # ==================================================================================== #
 
 deps: ## Download dependencies
-	@echo "$(CYAN)📥 Downloading dependencies...$(RESET)"
+	@echo "📥 Downloading dependencies..."
 	@$(GOMOD) download
 	@$(GOMOD) tidy
-	@echo "$(GREEN)✅ Dependencies downloaded$(RESET)"
+	@echo "✅ Dependencies downloaded"
 
 deps-update: ## Update dependencies
-	@echo "$(CYAN)🔄 Updating dependencies...$(RESET)"
+	@echo "🔄 Updating dependencies..."
 	@$(GOGET) -u ./...
 	@$(GOMOD) tidy
-	@echo "$(GREEN)✅ Dependencies updated$(RESET)"
+	@echo "✅ Dependencies updated"
 
 deps-verify: ## Verify dependencies
-	@echo "$(CYAN)🔍 Verifying dependencies...$(RESET)"
+	@echo "🔍 Verifying dependencies..."
 	@$(GOMOD) verify
-	@echo "$(GREEN)✅ Dependencies verified$(RESET)"
+	@echo "✅ Dependencies verified"
 
 deps-graph: ## Show dependency graph
-	@echo "$(CYAN)📊 Dependency graph:$(RESET)"
+	@echo "📊 Dependency graph:"
 	@go mod graph
 
 deps-why: ## Explain why a dependency is needed (usage: make deps-why PKG=package/name)
 	@$(GOMOD) why $(PKG)
 
 vendor: ## Vendor dependencies
-	@echo "$(CYAN)📦 Vendoring dependencies...$(RESET)"
+	@echo "📦 Vendoring dependencies..."
 	@$(GOMOD) vendor
-	@echo "$(GREEN)✅ Dependencies vendored$(RESET)"
+	@echo "✅ Dependencies vendored"
 
 vuln-check: ## Check for known vulnerabilities (requires govulncheck)
-	@echo "$(CYAN)🔍 Checking for vulnerabilities...$(RESET)"
-	@which govulncheck > /dev/null || (echo "$(YELLOW)⚠️  govulncheck not found. Install: go install golang.org/x/vuln/cmd/govulncheck@latest$(RESET)"; exit 1)
+	@echo "🔍 Checking for vulnerabilities..."
+	@which govulncheck > /dev/null || (echo "⚠️  govulncheck not found. Install: go install golang.org/x/vuln/cmd/govulncheck@latest"; exit 1)
 	@govulncheck ./...
-	@echo "$(GREEN)✅ Vulnerability check complete$(RESET)"
+	@echo "✅ Vulnerability check complete"
 
 # ==================================================================================== #
 # BUILD VARIANTS
 # ==================================================================================== #
 
 build-linux: ## Build for Linux (amd64)
-	@echo "$(CYAN)🔨 Building for Linux (amd64)...$(RESET)"
+	@echo "🔨 Building for Linux (amd64)..."
 	@mkdir -p $(BUILD_DIR)
 	@GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-linux-amd64 ./cmd/hypervisord
 	@GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-linux-amd64 ./cmd/hyperctl
-	@echo "$(GREEN)✅ Linux builds complete$(RESET)"
+	@echo "✅ Linux builds complete"
 
 build-all: ## Build for all platforms
-	@echo "$(CYAN)🔨 Building for all platforms...$(RESET)"
+	@echo "🔨 Building for all platforms..."
 	@mkdir -p $(BUILD_DIR)
 	@echo "Building Linux binaries..."
 	@GOOS=linux GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-linux-amd64 ./cmd/hypervisord
@@ -247,30 +240,30 @@ build-all: ## Build for all platforms
 	@echo "Building Windows binaries..."
 	@GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(DAEMON_BINARY)-windows-amd64.exe ./cmd/hypervisord
 	@GOOS=windows GOARCH=amd64 $(GOBUILD) $(LDFLAGS) -o $(BUILD_DIR)/$(CTL_BINARY)-windows-amd64.exe ./cmd/hyperctl
-	@echo "$(GREEN)✅ All platform builds complete$(RESET)"
+	@echo "✅ All platform builds complete"
 	@ls -lh $(BUILD_DIR)/
 
 build-race: ## Build with race detector enabled
-	@echo "$(CYAN)🔨 Building with race detector...$(RESET)"
+	@echo "🔨 Building with race detector..."
 	@mkdir -p $(BUILD_DIR)
 	@$(GOBUILD) $(LDFLAGS) -race -o $(BUILD_DIR)/$(DAEMON_BINARY)-race ./cmd/hypervisord
-	@echo "$(GREEN)✅ Race build complete$(RESET)"
+	@echo "✅ Race build complete"
 
 # ==================================================================================== #
 # RELEASE
 # ==================================================================================== #
 
 release: clean ## Build release binaries with checksums
-	@echo "$(CYAN)📦 Building release $(VERSION)...$(RESET)"
+	@echo "📦 Building release $(VERSION)..."
 	@$(MAKE) build-all
-	@echo "$(CYAN)🔐 Generating checksums...$(RESET)"
+	@echo "🔐 Generating checksums..."
 	@cd $(BUILD_DIR) && sha256sum * > SHA256SUMS
-	@echo "$(GREEN)✅ Release $(VERSION) complete$(RESET)"
-	@echo "$(CYAN)📋 Release artifacts:$(RESET)"
+	@echo "✅ Release $(VERSION) complete"
+	@echo "📋 Release artifacts:"
 	@ls -lh $(BUILD_DIR)/
 
 release-snapshot: ## Build snapshot release (no git tag required)
-	@echo "$(CYAN)📦 Building snapshot release...$(RESET)"
+	@echo "📦 Building snapshot release..."
 	@VERSION=snapshot-$(COMMIT)-$(shell date +%Y%m%d%H%M%S) $(MAKE) release
 
 # ==================================================================================== #
@@ -278,7 +271,7 @@ release-snapshot: ## Build snapshot release (no git tag required)
 # ==================================================================================== #
 
 docker-build: ## Build Docker image
-	@echo "$(CYAN)🐳 Building Docker image...$(RESET)"
+	@echo "🐳 Building Docker image..."
 	@docker build \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
@@ -286,10 +279,10 @@ docker-build: ## Build Docker image
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		-t $(DOCKER_IMAGE):latest \
 		.
-	@echo "$(GREEN)✅ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)$(RESET)"
+	@echo "✅ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)"
 
 docker-build-no-cache: ## Build Docker image without cache
-	@echo "$(CYAN)🐳 Building Docker image (no cache)...$(RESET)"
+	@echo "🐳 Building Docker image (no cache)..."
 	@docker build --no-cache \
 		--build-arg VERSION=$(VERSION) \
 		--build-arg COMMIT=$(COMMIT) \
@@ -297,10 +290,10 @@ docker-build-no-cache: ## Build Docker image without cache
 		-t $(DOCKER_IMAGE):$(DOCKER_TAG) \
 		-t $(DOCKER_IMAGE):latest \
 		.
-	@echo "$(GREEN)✅ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)$(RESET)"
+	@echo "✅ Docker image built: $(DOCKER_IMAGE):$(DOCKER_TAG)"
 
 docker-run: ## Run Docker container
-	@echo "$(CYAN)🐳 Running Docker container...$(RESET)"
+	@echo "🐳 Running Docker container..."
 	@docker run --rm \
 		-e GOVC_URL \
 		-e GOVC_USERNAME \
@@ -311,14 +304,14 @@ docker-run: ## Run Docker container
 		$(DOCKER_IMAGE):$(DOCKER_TAG)
 
 docker-push: ## Push Docker image to registry
-	@echo "$(CYAN)🐳 Pushing Docker image to registry...$(RESET)"
+	@echo "🐳 Pushing Docker image to registry..."
 	@if [ -n "$(DOCKER_REGISTRY)" ]; then \
 		docker tag $(DOCKER_IMAGE):$(DOCKER_TAG) $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG); \
 		docker push $(DOCKER_REGISTRY)/$(DOCKER_IMAGE):$(DOCKER_TAG); \
 	else \
 		docker push $(DOCKER_IMAGE):$(DOCKER_TAG); \
 	fi
-	@echo "$(GREEN)✅ Docker image pushed$(RESET)"
+	@echo "✅ Docker image pushed"
 
 docker-shell: ## Run shell in Docker container
 	@docker run --rm -it --entrypoint /bin/sh $(DOCKER_IMAGE):$(DOCKER_TAG)
@@ -330,24 +323,24 @@ docker-shell: ## Run shell in Docker container
 install: install-daemon install-ctl ## Install all binaries
 
 install-daemon: build-daemon ## Install hypervisord daemon
-	@echo "$(CYAN)📦 Installing $(DAEMON_BINARY)...$(RESET)"
+	@echo "📦 Installing $(DAEMON_BINARY)..."
 	@sudo install -m 755 $(BUILD_DIR)/$(DAEMON_BINARY) $(BIN_DIR)/$(DAEMON_BINARY)
 	@sudo install -m 644 systemd/hypervisord.service $(SYSTEMD_DIR)/hypervisord.service
-	@echo "$(GREEN)✅ Installed $(DAEMON_BINARY) to $(BIN_DIR)$(RESET)"
-	@echo "$(GREEN)✅ Installed systemd service to $(SYSTEMD_DIR)$(RESET)"
+	@echo "✅ Installed $(DAEMON_BINARY) to $(BIN_DIR)"
+	@echo "✅ Installed systemd service to $(SYSTEMD_DIR)"
 	@echo ""
-	@echo "$(YELLOW)To enable and start the service:$(RESET)"
+	@echo "To enable and start the service:"
 	@echo "  sudo systemctl daemon-reload"
 	@echo "  sudo systemctl enable hypervisord"
 	@echo "  sudo systemctl start hypervisord"
 
 install-ctl: build-ctl ## Install hyperctl CLI
-	@echo "$(CYAN)📦 Installing $(CTL_BINARY)...$(RESET)"
+	@echo "📦 Installing $(CTL_BINARY)..."
 	@sudo install -m 755 $(BUILD_DIR)/$(CTL_BINARY) $(BIN_DIR)/$(CTL_BINARY)
-	@echo "$(GREEN)✅ Installed $(CTL_BINARY) to $(BIN_DIR)$(RESET)"
+	@echo "✅ Installed $(CTL_BINARY) to $(BIN_DIR)"
 
 uninstall: ## Uninstall all binaries and services
-	@echo "$(CYAN)🗑️  Uninstalling...$(RESET)"
+	@echo "🗑️  Uninstalling..."
 	@sudo systemctl stop hypervisord 2>/dev/null || true
 	@sudo systemctl disable hypervisord 2>/dev/null || true
 	@sudo rm -f $(BIN_DIR)/$(DAEMON_BINARY)
@@ -355,43 +348,43 @@ uninstall: ## Uninstall all binaries and services
 	@sudo rm -f $(BIN_DIR)/$(EXPORT_BINARY)
 	@sudo rm -f $(SYSTEMD_DIR)/hypervisord.service
 	@sudo systemctl daemon-reload
-	@echo "$(GREEN)✅ Uninstall complete$(RESET)"
+	@echo "✅ Uninstall complete"
 
 # ==================================================================================== #
 # CLEANUP
 # ==================================================================================== #
 
 clean: ## Clean build artifacts
-	@echo "$(CYAN)🧹 Cleaning...$(RESET)"
+	@echo "🧹 Cleaning..."
 	@$(GOCLEAN)
 	@rm -rf $(BUILD_DIR)
 	@rm -f coverage.out
-	@echo "$(GREEN)✅ Clean complete$(RESET)"
+	@echo "✅ Clean complete"
 
 clean-all: clean ## Deep clean (including vendor and cache)
-	@echo "$(CYAN)🧹 Deep cleaning...$(RESET)"
+	@echo "🧹 Deep cleaning..."
 	@rm -rf vendor/
 	@$(GOCLEAN) -cache -testcache -modcache
-	@echo "$(GREEN)✅ Deep clean complete$(RESET)"
+	@echo "✅ Deep clean complete"
 
 # ==================================================================================== #
 # RUN
 # ==================================================================================== #
 
 run-daemon: build-daemon ## Build and run hypervisord
-	@echo "$(CYAN)🚀 Running $(DAEMON_BINARY)...$(RESET)"
+	@echo "🚀 Running $(DAEMON_BINARY)..."
 	@$(BUILD_DIR)/$(DAEMON_BINARY)
 
 run-ctl: build-ctl ## Build and run hyperctl
-	@echo "$(CYAN)🚀 Running $(CTL_BINARY)...$(RESET)"
+	@echo "🚀 Running $(CTL_BINARY)..."
 	@$(BUILD_DIR)/$(CTL_BINARY)
 
 run-debug: build-daemon ## Build and run with debug logging
-	@echo "$(CYAN)🐛 Running $(DAEMON_BINARY) in debug mode...$(RESET)"
+	@echo "🐛 Running $(DAEMON_BINARY) in debug mode..."
 	@LOG_LEVEL=debug $(BUILD_DIR)/$(DAEMON_BINARY)
 
 run-race: build-race ## Build with race detector and run
-	@echo "$(CYAN)🏃 Running with race detector...$(RESET)"
+	@echo "🏃 Running with race detector..."
 	@$(BUILD_DIR)/$(DAEMON_BINARY)-race
 
 # ==================================================================================== #
@@ -399,63 +392,62 @@ run-race: build-race ## Build with race detector and run
 # ==================================================================================== #
 
 version: ## Show version information
-	@echo "$(CYAN)Version:$(RESET)     $(VERSION)"
-	@echo "$(CYAN)Commit:$(RESET)      $(COMMIT)"
-	@echo "$(CYAN)Build time:$(RESET)  $(BUILD_TIME)"
-	@echo "$(CYAN)Go version:$(RESET)  $(GO_VERSION)"
+	@echo "Version:     $(VERSION)"
+	@echo "Commit:      $(COMMIT)"
+	@echo "Build time:  $(BUILD_TIME)"
+	@echo "Go version:  $(GO_VERSION)"
 
 info: version ## Show build information
 	@echo ""
-	@echo "$(CYAN)Build directory:$(RESET) $(BUILD_DIR)"
-	@echo "$(CYAN)Install prefix:$(RESET)  $(INSTALL_PREFIX)"
-	@echo "$(CYAN)Docker image:$(RESET)    $(DOCKER_IMAGE):$(DOCKER_TAG)"
+	@echo "Build directory: $(BUILD_DIR)"
+	@echo "Install prefix:  $(INSTALL_PREFIX)"
+	@echo "Docker image:    $(DOCKER_IMAGE):$(DOCKER_TAG)"
 
 pre-commit: fmt vet lint test ## Run pre-commit checks
-	@echo "$(GREEN)✅ Pre-commit checks passed$(RESET)"
+	@echo "✅ Pre-commit checks passed"
 
 todo: ## Show TODO comments in code
-	@echo "$(CYAN)📝 TODO items:$(RESET)"
+	@echo "📝 TODO items:"
 	@grep -r "TODO\|FIXME\|XXX" --include="*.go" --line-number . || echo "No TODO items found"
 
 lines: ## Count lines of code
-	@echo "$(CYAN)📊 Lines of code:$(RESET)"
+	@echo "📊 Lines of code:"
 	@find . -name '*.go' -not -path "./vendor/*" | xargs wc -l | tail -1
 
 size: build ## Show binary sizes
-	@echo "$(CYAN)📏 Binary sizes:$(RESET)"
+	@echo "📏 Binary sizes:"
 	@ls -lh $(BUILD_DIR)/ | grep -v "^d" | awk '{print $$9 ": " $$5}'
 
 test-rpm: ## Test RPM build locally
-	@echo "$(CYAN)📦 Testing RPM build...$(RESET)"
+	@echo "📦 Testing RPM build..."
 	@./test_rpmbuild.sh
 
 watch: ## Watch for changes and rebuild (requires entr)
-	@which entr > /dev/null || (echo "$(RED)❌ entr not found. Install with: apt install entr$(RESET)"; exit 1)
-	@echo "$(CYAN)👀 Watching for changes...$(RESET)"
+	@which entr > /dev/null || (echo "❌ entr not found. Install with: apt install entr"; exit 1)
+	@echo "👀 Watching for changes..."
 	@find . -name '*.go' | entr -c make build
 
 help: ## Show this help
 	@echo ""
-	@echo "$(CYAN)╔════════════════════════════════════════════════════════════════╗$(RESET)"
-	@echo "$(CYAN)║$(RESET)  $(YELLOW)HyperSDK - Makefile Help$(RESET)                                  $(CYAN)║$(RESET)"
-	@echo "$(CYAN)╚════════════════════════════════════════════════════════════════╝$(RESET)"
+	@echo "🚀 HyperSDK - Makefile Help"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	@echo "$(YELLOW)Components:$(RESET)"
-	@echo "  $(DAEMON_BINARY)  - Go daemon for multi-cloud VM export"
-	@echo "  $(CTL_BINARY)     - Control CLI for managing exports"
-	@echo "  $(EXPORT_BINARY)  - Interactive CLI for manual VM exports"
+	@echo "📦 Components:"
+	@echo "  • $(DAEMON_BINARY)  - Go daemon for multi-cloud VM export"
+	@echo "  • $(CTL_BINARY)     - Control CLI for managing exports"
+	@echo "  • $(EXPORT_BINARY)  - Interactive CLI for manual VM exports"
 	@echo ""
-	@echo "$(YELLOW)Available targets:$(RESET)"
+	@echo "🎯 Available targets:"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		sort | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(CYAN)%-22s$(RESET) %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  %-22s %s\n", $$1, $$2}'
 	@echo ""
-	@echo "$(YELLOW)Examples:$(RESET)"
+	@echo "💡 Examples:"
 	@echo "  make build          # Build all binaries"
 	@echo "  make test           # Run tests with coverage"
 	@echo "  make check          # Run all quality checks"
 	@echo "  make ci             # Run all CI checks"
 	@echo "  make release        # Build release artifacts"
 	@echo ""
-	@echo "$(YELLOW)Current version:$(RESET) $(VERSION)"
+	@echo "📌 Current version: $(VERSION)"
 	@echo ""
