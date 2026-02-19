@@ -16,12 +16,18 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 ## Features
 
 - **VM lifecycle**: start, stop (force), shutdown (graceful), reboot, pause, resume, delete, autostart
+- **VM cloning**: clone VMs with automatic new UUID and MAC address generation
 - **VM details**: vCPUs, memory, OS type, architecture, network interfaces, disks, UUID
-- **Snapshots**: list, create, delete, revert
-- **Networks**: list, start, stop
+- **VM metrics**: live memory usage percentage with color-coded thresholds, CPU time tracking
+- **Snapshots**: list, create, delete, revert across all VMs
+- **Networks**: list, start, stop virtual networks
 - **Storage**: list pools with capacity/usage, list volumes
 - **Node info**: hostname, hypervisor version, CPU model/cores/threads, memory, VM counts
-- **TUI**: 5 resource views, search/filter, sort, help screen, details panel, command mode
+- **Multi-select**: select multiple VMs and batch start/stop/reboot/pause/resume/delete
+- **Audit trail**: tracks all operations with timestamps and results in an Events view
+- **Context menu**: quick-access action overlay for the selected resource
+- **Console access**: launch `virt-viewer` for graphical console directly from TUI
+- **TUI**: 6 resource views, search/filter, sort, help screen, details panel, command mode
 
 ## Prerequisites
 
@@ -88,7 +94,7 @@ An example config is provided in `examples/config.toml`.
 | `g` | Go to top |
 | `G` | Go to bottom |
 | `Tab` / `Shift+Tab` | Next / previous view |
-| `1`-`5` | Switch to view (VMs, Networks, Storage, Snapshots, Node) |
+| `1`-`6` | Switch to view (VMs, Networks, Storage, Snapshots, Events, Node) |
 
 ### VM Actions
 
@@ -101,7 +107,34 @@ An example config is provided in `examples/config.toml`.
 | `p` | Pause |
 | `u` | Resume |
 | `d` | Delete (with confirmation) |
-| `Enter` | Show details |
+| `o` | Clone (shows command hint) |
+| `Enter` | Show details (with metrics, interfaces, disks) |
+| `v` | Launch virt-viewer |
+| `c` | Console hint |
+
+### Multi-select (VMs view)
+
+| Key | Action |
+|-----|--------|
+| `Space` | Toggle selection on current VM |
+| `A` | Select all VMs |
+| `Esc` | Clear selection |
+
+When VMs are selected, actions (`s`, `x`, `H`, `b`, `p`, `u`, `d`) apply to all selected VMs as a batch operation.
+
+### Network Actions
+
+| Key | Action |
+|-----|--------|
+| `a` | Start network |
+| `z` | Stop network |
+
+### Snapshot Actions
+
+| Key | Action |
+|-----|--------|
+| `R` | Revert to snapshot |
+| `d` | Delete snapshot |
 
 ### Other Actions
 
@@ -110,10 +143,9 @@ An example config is provided in `examples/config.toml`.
 | `/` | Search / filter |
 | `:` | Command mode |
 | `r` | Refresh |
-| `?` / `F1` | Help |
+| `?` / `F1` | Help screen |
+| `Ctrl+Space` | Context menu |
 | `N` / `S` / `C` / `M` | Sort by name / state / CPU / memory |
-| `a` / `z` | Start / stop network (Networks view) |
-| `R` | Revert snapshot (Snapshots view) |
 | `q` / `Esc` | Quit / close |
 
 ### Commands
@@ -124,8 +156,10 @@ An example config is provided in `examples/config.toml`.
 | `:net` | Switch to Networks view |
 | `:storage` | Switch to Storage view |
 | `:snap` | Switch to Snapshots view |
+| `:events` | Switch to Events view |
 | `:node` | Switch to Node view |
 | `:snap <vm> <name>` | Create a snapshot |
+| `:clone <source> <new-name>` | Clone a VM |
 | `:quit` | Quit |
 
 ## REST API
@@ -137,7 +171,7 @@ All endpoints are under `/api/v1/`.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/vms` | List all VMs |
-| GET | `/vms/{name}` | VM details |
+| GET | `/vms/{name}` | VM details (interfaces, disks, OS info) |
 | DELETE | `/vms/{name}` | Delete VM |
 | GET | `/vms/{name}/xml` | Raw XML definition |
 | POST | `/vms/{name}/start` | Start |
@@ -146,7 +180,17 @@ All endpoints are under `/api/v1/`.
 | POST | `/vms/{name}/reboot` | Reboot |
 | POST | `/vms/{name}/pause` | Pause |
 | POST | `/vms/{name}/resume` | Resume |
+| POST | `/vms/{name}/clone` | Clone VM (body: `{"new_name": "..."}`) |
 | POST | `/vms/{name}/autostart/{bool}` | Set autostart |
+
+### Metrics
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/metrics` | Metrics for all running VMs |
+| GET | `/metrics/{name}` | Metrics for a single VM |
+
+Returns CPU time (nanoseconds), vCPU count, memory total/used (MB), and memory usage percentage.
 
 ### Snapshots
 
@@ -154,7 +198,7 @@ All endpoints are under `/api/v1/`.
 |--------|------|-------------|
 | GET | `/snapshots` | List all snapshots |
 | GET | `/vms/{vm}/snapshots` | List VM snapshots |
-| POST | `/vms/{vm}/snapshots` | Create snapshot |
+| POST | `/vms/{vm}/snapshots` | Create snapshot (body: `{"name": "...", "description": "..."}`) |
 | DELETE | `/vms/{vm}/snapshots/{snap}` | Delete snapshot |
 | POST | `/vms/{vm}/snapshots/{snap}/revert` | Revert to snapshot |
 
