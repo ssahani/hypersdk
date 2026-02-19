@@ -1,7 +1,7 @@
 use anyhow::Result;
 use virtspawn_core::{
-    CloneVmRequest, CreateSnapshotRequest, NetworkInfo, NodeInfo, SnapshotInfo, StoragePoolInfo,
-    VmDetails, VmInfo, VmMetrics,
+    CloneVmRequest, CreateSnapshotRequest, CreateVmRequest, NetworkInfo, NodeInfo, SnapshotInfo,
+    StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
 };
 
 pub struct DaemonClient {
@@ -197,6 +197,56 @@ impl DaemonClient {
             new_name: new_name.to_string(),
         };
         let resp = self.client.post(&url).json(&req).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── Create VM ───────────────────────────────────────────────────────
+
+    pub async fn create_vm(&self, req: &CreateVmRequest) -> Result<()> {
+        let url = format!("{}/api/v1/vms", self.base_url);
+        let resp = self.client.post(&url).json(req).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── VM XML ──────────────────────────────────────────────────────────
+
+    pub async fn get_vm_xml(&self, name: &str) -> Result<String> {
+        let url = format!("{}/api/v1/vms/{}/xml", self.base_url, name);
+        let xml = self.client.get(&url).send().await?.text().await?;
+        Ok(xml)
+    }
+
+    // ── Autostart ───────────────────────────────────────────────────────
+
+    pub async fn set_autostart(&self, name: &str, enabled: bool) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/autostart/{}", self.base_url, name, enabled);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── Storage pool actions ────────────────────────────────────────────
+
+    pub async fn start_pool(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/storage/pools/{}/start", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn stop_pool(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/storage/pools/{}/stop", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
         if !resp.status().is_success() {
             anyhow::bail!("{}", resp.text().await.unwrap_or_default());
         }

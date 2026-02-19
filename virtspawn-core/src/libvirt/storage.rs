@@ -100,6 +100,36 @@ pub fn delete_volume(conn: &Connect, pool_name: &str, vol_name: &str) -> Result<
     Ok(())
 }
 
+pub fn start_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let pool = StoragePool::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;
+
+    pool.create(0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start pool '{name}': {e}")))?;
+
+    Ok(())
+}
+
+pub fn stop_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let pool = StoragePool::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;
+
+    pool.destroy()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to stop pool '{name}': {e}")))?;
+
+    Ok(())
+}
+
+pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let pool = StoragePool::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;
+
+    pool.refresh(0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to refresh pool '{name}': {e}")))?;
+
+    Ok(())
+}
+
 fn pool_state_to_string(state: u32) -> String {
     match state {
         0 => "inactive".to_string(),

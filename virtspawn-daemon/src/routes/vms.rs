@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::{clone, domain};
-use virtspawn_core::{CloneVmRequest, LibvirtManager, VmDetails, VmInfo};
+use virtspawn_core::libvirt::{clone, create, domain};
+use virtspawn_core::{CloneVmRequest, CreateVmRequest, LibvirtManager, VmDetails, VmInfo};
 
 use crate::error::AppError;
 
@@ -102,9 +102,19 @@ async fn clone_vm_handler(
     Ok(Json(serde_json::json!({ "status": "cloned", "source": name, "clone": req.new_name })))
 }
 
+async fn create_vm_handler(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<CreateVmRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name = req.name.clone();
+    manager.with_conn(|conn| create::create_vm(conn, &req))?;
+    Ok(Json(serde_json::json!({ "status": "created", "name": name })))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
+        .route("/vms", post(create_vm_handler))
         .route("/vms/{name}", get(get_vm_details))
         .route("/vms/{name}", delete(delete_vm_handler))
         .route("/vms/{name}/xml", get(get_vm_xml))

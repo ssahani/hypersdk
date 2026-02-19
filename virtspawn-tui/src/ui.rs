@@ -20,6 +20,7 @@ pub fn render(frame: &mut Frame, state: &AppState) {
     match state.view_mode {
         ViewMode::Table => render_table_view(frame, chunks[1], state),
         ViewMode::Details => render_details_view(frame, chunks[1], state),
+        ViewMode::Xml => render_xml_view(frame, chunks[1], state),
         ViewMode::Help => {
             render_table_view(frame, chunks[1], state);
             render_help_overlay(frame, frame.area());
@@ -563,6 +564,20 @@ fn render_details_view(frame: &mut Frame, area: Rect, state: &AppState) {
                 "  CPU time: {:.2}s",
                 m.cpu_time_ns as f64 / 1_000_000_000.0
             )));
+            if m.disk_rd_bytes > 0 || m.disk_wr_bytes > 0 {
+                lines.push(Line::from(format!(
+                    "  Disk I/O: read {}, written {}",
+                    format_bytes(m.disk_rd_bytes),
+                    format_bytes(m.disk_wr_bytes),
+                )));
+            }
+            if m.net_rx_bytes > 0 || m.net_tx_bytes > 0 {
+                lines.push(Line::from(format!(
+                    "  Network: RX {}, TX {}",
+                    format_bytes(m.net_rx_bytes),
+                    format_bytes(m.net_tx_bytes),
+                )));
+            }
         }
 
         if !d.interfaces.is_empty() {
@@ -605,6 +620,35 @@ fn render_details_view(frame: &mut Frame, area: Rect, state: &AppState) {
                 .title(" VM Details (Esc to close) "),
         )
         .wrap(Wrap { trim: true });
+    frame.render_widget(paragraph, area);
+}
+
+// ── XML view ────────────────────────────────────────────────────────────
+
+fn render_xml_view(frame: &mut Frame, area: Rect, state: &AppState) {
+    let lines: Vec<Line> = state
+        .xml_content
+        .lines()
+        .map(|l| {
+            let style = if l.trim_start().starts_with('<') && l.contains("</") {
+                Style::default().fg(Color::White)
+            } else if l.trim_start().starts_with('<') {
+                Style::default().fg(Color::Cyan)
+            } else {
+                Style::default().fg(Color::Gray)
+            };
+            Line::from(Span::styled(l, style))
+        })
+        .collect();
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" XML (j/k:scroll  Esc:close) "),
+        )
+        .scroll((state.scroll_offset, 0));
+
     frame.render_widget(paragraph, area);
 }
 
@@ -671,15 +715,15 @@ fn render_help_overlay(frame: &mut Frame, area: Rect) {
         section("VM Actions"),
         Line::from("  s  Start    x  Stop (force)    H  Shutdown (graceful)"),
         Line::from("  b  Reboot   p  Pause           u  Resume"),
-        Line::from("  d  Delete   o  Clone hint      Enter  Details"),
-        Line::from("  v  Virt-viewer    c  Console hint"),
+        Line::from("  d  Delete   o  Clone hint      t  Toggle autostart"),
+        Line::from("  Enter  Details    y  XML view   v  Virt-viewer"),
         Line::from(""),
         section("Multi-select (VMs)"),
         Line::from("  Space  Toggle select    A  Select all    Esc  Clear"),
         Line::from("  Then s/x/H/b/p/u/d to batch operate"),
         Line::from(""),
-        section("Network Actions"),
-        Line::from("  a  Start network    z  Stop network"),
+        section("Network / Storage Actions"),
+        Line::from("  a  Start (network or pool)    z  Stop (network or pool)"),
         Line::from(""),
         section("Snapshot Actions"),
         Line::from("  R  Revert    d  Delete    :snap <vm> <name>  Create"),
@@ -693,7 +737,7 @@ fn render_help_overlay(frame: &mut Frame, area: Rect) {
         Line::from(""),
         section("Commands"),
         Line::from("  :vms :net :storage :snap :events :node :quit"),
-        Line::from("  :clone <source> <new-name>    :snap <vm> <name>"),
+        Line::from("  :clone <src> <new>  :snap <vm> <name>  :create <name> [cpu mem]"),
         Line::from(""),
         Line::from(Span::styled("Press any key to close", Style::default().fg(Color::DarkGray))),
     ];
@@ -744,10 +788,10 @@ fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         InputMode::Normal => {
             let help_text = match state.resource_view {
                 ResourceView::VirtualMachines => {
-                    "?:help /:search s:start x:stop H:shut b:boot p:pause u:resume d:del o:clone v:viewer Space:select"
+                    "?:help /:search s:start x:stop H:shut b:boot p:pause u:resume d:del o:clone y:xml t:autostart"
                 }
                 ResourceView::Networks => "?:help /:search a:start z:stop r:refresh",
-                ResourceView::StoragePools => "?:help /:search r:refresh",
+                ResourceView::StoragePools => "?:help /:search a:start z:stop r:refresh",
                 ResourceView::Snapshots => "?:help /:search R:revert d:delete :snap <vm> <name>",
                 ResourceView::Events => "?:help r:refresh",
                 ResourceView::Node => "?:help r:refresh",
@@ -756,6 +800,20 @@ fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         }
     };
     frame.render_widget(Paragraph::new(line), area);
+}
+
+// ── Format helpers ──────────────────────────────────────────────────────
+
+fn format_bytes(bytes: u64) -> String {
+    if bytes >= 1_073_741_824 {
+        format!("{:.1} GB", bytes as f64 / 1_073_741_824.0)
+    } else if bytes >= 1_048_576 {
+        format!("{:.1} MB", bytes as f64 / 1_048_576.0)
+    } else if bytes >= 1024 {
+        format!("{:.1} KB", bytes as f64 / 1024.0)
+    } else {
+        format!("{bytes} B")
+    }
 }
 
 // ── Layout helpers ──────────────────────────────────────────────────────

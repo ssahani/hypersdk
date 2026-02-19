@@ -123,6 +123,10 @@ pub struct VmMetrics {
     pub memory_total_mb: u64,
     pub memory_used_mb: u64,
     pub memory_pct: f64,
+    pub disk_rd_bytes: u64,
+    pub disk_wr_bytes: u64,
+    pub net_rx_bytes: u64,
+    pub net_tx_bytes: u64,
 }
 
 // ── Audit / Event Types ─────────────────────────────────────────────────
@@ -140,6 +144,45 @@ pub struct AuditEvent {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CloneVmRequest {
     pub new_name: String,
+}
+
+// ── Create VM Request ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateVmRequest {
+    pub name: String,
+    #[serde(default = "default_vcpus")]
+    pub vcpus: u32,
+    #[serde(default = "default_memory")]
+    pub memory_mb: u64,
+    #[serde(default = "default_disk_gb")]
+    pub disk_gb: u64,
+    #[serde(default)]
+    pub iso: String,
+    #[serde(default = "default_network")]
+    pub network: String,
+    #[serde(default = "default_os_variant")]
+    pub os_variant: String,
+}
+
+fn default_vcpus() -> u32 { 2 }
+fn default_memory() -> u64 { 2048 }
+fn default_disk_gb() -> u64 { 20 }
+fn default_network() -> String { "default".to_string() }
+fn default_os_variant() -> String { "linux2022".to_string() }
+
+impl Default for CreateVmRequest {
+    fn default() -> Self {
+        Self {
+            name: String::new(),
+            vcpus: default_vcpus(),
+            memory_mb: default_memory(),
+            disk_gb: default_disk_gb(),
+            iso: String::new(),
+            network: default_network(),
+            os_variant: default_os_variant(),
+        }
+    }
 }
 
 // ── TUI State ───────────────────────────────────────────────────────────
@@ -204,6 +247,7 @@ impl ResourceView {
 pub enum ViewMode {
     Table,
     Details,
+    Xml,
     Help,
 }
 
@@ -250,6 +294,8 @@ pub struct AppState {
     pub vm_details: Option<VmDetails>,
     pub vm_metrics: Vec<VmMetrics>,
     pub audit_events: Vec<AuditEvent>,
+    pub xml_content: String,
+    pub scroll_offset: u16,
 
     // UI
     pub selected_index: usize,
@@ -289,6 +335,8 @@ impl AppState {
             vm_details: None,
             vm_metrics: Vec::new(),
             audit_events: Vec::new(),
+            xml_content: String::new(),
+            scroll_offset: 0,
 
             selected_index: 0,
             resource_view: ResourceView::VirtualMachines,

@@ -2,7 +2,9 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
-use virtspawn_core::{AppState, InputMode, ResourceView, SortColumn, SortDirection, ViewMode};
+use virtspawn_core::{
+    AppState, CreateVmRequest, InputMode, ResourceView, SortColumn, SortDirection, ViewMode,
+};
 
 use crate::api::DaemonClient;
 use crate::ui;
@@ -84,6 +86,30 @@ impl App {
                 }
                 return;
             }
+            ViewMode::Xml => {
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        self.state.view_mode = ViewMode::Table;
+                        self.state.xml_content.clear();
+                        self.state.scroll_offset = 0;
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_add(1);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_sub(1);
+                    }
+                    KeyCode::PageDown => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_add(20);
+                    }
+                    KeyCode::PageUp => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_sub(20);
+                    }
+                    KeyCode::Char('g') => self.state.scroll_offset = 0,
+                    _ => {}
+                }
+                return;
+            }
             ViewMode::Table => {}
         }
 
@@ -112,6 +138,15 @@ impl App {
                 if len > 0 {
                     self.state.selected_index = len - 1;
                 }
+            }
+            KeyCode::PageDown => {
+                let len = self.state.current_list_len();
+                if len > 0 {
+                    self.state.selected_index = (self.state.selected_index + 10).min(len - 1);
+                }
+            }
+            KeyCode::PageUp => {
+                self.state.selected_index = self.state.selected_index.saturating_sub(10);
             }
 
             // View switching
@@ -164,6 +199,20 @@ impl App {
                     } else {
                         self.show_vm_details().await;
                     }
+                }
+            }
+
+            // XML view
+            KeyCode::Char('y') => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.show_vm_xml().await;
+                }
+            }
+
+            // Autostart toggle
+            KeyCode::Char('t') => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.toggle_autostart().await;
                 }
             }
 
@@ -255,11 +304,15 @@ impl App {
             KeyCode::Char('a') => {
                 if self.state.resource_view == ResourceView::Networks {
                     self.network_action("start").await;
+                } else if self.state.resource_view == ResourceView::StoragePools {
+                    self.pool_action("start").await;
                 }
             }
             KeyCode::Char('z') => {
                 if self.state.resource_view == ResourceView::Networks {
                     self.network_action("stop").await;
+                } else if self.state.resource_view == ResourceView::StoragePools {
+                    self.pool_action("stop").await;
                 }
             }
 
@@ -581,6 +634,76 @@ impl App {
         }
     }
 
+    // ── XML view ────────────────────────────────────────────────────────
+
+    async fn show_vm_xml(&mut self) {
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            match self.client.get_vm_xml(&name).await {
+                Ok(xml) => {
+                    self.state.xml_content = xml;
+                    self.state.scroll_offset = 0;
+                    self.state.view_mode = ViewMode::Xml;
+                }
+                Err(e) => self.state.status_message = format!("Error fetching XML: {e}"),
+            }
+        }
+    }
+
+    // ── Autostart toggle ────────────────────────────────────────────────
+
+    async fn toggle_autostart(&mut self) {
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            // Get current autostart state
+            let current = self
+                .client
+                .get_vm_details(&name)
+                .await
+                .map(|d| d.autostart)
+                .unwrap_or(false);
+
+            let new_val = !current;
+            match self.client.set_autostart(&name, new_val).await {
+                Ok(()) => {
+                    self.state.status_message = format!(
+                        "Autostart for '{name}': {}",
+                        if new_val { "enabled" } else { "disabled" }
+                    );
+                    self.state.add_audit_event(
+                        "autostart",
+                        &name,
+                        if new_val { "enabled" } else { "disabled" },
+                    );
+                }
+                Err(e) => self.state.status_message = format!("Error: {e}"),
+            }
+        }
+    }
+
+    // ── Storage pool actions ────────────────────────────────────────────
+
+    async fn pool_action(&mut self, action: &str) {
+        let name = match self.state.selected_pool_name() {
+            Some(n) => n.to_string(),
+            None => return,
+        };
+
+        let result = match action {
+            "start" => self.client.start_pool(&name).await,
+            "stop" => self.client.stop_pool(&name).await,
+            _ => return,
+        };
+
+        match result {
+            Ok(()) => {
+                self.state.status_message = format!("Pool '{name}': {action} OK");
+                self.state
+                    .add_audit_event(&format!("pool-{action}"), &name, "OK");
+                self.refresh_current_view().await;
+            }
+            Err(e) => self.state.status_message = format!("Error: {e}"),
+        }
+    }
+
     // ── Console / Viewer ────────────────────────────────────────────────
 
     async fn launch_viewer(&mut self) {
@@ -685,6 +808,40 @@ impl App {
                         self.state.status_message =
                             format!("Cloned '{source}' as '{new_name}'");
                         self.state.add_audit_event("clone", source, "OK");
+                        if self.state.resource_view == ResourceView::VirtualMachines {
+                            self.refresh_current_view().await;
+                        }
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["create", name] => {
+                let req = CreateVmRequest {
+                    name: name.to_string(),
+                    ..Default::default()
+                };
+                match self.client.create_vm(&req).await {
+                    Ok(()) => {
+                        self.state.status_message = format!("Created VM '{name}'");
+                        self.state.add_audit_event("create", name, "OK");
+                        if self.state.resource_view == ResourceView::VirtualMachines {
+                            self.refresh_current_view().await;
+                        }
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["create", name, vcpus, mem] => {
+                let req = CreateVmRequest {
+                    name: name.to_string(),
+                    vcpus: vcpus.parse().unwrap_or(2),
+                    memory_mb: mem.parse().unwrap_or(2048),
+                    ..Default::default()
+                };
+                match self.client.create_vm(&req).await {
+                    Ok(()) => {
+                        self.state.status_message = format!("Created VM '{name}'");
+                        self.state.add_audit_event("create", name, "OK");
                         if self.state.resource_view == ResourceView::VirtualMachines {
                             self.refresh_current_view().await;
                         }
