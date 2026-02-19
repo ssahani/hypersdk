@@ -1,14 +1,21 @@
 [Unit]
 Description=virtspawn libvirt management daemon
-After=libvirtd.service
+Documentation=https://github.com/ssahani/-virtspawn
+After=libvirtd.service network-online.target
 Requires=libvirtd.service
+Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/virtspawn-daemon
+ExecStart=/usr/local/bin/virtspawn-daemon --config /etc/virtspawn/config.toml
 Restart=on-failure
 RestartSec=5
 Environment=RUST_LOG=info
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/libvirt
+NoNewPrivileges=true
+PrivateTmp=true
 
 [Install]
 WantedBy=multi-user.target
