@@ -36,7 +36,8 @@ test: ## Run tests
 check: ## Run cargo check
 	$(CARGO) check --workspace
 
-install: release ## Install binaries, config, and systemd unit
+install: ## Install binaries, config, and systemd unit (run 'make release' first)
+	@test -f target/release/virtspawn-daemon || { echo "Run 'make release' first"; exit 1; }
 	install -Dm755 target/release/virtspawn-daemon $(DESTDIR)$(BINDIR)/virtspawn-daemon
 	install -Dm755 target/release/virtspawn-tui $(DESTDIR)$(BINDIR)/virtspawn
 	install -Dm644 contrib/virtspawn.toml $(DESTDIR)$(SYSCONFDIR)/virtspawn/config.toml
