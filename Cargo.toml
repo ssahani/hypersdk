@@ -1,3 +1,19 @@
 [workspace]
-members = ["daemon", "tui"]
+members = ["virtspawn-core", "virtspawn-daemon", "virtspawn-tui"]
 resolver = "2"
+
+[workspace.dependencies]
+virt = "0.4"
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+tracing = "0.1"
+tracing-subscriber = "0.3"
+anyhow = "1"
+thiserror = "2.0"
+tower-http = { version = "0.6", features = ["cors"] }
+ratatui = "0.29"
+crossterm = "0.28"
+reqwest = { version = "0.12", features = ["json"] }

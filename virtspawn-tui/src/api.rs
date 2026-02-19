@@ -1,13 +1,5 @@
 use anyhow::Result;
-use serde::Deserialize;
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct VmInfo {
-    pub name: String,
-    pub state: String,
-    pub vcpus: u32,
-    pub memory_mb: u64,
-}
+use virtspawn_core::VmInfo;
 
 pub struct DaemonClient {
     base_url: String,
@@ -23,13 +15,13 @@ impl DaemonClient {
     }
 
     pub async fn fetch_vms(&self) -> Result<Vec<VmInfo>> {
-        let url = format!("{}/api/vms", self.base_url);
+        let url = format!("{}/api/v1/vms", self.base_url);
         let vms = self.client.get(&url).send().await?.json::<Vec<VmInfo>>().await?;
         Ok(vms)
     }
 
     pub async fn start_vm(&self, name: &str) -> Result<()> {
-        let url = format!("{}/api/vms/{}/start", self.base_url, name);
+        let url = format!("{}/api/v1/vms/{}/start", self.base_url, name);
         let resp = self.client.post(&url).send().await?;
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -39,7 +31,7 @@ impl DaemonClient {
     }
 
     pub async fn stop_vm(&self, name: &str) -> Result<()> {
-        let url = format!("{}/api/vms/{}/stop", self.base_url, name);
+        let url = format!("{}/api/v1/vms/{}/stop", self.base_url, name);
         let resp = self.client.post(&url).send().await?;
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();
@@ -49,7 +41,7 @@ impl DaemonClient {
     }
 
     pub async fn delete_vm(&self, name: &str) -> Result<()> {
-        let url = format!("{}/api/vms/{}", self.base_url, name);
+        let url = format!("{}/api/v1/vms/{}", self.base_url, name);
         let resp = self.client.delete(&url).send().await?;
         if !resp.status().is_success() {
             let body = resp.text().await.unwrap_or_default();

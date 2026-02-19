@@ -4,9 +4,9 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Paragraph, Row, Table};
 use ratatui::Frame;
 
-use crate::app::App;
+use virtspawn_core::AppState;
 
-pub fn render(frame: &mut Frame, app: &App) {
+pub fn render(frame: &mut Frame, state: &AppState, _confirm_delete: bool) {
     let chunks = Layout::vertical([
         Constraint::Min(0),
         Constraint::Length(1),
@@ -23,7 +23,7 @@ pub fn render(frame: &mut Frame, app: &App) {
     ])
     .style(Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD));
 
-    let rows: Vec<Row> = app
+    let rows: Vec<Row> = state
         .vms
         .iter()
         .enumerate()
@@ -42,7 +42,7 @@ pub fn render(frame: &mut Frame, app: &App) {
                 Cell::from(vm.memory_mb.to_string()),
             ]);
 
-            if i == app.selected {
+            if i == state.selected_index {
                 row.style(
                     Style::default()
                         .bg(Color::DarkGray)
@@ -70,7 +70,7 @@ pub fn render(frame: &mut Frame, app: &App) {
 
     // Status bar
     let status = Paragraph::new(Line::from(Span::styled(
-        &app.status_message,
+        &state.status_message,
         Style::default().fg(Color::Cyan),
     )));
     frame.render_widget(status, chunks[1]);

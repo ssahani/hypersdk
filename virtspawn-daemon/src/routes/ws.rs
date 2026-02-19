@@ -1,9 +1,12 @@
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::response::IntoResponse;
+use axum::routing::get;
+use axum::Router;
 use tokio::time::{interval, Duration};
 use tracing::info;
+use virtspawn_core::LibvirtManager;
 
-pub async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
+async fn ws_handler(ws: WebSocketUpgrade) -> impl IntoResponse {
     ws.on_upgrade(handle_socket)
 }
 
@@ -25,4 +28,8 @@ async fn handle_socket(mut socket: WebSocket) {
             break;
         }
     }
+}
+
+pub fn ws_routes() -> Router<LibvirtManager> {
+    Router::new().route("/watch", get(ws_handler))
 }

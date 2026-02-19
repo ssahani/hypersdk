@@ -1,0 +1,12 @@
+# virtspawn configuration
+# Default location: ~/.virtspawn/config.toml
+
+[general]
+refresh_interval_secs = 5
+
+[daemon]
+host = "127.0.0.1"
+port = 8081
+
+[libvirt]
+uri = "qemu:///system"

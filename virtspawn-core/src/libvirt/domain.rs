@@ -1,8 +1,8 @@
 use virt::connect::Connect;
 use virt::domain::Domain;
 
-use crate::error::AppError;
-use crate::models::VmInfo;
+use crate::state::VmInfo;
+use crate::LibvirtError;
 
 fn state_to_string(state: u32) -> String {
     match state {
@@ -18,20 +18,20 @@ fn state_to_string(state: u32) -> String {
     }
 }
 
-pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, AppError> {
+pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {
     let domains = conn
         .list_all_domains(0)
-        .map_err(|e| AppError::Libvirt(format!("Failed to list domains: {e}")))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to list domains: {e}")))?;
 
     let mut vms = Vec::new();
     for domain in domains {
         let name = domain
             .get_name()
-            .map_err(|e| AppError::Libvirt(format!("Failed to get domain name: {e}")))?;
+            .map_err(|e| LibvirtError::Operation(format!("Failed to get domain name: {e}")))?;
 
         let info = domain
             .get_info()
-            .map_err(|e| AppError::Libvirt(format!("Failed to get domain info: {e}")))?;
+            .map_err(|e| LibvirtError::Operation(format!("Failed to get domain info: {e}")))?;
 
         vms.push(VmInfo {
             name,
@@ -44,31 +44,31 @@ pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, AppError> {
     Ok(vms)
 }
 
-pub fn start_vm(conn: &Connect, name: &str) -> Result<(), AppError> {
+pub fn start_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let domain = Domain::lookup_by_name(conn, name)
-        .map_err(|e| AppError::NotFound(format!("VM '{name}' not found: {e}")))?;
+        .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))?;
 
     domain
         .create()
-        .map_err(|e| AppError::Libvirt(format!("Failed to start VM '{name}': {e}")))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start VM '{name}': {e}")))?;
 
     Ok(())
 }
 
-pub fn stop_vm(conn: &Connect, name: &str) -> Result<(), AppError> {
+pub fn stop_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let domain = Domain::lookup_by_name(conn, name)
-        .map_err(|e| AppError::NotFound(format!("VM '{name}' not found: {e}")))?;
+        .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))?;
 
     domain
         .destroy()
-        .map_err(|e| AppError::Libvirt(format!("Failed to stop VM '{name}': {e}")))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to stop VM '{name}': {e}")))?;
 
     Ok(())
 }
 
-pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), AppError> {
+pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let domain = Domain::lookup_by_name(conn, name)
-        .map_err(|e| AppError::NotFound(format!("VM '{name}' not found: {e}")))?;
+        .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))?;
 
     // Try to destroy first if running, ignore errors (might already be off)
     let info = domain.get_info().ok();
@@ -80,7 +80,7 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), AppError> {
 
     domain
         .undefine()
-        .map_err(|e| AppError::Libvirt(format!("Failed to delete VM '{name}': {e}")))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
 
     Ok(())
 }

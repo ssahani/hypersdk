@@ -3,6 +3,7 @@ mod app;
 mod ui;
 
 use app::App;
+use virtspawn_core::VirtspawnConfig;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -12,8 +13,9 @@ async fn main() -> anyhow::Result<()> {
         original_hook(panic_info);
     }));
 
-    let client = api::DaemonClient::new("http://127.0.0.1:8081");
-    let mut app = App::new(client);
+    let config = VirtspawnConfig::load();
+    let client = api::DaemonClient::new(&config.daemon_url());
+    let mut app = App::new(client, config.general.refresh_interval_secs);
 
     let terminal = ratatui::init();
     let result = app.run(terminal).await;
