@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 
 use virtspawn_core::{
     AppState, CreateNetworkRequest, CreateVmRequest, InputMode, ResourceView, SortColumn,
-    SortDirection, ViewMode,
+    SortDirection, ViewMode, VmTemplate,
 };
 
 use crate::api::DaemonClient;
@@ -13,6 +13,7 @@ use crate::ui;
 pub struct App {
     pub state: AppState,
     pub should_quit: bool,
+    pub connected: bool,
     client: DaemonClient,
     refresh_interval: Duration,
 }
@@ -22,6 +23,7 @@ impl App {
         Self {
             state: AppState::new(),
             should_quit: false,
+            connected: false,
             client,
             refresh_interval: Duration::from_secs(refresh_interval_secs),
         }
@@ -914,6 +916,42 @@ impl App {
                     Err(e) => self.state.status_message = format!("Error: {e}"),
                 }
             }
+            ["template", tmpl_name, vm_name] => {
+                if let Some(tmpl) = VmTemplate::find(tmpl_name) {
+                    let req = CreateVmRequest {
+                        name: vm_name.to_string(),
+                        vcpus: tmpl.vcpus,
+                        memory_mb: tmpl.memory_mb,
+                        disk_gb: tmpl.disk_gb,
+                        os_variant: tmpl.os_variant,
+                        ..Default::default()
+                    };
+                    match self.client.create_vm(&req).await {
+                        Ok(()) => {
+                            self.state.status_message =
+                                format!("Created '{vm_name}' from template '{tmpl_name}'");
+                            self.state.add_audit_event("create-from-template", vm_name, tmpl_name);
+                            if self.state.resource_view == ResourceView::VirtualMachines {
+                                self.refresh_current_view().await;
+                            }
+                        }
+                        Err(e) => self.state.status_message = format!("Error: {e}"),
+                    }
+                } else {
+                    let templates = VmTemplate::all();
+                    let names: Vec<&str> = templates.iter().map(|t| t.name.as_str()).collect();
+                    self.state.status_message =
+                        format!("Unknown template. Available: {}", names.join(", "));
+                }
+            }
+            ["templates"] => {
+                let templates = VmTemplate::all();
+                let desc: Vec<String> = templates
+                    .iter()
+                    .map(|t| format!("{}: {}", t.name, t.description))
+                    .collect();
+                self.state.status_message = desc.join(" | ");
+            }
             ["netdelete", name] => {
                 match self.client.delete_network(name).await {
                     Ok(()) => {
@@ -951,11 +989,17 @@ impl App {
             ResourceView::VirtualMachines => {
                 match self.client.fetch_vms().await {
                     Ok(vms) => {
+                        self.connected = true;
+                        self.state.connected = true;
                         self.state.vms = vms;
                         self.state.sort_vms();
                         self.state.clamp_selection();
                     }
-                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                    Err(e) => {
+                        self.connected = false;
+                        self.state.connected = false;
+                        self.state.status_message = format!("Error: {e}");
+                    }
                 }
             }
             ResourceView::Networks => {

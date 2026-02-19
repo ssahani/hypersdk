@@ -223,6 +223,83 @@ pub struct RenameVmRequest {
     pub new_name: String,
 }
 
+// ── Disk Attach Request ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AttachDiskRequest {
+    pub source: String,
+    #[serde(default = "default_disk_target")]
+    pub target: String,
+    #[serde(default = "default_disk_driver")]
+    pub driver: String,
+}
+
+fn default_disk_target() -> String { "vdb".to_string() }
+fn default_disk_driver() -> String { "qcow2".to_string() }
+
+// ── VM Templates ────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VmTemplate {
+    pub name: String,
+    pub description: String,
+    pub vcpus: u32,
+    pub memory_mb: u64,
+    pub disk_gb: u64,
+    pub os_variant: String,
+}
+
+impl VmTemplate {
+    pub fn all() -> Vec<VmTemplate> {
+        vec![
+            VmTemplate {
+                name: "linux-small".to_string(),
+                description: "Linux VM: 1 vCPU, 1 GB RAM, 10 GB disk".to_string(),
+                vcpus: 1,
+                memory_mb: 1024,
+                disk_gb: 10,
+                os_variant: "linux2022".to_string(),
+            },
+            VmTemplate {
+                name: "linux-medium".to_string(),
+                description: "Linux VM: 2 vCPUs, 4 GB RAM, 40 GB disk".to_string(),
+                vcpus: 2,
+                memory_mb: 4096,
+                disk_gb: 40,
+                os_variant: "linux2022".to_string(),
+            },
+            VmTemplate {
+                name: "linux-large".to_string(),
+                description: "Linux VM: 4 vCPUs, 8 GB RAM, 80 GB disk".to_string(),
+                vcpus: 4,
+                memory_mb: 8192,
+                disk_gb: 80,
+                os_variant: "linux2022".to_string(),
+            },
+            VmTemplate {
+                name: "windows".to_string(),
+                description: "Windows VM: 4 vCPUs, 8 GB RAM, 60 GB disk".to_string(),
+                vcpus: 4,
+                memory_mb: 8192,
+                disk_gb: 60,
+                os_variant: "win11".to_string(),
+            },
+            VmTemplate {
+                name: "minimal".to_string(),
+                description: "Minimal: 1 vCPU, 512 MB RAM, 5 GB disk".to_string(),
+                vcpus: 1,
+                memory_mb: 512,
+                disk_gb: 5,
+                os_variant: "linux2022".to_string(),
+            },
+        ]
+    }
+
+    pub fn find(name: &str) -> Option<VmTemplate> {
+        Self::all().into_iter().find(|t| t.name == name)
+    }
+}
+
 // ── TUI State ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -342,6 +419,7 @@ pub struct AppState {
     pub input_mode: InputMode,
     pub status_message: String,
     pub show_context_menu: bool,
+    pub connected: bool,
 
     // Multi-select
     pub multi_select_mode: bool,
@@ -382,6 +460,7 @@ impl AppState {
             input_mode: InputMode::Normal,
             status_message: "Press '?' for help, ':' for commands".to_string(),
             show_context_menu: false,
+            connected: false,
 
             multi_select_mode: false,
             selected_items: std::collections::HashSet::new(),

@@ -2,9 +2,10 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::{clone, create, domain, resize};
+use virtspawn_core::libvirt::{clone, create, device, domain, resize};
 use virtspawn_core::{
-    CloneVmRequest, CreateVmRequest, LibvirtManager, RenameVmRequest, VmDetails, VmInfo,
+    AttachDiskRequest, CloneVmRequest, CreateVmRequest, LibvirtManager, RenameVmRequest, VmDetails,
+    VmInfo,
 };
 
 use crate::error::AppError;
@@ -147,6 +148,25 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/vcpus/{count}", post(set_vcpus))
         .route("/vms/{name}/memory/{mb}", post(set_memory))
         .route("/vms/{name}/rename", post(rename_vm_handler))
+        .route("/vms/{name}/disk/attach", post(attach_disk_handler))
+        .route("/vms/{name}/disk/detach/{target}", post(detach_disk_handler))
+}
+
+async fn attach_disk_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<AttachDiskRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| device::attach_disk(conn, &name, &req))?;
+    Ok(Json(serde_json::json!({ "status": "attached", "name": name, "target": req.target })))
+}
+
+async fn detach_disk_handler(
+    State(manager): State<LibvirtManager>,
+    Path((name, target)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| device::detach_disk(conn, &name, &target))?;
+    Ok(Json(serde_json::json!({ "status": "detached", "name": name, "target": target })))
 }
 
 async fn rename_vm_handler(

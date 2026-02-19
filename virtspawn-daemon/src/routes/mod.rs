@@ -2,8 +2,10 @@ mod health;
 mod metrics;
 mod networks;
 mod node;
+mod prometheus;
 mod snapshots;
 mod storage;
+mod templates;
 mod vms;
 mod ws;
 
@@ -19,6 +21,8 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(node::node_routes())
         .merge(metrics::metrics_routes())
         .merge(health::health_routes())
+        .merge(templates::template_routes())
+        .merge(prometheus::prometheus_routes())
 }
 
 pub fn websocket_routes() -> Router<LibvirtManager> {

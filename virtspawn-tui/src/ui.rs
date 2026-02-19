@@ -61,6 +61,15 @@ fn render_tab_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         .collect();
 
     let mut line_spans = tabs;
+
+    // Connection indicator
+    let (conn_icon, conn_color) = if state.connected {
+        ("\u{25cf}", Color::Green) // ●
+    } else {
+        ("\u{25cb}", Color::Red) // ○
+    };
+    line_spans.push(Span::styled(conn_icon, Style::default().fg(conn_color)));
+
     if state.multi_select_mode {
         line_spans.push(Span::styled(
             format!(" [{}sel]", state.selected_items.len()),
@@ -737,7 +746,9 @@ fn render_help_overlay(frame: &mut Frame, area: Rect) {
         Line::from(""),
         section("Commands"),
         Line::from("  :vms :net :storage :snap :events :node :quit"),
-        Line::from("  :clone <src> <new>  :snap <vm> <name>  :create <name> [cpu mem]"),
+        Line::from("  :clone <s> <n>  :snap <vm> <n>  :create <n> [cpu mem]"),
+        Line::from("  :template <tmpl> <name>  :rename <old> <new>  :templates"),
+        Line::from("  :netcreate <n>  :netdelete <n>  :resize <n> vcpus|memory <v>"),
         Line::from(""),
         Line::from(Span::styled("Press any key to close", Style::default().fg(Color::DarkGray))),
     ];

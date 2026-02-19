@@ -1,6 +1,7 @@
 pub mod clone;
 pub mod connection;
 pub mod create;
+pub mod device;
 pub mod domain;
 pub mod metrics;
 pub mod network;
