@@ -5,9 +5,9 @@ pub mod state;
 pub use config::VirtspawnConfig;
 pub use libvirt::LibvirtManager;
 pub use state::{
-    AppState, CreateSnapshotRequest, DiskInfo, InterfaceInfo, NetworkInfo, NodeInfo,
-    ResourceView, SnapshotInfo, StoragePoolInfo, StorageVolumeInfo, VmDetails, VmInfo,
-    ViewMode, InputMode, SortColumn, SortDirection,
+    AppState, AuditEvent, CloneVmRequest, CreateSnapshotRequest, DiskInfo, InputMode,
+    InterfaceInfo, NetworkInfo, NodeInfo, ResourceView, SnapshotInfo, SortColumn, SortDirection,
+    StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics,
 };
 
 #[derive(Debug, thiserror::Error)]

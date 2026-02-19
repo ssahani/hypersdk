@@ -17,3 +17,4 @@ tower-http = { version = "0.6", features = ["cors"] }
 ratatui = "0.29"
 crossterm = "0.28"
 reqwest = { version = "0.12", features = ["json"] }
+chrono = { version = "0.4", features = ["serde"] }

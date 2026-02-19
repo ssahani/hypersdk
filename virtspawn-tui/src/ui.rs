@@ -1,9 +1,7 @@
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{
-    Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap,
-};
+use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
 use ratatui::Frame;
 
 use virtspawn_core::{AppState, InputMode, ResourceView, ViewMode};
@@ -28,6 +26,10 @@ pub fn render(frame: &mut Frame, state: &AppState) {
         }
     }
 
+    if state.show_context_menu {
+        render_context_menu(frame, frame.area(), state);
+    }
+
     render_status_bar(frame, chunks[2], state);
     render_bottom_bar(frame, chunks[3], state);
 }
@@ -49,17 +51,23 @@ fn render_tab_bar(frame: &mut Frame, area: Rect, state: &AppState) {
                 Style::default().fg(Color::DarkGray)
             };
 
-            let spans = vec![
+            vec![
                 Span::styled(num, style),
                 Span::styled(label, style),
                 Span::raw("  "),
-            ];
-            spans
+            ]
         })
         .collect();
 
-    let line = Line::from(tabs);
-    frame.render_widget(Paragraph::new(line), area);
+    let mut line_spans = tabs;
+    if state.multi_select_mode {
+        line_spans.push(Span::styled(
+            format!(" [{}sel]", state.selected_items.len()),
+            Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+        ));
+    }
+
+    frame.render_widget(Paragraph::new(Line::from(line_spans)), area);
 }
 
 // ── Table view dispatch ─────────────────────────────────────────────────
@@ -70,6 +78,7 @@ fn render_table_view(frame: &mut Frame, area: Rect, state: &AppState) {
         ResourceView::Networks => render_network_table(frame, area, state),
         ResourceView::StoragePools => render_storage_table(frame, area, state),
         ResourceView::Snapshots => render_snapshot_table(frame, area, state),
+        ResourceView::Events => render_events_table(frame, area, state),
         ResourceView::Node => render_node_view(frame, area, state),
     }
 }
@@ -77,13 +86,20 @@ fn render_table_view(frame: &mut Frame, area: Rect, state: &AppState) {
 // ── VM table ────────────────────────────────────────────────────────────
 
 fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
-    let header = Row::new(vec![
+    let has_metrics = !state.vm_metrics.is_empty();
+
+    let mut header_cells = vec![
+        Cell::from(" "),
         Cell::from("Name"),
         Cell::from("State"),
         Cell::from("vCPUs"),
         Cell::from("Memory (MB)"),
-    ])
-    .style(
+    ];
+    if has_metrics {
+        header_cells.push(Cell::from("Mem %"));
+    }
+
+    let header = Row::new(header_cells).style(
         Style::default()
             .fg(Color::Yellow)
             .add_modifier(Modifier::BOLD),
@@ -111,13 +127,41 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 _ => Color::Gray,
             };
 
-            let row = Row::new(vec![
+            let sel_marker = if state.selected_items.contains(&vm.name) {
+                "\u{25cf}" // ●
+            } else {
+                " "
+            };
+
+            let mut cells = vec![
+                Cell::from(sel_marker).style(Style::default().fg(Color::Cyan)),
                 Cell::from(vm.name.clone()),
                 Cell::from(vm.state.clone()).style(Style::default().fg(state_color)),
                 Cell::from(vm.vcpus.to_string()),
                 Cell::from(vm.memory_mb.to_string()),
-            ]);
+            ];
 
+            if has_metrics {
+                let pct = state
+                    .get_metrics_for_vm(&vm.name)
+                    .map(|m| format!("{:.0}%", m.memory_pct))
+                    .unwrap_or_else(|| "-".to_string());
+                let pct_color = state
+                    .get_metrics_for_vm(&vm.name)
+                    .map(|m| {
+                        if m.memory_pct > 90.0 {
+                            Color::Red
+                        } else if m.memory_pct > 70.0 {
+                            Color::Yellow
+                        } else {
+                            Color::Green
+                        }
+                    })
+                    .unwrap_or(Color::DarkGray);
+                cells.push(Cell::from(pct).style(Style::default().fg(pct_color)));
+            }
+
+            let row = Row::new(cells);
             if display_idx == state.selected_index {
                 row.style(
                     Style::default()
@@ -130,26 +174,27 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
-    let title = format!(
-        " VMs ({}) ",
-        if state.filtered_indices.is_empty() {
-            state.vms.len()
-        } else {
-            state.filtered_indices.len()
-        }
-    );
+    let count = if state.filtered_indices.is_empty() {
+        state.vms.len()
+    } else {
+        state.filtered_indices.len()
+    };
+    let title = format!(" VMs ({count}) ");
 
-    let table = Table::new(
-        rows,
-        [
-            Constraint::Percentage(35),
-            Constraint::Percentage(20),
-            Constraint::Percentage(15),
-            Constraint::Percentage(30),
-        ],
-    )
-    .header(header)
-    .block(Block::default().borders(Borders::ALL).title(title));
+    let mut widths = vec![
+        Constraint::Length(2),
+        Constraint::Percentage(30),
+        Constraint::Percentage(15),
+        Constraint::Percentage(10),
+        Constraint::Percentage(15),
+    ];
+    if has_metrics {
+        widths.push(Constraint::Percentage(10));
+    }
+
+    let table = Table::new(rows, widths)
+        .header(header)
+        .block(Block::default().borders(Borders::ALL).title(title));
 
     frame.render_widget(table, area);
 }
@@ -184,20 +229,13 @@ fn render_network_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 Cell::from(net.bridge.clone()),
                 Cell::from(if net.persistent { "yes" } else { "no" }),
             ]);
-
             if i == state.selected_index {
-                row.style(
-                    Style::default()
-                        .bg(Color::DarkGray)
-                        .add_modifier(Modifier::BOLD),
-                )
+                row.style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
             } else {
                 row
             }
         })
         .collect();
-
-    let title = format!(" Networks ({}) ", state.networks.len());
 
     let table = Table::new(
         rows,
@@ -210,8 +248,11 @@ fn render_network_table(frame: &mut Frame, area: Rect, state: &AppState) {
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(title));
-
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" Networks ({}) ", state.networks.len())),
+    );
     frame.render_widget(table, area);
 }
 
@@ -242,7 +283,6 @@ fn render_storage_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 "inactive" => Color::Red,
                 _ => Color::Gray,
             };
-
             let row = Row::new(vec![
                 Cell::from(pool.name.clone()),
                 Cell::from(pool.state.clone()).style(Style::default().fg(state_color)),
@@ -251,20 +291,13 @@ fn render_storage_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 Cell::from(format!("{:.1}", pool.available_gb)),
                 Cell::from(if pool.autostart { "yes" } else { "no" }),
             ]);
-
             if i == state.selected_index {
-                row.style(
-                    Style::default()
-                        .bg(Color::DarkGray)
-                        .add_modifier(Modifier::BOLD),
-                )
+                row.style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
             } else {
                 row
             }
         })
         .collect();
-
-    let title = format!(" Storage Pools ({}) ", state.storage_pools.len());
 
     let table = Table::new(
         rows,
@@ -278,8 +311,11 @@ fn render_storage_table(frame: &mut Frame, area: Rect, state: &AppState) {
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(title));
-
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" Storage Pools ({}) ", state.storage_pools.len())),
+    );
     frame.render_widget(table, area);
 }
 
@@ -312,20 +348,13 @@ fn render_snapshot_table(frame: &mut Frame, area: Rect, state: &AppState) {
                     .style(Style::default().fg(Color::Green)),
                 Cell::from(snap.parent.clone()),
             ]);
-
             if i == state.selected_index {
-                row.style(
-                    Style::default()
-                        .bg(Color::DarkGray)
-                        .add_modifier(Modifier::BOLD),
-                )
+                row.style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
             } else {
                 row
             }
         })
         .collect();
-
-    let title = format!(" Snapshots ({}) ", state.snapshots.len());
 
     let table = Table::new(
         rows,
@@ -338,8 +367,71 @@ fn render_snapshot_table(frame: &mut Frame, area: Rect, state: &AppState) {
         ],
     )
     .header(header)
-    .block(Block::default().borders(Borders::ALL).title(title));
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" Snapshots ({}) ", state.snapshots.len())),
+    );
+    frame.render_widget(table, area);
+}
 
+// ── Events / Audit table ────────────────────────────────────────────────
+
+fn render_events_table(frame: &mut Frame, area: Rect, state: &AppState) {
+    let header = Row::new(vec![
+        Cell::from("Time"),
+        Cell::from("Action"),
+        Cell::from("Target"),
+        Cell::from("Result"),
+    ])
+    .style(
+        Style::default()
+            .fg(Color::Yellow)
+            .add_modifier(Modifier::BOLD),
+    );
+
+    // Show most recent first
+    let rows: Vec<Row> = state
+        .audit_events
+        .iter()
+        .rev()
+        .enumerate()
+        .map(|(i, evt)| {
+            let result_color = if evt.result.starts_with("ERROR") {
+                Color::Red
+            } else {
+                Color::Green
+            };
+
+            let row = Row::new(vec![
+                Cell::from(evt.timestamp.clone()),
+                Cell::from(evt.action.clone()),
+                Cell::from(evt.target.clone()),
+                Cell::from(evt.result.clone()).style(Style::default().fg(result_color)),
+            ]);
+            if i == state.selected_index {
+                row.style(Style::default().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+            } else {
+                row
+            }
+        })
+        .collect();
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(25),
+            Constraint::Percentage(20),
+            Constraint::Percentage(30),
+            Constraint::Percentage(25),
+        ],
+    )
+    .header(header)
+    .block(
+        Block::default()
+            .borders(Borders::ALL)
+            .title(format!(" Events ({}) ", state.audit_events.len())),
+    );
     frame.render_widget(table, area);
 }
 
@@ -389,10 +481,7 @@ fn render_node_view(frame: &mut Frame, area: Rect, state: &AppState) {
             Line::from(""),
             Line::from(vec![
                 Span::styled("Active VMs:     ", Style::default().fg(Color::Yellow)),
-                Span::styled(
-                    node.active_vms.to_string(),
-                    Style::default().fg(Color::Green),
-                ),
+                Span::styled(node.active_vms.to_string(), Style::default().fg(Color::Green)),
             ]),
             Line::from(vec![
                 Span::styled("Defined VMs:    ", Style::default().fg(Color::Yellow)),
@@ -403,8 +492,8 @@ fn render_node_view(frame: &mut Frame, area: Rect, state: &AppState) {
         vec![Line::from("Loading node info...")]
     };
 
-    let block = Block::default().borders(Borders::ALL).title(" Node Info ");
-    let paragraph = Paragraph::new(text).block(block);
+    let paragraph = Paragraph::new(text)
+        .block(Block::default().borders(Borders::ALL).title(" Node Info "));
     frame.render_widget(paragraph, area);
 }
 
@@ -459,13 +548,28 @@ fn render_details_view(frame: &mut Frame, area: Rect, state: &AppState) {
             ]),
         ];
 
+        // Metrics
+        if let Some(m) = state.get_metrics_for_vm(&d.name) {
+            lines.push(Line::from(""));
+            lines.push(Line::from(Span::styled(
+                "Metrics:",
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
+            )));
+            lines.push(Line::from(format!(
+                "  Memory: {} / {} MB ({:.0}%)",
+                m.memory_used_mb, m.memory_total_mb, m.memory_pct
+            )));
+            lines.push(Line::from(format!(
+                "  CPU time: {:.2}s",
+                m.cpu_time_ns as f64 / 1_000_000_000.0
+            )));
+        }
+
         if !d.interfaces.is_empty() {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Interfaces:",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
             )));
             for iface in &d.interfaces {
                 lines.push(Line::from(format!(
@@ -479,9 +583,7 @@ fn render_details_view(frame: &mut Frame, area: Rect, state: &AppState) {
             lines.push(Line::from(""));
             lines.push(Line::from(Span::styled(
                 "Disks:",
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
             )));
             for disk in &d.disks {
                 lines.push(Line::from(format!(
@@ -496,107 +598,104 @@ fn render_details_view(frame: &mut Frame, area: Rect, state: &AppState) {
         vec![Line::from("No details available")]
     };
 
+    let paragraph = Paragraph::new(text)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" VM Details (Esc to close) "),
+        )
+        .wrap(Wrap { trim: true });
+    frame.render_widget(paragraph, area);
+}
+
+// ── Context menu overlay ────────────────────────────────────────────────
+
+fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
+    let menu_area = Rect {
+        x: area.width / 2 - 15,
+        y: area.height / 2 - 7,
+        width: 30,
+        height: 14,
+    };
+    frame.render_widget(Clear, menu_area);
+
+    let items = match state.resource_view {
+        ResourceView::VirtualMachines => vec![
+            "  s  Start",
+            "  x  Stop (force)",
+            "  h  Shutdown (graceful)",
+            "  b  Reboot",
+            "  p  Pause",
+            "  u  Resume",
+            "  d  Delete",
+            "  o  Clone",
+            "  v  Virt-viewer",
+            "  c  Console",
+            "  i  Details",
+        ],
+        ResourceView::Networks => vec!["  a  Start", "  z  Stop"],
+        ResourceView::Snapshots => vec!["  R  Revert", "  d  Delete"],
+        _ => vec!["  No actions available"],
+    };
+
+    let lines: Vec<Line> = items
+        .iter()
+        .map(|s| Line::from(Span::styled(*s, Style::default().fg(Color::White))))
+        .collect();
+
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" VM Details (Esc to close) ");
-    let paragraph = Paragraph::new(text).block(block).wrap(Wrap { trim: true });
-    frame.render_widget(paragraph, area);
+        .title(" Actions (Esc to close) ")
+        .style(Style::default().bg(Color::Black));
+
+    let paragraph = Paragraph::new(lines).block(block);
+    frame.render_widget(paragraph, menu_area);
 }
 
 // ── Help overlay ────────────────────────────────────────────────────────
 
 fn render_help_overlay(frame: &mut Frame, area: Rect) {
-    let help_area = centered_rect(60, 80, area);
+    let help_area = centered_rect(65, 85, area);
     frame.render_widget(Clear, help_area);
 
     let lines = vec![
         Line::from(Span::styled(
             "virtspawn - Keyboard Shortcuts",
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD),
         )),
         Line::from(""),
-        Line::from(Span::styled(
-            "Navigation",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  j/\u{2193}          Move down"),
-        Line::from("  k/\u{2191}          Move up"),
-        Line::from("  g             Go to top"),
-        Line::from("  G             Go to bottom"),
-        Line::from("  Tab           Next view"),
-        Line::from("  Shift+Tab     Previous view"),
-        Line::from("  1-5           Switch to view"),
+        section("Navigation"),
+        Line::from("  j/\u{2193}  Down    k/\u{2191}  Up    g  Top    G  Bottom"),
+        Line::from("  Tab/Shift+Tab  Next/prev view    1-6  Switch view"),
         Line::from(""),
-        Line::from(Span::styled(
-            "VM Actions",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  s             Start VM"),
-        Line::from("  x             Stop VM (force)"),
-        Line::from("  H             Shutdown VM (graceful)"),
-        Line::from("  b             Reboot VM"),
-        Line::from("  p             Pause VM"),
-        Line::from("  u             Resume VM"),
-        Line::from("  d             Delete VM"),
-        Line::from("  Enter         Show VM details"),
+        section("VM Actions"),
+        Line::from("  s  Start    x  Stop (force)    H  Shutdown (graceful)"),
+        Line::from("  b  Reboot   p  Pause           u  Resume"),
+        Line::from("  d  Delete   o  Clone hint      Enter  Details"),
+        Line::from("  v  Virt-viewer    c  Console hint"),
         Line::from(""),
-        Line::from(Span::styled(
-            "Network Actions",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  a             Start network"),
-        Line::from("  z             Stop network"),
+        section("Multi-select (VMs)"),
+        Line::from("  Space  Toggle select    A  Select all    Esc  Clear"),
+        Line::from("  Then s/x/H/b/p/u/d to batch operate"),
         Line::from(""),
-        Line::from(Span::styled(
-            "Snapshot Actions",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  R             Revert to snapshot"),
-        Line::from("  d             Delete snapshot"),
-        Line::from("  :snap <vm> <name>  Create snapshot"),
+        section("Network Actions"),
+        Line::from("  a  Start network    z  Stop network"),
         Line::from(""),
-        Line::from(Span::styled(
-            "Sort (VMs)",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  N             Sort by name"),
-        Line::from("  S             Sort by state"),
-        Line::from("  C             Sort by CPU"),
-        Line::from("  M             Sort by memory"),
+        section("Snapshot Actions"),
+        Line::from("  R  Revert    d  Delete    :snap <vm> <name>  Create"),
         Line::from(""),
-        Line::from(Span::styled(
-            "General",
-            Style::default()
-                .fg(Color::Yellow)
-                .add_modifier(Modifier::BOLD),
-        )),
-        Line::from("  /             Search"),
-        Line::from("  :             Command mode"),
-        Line::from("  r             Refresh"),
-        Line::from("  ?/F1          This help"),
-        Line::from("  q/Esc         Quit / Close"),
+        section("Sort (VMs)"),
+        Line::from("  N  Name    S  State    C  CPU    M  Memory"),
         Line::from(""),
-        Line::from(Span::styled(
-            "Commands: :vms :net :storage :snap :node :quit",
-            Style::default().fg(Color::DarkGray),
-        )),
+        section("General"),
+        Line::from("  /  Search    :  Command    r  Refresh    Ctrl+Space  Menu"),
+        Line::from("  ?/F1  Help    q/Esc  Quit"),
         Line::from(""),
-        Line::from(Span::styled(
-            "Press any key to close",
-            Style::default().fg(Color::DarkGray),
-        )),
+        section("Commands"),
+        Line::from("  :vms :net :storage :snap :events :node :quit"),
+        Line::from("  :clone <source> <new-name>    :snap <vm> <name>"),
+        Line::from(""),
+        Line::from(Span::styled("Press any key to close", Style::default().fg(Color::DarkGray))),
     ];
 
     let block = Block::default()
@@ -604,8 +703,14 @@ fn render_help_overlay(frame: &mut Frame, area: Rect) {
         .title(" Help ")
         .style(Style::default().bg(Color::Black));
 
-    let paragraph = Paragraph::new(lines).block(block);
-    frame.render_widget(paragraph, help_area);
+    frame.render_widget(Paragraph::new(lines).block(block), help_area);
+}
+
+fn section(title: &str) -> Line<'_> {
+    Line::from(Span::styled(
+        title,
+        Style::default().fg(Color::Yellow).add_modifier(Modifier::BOLD),
+    ))
 }
 
 // ── Status bar ──────────────────────────────────────────────────────────
@@ -618,7 +723,7 @@ fn render_status_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(status, area);
 }
 
-// ── Bottom bar (help hint / search / command) ───────────────────────────
+// ── Bottom bar ──────────────────────────────────────────────────────────
 
 fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     let line = match state.input_mode {
@@ -639,25 +744,17 @@ fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         InputMode::Normal => {
             let help_text = match state.resource_view {
                 ResourceView::VirtualMachines => {
-                    "?:help  /:search  s:start  x:stop  H:shutdown  b:reboot  p:pause  u:resume  d:delete  r:refresh"
+                    "?:help /:search s:start x:stop H:shut b:boot p:pause u:resume d:del o:clone v:viewer Space:select"
                 }
-                ResourceView::Networks => {
-                    "?:help  /:search  a:start  z:stop  r:refresh"
-                }
-                ResourceView::StoragePools => {
-                    "?:help  /:search  r:refresh"
-                }
-                ResourceView::Snapshots => {
-                    "?:help  /:search  R:revert  d:delete  :snap <vm> <name>  r:refresh"
-                }
-                ResourceView::Node => {
-                    "?:help  r:refresh"
-                }
+                ResourceView::Networks => "?:help /:search a:start z:stop r:refresh",
+                ResourceView::StoragePools => "?:help /:search r:refresh",
+                ResourceView::Snapshots => "?:help /:search R:revert d:delete :snap <vm> <name>",
+                ResourceView::Events => "?:help r:refresh",
+                ResourceView::Node => "?:help r:refresh",
             };
             Line::from(Span::styled(help_text, Style::default().fg(Color::DarkGray)))
         }
     };
-
     frame.render_widget(Paragraph::new(line), area);
 }
 

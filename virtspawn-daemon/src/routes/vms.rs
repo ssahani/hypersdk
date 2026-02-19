@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::domain;
-use virtspawn_core::{LibvirtManager, VmDetails, VmInfo};
+use virtspawn_core::libvirt::{clone, domain};
+use virtspawn_core::{CloneVmRequest, LibvirtManager, VmDetails, VmInfo};
 
 use crate::error::AppError;
 
@@ -93,6 +93,15 @@ async fn set_autostart(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "autostart": autostart })))
 }
 
+async fn clone_vm_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<CloneVmRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| clone::clone_vm(conn, &name, &req.new_name))?;
+    Ok(Json(serde_json::json!({ "status": "cloned", "source": name, "clone": req.new_name })))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -105,5 +114,6 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/reboot", post(reboot_vm))
         .route("/vms/{name}/pause", post(pause_vm))
         .route("/vms/{name}/resume", post(resume_vm))
+        .route("/vms/{name}/clone", post(clone_vm_handler))
         .route("/vms/{name}/autostart/{enabled}", post(set_autostart))
 }

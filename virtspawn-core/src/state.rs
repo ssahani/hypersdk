@@ -113,6 +113,35 @@ pub struct NodeInfo {
     pub defined_vms: u32,
 }
 
+// ── Metrics Types ───────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VmMetrics {
+    pub name: String,
+    pub cpu_time_ns: u64,
+    pub vcpus: u32,
+    pub memory_total_mb: u64,
+    pub memory_used_mb: u64,
+    pub memory_pct: f64,
+}
+
+// ── Audit / Event Types ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEvent {
+    pub timestamp: String,
+    pub action: String,
+    pub target: String,
+    pub result: String,
+}
+
+// ── Clone Request ───────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CloneVmRequest {
+    pub new_name: String,
+}
+
 // ── TUI State ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +150,7 @@ pub enum ResourceView {
     Networks,
     StoragePools,
     Snapshots,
+    Events,
     Node,
 }
 
@@ -131,6 +161,7 @@ impl ResourceView {
             Self::Networks => "Networks",
             Self::StoragePools => "Storage",
             Self::Snapshots => "Snapshots",
+            Self::Events => "Events",
             Self::Node => "Node",
         }
     }
@@ -141,6 +172,7 @@ impl ResourceView {
             Self::Networks,
             Self::StoragePools,
             Self::Snapshots,
+            Self::Events,
             Self::Node,
         ]
     }
@@ -150,7 +182,8 @@ impl ResourceView {
             Self::VirtualMachines => Self::Networks,
             Self::Networks => Self::StoragePools,
             Self::StoragePools => Self::Snapshots,
-            Self::Snapshots => Self::Node,
+            Self::Snapshots => Self::Events,
+            Self::Events => Self::Node,
             Self::Node => Self::VirtualMachines,
         }
     }
@@ -161,7 +194,8 @@ impl ResourceView {
             Self::Networks => Self::VirtualMachines,
             Self::StoragePools => Self::Networks,
             Self::Snapshots => Self::StoragePools,
-            Self::Node => Self::Snapshots,
+            Self::Events => Self::Snapshots,
+            Self::Node => Self::Events,
         }
     }
 }
@@ -214,6 +248,8 @@ pub struct AppState {
     pub snapshots: Vec<SnapshotInfo>,
     pub node_info: Option<NodeInfo>,
     pub vm_details: Option<VmDetails>,
+    pub vm_metrics: Vec<VmMetrics>,
+    pub audit_events: Vec<AuditEvent>,
 
     // UI
     pub selected_index: usize,
@@ -221,6 +257,11 @@ pub struct AppState {
     pub view_mode: ViewMode,
     pub input_mode: InputMode,
     pub status_message: String,
+    pub show_context_menu: bool,
+
+    // Multi-select
+    pub multi_select_mode: bool,
+    pub selected_items: std::collections::HashSet<String>,
 
     // Search
     pub search_query: String,
@@ -246,12 +287,18 @@ impl AppState {
             snapshots: Vec::new(),
             node_info: None,
             vm_details: None,
+            vm_metrics: Vec::new(),
+            audit_events: Vec::new(),
 
             selected_index: 0,
             resource_view: ResourceView::VirtualMachines,
             view_mode: ViewMode::Table,
             input_mode: InputMode::Normal,
             status_message: "Press '?' for help, ':' for commands".to_string(),
+            show_context_menu: false,
+
+            multi_select_mode: false,
+            selected_items: std::collections::HashSet::new(),
 
             search_query: String::new(),
             filtered_indices: Vec::new(),
@@ -264,6 +311,43 @@ impl AppState {
         }
     }
 
+    pub fn add_audit_event(&mut self, action: &str, target: &str, result: &str) {
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        self.audit_events.push(AuditEvent {
+            timestamp: now,
+            action: action.to_string(),
+            target: target.to_string(),
+            result: result.to_string(),
+        });
+        // Keep last 500 events
+        if self.audit_events.len() > 500 {
+            self.audit_events.remove(0);
+        }
+    }
+
+    pub fn get_metrics_for_vm(&self, name: &str) -> Option<&VmMetrics> {
+        self.vm_metrics.iter().find(|m| m.name == name)
+    }
+
+    pub fn toggle_selection(&mut self, name: &str) {
+        if self.selected_items.contains(name) {
+            self.selected_items.remove(name);
+        } else {
+            self.selected_items.insert(name.to_string());
+        }
+    }
+
+    pub fn select_all_vms(&mut self) {
+        for vm in &self.vms {
+            self.selected_items.insert(vm.name.clone());
+        }
+    }
+
+    pub fn clear_selection(&mut self) {
+        self.selected_items.clear();
+        self.multi_select_mode = false;
+    }
+
     pub fn current_list_len(&self) -> usize {
         if !self.filtered_indices.is_empty() {
             return self.filtered_indices.len();
@@ -273,6 +357,7 @@ impl AppState {
             ResourceView::Networks => self.networks.len(),
             ResourceView::StoragePools => self.storage_pools.len(),
             ResourceView::Snapshots => self.snapshots.len(),
+            ResourceView::Events => self.audit_events.len(),
             ResourceView::Node => 1,
         }
     }
@@ -360,6 +445,7 @@ impl AppState {
                 })
                 .map(|(i, _)| i)
                 .collect(),
+            ResourceView::Events => vec![],
             ResourceView::Node => vec![],
         };
         self.clamp_selection();

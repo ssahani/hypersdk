@@ -1,3 +1,4 @@
+mod metrics;
 mod networks;
 mod node;
 mod snapshots;
@@ -15,6 +16,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(networks::network_routes())
         .merge(storage::storage_routes())
         .merge(node::node_routes())
+        .merge(metrics::metrics_routes())
 }
 
 pub fn websocket_routes() -> Router<LibvirtManager> {

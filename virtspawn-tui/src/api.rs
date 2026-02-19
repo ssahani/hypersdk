@@ -1,6 +1,7 @@
 use anyhow::Result;
 use virtspawn_core::{
-    CreateSnapshotRequest, NetworkInfo, NodeInfo, SnapshotInfo, StoragePoolInfo, VmDetails, VmInfo,
+    CloneVmRequest, CreateSnapshotRequest, NetworkInfo, NodeInfo, SnapshotInfo, StoragePoolInfo,
+    VmDetails, VmInfo, VmMetrics,
 };
 
 pub struct DaemonClient {
@@ -178,5 +179,27 @@ impl DaemonClient {
         let url = format!("{}/api/v1/node", self.base_url);
         let info = self.client.get(&url).send().await?.json().await?;
         Ok(info)
+    }
+
+    // ── Metrics ─────────────────────────────────────────────────────────
+
+    pub async fn fetch_metrics(&self) -> Result<Vec<VmMetrics>> {
+        let url = format!("{}/api/v1/metrics", self.base_url);
+        let m = self.client.get(&url).send().await?.json().await?;
+        Ok(m)
+    }
+
+    // ── Clone ───────────────────────────────────────────────────────────
+
+    pub async fn clone_vm(&self, source: &str, new_name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/clone", self.base_url, source);
+        let req = CloneVmRequest {
+            new_name: new_name.to_string(),
+        };
+        let resp = self.client.post(&url).json(&req).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
     }
 }

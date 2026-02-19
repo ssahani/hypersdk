@@ -2,9 +2,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
 use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
-use virtspawn_core::{
-    AppState, InputMode, ResourceView, SortColumn, SortDirection, ViewMode,
-};
+use virtspawn_core::{AppState, InputMode, ResourceView, SortColumn, SortDirection, ViewMode};
 
 use crate::api::DaemonClient;
 use crate::ui;
@@ -42,6 +40,10 @@ impl App {
 
             if last_refresh.elapsed() >= self.refresh_interval {
                 self.refresh_current_view().await;
+                // Also refresh metrics if on VM view
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.refresh_metrics().await;
+                }
                 last_refresh = Instant::now();
             }
         }
@@ -61,9 +63,14 @@ impl App {
     // ── Normal mode ─────────────────────────────────────────────────────
 
     async fn handle_normal_key(&mut self, key: KeyEvent) {
+        // Context menu handling
+        if self.state.show_context_menu {
+            self.handle_context_menu_key(key).await;
+            return;
+        }
+
         match self.state.view_mode {
             ViewMode::Help => {
-                // Any key exits help
                 self.state.view_mode = ViewMode::Table;
                 return;
             }
@@ -80,9 +87,21 @@ impl App {
             ViewMode::Table => {}
         }
 
+        // Ctrl+Space: context menu
+        if key.code == KeyCode::Char(' ') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            self.state.show_context_menu = true;
+            return;
+        }
+
         match key.code {
             // Quit
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+            KeyCode::Char('q') | KeyCode::Esc => {
+                if self.state.multi_select_mode {
+                    self.state.clear_selection();
+                } else {
+                    self.should_quit = true;
+                }
+            }
 
             // Navigation
             KeyCode::Char('j') | KeyCode::Down => self.move_down(),
@@ -114,7 +133,8 @@ impl App {
             KeyCode::Char('2') => self.switch_view(ResourceView::Networks).await,
             KeyCode::Char('3') => self.switch_view(ResourceView::StoragePools).await,
             KeyCode::Char('4') => self.switch_view(ResourceView::Snapshots).await,
-            KeyCode::Char('5') => self.switch_view(ResourceView::Node).await,
+            KeyCode::Char('5') => self.switch_view(ResourceView::Events).await,
+            KeyCode::Char('6') => self.switch_view(ResourceView::Node).await,
 
             // Search
             KeyCode::Char('/') => {
@@ -134,10 +154,37 @@ impl App {
                 self.state.view_mode = ViewMode::Help;
             }
 
-            // Details (Enter on VMs view)
+            // Details (Enter on VMs view, or select in multi-select mode)
             KeyCode::Enter => {
                 if self.state.resource_view == ResourceView::VirtualMachines {
-                    self.show_vm_details().await;
+                    if self.state.multi_select_mode {
+                        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+                            self.state.toggle_selection(&name);
+                        }
+                    } else {
+                        self.show_vm_details().await;
+                    }
+                }
+            }
+
+            // Multi-select
+            KeyCode::Char(' ') => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    if !self.state.multi_select_mode {
+                        self.state.multi_select_mode = true;
+                    }
+                    if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+                        self.state.toggle_selection(&name);
+                    }
+                    self.move_down();
+                }
+            }
+            KeyCode::Char('A') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.state.multi_select_mode = true;
+                    self.state.select_all_vms();
+                    self.state.status_message =
+                        format!("Selected all {} VMs", self.state.selected_items.len());
                 }
             }
 
@@ -158,29 +205,46 @@ impl App {
             }
 
             // Refresh
-            KeyCode::Char('r') => self.refresh_current_view().await,
-
-            // VM actions
-            KeyCode::Char('s') => self.vm_action("start").await,
-            KeyCode::Char('x') => self.vm_action("stop").await,
-            KeyCode::Char('h') if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                self.vm_action("shutdown").await;
-            }
-            KeyCode::Char('b') => self.vm_action("reboot").await,
-            KeyCode::Char('p') => self.vm_action("pause").await,
-            KeyCode::Char('u') => self.vm_action("resume").await,
-            KeyCode::Char('d') => {
-                self.request_confirmation().await;
-            }
-
-            // Snapshot actions (on Snapshots view)
-            KeyCode::Char('c') => {
-                if self.state.resource_view == ResourceView::Snapshots {
-                    // Create snapshot for selected VM — use command mode
-                    self.state.status_message =
-                        "Use ':snap <vm> <name>' to create a snapshot".to_string();
+            KeyCode::Char('r') => {
+                self.refresh_current_view().await;
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.refresh_metrics().await;
                 }
             }
+
+            // VM actions
+            KeyCode::Char('s') => self.vm_action_or_batch("start").await,
+            KeyCode::Char('x') => self.vm_action_or_batch("stop").await,
+            KeyCode::Char('h') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.vm_action_or_batch("shutdown").await;
+            }
+            KeyCode::Char('b') => self.vm_action_or_batch("reboot").await,
+            KeyCode::Char('p') => self.vm_action_or_batch("pause").await,
+            KeyCode::Char('u') => self.vm_action_or_batch("resume").await,
+            KeyCode::Char('d') => self.request_confirmation().await,
+
+            // Clone
+            KeyCode::Char('o') => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+                        self.state.status_message =
+                            format!("Use ':clone {} <new-name>' to clone", name);
+                    }
+                }
+            }
+
+            // Console / viewer
+            KeyCode::Char('v') => self.launch_viewer().await,
+            KeyCode::Char('c') => {
+                if self.state.resource_view == ResourceView::Snapshots {
+                    self.state.status_message =
+                        "Use ':snap <vm> <name>' to create a snapshot".to_string();
+                } else if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.launch_console().await;
+                }
+            }
+
+            // Snapshot actions
             KeyCode::Char('R') => {
                 if self.state.resource_view == ResourceView::Snapshots {
                     self.revert_snapshot().await;
@@ -199,6 +263,31 @@ impl App {
                 }
             }
 
+            _ => {}
+        }
+    }
+
+    // ── Context menu ────────────────────────────────────────────────────
+
+    async fn handle_context_menu_key(&mut self, key: KeyEvent) {
+        self.state.show_context_menu = false;
+        match key.code {
+            KeyCode::Char('s') => self.vm_action_or_batch("start").await,
+            KeyCode::Char('x') => self.vm_action_or_batch("stop").await,
+            KeyCode::Char('h') => self.vm_action_or_batch("shutdown").await,
+            KeyCode::Char('b') => self.vm_action_or_batch("reboot").await,
+            KeyCode::Char('p') => self.vm_action_or_batch("pause").await,
+            KeyCode::Char('u') => self.vm_action_or_batch("resume").await,
+            KeyCode::Char('d') => self.request_confirmation().await,
+            KeyCode::Char('o') => {
+                if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+                    self.state.status_message =
+                        format!("Use ':clone {} <new-name>' to clone", name);
+                }
+            }
+            KeyCode::Char('v') => self.launch_viewer().await,
+            KeyCode::Char('c') => self.launch_console().await,
+            KeyCode::Char('i') => self.show_vm_details().await,
             _ => {}
         }
     }
@@ -308,12 +397,21 @@ impl App {
         self.state.sort_vms();
     }
 
-    // ── VM actions ──────────────────────────────────────────────────────
+    // ── VM actions (single or batch) ────────────────────────────────────
 
-    async fn vm_action(&mut self, action: &str) {
+    async fn vm_action_or_batch(&mut self, action: &str) {
         if self.state.resource_view != ResourceView::VirtualMachines {
             return;
         }
+
+        if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
+            self.batch_vm_action(action).await;
+        } else {
+            self.single_vm_action(action).await;
+        }
+    }
+
+    async fn single_vm_action(&mut self, action: &str) {
         let name = match self.state.selected_vm_name() {
             Some(n) => n.to_string(),
             None => return,
@@ -332,26 +430,83 @@ impl App {
         match result {
             Ok(()) => {
                 self.state.status_message = format!("{action}: '{name}' OK");
+                self.state.add_audit_event(action, &name, "OK");
                 self.refresh_current_view().await;
             }
-            Err(e) => self.state.status_message = format!("Error {action} '{name}': {e}"),
+            Err(e) => {
+                let msg = format!("Error {action} '{name}': {e}");
+                self.state.add_audit_event(action, &name, &format!("ERROR: {e}"));
+                self.state.status_message = msg;
+            }
         }
+    }
+
+    async fn batch_vm_action(&mut self, action: &str) {
+        let names: Vec<String> = self.state.selected_items.iter().cloned().collect();
+        let total = names.len();
+        let mut ok = 0;
+        let mut errors = 0;
+
+        for name in &names {
+            let result = match action {
+                "start" => self.client.start_vm(name).await,
+                "stop" => self.client.stop_vm(name).await,
+                "shutdown" => self.client.shutdown_vm(name).await,
+                "reboot" => self.client.reboot_vm(name).await,
+                "pause" => self.client.pause_vm(name).await,
+                "resume" => self.client.resume_vm(name).await,
+                _ => continue,
+            };
+
+            match result {
+                Ok(()) => {
+                    ok += 1;
+                    self.state.add_audit_event(action, name, "OK");
+                }
+                Err(e) => {
+                    errors += 1;
+                    self.state
+                        .add_audit_event(action, name, &format!("ERROR: {e}"));
+                }
+            }
+        }
+
+        self.state.status_message = format!(
+            "Batch {action}: {ok}/{total} OK{}",
+            if errors > 0 {
+                format!(", {errors} failed")
+            } else {
+                String::new()
+            }
+        );
+        self.state.clear_selection();
+        self.refresh_current_view().await;
     }
 
     async fn request_confirmation(&mut self) {
         let desc = match self.state.resource_view {
             ResourceView::VirtualMachines => {
-                self.state.selected_vm_name().map(|n| format!("delete-vm:{n}"))
+                if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
+                    Some(format!(
+                        "batch-delete-vm:{}",
+                        self.state.selected_items.len()
+                    ))
+                } else {
+                    self.state
+                        .selected_vm_name()
+                        .map(|n| format!("delete-vm:{n}"))
+                }
             }
-            ResourceView::Snapshots => self.state.selected_snapshot().map(|s| {
-                format!("delete-snap:{}:{}", s.vm_name, s.name)
-            }),
+            ResourceView::Snapshots => self
+                .state
+                .selected_snapshot()
+                .map(|s| format!("delete-snap:{}:{}", s.vm_name, s.name)),
             _ => None,
         };
 
         if let Some(action) = desc {
             self.state.status_message =
-                format!("Confirm? Press 'y' to proceed, any other key to cancel");
+                "Confirm? Press 'y' to proceed, any other key to cancel".to_string();
             self.state.confirm_action = Some(action);
             self.state.input_mode = InputMode::Confirmation;
         }
@@ -364,17 +519,44 @@ impl App {
                 match self.client.delete_vm(name).await {
                     Ok(()) => {
                         self.state.status_message = format!("Deleted VM '{name}'");
+                        self.state.add_audit_event("delete", name, "OK");
                         self.refresh_current_view().await;
                         self.state.clamp_selection();
                     }
-                    Err(e) => self.state.status_message = format!("Error deleting '{name}': {e}"),
+                    Err(e) => {
+                        self.state.add_audit_event("delete", name, &format!("ERROR: {e}"));
+                        self.state.status_message = format!("Error deleting '{name}': {e}");
+                    }
                 }
+            }
+            ["batch-delete-vm", _count] => {
+                let names: Vec<String> = self.state.selected_items.iter().cloned().collect();
+                let total = names.len();
+                let mut ok = 0;
+                for name in &names {
+                    match self.client.delete_vm(name).await {
+                        Ok(()) => {
+                            ok += 1;
+                            self.state.add_audit_event("delete", name, "OK");
+                        }
+                        Err(e) => {
+                            self.state
+                                .add_audit_event("delete", name, &format!("ERROR: {e}"));
+                        }
+                    }
+                }
+                self.state.status_message = format!("Batch delete: {ok}/{total} OK");
+                self.state.clear_selection();
+                self.refresh_current_view().await;
+                self.state.clamp_selection();
             }
             ["delete-snap", vm_name, snap_name] => {
                 match self.client.delete_snapshot(vm_name, snap_name).await {
                     Ok(()) => {
                         self.state.status_message =
                             format!("Deleted snapshot '{snap_name}' from '{vm_name}'");
+                        self.state
+                            .add_audit_event("delete-snapshot", snap_name, "OK");
                         self.refresh_current_view().await;
                         self.state.clamp_selection();
                     }
@@ -399,14 +581,48 @@ impl App {
         }
     }
 
+    // ── Console / Viewer ────────────────────────────────────────────────
+
+    async fn launch_viewer(&mut self) {
+        if self.state.resource_view != ResourceView::VirtualMachines {
+            return;
+        }
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            self.state.status_message = format!("Launching virt-viewer for '{name}'...");
+            self.state.add_audit_event("virt-viewer", &name, "launched");
+            let _ = std::process::Command::new("virt-viewer")
+                .arg("--connect")
+                .arg("qemu:///system")
+                .arg(&name)
+                .spawn();
+        }
+    }
+
+    async fn launch_console(&mut self) {
+        if self.state.resource_view != ResourceView::VirtualMachines {
+            return;
+        }
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            self.state.status_message =
+                format!("Run: virsh console {name}  (not available in TUI mode)");
+            self.state.add_audit_event("console-hint", &name, "shown");
+        }
+    }
+
     // ── Snapshot actions ────────────────────────────────────────────────
 
     async fn revert_snapshot(&mut self) {
         if let Some(snap) = self.state.selected_snapshot().cloned() {
-            match self.client.revert_snapshot(&snap.vm_name, &snap.name).await {
+            match self
+                .client
+                .revert_snapshot(&snap.vm_name, &snap.name)
+                .await
+            {
                 Ok(()) => {
                     self.state.status_message =
                         format!("Reverted '{}' to snapshot '{}'", snap.vm_name, snap.name);
+                    self.state
+                        .add_audit_event("revert-snapshot", &snap.name, "OK");
                     self.refresh_current_view().await;
                 }
                 Err(e) => self.state.status_message = format!("Error reverting: {e}"),
@@ -431,6 +647,8 @@ impl App {
         match result {
             Ok(()) => {
                 self.state.status_message = format!("Network '{name}': {action} OK");
+                self.state
+                    .add_audit_event(&format!("network-{action}"), &name, "OK");
                 self.refresh_current_view().await;
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
@@ -446,12 +664,28 @@ impl App {
             ["net"] | ["networks"] => self.switch_view(ResourceView::Networks).await,
             ["pool"] | ["storage"] => self.switch_view(ResourceView::StoragePools).await,
             ["snap"] | ["snapshots"] => self.switch_view(ResourceView::Snapshots).await,
+            ["events"] => self.switch_view(ResourceView::Events).await,
             ["node"] => self.switch_view(ResourceView::Node).await,
             ["snap", vm, name] => {
                 match self.client.create_snapshot(vm, name, "").await {
                     Ok(()) => {
-                        self.state.status_message = format!("Created snapshot '{name}' for '{vm}'");
+                        self.state.status_message =
+                            format!("Created snapshot '{name}' for '{vm}'");
+                        self.state.add_audit_event("create-snapshot", name, "OK");
                         if self.state.resource_view == ResourceView::Snapshots {
+                            self.refresh_current_view().await;
+                        }
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["clone", source, new_name] => {
+                match self.client.clone_vm(source, new_name).await {
+                    Ok(()) => {
+                        self.state.status_message =
+                            format!("Cloned '{source}' as '{new_name}'");
+                        self.state.add_audit_event("clone", source, "OK");
+                        if self.state.resource_view == ResourceView::VirtualMachines {
                             self.refresh_current_view().await;
                         }
                     }
@@ -506,12 +740,21 @@ impl App {
                     Err(e) => self.state.status_message = format!("Error: {e}"),
                 }
             }
+            ResourceView::Events => {
+                // Events are local audit trail, no refresh needed
+            }
             ResourceView::Node => {
                 match self.client.fetch_node_info().await {
                     Ok(info) => self.state.node_info = Some(info),
                     Err(e) => self.state.status_message = format!("Error: {e}"),
                 }
             }
+        }
+    }
+
+    async fn refresh_metrics(&mut self) {
+        if let Ok(metrics) = self.client.fetch_metrics().await {
+            self.state.vm_metrics = metrics;
         }
     }
 }
