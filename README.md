@@ -15,14 +15,17 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 
 ## Features
 
-- **VM lifecycle**: start, stop (force), shutdown (graceful), reboot, pause, resume, delete, autostart
+- **VM creation**: create VMs from parameters with auto-generated qcow2 disk, VNC, virtio, q35 machine type
+- **VM lifecycle**: start, stop (force), shutdown (graceful), reboot, pause, resume, delete, autostart toggle
 - **VM cloning**: clone VMs with automatic new UUID and MAC address generation
 - **VM details**: vCPUs, memory, OS type, architecture, network interfaces, disks, UUID
-- **VM metrics**: live memory usage percentage with color-coded thresholds, CPU time tracking
+- **VM XML viewer**: browse raw libvirt XML with scrollable view
+- **VM metrics**: memory usage %, CPU time, disk I/O (read/write), network I/O (RX/TX)
 - **Snapshots**: list, create, delete, revert across all VMs
 - **Networks**: list, start, stop virtual networks
-- **Storage**: list pools with capacity/usage, list volumes
+- **Storage**: list pools with capacity/usage, start/stop/refresh pools, list volumes
 - **Node info**: hostname, hypervisor version, CPU model/cores/threads, memory, VM counts
+- **Health check**: daemon health endpoint to verify libvirt connectivity
 - **Multi-select**: select multiple VMs and batch start/stop/reboot/pause/resume/delete
 - **Audit trail**: tracks all operations with timestamps and results in an Events view
 - **Context menu**: quick-access action overlay for the selected resource
@@ -33,14 +36,15 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 
 - Rust toolchain (1.70+)
 - `libvirt-devel` / `libvirt-dev` package
+- `qemu-img` (for VM creation)
 - Running `libvirtd` service
 
 ```bash
 # Fedora/RHEL
-sudo dnf install libvirt-devel
+sudo dnf install libvirt-devel qemu-img
 
 # Debian/Ubuntu
-sudo apt install libvirt-dev
+sudo apt install libvirt-dev qemu-utils
 
 sudo systemctl start libvirtd
 ```
@@ -93,6 +97,7 @@ An example config is provided in `examples/config.toml`.
 | `k` / `Up` | Move up |
 | `g` | Go to top |
 | `G` | Go to bottom |
+| `PageUp` / `PageDown` | Jump 10 items |
 | `Tab` / `Shift+Tab` | Next / previous view |
 | `1`-`6` | Switch to view (VMs, Networks, Storage, Snapshots, Events, Node) |
 
@@ -107,8 +112,10 @@ An example config is provided in `examples/config.toml`.
 | `p` | Pause |
 | `u` | Resume |
 | `d` | Delete (with confirmation) |
+| `t` | Toggle autostart |
 | `o` | Clone (shows command hint) |
-| `Enter` | Show details (with metrics, interfaces, disks) |
+| `Enter` | Show details (metrics, interfaces, disks, I/O stats) |
+| `y` | View raw XML (scrollable with j/k, PageUp/PageDown) |
 | `v` | Launch virt-viewer |
 | `c` | Console hint |
 
@@ -122,12 +129,12 @@ An example config is provided in `examples/config.toml`.
 
 When VMs are selected, actions (`s`, `x`, `H`, `b`, `p`, `u`, `d`) apply to all selected VMs as a batch operation.
 
-### Network Actions
+### Network / Storage Actions
 
 | Key | Action |
 |-----|--------|
-| `a` | Start network |
-| `z` | Stop network |
+| `a` | Start network or storage pool |
+| `z` | Stop network or storage pool |
 
 ### Snapshot Actions
 
@@ -158,6 +165,8 @@ When VMs are selected, actions (`s`, `x`, `H`, `b`, `p`, `u`, `d`) apply to all 
 | `:snap` | Switch to Snapshots view |
 | `:events` | Switch to Events view |
 | `:node` | Switch to Node view |
+| `:create <name>` | Create VM (defaults: 2 vCPU, 2 GB RAM, 20 GB disk) |
+| `:create <name> <vcpus> <memory_mb>` | Create VM with custom resources |
 | `:snap <vm> <name>` | Create a snapshot |
 | `:clone <source> <new-name>` | Clone a VM |
 | `:quit` | Quit |
@@ -171,6 +180,7 @@ All endpoints are under `/api/v1/`.
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/vms` | List all VMs |
+| POST | `/vms` | Create VM (body: `{"name": "...", "vcpus": 2, "memory_mb": 2048, "disk_gb": 20}`) |
 | GET | `/vms/{name}` | VM details (interfaces, disks, OS info) |
 | DELETE | `/vms/{name}` | Delete VM |
 | GET | `/vms/{name}/xml` | Raw XML definition |
@@ -190,7 +200,7 @@ All endpoints are under `/api/v1/`.
 | GET | `/metrics` | Metrics for all running VMs |
 | GET | `/metrics/{name}` | Metrics for a single VM |
 
-Returns CPU time (nanoseconds), vCPU count, memory total/used (MB), and memory usage percentage.
+Returns CPU time (ns), vCPU count, memory total/used (MB), memory %, disk I/O (read/write bytes), network I/O (RX/TX bytes).
 
 ### Snapshots
 
@@ -216,6 +226,9 @@ Returns CPU time (nanoseconds), vCPU count, memory total/used (MB), and memory u
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/storage/pools` | List storage pools |
+| POST | `/storage/pools/{name}/start` | Start pool |
+| POST | `/storage/pools/{name}/stop` | Stop pool |
+| POST | `/storage/pools/{name}/refresh` | Refresh pool |
 | GET | `/storage/pools/{pool}/volumes` | List volumes |
 | DELETE | `/storage/pools/{pool}/volumes/{vol}` | Delete volume |
 
@@ -224,6 +237,12 @@ Returns CPU time (nanoseconds), vCPU count, memory total/used (MB), and memory u
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/node` | Host/hypervisor info |
+
+### Health
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Daemon health check |
 
 ### WebSocket
 
