@@ -7,6 +7,7 @@ use crate::LibvirtError;
 #[derive(Clone)]
 pub struct LibvirtManager {
     conn: Arc<Mutex<Connect>>,
+    uri: String,
 }
 
 impl LibvirtManager {
@@ -16,6 +17,7 @@ impl LibvirtManager {
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
+            uri: uri.to_string(),
         })
     }
 
@@ -23,10 +25,27 @@ impl LibvirtManager {
     where
         F: FnOnce(&Connect) -> Result<R, LibvirtError>,
     {
-        let conn = self
+        let mut conn = self
             .conn
             .lock()
             .map_err(|e| LibvirtError::Internal(format!("Mutex poisoned: {e}")))?;
-        f(&conn)
+
+        // Check if connection is alive, reconnect if needed
+        if conn.is_alive().unwrap_or(false) {
+            return f(&conn);
+        }
+
+        // Try to reconnect
+        tracing::warn!("Libvirt connection lost, reconnecting to {}", self.uri);
+        match Connect::open(Some(&self.uri)) {
+            Ok(new_conn) => {
+                *conn = new_conn;
+                tracing::info!("Reconnected to libvirt");
+                f(&conn)
+            }
+            Err(e) => Err(LibvirtError::Connection(format!(
+                "Failed to reconnect to libvirt: {e}"
+            ))),
+        }
     }
 }

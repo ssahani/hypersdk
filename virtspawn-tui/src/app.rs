@@ -27,6 +27,7 @@ impl App {
     }
 
     pub async fn run(&mut self, mut terminal: DefaultTerminal) -> anyhow::Result<()> {
+        self.state.load_audit_history();
         self.refresh_current_view().await;
 
         let mut last_refresh = Instant::now();
@@ -845,6 +846,28 @@ impl App {
                         if self.state.resource_view == ResourceView::VirtualMachines {
                             self.refresh_current_view().await;
                         }
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["resize", name, "vcpus", count] => {
+                let count: u32 = count.parse().unwrap_or(0);
+                match self.client.set_vcpus(name, count).await {
+                    Ok(()) => {
+                        self.state.status_message =
+                            format!("Set vCPUs for '{name}' to {count} (applies on next boot)");
+                        self.state.add_audit_event("resize-vcpus", name, &count.to_string());
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["resize", name, "memory", mb] => {
+                let mb: u64 = mb.parse().unwrap_or(0);
+                match self.client.set_memory(name, mb).await {
+                    Ok(()) => {
+                        self.state.status_message =
+                            format!("Set memory for '{name}' to {mb} MB (applies on next boot)");
+                        self.state.add_audit_event("resize-memory", name, &format!("{mb}MB"));
                     }
                     Err(e) => self.state.status_message = format!("Error: {e}"),
                 }

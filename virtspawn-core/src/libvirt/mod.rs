@@ -5,6 +5,7 @@ pub mod domain;
 pub mod metrics;
 pub mod network;
 pub mod node;
+pub mod resize;
 pub mod snapshot;
 pub mod storage;
 

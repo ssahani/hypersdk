@@ -361,16 +361,22 @@ impl AppState {
 
     pub fn add_audit_event(&mut self, action: &str, target: &str, result: &str) {
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
-        self.audit_events.push(AuditEvent {
+        let event = AuditEvent {
             timestamp: now,
             action: action.to_string(),
             target: target.to_string(),
             result: result.to_string(),
-        });
-        // Keep last 500 events
+        };
+        crate::audit::write_audit_event(&event);
+        self.audit_events.push(event);
+        // Keep last 500 events in memory
         if self.audit_events.len() > 500 {
             self.audit_events.remove(0);
         }
+    }
+
+    pub fn load_audit_history(&mut self) {
+        self.audit_events = crate::audit::load_audit_events(500);
     }
 
     pub fn get_metrics_for_vm(&self, name: &str) -> Option<&VmMetrics> {

@@ -2,7 +2,7 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::{clone, create, domain};
+use virtspawn_core::libvirt::{clone, create, domain, resize};
 use virtspawn_core::{CloneVmRequest, CreateVmRequest, LibvirtManager, VmDetails, VmInfo};
 
 use crate::error::AppError;
@@ -111,6 +111,22 @@ async fn create_vm_handler(
     Ok(Json(serde_json::json!({ "status": "created", "name": name })))
 }
 
+async fn set_vcpus(
+    State(manager): State<LibvirtManager>,
+    Path((name, count)): Path<(String, u32)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| resize::set_vcpus(conn, &name, count))?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "vcpus": count })))
+}
+
+async fn set_memory(
+    State(manager): State<LibvirtManager>,
+    Path((name, mb)): Path<(String, u64)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| resize::set_memory(conn, &name, mb))?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb })))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -126,4 +142,6 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/resume", post(resume_vm))
         .route("/vms/{name}/clone", post(clone_vm_handler))
         .route("/vms/{name}/autostart/{enabled}", post(set_autostart))
+        .route("/vms/{name}/vcpus/{count}", post(set_vcpus))
+        .route("/vms/{name}/memory/{mb}", post(set_memory))
 }

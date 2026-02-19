@@ -4,6 +4,8 @@ use virt::domain::Domain;
 use crate::LibvirtError;
 
 pub fn clone_vm(conn: &Connect, source_name: &str, new_name: &str) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(new_name)?;
+
     let source = Domain::lookup_by_name(conn, source_name)
         .map_err(|e| LibvirtError::NotFound(format!("VM '{source_name}' not found: {e}")))?;
 

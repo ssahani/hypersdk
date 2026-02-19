@@ -252,4 +252,24 @@ impl DaemonClient {
         }
         Ok(())
     }
+
+    // ── Resize ──────────────────────────────────────────────────────────
+
+    pub async fn set_vcpus(&self, name: &str, count: u32) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/vcpus/{}", self.base_url, name, count);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn set_memory(&self, name: &str, mb: u64) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/memory/{}", self.base_url, name, mb);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
 }

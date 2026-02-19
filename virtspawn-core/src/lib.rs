@@ -1,6 +1,8 @@
+pub mod audit;
 pub mod config;
 pub mod libvirt;
 pub mod state;
+pub mod validate;
 
 pub use config::VirtspawnConfig;
 pub use libvirt::LibvirtManager;

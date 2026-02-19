@@ -9,6 +9,12 @@ use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
 pub fn create_vm(conn: &Connect, req: &CreateVmRequest) -> Result<(), LibvirtError> {
+    // Validate inputs
+    crate::validate::validate_name(&req.name)?;
+    crate::validate::validate_vcpus(req.vcpus)?;
+    crate::validate::validate_memory_mb(req.memory_mb)?;
+    crate::validate::validate_disk_gb(req.disk_gb)?;
+
     // Determine storage pool path for disk
     let disk_path = find_disk_path(conn, &req.name)?;
 
