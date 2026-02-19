@@ -185,6 +185,44 @@ impl Default for CreateVmRequest {
     }
 }
 
+// ── Network Create Request ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateNetworkRequest {
+    pub name: String,
+    #[serde(default = "default_subnet")]
+    pub subnet: String,
+    #[serde(default = "default_dhcp_start")]
+    pub dhcp_start: String,
+    #[serde(default = "default_dhcp_end")]
+    pub dhcp_end: String,
+}
+
+fn default_subnet() -> String { "192.168.100".to_string() }
+fn default_dhcp_start() -> String { "192.168.100.100".to_string() }
+fn default_dhcp_end() -> String { "192.168.100.254".to_string() }
+
+// ── Volume Create Request ───────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateVolumeRequest {
+    pub name: String,
+    #[serde(default = "default_vol_capacity")]
+    pub capacity_gb: u64,
+    #[serde(default = "default_vol_format")]
+    pub format: String,
+}
+
+fn default_vol_capacity() -> u64 { 10 }
+fn default_vol_format() -> String { "qcow2".to_string() }
+
+// ── Rename Request ──────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenameVmRequest {
+    pub new_name: String,
+}
+
 // ── TUI State ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

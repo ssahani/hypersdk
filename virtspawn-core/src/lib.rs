@@ -7,9 +7,10 @@ pub mod validate;
 pub use config::VirtspawnConfig;
 pub use libvirt::LibvirtManager;
 pub use state::{
-    AppState, AuditEvent, CloneVmRequest, CreateSnapshotRequest, CreateVmRequest, DiskInfo,
-    InputMode, InterfaceInfo, NetworkInfo, NodeInfo, ResourceView, SnapshotInfo, SortColumn,
-    SortDirection, StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics,
+    AppState, AuditEvent, CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest,
+    CreateVmRequest, CreateVolumeRequest, DiskInfo, InputMode, InterfaceInfo, NetworkInfo, NodeInfo,
+    RenameVmRequest, ResourceView, SnapshotInfo, SortColumn, SortDirection, StoragePoolInfo,
+    StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics,
 };
 
 #[derive(Debug, thiserror::Error)]

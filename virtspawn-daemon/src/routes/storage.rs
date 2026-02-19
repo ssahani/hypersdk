@@ -3,7 +3,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::storage;
-use virtspawn_core::{LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
+use virtspawn_core::{CreateVolumeRequest, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
 
 use crate::error::AppError;
 
@@ -54,6 +54,18 @@ async fn delete_volume(
     Ok(Json(serde_json::json!({ "status": "deleted", "pool": pool_name, "volume": vol_name })))
 }
 
+async fn create_volume(
+    State(manager): State<LibvirtManager>,
+    Path(pool_name): Path<String>,
+    Json(req): Json<CreateVolumeRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let vol_name = req.name.clone();
+    manager.with_conn(|conn| {
+        storage::create_volume(conn, &pool_name, &req.name, req.capacity_gb, &req.format)
+    })?;
+    Ok(Json(serde_json::json!({ "status": "created", "pool": pool_name, "volume": vol_name })))
+}
+
 pub fn storage_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/storage/pools", get(list_pools))
@@ -61,6 +73,7 @@ pub fn storage_routes() -> Router<LibvirtManager> {
         .route("/storage/pools/{name}/stop", post(stop_pool))
         .route("/storage/pools/{name}/refresh", post(refresh_pool))
         .route("/storage/pools/{pool_name}/volumes", get(list_volumes))
+        .route("/storage/pools/{pool_name}/volumes", post(create_volume))
         .route(
             "/storage/pools/{pool_name}/volumes/{vol_name}",
             delete(delete_volume),

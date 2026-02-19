@@ -1,7 +1,7 @@
 use anyhow::Result;
 use virtspawn_core::{
-    CloneVmRequest, CreateSnapshotRequest, CreateVmRequest, NetworkInfo, NodeInfo, SnapshotInfo,
-    StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
+    CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest, CreateVmRequest, NetworkInfo,
+    NodeInfo, RenameVmRequest, SnapshotInfo, StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
 };
 
 pub struct DaemonClient {
@@ -267,6 +267,40 @@ impl DaemonClient {
     pub async fn set_memory(&self, name: &str, mb: u64) -> Result<()> {
         let url = format!("{}/api/v1/vms/{}/memory/{}", self.base_url, name, mb);
         let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── Rename ──────────────────────────────────────────────────────────
+
+    pub async fn rename_vm(&self, name: &str, new_name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/rename", self.base_url, name);
+        let req = RenameVmRequest {
+            new_name: new_name.to_string(),
+        };
+        let resp = self.client.post(&url).json(&req).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── Network create/delete ───────────────────────────────────────────
+
+    pub async fn create_network(&self, req: &CreateNetworkRequest) -> Result<()> {
+        let url = format!("{}/api/v1/networks", self.base_url);
+        let resp = self.client.post(&url).json(req).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn delete_network(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/networks/{}", self.base_url, name);
+        let resp = self.client.delete(&url).send().await?;
         if !resp.status().is_success() {
             anyhow::bail!("{}", resp.text().await.unwrap_or_default());
         }

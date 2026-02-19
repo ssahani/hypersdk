@@ -45,9 +45,12 @@ async fn main() -> anyhow::Result<()> {
     let client = api::DaemonClient::new(&daemon_url);
     let mut app = App::new(client, refresh_secs);
 
+    crossterm::execute!(std::io::stdout(), crossterm::event::EnableMouseCapture)?;
+
     let terminal = ratatui::init();
     let result = app.run(terminal).await;
 
+    crossterm::execute!(std::io::stdout(), crossterm::event::DisableMouseCapture)?;
     ratatui::restore();
     result
 }

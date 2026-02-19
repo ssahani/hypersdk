@@ -1,9 +1,10 @@
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
 use virtspawn_core::{
-    AppState, CreateVmRequest, InputMode, ResourceView, SortColumn, SortDirection, ViewMode,
+    AppState, CreateNetworkRequest, CreateVmRequest, InputMode, ResourceView, SortColumn,
+    SortDirection, ViewMode,
 };
 
 use crate::api::DaemonClient;
@@ -36,8 +37,10 @@ impl App {
             terminal.draw(|frame| ui::render(frame, &self.state))?;
 
             if event::poll(Duration::from_millis(250))? {
-                if let Event::Key(key) = event::read()? {
-                    self.handle_key(key).await;
+                match event::read()? {
+                    Event::Key(key) => self.handle_key(key).await,
+                    Event::Mouse(mouse) => self.handle_mouse(mouse),
+                    _ => {}
                 }
             }
 
@@ -408,6 +411,26 @@ impl App {
             }
             KeyCode::Char(c) => {
                 self.state.command_input.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    // ── Mouse handling ───────────────────────────────────────────────────
+
+    fn handle_mouse(&mut self, mouse: MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::ScrollDown => self.move_down(),
+            MouseEventKind::ScrollUp => self.move_up(),
+            MouseEventKind::Down(_) => {
+                // Click on a row — offset by 2 for tab bar + table header
+                if mouse.row > 2 {
+                    let clicked = (mouse.row - 2) as usize;
+                    let len = self.state.current_list_len();
+                    if clicked < len {
+                        self.state.selected_index = clicked;
+                    }
+                }
             }
             _ => {}
         }
@@ -857,6 +880,48 @@ impl App {
                         self.state.status_message =
                             format!("Set vCPUs for '{name}' to {count} (applies on next boot)");
                         self.state.add_audit_event("resize-vcpus", name, &count.to_string());
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["rename", old_name, new_name] => {
+                match self.client.rename_vm(old_name, new_name).await {
+                    Ok(()) => {
+                        self.state.status_message = format!("Renamed '{old_name}' to '{new_name}'");
+                        self.state.add_audit_event("rename", old_name, new_name);
+                        if self.state.resource_view == ResourceView::VirtualMachines {
+                            self.refresh_current_view().await;
+                        }
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["netcreate", name] => {
+                let req = CreateNetworkRequest {
+                    name: name.to_string(),
+                    subnet: "192.168.100".to_string(),
+                    dhcp_start: "192.168.100.100".to_string(),
+                    dhcp_end: "192.168.100.254".to_string(),
+                };
+                match self.client.create_network(&req).await {
+                    Ok(()) => {
+                        self.state.status_message = format!("Created network '{name}'");
+                        self.state.add_audit_event("create-network", name, "OK");
+                        if self.state.resource_view == ResourceView::Networks {
+                            self.refresh_current_view().await;
+                        }
+                    }
+                    Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ["netdelete", name] => {
+                match self.client.delete_network(name).await {
+                    Ok(()) => {
+                        self.state.status_message = format!("Deleted network '{name}'");
+                        self.state.add_audit_event("delete-network", name, "OK");
+                        if self.state.resource_view == ResourceView::Networks {
+                            self.refresh_current_view().await;
+                        }
                     }
                     Err(e) => self.state.status_message = format!("Error: {e}"),
                 }

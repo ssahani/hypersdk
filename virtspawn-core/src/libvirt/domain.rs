@@ -186,6 +186,30 @@ pub fn set_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), 
     Ok(())
 }
 
+pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(new_name)?;
+
+    let domain = Domain::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))?;
+
+    // VM must be shutoff to rename
+    let info = domain
+        .get_info()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to get VM info: {e}")))?;
+
+    if info.state as u32 != 5 {
+        return Err(LibvirtError::Operation(
+            "VM must be shutoff to rename".to_string(),
+        ));
+    }
+
+    domain
+        .rename(new_name, 0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to rename VM '{name}': {e}")))?;
+
+    Ok(())
+}
+
 // ── XML parsing helpers ─────────────────────────────────────────────────
 
 fn parse_os_info(xml: &str) -> (String, String) {

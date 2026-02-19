@@ -120,6 +120,36 @@ pub fn stop_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
+pub fn create_volume(
+    conn: &Connect,
+    pool_name: &str,
+    vol_name: &str,
+    capacity_gb: u64,
+    format: &str,
+) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(vol_name)?;
+
+    let pool = StoragePool::lookup_by_name(conn, pool_name)
+        .map_err(|e| LibvirtError::NotFound(format!("Pool '{pool_name}' not found: {e}")))?;
+
+    let capacity_bytes = capacity_gb * 1024 * 1024 * 1024;
+
+    let xml = format!(
+        r#"<volume>
+  <name>{vol_name}</name>
+  <capacity unit='bytes'>{capacity_bytes}</capacity>
+  <target>
+    <format type='{format}'/>
+  </target>
+</volume>"#,
+    );
+
+    StorageVol::create_xml(&pool, &xml, 0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to create volume '{vol_name}': {e}")))?;
+
+    Ok(())
+}
+
 pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = StoragePool::lookup_by_name(conn, name)
         .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;

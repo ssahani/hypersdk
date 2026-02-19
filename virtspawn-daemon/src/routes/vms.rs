@@ -3,7 +3,9 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::{clone, create, domain, resize};
-use virtspawn_core::{CloneVmRequest, CreateVmRequest, LibvirtManager, VmDetails, VmInfo};
+use virtspawn_core::{
+    CloneVmRequest, CreateVmRequest, LibvirtManager, RenameVmRequest, VmDetails, VmInfo,
+};
 
 use crate::error::AppError;
 
@@ -144,4 +146,14 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/autostart/{enabled}", post(set_autostart))
         .route("/vms/{name}/vcpus/{count}", post(set_vcpus))
         .route("/vms/{name}/memory/{mb}", post(set_memory))
+        .route("/vms/{name}/rename", post(rename_vm_handler))
+}
+
+async fn rename_vm_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<RenameVmRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| domain::rename_vm(conn, &name, &req.new_name))?;
+    Ok(Json(serde_json::json!({ "status": "renamed", "old_name": name, "new_name": req.new_name })))
 }
