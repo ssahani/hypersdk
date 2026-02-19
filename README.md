@@ -18,6 +18,7 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 - **VM creation**: create VMs from parameters with auto-generated qcow2 disk, VNC, virtio, q35 machine type
 - **VM lifecycle**: start, stop (force), shutdown (graceful), reboot, pause, resume, delete, autostart toggle
 - **VM cloning**: clone VMs with automatic new UUID and MAC address generation
+- **VM resize**: adjust vCPUs and memory (takes effect on next boot)
 - **VM details**: vCPUs, memory, OS type, architecture, network interfaces, disks, UUID
 - **VM XML viewer**: browse raw libvirt XML with scrollable view
 - **VM metrics**: memory usage %, CPU time, disk I/O (read/write), network I/O (RX/TX)
@@ -27,9 +28,14 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 - **Node info**: hostname, hypervisor version, CPU model/cores/threads, memory, VM counts
 - **Health check**: daemon health endpoint to verify libvirt connectivity
 - **Multi-select**: select multiple VMs and batch start/stop/reboot/pause/resume/delete
-- **Audit trail**: tracks all operations with timestamps and results in an Events view
+- **Audit trail**: persistent log at `~/.virtspawn/audit.log`, loaded on startup, viewable in Events tab
 - **Context menu**: quick-access action overlay for the selected resource
 - **Console access**: launch `virt-viewer` for graphical console directly from TUI
+- **Input validation**: VM names, vCPU counts, memory, and disk size bounds checked
+- **Connection resilience**: auto-reconnects to libvirt if connection drops
+- **Graceful shutdown**: daemon handles SIGTERM/SIGINT cleanly
+- **Request tracing**: HTTP request logging via tower-http (enable with `RUST_LOG=tower_http=debug`)
+- **CLI arguments**: both daemon and TUI support command-line flags to override config
 - **TUI**: 6 resource views, search/filter, sort, help screen, details panel, command mode
 
 ## Prerequisites
@@ -61,12 +67,27 @@ Start the daemon:
 
 ```bash
 cargo run -p virtspawn-daemon
+
+# With options:
+virtspawn-daemon --port 9090 --libvirt-uri qemu:///system
+virtspawn-daemon --config /path/to/config.toml
 ```
 
 In another terminal, start the TUI:
 
 ```bash
 cargo run -p virtspawn-tui
+
+# With options:
+virtspawn-tui --url http://127.0.0.1:9090
+virtspawn-tui --refresh 10
+virtspawn-tui --config /path/to/config.toml
+```
+
+Enable request tracing on the daemon:
+
+```bash
+RUST_LOG=tower_http=debug virtspawn-daemon
 ```
 
 ## Configuration
@@ -85,7 +106,7 @@ port = 8081
 uri = "qemu:///system"
 ```
 
-An example config is provided in `examples/config.toml`.
+CLI arguments override config file values. An example config is provided in `examples/config.toml`.
 
 ## TUI Keyboard Shortcuts
 
@@ -169,6 +190,8 @@ When VMs are selected, actions (`s`, `x`, `H`, `b`, `p`, `u`, `d`) apply to all 
 | `:create <name> <vcpus> <memory_mb>` | Create VM with custom resources |
 | `:snap <vm> <name>` | Create a snapshot |
 | `:clone <source> <new-name>` | Clone a VM |
+| `:resize <name> vcpus <count>` | Set vCPU count (next boot) |
+| `:resize <name> memory <mb>` | Set max memory in MB (next boot) |
 | `:quit` | Quit |
 
 ## REST API
@@ -192,6 +215,8 @@ All endpoints are under `/api/v1/`.
 | POST | `/vms/{name}/resume` | Resume |
 | POST | `/vms/{name}/clone` | Clone VM (body: `{"new_name": "..."}`) |
 | POST | `/vms/{name}/autostart/{bool}` | Set autostart |
+| POST | `/vms/{name}/vcpus/{count}` | Set vCPU count (config) |
+| POST | `/vms/{name}/memory/{mb}` | Set max memory in MB |
 
 ### Metrics
 
