@@ -19,18 +19,22 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 - **VM lifecycle**: start, stop (force), shutdown (graceful), reboot, pause, resume, delete, autostart toggle
 - **VM cloning**: clone VMs with automatic new UUID and MAC address generation
 - **VM resize**: adjust vCPUs and memory (takes effect on next boot)
+- **VM rename**: rename VMs (requires shutoff state)
 - **VM details**: vCPUs, memory, OS type, architecture, network interfaces, disks, UUID
 - **VM XML viewer**: browse raw libvirt XML with scrollable view
 - **VM metrics**: memory usage %, CPU time, disk I/O (read/write), network I/O (RX/TX)
 - **Snapshots**: list, create, delete, revert across all VMs
-- **Networks**: list, start, stop virtual networks
-- **Storage**: list pools with capacity/usage, start/stop/refresh pools, list volumes
+- **Networks**: create, delete, list, start, stop virtual networks (NAT with DHCP)
+- **Storage**: list pools with capacity/usage, start/stop/refresh pools, list/create volumes
 - **Node info**: hostname, hypervisor version, CPU model/cores/threads, memory, VM counts
 - **Health check**: daemon health endpoint to verify libvirt connectivity
 - **Multi-select**: select multiple VMs and batch start/stop/reboot/pause/resume/delete
 - **Audit trail**: persistent log at `~/.virtspawn/audit.log`, loaded on startup, viewable in Events tab
 - **Context menu**: quick-access action overlay for the selected resource
 - **Console access**: launch `virt-viewer` for graphical console directly from TUI
+- **Mouse support**: scroll wheel navigation, click to select rows
+- **WebSocket**: real-time VM state change notifications (added/removed/state changes)
+- **systemd service**: included unit file for running daemon as a service
 - **Input validation**: VM names, vCPU counts, memory, and disk size bounds checked
 - **Connection resilience**: auto-reconnects to libvirt if connection drops
 - **Graceful shutdown**: daemon handles SIGTERM/SIGINT cleanly
@@ -192,6 +196,9 @@ When VMs are selected, actions (`s`, `x`, `H`, `b`, `p`, `u`, `d`) apply to all 
 | `:clone <source> <new-name>` | Clone a VM |
 | `:resize <name> vcpus <count>` | Set vCPU count (next boot) |
 | `:resize <name> memory <mb>` | Set max memory in MB (next boot) |
+| `:rename <old> <new>` | Rename a VM (must be shutoff) |
+| `:netcreate <name>` | Create a NAT network with DHCP |
+| `:netdelete <name>` | Delete a network |
 | `:quit` | Quit |
 
 ## REST API
@@ -217,6 +224,7 @@ All endpoints are under `/api/v1/`.
 | POST | `/vms/{name}/autostart/{bool}` | Set autostart |
 | POST | `/vms/{name}/vcpus/{count}` | Set vCPU count (config) |
 | POST | `/vms/{name}/memory/{mb}` | Set max memory in MB |
+| POST | `/vms/{name}/rename` | Rename VM (body: `{"new_name": "..."}`) |
 
 ### Metrics
 
@@ -242,6 +250,8 @@ Returns CPU time (ns), vCPU count, memory total/used (MB), memory %, disk I/O (r
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | `/networks` | List networks |
+| POST | `/networks` | Create NAT network (body: `{"name": "...", "subnet": "192.168.100"}`) |
+| DELETE | `/networks/{name}` | Delete network |
 | POST | `/networks/{name}/start` | Start network |
 | POST | `/networks/{name}/stop` | Stop network |
 | GET | `/networks/{name}/xml` | Network XML |
@@ -255,6 +265,7 @@ Returns CPU time (ns), vCPU count, memory total/used (MB), memory %, disk I/O (r
 | POST | `/storage/pools/{name}/stop` | Stop pool |
 | POST | `/storage/pools/{name}/refresh` | Refresh pool |
 | GET | `/storage/pools/{pool}/volumes` | List volumes |
+| POST | `/storage/pools/{pool}/volumes` | Create volume (body: `{"name": "...", "capacity_gb": 10, "format": "qcow2"}`) |
 | DELETE | `/storage/pools/{pool}/volumes/{vol}` | Delete volume |
 
 ### Node
@@ -274,6 +285,18 @@ Returns CPU time (ns), vCPU count, memory total/used (MB), memory %, disk I/O (r
 | Path | Description |
 |------|-------------|
 | `/ws/v1/watch` | Periodic refresh events |
+
+## systemd Service
+
+Install the daemon as a systemd service:
+
+```bash
+cargo build --release -p virtspawn-daemon
+sudo cp target/release/virtspawn-daemon /usr/local/bin/
+sudo cp contrib/virtspawn-daemon.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now virtspawn-daemon
+```
 
 ## License
 
