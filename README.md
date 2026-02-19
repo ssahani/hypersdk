@@ -15,19 +15,23 @@ The daemon talks to libvirt and exposes a versioned REST API. The TUI connects t
 
 ## Features
 
-- **VM creation**: create VMs from parameters with auto-generated qcow2 disk, VNC, virtio, q35 machine type
+- **VM creation**: create VMs from parameters or templates with auto-generated qcow2 disk, VNC, virtio, q35 machine type
+- **VM templates**: predefined configs (linux-small/medium/large, windows, minimal) for quick provisioning
 - **VM lifecycle**: start, stop (force), shutdown (graceful), reboot, pause, resume, delete, autostart toggle
 - **VM cloning**: clone VMs with automatic new UUID and MAC address generation
 - **VM resize**: adjust vCPUs and memory (takes effect on next boot)
 - **VM rename**: rename VMs (requires shutoff state)
 - **VM details**: vCPUs, memory, OS type, architecture, network interfaces, disks, UUID
+- **VM disk management**: hot attach/detach disks to running or stopped VMs
 - **VM XML viewer**: browse raw libvirt XML with scrollable view
 - **VM metrics**: memory usage %, CPU time, disk I/O (read/write), network I/O (RX/TX)
 - **Snapshots**: list, create, delete, revert across all VMs
 - **Networks**: create, delete, list, start, stop virtual networks (NAT with DHCP)
 - **Storage**: list pools with capacity/usage, start/stop/refresh pools, list/create volumes
 - **Node info**: hostname, hypervisor version, CPU model/cores/threads, memory, VM counts
+- **Prometheus metrics**: `/api/v1/prometheus` endpoint for monitoring integration
 - **Health check**: daemon health endpoint to verify libvirt connectivity
+- **Connection status**: live indicator in TUI tab bar (green=connected, red=disconnected)
 - **Multi-select**: select multiple VMs and batch start/stop/reboot/pause/resume/delete
 - **Audit trail**: persistent log at `~/.virtspawn/audit.log`, loaded on startup, viewable in Events tab
 - **Context menu**: quick-access action overlay for the selected resource
@@ -96,7 +100,13 @@ RUST_LOG=tower_http=debug virtspawn-daemon
 
 ## Configuration
 
-Config file: `~/.virtspawn/config.toml`
+Config files are loaded in order of precedence:
+
+1. `~/.virtspawn/config.toml` (user config)
+2. `/etc/virtspawn/config.toml` (system config)
+3. Built-in defaults
+
+CLI arguments (`--port`, `--host`, etc.) override all config file values.
 
 ```toml
 [general]
@@ -110,7 +120,14 @@ port = 8081
 uri = "qemu:///system"
 ```
 
-CLI arguments override config file values. An example config is provided in `examples/config.toml`.
+Install the system config:
+
+```bash
+sudo mkdir -p /etc/virtspawn
+sudo cp contrib/virtspawn.toml /etc/virtspawn/config.toml
+```
+
+Example configs are in `examples/config.toml` and `contrib/virtspawn.toml`.
 
 ## TUI Keyboard Shortcuts
 
@@ -197,6 +214,8 @@ When VMs are selected, actions (`s`, `x`, `H`, `b`, `p`, `u`, `d`) apply to all 
 | `:resize <name> vcpus <count>` | Set vCPU count (next boot) |
 | `:resize <name> memory <mb>` | Set max memory in MB (next boot) |
 | `:rename <old> <new>` | Rename a VM (must be shutoff) |
+| `:template <tmpl> <name>` | Create VM from template |
+| `:templates` | List available templates |
 | `:netcreate <name>` | Create a NAT network with DHCP |
 | `:netdelete <name>` | Delete a network |
 | `:quit` | Quit |
@@ -225,6 +244,8 @@ All endpoints are under `/api/v1/`.
 | POST | `/vms/{name}/vcpus/{count}` | Set vCPU count (config) |
 | POST | `/vms/{name}/memory/{mb}` | Set max memory in MB |
 | POST | `/vms/{name}/rename` | Rename VM (body: `{"new_name": "..."}`) |
+| POST | `/vms/{name}/disk/attach` | Attach disk (body: `{"source": "...", "target": "vdb"}`) |
+| POST | `/vms/{name}/disk/detach/{target}` | Detach disk |
 
 ### Metrics
 
@@ -274,6 +295,18 @@ Returns CPU time (ns), vCPU count, memory total/used (MB), memory %, disk I/O (r
 |--------|------|-------------|
 | GET | `/node` | Host/hypervisor info |
 
+### Templates
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/templates` | List available VM templates |
+
+### Prometheus
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/prometheus` | Metrics in Prometheus exposition format |
+
 ### Health
 
 | Method | Path | Description |
@@ -284,7 +317,7 @@ Returns CPU time (ns), vCPU count, memory total/used (MB), memory %, disk I/O (r
 
 | Path | Description |
 |------|-------------|
-| `/ws/v1/watch` | Periodic refresh events |
+| `/ws/v1/watch` | Real-time VM state changes (added/removed/state_change/heartbeat) |
 
 ## systemd Service
 

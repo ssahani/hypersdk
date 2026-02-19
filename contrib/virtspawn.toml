@@ -1,0 +1,14 @@
+# virtspawn daemon configuration
+# Install to /etc/virtspawn/config.toml
+#
+# User config at ~/.virtspawn/config.toml takes precedence.
+
+[general]
+refresh_interval_secs = 5
+
+[daemon]
+host = "127.0.0.1"
+port = 8081
+
+[libvirt]
+uri = "qemu:///system"

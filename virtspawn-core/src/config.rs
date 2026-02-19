@@ -93,20 +93,30 @@ impl VirtspawnConfig {
     }
 
     pub fn load() -> Self {
-        let config_path = Self::config_path();
-        if config_path.exists() {
-            match fs::read_to_string(&config_path) {
-                Ok(content) => match toml::from_str(&content) {
-                    Ok(config) => {
-                        tracing::info!("Loaded config from {}", config_path.display());
-                        return config;
-                    }
+        // Check paths in order: user config, then system config
+        let paths = [
+            Self::config_path(),
+            PathBuf::from("/etc/virtspawn/config.toml"),
+        ];
+
+        for config_path in &paths {
+            if config_path.exists() {
+                match fs::read_to_string(config_path) {
+                    Ok(content) => match toml::from_str(&content) {
+                        Ok(config) => {
+                            tracing::info!("Loaded config from {}", config_path.display());
+                            return config;
+                        }
+                        Err(e) => {
+                            tracing::warn!(
+                                "Failed to parse {}: {e}",
+                                config_path.display()
+                            );
+                        }
+                    },
                     Err(e) => {
-                        tracing::warn!("Failed to parse config.toml: {e}");
+                        tracing::warn!("Failed to read {}: {e}", config_path.display());
                     }
-                },
-                Err(e) => {
-                    tracing::warn!("Failed to read config.toml: {e}");
                 }
             }
         }
