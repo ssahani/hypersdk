@@ -1,5 +1,7 @@
 use anyhow::Result;
-use virtspawn_core::VmInfo;
+use virtspawn_core::{
+    CreateSnapshotRequest, NetworkInfo, NodeInfo, SnapshotInfo, StoragePoolInfo, VmDetails, VmInfo,
+};
 
 pub struct DaemonClient {
     base_url: String,
@@ -14,18 +16,25 @@ impl DaemonClient {
         }
     }
 
+    // ── VMs ─────────────────────────────────────────────────────────────
+
     pub async fn fetch_vms(&self) -> Result<Vec<VmInfo>> {
         let url = format!("{}/api/v1/vms", self.base_url);
-        let vms = self.client.get(&url).send().await?.json::<Vec<VmInfo>>().await?;
+        let vms = self.client.get(&url).send().await?.json().await?;
         Ok(vms)
+    }
+
+    pub async fn get_vm_details(&self, name: &str) -> Result<VmDetails> {
+        let url = format!("{}/api/v1/vms/{}", self.base_url, name);
+        let details = self.client.get(&url).send().await?.json().await?;
+        Ok(details)
     }
 
     pub async fn start_vm(&self, name: &str) -> Result<()> {
         let url = format!("{}/api/v1/vms/{}/start", self.base_url, name);
         let resp = self.client.post(&url).send().await?;
         if !resp.status().is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to start VM: {body}");
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
         }
         Ok(())
     }
@@ -34,8 +43,43 @@ impl DaemonClient {
         let url = format!("{}/api/v1/vms/{}/stop", self.base_url, name);
         let resp = self.client.post(&url).send().await?;
         if !resp.status().is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to stop VM: {body}");
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn shutdown_vm(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/shutdown", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn reboot_vm(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/reboot", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn pause_vm(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/pause", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn resume_vm(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/resume", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
         }
         Ok(())
     }
@@ -44,9 +88,95 @@ impl DaemonClient {
         let url = format!("{}/api/v1/vms/{}", self.base_url, name);
         let resp = self.client.delete(&url).send().await?;
         if !resp.status().is_success() {
-            let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("Failed to delete VM: {body}");
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
         }
         Ok(())
+    }
+
+    // ── Networks ────────────────────────────────────────────────────────
+
+    pub async fn fetch_networks(&self) -> Result<Vec<NetworkInfo>> {
+        let url = format!("{}/api/v1/networks", self.base_url);
+        let nets = self.client.get(&url).send().await?.json().await?;
+        Ok(nets)
+    }
+
+    pub async fn start_network(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/networks/{}/start", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn stop_network(&self, name: &str) -> Result<()> {
+        let url = format!("{}/api/v1/networks/{}/stop", self.base_url, name);
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── Storage ─────────────────────────────────────────────────────────
+
+    pub async fn fetch_storage_pools(&self) -> Result<Vec<StoragePoolInfo>> {
+        let url = format!("{}/api/v1/storage/pools", self.base_url);
+        let pools = self.client.get(&url).send().await?.json().await?;
+        Ok(pools)
+    }
+
+    // ── Snapshots ───────────────────────────────────────────────────────
+
+    pub async fn fetch_all_snapshots(&self) -> Result<Vec<SnapshotInfo>> {
+        let url = format!("{}/api/v1/snapshots", self.base_url);
+        let snaps = self.client.get(&url).send().await?.json().await?;
+        Ok(snaps)
+    }
+
+    pub async fn create_snapshot(&self, vm_name: &str, snap_name: &str, desc: &str) -> Result<()> {
+        let url = format!("{}/api/v1/vms/{}/snapshots", self.base_url, vm_name);
+        let req = CreateSnapshotRequest {
+            name: snap_name.to_string(),
+            description: desc.to_string(),
+        };
+        let resp = self.client.post(&url).json(&req).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn delete_snapshot(&self, vm_name: &str, snap_name: &str) -> Result<()> {
+        let url = format!(
+            "{}/api/v1/vms/{}/snapshots/{}",
+            self.base_url, vm_name, snap_name
+        );
+        let resp = self.client.delete(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    pub async fn revert_snapshot(&self, vm_name: &str, snap_name: &str) -> Result<()> {
+        let url = format!(
+            "{}/api/v1/vms/{}/snapshots/{}/revert",
+            self.base_url, vm_name, snap_name
+        );
+        let resp = self.client.post(&url).send().await?;
+        if !resp.status().is_success() {
+            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+        }
+        Ok(())
+    }
+
+    // ── Node ────────────────────────────────────────────────────────────
+
+    pub async fn fetch_node_info(&self) -> Result<NodeInfo> {
+        let url = format!("{}/api/v1/node", self.base_url);
+        let info = self.client.get(&url).send().await?.json().await?;
+        Ok(info)
     }
 }
