@@ -1326,24 +1326,27 @@ impl App {
                 Ok(info) => {
                     let ctype = info["console_type"].as_str().unwrap_or("unknown");
                     let port = info["port"].as_i64().unwrap_or(-1);
+                    let ws_port = info["websocket_port"].as_i64().unwrap_or(-1);
 
                     if port <= 0 {
                         self.state.status_message = format!("No VNC/SPICE port for '{name}' (port={port})");
                         return;
                     }
 
+                    // Prefer websocket port for noVNC if available
+                    let connect_port = if ws_port > 0 { ws_port } else { port };
                     let novnc_url = format!(
-                        "http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={port}&autoconnect=true"
+                        "http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true"
                     );
 
                     if std::process::Command::new("xdg-open").arg(&novnc_url).spawn().is_ok() {
-                        self.state.status_message = format!("Opening noVNC for '{name}' ({ctype} port {port})");
+                        self.state.status_message = format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
                     } else {
                         self.state.status_message = format!(
                             "VNC for '{name}': {ctype} on 127.0.0.1:{port}. Connect with: vncviewer 127.0.0.1:{port}"
                         );
                     }
-                    self.state.add_audit_event("novnc", &name, &format!("port {port}"));
+                    self.state.add_audit_event("novnc", &name, &format!("port {connect_port}"));
                 }
                 Err(e) => self.state.status_message = format!("Error: {e}"),
             }
