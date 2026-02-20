@@ -143,6 +143,8 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
     }
 
     let visible_height = inner.height as usize;
+    let max_name_width = inner.width.saturating_sub(5) as usize; // leave room for indicators
+
     // Compute scroll offset for sidebar
     let scroll_start = if state.sidebar_selected >= visible_height {
         state.sidebar_selected - visible_height + 1
@@ -150,6 +152,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
         0
     };
 
+    let total_items = state.sidebar_items.len();
     let mut lines: Vec<Line> = Vec::new();
 
     for (i, item) in state.sidebar_items.iter().enumerate().skip(scroll_start).take(visible_height) {
@@ -158,13 +161,27 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
             SidebarItem::Category(cat) => {
                 let collapsed = *state.sidebar_collapsed.get(cat).unwrap_or(&false);
                 let arrow = if collapsed { "\u{25b6}" } else { "\u{25bc}" }; // > or v
-                let count = match cat {
-                    SidebarCategory::VirtualMachines => state.vms.len(),
-                    SidebarCategory::Networks => state.networks.len(),
-                    SidebarCategory::Storage => state.storage_pools.len(),
-                    SidebarCategory::Snapshots => state.snapshots.len(),
+                let count_label = match cat {
+                    SidebarCategory::VirtualMachines => {
+                        let running = state.vms.iter().filter(|v| v.state == "running").count();
+                        let total = state.vms.len();
+                        format!("{running}/{total}")
+                    }
+                    SidebarCategory::Networks => {
+                        let active = state.networks.iter().filter(|n| n.active).count();
+                        let total = state.networks.len();
+                        format!("{active}/{total}")
+                    }
+                    SidebarCategory::Storage => {
+                        let active = state.storage_pools.iter().filter(|p| p.state == "running").count();
+                        let total = state.storage_pools.len();
+                        format!("{active}/{total}")
+                    }
+                    SidebarCategory::Snapshots => {
+                        format!("{}", state.snapshots.len())
+                    }
                 };
-                let label = format!("{arrow} {} ({count})", cat.label());
+                let label = format!("{arrow} {} ({count_label})", cat.label());
                 let style = if is_selected {
                     Style::default().fg(ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
                 } else {
@@ -183,6 +200,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                     _ => "\u{25cb}",          // empty circle
                 };
                 let ind_color = state_color(vm_state);
+                let display_name = truncate_str(name, max_name_width);
                 let name_style = if is_selected {
                     Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
                 } else {
@@ -190,7 +208,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                 };
                 Line::from(vec![
                     Span::styled(format!("  {indicator} "), Style::default().fg(ind_color)),
-                    Span::styled(name.clone(), name_style),
+                    Span::styled(display_name, name_style),
                 ])
             }
             SidebarItem::Network(name) => {
@@ -200,6 +218,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                     .unwrap_or(false);
                 let indicator = if active { "\u{25cf}" } else { "\u{25cb}" };
                 let ind_color = if active { SUCCESS_COLOR } else { ERROR_COLOR };
+                let display_name = truncate_str(name, max_name_width);
                 let name_style = if is_selected {
                     Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
                 } else {
@@ -207,10 +226,11 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                 };
                 Line::from(vec![
                     Span::styled(format!("  {indicator} "), Style::default().fg(ind_color)),
-                    Span::styled(name.clone(), name_style),
+                    Span::styled(display_name, name_style),
                 ])
             }
             SidebarItem::StoragePool(name) => {
+                let display_name = truncate_str(name, max_name_width.saturating_sub(2));
                 let name_style = if is_selected {
                     Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
                 } else {
@@ -218,11 +238,12 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                 };
                 Line::from(vec![
                     Span::styled("    ", Style::default()),
-                    Span::styled(name.clone(), name_style),
+                    Span::styled(display_name, name_style),
                 ])
             }
             SidebarItem::Snapshot(vm, snap) => {
                 let label = format!("{vm}/{snap}");
+                let display_label = truncate_str(&label, max_name_width.saturating_sub(2));
                 let name_style = if is_selected {
                     Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
                 } else {
@@ -230,11 +251,29 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                 };
                 Line::from(vec![
                     Span::styled("    ", Style::default()),
-                    Span::styled(label, name_style),
+                    Span::styled(display_label, name_style),
                 ])
             }
         };
         lines.push(line);
+    }
+
+    // Scroll indicators when items overflow
+    if total_items > visible_height {
+        if scroll_start > 0 {
+            // Show up arrow on first visible line
+            if let Some(first) = lines.first_mut() {
+                let mut spans = vec![Span::styled("\u{25b2}", Style::default().fg(DARK_ORANGE))];
+                spans.append(&mut first.spans);
+                *first = Line::from(spans);
+            }
+        }
+        if scroll_start + visible_height < total_items {
+            // Show down arrow on last visible line
+            if let Some(last) = lines.last_mut() {
+                last.spans.push(Span::styled(" \u{25bc}", Style::default().fg(DARK_ORANGE)));
+            }
+        }
     }
 
     let paragraph = Paragraph::new(lines);
@@ -1582,6 +1621,16 @@ fn mini_sparkline(values: &[f64]) -> String {
             BLOCKS[normalized.min(7)]
         })
         .collect()
+}
+
+fn truncate_str(s: &str, max_len: usize) -> String {
+    if s.len() <= max_len {
+        s.to_string()
+    } else if max_len > 2 {
+        format!("{}..", &s[..max_len - 2])
+    } else {
+        s[..max_len].to_string()
+    }
 }
 
 fn format_bytes(bytes: u64) -> String {

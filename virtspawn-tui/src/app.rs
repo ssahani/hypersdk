@@ -91,13 +91,9 @@ impl App {
                 return;
             }
             ViewMode::Details => {
-                match key.code {
-                    KeyCode::Esc | KeyCode::Char('q') => {
-                        self.state.view_mode = ViewMode::Table;
-                        self.state.vm_details = None;
-                    }
-                    _ => {}
-                }
+                // Details are now shown inline in the content panel Summary tab.
+                // This branch handles legacy escape if somehow entered.
+                self.state.view_mode = ViewMode::Table;
                 return;
             }
             ViewMode::Logs => {
@@ -196,6 +192,7 @@ impl App {
         }
 
         // Layer 2: Focus switching
+        // Note: 'l' on sidebar with a VM selected falls through to show logs
         match key.code {
             KeyCode::Char('h') | KeyCode::Left => {
                 if self.state.focus == Focus::Content {
@@ -203,10 +200,19 @@ impl App {
                     return;
                 }
             }
-            KeyCode::Char('l') | KeyCode::Right => {
+            KeyCode::Right => {
                 if self.state.focus == Focus::Sidebar {
                     self.state.focus = Focus::Content;
                     return;
+                }
+            }
+            KeyCode::Char('l') => {
+                if self.state.focus == Focus::Sidebar {
+                    // If on a VM item, let 'l' fall through to sidebar handler for logs
+                    if !matches!(self.state.selected_sidebar_item(), Some(SidebarItem::Vm(_))) {
+                        self.state.focus = Focus::Content;
+                        return;
+                    }
                 }
             }
             _ => {}
@@ -349,13 +355,10 @@ impl App {
             KeyCode::Char('y') => self.show_vm_xml_sidebar().await,
             KeyCode::Char('c') => self.launch_console_sidebar().await,
 
-            // Log viewer
+            // Log viewer (only reaches here when on a VM; otherwise Layer 2 switches focus)
             KeyCode::Char('l') => {
-                // 'l' in sidebar also switches focus to content, but if on a VM we show logs
                 if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
                     self.show_vm_logs_by_name(&name).await;
-                } else {
-                    self.state.focus = Focus::Content;
                 }
             }
 
