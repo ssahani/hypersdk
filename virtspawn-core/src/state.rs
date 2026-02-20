@@ -439,7 +439,7 @@ impl CreateVmForm {
 
         // Validate vCPUs
         match self.fields[2].value.parse::<u32>() {
-            Ok(v) if v >= 1 && v <= 256 => self.fields[2].validation_error = None,
+            Ok(v) if (1..=256).contains(&v) => self.fields[2].validation_error = None,
             _ => {
                 self.fields[2].validation_error = Some("1-256".to_string());
                 valid = false;
@@ -448,7 +448,7 @@ impl CreateVmForm {
 
         // Validate memory
         match self.fields[3].value.parse::<u64>() {
-            Ok(v) if v >= 64 && v <= 1_048_576 => self.fields[3].validation_error = None,
+            Ok(v) if (64..=1_048_576).contains(&v) => self.fields[3].validation_error = None,
             _ => {
                 self.fields[3].validation_error = Some("64-1048576 MB".to_string());
                 valid = false;
@@ -457,7 +457,7 @@ impl CreateVmForm {
 
         // Validate disk
         match self.fields[4].value.parse::<u64>() {
-            Ok(v) if v >= 1 && v <= 10_240 => self.fields[4].validation_error = None,
+            Ok(v) if (1..=10_240).contains(&v) => self.fields[4].validation_error = None,
             _ => {
                 self.fields[4].validation_error = Some("1-10240 GB".to_string());
                 valid = false;
@@ -893,26 +893,38 @@ impl AppState {
     }
 
     pub fn compute_dashboard(&mut self) {
-        let mut stats = DashboardStats::default();
-        stats.total_vms = self.vms.len();
+        let mut running_vms = 0;
+        let mut paused_vms = 0;
+        let mut stopped_vms = 0;
+        let mut total_vcpus = 0u32;
+        let mut total_memory_mb = 0u64;
+
         for vm in &self.vms {
             match vm.state.as_str() {
-                "running" => stats.running_vms += 1,
-                "paused" => stats.paused_vms += 1,
-                _ => stats.stopped_vms += 1,
+                "running" => running_vms += 1,
+                "paused" => paused_vms += 1,
+                _ => stopped_vms += 1,
             }
-            stats.total_vcpus += vm.vcpus;
-            stats.total_memory_mb += vm.memory_mb;
+            total_vcpus += vm.vcpus;
+            total_memory_mb += vm.memory_mb;
         }
-        for m in &self.vm_metrics {
-            stats.used_memory_mb += m.memory_used_mb;
-        }
-        stats.total_networks = self.networks.len();
-        stats.active_networks = self.networks.iter().filter(|n| n.active).count();
-        stats.total_pools = self.storage_pools.len();
-        stats.active_pools = self.storage_pools.iter().filter(|p| p.state == "running").count();
-        stats.total_snapshots = self.snapshots.len();
-        self.dashboard = stats;
+
+        let used_memory_mb: u64 = self.vm_metrics.iter().map(|m| m.memory_used_mb).sum();
+
+        self.dashboard = DashboardStats {
+            total_vms: self.vms.len(),
+            running_vms,
+            stopped_vms,
+            paused_vms,
+            total_vcpus,
+            total_memory_mb,
+            used_memory_mb,
+            total_networks: self.networks.len(),
+            active_networks: self.networks.iter().filter(|n| n.active).count(),
+            total_pools: self.storage_pools.len(),
+            active_pools: self.storage_pools.iter().filter(|p| p.state == "running").count(),
+            total_snapshots: self.snapshots.len(),
+        };
     }
 
     pub fn notify(&mut self, msg: &str) {

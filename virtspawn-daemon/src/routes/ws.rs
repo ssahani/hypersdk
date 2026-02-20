@@ -25,7 +25,7 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
         tick.tick().await;
 
         let current = manager
-            .with_conn(|conn| domain::list_vms(conn))
+            .with_conn(domain::list_vms)
             .unwrap_or_default();
 
         let current_states: Vec<(String, String)> = current

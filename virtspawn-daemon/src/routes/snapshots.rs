@@ -10,7 +10,7 @@ use crate::error::AppError;
 async fn list_all_snapshots(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<SnapshotInfo>>, AppError> {
-    let snaps = manager.with_conn(|conn| snapshot::list_all_snapshots(conn))?;
+    let snaps = manager.with_conn(snapshot::list_all_snapshots)?;
     Ok(Json(snaps))
 }
 

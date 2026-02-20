@@ -10,7 +10,7 @@ use crate::error::AppError;
 async fn get_all_metrics(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<VmMetrics>>, AppError> {
-    let m = manager.with_conn(|conn| metrics::get_all_vm_metrics(conn))?;
+    let m = manager.with_conn(metrics::get_all_vm_metrics)?;
     Ok(Json(m))
 }
 

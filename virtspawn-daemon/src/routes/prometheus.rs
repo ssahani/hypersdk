@@ -11,7 +11,7 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
     let mut output = String::new();
 
     // Node metrics
-    if let Ok(info) = manager.with_conn(|conn| node::get_node_info(conn)) {
+    if let Ok(info) = manager.with_conn(node::get_node_info) {
         output.push_str("# HELP virtspawn_node_memory_mb Total host memory in MB\n");
         output.push_str("# TYPE virtspawn_node_memory_mb gauge\n");
         output.push_str(&format!("virtspawn_node_memory_mb {}\n", info.memory_mb));
@@ -30,7 +30,7 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
     }
 
     // Per-VM metrics
-    if let Ok(vm_metrics) = manager.with_conn(|conn| metrics::get_all_vm_metrics(conn)) {
+    if let Ok(vm_metrics) = manager.with_conn(metrics::get_all_vm_metrics) {
         output.push_str("# HELP virtspawn_vm_cpu_time_seconds_total CPU time in seconds\n");
         output.push_str("# TYPE virtspawn_vm_cpu_time_seconds_total counter\n");
         for m in &vm_metrics {

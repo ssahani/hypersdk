@@ -10,7 +10,7 @@ use crate::error::AppError;
 async fn list_networks(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<NetworkInfo>>, AppError> {
-    let nets = manager.with_conn(|conn| network::list_networks(conn))?;
+    let nets = manager.with_conn(network::list_networks)?;
     Ok(Json(nets))
 }
 

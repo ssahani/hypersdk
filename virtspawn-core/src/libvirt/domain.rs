@@ -35,7 +35,7 @@ pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {
 
         vms.push(VmInfo {
             name,
-            state: state_to_string(info.state as u32),
+            state: state_to_string(info.state),
             vcpus: info.nr_virt_cpu,
             memory_mb: info.memory / 1024,
         });
@@ -70,7 +70,7 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
     Ok(VmDetails {
         name: name.to_string(),
         uuid,
-        state: state_to_string(info.state as u32),
+        state: state_to_string(info.state),
         vcpus: info.nr_virt_cpu,
         memory_mb: info.memory / 1024,
         os_type,
@@ -163,7 +163,7 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 
     let info = domain.get_info().ok();
     if let Some(info) = info {
-        if info.state as u32 == 1 {
+        if info.state == 1 {
             let _ = domain.destroy();
         }
     }
@@ -197,7 +197,7 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
         .get_info()
         .map_err(|e| LibvirtError::Operation(format!("Failed to get VM info: {e}")))?;
 
-    if info.state as u32 != 5 {
+    if info.state != 5 {
         return Err(LibvirtError::Operation(
             "VM must be shutoff to rename".to_string(),
         ));

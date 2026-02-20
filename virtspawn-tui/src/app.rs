@@ -248,8 +248,10 @@ impl App {
                 }
             }
             KeyCode::Char('g') => {
-                self.state.sidebar_selected = 0;
-                self.on_sidebar_selection_changed().await;
+                if !self.state.sidebar_items.is_empty() {
+                    self.state.sidebar_selected = 0;
+                    self.on_sidebar_selection_changed().await;
+                }
             }
             KeyCode::Char('G') => {
                 if !self.state.sidebar_items.is_empty() {

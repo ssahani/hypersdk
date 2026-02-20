@@ -21,7 +21,7 @@ pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> 
         let info = pool.get_info().ok();
         let (state, capacity_gb, allocation_gb, available_gb) = match info {
             Some(i) => (
-                pool_state_to_string(i.state as u32),
+                pool_state_to_string(i.state),
                 i.capacity as f64 / (1024.0 * 1024.0 * 1024.0),
                 i.allocation as f64 / (1024.0 * 1024.0 * 1024.0),
                 i.available as f64 / (1024.0 * 1024.0 * 1024.0),
@@ -67,7 +67,7 @@ pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolume
         let info = vol.get_info().ok();
         let (vol_type, capacity_gb, allocation_gb) = match info {
             Some(i) => (
-                vol_type_to_string(i.kind as u32),
+                vol_type_to_string(i.kind),
                 i.capacity as f64 / (1024.0 * 1024.0 * 1024.0),
                 i.allocation as f64 / (1024.0 * 1024.0 * 1024.0),
             ),

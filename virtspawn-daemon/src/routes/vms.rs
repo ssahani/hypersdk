@@ -11,7 +11,7 @@ use virtspawn_core::{
 use crate::error::AppError;
 
 async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmInfo>>, AppError> {
-    let vms = manager.with_conn(|conn| domain::list_vms(conn))?;
+    let vms = manager.with_conn(domain::list_vms)?;
     Ok(Json(vms))
 }
 

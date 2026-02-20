@@ -31,8 +31,8 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
 
         let state = extract_snap_xml_value(&xml, "state").unwrap_or_else(|| "unknown".to_string());
         let description =
-            extract_snap_xml_value(&xml, "description").unwrap_or_else(|| String::new());
-        let parent = extract_snap_parent(&xml).unwrap_or_else(|| String::new());
+            extract_snap_xml_value(&xml, "description").unwrap_or_default();
+        let parent = extract_snap_parent(&xml).unwrap_or_default();
 
         let is_current = current.as_deref() == Some(name.as_str());
 

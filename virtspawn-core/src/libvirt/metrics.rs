@@ -25,7 +25,7 @@ pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError
         };
 
         // Only collect metrics for running VMs
-        if info.state as u32 != 1 {
+        if info.state != 1 {
             continue;
         }
 

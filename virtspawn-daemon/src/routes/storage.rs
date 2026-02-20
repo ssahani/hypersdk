@@ -10,7 +10,7 @@ use crate::error::AppError;
 async fn list_pools(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<StoragePoolInfo>>, AppError> {
-    let pools = manager.with_conn(|conn| storage::list_pools(conn))?;
+    let pools = manager.with_conn(storage::list_pools)?;
     Ok(Json(pools))
 }
 

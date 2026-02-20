@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 pub struct VirtspawnConfig {
     #[serde(default)]
     pub general: GeneralConfig,
@@ -69,16 +69,6 @@ impl Default for LibvirtConfig {
     fn default() -> Self {
         Self {
             uri: default_libvirt_uri(),
-        }
-    }
-}
-
-impl Default for VirtspawnConfig {
-    fn default() -> Self {
-        Self {
-            general: GeneralConfig::default(),
-            daemon: DaemonConfig::default(),
-            libvirt: LibvirtConfig::default(),
         }
     }
 }

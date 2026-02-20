@@ -21,7 +21,7 @@ pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Re
 
     let flags = domain.get_info()
         .map(|info| {
-            if info.state as u32 == 1 {
+            if info.state == 1 {
                 virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG
             } else {
                 virt::sys::VIR_DOMAIN_AFFECT_CONFIG
@@ -48,7 +48,7 @@ pub fn detach_disk(conn: &Connect, vm_name: &str, target: &str) -> Result<(), Li
 
     let flags = domain.get_info()
         .map(|info| {
-            if info.state as u32 == 1 {
+            if info.state == 1 {
                 virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG
             } else {
                 virt::sys::VIR_DOMAIN_AFFECT_CONFIG

@@ -26,8 +26,8 @@ pub fn get_node_info(conn: &Connect) -> Result<NodeInfo, LibvirtError> {
         .get_node_info()
         .map_err(|e| LibvirtError::Operation(format!("Failed to get node info: {e}")))?;
 
-    let active_domains = conn.num_of_domains().unwrap_or(0) as u32;
-    let defined_domains = conn.num_of_defined_domains().unwrap_or(0) as u32;
+    let active_domains = conn.num_of_domains().unwrap_or(0);
+    let defined_domains = conn.num_of_defined_domains().unwrap_or(0);
 
     Ok(NodeInfo {
         hostname,

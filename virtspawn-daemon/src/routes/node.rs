@@ -10,7 +10,7 @@ use crate::error::AppError;
 async fn get_node_info(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<NodeInfo>, AppError> {
-    let info = manager.with_conn(|conn| node::get_node_info(conn))?;
+    let info = manager.with_conn(node::get_node_info)?;
     Ok(Json(info))
 }
 

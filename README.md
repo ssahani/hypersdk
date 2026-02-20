@@ -33,7 +33,7 @@ Manage virtual machines, networks, storage, and snapshots from your terminal wit
 virtspawn/
 ├── virtspawn-core/       Shared library — types, config, libvirt bindings, validation
 ├── virtspawn-daemon/     REST + WebSocket server (axum) with Prometheus metrics
-└── virtspawn-tui/        Terminal UI client (ratatui) with 6 resource views
+└── virtspawn-tui/        Terminal UI client (ratatui) with sidebar + content panel layout
 ```
 
 ## Features
@@ -62,18 +62,22 @@ virtspawn/
 - **Storage** — browse pools with capacity/usage, start/stop/refresh pools, volume browser with breadcrumb navigation
 
 ### TUI Experience
-- **6 resource views** — VMs, Networks, Storage, Snapshots, Events, Node dashboard
-- **Resource counts in tabs** — `VMs (3/5)` (running/total), `Networks (2/4)`, etc.
+- **vSphere-style sidebar + content layout** — left inventory tree with collapsible categories, right content panel with object-specific views
+- **Sub-tabs per object** — Summary, Monitor, Configure tabs for VMs with `Tab`/`1`/`2`/`3` switching
+- **Focus model** — `h`/`Left` focuses sidebar, `l`/`Right` focuses content panel; borders highlight active panel
+- **Inventory sidebar** — collapsible VMs/Networks/Storage/Snapshots groups with state indicators and running/total counts
+- **Resource counts** — `VMs (3/5)` (running/total), `Networks (2/4)` (active/total), etc.
 - **Fuzzy search** — character-by-character matching with scored results, not just substring
-- **Context-sensitive footer** — shows only relevant keybindings for the selected item's state
+- **Context-sensitive footer** — shows only relevant keybindings based on focus panel and selected item state
+- **Recent tasks bar** — last 3 audit events shown with color-coded results
 - **Modal confirmation dialogs** — centered overlay with resource name and warning
-- **Responsive layout** — columns adapt to terminal width (hides/shows columns at 60/80/120/160 cols)
+- **Responsive layout** — sidebar width auto-adjusts (22-30 chars), content columns adapt to terminal width
 - **Toast notifications** with level-aware icons — `✓` success, `✗` error, `⚠` warning, `ℹ` info
 - **Multi-select** — batch operations on multiple VMs (start/stop/reboot/delete all at once)
 - **Sorting** — by name, state, CPU, or memory with ascending/descending toggle
 - **Context menu** — quick-access action overlay (`Ctrl+Space`)
-- **Audit trail** — persistent log at `~/.virtspawn/audit.log`, viewable in Events tab
-- **Mouse support** — scroll wheel navigation, click to select rows
+- **Audit trail** — persistent log at `~/.virtspawn/audit.log`, viewable via `:events` command
+- **Mouse support** — click to select sidebar items or content rows, scroll wheel navigates per-panel
 - **Command mode** — vim-style `:command` interface
 
 ### Infrastructure
@@ -173,16 +177,32 @@ RUST_LOG=tower_http=debug virtspawn-daemon
 
 ## TUI Keyboard Reference
 
-### Navigation
+### Panel Navigation
 
 | Key | Action |
 |-----|--------|
-| `j` / `↓` | Move down |
+| `h` / `←` | Focus sidebar panel |
+| `l` / `→` | Focus content panel (`l` on a VM opens logs instead) |
+| `j` / `↓` | Move down (sidebar: items, content: rows or scroll) |
 | `k` / `↑` | Move up |
 | `g` / `G` | Jump to top / bottom |
 | `PageUp` / `PageDown` | Jump 10 items |
-| `Tab` / `Shift+Tab` | Next / previous view |
-| `1`–`6` | Switch view (VMs, Networks, Storage, Snapshots, Events, Node) |
+
+### Sidebar
+
+| Key | Action |
+|-----|--------|
+| `Space` | Collapse/expand category header |
+| `Enter` | Expand/collapse category, or select object and focus content |
+
+### Content Sub-Tabs (when a VM is selected)
+
+| Key | Action |
+|-----|--------|
+| `Tab` / `Shift+Tab` | Cycle through Summary / Monitor / Configure |
+| `1` | Summary tab |
+| `2` | Monitor tab |
+| `3` | Configure tab |
 
 ### VM Actions
 
