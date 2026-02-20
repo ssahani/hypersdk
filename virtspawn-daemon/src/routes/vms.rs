@@ -148,6 +148,7 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/vcpus/{count}", post(set_vcpus))
         .route("/vms/{name}/memory/{mb}", post(set_memory))
         .route("/vms/{name}/rename", post(rename_vm_handler))
+        .route("/vms/console-info/{name}", get(get_console_info))
         .route("/vms/{name}/disk/attach", post(attach_disk_handler))
         .route("/vms/{name}/disk/detach/{target}", post(detach_disk_handler))
 }
@@ -167,6 +168,47 @@ async fn detach_disk_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| device::detach_disk(conn, &name, &target))?;
     Ok(Json(serde_json::json!({ "status": "detached", "name": name, "target": target })))
+}
+
+async fn get_console_info(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let xml = manager.with_conn(|conn| domain::get_vm_xml(conn, &name))?;
+
+    // Extract graphics type and port from XML
+    let mut console_type = "unknown".to_string();
+    let mut port: i64 = -1;
+
+    if let Some(start) = xml.find("<graphics ") {
+        let after = &xml[start..];
+        if let Some(end) = after.find('>') {
+            let tag = &after[..end];
+            for q in ['\'', '"'] {
+                let tp = format!("type={q}");
+                if let Some(p) = tag.find(&tp) {
+                    let vs = p + tp.len();
+                    if let Some(ve) = tag[vs..].find(q) {
+                        console_type = tag[vs..vs + ve].to_string();
+                    }
+                }
+                let pp = format!("port={q}");
+                if let Some(p) = tag.find(&pp) {
+                    let vs = p + pp.len();
+                    if let Some(ve) = tag[vs..].find(q) {
+                        port = tag[vs..vs + ve].parse().unwrap_or(-1);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(Json(serde_json::json!({
+        "name": name,
+        "console_type": console_type,
+        "host": "127.0.0.1",
+        "port": port,
+    })))
 }
 
 async fn rename_vm_handler(

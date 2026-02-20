@@ -306,4 +306,20 @@ impl DaemonClient {
         }
         Ok(())
     }
+
+    // ── Volumes ─────────────────────────────────────────────────────────
+
+    pub async fn fetch_volumes(&self, pool: &str) -> Result<Vec<virtspawn_core::StorageVolumeInfo>> {
+        let url = format!("{}/api/v1/storage/pools/{}/volumes", self.base_url, pool);
+        let vols = self.client.get(&url).send().await?.json().await?;
+        Ok(vols)
+    }
+
+    // ── Console info ────────────────────────────────────────────────────
+
+    pub async fn get_console_info(&self, name: &str) -> Result<serde_json::Value> {
+        let url = format!("{}/api/v1/vms/console-info/{}", self.base_url, name);
+        let info = self.client.get(&url).send().await?.json().await?;
+        Ok(info)
+    }
 }

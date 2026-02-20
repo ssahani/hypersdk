@@ -3,8 +3,8 @@ use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
 use virtspawn_core::{
-    AppState, CreateNetworkRequest, CreateVmRequest, InputMode, ResourceView, SortColumn,
-    SortDirection, ViewMode, VmTemplate,
+    AppState, ConfirmationDialog, CreateNetworkRequest, CreateVmForm, CreateVmRequest, InputMode,
+    NotifyLevel, ResourceView, SortColumn, SortDirection, ViewMode, VmTemplate,
 };
 
 use crate::api::DaemonClient;
@@ -64,6 +64,7 @@ impl App {
             InputMode::Search => self.handle_search_key(key),
             InputMode::Confirmation => self.handle_confirmation_key(key).await,
             InputMode::Command => self.handle_command_key(key).await,
+            InputMode::CreateVmDialog => self.handle_create_dialog_key(key).await,
             InputMode::Normal => self.handle_normal_key(key).await,
         }
     }
@@ -87,6 +88,29 @@ impl App {
                     KeyCode::Esc | KeyCode::Char('q') => {
                         self.state.view_mode = ViewMode::Table;
                         self.state.vm_details = None;
+                    }
+                    _ => {}
+                }
+                return;
+            }
+            ViewMode::Logs => {
+                match key.code {
+                    KeyCode::Esc | KeyCode::Char('q') => {
+                        self.state.view_mode = ViewMode::Table;
+                        self.state.log_content.clear();
+                        self.state.scroll_offset = 0;
+                    }
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_add(1);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_sub(1);
+                    }
+                    KeyCode::PageDown => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_add(20);
+                    }
+                    KeyCode::PageUp => {
+                        self.state.scroll_offset = self.state.scroll_offset.saturating_sub(20);
                     }
                     _ => {}
                 }
@@ -195,7 +219,7 @@ impl App {
                 self.state.view_mode = ViewMode::Help;
             }
 
-            // Details (Enter on VMs view, or select in multi-select mode)
+            // Details / Enter pool to browse volumes
             KeyCode::Enter => {
                 if self.state.resource_view == ResourceView::VirtualMachines {
                     if self.state.multi_select_mode {
@@ -205,6 +229,23 @@ impl App {
                     } else {
                         self.show_vm_details().await;
                     }
+                } else if self.state.resource_view == ResourceView::StoragePools {
+                    self.browse_pool_volumes().await;
+                }
+            }
+            // Back from volume browser
+            KeyCode::Backspace => {
+                if self.state.browsing_pool.is_some() {
+                    self.state.browsing_pool = None;
+                    self.state.volumes.clear();
+                    self.state.selected_index = 0;
+                }
+            }
+
+            // Log viewer
+            KeyCode::Char('l') => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.show_vm_logs().await;
                 }
             }
 
@@ -278,6 +319,14 @@ impl App {
             KeyCode::Char('u') => self.vm_action_or_batch("resume").await,
             KeyCode::Char('d') => self.request_confirmation().await,
 
+            // Create VM dialog
+            KeyCode::Char('n') => {
+                if self.state.resource_view == ResourceView::VirtualMachines {
+                    self.state.create_vm_form = Some(CreateVmForm::new());
+                    self.state.input_mode = InputMode::CreateVmDialog;
+                }
+            }
+
             // Clone
             KeyCode::Char('o') => {
                 if self.state.resource_view == ResourceView::VirtualMachines {
@@ -290,6 +339,8 @@ impl App {
 
             // Console / viewer
             KeyCode::Char('v') => self.launch_viewer().await,
+            KeyCode::Char('V') => self.launch_novnc().await,
+            KeyCode::Char('e') => self.launch_ssh().await,
             KeyCode::Char('c') => {
                 if self.state.resource_view == ResourceView::Snapshots {
                     self.state.status_message =
@@ -382,13 +433,13 @@ impl App {
         match key.code {
             KeyCode::Char('y') => {
                 self.state.input_mode = InputMode::Normal;
-                if let Some(action) = self.state.confirm_action.take() {
-                    self.execute_confirmed_action(&action).await;
+                if let Some(dialog) = self.state.confirm_dialog.take() {
+                    self.execute_confirmed_action(&dialog.action).await;
                 }
             }
             _ => {
                 self.state.input_mode = InputMode::Normal;
-                self.state.confirm_action = None;
+                self.state.confirm_dialog = None;
                 self.state.status_message = "Cancelled".to_string();
             }
         }
@@ -413,6 +464,115 @@ impl App {
             }
             KeyCode::Char(c) => {
                 self.state.command_input.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    // ── Create VM dialog ──────────────────────────────────────────────────
+
+    async fn handle_create_dialog_key(&mut self, key: KeyEvent) {
+        let form = match self.state.create_vm_form.as_mut() {
+            Some(f) => f,
+            None => {
+                self.state.input_mode = InputMode::Normal;
+                return;
+            }
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.state.create_vm_form = None;
+                self.state.input_mode = InputMode::Normal;
+            }
+            KeyCode::Tab | KeyCode::Down => {
+                form.focused_field = (form.focused_field + 1) % form.fields.len();
+            }
+            KeyCode::BackTab | KeyCode::Up => {
+                if form.focused_field == 0 {
+                    form.focused_field = form.fields.len() - 1;
+                } else {
+                    form.focused_field -= 1;
+                }
+            }
+            KeyCode::Left => {
+                if form.fields[form.focused_field].field_type
+                    == virtspawn_core::FormFieldType::TemplateSelect
+                {
+                    let templates = VmTemplate::all();
+                    let count = templates.len() + 1; // +1 for "(none)"
+                    if form.template_index == 0 {
+                        form.template_index = count - 1;
+                    } else {
+                        form.template_index -= 1;
+                    }
+                    if form.template_index == 0 {
+                        form.fields[1].value = "(none)".to_string();
+                    } else {
+                        let tmpl = &templates[form.template_index - 1];
+                        form.fields[1].value = tmpl.name.clone();
+                        form.apply_template(tmpl);
+                    }
+                }
+            }
+            KeyCode::Right => {
+                if form.fields[form.focused_field].field_type
+                    == virtspawn_core::FormFieldType::TemplateSelect
+                {
+                    let templates = VmTemplate::all();
+                    let count = templates.len() + 1;
+                    form.template_index = (form.template_index + 1) % count;
+                    if form.template_index == 0 {
+                        form.fields[1].value = "(none)".to_string();
+                    } else {
+                        let tmpl = &templates[form.template_index - 1];
+                        form.fields[1].value = tmpl.name.clone();
+                        form.apply_template(tmpl);
+                    }
+                }
+            }
+            KeyCode::Enter => {
+                // Clone form to avoid borrow issues
+                let mut form_clone = self.state.create_vm_form.clone().unwrap();
+                if form_clone.validate() {
+                    let req = form_clone.to_create_request();
+                    let name = req.name.clone();
+                    match self.client.create_vm(&req).await {
+                        Ok(()) => {
+                            self.state.notify_with_level(
+                                &format!("Created VM '{name}'"),
+                                NotifyLevel::Success,
+                            );
+                            self.state.add_audit_event("create", &name, "OK");
+                            self.state.create_vm_form = None;
+                            self.state.input_mode = InputMode::Normal;
+                            if self.state.resource_view == ResourceView::VirtualMachines {
+                                self.refresh_current_view().await;
+                            }
+                        }
+                        Err(e) => {
+                            self.state.notify_with_level(
+                                &format!("Error creating VM: {e}"),
+                                NotifyLevel::Error,
+                            );
+                        }
+                    }
+                } else {
+                    // Update form with validation errors
+                    self.state.create_vm_form = Some(form_clone);
+                }
+            }
+            KeyCode::Backspace => {
+                let field = &mut form.fields[form.focused_field];
+                if field.field_type != virtspawn_core::FormFieldType::TemplateSelect {
+                    field.value.pop();
+                }
+            }
+            KeyCode::Char(c) => {
+                let field = &mut form.fields[form.focused_field];
+                if field.field_type != virtspawn_core::FormFieldType::TemplateSelect {
+                    field.value.push(c);
+                }
             }
             _ => {}
         }
@@ -508,13 +668,16 @@ impl App {
 
         match result {
             Ok(()) => {
-                self.state.status_message = format!("{action}: '{name}' OK");
+                let msg = format!("{action}: '{name}' OK");
+                self.state.status_message = msg.clone();
+                self.state.notify(&msg);
                 self.state.add_audit_event(action, &name, "OK");
                 self.refresh_current_view().await;
             }
             Err(e) => {
                 let msg = format!("Error {action} '{name}': {e}");
                 self.state.add_audit_event(action, &name, &format!("ERROR: {e}"));
+                self.state.notify(&msg);
                 self.state.status_message = msg;
             }
         }
@@ -563,30 +726,36 @@ impl App {
     }
 
     async fn request_confirmation(&mut self) {
-        let desc = match self.state.resource_view {
+        let dialog = match self.state.resource_view {
             ResourceView::VirtualMachines => {
                 if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
-                    Some(format!(
-                        "batch-delete-vm:{}",
-                        self.state.selected_items.len()
-                    ))
+                    let count = self.state.selected_items.len();
+                    Some(ConfirmationDialog {
+                        title: "Delete VMs".to_string(),
+                        message: format!("This will permanently delete {} VMs and their storage.", count),
+                        resource_name: format!("{} selected VMs", count),
+                        action: format!("batch-delete-vm:{count}"),
+                    })
                 } else {
-                    self.state
-                        .selected_vm_name()
-                        .map(|n| format!("delete-vm:{n}"))
+                    self.state.selected_vm_name().map(|n| ConfirmationDialog {
+                        title: "Delete VM".to_string(),
+                        message: "This will permanently delete the VM and its storage.".to_string(),
+                        resource_name: n.to_string(),
+                        action: format!("delete-vm:{n}"),
+                    })
                 }
             }
-            ResourceView::Snapshots => self
-                .state
-                .selected_snapshot()
-                .map(|s| format!("delete-snap:{}:{}", s.vm_name, s.name)),
+            ResourceView::Snapshots => self.state.selected_snapshot().map(|s| ConfirmationDialog {
+                title: "Delete Snapshot".to_string(),
+                message: "This will permanently delete the snapshot.".to_string(),
+                resource_name: format!("{}/{}", s.vm_name, s.name),
+                action: format!("delete-snap:{}:{}", s.vm_name, s.name),
+            }),
             _ => None,
         };
 
-        if let Some(action) = desc {
-            self.state.status_message =
-                "Confirm? Press 'y' to proceed, any other key to cancel".to_string();
-            self.state.confirm_action = Some(action);
+        if let Some(d) = dialog {
+            self.state.confirm_dialog = Some(d);
             self.state.input_mode = InputMode::Confirmation;
         }
     }
@@ -752,9 +921,194 @@ impl App {
             return;
         }
         if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
-            self.state.status_message =
-                format!("Run: virsh console {name}  (not available in TUI mode)");
-            self.state.add_audit_event("console-hint", &name, "shown");
+            // Try various terminal emulators to open virsh console
+            let xfce_cmd = format!("virsh console {name}");
+            let terminals: Vec<(&str, Vec<&str>)> = vec![
+                ("gnome-terminal", vec!["--", "virsh", "console", &name]),
+                ("xfce4-terminal", vec!["-e", &xfce_cmd]),
+                ("konsole", vec!["-e", "virsh", "console", &name]),
+                ("xterm", vec!["-e", "virsh", "console", &name]),
+                ("foot", vec!["virsh", "console", &name]),
+                ("alacritty", vec!["-e", "virsh", "console", &name]),
+                ("kitty", vec!["virsh", "console", &name]),
+            ];
+
+            let mut launched = false;
+            for (term, args) in &terminals {
+                if std::process::Command::new(term)
+                    .args(args)
+                    .spawn()
+                    .is_ok()
+                {
+                    self.state.status_message = format!("Opened console for '{name}' in {term}");
+                    self.state.add_audit_event("console", &name, term);
+                    launched = true;
+                    break;
+                }
+            }
+
+            if !launched {
+                self.state.status_message = format!(
+                    "No terminal found. Run manually: virsh console {name}"
+                );
+            }
+        }
+    }
+
+    // ── Volume browser ───────────────────────────────────────────────────
+
+    async fn browse_pool_volumes(&mut self) {
+        if let Some(pool) = self.state.selected_pool_name().map(|s| s.to_string()) {
+            match self.client.fetch_volumes(&pool).await {
+                Ok(vols) => {
+                    self.state.volumes = vols;
+                    self.state.browsing_pool = Some(pool.clone());
+                    self.state.selected_index = 0;
+                    self.state.status_message = format!(
+                        "Pool '{}': {} volumes (Backspace to go back)",
+                        pool,
+                        self.state.volumes.len()
+                    );
+                }
+                Err(e) => self.state.status_message = format!("Error: {e}"),
+            }
+        }
+    }
+
+    // ── Log viewer ──────────────────────────────────────────────────────
+
+    async fn show_vm_logs(&mut self) {
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            // Try to read qemu log
+            let log_paths = [
+                format!("/var/log/libvirt/qemu/{name}.log"),
+                format!("/var/log/swtpm/libvirt/qemu/{name}-swtpm.log"),
+            ];
+
+            let mut content = String::new();
+            for path in &log_paths {
+                if let Ok(data) = tokio::fs::read_to_string(path).await {
+                    if !content.is_empty() {
+                        content.push_str("\n\n");
+                    }
+                    content.push_str(&format!("── {} ──\n", path));
+                    // Take last 200 lines
+                    let lines: Vec<&str> = data.lines().collect();
+                    let start = if lines.len() > 200 { lines.len() - 200 } else { 0 };
+                    for line in &lines[start..] {
+                        content.push_str(line);
+                        content.push('\n');
+                    }
+                }
+            }
+
+            if content.is_empty() {
+                content = format!("No logs found for '{name}'.\nChecked:\n");
+                for path in &log_paths {
+                    content.push_str(&format!("  {path}\n"));
+                }
+            }
+
+            self.state.log_content = content;
+            self.state.scroll_offset = 0;
+            self.state.view_mode = ViewMode::Logs;
+        }
+    }
+
+    // ── noVNC launch ────────────────────────────────────────────────────
+
+    async fn launch_novnc(&mut self) {
+        if self.state.resource_view != ResourceView::VirtualMachines {
+            return;
+        }
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            match self.client.get_console_info(&name).await {
+                Ok(info) => {
+                    let ctype = info["console_type"].as_str().unwrap_or("unknown");
+                    let port = info["port"].as_i64().unwrap_or(-1);
+
+                    if port <= 0 {
+                        self.state.status_message =
+                            format!("No VNC/SPICE port for '{name}' (port={port})");
+                        return;
+                    }
+
+                    // Try to open noVNC in browser
+                    let novnc_url = format!(
+                        "http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={port}&autoconnect=true"
+                    );
+
+                    // Try xdg-open for any URL
+                    if std::process::Command::new("xdg-open")
+                        .arg(&novnc_url)
+                        .spawn()
+                        .is_ok()
+                    {
+                        self.state.status_message = format!(
+                            "Opening noVNC for '{name}' ({ctype} port {port})"
+                        );
+                    } else {
+                        self.state.status_message = format!(
+                            "VNC for '{name}': {ctype} on 127.0.0.1:{port}. \
+                             Connect with: vncviewer 127.0.0.1:{port}"
+                        );
+                    }
+                    self.state.add_audit_event("novnc", &name, &format!("port {port}"));
+                }
+                Err(e) => self.state.status_message = format!("Error: {e}"),
+            }
+        }
+    }
+
+    // ── SSH launch ───────────────────────────────────────────────────────
+
+    async fn launch_ssh(&mut self) {
+        if self.state.resource_view != ResourceView::VirtualMachines {
+            return;
+        }
+        if let Some(name) = self.state.selected_vm_name().map(|s| s.to_string()) {
+            // Try to get the VM's IP from its network interface via virsh domifaddr
+            let output = std::process::Command::new("virsh")
+                .args(["domifaddr", &name])
+                .output();
+
+            let ip = output.ok().and_then(|o| {
+                let stdout = String::from_utf8_lossy(&o.stdout);
+                // Parse "vnet0  52:54:00:xx:xx:xx  ipv4  192.168.x.x/24"
+                stdout.lines().find_map(|line| {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 4 && parts[2] == "ipv4" {
+                        Some(parts[3].split('/').next().unwrap_or("").to_string())
+                    } else {
+                        None
+                    }
+                })
+            });
+
+            if let Some(ip) = ip {
+                let terminals = [
+                    "gnome-terminal", "xfce4-terminal", "konsole",
+                    "xterm", "foot", "alacritty", "kitty",
+                ];
+                let mut launched = false;
+                for term in &terminals {
+                    if std::process::Command::new(term)
+                        .args(["--", "ssh", &ip])
+                        .spawn()
+                        .is_ok()
+                    {
+                        self.state.status_message = format!("SSH to '{name}' ({ip}) in {term}");
+                        self.state.add_audit_event("ssh", &name, &ip);
+                        launched = true;
+                        break;
+                    }
+                }
+                if !launched {
+                    self.state.status_message = format!("SSH: ssh {ip}  (no terminal found)");
+                }
+            } else {
+                self.state.status_message = format!("No IP found for '{name}'. Is it running with a network?");
+            }
         }
     }
 
@@ -840,6 +1194,10 @@ impl App {
                     }
                     Err(e) => self.state.status_message = format!("Error: {e}"),
                 }
+            }
+            ["create"] => {
+                self.state.create_vm_form = Some(CreateVmForm::new());
+                self.state.input_mode = InputMode::CreateVmDialog;
             }
             ["create", name] => {
                 let req = CreateVmRequest {
@@ -993,6 +1351,7 @@ impl App {
                         self.state.connected = true;
                         self.state.vms = vms;
                         self.state.sort_vms();
+                        self.state.detect_state_changes();
                         self.state.clamp_selection();
                     }
                     Err(e) => {
@@ -1009,6 +1368,12 @@ impl App {
                         self.state.clamp_selection();
                     }
                     Err(e) => self.state.status_message = format!("Error: {e}"),
+                }
+            }
+            ResourceView::StoragePools if self.state.browsing_pool.is_some() => {
+                let pool = self.state.browsing_pool.clone().unwrap();
+                if let Ok(vols) = self.client.fetch_volumes(&pool).await {
+                    self.state.volumes = vols;
                 }
             }
             ResourceView::StoragePools => {
@@ -1044,6 +1409,8 @@ impl App {
     async fn refresh_metrics(&mut self) {
         if let Ok(metrics) = self.client.fetch_metrics().await {
             self.state.vm_metrics = metrics;
+            self.state.record_metrics_snapshot();
         }
+        self.state.compute_dashboard();
     }
 }

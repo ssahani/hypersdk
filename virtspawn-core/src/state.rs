@@ -1,4 +1,6 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::time::Instant;
 
 // ── VM Types ────────────────────────────────────────────────────────────
 
@@ -223,6 +225,24 @@ pub struct RenameVmRequest {
     pub new_name: String,
 }
 
+// ── Dashboard Stats ─────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Default)]
+pub struct DashboardStats {
+    pub total_vms: usize,
+    pub running_vms: usize,
+    pub stopped_vms: usize,
+    pub paused_vms: usize,
+    pub total_vcpus: u32,
+    pub total_memory_mb: u64,
+    pub used_memory_mb: u64,
+    pub total_networks: usize,
+    pub active_networks: usize,
+    pub total_pools: usize,
+    pub active_pools: usize,
+    pub total_snapshots: usize,
+}
+
 // ── Disk Attach Request ─────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -300,6 +320,179 @@ impl VmTemplate {
     }
 }
 
+// ── Notification Level ───────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NotifyLevel {
+    Success,
+    Error,
+    Warning,
+    Info,
+}
+
+// ── Confirmation Dialog ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone)]
+pub struct ConfirmationDialog {
+    pub title: String,
+    pub message: String,
+    pub resource_name: String,
+    pub action: String,
+}
+
+// ── Create VM Form ──────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FormFieldType {
+    Text,
+    Number,
+    TemplateSelect,
+}
+
+#[derive(Debug, Clone)]
+pub struct FormField {
+    pub label: String,
+    pub value: String,
+    pub field_type: FormFieldType,
+    pub validation_error: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct CreateVmForm {
+    pub fields: Vec<FormField>,
+    pub focused_field: usize,
+    pub template_index: usize,
+}
+
+impl CreateVmForm {
+    pub fn new() -> Self {
+        Self {
+            fields: vec![
+                FormField {
+                    label: "Name".to_string(),
+                    value: String::new(),
+                    field_type: FormFieldType::Text,
+                    validation_error: None,
+                },
+                FormField {
+                    label: "Template".to_string(),
+                    value: "(none)".to_string(),
+                    field_type: FormFieldType::TemplateSelect,
+                    validation_error: None,
+                },
+                FormField {
+                    label: "vCPUs".to_string(),
+                    value: "2".to_string(),
+                    field_type: FormFieldType::Number,
+                    validation_error: None,
+                },
+                FormField {
+                    label: "Memory (MB)".to_string(),
+                    value: "2048".to_string(),
+                    field_type: FormFieldType::Number,
+                    validation_error: None,
+                },
+                FormField {
+                    label: "Disk (GB)".to_string(),
+                    value: "20".to_string(),
+                    field_type: FormFieldType::Number,
+                    validation_error: None,
+                },
+                FormField {
+                    label: "Network".to_string(),
+                    value: "default".to_string(),
+                    field_type: FormFieldType::Text,
+                    validation_error: None,
+                },
+            ],
+            focused_field: 0,
+            template_index: 0, // 0 = "(none)"
+        }
+    }
+
+    pub fn apply_template(&mut self, tmpl: &VmTemplate) {
+        self.fields[2].value = tmpl.vcpus.to_string();
+        self.fields[3].value = tmpl.memory_mb.to_string();
+        self.fields[4].value = tmpl.disk_gb.to_string();
+    }
+
+    pub fn validate(&mut self) -> bool {
+        let mut valid = true;
+
+        // Validate name
+        let name = &self.fields[0].value;
+        if name.is_empty() {
+            self.fields[0].validation_error = Some("Name required".to_string());
+            valid = false;
+        } else if name.len() > 64 {
+            self.fields[0].validation_error = Some("Max 64 chars".to_string());
+            valid = false;
+        } else if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
+            self.fields[0].validation_error = Some("Invalid chars".to_string());
+            valid = false;
+        } else if name.starts_with('-') || name.starts_with('.') {
+            self.fields[0].validation_error = Some("Bad start char".to_string());
+            valid = false;
+        } else {
+            self.fields[0].validation_error = None;
+        }
+
+        // Validate vCPUs
+        match self.fields[2].value.parse::<u32>() {
+            Ok(v) if v >= 1 && v <= 256 => self.fields[2].validation_error = None,
+            _ => {
+                self.fields[2].validation_error = Some("1-256".to_string());
+                valid = false;
+            }
+        }
+
+        // Validate memory
+        match self.fields[3].value.parse::<u64>() {
+            Ok(v) if v >= 64 && v <= 1_048_576 => self.fields[3].validation_error = None,
+            _ => {
+                self.fields[3].validation_error = Some("64-1048576 MB".to_string());
+                valid = false;
+            }
+        }
+
+        // Validate disk
+        match self.fields[4].value.parse::<u64>() {
+            Ok(v) if v >= 1 && v <= 10_240 => self.fields[4].validation_error = None,
+            _ => {
+                self.fields[4].validation_error = Some("1-10240 GB".to_string());
+                valid = false;
+            }
+        }
+
+        // Validate network
+        if self.fields[5].value.is_empty() {
+            self.fields[5].validation_error = Some("Required".to_string());
+            valid = false;
+        } else {
+            self.fields[5].validation_error = None;
+        }
+
+        valid
+    }
+
+    pub fn to_create_request(&self) -> CreateVmRequest {
+        CreateVmRequest {
+            name: self.fields[0].value.clone(),
+            vcpus: self.fields[2].value.parse().unwrap_or(2),
+            memory_mb: self.fields[3].value.parse().unwrap_or(2048),
+            disk_gb: self.fields[4].value.parse().unwrap_or(20),
+            network: self.fields[5].value.clone(),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for CreateVmForm {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 // ── TUI State ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -363,6 +556,7 @@ pub enum ViewMode {
     Table,
     Details,
     Xml,
+    Logs,
     Help,
 }
 
@@ -372,6 +566,7 @@ pub enum InputMode {
     Search,
     Confirmation,
     Command,
+    CreateVmDialog,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -411,6 +606,12 @@ pub struct AppState {
     pub audit_events: Vec<AuditEvent>,
     pub xml_content: String,
     pub scroll_offset: u16,
+    pub dashboard: DashboardStats,
+    pub volumes: Vec<StorageVolumeInfo>,
+    pub browsing_pool: Option<String>,
+    pub log_content: String,
+    pub notification: Option<(String, Instant, NotifyLevel)>,
+    pub notification_history: Vec<(String, NotifyLevel, String)>,
 
     // UI
     pub selected_index: usize,
@@ -434,10 +635,20 @@ pub struct AppState {
     pub sort_direction: SortDirection,
 
     // Confirmation
-    pub confirm_action: Option<String>,
+    pub confirm_dialog: Option<ConfirmationDialog>,
 
     // Command
     pub command_input: String,
+
+    // VM state transitions
+    pub previous_vm_states: HashMap<String, String>,
+    pub state_changed_vms: HashMap<String, Instant>,
+
+    // Metrics history (sparklines)
+    pub metrics_history: HashMap<String, Vec<f64>>,
+
+    // Create VM form
+    pub create_vm_form: Option<CreateVmForm>,
 }
 
 impl AppState {
@@ -453,6 +664,12 @@ impl AppState {
             audit_events: Vec::new(),
             xml_content: String::new(),
             scroll_offset: 0,
+            dashboard: DashboardStats::default(),
+            volumes: Vec::new(),
+            browsing_pool: None,
+            log_content: String::new(),
+            notification: None,
+            notification_history: Vec::new(),
 
             selected_index: 0,
             resource_view: ResourceView::VirtualMachines,
@@ -471,8 +688,15 @@ impl AppState {
             sort_column: SortColumn::Name,
             sort_direction: SortDirection::Ascending,
 
-            confirm_action: None,
+            confirm_dialog: None,
             command_input: String::new(),
+
+            previous_vm_states: HashMap::new(),
+            state_changed_vms: HashMap::new(),
+
+            metrics_history: HashMap::new(),
+
+            create_vm_form: None,
         }
     }
 
@@ -489,6 +713,49 @@ impl AppState {
         // Keep last 500 events in memory
         if self.audit_events.len() > 500 {
             self.audit_events.remove(0);
+        }
+    }
+
+    pub fn compute_dashboard(&mut self) {
+        let mut stats = DashboardStats::default();
+        stats.total_vms = self.vms.len();
+        for vm in &self.vms {
+            match vm.state.as_str() {
+                "running" => stats.running_vms += 1,
+                "paused" => stats.paused_vms += 1,
+                _ => stats.stopped_vms += 1,
+            }
+            stats.total_vcpus += vm.vcpus;
+            stats.total_memory_mb += vm.memory_mb;
+        }
+        for m in &self.vm_metrics {
+            stats.used_memory_mb += m.memory_used_mb;
+        }
+        stats.total_networks = self.networks.len();
+        stats.active_networks = self.networks.iter().filter(|n| n.active).count();
+        stats.total_pools = self.storage_pools.len();
+        stats.active_pools = self.storage_pools.iter().filter(|p| p.state == "running").count();
+        stats.total_snapshots = self.snapshots.len();
+        self.dashboard = stats;
+    }
+
+    pub fn notify(&mut self, msg: &str) {
+        let level = if msg.contains("Error") || msg.contains("ERROR") || msg.contains("failed") {
+            NotifyLevel::Error
+        } else if msg.contains("warn") || msg.contains("WARN") {
+            NotifyLevel::Warning
+        } else {
+            NotifyLevel::Success
+        };
+        self.notify_with_level(msg, level);
+    }
+
+    pub fn notify_with_level(&mut self, msg: &str, level: NotifyLevel) {
+        self.notification = Some((msg.to_string(), Instant::now(), level));
+        let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
+        self.notification_history.push((msg.to_string(), level, timestamp));
+        if self.notification_history.len() > 100 {
+            self.notification_history.remove(0);
         }
     }
 
@@ -581,45 +848,85 @@ impl AppState {
             return;
         }
         let query = self.search_query.to_lowercase();
-        self.filtered_indices = match self.resource_view {
+
+        let mut scored: Vec<(usize, i32)> = match self.resource_view {
             ResourceView::VirtualMachines => self
                 .vms
                 .iter()
                 .enumerate()
-                .filter(|(_, vm)| {
-                    vm.name.to_lowercase().contains(&query)
-                        || vm.state.to_lowercase().contains(&query)
+                .filter_map(|(i, vm)| {
+                    let name_score = fuzzy_match(&vm.name.to_lowercase(), &query);
+                    let state_score = fuzzy_match(&vm.state.to_lowercase(), &query);
+                    let best = name_score.max(state_score);
+                    if best > 0 { Some((i, best)) } else { None }
                 })
-                .map(|(i, _)| i)
                 .collect(),
             ResourceView::Networks => self
                 .networks
                 .iter()
                 .enumerate()
-                .filter(|(_, n)| n.name.to_lowercase().contains(&query))
-                .map(|(i, _)| i)
+                .filter_map(|(i, n)| {
+                    let score = fuzzy_match(&n.name.to_lowercase(), &query);
+                    if score > 0 { Some((i, score)) } else { None }
+                })
                 .collect(),
             ResourceView::StoragePools => self
                 .storage_pools
                 .iter()
                 .enumerate()
-                .filter(|(_, p)| p.name.to_lowercase().contains(&query))
-                .map(|(i, _)| i)
+                .filter_map(|(i, p)| {
+                    let score = fuzzy_match(&p.name.to_lowercase(), &query);
+                    if score > 0 { Some((i, score)) } else { None }
+                })
                 .collect(),
             ResourceView::Snapshots => self
                 .snapshots
                 .iter()
                 .enumerate()
-                .filter(|(_, s)| {
-                    s.name.to_lowercase().contains(&query)
-                        || s.vm_name.to_lowercase().contains(&query)
+                .filter_map(|(i, s)| {
+                    let name_score = fuzzy_match(&s.name.to_lowercase(), &query);
+                    let vm_score = fuzzy_match(&s.vm_name.to_lowercase(), &query);
+                    let best = name_score.max(vm_score);
+                    if best > 0 { Some((i, best)) } else { None }
                 })
-                .map(|(i, _)| i)
                 .collect(),
             ResourceView::Events => vec![],
             ResourceView::Node => vec![],
         };
+
+        // Sort by score descending (best matches first)
+        scored.sort_by(|a, b| b.1.cmp(&a.1));
+        self.filtered_indices = scored.into_iter().map(|(i, _)| i).collect();
         self.clamp_selection();
+    }
+
+    pub fn detect_state_changes(&mut self) {
+        // Remove expired highlights (older than 3 seconds)
+        self.state_changed_vms.retain(|_, when| when.elapsed().as_secs() < 3);
+
+        for vm in &self.vms {
+            if let Some(prev_state) = self.previous_vm_states.get(&vm.name) {
+                if *prev_state != vm.state {
+                    self.state_changed_vms.insert(vm.name.clone(), Instant::now());
+                }
+            }
+        }
+
+        // Update previous states
+        self.previous_vm_states.clear();
+        for vm in &self.vms {
+            self.previous_vm_states.insert(vm.name.clone(), vm.state.clone());
+        }
+    }
+
+    pub fn record_metrics_snapshot(&mut self) {
+        for m in &self.vm_metrics {
+            let history = self.metrics_history.entry(m.name.clone()).or_default();
+            history.push(m.memory_pct);
+            if history.len() > 20 {
+                history.remove(0);
+            }
+        }
     }
 
     pub fn sort_vms(&mut self) {
@@ -649,4 +956,58 @@ impl Default for AppState {
     fn default() -> Self {
         Self::new()
     }
+}
+
+/// Fuzzy match: all query characters must appear in order in the target.
+/// Returns a score > 0 on match, 0 on no match.
+/// Consecutive matches and prefix matches score higher.
+pub fn fuzzy_match(target: &str, query: &str) -> i32 {
+    let target_chars: Vec<char> = target.chars().collect();
+    let query_chars: Vec<char> = query.chars().collect();
+
+    if query_chars.is_empty() {
+        return 1;
+    }
+    if query_chars.len() > target_chars.len() {
+        return 0;
+    }
+
+    // Exact substring match gets highest score
+    if target.contains(query) {
+        return 100 + (query_chars.len() as i32 * 10);
+    }
+
+    let mut score = 0i32;
+    let mut ti = 0;
+    let mut prev_match = false;
+    let mut consecutive = 0;
+
+    for &qc in &query_chars {
+        let mut found = false;
+        while ti < target_chars.len() {
+            if target_chars[ti] == qc {
+                found = true;
+                score += 1;
+                if ti == 0 {
+                    score += 5; // prefix bonus
+                }
+                if prev_match {
+                    consecutive += 1;
+                    score += consecutive * 2; // consecutive bonus
+                } else {
+                    consecutive = 0;
+                }
+                prev_match = true;
+                ti += 1;
+                break;
+            }
+            prev_match = false;
+            ti += 1;
+        }
+        if !found {
+            return 0; // query char not found
+        }
+    }
+
+    score
 }
