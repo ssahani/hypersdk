@@ -9,10 +9,10 @@ pub use libvirt::LibvirtManager;
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, CloneVmRequest, ConfirmationDialog,
     CreateNetworkRequest, CreateSnapshotRequest, CreateVmForm, CreateVmRequest,
-    CreateVolumeRequest, DashboardStats, DiskInfo, FormField, FormFieldType, InputMode,
-    InterfaceInfo, NetworkInfo, NodeInfo, NotifyLevel, RenameVmRequest, ResourceView, SnapshotInfo,
-    SortColumn, SortDirection, StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo,
-    VmMetrics, VmTemplate,
+    CreateVolumeRequest, DashboardStats, DiskInfo, Focus, FormField, FormFieldType, InputMode,
+    InterfaceInfo, NetworkInfo, NodeInfo, NotifyLevel, ObjectTab, RenameVmRequest, ResourceView,
+    SidebarCategory, SidebarItem, SnapshotInfo, SortColumn, SortDirection, StoragePoolInfo,
+    StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics, VmTemplate,
 };
 
 #[derive(Debug, thiserror::Error)]

@@ -493,6 +493,88 @@ impl Default for CreateVmForm {
     }
 }
 
+// ── Sidebar / Content Focus Model ───────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Focus {
+    Sidebar,
+    Content,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ObjectTab {
+    Summary,
+    Monitor,
+    Configure,
+}
+
+impl ObjectTab {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Summary => "Summary",
+            Self::Monitor => "Monitor",
+            Self::Configure => "Configure",
+        }
+    }
+
+    pub fn all() -> &'static [ObjectTab] {
+        &[Self::Summary, Self::Monitor, Self::Configure]
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            Self::Summary => Self::Monitor,
+            Self::Monitor => Self::Configure,
+            Self::Configure => Self::Summary,
+        }
+    }
+
+    pub fn prev(&self) -> Self {
+        match self {
+            Self::Summary => Self::Configure,
+            Self::Monitor => Self::Summary,
+            Self::Configure => Self::Monitor,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SidebarCategory {
+    VirtualMachines,
+    Networks,
+    Storage,
+    Snapshots,
+}
+
+impl SidebarCategory {
+    pub fn all() -> &'static [SidebarCategory] {
+        &[
+            Self::VirtualMachines,
+            Self::Networks,
+            Self::Storage,
+            Self::Snapshots,
+        ]
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::VirtualMachines => "VMs",
+            Self::Networks => "Networks",
+            Self::Storage => "Storage",
+            Self::Snapshots => "Snapshots",
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SidebarItem {
+    Category(SidebarCategory),
+    Vm(String),
+    Network(String),
+    StoragePool(String),
+    Snapshot(String, String), // (vm_name, snap_name)
+}
+
 // ── TUI State ───────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -649,6 +731,15 @@ pub struct AppState {
 
     // Create VM form
     pub create_vm_form: Option<CreateVmForm>,
+
+    // Sidebar + Content focus model
+    pub focus: Focus,
+    pub active_object_tab: ObjectTab,
+    pub sidebar_selected: usize,
+    pub sidebar_collapsed: HashMap<SidebarCategory, bool>,
+    pub sidebar_items: Vec<SidebarItem>,
+    pub content_scroll_offset: u16,
+    pub command_content_override: Option<ResourceView>,
 }
 
 impl AppState {
@@ -697,6 +788,91 @@ impl AppState {
             metrics_history: HashMap::new(),
 
             create_vm_form: None,
+
+            focus: Focus::Sidebar,
+            active_object_tab: ObjectTab::Summary,
+            sidebar_selected: 0,
+            sidebar_collapsed: HashMap::new(),
+            sidebar_items: Vec::new(),
+            content_scroll_offset: 0,
+            command_content_override: None,
+        }
+    }
+
+    pub fn rebuild_sidebar(&mut self) {
+        self.sidebar_items.clear();
+
+        // VMs
+        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::VirtualMachines));
+        if !self.is_collapsed(SidebarCategory::VirtualMachines) {
+            for vm in &self.vms {
+                self.sidebar_items.push(SidebarItem::Vm(vm.name.clone()));
+            }
+        }
+
+        // Networks
+        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::Networks));
+        if !self.is_collapsed(SidebarCategory::Networks) {
+            for net in &self.networks {
+                self.sidebar_items.push(SidebarItem::Network(net.name.clone()));
+            }
+        }
+
+        // Storage
+        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::Storage));
+        if !self.is_collapsed(SidebarCategory::Storage) {
+            for pool in &self.storage_pools {
+                self.sidebar_items.push(SidebarItem::StoragePool(pool.name.clone()));
+            }
+        }
+
+        // Snapshots
+        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::Snapshots));
+        if !self.is_collapsed(SidebarCategory::Snapshots) {
+            for snap in &self.snapshots {
+                self.sidebar_items.push(SidebarItem::Snapshot(snap.vm_name.clone(), snap.name.clone()));
+            }
+        }
+
+        // Clamp sidebar selection
+        if !self.sidebar_items.is_empty() && self.sidebar_selected >= self.sidebar_items.len() {
+            self.sidebar_selected = self.sidebar_items.len() - 1;
+        }
+    }
+
+    fn is_collapsed(&self, cat: SidebarCategory) -> bool {
+        *self.sidebar_collapsed.get(&cat).unwrap_or(&false)
+    }
+
+    pub fn toggle_sidebar_collapse(&mut self) {
+        if let Some(SidebarItem::Category(cat)) = self.sidebar_items.get(self.sidebar_selected).cloned() {
+            let collapsed = self.is_collapsed(cat);
+            self.sidebar_collapsed.insert(cat, !collapsed);
+            self.rebuild_sidebar();
+        }
+    }
+
+    pub fn selected_sidebar_item(&self) -> Option<&SidebarItem> {
+        self.sidebar_items.get(self.sidebar_selected)
+    }
+
+    pub fn sidebar_resource_view(&self) -> ResourceView {
+        match self.selected_sidebar_item() {
+            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) | Some(SidebarItem::Vm(_)) => ResourceView::VirtualMachines,
+            Some(SidebarItem::Category(SidebarCategory::Networks)) | Some(SidebarItem::Network(_)) => ResourceView::Networks,
+            Some(SidebarItem::Category(SidebarCategory::Storage)) | Some(SidebarItem::StoragePool(_)) => ResourceView::StoragePools,
+            Some(SidebarItem::Category(SidebarCategory::Snapshots)) | Some(SidebarItem::Snapshot(_, _)) => ResourceView::Snapshots,
+            None => ResourceView::VirtualMachines,
+        }
+    }
+
+    pub fn sidebar_selected_name(&self) -> Option<&str> {
+        match self.selected_sidebar_item() {
+            Some(SidebarItem::Vm(name)) => Some(name.as_str()),
+            Some(SidebarItem::Network(name)) => Some(name.as_str()),
+            Some(SidebarItem::StoragePool(name)) => Some(name.as_str()),
+            Some(SidebarItem::Snapshot(_, name)) => Some(name.as_str()),
+            _ => None,
         }
     }
 
