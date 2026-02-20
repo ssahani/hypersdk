@@ -740,6 +740,7 @@ pub struct AppState {
     pub sidebar_items: Vec<SidebarItem>,
     pub content_scroll_offset: u16,
     pub command_content_override: Option<ResourceView>,
+    pub help_scroll: u16,
 }
 
 impl AppState {
@@ -796,6 +797,7 @@ impl AppState {
             sidebar_items: Vec::new(),
             content_scroll_offset: 0,
             command_content_override: None,
+            help_scroll: 0,
         }
     }
 

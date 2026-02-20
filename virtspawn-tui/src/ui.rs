@@ -52,7 +52,7 @@ pub fn render(frame: &mut Frame, state: &AppState) {
         ViewMode::Logs => render_log_view(frame, main_chunks[1], state),
         ViewMode::Help => {
             render_content_panel(frame, main_chunks[1], state);
-            render_help_overlay(frame, frame.area());
+            render_help_overlay(frame, frame.area(), state);
         }
         _ => render_content_panel(frame, main_chunks[1], state),
     }
@@ -99,18 +99,48 @@ fn render_header_bar(frame: &mut Frame, area: Rect, state: &AppState) {
         spans.push(Span::styled(&node.hostname, Style::default().fg(TEXT_COLOR)));
     }
 
+    // Resource summary on wider terminals
+    if area.width >= 80 {
+        let d = &state.dashboard;
+        if d.total_vms > 0 {
+            spans.push(Span::styled("  VMs:", Style::default().fg(DARK_ORANGE)));
+            spans.push(Span::styled(
+                format!("{}\u{25cf}", d.running_vms),
+                Style::default().fg(SUCCESS_COLOR),
+            ));
+            spans.push(Span::styled(
+                format!("/{} ", d.total_vms),
+                Style::default().fg(TEXT_COLOR),
+            ));
+        }
+        if d.total_networks > 0 && area.width >= 100 {
+            spans.push(Span::styled("Net:", Style::default().fg(DARK_ORANGE)));
+            spans.push(Span::styled(
+                format!("{}/{} ", d.active_networks, d.total_networks),
+                Style::default().fg(TEXT_COLOR),
+            ));
+        }
+        if d.total_pools > 0 && area.width >= 120 {
+            spans.push(Span::styled("Stor:", Style::default().fg(DARK_ORANGE)));
+            spans.push(Span::styled(
+                format!("{}/{} ", d.active_pools, d.total_pools),
+                Style::default().fg(TEXT_COLOR),
+            ));
+        }
+    }
+
     // Connection indicator
     let (conn_text, conn_color) = if state.connected {
-        ("  \u{25cf} Connected", SUCCESS_COLOR)
+        (" \u{25cf}", SUCCESS_COLOR)
     } else {
-        ("  \u{25cb} Disconnected", ERROR_COLOR)
+        (" \u{25cb}", ERROR_COLOR)
     };
     spans.push(Span::styled(conn_text, Style::default().fg(conn_color)));
 
     // Multi-select badge
     if state.multi_select_mode {
         spans.push(Span::styled(
-            format!("  [{}sel]", state.selected_items.len()),
+            format!(" [{}sel]", state.selected_items.len()),
             Style::default().fg(WARNING_COLOR).add_modifier(Modifier::BOLD),
         ));
     }
@@ -443,10 +473,11 @@ fn render_vm_summary(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
         } else {
             // Details loaded but for different VM
             lines.push(vm_basic_info_from_list(state, vm_name));
-            lines.push(Line::from(Span::styled(
-                "  Press Enter to load full details",
-                Style::default().fg(Color::DarkGray),
-            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled("  Enter", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled(" to load full details (UUID, interfaces, disks)", Style::default().fg(Color::DarkGray)),
+            ]));
         }
     } else {
         lines.push(vm_basic_info_from_list(state, vm_name));
@@ -546,10 +577,25 @@ fn render_vm_monitor(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
             ]));
         }
     } else {
-        lines.push(Line::from(Span::styled(
-            "No metrics available (VM may not be running)",
-            Style::default().fg(Color::DarkGray),
-        )));
+        let vm_state = state.vms.iter()
+            .find(|v| v.name == vm_name)
+            .map(|v| v.state.as_str())
+            .unwrap_or("unknown");
+        if vm_state == "running" {
+            lines.push(Line::from(Span::styled(
+                "Collecting metrics...",
+                Style::default().fg(DARK_ORANGE),
+            )));
+            lines.push(Line::from(Span::styled(
+                "Data will appear on next refresh cycle",
+                Style::default().fg(Color::DarkGray),
+            )));
+        } else {
+            lines.push(Line::from(Span::styled(
+                format!("VM is {vm_state} - metrics available when running"),
+                Style::default().fg(Color::DarkGray),
+            )));
+        }
     }
 
     let paragraph = Paragraph::new(lines)
@@ -1353,7 +1399,7 @@ fn render_create_vm_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
 
 // ── Help overlay ────────────────────────────────────────────────────────
 
-fn render_help_overlay(frame: &mut Frame, area: Rect) {
+fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
     let help_area = centered_rect(65, 85, area);
     frame.render_widget(Clear, help_area);
 
@@ -1399,7 +1445,10 @@ fn render_help_overlay(frame: &mut Frame, area: Rect) {
         help_line(":template <tmpl> <n>  :rename <old> <new>"),
         help_line(":resize <n> vcpus|memory <v>"),
         Line::from(""),
-        Line::from(Span::styled("Press any key to close", Style::default().fg(DARK_ORANGE))),
+        Line::from(Span::styled(
+            "j/k:scroll  any other key:close",
+            Style::default().fg(DARK_ORANGE),
+        )),
     ];
 
     let block = Block::default()
@@ -1410,7 +1459,10 @@ fn render_help_overlay(frame: &mut Frame, area: Rect) {
         .style(Style::default().bg(Color::Black));
 
     frame.render_widget(
-        Paragraph::new(lines).style(Style::default().fg(TEXT_COLOR)).block(block),
+        Paragraph::new(lines)
+            .style(Style::default().fg(TEXT_COLOR))
+            .block(block)
+            .scroll((state.help_scroll, 0)),
         help_area,
     );
 }

@@ -87,7 +87,25 @@ impl App {
         // ViewMode overlays (Help, Xml, Logs, Details)
         match self.state.view_mode {
             ViewMode::Help => {
-                self.state.view_mode = ViewMode::Table;
+                match key.code {
+                    KeyCode::Char('j') | KeyCode::Down => {
+                        self.state.help_scroll = self.state.help_scroll.saturating_add(1);
+                    }
+                    KeyCode::Char('k') | KeyCode::Up => {
+                        self.state.help_scroll = self.state.help_scroll.saturating_sub(1);
+                    }
+                    KeyCode::PageDown => {
+                        self.state.help_scroll = self.state.help_scroll.saturating_add(10);
+                    }
+                    KeyCode::PageUp => {
+                        self.state.help_scroll = self.state.help_scroll.saturating_sub(10);
+                    }
+                    KeyCode::Char('g') => self.state.help_scroll = 0,
+                    _ => {
+                        self.state.view_mode = ViewMode::Table;
+                        self.state.help_scroll = 0;
+                    }
+                }
                 return;
             }
             ViewMode::Details => {
@@ -168,6 +186,7 @@ impl App {
             // Help
             KeyCode::Char('?') | KeyCode::F(1) => {
                 self.state.view_mode = ViewMode::Help;
+                self.state.help_scroll = 0;
                 return;
             }
             // Search
@@ -203,6 +222,12 @@ impl App {
             KeyCode::Right => {
                 if self.state.focus == Focus::Sidebar {
                     self.state.focus = Focus::Content;
+                    // Lazy-load VM details when switching to content panel
+                    if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                        if self.state.vm_details.as_ref().is_none_or(|d| d.name != name) {
+                            self.load_vm_details(&name).await;
+                        }
+                    }
                     return;
                 }
             }
@@ -660,9 +685,16 @@ impl App {
         self.state.resource_view = self.state.sidebar_resource_view();
         self.state.selected_index = 0;
 
-        // Auto-load VM details when selecting a VM
+        // Clear stale details if selected VM changed
         if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
-            self.load_vm_details(&name).await;
+            // Keep cached details if they match the selected VM
+            if let Some(ref d) = self.state.vm_details {
+                if d.name != name {
+                    self.state.vm_details = None;
+                }
+            }
+        } else {
+            // Not on a VM item - don't clear details (may switch back)
         }
     }
 
