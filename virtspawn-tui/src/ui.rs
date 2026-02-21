@@ -411,9 +411,25 @@ fn render_vm_content(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
     }
 }
 
-fn render_object_tab_bar(frame: &mut Frame, area: Rect, state: &AppState, title: &str) {
+fn render_object_tab_bar(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &str) {
+    // Truncate VM name to leave room for tabs (~30 chars for tab labels)
+    let max_name = (area.width as usize).saturating_sub(35);
+    let display_name = truncate_str(vm_name, max_name.max(8));
+
+    // VM state indicator
+    let vm_state = state.vms.iter()
+        .find(|v| v.name == vm_name)
+        .map(|v| v.state.as_str())
+        .unwrap_or("unknown");
+    let state_dot = match vm_state {
+        "running" => "\u{25cf}",
+        "paused" => "\u{25d1}",
+        _ => "\u{25cb}",
+    };
+
     let mut spans: Vec<Span> = vec![
-        Span::styled(format!(" {title} "), Style::default().fg(LIGHT_ORANGE).add_modifier(Modifier::BOLD)),
+        Span::styled(format!(" {state_dot}"), Style::default().fg(state_color(vm_state))),
+        Span::styled(format!(" {display_name} "), Style::default().fg(LIGHT_ORANGE).add_modifier(Modifier::BOLD)),
         Span::styled("\u{2502} ", Style::default().fg(DARK_ORANGE)),
     ];
 
@@ -720,10 +736,18 @@ fn render_network_detail(frame: &mut Frame, area: Rect, state: &AppState, net_na
         lines.push(kv_line("Autostart:  ", if net.autostart { "yes" } else { "no" }));
         lines.push(kv_line("Persistent: ", if net.persistent { "yes" } else { "no" }));
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Actions: a start  z stop",
-            Style::default().fg(Color::DarkGray),
-        )));
+        lines.push(section_header("Actions"));
+        if net.active {
+            lines.push(Line::from(vec![
+                Span::styled("  z", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled("  Stop network", Style::default().fg(TEXT_COLOR)),
+            ]));
+        } else {
+            lines.push(Line::from(vec![
+                Span::styled("  a", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled("  Start network", Style::default().fg(TEXT_COLOR)),
+            ]));
+        }
     } else {
         lines.push(Line::from(Span::styled(
             format!("Network '{net_name}' not found"),
@@ -754,8 +778,8 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
     }
 
     let chunks = Layout::vertical([
-        Constraint::Length(9), // Pool info
-        Constraint::Min(0),   // Volumes hint
+        Constraint::Length(10), // Pool info
+        Constraint::Min(0),    // Actions
     ])
     .split(area);
 
@@ -771,6 +795,16 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
         lines.push(kv_line("Capacity:   ", &format!("{:.1} GB", pool.capacity_gb)));
         lines.push(kv_line("Used:       ", &format!("{:.1} GB", pool.allocation_gb)));
         lines.push(kv_line("Available:  ", &format!("{:.1} GB", pool.available_gb)));
+        if pool.capacity_gb > 0.0 {
+            let usage_pct = (pool.allocation_gb / pool.capacity_gb * 100.0).min(100.0);
+            lines.push(Line::from(vec![
+                Span::styled("Usage:      ", Style::default().fg(ORANGE)),
+                Span::styled(
+                    format!("{:.0}% {}", usage_pct, memory_bar(usage_pct)),
+                    Style::default().fg(if usage_pct > 90.0 { ERROR_COLOR } else if usage_pct > 70.0 { WARNING_COLOR } else { SUCCESS_COLOR }),
+                ),
+            ]));
+        }
         lines.push(kv_line("Autostart:  ", if pool.autostart { "yes" } else { "no" }));
     }
 
@@ -779,11 +813,27 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
         .block(content_block(state, &format!(" Storage: {pool_name} ")));
     frame.render_widget(paragraph, chunks[0]);
 
-    let hint = Paragraph::new(Line::from(Span::styled(
-        " Press Enter to browse volumes",
-        Style::default().fg(Color::DarkGray),
-    )))
-    .block(content_block(state, " Volumes "));
+    let mut vol_lines = vec![
+        Line::from(vec![
+            Span::styled("  Enter", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled("  Browse volumes", Style::default().fg(TEXT_COLOR)),
+        ]),
+    ];
+    if let Some(pool) = state.storage_pools.iter().find(|p| p.name == pool_name) {
+        if pool.state == "running" {
+            vol_lines.push(Line::from(vec![
+                Span::styled("  z", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled("  Stop pool", Style::default().fg(TEXT_COLOR)),
+            ]));
+        } else {
+            vol_lines.push(Line::from(vec![
+                Span::styled("  a", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled("  Start pool", Style::default().fg(TEXT_COLOR)),
+            ]));
+        }
+    }
+    let hint = Paragraph::new(vol_lines)
+        .block(content_block(state, " Actions "));
     frame.render_widget(hint, chunks[1]);
 }
 
@@ -810,10 +860,15 @@ fn render_snapshot_detail(frame: &mut Frame, area: Rect, state: &AppState, vm_na
             lines.push(kv_line("Description: ", &snap.description));
         }
         lines.push(Line::from(""));
-        lines.push(Line::from(Span::styled(
-            "Actions: R revert  d delete",
-            Style::default().fg(Color::DarkGray),
-        )));
+        lines.push(section_header("Actions"));
+        lines.push(Line::from(vec![
+            Span::styled("  R", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled("  Revert VM to this snapshot", Style::default().fg(TEXT_COLOR)),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  d", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled("  Delete this snapshot", Style::default().fg(TEXT_COLOR)),
+        ]));
     } else {
         lines.push(Line::from(Span::styled(
             format!("Snapshot '{vm_name}/{snap_name}' not found"),

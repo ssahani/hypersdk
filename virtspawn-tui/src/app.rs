@@ -57,7 +57,7 @@ impl App {
             }
 
             if last_refresh.elapsed() >= self.refresh_interval {
-                self.refresh_all_data().await;
+                self.refresh_vms_and_metrics().await;
                 last_refresh = Instant::now();
             }
         }
