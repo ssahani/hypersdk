@@ -878,6 +878,31 @@ impl AppState {
         }
     }
 
+    /// Get the effective VM name: from sidebar if a VM is selected,
+    /// otherwise from the content table row if viewing the VMs category.
+    pub fn effective_vm_name(&self) -> Option<&str> {
+        match self.selected_sidebar_item() {
+            Some(SidebarItem::Vm(name)) => Some(name.as_str()),
+            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
+                self.selected_vm_name()
+            }
+            _ => None,
+        }
+    }
+
+    /// Get the effective snapshot: from sidebar or content table.
+    pub fn effective_snapshot(&self) -> Option<&SnapshotInfo> {
+        match self.selected_sidebar_item() {
+            Some(SidebarItem::Snapshot(vm, snap)) => {
+                self.snapshots.iter().find(|s| s.vm_name == *vm && s.name == *snap)
+            }
+            Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
+                self.selected_snapshot()
+            }
+            _ => None,
+        }
+    }
+
     pub fn add_audit_event(&mut self, action: &str, target: &str, result: &str) {
         let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
         let event = AuditEvent {

@@ -377,10 +377,26 @@ impl App {
             }
 
             // Viewer/console from sidebar
-            KeyCode::Char('v') => self.launch_viewer_sidebar().await,
-            KeyCode::Char('V') => self.launch_novnc_sidebar().await,
-            KeyCode::Char('y') => self.show_vm_xml_sidebar().await,
-            KeyCode::Char('c') => self.launch_console_sidebar().await,
+            KeyCode::Char('v') => {
+                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                    self.launch_viewer_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('V') => {
+                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                    self.launch_novnc_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('y') => {
+                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                    self.show_vm_xml_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('c') => {
+                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                    self.launch_console_by_name(&name).await;
+                }
+            }
 
             // Log viewer (only reaches here when on a VM; otherwise Layer 2 switches focus)
             KeyCode::Char('l') => {
@@ -586,7 +602,7 @@ impl App {
             KeyCode::Char('u') => self.action_on_sidebar_item("resume").await,
             KeyCode::Char('d') => self.request_confirmation_sidebar().await,
 
-            // VM-specific content actions
+            // VM-specific content actions (use effective_vm_name for table+sidebar)
             KeyCode::Char('n') => {
                 if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
                     self.state.create_vm_form = Some(CreateVmForm::new());
@@ -594,21 +610,37 @@ impl App {
                 }
             }
             KeyCode::Char('o') => {
-                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
                     self.state.status_message = format!("Use ':clone {} <new-name>' to clone", name);
                 }
             }
-            KeyCode::Char('v') => self.launch_viewer_sidebar().await,
-            KeyCode::Char('V') => self.launch_novnc_sidebar().await,
-            KeyCode::Char('y') => self.show_vm_xml_sidebar().await,
-            KeyCode::Char('c') => self.launch_console_sidebar().await,
+            KeyCode::Char('v') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.launch_viewer_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('V') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.launch_novnc_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('y') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.show_vm_xml_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('c') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.launch_console_by_name(&name).await;
+                }
+            }
             KeyCode::Char('t') => {
-                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
                     self.toggle_autostart_by_name(&name).await;
                 }
             }
             KeyCode::Char('e') => {
-                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
                     self.launch_ssh_by_name(&name).await;
                 }
             }
@@ -618,6 +650,16 @@ impl App {
                 match self.state.selected_sidebar_item().cloned() {
                     Some(SidebarItem::Network(name)) => self.network_action_by_name("start", &name).await,
                     Some(SidebarItem::StoragePool(name)) => self.pool_action_by_name("start", &name).await,
+                    Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                        if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
+                            self.network_action_by_name("start", &name).await;
+                        }
+                    }
+                    Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+                        if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
+                            self.pool_action_by_name("start", &name).await;
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -625,14 +667,24 @@ impl App {
                 match self.state.selected_sidebar_item().cloned() {
                     Some(SidebarItem::Network(name)) => self.network_action_by_name("stop", &name).await,
                     Some(SidebarItem::StoragePool(name)) => self.pool_action_by_name("stop", &name).await,
+                    Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                        if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
+                            self.network_action_by_name("stop", &name).await;
+                        }
+                    }
+                    Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+                        if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
+                            self.pool_action_by_name("stop", &name).await;
+                        }
+                    }
                     _ => {}
                 }
             }
 
             // Snapshot actions
             KeyCode::Char('R') => {
-                if let Some(SidebarItem::Snapshot(vm, snap)) = self.state.selected_sidebar_item().cloned() {
-                    self.revert_snapshot_by_name(&vm, &snap).await;
+                if let Some(snap) = self.state.effective_snapshot().cloned() {
+                    self.revert_snapshot_by_name(&snap.vm_name, &snap.name).await;
                 }
             }
 
@@ -748,13 +800,25 @@ impl App {
             KeyCode::Char('u') => self.action_on_sidebar_item("resume").await,
             KeyCode::Char('d') => self.request_confirmation_sidebar().await,
             KeyCode::Char('o') => {
-                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
                     self.state.status_message = format!("Use ':clone {} <new-name>' to clone", name);
                 }
             }
-            KeyCode::Char('v') => self.launch_viewer_sidebar().await,
-            KeyCode::Char('c') => self.launch_console_sidebar().await,
-            KeyCode::Char('y') => self.show_vm_xml_sidebar().await,
+            KeyCode::Char('v') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.launch_viewer_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('c') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.launch_console_by_name(&name).await;
+                }
+            }
+            KeyCode::Char('y') => {
+                if let Some(name) = self.state.effective_vm_name().map(|s| s.to_string()) {
+                    self.show_vm_xml_by_name(&name).await;
+                }
+            }
             KeyCode::Char('n') => {
                 if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
                     self.state.create_vm_form = Some(CreateVmForm::new());
@@ -1210,21 +1274,6 @@ impl App {
         }
     }
 
-    // ── XML view ────────────────────────────────────────────────────────
-
-    async fn show_vm_xml_sidebar(&mut self) {
-        if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
-            match self.client.get_vm_xml(&name).await {
-                Ok(xml) => {
-                    self.state.xml_content = xml;
-                    self.state.scroll_offset = 0;
-                    self.state.view_mode = ViewMode::Xml;
-                }
-                Err(e) => self.state.status_message = format!("Error fetching XML: {e}"),
-            }
-        }
-    }
-
     // ── Autostart toggle ────────────────────────────────────────────────
 
     async fn toggle_autostart_by_name(&mut self, name: &str) {
@@ -1313,79 +1362,83 @@ impl App {
         }
     }
 
-    // ── Console / Viewer by sidebar ─────────────────────────────────────
+    // ── Console / Viewer by name ───────────────────────────────────────
 
-    async fn launch_viewer_sidebar(&mut self) {
-        if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
-            self.state.status_message = format!("Launching virt-viewer for '{name}'...");
-            self.state.add_audit_event("virt-viewer", &name, "launched");
-            let _ = std::process::Command::new("virt-viewer")
-                .arg("--connect")
-                .arg("qemu:///system")
-                .arg(&name)
-                .spawn();
+    async fn launch_viewer_by_name(&mut self, name: &str) {
+        self.state.status_message = format!("Launching virt-viewer for '{name}'...");
+        self.state.add_audit_event("virt-viewer", name, "launched");
+        let _ = std::process::Command::new("virt-viewer")
+            .arg("--connect")
+            .arg("qemu:///system")
+            .arg(name)
+            .spawn();
+    }
+
+    async fn launch_console_by_name(&mut self, name: &str) {
+        let xfce_cmd = format!("virsh console {name}");
+        let terminals: Vec<(&str, Vec<&str>)> = vec![
+            ("gnome-terminal", vec!["--", "virsh", "console", name]),
+            ("xfce4-terminal", vec!["-e", &xfce_cmd]),
+            ("konsole", vec!["-e", "virsh", "console", name]),
+            ("xterm", vec!["-e", "virsh", "console", name]),
+            ("foot", vec!["virsh", "console", name]),
+            ("alacritty", vec!["-e", "virsh", "console", name]),
+            ("kitty", vec!["virsh", "console", name]),
+        ];
+
+        let mut launched = false;
+        for (term, args) in &terminals {
+            if std::process::Command::new(term).args(args).spawn().is_ok() {
+                self.state.status_message = format!("Opened console for '{name}' in {term}");
+                self.state.add_audit_event("console", name, term);
+                launched = true;
+                break;
+            }
+        }
+
+        if !launched {
+            self.state.status_message = format!("No terminal found. Run manually: virsh console {name}");
         }
     }
 
-    async fn launch_console_sidebar(&mut self) {
-        if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
-            let xfce_cmd = format!("virsh console {name}");
-            let terminals: Vec<(&str, Vec<&str>)> = vec![
-                ("gnome-terminal", vec!["--", "virsh", "console", &name]),
-                ("xfce4-terminal", vec!["-e", &xfce_cmd]),
-                ("konsole", vec!["-e", "virsh", "console", &name]),
-                ("xterm", vec!["-e", "virsh", "console", &name]),
-                ("foot", vec!["virsh", "console", &name]),
-                ("alacritty", vec!["-e", "virsh", "console", &name]),
-                ("kitty", vec!["virsh", "console", &name]),
-            ];
+    async fn launch_novnc_by_name(&mut self, name: &str) {
+        match self.client.get_console_info(name).await {
+            Ok(info) => {
+                let ctype = info["console_type"].as_str().unwrap_or("unknown");
+                let port = info["port"].as_i64().unwrap_or(-1);
+                let ws_port = info["websocket_port"].as_i64().unwrap_or(-1);
 
-            let mut launched = false;
-            for (term, args) in &terminals {
-                if std::process::Command::new(term).args(args).spawn().is_ok() {
-                    self.state.status_message = format!("Opened console for '{name}' in {term}");
-                    self.state.add_audit_event("console", &name, term);
-                    launched = true;
-                    break;
+                if port <= 0 {
+                    self.state.status_message = format!("No VNC/SPICE port for '{name}' (port={port})");
+                    return;
                 }
-            }
 
-            if !launched {
-                self.state.status_message = format!("No terminal found. Run manually: virsh console {name}");
-            }
-        }
-    }
+                let connect_port = if ws_port > 0 { ws_port } else { port };
+                let novnc_url = format!(
+                    "http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true"
+                );
 
-    async fn launch_novnc_sidebar(&mut self) {
-        if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
-            match self.client.get_console_info(&name).await {
-                Ok(info) => {
-                    let ctype = info["console_type"].as_str().unwrap_or("unknown");
-                    let port = info["port"].as_i64().unwrap_or(-1);
-                    let ws_port = info["websocket_port"].as_i64().unwrap_or(-1);
-
-                    if port <= 0 {
-                        self.state.status_message = format!("No VNC/SPICE port for '{name}' (port={port})");
-                        return;
-                    }
-
-                    // Prefer websocket port for noVNC if available
-                    let connect_port = if ws_port > 0 { ws_port } else { port };
-                    let novnc_url = format!(
-                        "http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true"
+                if std::process::Command::new("xdg-open").arg(&novnc_url).spawn().is_ok() {
+                    self.state.status_message = format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
+                } else {
+                    self.state.status_message = format!(
+                        "VNC for '{name}': {ctype} on 127.0.0.1:{port}. Connect with: vncviewer 127.0.0.1:{port}"
                     );
-
-                    if std::process::Command::new("xdg-open").arg(&novnc_url).spawn().is_ok() {
-                        self.state.status_message = format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
-                    } else {
-                        self.state.status_message = format!(
-                            "VNC for '{name}': {ctype} on 127.0.0.1:{port}. Connect with: vncviewer 127.0.0.1:{port}"
-                        );
-                    }
-                    self.state.add_audit_event("novnc", &name, &format!("port {connect_port}"));
                 }
-                Err(e) => self.state.status_message = format!("Error: {e}"),
+                self.state.add_audit_event("novnc", name, &format!("port {connect_port}"));
             }
+            Err(e) => self.state.status_message = format!("Error: {e}"),
+        }
+    }
+
+    async fn show_vm_xml_by_name(&mut self, name: &str) {
+        match self.client.get_vm_xml(name).await {
+            Ok(xml) => {
+                self.state.xml_content = xml;
+                self.state.scroll_offset = 0;
+                self.state.view_mode = ViewMode::Xml;
+            }
+            Err(e) => self.state.status_message = format!("Error fetching XML: {e}"),
         }
     }
 
@@ -1720,6 +1773,7 @@ impl App {
 
         self.state.compute_dashboard();
         self.state.rebuild_sidebar();
+        self.state.clamp_selection();
     }
 
     /// Lighter refresh that only fetches VMs and metrics (for VM lifecycle actions)
