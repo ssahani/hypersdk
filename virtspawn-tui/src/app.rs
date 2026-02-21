@@ -1043,7 +1043,7 @@ impl App {
                 self.state.status_message = msg.clone();
                 self.state.notify(&msg);
                 self.state.add_audit_event(action, name, "OK");
-                self.refresh_all_data().await;
+                self.refresh_vms_and_metrics().await;
             }
             Err(e) => {
                 let msg = format!("Error {action} '{name}': {e}");
@@ -1088,7 +1088,7 @@ impl App {
             if errors > 0 { format!(", {errors} failed") } else { String::new() }
         );
         self.state.clear_selection();
-        self.refresh_all_data().await;
+        self.refresh_vms_and_metrics().await;
     }
 
     async fn request_confirmation_sidebar(&mut self) {
@@ -1154,7 +1154,8 @@ impl App {
                     Ok(()) => {
                         self.state.status_message = format!("Deleted VM '{name}'");
                         self.state.add_audit_event("delete", name, "OK");
-                        self.refresh_all_data().await;
+                        self.state.vm_details = None;
+                        self.refresh_vms_and_metrics().await;
                     }
                     Err(e) => {
                         self.state.add_audit_event("delete", name, &format!("ERROR: {e}"));
@@ -1179,7 +1180,8 @@ impl App {
                 }
                 self.state.status_message = format!("Batch delete: {ok}/{total} OK");
                 self.state.clear_selection();
-                self.refresh_all_data().await;
+                self.state.vm_details = None;
+                self.refresh_vms_and_metrics().await;
             }
             ["delete-snap", vm_name, snap_name] => {
                 match self.client.delete_snapshot(vm_name, snap_name).await {
@@ -1714,6 +1716,33 @@ impl App {
             if let Ok(vols) = self.client.fetch_volumes(&pool).await {
                 self.state.volumes = vols;
             }
+        }
+
+        self.state.compute_dashboard();
+        self.state.rebuild_sidebar();
+    }
+
+    /// Lighter refresh that only fetches VMs and metrics (for VM lifecycle actions)
+    async fn refresh_vms_and_metrics(&mut self) {
+        match self.client.fetch_vms().await {
+            Ok(vms) => {
+                self.connected = true;
+                self.state.connected = true;
+                self.state.vms = vms;
+                self.state.sort_vms();
+                self.state.detect_state_changes();
+                self.state.clamp_selection();
+            }
+            Err(e) => {
+                self.connected = false;
+                self.state.connected = false;
+                self.state.status_message = format!("Error: {e}");
+            }
+        }
+
+        if let Ok(metrics) = self.client.fetch_metrics().await {
+            self.state.vm_metrics = metrics;
+            self.state.record_metrics_snapshot();
         }
 
         self.state.compute_dashboard();

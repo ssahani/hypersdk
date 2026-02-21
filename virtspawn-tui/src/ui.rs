@@ -288,26 +288,29 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
         lines.push(line);
     }
 
-    // Scroll indicators when items overflow
-    if total_items > visible_height {
-        if scroll_start > 0 {
-            // Show up arrow on first visible line
-            if let Some(first) = lines.first_mut() {
-                let mut spans = vec![Span::styled("\u{25b2}", Style::default().fg(DARK_ORANGE))];
-                spans.append(&mut first.spans);
-                *first = Line::from(spans);
-            }
-        }
-        if scroll_start + visible_height < total_items {
-            // Show down arrow on last visible line
-            if let Some(last) = lines.last_mut() {
-                last.spans.push(Span::styled(" \u{25bc}", Style::default().fg(DARK_ORANGE)));
-            }
-        }
-    }
-
     let paragraph = Paragraph::new(lines);
     frame.render_widget(paragraph, inner);
+
+    // Scroll position indicator in bottom-right of sidebar border
+    if total_items > visible_height {
+        let pos = format!(
+            "{}/{}",
+            state.sidebar_selected + 1,
+            total_items,
+        );
+        let pos_x = area.x + area.width.saturating_sub(pos.len() as u16 + 2);
+        let pos_y = area.y + area.height - 1;
+        if pos_x > area.x && pos_y > area.y {
+            let pos_area = Rect { x: pos_x, y: pos_y, width: pos.len() as u16 + 2, height: 1 };
+            frame.render_widget(
+                Paragraph::new(Span::styled(
+                    format!(" {pos} "),
+                    Style::default().fg(DARK_ORANGE),
+                )),
+                pos_area,
+            );
+        }
+    }
 }
 
 // ── Content panel dispatch ──────────────────────────────────────────────
@@ -610,33 +613,85 @@ fn render_vm_configure(frame: &mut Frame, area: Rect, state: &AppState, vm_name:
 
     if let Some(ref d) = state.vm_details {
         if d.name == vm_name {
-            lines.push(kv_line("vCPUs:      ", &d.vcpus.to_string()));
-            lines.push(kv_line("Memory:     ", &format!("{} MB", d.memory_mb)));
-            lines.push(kv_line("Autostart:  ", if d.autostart { "yes" } else { "no" }));
+            // Hardware section
+            lines.push(section_header("Hardware"));
+            lines.push(kv_line("  vCPUs:      ", &d.vcpus.to_string()));
+            lines.push(kv_line("  Memory:     ", &format!("{} MB ({:.1} GB)", d.memory_mb, d.memory_mb as f64 / 1024.0)));
+            lines.push(kv_line("  OS Type:    ", &d.os_type));
+            lines.push(kv_line("  Arch:       ", &d.arch));
+
+            // Boot & Management
             lines.push(Line::from(""));
-            lines.push(Line::from(Span::styled(
-                "Resize:  :resize <name> vcpus|memory <value>",
-                Style::default().fg(Color::DarkGray),
-            )));
-            lines.push(Line::from(Span::styled(
-                "Toggle:  t to toggle autostart",
-                Style::default().fg(Color::DarkGray),
-            )));
-            lines.push(Line::from(Span::styled(
-                "XML:     y to view full XML definition",
-                Style::default().fg(Color::DarkGray),
-            )));
+            lines.push(section_header("Management"));
+            lines.push(Line::from(vec![
+                Span::styled("  Autostart:  ", Style::default().fg(ORANGE)),
+                Span::styled(
+                    if d.autostart { "enabled" } else { "disabled" },
+                    Style::default().fg(if d.autostart { SUCCESS_COLOR } else { Color::DarkGray }),
+                ),
+            ]));
+            lines.push(kv_line("  Persistent: ", if d.persistent { "yes" } else { "no" }));
+
+            // Disks
+            if !d.disks.is_empty() {
+                lines.push(Line::from(""));
+                lines.push(section_header("Disks"));
+                for disk in &d.disks {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("  {}: ", disk.target), Style::default().fg(LIGHT_ORANGE)),
+                        Span::styled(&disk.source, Style::default().fg(TEXT_COLOR)),
+                        Span::styled(format!(" ({})", disk.driver), Style::default().fg(Color::DarkGray)),
+                    ]));
+                }
+            }
+
+            // Interfaces
+            if !d.interfaces.is_empty() {
+                lines.push(Line::from(""));
+                lines.push(section_header("Network Interfaces"));
+                for iface in &d.interfaces {
+                    lines.push(Line::from(vec![
+                        Span::styled(format!("  {} ", iface.mac_address), Style::default().fg(LIGHT_ORANGE)),
+                        Span::styled(&iface.source, Style::default().fg(TEXT_COLOR)),
+                        Span::styled(format!(" ({})", iface.model), Style::default().fg(Color::DarkGray)),
+                    ]));
+                }
+            }
+
+            // Actions reference
+            lines.push(Line::from(""));
+            lines.push(section_header("Actions"));
+            lines.push(Line::from(vec![
+                Span::styled("  :resize ", Style::default().fg(ORANGE)),
+                Span::styled(format!("{vm_name} vcpus <n>"), Style::default().fg(TEXT_COLOR)),
+                Span::styled("  Change vCPU count", Style::default().fg(Color::DarkGray)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("  :resize ", Style::default().fg(ORANGE)),
+                Span::styled(format!("{vm_name} memory <mb>"), Style::default().fg(TEXT_COLOR)),
+                Span::styled("  Change memory", Style::default().fg(Color::DarkGray)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("  t", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled("  Toggle autostart", Style::default().fg(TEXT_COLOR)),
+            ]));
+            lines.push(Line::from(vec![
+                Span::styled("  y", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled("  View full XML definition", Style::default().fg(TEXT_COLOR)),
+            ]));
         } else {
-            lines.push(Line::from(Span::styled(
-                "Press Enter to load configuration details",
-                Style::default().fg(Color::DarkGray),
-            )));
+            lines.push(Line::from(""));
+            lines.push(Line::from(vec![
+                Span::styled("  Enter", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+                Span::styled(" to load configuration", Style::default().fg(Color::DarkGray)),
+            ]));
         }
     } else {
-        lines.push(Line::from(Span::styled(
-            "Press Enter to load configuration details",
-            Style::default().fg(Color::DarkGray),
-        )));
+        lines.push(Line::from(""));
+        lines.push(Line::from(vec![
+            Span::styled("  Enter", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
+            Span::styled(" to load configuration", Style::default().fg(Color::DarkGray)),
+        ]));
     }
 
     let paragraph = Paragraph::new(lines)
