@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::time::Instant;
 
 // ── VM Types ────────────────────────────────────────────────────────────
@@ -357,6 +357,14 @@ pub struct FormField {
     pub validation_error: Option<String>,
 }
 
+// Named field indices to avoid magic numbers
+pub const FIELD_NAME: usize = 0;
+pub const FIELD_TEMPLATE: usize = 1;
+pub const FIELD_VCPUS: usize = 2;
+pub const FIELD_MEMORY: usize = 3;
+pub const FIELD_DISK: usize = 4;
+pub const FIELD_NETWORK: usize = 5;
+
 #[derive(Debug, Clone)]
 pub struct CreateVmForm {
     pub fields: Vec<FormField>,
@@ -411,65 +419,61 @@ impl CreateVmForm {
     }
 
     pub fn apply_template(&mut self, tmpl: &VmTemplate) {
-        self.fields[2].value = tmpl.vcpus.to_string();
-        self.fields[3].value = tmpl.memory_mb.to_string();
-        self.fields[4].value = tmpl.disk_gb.to_string();
+        self.fields[FIELD_VCPUS].value = tmpl.vcpus.to_string();
+        self.fields[FIELD_MEMORY].value = tmpl.memory_mb.to_string();
+        self.fields[FIELD_DISK].value = tmpl.disk_gb.to_string();
+    }
+
+    fn validate_field<T: std::str::FromStr + Copy>(
+        field: &mut FormField,
+        valid: &mut bool,
+        check: impl FnOnce(T) -> bool,
+        err_msg: &str,
+    ) {
+        match field.value.parse::<T>() {
+            Ok(v) if check(v) => field.validation_error = None,
+            _ => {
+                field.validation_error = Some(err_msg.to_string());
+                *valid = false;
+            }
+        }
     }
 
     pub fn validate(&mut self) -> bool {
         let mut valid = true;
 
         // Validate name
-        let name = &self.fields[0].value;
-        if name.is_empty() {
-            self.fields[0].validation_error = Some("Name required".to_string());
-            valid = false;
+        let name = &self.fields[FIELD_NAME].value;
+        let name_err = if name.is_empty() {
+            Some("Name required")
         } else if name.len() > 64 {
-            self.fields[0].validation_error = Some("Max 64 chars".to_string());
-            valid = false;
+            Some("Max 64 chars")
         } else if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
-            self.fields[0].validation_error = Some("Invalid chars".to_string());
-            valid = false;
+            Some("Invalid chars")
         } else if name.starts_with('-') || name.starts_with('.') {
-            self.fields[0].validation_error = Some("Bad start char".to_string());
+            Some("Bad start char")
+        } else {
+            None
+        };
+        if let Some(err) = name_err {
+            self.fields[FIELD_NAME].validation_error = Some(err.to_string());
             valid = false;
         } else {
-            self.fields[0].validation_error = None;
+            self.fields[FIELD_NAME].validation_error = None;
         }
 
-        // Validate vCPUs
-        match self.fields[2].value.parse::<u32>() {
-            Ok(v) if (1..=256).contains(&v) => self.fields[2].validation_error = None,
-            _ => {
-                self.fields[2].validation_error = Some("1-256".to_string());
-                valid = false;
-            }
-        }
+        Self::validate_field::<u32>(&mut self.fields[FIELD_VCPUS], &mut valid,
+            |v| (1..=256).contains(&v), "1-256");
+        Self::validate_field::<u64>(&mut self.fields[FIELD_MEMORY], &mut valid,
+            |v| (64..=1_048_576).contains(&v), "64-1048576 MB");
+        Self::validate_field::<u64>(&mut self.fields[FIELD_DISK], &mut valid,
+            |v| (1..=10_240).contains(&v), "1-10240 GB");
 
-        // Validate memory
-        match self.fields[3].value.parse::<u64>() {
-            Ok(v) if (64..=1_048_576).contains(&v) => self.fields[3].validation_error = None,
-            _ => {
-                self.fields[3].validation_error = Some("64-1048576 MB".to_string());
-                valid = false;
-            }
-        }
-
-        // Validate disk
-        match self.fields[4].value.parse::<u64>() {
-            Ok(v) if (1..=10_240).contains(&v) => self.fields[4].validation_error = None,
-            _ => {
-                self.fields[4].validation_error = Some("1-10240 GB".to_string());
-                valid = false;
-            }
-        }
-
-        // Validate network
-        if self.fields[5].value.is_empty() {
-            self.fields[5].validation_error = Some("Required".to_string());
+        if self.fields[FIELD_NETWORK].value.is_empty() {
+            self.fields[FIELD_NETWORK].validation_error = Some("Required".to_string());
             valid = false;
         } else {
-            self.fields[5].validation_error = None;
+            self.fields[FIELD_NETWORK].validation_error = None;
         }
 
         valid
@@ -477,11 +481,11 @@ impl CreateVmForm {
 
     pub fn to_create_request(&self) -> CreateVmRequest {
         CreateVmRequest {
-            name: self.fields[0].value.clone(),
-            vcpus: self.fields[2].value.parse().unwrap_or(2),
-            memory_mb: self.fields[3].value.parse().unwrap_or(2048),
-            disk_gb: self.fields[4].value.parse().unwrap_or(20),
-            network: self.fields[5].value.clone(),
+            name: self.fields[FIELD_NAME].value.clone(),
+            vcpus: self.fields[FIELD_VCPUS].value.parse().unwrap_or(2),
+            memory_mb: self.fields[FIELD_MEMORY].value.parse().unwrap_or(2048),
+            disk_gb: self.fields[FIELD_DISK].value.parse().unwrap_or(20),
+            network: self.fields[FIELD_NETWORK].value.clone(),
             ..Default::default()
         }
     }
@@ -587,56 +591,9 @@ pub enum ResourceView {
     Node,
 }
 
-impl ResourceView {
-    pub fn label(&self) -> &'static str {
-        match self {
-            Self::VirtualMachines => "VMs",
-            Self::Networks => "Networks",
-            Self::StoragePools => "Storage",
-            Self::Snapshots => "Snapshots",
-            Self::Events => "Events",
-            Self::Node => "Node",
-        }
-    }
-
-    pub fn all() -> &'static [ResourceView] {
-        &[
-            Self::VirtualMachines,
-            Self::Networks,
-            Self::StoragePools,
-            Self::Snapshots,
-            Self::Events,
-            Self::Node,
-        ]
-    }
-
-    pub fn next(&self) -> Self {
-        match self {
-            Self::VirtualMachines => Self::Networks,
-            Self::Networks => Self::StoragePools,
-            Self::StoragePools => Self::Snapshots,
-            Self::Snapshots => Self::Events,
-            Self::Events => Self::Node,
-            Self::Node => Self::VirtualMachines,
-        }
-    }
-
-    pub fn prev(&self) -> Self {
-        match self {
-            Self::VirtualMachines => Self::Node,
-            Self::Networks => Self::VirtualMachines,
-            Self::StoragePools => Self::Networks,
-            Self::Snapshots => Self::StoragePools,
-            Self::Events => Self::Snapshots,
-            Self::Node => Self::Events,
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
     Table,
-    Details,
     Xml,
     Logs,
     Help,
@@ -672,6 +629,22 @@ impl SortDirection {
             Self::Descending => Self::Ascending,
         }
     }
+
+    pub fn apply(&self, cmp: std::cmp::Ordering) -> std::cmp::Ordering {
+        match self {
+            Self::Ascending => cmp,
+            Self::Descending => cmp.reverse(),
+        }
+    }
+}
+
+// ── Bounded buffer helper ───────────────────────────────────────────────
+
+fn push_bounded<T>(buf: &mut VecDeque<T>, item: T, max: usize) {
+    buf.push_back(item);
+    if buf.len() > max {
+        buf.pop_front();
+    }
 }
 
 // ── App State ───────────────────────────────────────────────────────────
@@ -685,7 +658,7 @@ pub struct AppState {
     pub node_info: Option<NodeInfo>,
     pub vm_details: Option<VmDetails>,
     pub vm_metrics: Vec<VmMetrics>,
-    pub audit_events: Vec<AuditEvent>,
+    pub audit_events: VecDeque<AuditEvent>,
     pub xml_content: String,
     pub scroll_offset: u16,
     pub dashboard: DashboardStats,
@@ -693,7 +666,7 @@ pub struct AppState {
     pub browsing_pool: Option<String>,
     pub log_content: String,
     pub notification: Option<(String, Instant, NotifyLevel)>,
-    pub notification_history: Vec<(String, NotifyLevel, String)>,
+    pub notification_history: VecDeque<(String, NotifyLevel, String)>,
 
     // UI
     pub selected_index: usize,
@@ -727,7 +700,7 @@ pub struct AppState {
     pub state_changed_vms: HashMap<String, Instant>,
 
     // Metrics history (sparklines)
-    pub metrics_history: HashMap<String, Vec<f64>>,
+    pub metrics_history: HashMap<String, VecDeque<f64>>,
 
     // Create VM form
     pub create_vm_form: Option<CreateVmForm>,
@@ -753,7 +726,7 @@ impl AppState {
             node_info: None,
             vm_details: None,
             vm_metrics: Vec::new(),
-            audit_events: Vec::new(),
+            audit_events: VecDeque::new(),
             xml_content: String::new(),
             scroll_offset: 0,
             dashboard: DashboardStats::default(),
@@ -761,7 +734,7 @@ impl AppState {
             browsing_pool: None,
             log_content: String::new(),
             notification: None,
-            notification_history: Vec::new(),
+            notification_history: VecDeque::new(),
 
             selected_index: 0,
             resource_view: ResourceView::VirtualMachines,
@@ -804,35 +777,22 @@ impl AppState {
     pub fn rebuild_sidebar(&mut self) {
         self.sidebar_items.clear();
 
-        // VMs
-        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::VirtualMachines));
-        if !self.is_collapsed(SidebarCategory::VirtualMachines) {
-            for vm in &self.vms {
-                self.sidebar_items.push(SidebarItem::Vm(vm.name.clone()));
-            }
-        }
+        // Data-driven: each category maps to its child items
+        let categories: Vec<(SidebarCategory, Vec<SidebarItem>)> = vec![
+            (SidebarCategory::VirtualMachines,
+             self.vms.iter().map(|vm| SidebarItem::Vm(vm.name.clone())).collect()),
+            (SidebarCategory::Networks,
+             self.networks.iter().map(|n| SidebarItem::Network(n.name.clone())).collect()),
+            (SidebarCategory::Storage,
+             self.storage_pools.iter().map(|p| SidebarItem::StoragePool(p.name.clone())).collect()),
+            (SidebarCategory::Snapshots,
+             self.snapshots.iter().map(|s| SidebarItem::Snapshot(s.vm_name.clone(), s.name.clone())).collect()),
+        ];
 
-        // Networks
-        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::Networks));
-        if !self.is_collapsed(SidebarCategory::Networks) {
-            for net in &self.networks {
-                self.sidebar_items.push(SidebarItem::Network(net.name.clone()));
-            }
-        }
-
-        // Storage
-        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::Storage));
-        if !self.is_collapsed(SidebarCategory::Storage) {
-            for pool in &self.storage_pools {
-                self.sidebar_items.push(SidebarItem::StoragePool(pool.name.clone()));
-            }
-        }
-
-        // Snapshots
-        self.sidebar_items.push(SidebarItem::Category(SidebarCategory::Snapshots));
-        if !self.is_collapsed(SidebarCategory::Snapshots) {
-            for snap in &self.snapshots {
-                self.sidebar_items.push(SidebarItem::Snapshot(snap.vm_name.clone(), snap.name.clone()));
+        for (cat, children) in categories {
+            self.sidebar_items.push(SidebarItem::Category(cat));
+            if !self.is_collapsed(cat) {
+                self.sidebar_items.extend(children);
             }
         }
 
@@ -878,27 +838,20 @@ impl AppState {
         }
     }
 
-    /// Get the effective VM name: from sidebar if a VM is selected,
-    /// otherwise from the content table row if viewing the VMs category.
     pub fn effective_vm_name(&self) -> Option<&str> {
         match self.selected_sidebar_item() {
             Some(SidebarItem::Vm(name)) => Some(name.as_str()),
-            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
-                self.selected_vm_name()
-            }
+            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => self.selected_vm_name(),
             _ => None,
         }
     }
 
-    /// Get the effective snapshot: from sidebar or content table.
     pub fn effective_snapshot(&self) -> Option<&SnapshotInfo> {
         match self.selected_sidebar_item() {
             Some(SidebarItem::Snapshot(vm, snap)) => {
                 self.snapshots.iter().find(|s| s.vm_name == *vm && s.name == *snap)
             }
-            Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
-                self.selected_snapshot()
-            }
+            Some(SidebarItem::Category(SidebarCategory::Snapshots)) => self.selected_snapshot(),
             _ => None,
         }
     }
@@ -912,11 +865,7 @@ impl AppState {
             result: result.to_string(),
         };
         crate::audit::write_audit_event(&event);
-        self.audit_events.push(event);
-        // Keep last 500 events in memory
-        if self.audit_events.len() > 500 {
-            self.audit_events.remove(0);
-        }
+        push_bounded(&mut self.audit_events, event, 500);
     }
 
     pub fn compute_dashboard(&mut self) {
@@ -968,14 +917,11 @@ impl AppState {
     pub fn notify_with_level(&mut self, msg: &str, level: NotifyLevel) {
         self.notification = Some((msg.to_string(), Instant::now(), level));
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        self.notification_history.push((msg.to_string(), level, timestamp));
-        if self.notification_history.len() > 100 {
-            self.notification_history.remove(0);
-        }
+        push_bounded(&mut self.notification_history, (msg.to_string(), level, timestamp), 100);
     }
 
     pub fn load_audit_history(&mut self) {
-        self.audit_events = crate::audit::load_audit_events(500);
+        self.audit_events = crate::audit::load_audit_events(500).into();
     }
 
     pub fn get_metrics_for_vm(&self, name: &str) -> Option<&VmMetrics> {
@@ -1064,59 +1010,53 @@ impl AppState {
         }
         let query = self.search_query.to_lowercase();
 
-        let mut scored: Vec<(usize, i32)> = match self.resource_view {
-            ResourceView::VirtualMachines => self
-                .vms
-                .iter()
-                .enumerate()
-                .filter_map(|(i, vm)| {
-                    let name_score = fuzzy_match(&vm.name.to_lowercase(), &query);
-                    let state_score = fuzzy_match(&vm.state.to_lowercase(), &query);
-                    let best = name_score.max(state_score);
-                    if best > 0 { Some((i, best)) } else { None }
+        // Helper: fuzzy-score a list of searchable strings per item
+        let score_items = |items: &[(usize, Vec<String>)]| -> Vec<(usize, i32)> {
+            items.iter()
+                .filter_map(|(i, fields)| {
+                    let best = fields.iter()
+                        .map(|f| fuzzy_match(f, &query))
+                        .max()
+                        .unwrap_or(0);
+                    if best > 0 { Some((*i, best)) } else { None }
                 })
-                .collect(),
-            ResourceView::Networks => self
-                .networks
-                .iter()
-                .enumerate()
-                .filter_map(|(i, n)| {
-                    let score = fuzzy_match(&n.name.to_lowercase(), &query);
-                    if score > 0 { Some((i, score)) } else { None }
-                })
-                .collect(),
-            ResourceView::StoragePools => self
-                .storage_pools
-                .iter()
-                .enumerate()
-                .filter_map(|(i, p)| {
-                    let score = fuzzy_match(&p.name.to_lowercase(), &query);
-                    if score > 0 { Some((i, score)) } else { None }
-                })
-                .collect(),
-            ResourceView::Snapshots => self
-                .snapshots
-                .iter()
-                .enumerate()
-                .filter_map(|(i, s)| {
-                    let name_score = fuzzy_match(&s.name.to_lowercase(), &query);
-                    let vm_score = fuzzy_match(&s.vm_name.to_lowercase(), &query);
-                    let best = name_score.max(vm_score);
-                    if best > 0 { Some((i, best)) } else { None }
-                })
-                .collect(),
-            ResourceView::Events => vec![],
-            ResourceView::Node => vec![],
+                .collect()
         };
 
-        // Sort by score descending (best matches first)
+        let mut scored: Vec<(usize, i32)> = match self.resource_view {
+            ResourceView::VirtualMachines => {
+                let items: Vec<_> = self.vms.iter().enumerate()
+                    .map(|(i, vm)| (i, vec![vm.name.to_lowercase(), vm.state.to_lowercase()]))
+                    .collect();
+                score_items(&items)
+            }
+            ResourceView::Networks => {
+                let items: Vec<_> = self.networks.iter().enumerate()
+                    .map(|(i, n)| (i, vec![n.name.to_lowercase()]))
+                    .collect();
+                score_items(&items)
+            }
+            ResourceView::StoragePools => {
+                let items: Vec<_> = self.storage_pools.iter().enumerate()
+                    .map(|(i, p)| (i, vec![p.name.to_lowercase()]))
+                    .collect();
+                score_items(&items)
+            }
+            ResourceView::Snapshots => {
+                let items: Vec<_> = self.snapshots.iter().enumerate()
+                    .map(|(i, s)| (i, vec![s.name.to_lowercase(), s.vm_name.to_lowercase()]))
+                    .collect();
+                score_items(&items)
+            }
+            ResourceView::Events | ResourceView::Node => vec![],
+        };
+
         scored.sort_by(|a, b| b.1.cmp(&a.1));
         self.filtered_indices = scored.into_iter().map(|(i, _)| i).collect();
         self.clamp_selection();
     }
 
     pub fn detect_state_changes(&mut self) {
-        // Remove expired highlights (older than 3 seconds)
         self.state_changed_vms.retain(|_, when| when.elapsed().as_secs() < 3);
 
         for vm in &self.vms {
@@ -1127,7 +1067,6 @@ impl AppState {
             }
         }
 
-        // Update previous states
         self.previous_vm_states.clear();
         for vm in &self.vms {
             self.previous_vm_states.insert(vm.name.clone(), vm.state.clone());
@@ -1137,32 +1076,17 @@ impl AppState {
     pub fn record_metrics_snapshot(&mut self) {
         for m in &self.vm_metrics {
             let history = self.metrics_history.entry(m.name.clone()).or_default();
-            history.push(m.memory_pct);
-            if history.len() > 20 {
-                history.remove(0);
-            }
+            push_bounded(history, m.memory_pct, 20);
         }
     }
 
     pub fn sort_vms(&mut self) {
         let dir = self.sort_direction;
         match self.sort_column {
-            SortColumn::Name => self.vms.sort_by(|a, b| {
-                let cmp = a.name.cmp(&b.name);
-                if dir == SortDirection::Descending { cmp.reverse() } else { cmp }
-            }),
-            SortColumn::State => self.vms.sort_by(|a, b| {
-                let cmp = a.state.cmp(&b.state);
-                if dir == SortDirection::Descending { cmp.reverse() } else { cmp }
-            }),
-            SortColumn::Cpu => self.vms.sort_by(|a, b| {
-                let cmp = a.vcpus.cmp(&b.vcpus);
-                if dir == SortDirection::Descending { cmp.reverse() } else { cmp }
-            }),
-            SortColumn::Memory => self.vms.sort_by(|a, b| {
-                let cmp = a.memory_mb.cmp(&b.memory_mb);
-                if dir == SortDirection::Descending { cmp.reverse() } else { cmp }
-            }),
+            SortColumn::Name => self.vms.sort_by(|a, b| dir.apply(a.name.cmp(&b.name))),
+            SortColumn::State => self.vms.sort_by(|a, b| dir.apply(a.state.cmp(&b.state))),
+            SortColumn::Cpu => self.vms.sort_by(|a, b| dir.apply(a.vcpus.cmp(&b.vcpus))),
+            SortColumn::Memory => self.vms.sort_by(|a, b| dir.apply(a.memory_mb.cmp(&b.memory_mb))),
         }
     }
 }

@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use ratatui::layout::{Constraint, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
@@ -22,6 +24,8 @@ const ERROR_COLOR: Color = Color::Rgb(220, 50, 47);
 const INFO_COLOR: Color = Color::Rgb(100, 150, 255);
 const HIGHLIGHT_BG: Color = Color::Rgb(60, 40, 20);
 const DIM_BORDER: Color = Color::Rgb(100, 60, 40);
+
+const SPARKLINE_BLOCKS: [char; 8] = ['\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}'];
 
 // ── Main render ─────────────────────────────────────────────────────────
 
@@ -225,20 +229,13 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                     .map(|v| v.state.as_str())
                     .unwrap_or("unknown");
                 let indicator = match vm_state {
-                    "running" => "\u{25cf}", // filled circle
-                    "paused" => "\u{25d1}",  // half circle
-                    _ => "\u{25cb}",          // empty circle
-                };
-                let ind_color = state_color(vm_state);
-                let display_name = truncate_str(name, max_name_width);
-                let name_style = if is_selected {
-                    Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(TEXT_COLOR)
+                    "running" => "\u{25cf}",
+                    "paused" => "\u{25d1}",
+                    _ => "\u{25cb}",
                 };
                 Line::from(vec![
-                    Span::styled(format!("  {indicator} "), Style::default().fg(ind_color)),
-                    Span::styled(display_name, name_style),
+                    Span::styled(format!("  {indicator} "), Style::default().fg(state_color(vm_state))),
+                    Span::styled(truncate_str(name, max_name_width), sidebar_item_style(is_selected)),
                 ])
             }
             SidebarItem::Network(name) => {
@@ -246,42 +243,23 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                     .find(|n| n.name == *name)
                     .map(|n| n.active)
                     .unwrap_or(false);
-                let indicator = if active { "\u{25cf}" } else { "\u{25cb}" };
-                let ind_color = if active { SUCCESS_COLOR } else { ERROR_COLOR };
-                let display_name = truncate_str(name, max_name_width);
-                let name_style = if is_selected {
-                    Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(TEXT_COLOR)
-                };
+                let (indicator, color) = if active { ("\u{25cf}", SUCCESS_COLOR) } else { ("\u{25cb}", ERROR_COLOR) };
                 Line::from(vec![
-                    Span::styled(format!("  {indicator} "), Style::default().fg(ind_color)),
-                    Span::styled(display_name, name_style),
+                    Span::styled(format!("  {indicator} "), Style::default().fg(color)),
+                    Span::styled(truncate_str(name, max_name_width), sidebar_item_style(is_selected)),
                 ])
             }
             SidebarItem::StoragePool(name) => {
-                let display_name = truncate_str(name, max_name_width.saturating_sub(2));
-                let name_style = if is_selected {
-                    Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(TEXT_COLOR)
-                };
                 Line::from(vec![
                     Span::styled("    ", Style::default()),
-                    Span::styled(display_name, name_style),
+                    Span::styled(truncate_str(name, max_name_width.saturating_sub(2)), sidebar_item_style(is_selected)),
                 ])
             }
             SidebarItem::Snapshot(vm, snap) => {
                 let label = format!("{vm}/{snap}");
-                let display_label = truncate_str(&label, max_name_width.saturating_sub(2));
-                let name_style = if is_selected {
-                    Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
-                } else {
-                    Style::default().fg(TEXT_COLOR)
-                };
                 Line::from(vec![
                     Span::styled("    ", Style::default()),
-                    Span::styled(display_label, name_style),
+                    Span::styled(truncate_str(&label, max_name_width.saturating_sub(2)), sidebar_item_style(is_selected)),
                 ])
             }
         };
@@ -465,8 +443,8 @@ fn render_vm_summary(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
             lines.push(kv_line("Memory:      ", &format!("{} MB", d.memory_mb)));
             lines.push(kv_line("OS Type:     ", &d.os_type));
             lines.push(kv_line("Arch:        ", &d.arch));
-            lines.push(kv_line("Persistent:  ", if d.persistent { "yes" } else { "no" }));
-            lines.push(kv_line("Autostart:   ", if d.autostart { "yes" } else { "no" }));
+            lines.push(kv_line("Persistent:  ", bool_label(d.persistent)));
+            lines.push(kv_line("Autostart:   ", bool_label(d.autostart)));
 
             if !d.interfaces.is_empty() {
                 lines.push(Line::from(""));
@@ -551,14 +529,11 @@ fn render_vm_monitor(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
         lines.push(Line::from(""));
 
         // Memory bar
-        let pct_color = if m.memory_pct > 90.0 { ERROR_COLOR }
-            else if m.memory_pct > 70.0 { WARNING_COLOR }
-            else { SUCCESS_COLOR };
         lines.push(Line::from(vec![
             Span::styled("Memory:  ", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
             Span::styled(
                 format!("{:.0}% {} ({}/{} MB)", m.memory_pct, memory_bar(m.memory_pct), m.memory_used_mb, m.memory_total_mb),
-                Style::default().fg(pct_color),
+                Style::default().fg(pct_color(m.memory_pct)),
             ),
         ]));
 
@@ -646,7 +621,7 @@ fn render_vm_configure(frame: &mut Frame, area: Rect, state: &AppState, vm_name:
                     Style::default().fg(if d.autostart { SUCCESS_COLOR } else { Color::DarkGray }),
                 ),
             ]));
-            lines.push(kv_line("  Persistent: ", if d.persistent { "yes" } else { "no" }));
+            lines.push(kv_line("  Persistent: ", bool_label(d.persistent)));
 
             // Disks
             if !d.disks.is_empty() {
@@ -728,13 +703,13 @@ fn render_network_detail(frame: &mut Frame, area: Rect, state: &AppState, net_na
         lines.push(Line::from(vec![
             Span::styled("Active:     ", Style::default().fg(ORANGE)),
             Span::styled(
-                if net.active { "yes" } else { "no" },
+                bool_label(net.active),
                 Style::default().fg(if net.active { SUCCESS_COLOR } else { ERROR_COLOR }),
             ),
         ]));
         lines.push(kv_line("Bridge:     ", &net.bridge));
-        lines.push(kv_line("Autostart:  ", if net.autostart { "yes" } else { "no" }));
-        lines.push(kv_line("Persistent: ", if net.persistent { "yes" } else { "no" }));
+        lines.push(kv_line("Autostart:  ", bool_label(net.autostart)));
+        lines.push(kv_line("Persistent: ", bool_label(net.persistent)));
         lines.push(Line::from(""));
         lines.push(section_header("Actions"));
         if net.active {
@@ -801,11 +776,11 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
                 Span::styled("Usage:      ", Style::default().fg(ORANGE)),
                 Span::styled(
                     format!("{:.0}% {}", usage_pct, memory_bar(usage_pct)),
-                    Style::default().fg(if usage_pct > 90.0 { ERROR_COLOR } else if usage_pct > 70.0 { WARNING_COLOR } else { SUCCESS_COLOR }),
+                    Style::default().fg(pct_color(usage_pct)),
                 ),
             ]));
         }
-        lines.push(kv_line("Autostart:  ", if pool.autostart { "yes" } else { "no" }));
+        lines.push(kv_line("Autostart:  ", bool_label(pool.autostart)));
     }
 
     let paragraph = Paragraph::new(lines)
@@ -939,10 +914,7 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
             if show_metrics {
                 if let Some(m) = state.get_metrics_for_vm(&vm.name) {
                     let bar = format!("{:.0}% {}", m.memory_pct, memory_bar(m.memory_pct));
-                    let pct_color = if m.memory_pct > 90.0 { ERROR_COLOR }
-                        else if m.memory_pct > 70.0 { WARNING_COLOR }
-                        else { SUCCESS_COLOR };
-                    cells.push(Cell::from(bar).style(Style::default().fg(pct_color)));
+                    cells.push(Cell::from(bar).style(Style::default().fg(pct_color(m.memory_pct))));
                 } else {
                     cells.push(Cell::from("-").style(Style::default().fg(Color::DarkGray)));
                 }
@@ -1013,15 +985,15 @@ fn render_network_table(frame: &mut Frame, area: Rect, state: &AppState) {
             let active_color = if net.active { SUCCESS_COLOR } else { ERROR_COLOR };
             let mut cells = vec![
                 Cell::from(net.name.clone()).style(Style::default().fg(LIGHT_ORANGE)),
-                Cell::from(if net.active { "yes" } else { "no" }).style(Style::default().fg(active_color)),
-                Cell::from(if net.autostart { "yes" } else { "no" }).style(Style::default().fg(TEXT_COLOR)),
+                Cell::from(bool_label(net.active)).style(Style::default().fg(active_color)),
+                Cell::from(bool_label(net.autostart)).style(Style::default().fg(TEXT_COLOR)),
             ];
             if show_extra {
                 cells.push(Cell::from(net.bridge.clone()).style(Style::default().fg(TEXT_COLOR)));
-                cells.push(Cell::from(if net.persistent { "yes" } else { "no" }).style(Style::default().fg(TEXT_COLOR)));
+                cells.push(Cell::from(bool_label(net.persistent)).style(Style::default().fg(TEXT_COLOR)));
             }
             let row = Row::new(cells);
-            if i == state.selected_index { row.style(selected_style()) } else { row }
+            select_row(row, i, state.selected_index)
         })
         .collect();
 
@@ -1067,10 +1039,10 @@ fn render_storage_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 Cell::from(format!("{:.1}", pool.available_gb)).style(Style::default().fg(SUCCESS_COLOR)),
             ];
             if show_autostart {
-                cells.push(Cell::from(if pool.autostart { "yes" } else { "no" }).style(Style::default().fg(TEXT_COLOR)));
+                cells.push(Cell::from(bool_label(pool.autostart)).style(Style::default().fg(TEXT_COLOR)));
             }
             let row = Row::new(cells);
-            if i == state.selected_index { row.style(selected_style()) } else { row }
+            select_row(row, i, state.selected_index)
         })
         .collect();
 
@@ -1107,7 +1079,7 @@ fn render_snapshot_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 Cell::from(if snap.is_current { "\u{25cf}" } else { "" }).style(Style::default().fg(SUCCESS_COLOR)),
                 Cell::from(snap.parent.clone()).style(Style::default().fg(Color::DarkGray)),
             ]);
-            if i == state.selected_index { row.style(selected_style()) } else { row }
+            select_row(row, i, state.selected_index)
         })
         .collect();
 
@@ -1142,7 +1114,7 @@ fn render_events_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 Cell::from(evt.target.clone()).style(Style::default().fg(TEXT_COLOR)),
                 Cell::from(evt.result.clone()).style(Style::default().fg(result_color)),
             ]);
-            if i == state.selected_index { row.style(selected_style()) } else { row }
+            select_row(row, i, state.selected_index)
         })
         .collect();
 
@@ -1263,7 +1235,7 @@ fn render_volume_table(frame: &mut Frame, area: Rect, state: &AppState) {
                 Cell::from(format!("{:.1}", vol.allocation_gb)).style(Style::default().fg(TEXT_COLOR)),
                 Cell::from(vol.path.clone()).style(Style::default().fg(Color::DarkGray)),
             ]);
-            if i == state.selected_index { row.style(selected_style()) } else { row }
+            select_row(row, i, state.selected_index)
         })
         .collect();
 
@@ -1727,6 +1699,28 @@ fn selected_style() -> Style {
         .add_modifier(Modifier::BOLD)
 }
 
+fn pct_color(pct: f64) -> Color {
+    if pct > 90.0 { ERROR_COLOR }
+    else if pct > 70.0 { WARNING_COLOR }
+    else { SUCCESS_COLOR }
+}
+
+fn bool_label(val: bool) -> &'static str {
+    if val { "yes" } else { "no" }
+}
+
+fn select_row(row: Row<'_>, idx: usize, selected: usize) -> Row<'_> {
+    if idx == selected { row.style(selected_style()) } else { row }
+}
+
+fn sidebar_item_style(is_selected: bool) -> Style {
+    if is_selected {
+        Style::default().fg(LIGHT_ORANGE).bg(HIGHLIGHT_BG).add_modifier(Modifier::BOLD)
+    } else {
+        Style::default().fg(TEXT_COLOR)
+    }
+}
+
 fn state_color(state: &str) -> Color {
     match state {
         "running" => SUCCESS_COLOR,
@@ -1753,13 +1747,12 @@ fn section_header(title: &str) -> Line<'static> {
 }
 
 fn memory_bar(pct: f64) -> String {
-    const BLOCKS: [char; 8] = ['\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}'];
     let filled = (pct / 10.0).round() as usize;
     (0..10)
         .map(|i| {
             if i < filled {
                 let level = ((pct / 100.0) * 7.0).round() as usize;
-                BLOCKS[level.min(7)]
+                SPARKLINE_BLOCKS[level.min(7)]
             } else {
                 '\u{2581}'
             }
@@ -1767,8 +1760,7 @@ fn memory_bar(pct: f64) -> String {
         .collect()
 }
 
-fn mini_sparkline(values: &[f64]) -> String {
-    const BLOCKS: [char; 8] = ['\u{2581}', '\u{2582}', '\u{2583}', '\u{2584}', '\u{2585}', '\u{2586}', '\u{2587}', '\u{2588}'];
+fn mini_sparkline(values: &VecDeque<f64>) -> String {
     if values.is_empty() {
         return String::new();
     }
@@ -1780,7 +1772,7 @@ fn mini_sparkline(values: &[f64]) -> String {
     values.iter()
         .map(|&v| {
             let normalized = ((v - min) / range * 7.0).round() as usize;
-            BLOCKS[normalized.min(7)]
+            SPARKLINE_BLOCKS[normalized.min(7)]
         })
         .collect()
 }

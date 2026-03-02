@@ -5,6 +5,11 @@ use virt::storage_vol::StorageVol;
 use crate::state::{StoragePoolInfo, StorageVolumeInfo};
 use crate::LibvirtError;
 
+fn lookup_pool(conn: &Connect, name: &str) -> Result<StoragePool, LibvirtError> {
+    StoragePool::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))
+}
+
 pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> {
     let pools = conn
         .list_all_storage_pools(0)
@@ -16,29 +21,24 @@ pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> 
             .get_name()
             .map_err(|e| LibvirtError::Operation(format!("Failed to get pool name: {e}")))?;
 
-        let uuid = pool.get_uuid_string().unwrap_or_else(|_| String::new());
-
-        let info = pool.get_info().ok();
-        let (state, capacity_gb, allocation_gb, available_gb) = match info {
+        let (state, capacity_gb, allocation_gb, available_gb) = match pool.get_info().ok() {
             Some(i) => (
                 pool_state_to_string(i.state),
-                i.capacity as f64 / (1024.0 * 1024.0 * 1024.0),
-                i.allocation as f64 / (1024.0 * 1024.0 * 1024.0),
-                i.available as f64 / (1024.0 * 1024.0 * 1024.0),
+                bytes_to_gb(i.capacity),
+                bytes_to_gb(i.allocation),
+                bytes_to_gb(i.available),
             ),
             None => ("unknown".to_string(), 0.0, 0.0, 0.0),
         };
 
-        let autostart = pool.get_autostart().unwrap_or(false);
-
         result.push(StoragePoolInfo {
             name,
-            uuid,
+            uuid: pool.get_uuid_string().unwrap_or_default(),
             state,
             capacity_gb,
             allocation_gb,
             available_gb,
-            autostart,
+            autostart: pool.get_autostart().unwrap_or(false),
         });
     }
 
@@ -46,31 +46,21 @@ pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> 
 }
 
 pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolumeInfo>, LibvirtError> {
-    let pool = StoragePool::lookup_by_name(conn, pool_name)
-        .map_err(|e| LibvirtError::NotFound(format!("Pool '{pool_name}' not found: {e}")))?;
-
-    // Refresh pool to get current volume list
+    let pool = lookup_pool(conn, pool_name)?;
     let _ = pool.refresh(0);
 
-    let vol_names = pool
+    let vol_list = pool
         .list_all_volumes(0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to list volumes: {e}")))?;
 
     let mut result = Vec::new();
-    for vol in vol_names {
+    for vol in vol_list {
         let name = vol
             .get_name()
             .map_err(|e| LibvirtError::Operation(format!("Failed to get volume name: {e}")))?;
 
-        let path = vol.get_path().unwrap_or_else(|_| String::new());
-
-        let info = vol.get_info().ok();
-        let (vol_type, capacity_gb, allocation_gb) = match info {
-            Some(i) => (
-                vol_type_to_string(i.kind),
-                i.capacity as f64 / (1024.0 * 1024.0 * 1024.0),
-                i.allocation as f64 / (1024.0 * 1024.0 * 1024.0),
-            ),
+        let (vol_type, capacity_gb, allocation_gb) = match vol.get_info().ok() {
+            Some(i) => (vol_type_to_string(i.kind), bytes_to_gb(i.capacity), bytes_to_gb(i.allocation)),
             None => ("unknown".to_string(), 0.0, 0.0),
         };
 
@@ -79,7 +69,7 @@ pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolume
             pool: pool_name.to_string(),
             capacity_gb,
             allocation_gb,
-            path,
+            path: vol.get_path().unwrap_or_default(),
             vol_type,
         });
     }
@@ -88,35 +78,25 @@ pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolume
 }
 
 pub fn delete_volume(conn: &Connect, pool_name: &str, vol_name: &str) -> Result<(), LibvirtError> {
-    let pool = StoragePool::lookup_by_name(conn, pool_name)
-        .map_err(|e| LibvirtError::NotFound(format!("Pool '{pool_name}' not found: {e}")))?;
-
+    let pool = lookup_pool(conn, pool_name)?;
     let vol = StorageVol::lookup_by_name(&pool, vol_name)
         .map_err(|e| LibvirtError::NotFound(format!("Volume '{vol_name}' not found: {e}")))?;
-
     vol.delete(0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to delete volume: {e}")))?;
-
     Ok(())
 }
 
 pub fn start_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let pool = StoragePool::lookup_by_name(conn, name)
-        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;
-
+    let pool = lookup_pool(conn, name)?;
     pool.create(0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to start pool '{name}': {e}")))?;
-
     Ok(())
 }
 
 pub fn stop_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let pool = StoragePool::lookup_by_name(conn, name)
-        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;
-
+    let pool = lookup_pool(conn, name)?;
     pool.destroy()
         .map_err(|e| LibvirtError::Operation(format!("Failed to stop pool '{name}': {e}")))?;
-
     Ok(())
 }
 
@@ -128,12 +108,9 @@ pub fn create_volume(
     format: &str,
 ) -> Result<(), LibvirtError> {
     crate::validate::validate_name(vol_name)?;
-
-    let pool = StoragePool::lookup_by_name(conn, pool_name)
-        .map_err(|e| LibvirtError::NotFound(format!("Pool '{pool_name}' not found: {e}")))?;
+    let pool = lookup_pool(conn, pool_name)?;
 
     let capacity_bytes = capacity_gb * 1024 * 1024 * 1024;
-
     let xml = format!(
         r#"<volume>
   <name>{vol_name}</name>
@@ -146,18 +123,18 @@ pub fn create_volume(
 
     StorageVol::create_xml(&pool, &xml, 0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to create volume '{vol_name}': {e}")))?;
-
     Ok(())
 }
 
 pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let pool = StoragePool::lookup_by_name(conn, name)
-        .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))?;
-
+    let pool = lookup_pool(conn, name)?;
     pool.refresh(0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to refresh pool '{name}': {e}")))?;
-
     Ok(())
+}
+
+fn bytes_to_gb(bytes: u64) -> f64 {
+    bytes as f64 / (1024.0 * 1024.0 * 1024.0)
 }
 
 fn pool_state_to_string(state: u32) -> String {

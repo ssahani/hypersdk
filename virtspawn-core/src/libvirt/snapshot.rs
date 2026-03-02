@@ -3,6 +3,7 @@ use virt::domain::Domain;
 use virt::domain_snapshot::DomainSnapshot;
 
 use crate::state::SnapshotInfo;
+use crate::xml;
 use crate::LibvirtError;
 
 pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>, LibvirtError> {
@@ -23,16 +24,17 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
             .get_name()
             .map_err(|e| LibvirtError::Operation(format!("Failed to get snapshot name: {e}")))?;
 
-        let xml = snap.get_xml_desc(0).unwrap_or_default();
+        let xml_str = snap.get_xml_desc(0).unwrap_or_default();
 
-        let creation_time = extract_snap_xml_value(&xml, "creationTime")
+        let creation_time = xml::extract_simple_text(&xml_str, "creationTime")
             .and_then(|s| s.parse::<i64>().ok())
             .unwrap_or(0);
 
-        let state = extract_snap_xml_value(&xml, "state").unwrap_or_else(|| "unknown".to_string());
-        let description =
-            extract_snap_xml_value(&xml, "description").unwrap_or_default();
-        let parent = extract_snap_parent(&xml).unwrap_or_default();
+        let state =
+            xml::extract_simple_text(&xml_str, "state").unwrap_or_else(|| "unknown".to_string());
+        let description = xml::extract_simple_text(&xml_str, "description").unwrap_or_default();
+
+        let parent = extract_parent_name(&xml_str).unwrap_or_default();
 
         let is_current = current.as_deref() == Some(name.as_str());
 
@@ -75,14 +77,14 @@ pub fn create_snapshot(
     let domain = Domain::lookup_by_name(conn, vm_name)
         .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}' not found: {e}")))?;
 
-    let xml = format!(
+    let xml_str = format!(
         r#"<domainsnapshot>
   <name>{snap_name}</name>
   <description>{description}</description>
 </domainsnapshot>"#
     );
 
-    DomainSnapshot::create_xml(&domain, &xml, 0)
+    DomainSnapshot::create_xml(&domain, &xml_str, 0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to create snapshot: {e}")))?;
 
     Ok(())
@@ -122,18 +124,9 @@ pub fn revert_snapshot(
     Ok(())
 }
 
-fn extract_snap_xml_value(xml: &str, tag: &str) -> Option<String> {
-    let open = format!("<{}>", tag);
-    let close = format!("</{}>", tag);
-    let start = xml.find(&open)?;
-    let content_start = start + open.len();
-    let end = xml[content_start..].find(&close)?;
-    Some(xml[content_start..content_start + end].trim().to_string())
-}
-
-fn extract_snap_parent(xml: &str) -> Option<String> {
-    let parent_block_start = xml.find("<parent>")?;
-    let parent_block_end = xml.find("</parent>")?;
-    let block = &xml[parent_block_start..parent_block_end];
-    extract_snap_xml_value(block, "name")
+fn extract_parent_name(xml_str: &str) -> Option<String> {
+    let parent_start = xml_str.find("<parent>")?;
+    let parent_end = xml_str.find("</parent>")?;
+    let block = &xml_str[parent_start..parent_end];
+    xml::extract_simple_text(block, "name")
 }
