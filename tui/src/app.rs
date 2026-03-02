@@ -157,7 +157,12 @@ impl App {
                 return;
             }
             KeyCode::Char('r') => {
-                self.refresh_all_data().await;
+                if let Some(SidebarItem::StoragePool(name)) = self.state.selected_sidebar_item().cloned() {
+                    let r = self.client.refresh_pool(&name).await;
+                    self.report_cmd_result(r, &format!("Refreshed pool '{name}'"), "refresh-pool", &name, true).await;
+                } else {
+                    self.refresh_all_data().await;
+                }
                 return;
             }
             _ => {}
@@ -388,9 +393,16 @@ impl App {
             KeyCode::Char('d') => self.request_confirmation_sidebar().await,
 
             KeyCode::Char('n') => {
-                if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
-                    self.state.create_vm_form = Some(CreateVmForm::new());
-                    self.state.input_mode = InputMode::CreateVmDialog;
+                match self.state.sidebar_resource_view() {
+                    ResourceView::VirtualMachines => {
+                        self.state.create_vm_form = Some(CreateVmForm::new());
+                        self.state.input_mode = InputMode::CreateVmDialog;
+                    }
+                    ResourceView::Snapshots => {
+                        self.state.input_mode = InputMode::Command;
+                        self.state.command_input = "snap ".to_string();
+                    }
+                    _ => {}
                 }
             }
 
@@ -400,9 +412,35 @@ impl App {
             }),
             KeyCode::Char('v') => { if let Some(n) = self.resolve_vm_name() { self.launch_viewer_by_name(&n).await; } }
             KeyCode::Char('V') => { if let Some(n) = self.resolve_vm_name() { self.launch_novnc_by_name(&n).await; } }
-            KeyCode::Char('y') => { if let Some(n) = self.resolve_vm_name() { self.show_vm_xml_by_name(&n).await; } }
+            KeyCode::Char('y') => {
+                match self.state.selected_sidebar_item().cloned() {
+                    Some(SidebarItem::Network(name)) => self.show_network_xml_by_name(&name).await,
+                    Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                        if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
+                            self.show_network_xml_by_name(&name).await;
+                        }
+                    }
+                    _ => { if let Some(n) = self.resolve_vm_name() { self.show_vm_xml_by_name(&n).await; } }
+                }
+            }
             KeyCode::Char('c') => { if let Some(n) = self.resolve_vm_name() { self.launch_console_by_name(&n).await; } }
-            KeyCode::Char('t') => { if let Some(n) = self.resolve_vm_name() { self.toggle_autostart_by_name(&n).await; } }
+            KeyCode::Char('t') => {
+                match self.state.selected_sidebar_item().cloned() {
+                    Some(SidebarItem::Network(name)) => self.toggle_network_autostart_by_name(&name).await,
+                    Some(SidebarItem::StoragePool(name)) => self.toggle_pool_autostart_by_name(&name).await,
+                    Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                        if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
+                            self.toggle_network_autostart_by_name(&name).await;
+                        }
+                    }
+                    Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+                        if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
+                            self.toggle_pool_autostart_by_name(&name).await;
+                        }
+                    }
+                    _ => { if let Some(n) = self.resolve_vm_name() { self.toggle_autostart_by_name(&n).await; } }
+                }
+            }
             KeyCode::Char('e') => { if let Some(n) = self.resolve_vm_name() { self.launch_ssh_by_name(&n).await; } }
 
             // Network/pool start/stop
@@ -823,12 +861,37 @@ impl App {
                     })
                 }
             }
+            Some(SidebarItem::Network(name)) => Some(ConfirmationDialog {
+                title: "Delete Network".to_string(),
+                message: "This will permanently delete the network.".to_string(),
+                resource_name: name.clone(),
+                action: format!("delete-network:{name}"),
+            }),
+            Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                self.state.selected_network_name().map(|n| n.to_string()).map(|name| ConfirmationDialog {
+                    title: "Delete Network".to_string(),
+                    message: "This will permanently delete the network.".to_string(),
+                    resource_name: name.clone(),
+                    action: format!("delete-network:{name}"),
+                })
+            }
             Some(SidebarItem::Snapshot(vm, snap)) => Some(ConfirmationDialog {
                 title: "Delete Snapshot".to_string(),
                 message: "This will permanently delete the snapshot.".to_string(),
                 resource_name: format!("{vm}/{snap}"),
                 action: format!("delete-snap:{vm}:{snap}"),
             }),
+            Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
+                self.state.selected_snapshot().map(|s| (s.vm_name.clone(), s.name.clone())).map(|(vm, snap)| ConfirmationDialog {
+                    title: "Delete Snapshot".to_string(),
+                    message: "This will permanently delete the snapshot.".to_string(),
+                    resource_name: format!("{vm}/{snap}"),
+                    action: format!("delete-snap:{vm}:{snap}"),
+                })
+            }
+            Some(SidebarItem::StoragePool(_)) | Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+                self.resolve_volume_for_delete()
+            }
             _ => None,
         };
 
@@ -836,6 +899,17 @@ impl App {
             self.state.confirm_dialog = Some(d);
             self.state.input_mode = InputMode::Confirmation;
         }
+    }
+
+    fn resolve_volume_for_delete(&self) -> Option<ConfirmationDialog> {
+        let pool = self.state.browsing_pool.as_ref()?;
+        let vol = self.state.volumes.get(self.state.selected_index)?;
+        Some(ConfirmationDialog {
+            title: "Delete Volume".to_string(),
+            message: format!("This will permanently delete volume '{}' from pool '{}'.", vol.name, pool),
+            resource_name: format!("{}/{}", pool, vol.name),
+            action: format!("delete-vol:{}:{}", pool, vol.name),
+        })
     }
 
     fn batch_delete_dialog(&self) -> ConfirmationDialog {
@@ -876,6 +950,18 @@ impl App {
                 let r = self.client.delete_snapshot(vm_name, snap_name).await;
                 self.report_cmd_result(r, &format!("Deleted snapshot '{snap_name}' from '{vm_name}'"), "delete-snapshot", snap_name, true).await;
             }
+            ["delete-network", name] => {
+                let r = self.client.delete_network(name).await;
+                self.report_cmd_result(r, &format!("Deleted network '{name}'"), "delete-network", name, true).await;
+            }
+            ["delete-vol", pool, vol] => {
+                let r = self.client.delete_volume(pool, vol).await;
+                self.report_cmd_result(r, &format!("Deleted volume '{vol}' from pool '{pool}'"), "delete-volume", vol, false).await;
+                // Refresh volume list
+                if let Some(pool_name) = self.state.browsing_pool.clone() {
+                    self.browse_pool_volumes_by_name(&pool_name).await;
+                }
+            }
             _ => {}
         }
     }
@@ -895,6 +981,29 @@ impl App {
         let label = if new_val { "enabled" } else { "disabled" };
         let r = self.client.set_autostart(name, new_val).await;
         self.report_cmd_result(r, &format!("Autostart for '{name}': {label}"), "autostart", name, false).await;
+    }
+
+    async fn toggle_network_autostart_by_name(&mut self, name: &str) {
+        let current = self.state.find_network(name).map(|n| n.autostart).unwrap_or(false);
+        let new_val = !current;
+        let label = if new_val { "enabled" } else { "disabled" };
+        let r = self.client.set_network_autostart(name, new_val).await;
+        self.report_cmd_result(r, &format!("Autostart for network '{name}': {label}"), "network-autostart", name, true).await;
+    }
+
+    async fn toggle_pool_autostart_by_name(&mut self, name: &str) {
+        let current = self.state.find_pool(name).map(|p| p.autostart).unwrap_or(false);
+        let new_val = !current;
+        let label = if new_val { "enabled" } else { "disabled" };
+        let r = self.client.set_pool_autostart(name, new_val).await;
+        self.report_cmd_result(r, &format!("Autostart for pool '{name}': {label}"), "pool-autostart", name, true).await;
+    }
+
+    async fn show_network_xml_by_name(&mut self, name: &str) {
+        match self.client.get_network_xml(name).await {
+            Ok(xml) => { self.state.xml_content = xml; self.state.scroll_offset = 0; self.state.view_mode = ViewMode::Xml; }
+            Err(e) => self.state.status_message = format!("Error fetching network XML: {e}"),
+        }
     }
 
     // ── Volume browser ──────────────────────────────────────────────────

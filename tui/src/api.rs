@@ -159,6 +159,15 @@ impl DaemonClient {
         self.delete_action(&format!("/api/v1/networks/{name}")).await
     }
 
+    pub async fn set_network_autostart(&self, name: &str, enabled: bool) -> Result<()> {
+        self.post_action(&format!("/api/v1/networks/{name}/autostart/{enabled}"))
+            .await
+    }
+
+    pub async fn get_network_xml(&self, name: &str) -> Result<String> {
+        self.get_text(&format!("/api/v1/networks/{name}/xml")).await
+    }
+
     // ── Storage ─────────────────────────────────────────────────────────
 
     pub async fn fetch_storage_pools(&self) -> Result<Vec<StoragePoolInfo>> {
@@ -177,6 +186,21 @@ impl DaemonClient {
 
     pub async fn fetch_volumes(&self, pool: &str) -> Result<Vec<virtspawn_core::StorageVolumeInfo>> {
         self.get_json(&format!("/api/v1/storage/pools/{pool}/volumes"))
+            .await
+    }
+
+    pub async fn set_pool_autostart(&self, name: &str, enabled: bool) -> Result<()> {
+        self.post_action(&format!("/api/v1/storage/pools/{name}/autostart/{enabled}"))
+            .await
+    }
+
+    pub async fn refresh_pool(&self, name: &str) -> Result<()> {
+        self.post_action(&format!("/api/v1/storage/pools/{name}/refresh"))
+            .await
+    }
+
+    pub async fn delete_volume(&self, pool: &str, vol: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/storage/pools/{pool}/volumes/{vol}"))
             .await
     }
 

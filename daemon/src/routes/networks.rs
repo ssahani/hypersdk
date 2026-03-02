@@ -57,6 +57,15 @@ async fn get_network_xml(
     Ok(xml)
 }
 
+async fn set_network_autostart(
+    State(manager): State<LibvirtManager>,
+    Path((name, enabled)): Path<(String, bool)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| network::set_network_autostart(conn, &name, enabled))?;
+    let label = if enabled { "enabled" } else { "disabled" };
+    Ok(ok_json(label, &name))
+}
+
 pub fn network_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/networks", get(list_networks))
@@ -65,4 +74,5 @@ pub fn network_routes() -> Router<LibvirtManager> {
         .route("/networks/{name}/start", post(start_network))
         .route("/networks/{name}/stop", post(stop_network))
         .route("/networks/{name}/xml", get(get_network_xml))
+        .route("/networks/{name}/autostart/{enabled}", post(set_network_autostart))
 }

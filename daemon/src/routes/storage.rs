@@ -46,6 +46,15 @@ async fn refresh_pool(
     Ok(ok_json("refreshed", &name))
 }
 
+async fn set_pool_autostart(
+    State(manager): State<LibvirtManager>,
+    Path((name, enabled)): Path<(String, bool)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| storage::set_pool_autostart(conn, &name, enabled))?;
+    let label = if enabled { "enabled" } else { "disabled" };
+    Ok(ok_json(label, &name))
+}
+
 async fn delete_volume(
     State(manager): State<LibvirtManager>,
     Path((pool_name, vol_name)): Path<(String, String)>,
@@ -72,6 +81,7 @@ pub fn storage_routes() -> Router<LibvirtManager> {
         .route("/storage/pools/{name}/start", post(start_pool))
         .route("/storage/pools/{name}/stop", post(stop_pool))
         .route("/storage/pools/{name}/refresh", post(refresh_pool))
+        .route("/storage/pools/{name}/autostart/{enabled}", post(set_pool_autostart))
         .route("/storage/pools/{pool_name}/volumes", get(list_volumes))
         .route("/storage/pools/{pool_name}/volumes", post(create_volume))
         .route(

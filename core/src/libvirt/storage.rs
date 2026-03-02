@@ -126,6 +126,13 @@ pub fn create_volume(
     Ok(())
 }
 
+pub fn set_pool_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), LibvirtError> {
+    let pool = lookup_pool(conn, name)?;
+    pool.set_autostart(autostart)
+        .map_err(LibvirtError::map_op("Failed to set pool autostart"))?;
+    Ok(())
+}
+
 pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.refresh(0)

@@ -1293,11 +1293,19 @@ fn render_notification(frame: &mut Frame, area: Rect, msg: &str, level: NotifyLe
 // ── Context menu overlay ────────────────────────────────────────────────
 
 fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
+    let item_count = match state.sidebar_resource_view() {
+        ResourceView::VirtualMachines => 12,
+        ResourceView::Networks => 5,
+        ResourceView::StoragePools => 5,
+        ResourceView::Snapshots => 3,
+        _ => 0,
+    };
+    let height = (item_count + 2).min(area.height as usize) as u16;
     let menu_area = Rect {
         x: area.width / 2 - 15,
-        y: area.height / 2 - 7,
+        y: area.height / 2 - height / 2,
         width: 30,
-        height: 14,
+        height,
     };
     frame.render_widget(Clear, menu_area);
 
@@ -1307,12 +1315,20 @@ fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
         ("d", "Delete"), ("o", "Clone"), ("v", "Virt-viewer"),
         ("c", "Console"), ("y", "XML view"), ("n", "New VM"),
     ];
-    const NET_ACTIONS: &[(&str, &str)] = &[("a", "Start"), ("z", "Stop")];
-    const SNAP_ACTIONS: &[(&str, &str)] = &[("R", "Revert"), ("d", "Delete")];
+    const NET_ACTIONS: &[(&str, &str)] = &[
+        ("a", "Start"), ("z", "Stop"), ("d", "Delete"),
+        ("t", "Toggle autostart"), ("y", "XML view"),
+    ];
+    const POOL_ACTIONS: &[(&str, &str)] = &[
+        ("a", "Start"), ("z", "Stop"), ("r", "Refresh"),
+        ("t", "Toggle autostart"), ("d", "Delete volume"),
+    ];
+    const SNAP_ACTIONS: &[(&str, &str)] = &[("R", "Revert"), ("d", "Delete"), ("n", "New snapshot")];
 
     let items: &[(&str, &str)] = match state.sidebar_resource_view() {
         ResourceView::VirtualMachines => VM_ACTIONS,
         ResourceView::Networks => NET_ACTIONS,
+        ResourceView::StoragePools => POOL_ACTIONS,
         ResourceView::Snapshots => SNAP_ACTIONS,
         _ => &[],
     };
@@ -1458,10 +1474,17 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
         help_line("Space  Toggle select    A  Select all    Esc  Clear"),
         help_line("Then s/x/H/b/p/u/d to batch operate"),
         Line::from(""),
-        help_section("Network / Storage / Snapshot Actions"),
-        help_line("a  Start (network or pool)    z  Stop (network or pool)"),
-        help_line("Enter  Browse volumes (Storage)    Backspace  Go back"),
-        help_line("R  Revert snapshot    d  Delete snapshot"),
+        help_section("Network Actions"),
+        help_line("a  Start    z  Stop    d  Delete    t  Toggle autostart"),
+        help_line("y  XML view"),
+        Line::from(""),
+        help_section("Storage Pool Actions"),
+        help_line("a  Start    z  Stop    r  Refresh pool    t  Toggle autostart"),
+        help_line("Enter  Browse volumes    Backspace  Go back"),
+        help_line("d  Delete volume (in volume browser)"),
+        Line::from(""),
+        help_section("Snapshot Actions"),
+        help_line("R  Revert snapshot    d  Delete snapshot    n  New snapshot"),
         Line::from(""),
         help_section("General"),
         help_line("/  Search (fuzzy)  :  Command  r  Refresh  Ctrl+Space  Menu"),
@@ -1574,10 +1597,22 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
                 Some(SidebarItem::Network(_)) => {
                     add_hint(&mut spans, "a", "start");
                     add_hint(&mut spans, "z", "stop");
+                    add_hint(&mut spans, "d", "del");
+                    add_hint(&mut spans, "t", "autostart");
+                    add_hint(&mut spans, "y", "xml");
+                }
+                Some(SidebarItem::StoragePool(_)) => {
+                    add_hint(&mut spans, "a", "start");
+                    add_hint(&mut spans, "z", "stop");
+                    add_hint(&mut spans, "r", "refresh");
+                    add_hint(&mut spans, "t", "autostart");
                 }
                 Some(SidebarItem::Snapshot(_, _)) => {
                     add_hint(&mut spans, "R", "revert");
                     add_hint(&mut spans, "d", "delete");
+                }
+                Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
+                    add_hint(&mut spans, "n", "new");
                 }
                 _ => {}
             }
@@ -1600,6 +1635,22 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
                 }
                 Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
                     add_hint(&mut spans, "n", "new");
+                }
+                Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                    add_hint(&mut spans, "d", "del");
+                    add_hint(&mut spans, "t", "autostart");
+                    add_hint(&mut spans, "y", "xml");
+                }
+                Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+                    if state.browsing_pool.is_some() {
+                        add_hint(&mut spans, "d", "del vol");
+                    } else {
+                        add_hint(&mut spans, "t", "autostart");
+                    }
+                }
+                Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
+                    add_hint(&mut spans, "n", "new");
+                    add_hint(&mut spans, "d", "del");
                 }
                 _ => {}
             }
