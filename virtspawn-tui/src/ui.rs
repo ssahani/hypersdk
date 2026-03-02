@@ -168,7 +168,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
     let focused = state.focus == Focus::Sidebar;
     let border_color = if focused { ORANGE } else { DIM_BORDER };
 
-    let block = Block::default()
+    let block = Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(border_color))
         .title(" INVENTORY ")
@@ -235,11 +235,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
             }
             SidebarItem::Vm(name) => {
                 let vm_state = state.vm_state_str(name);
-                let indicator = match vm_state {
-                    "running" => "\u{25cf}",
-                    "paused" => "\u{25d1}",
-                    _ => "\u{25cb}",
-                };
+                let indicator = state_indicator(vm_state);
                 Line::from(vec![
                     Span::styled(format!("  {indicator} "), Style::new().fg(state_color(vm_state))),
                     Span::styled(truncate_str(name, max_name_width), sidebar_item_style(is_selected)),
@@ -367,7 +363,7 @@ fn render_content_panel(frame: &mut Frame, area: Rect, state: &AppState) {
 fn content_block(state: &AppState, title: &str) -> Block<'static> {
     let focused = state.focus == Focus::Content;
     let border_color = if focused { ORANGE } else { DIM_BORDER };
-    Block::default()
+    Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(border_color))
         .title(title.to_string())
@@ -403,11 +399,7 @@ fn render_object_tab_bar(frame: &mut Frame, area: Rect, state: &AppState, vm_nam
         .find(|v| v.name == vm_name)
         .map(|v| v.state.as_str())
         .unwrap_or("unknown");
-    let state_dot = match vm_state {
-        "running" => "\u{25cf}",
-        "paused" => "\u{25d1}",
-        _ => "\u{25cb}",
-    };
+    let state_dot = state_indicator(vm_state);
 
     let mut spans: Vec<Span> = vec![
         Span::styled(format!(" {state_dot}"), Style::new().fg(state_color(vm_state))),
@@ -858,7 +850,7 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
     }
 
     let header = Row::new(header_cells)
-        .style(header_style())
+        .style(ORANGE_BOLD)
         .bottom_margin(1);
 
     let items: Vec<(usize, _)> = if !state.filtered_indices.is_empty() {
@@ -906,7 +898,7 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
             if state.state_changed_vms.contains_key(&vm.name) {
                 row.style(NAME_BOLD.bg(HIGHLIGHT_BG))
             } else if display_idx == state.selected_index {
-                row.style(selected_style())
+                row.style(NAME_BOLD)
             } else {
                 row
             }
@@ -952,7 +944,7 @@ fn render_network_table(frame: &mut Frame, area: Rect, state: &AppState) {
         hdr.push(Cell::from("Bridge"));
         hdr.push(Cell::from("Persistent"));
     }
-    let header = Row::new(hdr).style(header_style()).bottom_margin(1);
+    let header = Row::new(hdr).style(ORANGE_BOLD).bottom_margin(1);
 
     let rows: Vec<Row> = state.networks.iter().enumerate()
         .map(|(i, net)| {
@@ -1000,7 +992,7 @@ fn render_storage_table(frame: &mut Frame, area: Rect, state: &AppState) {
     if show_autostart {
         hdr.push(Cell::from("Autostart"));
     }
-    let header = Row::new(hdr).style(header_style()).bottom_margin(1);
+    let header = Row::new(hdr).style(ORANGE_BOLD).bottom_margin(1);
 
     let rows: Vec<Row> = state.storage_pools.iter().enumerate()
         .map(|(i, pool)| {
@@ -1041,7 +1033,7 @@ fn render_snapshot_table(frame: &mut Frame, area: Rect, state: &AppState) {
         Cell::from("VM"), Cell::from("Snapshot"), Cell::from("State"),
         Cell::from("Cur"), Cell::from("Parent"),
     ])
-    .style(header_style())
+    .style(ORANGE_BOLD)
     .bottom_margin(1);
 
     let rows: Vec<Row> = state.snapshots.iter().enumerate()
@@ -1076,7 +1068,7 @@ fn render_events_table(frame: &mut Frame, area: Rect, state: &AppState) {
         Cell::from("Time"), Cell::from("Action"),
         Cell::from("Target"), Cell::from("Result"),
     ])
-    .style(header_style())
+    .style(ORANGE_BOLD)
     .bottom_margin(1);
 
     let rows: Vec<Row> = state.audit_events.iter().rev().enumerate()
@@ -1197,7 +1189,7 @@ fn render_volume_table(frame: &mut Frame, area: Rect, state: &AppState) {
         Cell::from("Name"), Cell::from("Type"), Cell::from("Cap (GB)"),
         Cell::from("Used (GB)"), Cell::from("Path"),
     ])
-    .style(header_style())
+    .style(ORANGE_BOLD)
     .bottom_margin(1);
 
     let rows: Vec<Row> = state.volumes.iter().enumerate()
@@ -1288,7 +1280,7 @@ fn render_notification(frame: &mut Frame, area: Rect, msg: &str, level: NotifyLe
 
     frame.render_widget(Clear, toast_area);
 
-    let block = Block::default()
+    let block = Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(border_color).add_modifier(Modifier::BOLD))
         .style(Style::new().bg(Color::Black));
@@ -1334,7 +1326,7 @@ fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
-    let block = Block::default()
+    let block = Block::new()
         .borders(Borders::ALL)
         .border_style(LABEL_STYLE)
         .title(" Actions ")
@@ -1372,7 +1364,7 @@ fn render_confirmation_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
             ]),
         ];
 
-        let block = Block::default()
+        let block = Block::new()
             .borders(Borders::ALL)
             .border_style(Style::new().fg(ERROR_COLOR).add_modifier(Modifier::BOLD))
             .title(format!(" {} ", dialog.title))
@@ -1442,7 +1434,7 @@ fn render_create_vm_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
             Span::styled(":cancel", DARK_ORANGE_STYLE),
         ]));
 
-        let block = Block::default()
+        let block = Block::new()
             .borders(Borders::ALL)
             .border_style(ORANGE_BOLD)
             .title(" Create VM ")
@@ -1507,7 +1499,7 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
         )),
     ];
 
-    let block = Block::default()
+    let block = Block::new()
         .borders(Borders::ALL)
         .border_style(ORANGE_BOLD)
         .title(" Help ")
@@ -1649,21 +1641,22 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
 
 // ── Helpers ─────────────────────────────────────────────────────────────
 
+fn state_indicator(vm_state: &str) -> &'static str {
+    match vm_state {
+        "running" => "\u{25cf}",
+        "paused" => "\u{25d1}",
+        _ => "\u{25cb}",
+    }
+}
+
 fn themed_block(title: &str) -> Block<'static> {
-    Block::default()
+    Block::new()
         .borders(Borders::ALL)
         .border_style(Style::new().fg(DARK_ORANGE))
         .title(title.to_string())
         .title_style(ORANGE_BOLD)
 }
 
-fn header_style() -> Style {
-    ORANGE_BOLD
-}
-
-fn selected_style() -> Style {
-    NAME_BOLD
-}
 
 fn pct_color(pct: f64) -> Color {
     if pct > 90.0 { ERROR_COLOR }
@@ -1676,7 +1669,7 @@ fn bool_label(val: bool) -> &'static str {
 }
 
 fn select_row(row: Row<'_>, idx: usize, selected: usize) -> Row<'_> {
-    if idx == selected { row.style(selected_style()) } else { row }
+    if idx == selected { row.style(NAME_BOLD) } else { row }
 }
 
 fn sidebar_item_style(is_selected: bool) -> Style {
