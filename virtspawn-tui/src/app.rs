@@ -1035,10 +1035,10 @@ impl App {
     async fn execute_command(&mut self, cmd: &str) {
         let parts: Vec<&str> = cmd.split_whitespace().collect();
         match parts.as_slice() {
-            ["vms"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::VirtualMachines); }
-            ["net"] | ["networks"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::Networks); }
-            ["pool"] | ["storage"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::Storage); }
-            ["snap"] | ["snapshots"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::Snapshots); }
+            ["vms"] => self.navigate_to_category(SidebarCategory::VirtualMachines),
+            ["net"] | ["networks"] => self.navigate_to_category(SidebarCategory::Networks),
+            ["pool"] | ["storage"] => self.navigate_to_category(SidebarCategory::Storage),
+            ["snap"] | ["snapshots"] => self.navigate_to_category(SidebarCategory::Snapshots),
             ["events"] => { self.state.command_content_override = Some(ResourceView::Events); self.state.resource_view = ResourceView::Events; }
             ["node"] => {
                 self.state.command_content_override = Some(ResourceView::Node);
@@ -1107,6 +1107,11 @@ impl App {
             ["q"] | ["quit"] => self.should_quit = true,
             _ => self.state.status_message = format!("Unknown command: {cmd}"),
         }
+    }
+
+    fn navigate_to_category(&mut self, cat: SidebarCategory) {
+        self.state.command_content_override = None;
+        self.select_sidebar_category(cat);
     }
 
     fn select_sidebar_category(&mut self, cat: SidebarCategory) {

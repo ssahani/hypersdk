@@ -499,14 +499,16 @@ impl Default for CreateVmForm {
 
 // ── Sidebar / Content Focus Model ───────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Focus {
+    #[default]
     Sidebar,
     Content,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ObjectTab {
+    #[default]
     Summary,
     Monitor,
     Configure,
@@ -581,8 +583,9 @@ pub enum SidebarItem {
 
 // ── TUI State ───────────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ResourceView {
+    #[default]
     VirtualMachines,
     Networks,
     StoragePools,
@@ -591,16 +594,18 @@ pub enum ResourceView {
     Node,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ViewMode {
+    #[default]
     Table,
     Xml,
     Logs,
     Help,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum InputMode {
+    #[default]
     Normal,
     Search,
     Confirmation,
@@ -608,16 +613,18 @@ pub enum InputMode {
     CreateVmDialog,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SortColumn {
+    #[default]
     Name,
     State,
     Cpu,
     Memory,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum SortDirection {
+    #[default]
     Ascending,
     Descending,
 }
@@ -649,6 +656,7 @@ fn push_bounded<T>(buf: &mut VecDeque<T>, item: T, max: usize) {
 
 // ── App State ───────────────────────────────────────────────────────────
 
+#[derive(Default)]
 pub struct AppState {
     // Data
     pub vms: Vec<VmInfo>,
@@ -719,58 +727,8 @@ pub struct AppState {
 impl AppState {
     pub fn new() -> Self {
         Self {
-            vms: Vec::new(),
-            networks: Vec::new(),
-            storage_pools: Vec::new(),
-            snapshots: Vec::new(),
-            node_info: None,
-            vm_details: None,
-            vm_metrics: Vec::new(),
-            audit_events: VecDeque::new(),
-            xml_content: String::new(),
-            scroll_offset: 0,
-            dashboard: DashboardStats::default(),
-            volumes: Vec::new(),
-            browsing_pool: None,
-            log_content: String::new(),
-            notification: None,
-            notification_history: VecDeque::new(),
-
-            selected_index: 0,
-            resource_view: ResourceView::VirtualMachines,
-            view_mode: ViewMode::Table,
-            input_mode: InputMode::Normal,
             status_message: "Press '?' for help, ':' for commands".to_string(),
-            show_context_menu: false,
-            connected: false,
-
-            multi_select_mode: false,
-            selected_items: std::collections::HashSet::new(),
-
-            search_query: String::new(),
-            filtered_indices: Vec::new(),
-
-            sort_column: SortColumn::Name,
-            sort_direction: SortDirection::Ascending,
-
-            confirm_dialog: None,
-            command_input: String::new(),
-
-            previous_vm_states: HashMap::new(),
-            state_changed_vms: HashMap::new(),
-
-            metrics_history: HashMap::new(),
-
-            create_vm_form: None,
-
-            focus: Focus::Sidebar,
-            active_object_tab: ObjectTab::Summary,
-            sidebar_selected: 0,
-            sidebar_collapsed: HashMap::new(),
-            sidebar_items: Vec::new(),
-            content_scroll_offset: 0,
-            command_content_override: None,
-            help_scroll: 0,
+            ..Default::default()
         }
     }
 
@@ -867,22 +825,11 @@ impl AppState {
     }
 
     pub fn compute_dashboard(&mut self) {
-        let mut running_vms = 0;
-        let mut paused_vms = 0;
-        let mut stopped_vms = 0;
-        let mut total_vcpus = 0u32;
-        let mut total_memory_mb = 0u64;
-
-        for vm in &self.vms {
-            match vm.state.as_str() {
-                "running" => running_vms += 1,
-                "paused" => paused_vms += 1,
-                _ => stopped_vms += 1,
-            }
-            total_vcpus += vm.vcpus;
-            total_memory_mb += vm.memory_mb;
-        }
-
+        let running_vms = self.vms.iter().filter(|v| v.state == "running").count();
+        let paused_vms = self.vms.iter().filter(|v| v.state == "paused").count();
+        let stopped_vms = self.vms.len() - running_vms - paused_vms;
+        let total_vcpus: u32 = self.vms.iter().map(|v| v.vcpus).sum();
+        let total_memory_mb: u64 = self.vms.iter().map(|v| v.memory_mb).sum();
         let used_memory_mb: u64 = self.vm_metrics.iter().map(|m| m.memory_used_mb).sum();
 
         self.dashboard = DashboardStats {
@@ -1109,11 +1056,6 @@ impl AppState {
     }
 }
 
-impl Default for AppState {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 /// Fuzzy match: all query characters must appear in order in the target.
 /// Returns a score > 0 on match, 0 on no match.

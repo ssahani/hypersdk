@@ -17,7 +17,6 @@ const ORANGE: Color = Color::Rgb(222, 115, 86);
 const DARK_ORANGE: Color = Color::Rgb(180, 85, 60);
 const LIGHT_ORANGE: Color = Color::Rgb(255, 145, 115);
 const TEXT_COLOR: Color = Color::Rgb(220, 220, 220);
-const BORDER_COLOR: Color = Color::Rgb(180, 85, 60);
 const SUCCESS_COLOR: Color = Color::Rgb(50, 205, 50);
 const WARNING_COLOR: Color = Color::Rgb(255, 200, 0);
 const ERROR_COLOR: Color = Color::Rgb(220, 50, 47);
@@ -907,8 +906,8 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
 
             let mut cells = vec![
                 Cell::from(sel_marker).style(LABEL_STYLE),
-                Cell::from(vm.name.clone()).style(NAME_STYLE),
-                Cell::from(vm.state.clone()).style(Style::new().fg(sc)),
+                Cell::from(vm.name.as_str()).style(NAME_STYLE),
+                Cell::from(vm.state.as_str()).style(Style::new().fg(sc)),
             ];
 
             if show_vcpus_mem {
@@ -989,12 +988,12 @@ fn render_network_table(frame: &mut Frame, area: Rect, state: &AppState) {
         .map(|(i, net)| {
             let active_color = if net.active { SUCCESS_COLOR } else { ERROR_COLOR };
             let mut cells = vec![
-                Cell::from(net.name.clone()).style(NAME_STYLE),
+                Cell::from(net.name.as_str()).style(NAME_STYLE),
                 Cell::from(bool_label(net.active)).style(Style::new().fg(active_color)),
                 Cell::from(bool_label(net.autostart)).style(TEXT_STYLE),
             ];
             if show_extra {
-                cells.push(Cell::from(net.bridge.clone()).style(TEXT_STYLE));
+                cells.push(Cell::from(net.bridge.as_str()).style(TEXT_STYLE));
                 cells.push(Cell::from(bool_label(net.persistent)).style(TEXT_STYLE));
             }
             let row = Row::new(cells);
@@ -1037,8 +1036,8 @@ fn render_storage_table(frame: &mut Frame, area: Rect, state: &AppState) {
         .map(|(i, pool)| {
             let sc = state_color(&pool.state);
             let mut cells = vec![
-                Cell::from(pool.name.clone()).style(NAME_STYLE),
-                Cell::from(pool.state.clone()).style(Style::new().fg(sc)),
+                Cell::from(pool.name.as_str()).style(NAME_STYLE),
+                Cell::from(pool.state.as_str()).style(Style::new().fg(sc)),
                 Cell::from(format!("{:.1}", pool.capacity_gb)).style(TEXT_STYLE),
                 Cell::from(format!("{:.1}", pool.allocation_gb)).style(TEXT_STYLE),
                 Cell::from(format!("{:.1}", pool.available_gb)).style(SUCCESS_STYLE),
@@ -1078,11 +1077,11 @@ fn render_snapshot_table(frame: &mut Frame, area: Rect, state: &AppState) {
     let rows: Vec<Row> = state.snapshots.iter().enumerate()
         .map(|(i, snap)| {
             let row = Row::new(vec![
-                Cell::from(snap.vm_name.clone()).style(NAME_STYLE),
-                Cell::from(snap.name.clone()).style(TEXT_STYLE),
-                Cell::from(snap.state.clone()).style(TEXT_STYLE),
+                Cell::from(snap.vm_name.as_str()).style(NAME_STYLE),
+                Cell::from(snap.name.as_str()).style(TEXT_STYLE),
+                Cell::from(snap.state.as_str()).style(TEXT_STYLE),
                 Cell::from(if snap.is_current { "\u{25cf}" } else { "" }).style(SUCCESS_STYLE),
-                Cell::from(snap.parent.clone()).style(DIM_STYLE),
+                Cell::from(snap.parent.as_str()).style(DIM_STYLE),
             ]);
             select_row(row, i, state.selected_index)
         })
@@ -1114,10 +1113,10 @@ fn render_events_table(frame: &mut Frame, area: Rect, state: &AppState) {
         .map(|(i, evt)| {
             let result_color = if evt.result.starts_with("ERROR") { ERROR_COLOR } else { SUCCESS_COLOR };
             let row = Row::new(vec![
-                Cell::from(evt.timestamp.clone()).style(DIM_STYLE),
-                Cell::from(evt.action.clone()).style(NAME_STYLE),
-                Cell::from(evt.target.clone()).style(TEXT_STYLE),
-                Cell::from(evt.result.clone()).style(Style::new().fg(result_color)),
+                Cell::from(evt.timestamp.as_str()).style(DIM_STYLE),
+                Cell::from(evt.action.as_str()).style(NAME_STYLE),
+                Cell::from(evt.target.as_str()).style(TEXT_STYLE),
+                Cell::from(evt.result.as_str()).style(Style::new().fg(result_color)),
             ]);
             select_row(row, i, state.selected_index)
         })
@@ -1234,11 +1233,11 @@ fn render_volume_table(frame: &mut Frame, area: Rect, state: &AppState) {
     let rows: Vec<Row> = state.volumes.iter().enumerate()
         .map(|(i, vol)| {
             let row = Row::new(vec![
-                Cell::from(vol.name.clone()).style(NAME_STYLE),
-                Cell::from(vol.vol_type.clone()).style(TEXT_STYLE),
+                Cell::from(vol.name.as_str()).style(NAME_STYLE),
+                Cell::from(vol.vol_type.as_str()).style(TEXT_STYLE),
                 Cell::from(format!("{:.1}", vol.capacity_gb)).style(TEXT_STYLE),
                 Cell::from(format!("{:.1}", vol.allocation_gb)).style(TEXT_STYLE),
-                Cell::from(vol.path.clone()).style(DIM_STYLE),
+                Cell::from(vol.path.as_str()).style(DIM_STYLE),
             ]);
             select_row(row, i, state.selected_index)
         })
@@ -1683,7 +1682,7 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
 fn themed_block(title: &str) -> Block<'static> {
     Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::new().fg(BORDER_COLOR))
+        .border_style(Style::new().fg(DARK_ORANGE))
         .title(title.to_string())
         .title_style(ORANGE_BOLD)
 }
