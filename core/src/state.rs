@@ -804,6 +804,22 @@ impl AppState {
         }
     }
 
+    pub fn effective_network_name(&self) -> Option<&str> {
+        match self.selected_sidebar_item() {
+            Some(SidebarItem::Network(name)) => Some(name.as_str()),
+            Some(SidebarItem::Category(SidebarCategory::Networks)) => self.selected_network_name(),
+            _ => None,
+        }
+    }
+
+    pub fn effective_pool_name(&self) -> Option<&str> {
+        match self.selected_sidebar_item() {
+            Some(SidebarItem::StoragePool(name)) => Some(name.as_str()),
+            Some(SidebarItem::Category(SidebarCategory::Storage)) => self.selected_pool_name(),
+            _ => None,
+        }
+    }
+
     pub fn effective_snapshot(&self) -> Option<&SnapshotInfo> {
         match self.selected_sidebar_item() {
             Some(SidebarItem::Snapshot(vm, snap)) => self.find_snapshot(vm, snap),

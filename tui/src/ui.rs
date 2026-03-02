@@ -1293,22 +1293,6 @@ fn render_notification(frame: &mut Frame, area: Rect, msg: &str, level: NotifyLe
 // ── Context menu overlay ────────────────────────────────────────────────
 
 fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
-    let item_count = match state.sidebar_resource_view() {
-        ResourceView::VirtualMachines => 12,
-        ResourceView::Networks => 5,
-        ResourceView::StoragePools => 5,
-        ResourceView::Snapshots => 3,
-        _ => 0,
-    };
-    let height = (item_count + 2).min(area.height as usize) as u16;
-    let menu_area = Rect {
-        x: area.width / 2 - 15,
-        y: area.height / 2 - height / 2,
-        width: 30,
-        height,
-    };
-    frame.render_widget(Clear, menu_area);
-
     const VM_ACTIONS: &[(&str, &str)] = &[
         ("s", "Start"), ("x", "Stop (force)"), ("h", "Shutdown"),
         ("b", "Reboot"), ("p", "Pause"), ("u", "Resume"),
@@ -1332,6 +1316,15 @@ fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
         ResourceView::Snapshots => SNAP_ACTIONS,
         _ => &[],
     };
+
+    let height = (items.len() + 2).min(area.height as usize) as u16;
+    let menu_area = Rect {
+        x: area.width / 2 - 15,
+        y: area.height / 2 - height / 2,
+        width: 30,
+        height,
+    };
+    frame.render_widget(Clear, menu_area);
 
     let lines: Vec<Line> = items.iter()
         .map(|(key, desc)| {

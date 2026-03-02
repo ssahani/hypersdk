@@ -413,32 +413,21 @@ impl App {
             KeyCode::Char('v') => { if let Some(n) = self.resolve_vm_name() { self.launch_viewer_by_name(&n).await; } }
             KeyCode::Char('V') => { if let Some(n) = self.resolve_vm_name() { self.launch_novnc_by_name(&n).await; } }
             KeyCode::Char('y') => {
-                match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Network(name)) => self.show_network_xml_by_name(&name).await,
-                    Some(SidebarItem::Category(SidebarCategory::Networks)) => {
-                        if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
-                            self.show_network_xml_by_name(&name).await;
-                        }
-                    }
-                    _ => { if let Some(n) = self.resolve_vm_name() { self.show_vm_xml_by_name(&n).await; } }
+                if let Some(name) = self.state.effective_network_name().map(|s| s.to_string()) {
+                    let r = self.client.get_network_xml(&name).await;
+                    self.show_xml_result(r, "network");
+                } else if let Some(n) = self.resolve_vm_name() {
+                    self.show_vm_xml_by_name(&n).await;
                 }
             }
             KeyCode::Char('c') => { if let Some(n) = self.resolve_vm_name() { self.launch_console_by_name(&n).await; } }
             KeyCode::Char('t') => {
-                match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Network(name)) => self.toggle_network_autostart_by_name(&name).await,
-                    Some(SidebarItem::StoragePool(name)) => self.toggle_pool_autostart_by_name(&name).await,
-                    Some(SidebarItem::Category(SidebarCategory::Networks)) => {
-                        if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
-                            self.toggle_network_autostart_by_name(&name).await;
-                        }
-                    }
-                    Some(SidebarItem::Category(SidebarCategory::Storage)) => {
-                        if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
-                            self.toggle_pool_autostart_by_name(&name).await;
-                        }
-                    }
-                    _ => { if let Some(n) = self.resolve_vm_name() { self.toggle_autostart_by_name(&n).await; } }
+                if let Some(name) = self.state.effective_network_name().map(|s| s.to_string()) {
+                    self.toggle_network_autostart_by_name(&name).await;
+                } else if let Some(name) = self.state.effective_pool_name().map(|s| s.to_string()) {
+                    self.toggle_pool_autostart_by_name(&name).await;
+                } else if let Some(n) = self.resolve_vm_name() {
+                    self.toggle_autostart_by_name(&n).await;
                 }
             }
             KeyCode::Char('e') => { if let Some(n) = self.resolve_vm_name() { self.launch_ssh_by_name(&n).await; } }
@@ -546,10 +535,10 @@ impl App {
                 }
             }
             Some(SidebarItem::Network(name)) => {
-                self.resource_action("start", "stop", action, "network", &name).await;
+                self.resource_action(action, "network", &name).await;
             }
             Some(SidebarItem::StoragePool(name)) => {
-                self.resource_action("start", "stop", action, "pool", &name).await;
+                self.resource_action(action, "pool", &name).await;
             }
             _ => {}
         }
@@ -557,25 +546,15 @@ impl App {
 
     /// Unified network/pool start/stop actions.
     async fn handle_network_pool_action(&mut self, action: &str) {
-        match self.state.selected_sidebar_item().cloned() {
-            Some(SidebarItem::Network(name)) => self.resource_action("start", "stop", action, "network", &name).await,
-            Some(SidebarItem::StoragePool(name)) => self.resource_action("start", "stop", action, "pool", &name).await,
-            Some(SidebarItem::Category(SidebarCategory::Networks)) => {
-                if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
-                    self.resource_action("start", "stop", action, "network", &name).await;
-                }
-            }
-            Some(SidebarItem::Category(SidebarCategory::Storage)) => {
-                if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
-                    self.resource_action("start", "stop", action, "pool", &name).await;
-                }
-            }
-            _ => {}
+        if let Some(name) = self.state.effective_network_name().map(|s| s.to_string()) {
+            self.resource_action(action, "network", &name).await;
+        } else if let Some(name) = self.state.effective_pool_name().map(|s| s.to_string()) {
+            self.resource_action(action, "pool", &name).await;
         }
     }
 
     /// Unified resource action (network or pool start/stop).
-    async fn resource_action(&mut self, _start: &str, _stop: &str, action: &str, kind: &str, name: &str) {
+    async fn resource_action(&mut self, action: &str, kind: &str, name: &str) {
         let result = match (kind, action) {
             ("network", "start") => self.client.start_network(name).await,
             ("network", "stop") => self.client.stop_network(name).await,
@@ -861,33 +840,11 @@ impl App {
                     })
                 }
             }
-            Some(SidebarItem::Network(name)) => Some(ConfirmationDialog {
-                title: "Delete Network".to_string(),
-                message: "This will permanently delete the network.".to_string(),
-                resource_name: name.clone(),
-                action: format!("delete-network:{name}"),
-            }),
-            Some(SidebarItem::Category(SidebarCategory::Networks)) => {
-                self.state.selected_network_name().map(|n| n.to_string()).map(|name| ConfirmationDialog {
-                    title: "Delete Network".to_string(),
-                    message: "This will permanently delete the network.".to_string(),
-                    resource_name: name.clone(),
-                    action: format!("delete-network:{name}"),
-                })
+            Some(SidebarItem::Network(_)) | Some(SidebarItem::Category(SidebarCategory::Networks)) => {
+                self.state.effective_network_name().map(Self::delete_network_dialog)
             }
-            Some(SidebarItem::Snapshot(vm, snap)) => Some(ConfirmationDialog {
-                title: "Delete Snapshot".to_string(),
-                message: "This will permanently delete the snapshot.".to_string(),
-                resource_name: format!("{vm}/{snap}"),
-                action: format!("delete-snap:{vm}:{snap}"),
-            }),
-            Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
-                self.state.selected_snapshot().map(|s| (s.vm_name.clone(), s.name.clone())).map(|(vm, snap)| ConfirmationDialog {
-                    title: "Delete Snapshot".to_string(),
-                    message: "This will permanently delete the snapshot.".to_string(),
-                    resource_name: format!("{vm}/{snap}"),
-                    action: format!("delete-snap:{vm}:{snap}"),
-                })
+            Some(SidebarItem::Snapshot(_, _)) | Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
+                self.state.effective_snapshot().map(|s| Self::delete_snapshot_dialog(&s.vm_name, &s.name))
             }
             Some(SidebarItem::StoragePool(_)) | Some(SidebarItem::Category(SidebarCategory::Storage)) => {
                 self.resolve_volume_for_delete()
@@ -910,6 +867,24 @@ impl App {
             resource_name: format!("{}/{}", pool, vol.name),
             action: format!("delete-vol:{}:{}", pool, vol.name),
         })
+    }
+
+    fn delete_network_dialog(name: &str) -> ConfirmationDialog {
+        ConfirmationDialog {
+            title: "Delete Network".to_string(),
+            message: "This will permanently delete the network.".to_string(),
+            resource_name: name.to_string(),
+            action: format!("delete-network:{name}"),
+        }
+    }
+
+    fn delete_snapshot_dialog(vm: &str, snap: &str) -> ConfirmationDialog {
+        ConfirmationDialog {
+            title: "Delete Snapshot".to_string(),
+            message: "This will permanently delete the snapshot.".to_string(),
+            resource_name: format!("{vm}/{snap}"),
+            action: format!("delete-snap:{vm}:{snap}"),
+        }
     }
 
     fn batch_delete_dialog(&self) -> ConfirmationDialog {
@@ -976,7 +951,11 @@ impl App {
     }
 
     async fn toggle_autostart_by_name(&mut self, name: &str) {
-        let current = self.client.get_vm_details(name).await.map(|d| d.autostart).unwrap_or(false);
+        let current = if let Some(d) = self.state.vm_details.as_ref().filter(|d| d.name == name) {
+            d.autostart
+        } else {
+            self.client.get_vm_details(name).await.map(|d| d.autostart).unwrap_or(false)
+        };
         let new_val = !current;
         let label = if new_val { "enabled" } else { "disabled" };
         let r = self.client.set_autostart(name, new_val).await;
@@ -999,10 +978,10 @@ impl App {
         self.report_cmd_result(r, &format!("Autostart for pool '{name}': {label}"), "pool-autostart", name, true).await;
     }
 
-    async fn show_network_xml_by_name(&mut self, name: &str) {
-        match self.client.get_network_xml(name).await {
+    fn show_xml_result(&mut self, result: anyhow::Result<String>, kind: &str) {
+        match result {
             Ok(xml) => { self.state.xml_content = xml; self.state.scroll_offset = 0; self.state.view_mode = ViewMode::Xml; }
-            Err(e) => self.state.status_message = format!("Error fetching network XML: {e}"),
+            Err(e) => self.state.status_message = format!("Error fetching {kind} XML: {e}"),
         }
     }
 
@@ -1073,10 +1052,8 @@ impl App {
     }
 
     async fn show_vm_xml_by_name(&mut self, name: &str) {
-        match self.client.get_vm_xml(name).await {
-            Ok(xml) => { self.state.xml_content = xml; self.state.scroll_offset = 0; self.state.view_mode = ViewMode::Xml; }
-            Err(e) => self.state.status_message = format!("Error fetching XML: {e}"),
-        }
+        let r = self.client.get_vm_xml(name).await;
+        self.show_xml_result(r, "VM");
     }
 
     async fn show_vm_logs_by_name(&mut self, name: &str) {
