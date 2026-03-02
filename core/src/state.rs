@@ -975,44 +975,11 @@ impl AppState {
         }
         let query = self.search_query.to_lowercase();
 
-        // Helper: fuzzy-score a list of searchable strings per item
-        let score_items = |items: &[(usize, Vec<String>)]| -> Vec<(usize, i32)> {
-            items.iter()
-                .filter_map(|(i, fields)| {
-                    let best = fields.iter()
-                        .map(|f| fuzzy_match(f, &query))
-                        .max()
-                        .unwrap_or(0);
-                    if best > 0 { Some((*i, best)) } else { None }
-                })
-                .collect()
-        };
-
-        let mut scored: Vec<(usize, i32)> = match self.resource_view {
-            ResourceView::VirtualMachines => {
-                let items: Vec<_> = self.vms.iter().enumerate()
-                    .map(|(i, vm)| (i, vec![vm.name.to_lowercase(), vm.state.to_lowercase()]))
-                    .collect();
-                score_items(&items)
-            }
-            ResourceView::Networks => {
-                let items: Vec<_> = self.networks.iter().enumerate()
-                    .map(|(i, n)| (i, vec![n.name.to_lowercase()]))
-                    .collect();
-                score_items(&items)
-            }
-            ResourceView::StoragePools => {
-                let items: Vec<_> = self.storage_pools.iter().enumerate()
-                    .map(|(i, p)| (i, vec![p.name.to_lowercase()]))
-                    .collect();
-                score_items(&items)
-            }
-            ResourceView::Snapshots => {
-                let items: Vec<_> = self.snapshots.iter().enumerate()
-                    .map(|(i, s)| (i, vec![s.name.to_lowercase(), s.vm_name.to_lowercase()]))
-                    .collect();
-                score_items(&items)
-            }
+        let mut scored = match self.resource_view {
+            ResourceView::VirtualMachines => score_searchable(&self.vms, &query),
+            ResourceView::Networks => score_searchable(&self.networks, &query),
+            ResourceView::StoragePools => score_searchable(&self.storage_pools, &query),
+            ResourceView::Snapshots => score_searchable(&self.snapshots, &query),
             ResourceView::Events | ResourceView::Node => vec![],
         };
 
@@ -1056,6 +1023,48 @@ impl AppState {
     }
 }
 
+
+// ── Searchable trait ────────────────────────────────────────────────────
+
+trait Searchable {
+    fn search_fields(&self) -> Vec<String>;
+}
+
+impl Searchable for VmInfo {
+    fn search_fields(&self) -> Vec<String> {
+        vec![self.name.to_lowercase(), self.state.to_lowercase()]
+    }
+}
+
+impl Searchable for NetworkInfo {
+    fn search_fields(&self) -> Vec<String> {
+        vec![self.name.to_lowercase()]
+    }
+}
+
+impl Searchable for StoragePoolInfo {
+    fn search_fields(&self) -> Vec<String> {
+        vec![self.name.to_lowercase()]
+    }
+}
+
+impl Searchable for SnapshotInfo {
+    fn search_fields(&self) -> Vec<String> {
+        vec![self.name.to_lowercase(), self.vm_name.to_lowercase()]
+    }
+}
+
+fn score_searchable<T: Searchable>(items: &[T], query: &str) -> Vec<(usize, i32)> {
+    items.iter().enumerate()
+        .filter_map(|(i, item)| {
+            let best = item.search_fields().iter()
+                .map(|f| fuzzy_match(f, query))
+                .max()
+                .unwrap_or(0);
+            if best > 0 { Some((i, best)) } else { None }
+        })
+        .collect()
+}
 
 /// Fuzzy match: all query characters must appear in order in the target.
 /// Returns a score > 0 on match, 0 on no match.

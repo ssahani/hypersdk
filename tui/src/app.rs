@@ -1056,13 +1056,12 @@ impl App {
                 self.report_cmd_result(r, &format!("Cloned '{source}' as '{new_name}'"), "clone", source, true).await;
             }
             ["create"] => { self.state.create_vm_form = Some(CreateVmForm::new()); self.state.input_mode = InputMode::CreateVmDialog; }
-            ["create", name] => {
-                let req = CreateVmRequest { name: name.to_string(), ..Default::default() };
-                let r = self.client.create_vm(&req).await;
-                self.report_cmd_result(r, &format!("Created VM '{name}'"), "create", name, true).await;
-            }
-            ["create", name, vcpus, mem] => {
-                let req = CreateVmRequest { name: name.to_string(), vcpus: vcpus.parse().unwrap_or(2), memory_mb: mem.parse().unwrap_or(2048), ..Default::default() };
+            ["create", name] | ["create", name, ..] => {
+                let mut req = CreateVmRequest { name: name.to_string(), ..Default::default() };
+                if let ["create", _, vcpus, mem, ..] = parts.as_slice() {
+                    req.vcpus = vcpus.parse().unwrap_or(2);
+                    req.memory_mb = mem.parse().unwrap_or(2048);
+                }
                 let r = self.client.create_vm(&req).await;
                 self.report_cmd_result(r, &format!("Created VM '{name}'"), "create", name, true).await;
             }
@@ -1134,16 +1133,25 @@ impl App {
     }
 
     async fn refresh_all_data(&mut self) {
-        match self.client.fetch_vms().await {
+        // Fetch all independent resources in parallel
+        let (vms, nets, pools, snaps, node, metrics) = tokio::join!(
+            self.client.fetch_vms(),
+            self.client.fetch_networks(),
+            self.client.fetch_storage_pools(),
+            self.client.fetch_all_snapshots(),
+            self.client.fetch_node_info(),
+            self.client.fetch_metrics(),
+        );
+
+        match vms {
             Ok(vms) => self.apply_vm_data(vms),
             Err(e) => { self.state.connected = false; self.state.status_message = format!("Error: {e}"); }
         }
-
-        if let Ok(nets) = self.client.fetch_networks().await { self.state.networks = nets; }
-        if let Ok(pools) = self.client.fetch_storage_pools().await { self.state.storage_pools = pools; }
-        if let Ok(snaps) = self.client.fetch_all_snapshots().await { self.state.snapshots = snaps; }
-        if let Ok(info) = self.client.fetch_node_info().await { self.state.node_info = Some(info); }
-        if let Ok(metrics) = self.client.fetch_metrics().await { self.state.vm_metrics = metrics; self.state.record_metrics_snapshot(); }
+        if let Ok(nets) = nets { self.state.networks = nets; }
+        if let Ok(pools) = pools { self.state.storage_pools = pools; }
+        if let Ok(snaps) = snaps { self.state.snapshots = snaps; }
+        if let Ok(info) = node { self.state.node_info = Some(info); }
+        if let Ok(m) = metrics { self.state.vm_metrics = m; self.state.record_metrics_snapshot(); }
 
         if let Some(pool) = self.state.browsing_pool.clone() {
             if let Ok(vols) = self.client.fetch_volumes(&pool).await { self.state.volumes = vols; }

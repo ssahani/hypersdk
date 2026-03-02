@@ -5,7 +5,7 @@ use axum::{Json, Router};
 use virtspawn_core::libvirt::storage;
 use virtspawn_core::{CreateVolumeRequest, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
 
-use crate::error::AppError;
+use crate::error::{ok_json, AppError};
 
 async fn list_pools(
     State(manager): State<LibvirtManager>,
@@ -27,7 +27,7 @@ async fn start_pool(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| storage::start_pool(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "started", "pool": name })))
+    Ok(ok_json("started", &name))
 }
 
 async fn stop_pool(
@@ -35,7 +35,7 @@ async fn stop_pool(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| storage::stop_pool(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "stopped", "pool": name })))
+    Ok(ok_json("stopped", &name))
 }
 
 async fn refresh_pool(
@@ -43,7 +43,7 @@ async fn refresh_pool(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| storage::refresh_pool(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "refreshed", "pool": name })))
+    Ok(ok_json("refreshed", &name))
 }
 
 async fn delete_volume(

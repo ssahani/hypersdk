@@ -94,52 +94,33 @@ pub fn get_vm_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
         .map_err(|e| LibvirtError::Operation(format!("Failed to get XML: {e}")))
 }
 
-pub fn start_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+fn domain_action(conn: &Connect, name: &str, action: &str, f: impl FnOnce(&Domain) -> Result<(), virt::error::Error>) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    domain
-        .create()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to start VM '{name}': {e}")))?;
-    Ok(())
+    f(&domain).map_err(|e| LibvirtError::Operation(format!("Failed to {action} VM '{name}': {e}")))
+}
+
+pub fn start_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    domain_action(conn, name, "start", |d| d.create().map(|_| ()))
 }
 
 pub fn stop_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
-    domain
-        .destroy()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to stop VM '{name}': {e}")))?;
-    Ok(())
+    domain_action(conn, name, "stop", |d| d.destroy().map(|_| ()))
 }
 
 pub fn shutdown_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
-    domain
-        .shutdown()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to shutdown VM '{name}': {e}")))?;
-    Ok(())
+    domain_action(conn, name, "shutdown", |d| d.shutdown().map(|_| ()))
 }
 
 pub fn reboot_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
-    domain
-        .reboot(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to reboot VM '{name}': {e}")))?;
-    Ok(())
+    domain_action(conn, name, "reboot", |d| d.reboot(0).map(|_| ()))
 }
 
 pub fn pause_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
-    domain
-        .suspend()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to pause VM '{name}': {e}")))?;
-    Ok(())
+    domain_action(conn, name, "pause", |d| d.suspend().map(|_| ()))
 }
 
 pub fn resume_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
-    domain
-        .resume()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to resume VM '{name}': {e}")))?;
-    Ok(())
+    domain_action(conn, name, "resume", |d| d.resume().map(|_| ()))
 }
 
 pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
