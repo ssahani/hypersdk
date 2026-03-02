@@ -1,5 +1,5 @@
 [workspace]
-members = ["virtspawn-core", "virtspawn-daemon", "virtspawn-tui"]
+members = ["core", "daemon", "tui"]
 resolver = "2"
 
 [workspace.dependencies]
