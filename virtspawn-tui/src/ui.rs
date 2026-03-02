@@ -434,58 +434,44 @@ fn render_object_tab_bar(frame: &mut Frame, area: Rect, state: &AppState, vm_nam
 fn render_vm_summary(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &str) {
     let mut lines: Vec<Line> = Vec::new();
 
-    // Basic info from vm_details if loaded, otherwise from vm list
-    if let Some(ref d) = state.vm_details {
-        if d.name == vm_name {
-            lines.push(kv_line("Name:        ", &d.name));
-            lines.push(kv_line("UUID:        ", &d.uuid));
-            lines.push(Line::from(vec![
-                Span::styled("State:       ", LABEL_STYLE),
-                Span::styled(&d.state, Style::new().fg(state_color(&d.state)).add_modifier(Modifier::BOLD)),
-            ]));
-            lines.push(kv_line("vCPUs:       ", &d.vcpus.to_string()));
-            lines.push(kv_line("Memory:      ", &format!("{} MB", d.memory_mb)));
-            lines.push(kv_line("OS Type:     ", &d.os_type));
-            lines.push(kv_line("Arch:        ", &d.arch));
-            lines.push(kv_line("Persistent:  ", bool_label(d.persistent)));
-            lines.push(kv_line("Autostart:   ", bool_label(d.autostart)));
+    if let Some(d) = vm_details_for(state, vm_name) {
+        lines.push(kv_line("Name:        ", &d.name));
+        lines.push(kv_line("UUID:        ", &d.uuid));
+        lines.push(Line::from(vec![
+            Span::styled("State:       ", LABEL_STYLE),
+            Span::styled(&d.state, Style::new().fg(state_color(&d.state)).add_modifier(Modifier::BOLD)),
+        ]));
+        lines.push(kv_line("vCPUs:       ", &d.vcpus.to_string()));
+        lines.push(kv_line("Memory:      ", &format!("{} MB", d.memory_mb)));
+        lines.push(kv_line("OS Type:     ", &d.os_type));
+        lines.push(kv_line("Arch:        ", &d.arch));
+        lines.push(kv_line("Persistent:  ", bool_label(d.persistent)));
+        lines.push(kv_line("Autostart:   ", bool_label(d.autostart)));
 
-            if !d.interfaces.is_empty() {
-                lines.push(Line::from(""));
-                lines.push(section_header("Interfaces"));
-                for iface in &d.interfaces {
-                    lines.push(Line::from(Span::styled(
-                        format!("  MAC: {}  Source: {}  Model: {}", iface.mac_address, iface.source, iface.model),
-                        TEXT_STYLE,
-                    )));
-                }
-            }
-
-            if !d.disks.is_empty() {
-                lines.push(Line::from(""));
-                lines.push(section_header("Disks"));
-                for disk in &d.disks {
-                    lines.push(Line::from(Span::styled(
-                        format!("  {} ({})  Target: {}  Driver: {}", disk.source, disk.device, disk.target, disk.driver),
-                        TEXT_STYLE,
-                    )));
-                }
-            }
-        } else {
-            // Details loaded but for different VM
-            lines.push(vm_basic_info_from_list(state, vm_name));
+        if !d.interfaces.is_empty() {
             lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled("  Enter", ORANGE_BOLD),
-                Span::styled(" to load full details (UUID, interfaces, disks)", DIM_STYLE),
-            ]));
+            lines.push(section_header("Interfaces"));
+            for iface in &d.interfaces {
+                lines.push(Line::from(Span::styled(
+                    format!("  MAC: {}  Source: {}  Model: {}", iface.mac_address, iface.source, iface.model),
+                    TEXT_STYLE,
+                )));
+            }
+        }
+
+        if !d.disks.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(section_header("Disks"));
+            for disk in &d.disks {
+                lines.push(Line::from(Span::styled(
+                    format!("  {} ({})  Target: {}  Driver: {}", disk.source, disk.device, disk.target, disk.driver),
+                    TEXT_STYLE,
+                )));
+            }
         }
     } else {
         lines.push(vm_basic_info_from_list(state, vm_name));
-        lines.push(Line::from(Span::styled(
-            "  Press Enter to load full details",
-            DIM_STYLE,
-        )));
+        lines.extend(load_hint_lines("full details"));
     }
 
     // Metrics summary if available
@@ -606,87 +592,71 @@ fn render_vm_monitor(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
 fn render_vm_configure(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &str) {
     let mut lines: Vec<Line> = Vec::new();
 
-    if let Some(ref d) = state.vm_details {
-        if d.name == vm_name {
-            // Hardware section
-            lines.push(section_header("Hardware"));
-            lines.push(kv_line("  vCPUs:      ", &d.vcpus.to_string()));
-            lines.push(kv_line("  Memory:     ", &format!("{} MB ({:.1} GB)", d.memory_mb, d.memory_mb as f64 / 1024.0)));
-            lines.push(kv_line("  OS Type:    ", &d.os_type));
-            lines.push(kv_line("  Arch:       ", &d.arch));
+    if let Some(d) = vm_details_for(state, vm_name) {
+        lines.push(section_header("Hardware"));
+        lines.push(kv_line("  vCPUs:      ", &d.vcpus.to_string()));
+        lines.push(kv_line("  Memory:     ", &format!("{} MB ({:.1} GB)", d.memory_mb, d.memory_mb as f64 / 1024.0)));
+        lines.push(kv_line("  OS Type:    ", &d.os_type));
+        lines.push(kv_line("  Arch:       ", &d.arch));
 
-            // Boot & Management
-            lines.push(Line::from(""));
-            lines.push(section_header("Management"));
-            lines.push(Line::from(vec![
-                Span::styled("  Autostart:  ", LABEL_STYLE),
-                Span::styled(
-                    if d.autostart { "enabled" } else { "disabled" },
-                    Style::new().fg(if d.autostart { SUCCESS_COLOR } else { Color::DarkGray }),
-                ),
-            ]));
-            lines.push(kv_line("  Persistent: ", bool_label(d.persistent)));
-
-            // Disks
-            if !d.disks.is_empty() {
-                lines.push(Line::from(""));
-                lines.push(section_header("Disks"));
-                for disk in &d.disks {
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {}: ", disk.target), NAME_STYLE),
-                        Span::styled(&disk.source, TEXT_STYLE),
-                        Span::styled(format!(" ({})", disk.driver), DIM_STYLE),
-                    ]));
-                }
-            }
-
-            // Interfaces
-            if !d.interfaces.is_empty() {
-                lines.push(Line::from(""));
-                lines.push(section_header("Network Interfaces"));
-                for iface in &d.interfaces {
-                    lines.push(Line::from(vec![
-                        Span::styled(format!("  {} ", iface.mac_address), NAME_STYLE),
-                        Span::styled(&iface.source, TEXT_STYLE),
-                        Span::styled(format!(" ({})", iface.model), DIM_STYLE),
-                    ]));
-                }
-            }
-
-            // Actions reference
-            lines.push(Line::from(""));
-            lines.push(section_header("Actions"));
-            lines.push(Line::from(vec![
-                Span::styled("  :resize ", LABEL_STYLE),
-                Span::styled(format!("{vm_name} vcpus <n>"), TEXT_STYLE),
-                Span::styled("  Change vCPU count", DIM_STYLE),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  :resize ", LABEL_STYLE),
-                Span::styled(format!("{vm_name} memory <mb>"), TEXT_STYLE),
-                Span::styled("  Change memory", DIM_STYLE),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  t", ORANGE_BOLD),
-                Span::styled("  Toggle autostart", TEXT_STYLE),
-            ]));
-            lines.push(Line::from(vec![
-                Span::styled("  y", ORANGE_BOLD),
-                Span::styled("  View full XML definition", TEXT_STYLE),
-            ]));
-        } else {
-            lines.push(Line::from(""));
-            lines.push(Line::from(vec![
-                Span::styled("  Enter", ORANGE_BOLD),
-                Span::styled(" to load configuration", DIM_STYLE),
-            ]));
-        }
-    } else {
         lines.push(Line::from(""));
+        lines.push(section_header("Management"));
         lines.push(Line::from(vec![
-            Span::styled("  Enter", ORANGE_BOLD),
-            Span::styled(" to load configuration", DIM_STYLE),
+            Span::styled("  Autostart:  ", LABEL_STYLE),
+            Span::styled(
+                if d.autostart { "enabled" } else { "disabled" },
+                Style::new().fg(if d.autostart { SUCCESS_COLOR } else { Color::DarkGray }),
+            ),
         ]));
+        lines.push(kv_line("  Persistent: ", bool_label(d.persistent)));
+
+        if !d.disks.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(section_header("Disks"));
+            for disk in &d.disks {
+                lines.push(Line::from(vec![
+                    Span::styled(format!("  {}: ", disk.target), NAME_STYLE),
+                    Span::styled(&disk.source, TEXT_STYLE),
+                    Span::styled(format!(" ({})", disk.driver), DIM_STYLE),
+                ]));
+            }
+        }
+
+        if !d.interfaces.is_empty() {
+            lines.push(Line::from(""));
+            lines.push(section_header("Network Interfaces"));
+            for iface in &d.interfaces {
+                lines.push(Line::from(vec![
+                    Span::styled(format!("  {} ", iface.mac_address), NAME_STYLE),
+                    Span::styled(&iface.source, TEXT_STYLE),
+                    Span::styled(format!(" ({})", iface.model), DIM_STYLE),
+                ]));
+            }
+        }
+
+        lines.push(Line::from(""));
+        lines.push(section_header("Actions"));
+        lines.push(Line::from(vec![
+            Span::styled("  :resize ", LABEL_STYLE),
+            Span::styled(format!("{vm_name} vcpus <n>"), TEXT_STYLE),
+            Span::styled("  Change vCPU count", DIM_STYLE),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  :resize ", LABEL_STYLE),
+            Span::styled(format!("{vm_name} memory <mb>"), TEXT_STYLE),
+            Span::styled("  Change memory", DIM_STYLE),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  t", ORANGE_BOLD),
+            Span::styled("  Toggle autostart", TEXT_STYLE),
+        ]));
+        lines.push(Line::from(vec![
+            Span::styled("  y", ORANGE_BOLD),
+            Span::styled("  View full XML definition", TEXT_STYLE),
+        ]));
+    } else {
+        lines.push(vm_basic_info_from_list(state, vm_name));
+        lines.extend(load_hint_lines("configuration"));
     }
 
     let paragraph = Paragraph::new(lines)
@@ -1726,6 +1696,20 @@ fn state_color(state: &str) -> Color {
         "inactive" => ERROR_COLOR,
         _ => Color::Rgb(150, 150, 150),
     }
+}
+
+fn vm_details_for<'a>(state: &'a AppState, vm_name: &str) -> Option<&'a virtspawn_core::VmDetails> {
+    state.vm_details.as_ref().filter(|d| d.name == vm_name)
+}
+
+fn load_hint_lines(what: &str) -> Vec<Line<'static>> {
+    vec![
+        Line::from(""),
+        Line::from(vec![
+            Span::styled("  Enter", ORANGE_BOLD),
+            Span::styled(format!(" to load {what}"), DIM_STYLE),
+        ]),
+    ]
 }
 
 fn kv_line(key: &str, value: &str) -> Line<'static> {

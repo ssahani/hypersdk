@@ -18,6 +18,12 @@ pub use state::{
     StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics, VmTemplate,
 };
 
+pub const UNKNOWN: &str = "unknown";
+
+pub fn unknown_string() -> String {
+    UNKNOWN.to_string()
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum LibvirtError {
     #[error("Connection error: {0}")]

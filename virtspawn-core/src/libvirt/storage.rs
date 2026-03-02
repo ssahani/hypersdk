@@ -28,7 +28,7 @@ pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> 
                 bytes_to_gb(i.allocation),
                 bytes_to_gb(i.available),
             ),
-            None => ("unknown".to_string(), 0.0, 0.0, 0.0),
+            None => (crate::unknown_string(), 0.0, 0.0, 0.0),
         };
 
         result.push(StoragePoolInfo {
@@ -61,7 +61,7 @@ pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolume
 
         let (vol_type, capacity_gb, allocation_gb) = match vol.get_info().ok() {
             Some(i) => (vol_type_to_string(i.kind), bytes_to_gb(i.capacity), bytes_to_gb(i.allocation)),
-            None => ("unknown".to_string(), 0.0, 0.0),
+            None => (crate::unknown_string(), 0.0, 0.0),
         };
 
         result.push(StorageVolumeInfo {

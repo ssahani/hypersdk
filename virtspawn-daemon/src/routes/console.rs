@@ -23,7 +23,7 @@ async fn get_console_info(
     let xml = manager.with_conn(|conn| domain::get_vm_xml(conn, &name))?;
 
     let console_type = virtspawn_core::xml::extract_attr(&xml, "graphics", "type")
-        .unwrap_or_else(|| "unknown".to_string());
+        .unwrap_or_else(virtspawn_core::unknown_string);
     let port = virtspawn_core::xml::extract_attr(&xml, "graphics", "port")
         .and_then(|s| s.parse().ok())
         .unwrap_or(-1);

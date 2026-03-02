@@ -30,7 +30,7 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
             .unwrap_or(0);
 
         let state =
-            xml::extract_simple_text(&xml_str, "state").unwrap_or_else(|| "unknown".to_string());
+            xml::extract_simple_text(&xml_str, "state").unwrap_or_else(crate::unknown_string);
         let description = xml::extract_simple_text(&xml_str, "description").unwrap_or_default();
 
         let parent = extract_parent_name(&xml_str).unwrap_or_default();

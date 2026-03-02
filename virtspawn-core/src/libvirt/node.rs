@@ -15,12 +15,12 @@ pub fn get_node_info(conn: &Connect) -> Result<NodeInfo, LibvirtError> {
     let hv_version = conn
         .get_hyp_version()
         .map(|v| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000))
-        .unwrap_or_else(|_| "unknown".to_string());
+        .unwrap_or_else(|_| crate::unknown_string());
 
     let lib_version = conn
         .get_lib_version()
         .map(|v| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000))
-        .unwrap_or_else(|_| "unknown".to_string());
+        .unwrap_or_else(|_| crate::unknown_string());
 
     let node = conn
         .get_node_info()

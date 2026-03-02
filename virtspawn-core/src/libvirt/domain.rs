@@ -193,8 +193,8 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
 // ── XML parsing helpers ─────────────────────────────────────────────────
 
 fn parse_os_info(xml_str: &str) -> (String, String) {
-    let os_type = xml::extract_text(xml_str, "type").unwrap_or_else(|| "unknown".to_string());
-    let arch = xml::extract_attr(xml_str, "type", "arch").unwrap_or_else(|| "unknown".to_string());
+    let os_type = xml::extract_text(xml_str, "type").unwrap_or_else(crate::unknown_string);
+    let arch = xml::extract_attr(xml_str, "type", "arch").unwrap_or_else(crate::unknown_string);
     (os_type, arch)
 }
 
@@ -202,12 +202,12 @@ fn parse_interfaces(xml_str: &str) -> Vec<InterfaceInfo> {
     let mut interfaces = Vec::new();
     for iface_block in xml::split_blocks(xml_str, "interface") {
         let mac = xml::extract_attr(&iface_block, "mac", "address")
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(crate::unknown_string);
         let source = xml::extract_attr(&iface_block, "source", "network")
             .or_else(|| xml::extract_attr(&iface_block, "source", "bridge"))
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(crate::unknown_string);
         let model = xml::extract_attr(&iface_block, "model", "type")
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(crate::unknown_string);
         interfaces.push(InterfaceInfo {
             mac_address: mac,
             source,
@@ -225,11 +225,11 @@ fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
         let source = xml::extract_attr(&disk_block, "source", "file")
             .or_else(|| xml::extract_attr(&disk_block, "source", "dev"))
             .or_else(|| xml::extract_attr(&disk_block, "source", "volume"))
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(crate::unknown_string);
         let driver = xml::extract_attr(&disk_block, "driver", "type")
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(crate::unknown_string);
         let target = xml::extract_attr(&disk_block, "target", "dev")
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(crate::unknown_string);
         disks.push(DiskInfo {
             device,
             source,
