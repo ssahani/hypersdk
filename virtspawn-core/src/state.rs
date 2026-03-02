@@ -924,11 +924,24 @@ impl AppState {
         self.audit_events = crate::audit::load_audit_events(500).into();
     }
 
+    pub fn find_vm(&self, name: &str) -> Option<&VmInfo> {
+        self.vms.iter().find(|v| v.name == name)
+    }
+
     pub fn vm_state_str(&self, name: &str) -> &str {
-        self.vms.iter()
-            .find(|v| v.name == name)
-            .map(|v| v.state.as_str())
-            .unwrap_or("unknown")
+        self.find_vm(name).map(|v| v.state.as_str()).unwrap_or("unknown")
+    }
+
+    pub fn find_network(&self, name: &str) -> Option<&NetworkInfo> {
+        self.networks.iter().find(|n| n.name == name)
+    }
+
+    pub fn find_pool(&self, name: &str) -> Option<&StoragePoolInfo> {
+        self.storage_pools.iter().find(|p| p.name == name)
+    }
+
+    pub fn find_snapshot(&self, vm_name: &str, snap_name: &str) -> Option<&SnapshotInfo> {
+        self.snapshots.iter().find(|s| s.vm_name == vm_name && s.name == snap_name)
     }
 
     pub fn get_metrics_for_vm(&self, name: &str) -> Option<&VmMetrics> {

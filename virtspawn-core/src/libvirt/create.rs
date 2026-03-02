@@ -46,13 +46,7 @@ fn find_disk_path(conn: &Connect, vm_name: &str) -> Result<String, LibvirtError>
 }
 
 fn extract_pool_path(xml: &str) -> Option<String> {
-    // Look for <path>/some/path</path> inside <target>
-    let target_start = xml.find("<target>")?;
-    let target_end = xml.find("</target>")?;
-    let target = &xml[target_start..target_end];
-    let path_start = target.find("<path>")? + "<path>".len();
-    let path_end = target[path_start..].find("</path>")?;
-    Some(target[path_start..path_start + path_end].trim().to_string())
+    crate::xml::extract_simple_text(xml, "path")
 }
 
 fn create_qcow2_disk(path: &str, size_gb: u64) -> Result<(), LibvirtError> {

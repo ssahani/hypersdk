@@ -1,5 +1,6 @@
 pub mod audit;
 pub mod config;
+pub mod fmt;
 pub mod libvirt;
 pub mod state;
 pub mod validate;

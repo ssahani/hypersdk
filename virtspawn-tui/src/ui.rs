@@ -236,10 +236,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                 ])
             }
             SidebarItem::Network(name) => {
-                let active = state.networks.iter()
-                    .find(|n| n.name == *name)
-                    .map(|n| n.active)
-                    .unwrap_or(false);
+                let active = state.find_network(name).map(|n| n.active).unwrap_or(false);
                 let (indicator, color) = if active { ("\u{25cf}", SUCCESS_COLOR) } else { ("\u{25cb}", ERROR_COLOR) };
                 Line::from(vec![
                     Span::styled(format!("  {indicator} "), Style::default().fg(color)),
@@ -504,7 +501,7 @@ fn render_vm_summary(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &
 }
 
 fn vm_basic_info_from_list<'a>(state: &AppState, vm_name: &str) -> Line<'a> {
-    if let Some(vm) = state.vms.iter().find(|v| v.name == vm_name) {
+    if let Some(vm) = state.find_vm(vm_name) {
         Line::from(vec![
             Span::styled(format!("  {} ", vm.name), Style::default().fg(LIGHT_ORANGE).add_modifier(Modifier::BOLD)),
             Span::styled(format!("[{}] ", vm.state), Style::default().fg(state_color(&vm.state))),
@@ -694,7 +691,7 @@ fn render_vm_configure(frame: &mut Frame, area: Rect, state: &AppState, vm_name:
 fn render_network_detail(frame: &mut Frame, area: Rect, state: &AppState, net_name: &str) {
     let mut lines: Vec<Line> = Vec::new();
 
-    if let Some(net) = state.networks.iter().find(|n| n.name == net_name) {
+    if let Some(net) = state.find_network(net_name) {
         lines.push(kv_line("Name:       ", &net.name));
         lines.push(kv_line("UUID:       ", &net.uuid));
         lines.push(Line::from(vec![
@@ -757,7 +754,7 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
 
     let mut lines: Vec<Line> = Vec::new();
 
-    if let Some(pool) = state.storage_pools.iter().find(|p| p.name == pool_name) {
+    if let Some(pool) = state.find_pool(pool_name) {
         lines.push(kv_line("Name:       ", &pool.name));
         lines.push(kv_line("UUID:       ", &pool.uuid));
         lines.push(Line::from(vec![
@@ -791,7 +788,7 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
             Span::styled("  Browse volumes", Style::default().fg(TEXT_COLOR)),
         ]),
     ];
-    if let Some(pool) = state.storage_pools.iter().find(|p| p.name == pool_name) {
+    if let Some(pool) = state.find_pool(pool_name) {
         if pool.state == "running" {
             vol_lines.push(Line::from(vec![
                 Span::styled("  z", Style::default().fg(ORANGE).add_modifier(Modifier::BOLD)),
@@ -814,7 +811,7 @@ fn render_pool_detail(frame: &mut Frame, area: Rect, state: &AppState, pool_name
 fn render_snapshot_detail(frame: &mut Frame, area: Rect, state: &AppState, vm_name: &str, snap_name: &str) {
     let mut lines: Vec<Line> = Vec::new();
 
-    if let Some(snap) = state.snapshots.iter().find(|s| s.vm_name == vm_name && s.name == snap_name) {
+    if let Some(snap) = state.find_snapshot(vm_name, snap_name) {
         lines.push(kv_line("VM:          ", &snap.vm_name));
         lines.push(kv_line("Snapshot:    ", &snap.name));
         lines.push(kv_line("State:       ", &snap.state));
@@ -1779,15 +1776,7 @@ fn truncate_str(s: &str, max_len: usize) -> String {
 }
 
 fn format_bytes(bytes: u64) -> String {
-    if bytes >= 1_073_741_824 {
-        format!("{:.1} GB", bytes as f64 / 1_073_741_824.0)
-    } else if bytes >= 1_048_576 {
-        format!("{:.1} MB", bytes as f64 / 1_048_576.0)
-    } else if bytes >= 1024 {
-        format!("{:.1} KB", bytes as f64 / 1024.0)
-    } else {
-        format!("{bytes} B")
-    }
+    virtspawn_core::fmt::format_bytes(bytes)
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {

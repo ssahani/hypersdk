@@ -5,7 +5,7 @@ use axum::{Json, Router};
 use virtspawn_core::libvirt::network;
 use virtspawn_core::{CreateNetworkRequest, LibvirtManager, NetworkInfo};
 
-use crate::error::AppError;
+use crate::error::{ok_json, AppError};
 
 async fn list_networks(
     State(manager): State<LibvirtManager>,
@@ -22,7 +22,7 @@ async fn create_network(
     manager.with_conn(|conn| {
         network::create_network(conn, &req.name, &req.subnet, &req.dhcp_start, &req.dhcp_end)
     })?;
-    Ok(Json(serde_json::json!({ "status": "created", "name": name })))
+    Ok(ok_json("created", &name))
 }
 
 async fn delete_network_handler(
@@ -30,7 +30,7 @@ async fn delete_network_handler(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| network::delete_network(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
+    Ok(ok_json("deleted", &name))
 }
 
 async fn start_network(
@@ -38,7 +38,7 @@ async fn start_network(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| network::start_network(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "started", "name": name })))
+    Ok(ok_json("started", &name))
 }
 
 async fn stop_network(
@@ -46,7 +46,7 @@ async fn stop_network(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| network::stop_network(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "stopped", "name": name })))
+    Ok(ok_json("stopped", &name))
 }
 
 async fn get_network_xml(

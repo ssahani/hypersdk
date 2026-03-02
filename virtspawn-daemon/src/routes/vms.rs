@@ -8,7 +8,7 @@ use virtspawn_core::{
     VmInfo,
 };
 
-use crate::error::AppError;
+use crate::error::{ok_json, AppError};
 
 async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmInfo>>, AppError> {
     let vms = manager.with_conn(domain::list_vms)?;
@@ -31,60 +31,39 @@ async fn get_vm_xml(
     Ok(xml)
 }
 
-async fn start_vm(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn start_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::start_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "started", "name": name })))
+    Ok(ok_json("started", &name))
 }
 
-async fn stop_vm(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn stop_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::stop_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "stopped", "name": name })))
+    Ok(ok_json("stopped", &name))
 }
 
-async fn shutdown_vm(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn shutdown_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::shutdown_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "shutting down", "name": name })))
+    Ok(ok_json("shutting down", &name))
 }
 
-async fn reboot_vm(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn reboot_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::reboot_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "rebooting", "name": name })))
+    Ok(ok_json("rebooting", &name))
 }
 
-async fn pause_vm(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn pause_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::pause_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "paused", "name": name })))
+    Ok(ok_json("paused", &name))
 }
 
-async fn resume_vm(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn resume_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::resume_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "resumed", "name": name })))
+    Ok(ok_json("resumed", &name))
 }
 
-async fn delete_vm_handler(
-    State(manager): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn delete_vm_handler(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::delete_vm(conn, &name))?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
+    Ok(ok_json("deleted", &name))
 }
 
 async fn set_autostart(
@@ -111,7 +90,7 @@ async fn create_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name = req.name.clone();
     manager.with_conn(|conn| create::create_vm(conn, &req))?;
-    Ok(Json(serde_json::json!({ "status": "created", "name": name })))
+    Ok(ok_json("created", &name))
 }
 
 async fn set_vcpus(
@@ -128,28 +107,6 @@ async fn set_memory(
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| resize::set_memory(conn, &name, mb))?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb })))
-}
-
-pub fn vm_routes() -> Router<LibvirtManager> {
-    Router::new()
-        .route("/vms", get(list_vms))
-        .route("/vms", post(create_vm_handler))
-        .route("/vms/{name}", get(get_vm_details))
-        .route("/vms/{name}", delete(delete_vm_handler))
-        .route("/vms/{name}/xml", get(get_vm_xml))
-        .route("/vms/{name}/start", post(start_vm))
-        .route("/vms/{name}/stop", post(stop_vm))
-        .route("/vms/{name}/shutdown", post(shutdown_vm))
-        .route("/vms/{name}/reboot", post(reboot_vm))
-        .route("/vms/{name}/pause", post(pause_vm))
-        .route("/vms/{name}/resume", post(resume_vm))
-        .route("/vms/{name}/clone", post(clone_vm_handler))
-        .route("/vms/{name}/autostart/{enabled}", post(set_autostart))
-        .route("/vms/{name}/vcpus/{count}", post(set_vcpus))
-        .route("/vms/{name}/memory/{mb}", post(set_memory))
-        .route("/vms/{name}/rename", post(rename_vm_handler))
-        .route("/vms/{name}/disk/attach", post(attach_disk_handler))
-        .route("/vms/{name}/disk/detach/{target}", post(detach_disk_handler))
 }
 
 async fn attach_disk_handler(
@@ -176,4 +133,26 @@ async fn rename_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::rename_vm(conn, &name, &req.new_name))?;
     Ok(Json(serde_json::json!({ "status": "renamed", "old_name": name, "new_name": req.new_name })))
+}
+
+pub fn vm_routes() -> Router<LibvirtManager> {
+    Router::new()
+        .route("/vms", get(list_vms))
+        .route("/vms", post(create_vm_handler))
+        .route("/vms/{name}", get(get_vm_details))
+        .route("/vms/{name}", delete(delete_vm_handler))
+        .route("/vms/{name}/xml", get(get_vm_xml))
+        .route("/vms/{name}/start", post(start_vm))
+        .route("/vms/{name}/stop", post(stop_vm))
+        .route("/vms/{name}/shutdown", post(shutdown_vm))
+        .route("/vms/{name}/reboot", post(reboot_vm))
+        .route("/vms/{name}/pause", post(pause_vm))
+        .route("/vms/{name}/resume", post(resume_vm))
+        .route("/vms/{name}/clone", post(clone_vm_handler))
+        .route("/vms/{name}/autostart/{enabled}", post(set_autostart))
+        .route("/vms/{name}/vcpus/{count}", post(set_vcpus))
+        .route("/vms/{name}/memory/{mb}", post(set_memory))
+        .route("/vms/{name}/rename", post(rename_vm_handler))
+        .route("/vms/{name}/disk/attach", post(attach_disk_handler))
+        .route("/vms/{name}/disk/detach/{target}", post(detach_disk_handler))
 }

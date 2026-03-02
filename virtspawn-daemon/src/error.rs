@@ -1,7 +1,12 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
+use axum::Json;
 use serde_json::json;
 use virtspawn_core::LibvirtError;
+
+pub fn ok_json(status: &str, name: &str) -> Json<serde_json::Value> {
+    Json(json!({ "status": status, "name": name }))
+}
 
 pub struct AppError(LibvirtError);
 
