@@ -37,12 +37,8 @@ impl App {
         let mut last_refresh = Instant::now();
 
         while !self.should_quit {
-            // Store sidebar width for mouse handling
             let term_width = terminal.get_frame().area().width;
-            self.sidebar_width = {
-                let w = term_width / 5;
-                w.clamp(22, 30)
-            };
+            self.sidebar_width = (term_width / 5).clamp(22, 30);
 
             terminal.draw(|frame| ui::render(frame, &self.state))?;
 
@@ -95,13 +91,12 @@ impl App {
     // ── Normal mode (3-layer dispatch) ──────────────────────────────────
 
     async fn handle_normal_key(&mut self, key: KeyEvent) {
-        // Context menu handling
         if self.state.show_context_menu {
             self.handle_context_menu_key(key).await;
             return;
         }
 
-        // ViewMode overlays (Help, Xml, Logs, Details)
+        // ViewMode overlays — Logs and Xml share identical scroll+exit logic
         match self.state.view_mode {
             ViewMode::Help => {
                 let mut scroll = self.state.help_scroll;
@@ -113,24 +108,14 @@ impl App {
                 }
                 return;
             }
-            ViewMode::Logs => {
-                let mut scroll = self.state.scroll_offset;
-                let exit = self.handle_scroll_keys(key, &mut scroll, false);
-                self.state.scroll_offset = scroll;
-                if exit {
-                    self.state.view_mode = ViewMode::Table;
-                    self.state.log_content.clear();
-                    self.state.scroll_offset = 0;
-                }
-                return;
-            }
-            ViewMode::Xml => {
+            ViewMode::Logs | ViewMode::Xml => {
                 let mut scroll = self.state.scroll_offset;
                 let exit = self.handle_scroll_keys(key, &mut scroll, false);
                 self.state.scroll_offset = scroll;
                 if exit {
                     self.state.view_mode = ViewMode::Table;
                     self.state.xml_content.clear();
+                    self.state.log_content.clear();
                     self.state.scroll_offset = 0;
                 }
                 return;
@@ -139,14 +124,12 @@ impl App {
         }
 
         // Layer 1: Global keys (any focus)
-        // Ctrl+Space: context menu
         if key.code == KeyCode::Char(' ') && key.modifiers.contains(KeyModifiers::CONTROL) {
             self.state.show_context_menu = true;
             return;
         }
 
         match key.code {
-            // Quit
             KeyCode::Char('q') | KeyCode::Esc => {
                 if self.state.multi_select_mode {
                     self.state.clear_selection();
@@ -157,26 +140,22 @@ impl App {
                 }
                 return;
             }
-            // Help
             KeyCode::Char('?') | KeyCode::F(1) => {
                 self.state.view_mode = ViewMode::Help;
                 self.state.help_scroll = 0;
                 return;
             }
-            // Search
             KeyCode::Char('/') => {
                 self.state.input_mode = InputMode::Search;
                 self.state.search_query.clear();
                 self.state.filtered_indices.clear();
                 return;
             }
-            // Command mode
             KeyCode::Char(':') => {
                 self.state.input_mode = InputMode::Command;
                 self.state.command_input.clear();
                 return;
             }
-            // Refresh
             KeyCode::Char('r') => {
                 self.refresh_all_data().await;
                 return;
@@ -195,7 +174,6 @@ impl App {
             KeyCode::Right => {
                 if self.state.focus == Focus::Sidebar {
                     self.state.focus = Focus::Content;
-                    // Lazy-load VM details when switching to content panel
                     if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
                         if self.state.vm_details.as_ref().is_none_or(|d| d.name != name) {
                             self.load_vm_details(&name).await;
@@ -205,12 +183,11 @@ impl App {
                 }
             }
             KeyCode::Char('l') => {
-                if self.state.focus == Focus::Sidebar {
-                    // If on a VM item, let 'l' fall through to sidebar handler for logs
-                    if !matches!(self.state.selected_sidebar_item(), Some(SidebarItem::Vm(_))) {
-                        self.state.focus = Focus::Content;
-                        return;
-                    }
+                if self.state.focus == Focus::Sidebar
+                    && !matches!(self.state.selected_sidebar_item(), Some(SidebarItem::Vm(_)))
+                {
+                    self.state.focus = Focus::Content;
+                    return;
                 }
             }
             _ => {}
@@ -223,71 +200,51 @@ impl App {
         }
     }
 
+    // ── Sidebar navigation helper ───────────────────────────────────────
+
+    async fn navigate_sidebar(&mut self, new_pos: usize) {
+        if !self.state.sidebar_items.is_empty() {
+            self.state.sidebar_selected = new_pos.min(self.state.sidebar_items.len() - 1);
+            self.on_sidebar_selection_changed().await;
+        }
+    }
+
     // ── Sidebar key handling ────────────────────────────────────────────
 
     async fn handle_sidebar_key(&mut self, key: KeyEvent) {
+        let len = self.state.sidebar_items.len();
         match key.code {
-            // Navigate sidebar
             KeyCode::Char('j') | KeyCode::Down => {
-                if !self.state.sidebar_items.is_empty() {
-                    self.state.sidebar_selected =
-                        (self.state.sidebar_selected + 1) % self.state.sidebar_items.len();
-                    self.on_sidebar_selection_changed().await;
+                if len > 0 {
+                    self.navigate_sidebar((self.state.sidebar_selected + 1) % len).await;
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if !self.state.sidebar_items.is_empty() {
-                    self.state.sidebar_selected = if self.state.sidebar_selected == 0 {
-                        self.state.sidebar_items.len() - 1
-                    } else {
-                        self.state.sidebar_selected - 1
-                    };
-                    self.on_sidebar_selection_changed().await;
+                if len > 0 {
+                    let pos = if self.state.sidebar_selected == 0 { len - 1 } else { self.state.sidebar_selected - 1 };
+                    self.navigate_sidebar(pos).await;
                 }
             }
-            KeyCode::Char('g') => {
-                if !self.state.sidebar_items.is_empty() {
-                    self.state.sidebar_selected = 0;
-                    self.on_sidebar_selection_changed().await;
-                }
-            }
+            KeyCode::Char('g') => self.navigate_sidebar(0).await,
             KeyCode::Char('G') => {
-                if !self.state.sidebar_items.is_empty() {
-                    self.state.sidebar_selected = self.state.sidebar_items.len() - 1;
-                    self.on_sidebar_selection_changed().await;
-                }
+                if len > 0 { self.navigate_sidebar(len - 1).await; }
             }
-            KeyCode::PageDown => {
-                if !self.state.sidebar_items.is_empty() {
-                    self.state.sidebar_selected =
-                        (self.state.sidebar_selected + 10).min(self.state.sidebar_items.len() - 1);
-                    self.on_sidebar_selection_changed().await;
-                }
-            }
+            KeyCode::PageDown => self.navigate_sidebar(self.state.sidebar_selected + 10).await,
             KeyCode::PageUp => {
-                self.state.sidebar_selected = self.state.sidebar_selected.saturating_sub(10);
-                self.on_sidebar_selection_changed().await;
+                self.navigate_sidebar(self.state.sidebar_selected.saturating_sub(10)).await;
             }
 
-            // Collapse/expand category or multi-select toggle
             KeyCode::Char(' ') => {
                 match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Category(_)) => {
-                        self.state.toggle_sidebar_collapse();
-                    }
-                    Some(SidebarItem::Vm(name)) => {
-                        self.toggle_multi_select(&name);
-                    }
+                    Some(SidebarItem::Category(_)) => self.state.toggle_sidebar_collapse(),
+                    Some(SidebarItem::Vm(name)) => self.toggle_multi_select(&name),
                     _ => {}
                 }
             }
 
-            // Enter: toggle category or select object and switch to content
             KeyCode::Enter => {
                 match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Category(_)) => {
-                        self.state.toggle_sidebar_collapse();
-                    }
+                    Some(SidebarItem::Category(_)) => self.state.toggle_sidebar_collapse(),
                     Some(SidebarItem::Vm(name)) => {
                         if self.state.multi_select_mode {
                             self.state.toggle_selection(&name);
@@ -308,20 +265,34 @@ impl App {
                 }
             }
 
-            // Backspace: go back from volume browser
             KeyCode::Backspace => self.exit_volume_browser(),
 
-            // Log viewer (only reaches here when on a VM; otherwise Layer 2 switches focus)
             KeyCode::Char('l') => {
                 if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
                     self.show_vm_logs_by_name(&name).await;
                 }
             }
 
-            _ => {
-                // Shared action keys (works from both sidebar and content)
-                self.handle_shared_action_key(key).await;
+            _ => self.handle_shared_action_key(key).await,
+        }
+    }
+
+    // ── Content navigation helper ───────────────────────────────────────
+
+    fn navigate_content(&mut self, delta: i32) {
+        if self.is_showing_table() {
+            let len = self.state.current_list_len();
+            if len > 0 {
+                if delta > 0 {
+                    self.state.selected_index = (self.state.selected_index + delta as usize).min(len - 1);
+                } else {
+                    self.state.selected_index = self.state.selected_index.saturating_sub((-delta) as usize);
+                }
             }
+        } else if delta > 0 {
+            self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(delta as u16);
+        } else {
+            self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub((-delta) as u16);
         }
     }
 
@@ -329,44 +300,19 @@ impl App {
 
     async fn handle_content_key(&mut self, key: KeyEvent) {
         match key.code {
-            // Scroll content
             KeyCode::Char('j') | KeyCode::Down => {
-                if self.is_showing_table() {
-                    self.move_down();
-                } else {
-                    self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(1);
-                }
+                if self.is_showing_table() { self.move_down(); }
+                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(1); }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.is_showing_table() {
-                    self.move_up();
-                } else {
-                    self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(1);
-                }
+                if self.is_showing_table() { self.move_up(); }
+                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(1); }
             }
-            KeyCode::PageDown => {
-                if self.is_showing_table() {
-                    let len = self.state.current_list_len();
-                    if len > 0 {
-                        self.state.selected_index = (self.state.selected_index + 10).min(len - 1);
-                    }
-                } else {
-                    self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(20);
-                }
-            }
-            KeyCode::PageUp => {
-                if self.is_showing_table() {
-                    self.state.selected_index = self.state.selected_index.saturating_sub(10);
-                } else {
-                    self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(20);
-                }
-            }
+            KeyCode::PageDown => self.navigate_content(10),
+            KeyCode::PageUp => self.navigate_content(-10),
             KeyCode::Char('g') => {
-                if self.is_showing_table() {
-                    self.state.selected_index = 0;
-                } else {
-                    self.state.content_scroll_offset = 0;
-                }
+                if self.is_showing_table() { self.state.selected_index = 0; }
+                else { self.state.content_scroll_offset = 0; }
             }
             KeyCode::Char('G') => {
                 if self.is_showing_table() {
@@ -384,21 +330,15 @@ impl App {
                 self.state.active_object_tab = self.state.active_object_tab.prev();
                 self.state.content_scroll_offset = 0;
             }
-            // Direct sub-tab selection
-            KeyCode::Char('1') => {
-                self.state.active_object_tab = ObjectTab::Summary;
-                self.state.content_scroll_offset = 0;
-            }
-            KeyCode::Char('2') => {
-                self.state.active_object_tab = ObjectTab::Monitor;
-                self.state.content_scroll_offset = 0;
-            }
-            KeyCode::Char('3') => {
-                self.state.active_object_tab = ObjectTab::Configure;
+            KeyCode::Char('1') | KeyCode::Char('2') | KeyCode::Char('3') => {
+                self.state.active_object_tab = match key.code {
+                    KeyCode::Char('2') => ObjectTab::Monitor,
+                    KeyCode::Char('3') => ObjectTab::Configure,
+                    _ => ObjectTab::Summary,
+                };
                 self.state.content_scroll_offset = 0;
             }
 
-            // Enter: load details for current sidebar item, or browse volumes
             KeyCode::Enter => {
                 match self.state.selected_sidebar_item().cloned() {
                     Some(SidebarItem::Vm(name)) => {
@@ -420,25 +360,19 @@ impl App {
                 }
             }
 
-            // Backspace: go back from volume browser
             KeyCode::Backspace => self.exit_volume_browser(),
 
-            // Multi-select from content
             KeyCode::Char(' ') => {
                 if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
                     self.toggle_multi_select(&name);
                 }
             }
 
-            _ => {
-                // Shared action keys (works from both sidebar and content)
-                self.handle_shared_action_key(key).await;
-            }
+            _ => self.handle_shared_action_key(key).await,
         }
     }
 
     // ── Shared action keys (sidebar + content + context menu) ───────────
-    // Unified handler for action keys that work identically from sidebar and content.
 
     async fn handle_shared_action_key(&mut self, key: KeyEvent) {
         match key.code {
@@ -453,7 +387,6 @@ impl App {
             KeyCode::Char('u') => self.action_on_sidebar_item("resume").await,
             KeyCode::Char('d') => self.request_confirmation_sidebar().await,
 
-            // Create VM dialog
             KeyCode::Char('n') => {
                 if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
                     self.state.create_vm_form = Some(CreateVmForm::new());
@@ -461,57 +394,26 @@ impl App {
                 }
             }
 
-            // Clone hint
-            KeyCode::Char('o') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.state.status_message = format!("Use ':clone {} <new-name>' to clone", name);
-                }
-            }
-
-            // Viewer/console
-            KeyCode::Char('v') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.launch_viewer_by_name(&name).await;
-                }
-            }
-            KeyCode::Char('V') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.launch_novnc_by_name(&name).await;
-                }
-            }
-            KeyCode::Char('y') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.show_vm_xml_by_name(&name).await;
-                }
-            }
-            KeyCode::Char('c') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.launch_console_by_name(&name).await;
-                }
-            }
-
-            // Autostart toggle
-            KeyCode::Char('t') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.toggle_autostart_by_name(&name).await;
-                }
-            }
-
-            // SSH
-            KeyCode::Char('e') => {
-                if let Some(name) = self.resolve_vm_name() {
-                    self.launch_ssh_by_name(&name).await;
-                }
-            }
+            // VM-specific actions (resolve name once, dispatch)
+            KeyCode::Char('o') => self.with_vm(|app, name| {
+                app.state.status_message = format!("Use ':clone {} <new-name>' to clone", name);
+            }),
+            KeyCode::Char('v') => { if let Some(n) = self.resolve_vm_name() { self.launch_viewer_by_name(&n).await; } }
+            KeyCode::Char('V') => { if let Some(n) = self.resolve_vm_name() { self.launch_novnc_by_name(&n).await; } }
+            KeyCode::Char('y') => { if let Some(n) = self.resolve_vm_name() { self.show_vm_xml_by_name(&n).await; } }
+            KeyCode::Char('c') => { if let Some(n) = self.resolve_vm_name() { self.launch_console_by_name(&n).await; } }
+            KeyCode::Char('t') => { if let Some(n) = self.resolve_vm_name() { self.toggle_autostart_by_name(&n).await; } }
+            KeyCode::Char('e') => { if let Some(n) = self.resolve_vm_name() { self.launch_ssh_by_name(&n).await; } }
 
             // Network/pool start/stop
             KeyCode::Char('a') => self.handle_network_pool_action("start").await,
             KeyCode::Char('z') => self.handle_network_pool_action("stop").await,
 
-            // Snapshot actions
+            // Snapshot revert
             KeyCode::Char('R') => {
-                if let Some(snap) = self.resolve_snapshot() {
-                    self.revert_snapshot_by_name(&snap.0, &snap.1).await;
+                if let Some((vm, snap)) = self.resolve_snapshot() {
+                    let r = self.client.revert_snapshot(&vm, &snap).await;
+                    self.report_cmd_result(r, &format!("Reverted '{vm}' to snapshot '{snap}'"), "revert-snapshot", &snap, true).await;
                 }
             }
 
@@ -538,27 +440,27 @@ impl App {
         }
     }
 
-    /// Whether the current sidebar selection shows a table in the content panel
     fn is_showing_table(&self) -> bool {
-        matches!(
-            self.state.selected_sidebar_item(),
-            Some(SidebarItem::Category(_))
-        ) || self.state.command_content_override.is_some()
+        matches!(self.state.selected_sidebar_item(), Some(SidebarItem::Category(_)))
+            || self.state.command_content_override.is_some()
     }
 
-    // ── Resource name resolution helpers ─────────────────────────────────
+    // ── Resource resolution helpers ─────────────────────────────────────
 
-    /// Resolve the VM name from sidebar item or content table.
     fn resolve_vm_name(&self) -> Option<String> {
         self.state.effective_vm_name().map(|s| s.to_string())
     }
 
-    /// Resolve the snapshot (vm_name, snap_name) from sidebar or content table.
     fn resolve_snapshot(&self) -> Option<(String, String)> {
         self.state.effective_snapshot().map(|s| (s.vm_name.clone(), s.name.clone()))
     }
 
-    // ── Multi-select helper ─────────────────────────────────────────────
+    /// Execute a sync closure with the resolved VM name (avoids repeated resolve pattern).
+    fn with_vm(&mut self, f: impl FnOnce(&mut Self, &str)) {
+        if let Some(name) = self.resolve_vm_name() {
+            f(self, &name);
+        }
+    }
 
     fn toggle_multi_select(&mut self, name: &str) {
         if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
@@ -582,12 +484,9 @@ impl App {
     async fn on_sidebar_selection_changed(&mut self) {
         self.state.content_scroll_offset = 0;
         self.state.command_content_override = None;
-
-        // Update resource_view to match sidebar
         self.state.resource_view = self.state.sidebar_resource_view();
         self.state.selected_index = 0;
 
-        // Clear stale details if selected VM changed
         if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
             if let Some(ref d) = self.state.vm_details {
                 if d.name != name {
@@ -597,52 +496,63 @@ impl App {
         }
     }
 
-    // ── Action dispatch based on sidebar item ───────────────────────────
+    // ── Action dispatch ─────────────────────────────────────────────────
 
     async fn action_on_sidebar_item(&mut self, action: &str) {
         match self.state.selected_sidebar_item().cloned() {
             Some(SidebarItem::Vm(_)) | Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
-                let name = self.resolve_vm_name();
                 if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
                     self.batch_vm_action(action).await;
-                } else if let Some(name) = name {
+                } else if let Some(name) = self.resolve_vm_name() {
                     self.single_vm_action_by_name(action, &name).await;
                 }
             }
             Some(SidebarItem::Network(name)) => {
-                self.network_action_by_name(action, &name).await;
+                self.resource_action("start", "stop", action, "network", &name).await;
             }
             Some(SidebarItem::StoragePool(name)) => {
-                self.pool_action_by_name(action, &name).await;
+                self.resource_action("start", "stop", action, "pool", &name).await;
             }
             _ => {}
         }
     }
 
-    /// Unified handler for network/pool start/stop actions (keys 'a' and 'z').
+    /// Unified network/pool start/stop actions.
     async fn handle_network_pool_action(&mut self, action: &str) {
         match self.state.selected_sidebar_item().cloned() {
-            Some(SidebarItem::Network(name)) => self.network_action_by_name(action, &name).await,
-            Some(SidebarItem::StoragePool(name)) => self.pool_action_by_name(action, &name).await,
+            Some(SidebarItem::Network(name)) => self.resource_action("start", "stop", action, "network", &name).await,
+            Some(SidebarItem::StoragePool(name)) => self.resource_action("start", "stop", action, "pool", &name).await,
             Some(SidebarItem::Category(SidebarCategory::Networks)) => {
                 if let Some(name) = self.state.selected_network_name().map(|s| s.to_string()) {
-                    self.network_action_by_name(action, &name).await;
+                    self.resource_action("start", "stop", action, "network", &name).await;
                 }
             }
             Some(SidebarItem::Category(SidebarCategory::Storage)) => {
                 if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
-                    self.pool_action_by_name(action, &name).await;
+                    self.resource_action("start", "stop", action, "pool", &name).await;
                 }
             }
             _ => {}
         }
+    }
+
+    /// Unified resource action (network or pool start/stop).
+    async fn resource_action(&mut self, _start: &str, _stop: &str, action: &str, kind: &str, name: &str) {
+        let result = match (kind, action) {
+            ("network", "start") => self.client.start_network(name).await,
+            ("network", "stop") => self.client.stop_network(name).await,
+            ("pool", "start") => self.client.start_pool(name).await,
+            ("pool", "stop") => self.client.stop_pool(name).await,
+            _ => return,
+        };
+        let kind_cap = match kind { "network" => "Network", "pool" => "Pool", _ => kind };
+        self.report_cmd_result(result, &format!("{kind_cap} '{name}': {action} OK"), &format!("{kind}-{action}"), name, true).await;
     }
 
     // ── Context menu ────────────────────────────────────────────────────
 
     async fn handle_context_menu_key(&mut self, key: KeyEvent) {
         self.state.show_context_menu = false;
-        // Reuse the shared action handler - context menu keys map to the same actions
         match key.code {
             KeyCode::Char('h') => self.action_on_sidebar_item("shutdown").await,
             _ => self.handle_shared_action_key(key).await,
@@ -659,9 +569,7 @@ impl App {
                 self.state.filtered_indices.clear();
                 self.state.clamp_selection();
             }
-            KeyCode::Enter => {
-                self.state.input_mode = InputMode::Normal;
-            }
+            KeyCode::Enter => self.state.input_mode = InputMode::Normal,
             KeyCode::Backspace => {
                 self.state.search_query.pop();
                 self.state.apply_search_filter();
@@ -706,12 +614,8 @@ impl App {
                 self.state.command_input.clear();
                 self.execute_command(&cmd).await;
             }
-            KeyCode::Backspace => {
-                self.state.command_input.pop();
-            }
-            KeyCode::Char(c) => {
-                self.state.command_input.push(c);
-            }
+            KeyCode::Backspace => { self.state.command_input.pop(); }
+            KeyCode::Char(c) => self.state.command_input.push(c),
             _ => {}
         }
     }
@@ -721,10 +625,7 @@ impl App {
     async fn handle_create_dialog_key(&mut self, key: KeyEvent) {
         let form = match self.state.create_vm_form.as_mut() {
             Some(f) => f,
-            None => {
-                self.state.input_mode = InputMode::Normal;
-                return;
-            }
+            None => { self.state.input_mode = InputMode::Normal; return; }
         };
 
         match key.code {
@@ -736,22 +637,14 @@ impl App {
                 form.focused_field = (form.focused_field + 1) % form.fields.len();
             }
             KeyCode::BackTab | KeyCode::Up => {
-                if form.focused_field == 0 {
-                    form.focused_field = form.fields.len() - 1;
-                } else {
-                    form.focused_field -= 1;
-                }
+                form.focused_field = if form.focused_field == 0 { form.fields.len() - 1 } else { form.focused_field - 1 };
             }
             KeyCode::Left | KeyCode::Right => {
-                if form.fields[form.focused_field].field_type
-                    == virtspawn_core::FormFieldType::TemplateSelect
-                {
+                if form.fields[form.focused_field].field_type == virtspawn_core::FormFieldType::TemplateSelect {
                     let templates = VmTemplate::all();
                     let count = templates.len() + 1;
                     form.template_index = match key.code {
-                        KeyCode::Left => {
-                            if form.template_index == 0 { count - 1 } else { form.template_index - 1 }
-                        }
+                        KeyCode::Left => if form.template_index == 0 { count - 1 } else { form.template_index - 1 },
                         _ => (form.template_index + 1) % count,
                     };
                     if form.template_index == 0 {
@@ -770,36 +663,26 @@ impl App {
                     let name = req.name.clone();
                     match self.client.create_vm(&req).await {
                         Ok(()) => {
-                            self.state.notify_with_level(
-                                &format!("Created VM '{name}'"),
-                                NotifyLevel::Success,
-                            );
+                            self.state.notify_with_level(&format!("Created VM '{name}'"), NotifyLevel::Success);
                             self.state.add_audit_event("create", &name, "OK");
                             self.state.create_vm_form = None;
                             self.state.input_mode = InputMode::Normal;
                             self.refresh_all_data().await;
                         }
-                        Err(e) => {
-                            self.state.notify_with_level(
-                                &format!("Error creating VM: {e}"),
-                                NotifyLevel::Error,
-                            );
-                        }
+                        Err(e) => self.state.notify_with_level(&format!("Error creating VM: {e}"), NotifyLevel::Error),
                     }
                 } else {
                     self.state.create_vm_form = Some(form_clone);
                 }
             }
-            KeyCode::Backspace => {
+            KeyCode::Backspace | KeyCode::Char(_) => {
                 let field = &mut form.fields[form.focused_field];
                 if field.field_type != virtspawn_core::FormFieldType::TemplateSelect {
-                    field.value.pop();
-                }
-            }
-            KeyCode::Char(c) => {
-                let field = &mut form.fields[form.focused_field];
-                if field.field_type != virtspawn_core::FormFieldType::TemplateSelect {
-                    field.value.push(c);
+                    match key.code {
+                        KeyCode::Backspace => { field.value.pop(); }
+                        KeyCode::Char(c) => field.value.push(c),
+                        _ => {}
+                    }
                 }
             }
             _ => {}
@@ -816,20 +699,14 @@ impl App {
                         self.state.sidebar_selected =
                             (self.state.sidebar_selected + 1).min(self.state.sidebar_items.len() - 1);
                     }
-                } else if self.is_showing_table() {
-                    self.move_down();
-                } else {
-                    self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(1);
-                }
+                } else if self.is_showing_table() { self.move_down(); }
+                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(1); }
             }
             MouseEventKind::ScrollUp => {
                 if mouse.column < self.sidebar_width {
                     self.state.sidebar_selected = self.state.sidebar_selected.saturating_sub(1);
-                } else if self.is_showing_table() {
-                    self.move_up();
-                } else {
-                    self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(1);
-                }
+                } else if self.is_showing_table() { self.move_up(); }
+                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(1); }
             }
             MouseEventKind::Down(_) => {
                 if mouse.column < self.sidebar_width {
@@ -844,8 +721,7 @@ impl App {
                     self.state.focus = Focus::Content;
                     if mouse.row > 2 {
                         let clicked = (mouse.row - 3) as usize;
-                        let len = self.state.current_list_len();
-                        if clicked < len {
+                        if clicked < self.state.current_list_len() {
                             self.state.selected_index = clicked;
                         }
                     }
@@ -859,19 +735,13 @@ impl App {
 
     fn move_down(&mut self) {
         let len = self.state.current_list_len();
-        if len > 0 {
-            self.state.selected_index = (self.state.selected_index + 1) % len;
-        }
+        if len > 0 { self.state.selected_index = (self.state.selected_index + 1) % len; }
     }
 
     fn move_up(&mut self) {
         let len = self.state.current_list_len();
         if len > 0 {
-            self.state.selected_index = if self.state.selected_index == 0 {
-                len - 1
-            } else {
-                self.state.selected_index - 1
-            };
+            self.state.selected_index = if self.state.selected_index == 0 { len - 1 } else { self.state.selected_index - 1 };
         }
     }
 
@@ -886,7 +756,7 @@ impl App {
         self.state.rebuild_sidebar();
     }
 
-    // ── Unified VM client action dispatch ───────────────────────────────
+    // ── VM client action dispatch ───────────────────────────────────────
 
     async fn dispatch_vm_client_action(&self, action: &str, name: &str) -> anyhow::Result<()> {
         match action {
@@ -926,14 +796,8 @@ impl App {
 
         for name in &names {
             match self.dispatch_vm_client_action(action, name).await {
-                Ok(()) => {
-                    ok += 1;
-                    self.state.add_audit_event(action, name, "OK");
-                }
-                Err(e) => {
-                    errors += 1;
-                    self.state.add_audit_event(action, name, &format!("ERROR: {e}"));
-                }
+                Ok(()) => { ok += 1; self.state.add_audit_event(action, name, "OK"); }
+                Err(e) => { errors += 1; self.state.add_audit_event(action, name, &format!("ERROR: {e}")); }
             }
         }
 
@@ -959,14 +823,12 @@ impl App {
                     })
                 }
             }
-            Some(SidebarItem::Snapshot(vm, snap)) => {
-                Some(ConfirmationDialog {
-                    title: "Delete Snapshot".to_string(),
-                    message: "This will permanently delete the snapshot.".to_string(),
-                    resource_name: format!("{vm}/{snap}"),
-                    action: format!("delete-snap:{vm}:{snap}"),
-                })
-            }
+            Some(SidebarItem::Snapshot(vm, snap)) => Some(ConfirmationDialog {
+                title: "Delete Snapshot".to_string(),
+                message: "This will permanently delete the snapshot.".to_string(),
+                resource_name: format!("{vm}/{snap}"),
+                action: format!("delete-snap:{vm}:{snap}"),
+            }),
             _ => None,
         };
 
@@ -990,32 +852,19 @@ impl App {
         let parts: Vec<&str> = action.splitn(3, ':').collect();
         match parts.as_slice() {
             ["delete-vm", name] => {
-                match self.client.delete_vm(name).await {
-                    Ok(()) => {
-                        self.state.status_message = format!("Deleted VM '{name}'");
-                        self.state.add_audit_event("delete", name, "OK");
-                        self.state.vm_details = None;
-                        self.refresh_vms_and_metrics().await;
-                    }
-                    Err(e) => {
-                        self.state.add_audit_event("delete", name, &format!("ERROR: {e}"));
-                        self.state.status_message = format!("Error deleting '{name}': {e}");
-                    }
-                }
+                let r = self.client.delete_vm(name).await;
+                if r.is_ok() { self.state.vm_details = None; }
+                self.report_cmd_result(r, &format!("Deleted VM '{name}'"), "delete", name, false).await;
+                self.refresh_vms_and_metrics().await;
             }
-            ["batch-delete-vm", _count] => {
+            ["batch-delete-vm", _] => {
                 let names: Vec<String> = self.state.selected_items.iter().cloned().collect();
                 let total = names.len();
                 let mut ok = 0;
                 for name in &names {
                     match self.client.delete_vm(name).await {
-                        Ok(()) => {
-                            ok += 1;
-                            self.state.add_audit_event("delete", name, "OK");
-                        }
-                        Err(e) => {
-                            self.state.add_audit_event("delete", name, &format!("ERROR: {e}"));
-                        }
+                        Ok(()) => { ok += 1; self.state.add_audit_event("delete", name, "OK"); }
+                        Err(e) => { self.state.add_audit_event("delete", name, &format!("ERROR: {e}")); }
                     }
                 }
                 self.state.status_message = format!("Batch delete: {ok}/{total} OK");
@@ -1024,14 +873,8 @@ impl App {
                 self.refresh_vms_and_metrics().await;
             }
             ["delete-snap", vm_name, snap_name] => {
-                match self.client.delete_snapshot(vm_name, snap_name).await {
-                    Ok(()) => {
-                        self.state.status_message = format!("Deleted snapshot '{snap_name}' from '{vm_name}'");
-                        self.state.add_audit_event("delete-snapshot", snap_name, "OK");
-                        self.refresh_all_data().await;
-                    }
-                    Err(e) => self.state.status_message = format!("Error: {e}"),
-                }
+                let r = self.client.delete_snapshot(vm_name, snap_name).await;
+                self.report_cmd_result(r, &format!("Deleted snapshot '{snap_name}' from '{vm_name}'"), "delete-snapshot", snap_name, true).await;
             }
             _ => {}
         }
@@ -1041,84 +884,17 @@ impl App {
 
     async fn load_vm_details(&mut self, name: &str) {
         match self.client.get_vm_details(name).await {
-            Ok(details) => {
-                self.state.vm_details = Some(details);
-            }
-            Err(e) => {
-                self.state.status_message = format!("Error fetching details: {e}");
-            }
+            Ok(details) => self.state.vm_details = Some(details),
+            Err(e) => self.state.status_message = format!("Error fetching details: {e}"),
         }
     }
-
-    // ── Autostart toggle ────────────────────────────────────────────────
 
     async fn toggle_autostart_by_name(&mut self, name: &str) {
-        let current = self.client.get_vm_details(name).await
-            .map(|d| d.autostart)
-            .unwrap_or(false);
-
+        let current = self.client.get_vm_details(name).await.map(|d| d.autostart).unwrap_or(false);
         let new_val = !current;
-        match self.client.set_autostart(name, new_val).await {
-            Ok(()) => {
-                self.state.status_message = format!(
-                    "Autostart for '{name}': {}",
-                    if new_val { "enabled" } else { "disabled" }
-                );
-                self.state.add_audit_event("autostart", name, if new_val { "enabled" } else { "disabled" });
-            }
-            Err(e) => self.state.status_message = format!("Error: {e}"),
-        }
-    }
-
-    // ── Network actions by name ─────────────────────────────────────────
-
-    async fn network_action_by_name(&mut self, action: &str, name: &str) {
-        let result = match action {
-            "start" => self.client.start_network(name).await,
-            "stop" => self.client.stop_network(name).await,
-            _ => return,
-        };
-
-        match result {
-            Ok(()) => {
-                self.state.status_message = format!("Network '{name}': {action} OK");
-                self.state.add_audit_event(&format!("network-{action}"), name, "OK");
-                self.refresh_all_data().await;
-            }
-            Err(e) => self.state.status_message = format!("Error: {e}"),
-        }
-    }
-
-    // ── Pool actions by name ────────────────────────────────────────────
-
-    async fn pool_action_by_name(&mut self, action: &str, name: &str) {
-        let result = match action {
-            "start" => self.client.start_pool(name).await,
-            "stop" => self.client.stop_pool(name).await,
-            _ => return,
-        };
-
-        match result {
-            Ok(()) => {
-                self.state.status_message = format!("Pool '{name}': {action} OK");
-                self.state.add_audit_event(&format!("pool-{action}"), name, "OK");
-                self.refresh_all_data().await;
-            }
-            Err(e) => self.state.status_message = format!("Error: {e}"),
-        }
-    }
-
-    // ── Snapshot actions by name ────────────────────────────────────────
-
-    async fn revert_snapshot_by_name(&mut self, vm_name: &str, snap_name: &str) {
-        match self.client.revert_snapshot(vm_name, snap_name).await {
-            Ok(()) => {
-                self.state.status_message = format!("Reverted '{}' to snapshot '{}'", vm_name, snap_name);
-                self.state.add_audit_event("revert-snapshot", snap_name, "OK");
-                self.refresh_all_data().await;
-            }
-            Err(e) => self.state.status_message = format!("Error reverting: {e}"),
-        }
+        let label = if new_val { "enabled" } else { "disabled" };
+        let r = self.client.set_autostart(name, new_val).await;
+        self.report_cmd_result(r, &format!("Autostart for '{name}': {label}"), "autostart", name, false).await;
     }
 
     // ── Volume browser ──────────────────────────────────────────────────
@@ -1129,10 +905,7 @@ impl App {
                 self.state.volumes = vols;
                 self.state.browsing_pool = Some(pool.to_string());
                 self.state.selected_index = 0;
-                self.state.status_message = format!(
-                    "Pool '{}': {} volumes (Backspace to go back)",
-                    pool, self.state.volumes.len()
-                );
+                self.state.status_message = format!("Pool '{}': {} volumes (Backspace to go back)", pool, self.state.volumes.len());
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
         }
@@ -1141,21 +914,10 @@ impl App {
     // ── Terminal launcher helper ─────────────────────────────────────────
 
     fn launch_in_terminal(args: &[&str]) -> Option<String> {
-        let terminals = [
-            "gnome-terminal", "xfce4-terminal", "konsole",
-            "xterm", "foot", "alacritty", "kitty",
-        ];
-        for term in &terminals {
-            if std::process::Command::new(term)
-                .args(["--"])
-                .args(args)
-                .spawn()
-                .is_ok()
-            {
-                return Some(term.to_string());
-            }
-        }
-        None
+        const TERMINALS: &[&str] = &["gnome-terminal", "xfce4-terminal", "konsole", "xterm", "foot", "alacritty", "kitty"];
+        TERMINALS.iter().find_map(|term| {
+            std::process::Command::new(term).args(["--"]).args(args).spawn().ok().map(|_| term.to_string())
+        })
     }
 
     // ── Console / Viewer by name ───────────────────────────────────────
@@ -1163,11 +925,7 @@ impl App {
     async fn launch_viewer_by_name(&mut self, name: &str) {
         self.state.status_message = format!("Launching virt-viewer for '{name}'...");
         self.state.add_audit_event("virt-viewer", name, "launched");
-        let _ = std::process::Command::new("virt-viewer")
-            .arg("--connect")
-            .arg("qemu:///system")
-            .arg(name)
-            .spawn();
+        let _ = std::process::Command::new("virt-viewer").arg("--connect").arg("qemu:///system").arg(name).spawn();
     }
 
     async fn launch_console_by_name(&mut self, name: &str) {
@@ -1192,16 +950,12 @@ impl App {
                 }
 
                 let connect_port = if ws_port > 0 { ws_port } else { port };
-                let novnc_url = format!(
-                    "http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true"
-                );
+                let novnc_url = format!("http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true");
 
                 if std::process::Command::new("xdg-open").arg(&novnc_url).spawn().is_ok() {
                     self.state.status_message = format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
                 } else {
-                    self.state.status_message = format!(
-                        "VNC for '{name}': {ctype} on 127.0.0.1:{port}. Connect with: vncviewer 127.0.0.1:{port}"
-                    );
+                    self.state.status_message = format!("VNC for '{name}': {ctype} on 127.0.0.1:{port}. Connect with: vncviewer 127.0.0.1:{port}");
                 }
                 self.state.add_audit_event("novnc", name, &format!("port {connect_port}"));
             }
@@ -1211,16 +965,10 @@ impl App {
 
     async fn show_vm_xml_by_name(&mut self, name: &str) {
         match self.client.get_vm_xml(name).await {
-            Ok(xml) => {
-                self.state.xml_content = xml;
-                self.state.scroll_offset = 0;
-                self.state.view_mode = ViewMode::Xml;
-            }
+            Ok(xml) => { self.state.xml_content = xml; self.state.scroll_offset = 0; self.state.view_mode = ViewMode::Xml; }
             Err(e) => self.state.status_message = format!("Error fetching XML: {e}"),
         }
     }
-
-    // ── Log viewer ──────────────────────────────────────────────────────
 
     async fn show_vm_logs_by_name(&mut self, name: &str) {
         let log_paths = [
@@ -1231,24 +979,17 @@ impl App {
         let mut content = String::new();
         for path in &log_paths {
             if let Ok(data) = tokio::fs::read_to_string(path).await {
-                if !content.is_empty() {
-                    content.push_str("\n\n");
-                }
+                if !content.is_empty() { content.push_str("\n\n"); }
                 content.push_str(&format!("\u{2500}\u{2500} {} \u{2500}\u{2500}\n", path));
                 let lines: Vec<&str> = data.lines().collect();
-                let start = if lines.len() > 200 { lines.len() - 200 } else { 0 };
-                for line in &lines[start..] {
-                    content.push_str(line);
-                    content.push('\n');
-                }
+                let start = lines.len().saturating_sub(200);
+                for line in &lines[start..] { content.push_str(line); content.push('\n'); }
             }
         }
 
         if content.is_empty() {
             content = format!("No logs found for '{name}'.\nChecked:\n");
-            for path in &log_paths {
-                content.push_str(&format!("  {path}\n"));
-            }
+            for path in &log_paths { content.push_str(&format!("  {path}\n")); }
         }
 
         self.state.log_content = content;
@@ -1256,22 +997,13 @@ impl App {
         self.state.view_mode = ViewMode::Logs;
     }
 
-    // ── SSH launch ──────────────────────────────────────────────────────
-
     async fn launch_ssh_by_name(&mut self, name: &str) {
-        let output = std::process::Command::new("virsh")
-            .args(["domifaddr", name])
-            .output();
-
-        let ip = output.ok().and_then(|o| {
-            let stdout = String::from_utf8_lossy(&o.stdout);
-            stdout.lines().find_map(|line| {
+        let ip = std::process::Command::new("virsh").args(["domifaddr", name]).output().ok().and_then(|o| {
+            String::from_utf8_lossy(&o.stdout).lines().find_map(|line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 4 && parts[2] == "ipv4" {
                     Some(parts[3].split('/').next().unwrap_or("").to_string())
-                } else {
-                    None
-                }
+                } else { None }
             })
         });
 
@@ -1289,22 +1021,12 @@ impl App {
 
     // ── Command execution ───────────────────────────────────────────────
 
-    /// Report command result: set status, audit, and optionally refresh.
-    async fn report_cmd_result(
-        &mut self,
-        result: anyhow::Result<()>,
-        ok_msg: &str,
-        audit_action: &str,
-        audit_target: &str,
-        refresh: bool,
-    ) {
+    async fn report_cmd_result(&mut self, result: anyhow::Result<()>, ok_msg: &str, audit_action: &str, audit_target: &str, refresh: bool) {
         match result {
             Ok(()) => {
                 self.state.status_message = ok_msg.to_string();
                 self.state.add_audit_event(audit_action, audit_target, "OK");
-                if refresh {
-                    self.refresh_all_data().await;
-                }
+                if refresh { self.refresh_all_data().await; }
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
         }
@@ -1313,33 +1035,16 @@ impl App {
     async fn execute_command(&mut self, cmd: &str) {
         let parts: Vec<&str> = cmd.split_whitespace().collect();
         match parts.as_slice() {
-            ["vms"] => {
-                self.state.command_content_override = None;
-                self.select_sidebar_category(SidebarCategory::VirtualMachines);
-            }
-            ["net"] | ["networks"] => {
-                self.state.command_content_override = None;
-                self.select_sidebar_category(SidebarCategory::Networks);
-            }
-            ["pool"] | ["storage"] => {
-                self.state.command_content_override = None;
-                self.select_sidebar_category(SidebarCategory::Storage);
-            }
-            ["snap"] | ["snapshots"] => {
-                self.state.command_content_override = None;
-                self.select_sidebar_category(SidebarCategory::Snapshots);
-            }
-            ["events"] => {
-                self.state.command_content_override = Some(ResourceView::Events);
-                self.state.resource_view = ResourceView::Events;
-            }
+            ["vms"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::VirtualMachines); }
+            ["net"] | ["networks"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::Networks); }
+            ["pool"] | ["storage"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::Storage); }
+            ["snap"] | ["snapshots"] => { self.state.command_content_override = None; self.select_sidebar_category(SidebarCategory::Snapshots); }
+            ["events"] => { self.state.command_content_override = Some(ResourceView::Events); self.state.resource_view = ResourceView::Events; }
             ["node"] => {
                 self.state.command_content_override = Some(ResourceView::Node);
                 self.state.resource_view = ResourceView::Node;
                 if self.state.node_info.is_none() {
-                    if let Ok(info) = self.client.fetch_node_info().await {
-                        self.state.node_info = Some(info);
-                    }
+                    if let Ok(info) = self.client.fetch_node_info().await { self.state.node_info = Some(info); }
                 }
             }
             ["snap", vm, name] => {
@@ -1350,22 +1055,14 @@ impl App {
                 let r = self.client.clone_vm(source, new_name).await;
                 self.report_cmd_result(r, &format!("Cloned '{source}' as '{new_name}'"), "clone", source, true).await;
             }
-            ["create"] => {
-                self.state.create_vm_form = Some(CreateVmForm::new());
-                self.state.input_mode = InputMode::CreateVmDialog;
-            }
+            ["create"] => { self.state.create_vm_form = Some(CreateVmForm::new()); self.state.input_mode = InputMode::CreateVmDialog; }
             ["create", name] => {
                 let req = CreateVmRequest { name: name.to_string(), ..Default::default() };
                 let r = self.client.create_vm(&req).await;
                 self.report_cmd_result(r, &format!("Created VM '{name}'"), "create", name, true).await;
             }
             ["create", name, vcpus, mem] => {
-                let req = CreateVmRequest {
-                    name: name.to_string(),
-                    vcpus: vcpus.parse().unwrap_or(2),
-                    memory_mb: mem.parse().unwrap_or(2048),
-                    ..Default::default()
-                };
+                let req = CreateVmRequest { name: name.to_string(), vcpus: vcpus.parse().unwrap_or(2), memory_mb: mem.parse().unwrap_or(2048), ..Default::default() };
                 let r = self.client.create_vm(&req).await;
                 self.report_cmd_result(r, &format!("Created VM '{name}'"), "create", name, true).await;
             }
@@ -1384,12 +1081,7 @@ impl App {
                 self.report_cmd_result(r, &format!("Renamed '{old_name}' to '{new_name}'"), "rename", old_name, true).await;
             }
             ["netcreate", name] => {
-                let req = CreateNetworkRequest {
-                    name: name.to_string(),
-                    subnet: "192.168.100".to_string(),
-                    dhcp_start: "192.168.100.100".to_string(),
-                    dhcp_end: "192.168.100.254".to_string(),
-                };
+                let req = CreateNetworkRequest { name: name.to_string(), subnet: "192.168.100".to_string(), dhcp_start: "192.168.100.100".to_string(), dhcp_end: "192.168.100.254".to_string() };
                 let r = self.client.create_network(&req).await;
                 self.report_cmd_result(r, &format!("Created network '{name}'"), "create-network", name, true).await;
             }
@@ -1399,14 +1091,7 @@ impl App {
             }
             ["template", tmpl_name, vm_name] => {
                 if let Some(tmpl) = VmTemplate::find(tmpl_name) {
-                    let req = CreateVmRequest {
-                        name: vm_name.to_string(),
-                        vcpus: tmpl.vcpus,
-                        memory_mb: tmpl.memory_mb,
-                        disk_gb: tmpl.disk_gb,
-                        os_variant: tmpl.os_variant,
-                        ..Default::default()
-                    };
+                    let req = CreateVmRequest { name: vm_name.to_string(), vcpus: tmpl.vcpus, memory_mb: tmpl.memory_mb, disk_gb: tmpl.disk_gb, os_variant: tmpl.os_variant, ..Default::default() };
                     let r = self.client.create_vm(&req).await;
                     self.report_cmd_result(r, &format!("Created '{vm_name}' from template '{tmpl_name}'"), "create-from-template", vm_name, true).await;
                 } else {
@@ -1416,80 +1101,47 @@ impl App {
                 }
             }
             ["templates"] => {
-                let templates = VmTemplate::all();
-                let desc: Vec<String> = templates.iter()
-                    .map(|t| format!("{}: {}", t.name, t.description))
-                    .collect();
+                let desc: Vec<String> = VmTemplate::all().iter().map(|t| format!("{}: {}", t.name, t.description)).collect();
                 self.state.status_message = desc.join(" | ");
             }
             ["q"] | ["quit"] => self.should_quit = true,
-            _ => {
-                self.state.status_message = format!("Unknown command: {cmd}");
-            }
+            _ => self.state.status_message = format!("Unknown command: {cmd}"),
         }
     }
 
     fn select_sidebar_category(&mut self, cat: SidebarCategory) {
-        for (i, item) in self.state.sidebar_items.iter().enumerate() {
-            if *item == SidebarItem::Category(cat) {
-                self.state.sidebar_selected = i;
-                break;
-            }
+        if let Some(pos) = self.state.sidebar_items.iter().position(|item| *item == SidebarItem::Category(cat)) {
+            self.state.sidebar_selected = pos;
         }
         self.state.resource_view = self.state.sidebar_resource_view();
         self.state.selected_index = 0;
         self.state.content_scroll_offset = 0;
     }
 
-    // ── Refresh all data ────────────────────────────────────────────────
+    // ── Refresh ─────────────────────────────────────────────────────────
+
+    fn apply_vm_data(&mut self, vms: Vec<virtspawn_core::VmInfo>) {
+        self.state.connected = true;
+        self.state.vms = vms;
+        self.state.sort_vms();
+        self.state.detect_state_changes();
+        self.state.clamp_selection();
+    }
 
     async fn refresh_all_data(&mut self) {
-        // VMs
         match self.client.fetch_vms().await {
-            Ok(vms) => {
-                self.state.connected = true;
-                self.state.vms = vms;
-                self.state.sort_vms();
-                self.state.detect_state_changes();
-                self.state.clamp_selection();
-            }
-            Err(e) => {
-                self.state.connected = false;
-                self.state.status_message = format!("Error: {e}");
-            }
+            Ok(vms) => self.apply_vm_data(vms),
+            Err(e) => { self.state.connected = false; self.state.status_message = format!("Error: {e}"); }
         }
 
-        // Networks
-        if let Ok(nets) = self.client.fetch_networks().await {
-            self.state.networks = nets;
-        }
+        if let Ok(nets) = self.client.fetch_networks().await { self.state.networks = nets; }
+        if let Ok(pools) = self.client.fetch_storage_pools().await { self.state.storage_pools = pools; }
+        if let Ok(snaps) = self.client.fetch_all_snapshots().await { self.state.snapshots = snaps; }
+        if let Ok(info) = self.client.fetch_node_info().await { self.state.node_info = Some(info); }
+        if let Ok(metrics) = self.client.fetch_metrics().await { self.state.vm_metrics = metrics; self.state.record_metrics_snapshot(); }
 
-        // Storage pools
-        if let Ok(pools) = self.client.fetch_storage_pools().await {
-            self.state.storage_pools = pools;
-        }
-
-        // Snapshots
-        if let Ok(snaps) = self.client.fetch_all_snapshots().await {
-            self.state.snapshots = snaps;
-        }
-
-        // Node info
-        if let Ok(info) = self.client.fetch_node_info().await {
-            self.state.node_info = Some(info);
-        }
-
-        // Metrics
-        if let Ok(metrics) = self.client.fetch_metrics().await {
-            self.state.vm_metrics = metrics;
-            self.state.record_metrics_snapshot();
-        }
-
-        // Refresh volumes if browsing a pool
         if let Some(pool) = self.state.browsing_pool.clone() {
-            if let Ok(vols) = self.client.fetch_volumes(&pool).await {
-                self.state.volumes = vols;
-            }
+            if let Ok(vols) = self.client.fetch_volumes(&pool).await { self.state.volumes = vols; }
         }
 
         self.state.compute_dashboard();
@@ -1497,26 +1149,13 @@ impl App {
         self.state.clamp_selection();
     }
 
-    /// Lighter refresh that only fetches VMs and metrics (for VM lifecycle actions)
     async fn refresh_vms_and_metrics(&mut self) {
         match self.client.fetch_vms().await {
-            Ok(vms) => {
-                self.state.connected = true;
-                self.state.vms = vms;
-                self.state.sort_vms();
-                self.state.detect_state_changes();
-                self.state.clamp_selection();
-            }
-            Err(e) => {
-                self.state.connected = false;
-                self.state.status_message = format!("Error: {e}");
-            }
+            Ok(vms) => self.apply_vm_data(vms),
+            Err(e) => { self.state.connected = false; self.state.status_message = format!("Error: {e}"); }
         }
 
-        if let Ok(metrics) = self.client.fetch_metrics().await {
-            self.state.vm_metrics = metrics;
-            self.state.record_metrics_snapshot();
-        }
+        if let Ok(metrics) = self.client.fetch_metrics().await { self.state.vm_metrics = metrics; self.state.record_metrics_snapshot(); }
 
         self.state.compute_dashboard();
         self.state.rebuild_sidebar();

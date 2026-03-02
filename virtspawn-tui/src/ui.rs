@@ -224,10 +224,7 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                 Line::from(Span::styled(label, style))
             }
             SidebarItem::Vm(name) => {
-                let vm_state = state.vms.iter()
-                    .find(|v| v.name == *name)
-                    .map(|v| v.state.as_str())
-                    .unwrap_or("unknown");
+                let vm_state = state.vm_state_str(name);
                 let indicator = match vm_state {
                     "running" => "\u{25cf}",
                     "paused" => "\u{25d1}",
@@ -1627,10 +1624,7 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
             // Show relevant action hints based on sidebar selection
             match state.selected_sidebar_item() {
                 Some(SidebarItem::Vm(name)) => {
-                    let vm_state = state.vms.iter()
-                        .find(|v| v.name == *name)
-                        .map(|v| v.state.as_str())
-                        .unwrap_or("");
+                    let vm_state = state.vm_state_str(name);
                     match vm_state {
                         "shutoff" => { add_hint(&mut spans, "s", "start"); add_hint(&mut spans, "d", "del"); }
                         "running" => { add_hint(&mut spans, "x", "stop"); add_hint(&mut spans, "p", "pause"); }
@@ -1657,10 +1651,7 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
             // Action hints based on what's shown in content
             match state.selected_sidebar_item() {
                 Some(SidebarItem::Vm(name)) => {
-                    let vm_state = state.vms.iter()
-                        .find(|v| v.name == *name)
-                        .map(|v| v.state.as_str())
-                        .unwrap_or("");
+                    let vm_state = state.vm_state_str(name);
                     match vm_state {
                         "shutoff" => { add_hint(&mut spans, "s", "start"); }
                         "running" => { add_hint(&mut spans, "x", "stop"); add_hint(&mut spans, "v", "vnc"); }

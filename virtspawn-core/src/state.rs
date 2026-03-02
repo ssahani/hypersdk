@@ -924,6 +924,13 @@ impl AppState {
         self.audit_events = crate::audit::load_audit_events(500).into();
     }
 
+    pub fn vm_state_str(&self, name: &str) -> &str {
+        self.vms.iter()
+            .find(|v| v.name == name)
+            .map(|v| v.state.as_str())
+            .unwrap_or("unknown")
+    }
+
     pub fn get_metrics_for_vm(&self, name: &str) -> Option<&VmMetrics> {
         self.vm_metrics.iter().find(|m| m.name == name)
     }
