@@ -6,28 +6,20 @@ use crate::LibvirtError;
 pub fn get_node_info(conn: &Connect) -> Result<NodeInfo, LibvirtError> {
     let hostname = conn
         .get_hostname()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get hostname: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get hostname"))?;
 
     let hv_type = conn
         .get_type()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get hypervisor type: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get hypervisor type"))?;
 
-    let hv_version = conn
-        .get_hyp_version()
-        .map(|v| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000))
-        .unwrap_or_else(|_| crate::unknown_string());
+    let format_version = |v: u32| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000);
 
-    let lib_version = conn
-        .get_lib_version()
-        .map(|v| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000))
-        .unwrap_or_else(|_| crate::unknown_string());
+    let hv_version = conn.get_hyp_version().map(format_version).unwrap_or_else(|_| crate::unknown_string());
+    let lib_version = conn.get_lib_version().map(format_version).unwrap_or_else(|_| crate::unknown_string());
 
     let node = conn
         .get_node_info()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get node info: {e}")))?;
-
-    let active_domains = conn.num_of_domains().unwrap_or(0);
-    let defined_domains = conn.num_of_defined_domains().unwrap_or(0);
+        .map_err(LibvirtError::map_op("Failed to get node info"))?;
 
     Ok(NodeInfo {
         hostname,
@@ -40,7 +32,7 @@ pub fn get_node_info(conn: &Connect) -> Result<NodeInfo, LibvirtError> {
         cpu_sockets: node.sockets,
         memory_mb: node.memory / 1024,
         numa_nodes: node.nodes,
-        active_vms: active_domains,
-        defined_vms: defined_domains,
+        active_vms: conn.num_of_domains().unwrap_or(0),
+        defined_vms: conn.num_of_defined_domains().unwrap_or(0),
     })
 }

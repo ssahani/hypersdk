@@ -165,14 +165,7 @@ fn render_header_bar(frame: &mut Frame, area: Rect, state: &AppState) {
 // ── Sidebar ─────────────────────────────────────────────────────────────
 
 fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
-    let focused = state.focus == Focus::Sidebar;
-    let border_color = if focused { ORANGE } else { DIM_BORDER };
-
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .border_style(Style::new().fg(border_color))
-        .title(" INVENTORY ")
-        .title_style(Style::new().fg(if focused { ORANGE } else { DARK_ORANGE }).add_modifier(Modifier::BOLD));
+    let block = panel_block(state.focus == Focus::Sidebar, " INVENTORY ");
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
@@ -251,14 +244,14 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
             }
             SidebarItem::StoragePool(name) => {
                 Line::from(vec![
-                    Span::styled("    ", Style::new()),
+                    Span::raw("    "),
                     Span::styled(truncate_str(name, max_name_width.saturating_sub(2)), sidebar_item_style(is_selected)),
                 ])
             }
             SidebarItem::Snapshot(vm, snap) => {
                 let label = format!("{vm}/{snap}");
                 Line::from(vec![
-                    Span::styled("    ", Style::new()),
+                    Span::raw("    "),
                     Span::styled(truncate_str(&label, max_name_width.saturating_sub(2)), sidebar_item_style(is_selected)),
                 ])
             }
@@ -360,14 +353,17 @@ fn render_content_panel(frame: &mut Frame, area: Rect, state: &AppState) {
     }
 }
 
-fn content_block(state: &AppState, title: &str) -> Block<'static> {
-    let focused = state.focus == Focus::Content;
-    let border_color = if focused { ORANGE } else { DIM_BORDER };
+fn panel_block(focused: bool, title: &str) -> Block<'static> {
+    let (border, title_fg) = if focused { (ORANGE, ORANGE) } else { (DIM_BORDER, DARK_ORANGE) };
     Block::new()
         .borders(Borders::ALL)
-        .border_style(Style::new().fg(border_color))
+        .border_style(Style::new().fg(border))
         .title(title.to_string())
-        .title_style(Style::new().fg(if focused { ORANGE } else { DARK_ORANGE }).add_modifier(Modifier::BOLD))
+        .title_style(Style::new().fg(title_fg).add_modifier(Modifier::BOLD))
+}
+
+fn content_block(state: &AppState, title: &str) -> Block<'static> {
+    panel_block(state.focus == Focus::Content, title)
 }
 
 // ── VM Content with sub-tabs ────────────────────────────────────────────

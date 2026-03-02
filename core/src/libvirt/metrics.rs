@@ -14,7 +14,7 @@ pub fn get_vm_metrics(conn: &Connect, name: &str) -> Result<VmMetrics, LibvirtEr
 pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError> {
     let domains = conn
         .list_all_domains(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list domains: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list domains"))?;
 
     let mut metrics = Vec::new();
     for domain in domains {
@@ -40,7 +40,7 @@ pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError
 fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, LibvirtError> {
     let info = domain
         .get_info()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get domain info: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get domain info"))?;
 
     let cpu_time_ns = info.cpu_time;
 

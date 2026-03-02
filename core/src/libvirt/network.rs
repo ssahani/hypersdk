@@ -12,13 +12,13 @@ fn lookup_network(conn: &Connect, name: &str) -> Result<Network, LibvirtError> {
 pub fn list_networks(conn: &Connect) -> Result<Vec<NetworkInfo>, LibvirtError> {
     let networks = conn
         .list_all_networks(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list networks: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list networks"))?;
 
     let mut result = Vec::new();
     for net in networks {
         let name = net
             .get_name()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to get network name: {e}")))?;
+            .map_err(LibvirtError::map_op("Failed to get network name"))?;
 
         result.push(NetworkInfo {
             name,
@@ -36,14 +36,14 @@ pub fn list_networks(conn: &Connect) -> Result<Vec<NetworkInfo>, LibvirtError> {
 pub fn start_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.create()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to start network '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to start network '{name}'"))?;
     Ok(())
 }
 
 pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.destroy()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to stop network '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to stop network '{name}'"))?;
     Ok(())
 }
 
@@ -70,7 +70,7 @@ pub fn create_network(
     );
 
     Network::define_xml(conn, &xml)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to create network '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to create network '{name}'"))?;
 
     Ok(())
 }
@@ -83,19 +83,19 @@ pub fn delete_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     }
 
     net.undefine()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to delete network '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to delete network '{name}'"))?;
     Ok(())
 }
 
 pub fn set_network_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.set_autostart(autostart)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to set autostart: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to set autostart"))?;
     Ok(())
 }
 
 pub fn get_network_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.get_xml_desc(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get network XML: {e}")))
+        .map_err(LibvirtError::map_op("Failed to get network XML"))
 }

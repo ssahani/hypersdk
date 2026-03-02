@@ -59,7 +59,7 @@ fn create_qcow2_disk(path: &str, size_gb: u64) -> Result<(), LibvirtError> {
     let output = Command::new("qemu-img")
         .args(["create", "-f", "qcow2", path, &format!("{size_gb}G")])
         .output()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to run qemu-img: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to run qemu-img"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);

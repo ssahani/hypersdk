@@ -11,7 +11,7 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
 
     let snaps = domain
         .list_all_snapshots(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list snapshots: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list snapshots"))?;
 
     let current = DomainSnapshot::current(&domain, 0)
         .ok()
@@ -21,7 +21,7 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
     for snap in snaps {
         let name = snap
             .get_name()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to get snapshot name: {e}")))?;
+            .map_err(LibvirtError::map_op("Failed to get snapshot name"))?;
 
         let xml_str = snap.get_xml_desc(0).unwrap_or_default();
 
@@ -54,7 +54,7 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
 pub fn list_all_snapshots(conn: &Connect) -> Result<Vec<SnapshotInfo>, LibvirtError> {
     let domains = conn
         .list_all_domains(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list domains: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list domains"))?;
 
     let mut all_snaps = Vec::new();
     for domain in domains {
@@ -83,7 +83,7 @@ pub fn create_snapshot(
     );
 
     DomainSnapshot::create_xml(&domain, &xml_str, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to create snapshot: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to create snapshot"))?;
 
     Ok(())
 }
@@ -99,7 +99,7 @@ pub fn delete_snapshot(
         .map_err(|e| LibvirtError::NotFound(format!("Snapshot '{snap_name}' not found: {e}")))?;
 
     snap.delete(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to delete snapshot: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to delete snapshot"))?;
 
     Ok(())
 }
@@ -115,7 +115,7 @@ pub fn revert_snapshot(
         .map_err(|e| LibvirtError::NotFound(format!("Snapshot '{snap_name}' not found: {e}")))?;
 
     snap.revert(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to revert snapshot: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to revert snapshot"))?;
 
     Ok(())
 }

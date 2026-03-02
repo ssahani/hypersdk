@@ -11,7 +11,7 @@ pub fn clone_vm(conn: &Connect, source_name: &str, new_name: &str) -> Result<(),
 
     let xml = source
         .get_xml_desc(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get XML: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get XML"))?;
 
     // Replace the VM name in the XML
     let new_xml = replace_domain_name(&xml, new_name);
@@ -21,7 +21,7 @@ pub fn clone_vm(conn: &Connect, source_name: &str, new_name: &str) -> Result<(),
     let new_xml = randomize_mac_addresses(&new_xml);
 
     Domain::define_xml(conn, &new_xml)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to define cloned VM: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to define cloned VM"))?;
 
     Ok(())
 }

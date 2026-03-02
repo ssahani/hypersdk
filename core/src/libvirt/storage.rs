@@ -13,13 +13,13 @@ fn lookup_pool(conn: &Connect, name: &str) -> Result<StoragePool, LibvirtError> 
 pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> {
     let pools = conn
         .list_all_storage_pools(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list storage pools: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list storage pools"))?;
 
     let mut result = Vec::new();
     for pool in pools {
         let name = pool
             .get_name()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to get pool name: {e}")))?;
+            .map_err(LibvirtError::map_op("Failed to get pool name"))?;
 
         let (state, capacity_gb, allocation_gb, available_gb) = match pool.get_info().ok() {
             Some(i) => (
@@ -51,13 +51,13 @@ pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolume
 
     let vol_list = pool
         .list_all_volumes(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list volumes: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list volumes"))?;
 
     let mut result = Vec::new();
     for vol in vol_list {
         let name = vol
             .get_name()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to get volume name: {e}")))?;
+            .map_err(LibvirtError::map_op("Failed to get volume name"))?;
 
         let (vol_type, capacity_gb, allocation_gb) = match vol.get_info().ok() {
             Some(i) => (vol_type_to_string(i.kind), bytes_to_gb(i.capacity), bytes_to_gb(i.allocation)),
@@ -82,21 +82,21 @@ pub fn delete_volume(conn: &Connect, pool_name: &str, vol_name: &str) -> Result<
     let vol = StorageVol::lookup_by_name(&pool, vol_name)
         .map_err(|e| LibvirtError::NotFound(format!("Volume '{vol_name}' not found: {e}")))?;
     vol.delete(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to delete volume: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to delete volume"))?;
     Ok(())
 }
 
 pub fn start_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.create(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to start pool '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to start pool '{name}'"))?;
     Ok(())
 }
 
 pub fn stop_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.destroy()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to stop pool '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to stop pool '{name}'"))?;
     Ok(())
 }
 
@@ -122,14 +122,14 @@ pub fn create_volume(
     );
 
     StorageVol::create_xml(&pool, &xml, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to create volume '{vol_name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to create volume '{vol_name}'"))?;
     Ok(())
 }
 
 pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.refresh(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to refresh pool '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to refresh pool '{name}'"))?;
     Ok(())
 }
 

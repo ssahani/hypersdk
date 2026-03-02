@@ -27,17 +27,17 @@ pub fn lookup_domain(conn: &Connect, name: &str) -> Result<Domain, LibvirtError>
 pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {
     let domains = conn
         .list_all_domains(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to list domains: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to list domains"))?;
 
     let mut vms = Vec::new();
     for domain in domains {
         let name = domain
             .get_name()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to get domain name: {e}")))?;
+            .map_err(LibvirtError::map_op("Failed to get domain name"))?;
 
         let info = domain
             .get_info()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to get domain info: {e}")))?;
+            .map_err(LibvirtError::map_op("Failed to get domain info"))?;
 
         vms.push(VmInfo {
             name,
@@ -55,15 +55,15 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
 
     let info = domain
         .get_info()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get domain info: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get domain info"))?;
 
     let uuid = domain
         .get_uuid_string()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get UUID: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get UUID"))?;
 
     let xml_str = domain
         .get_xml_desc(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get XML: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get XML"))?;
 
     let autostart = domain.get_autostart().unwrap_or(false);
     let persistent = domain.is_persistent().unwrap_or(false);
@@ -91,7 +91,7 @@ pub fn get_vm_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
     domain
         .get_xml_desc(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get XML: {e}")))
+        .map_err(LibvirtError::map_op("Failed to get XML"))
 }
 
 fn domain_action(conn: &Connect, name: &str, action: &str, f: impl FnOnce(&Domain) -> Result<(), virt::error::Error>) -> Result<(), LibvirtError> {
@@ -135,7 +135,7 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 
     domain
         .undefine()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to delete VM '{name}'"))?;
 
     Ok(())
 }
@@ -144,7 +144,7 @@ pub fn set_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), 
     let domain = lookup_domain(conn, name)?;
     domain
         .set_autostart(autostart)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to set autostart: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to set autostart"))?;
     Ok(())
 }
 
@@ -156,7 +156,7 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
     // VM must be shutoff to rename
     let info = domain
         .get_info()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to get VM info: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to get VM info"))?;
 
     if info.state != 5 {
         return Err(LibvirtError::Operation(
@@ -166,7 +166,7 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
 
     domain
         .rename(new_name, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to rename VM '{name}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to rename VM '{name}'"))?;
 
     Ok(())
 }

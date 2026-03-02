@@ -35,3 +35,9 @@ pub enum LibvirtError {
     #[error("Internal error: {0}")]
     Internal(String),
 }
+
+impl LibvirtError {
+    pub fn map_op<E: std::fmt::Display>(msg: &str) -> impl FnOnce(E) -> Self + '_ {
+        move |e| Self::Operation(format!("{msg}: {e}"))
+    }
+}

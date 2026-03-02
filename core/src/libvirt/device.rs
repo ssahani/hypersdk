@@ -34,7 +34,7 @@ pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Re
     let flags = get_domain_flags(&domain);
     domain
         .attach_device_flags(&xml, flags)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to attach disk: {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to attach disk"))?;
     Ok(())
 }
 
@@ -50,6 +50,6 @@ pub fn detach_disk(conn: &Connect, vm_name: &str, target: &str) -> Result<(), Li
     let flags = get_domain_flags(&domain);
     domain
         .detach_device_flags(&xml, flags)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to detach disk '{target}': {e}")))?;
+        .map_err(LibvirtError::map_op("Failed to detach disk '{target}'"))?;
     Ok(())
 }
