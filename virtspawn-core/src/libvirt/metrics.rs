@@ -1,12 +1,12 @@
 use virt::connect::Connect;
 use virt::domain::Domain;
 
+use super::domain::lookup_domain;
 use crate::state::VmMetrics;
 use crate::LibvirtError;
 
 pub fn get_vm_metrics(conn: &Connect, name: &str) -> Result<VmMetrics, LibvirtError> {
-    let domain = Domain::lookup_by_name(conn, name)
-        .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))?;
+    let domain = lookup_domain(conn, name)?;
 
     collect_domain_metrics(&domain, name)
 }

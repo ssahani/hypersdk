@@ -1,13 +1,13 @@
 use virt::connect::Connect;
 use virt::domain::Domain;
 
+use super::domain::lookup_domain;
 use crate::LibvirtError;
 
 pub fn clone_vm(conn: &Connect, source_name: &str, new_name: &str) -> Result<(), LibvirtError> {
     crate::validate::validate_name(new_name)?;
 
-    let source = Domain::lookup_by_name(conn, source_name)
-        .map_err(|e| LibvirtError::NotFound(format!("VM '{source_name}' not found: {e}")))?;
+    let source = lookup_domain(conn, source_name)?;
 
     let xml = source
         .get_xml_desc(0)

@@ -848,9 +848,7 @@ impl AppState {
 
     pub fn effective_snapshot(&self) -> Option<&SnapshotInfo> {
         match self.selected_sidebar_item() {
-            Some(SidebarItem::Snapshot(vm, snap)) => {
-                self.snapshots.iter().find(|s| s.vm_name == *vm && s.name == *snap)
-            }
+            Some(SidebarItem::Snapshot(vm, snap)) => self.find_snapshot(vm, snap),
             Some(SidebarItem::Category(SidebarCategory::Snapshots)) => self.selected_snapshot(),
             _ => None,
         }

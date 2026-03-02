@@ -1,14 +1,13 @@
 use virt::connect::Connect;
-use virt::domain::Domain;
 use virt::domain_snapshot::DomainSnapshot;
 
+use super::domain::lookup_domain;
 use crate::state::SnapshotInfo;
 use crate::xml;
 use crate::LibvirtError;
 
 pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>, LibvirtError> {
-    let domain = Domain::lookup_by_name(conn, vm_name)
-        .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}' not found: {e}")))?;
+    let domain = lookup_domain(conn, vm_name)?;
 
     let snaps = domain
         .list_all_snapshots(0)
@@ -74,8 +73,7 @@ pub fn create_snapshot(
     snap_name: &str,
     description: &str,
 ) -> Result<(), LibvirtError> {
-    let domain = Domain::lookup_by_name(conn, vm_name)
-        .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}' not found: {e}")))?;
+    let domain = lookup_domain(conn, vm_name)?;
 
     let xml_str = format!(
         r#"<domainsnapshot>
@@ -95,8 +93,7 @@ pub fn delete_snapshot(
     vm_name: &str,
     snap_name: &str,
 ) -> Result<(), LibvirtError> {
-    let domain = Domain::lookup_by_name(conn, vm_name)
-        .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}' not found: {e}")))?;
+    let domain = lookup_domain(conn, vm_name)?;
 
     let snap = DomainSnapshot::lookup_by_name(&domain, snap_name, 0)
         .map_err(|e| LibvirtError::NotFound(format!("Snapshot '{snap_name}' not found: {e}")))?;
@@ -112,8 +109,7 @@ pub fn revert_snapshot(
     vm_name: &str,
     snap_name: &str,
 ) -> Result<(), LibvirtError> {
-    let domain = Domain::lookup_by_name(conn, vm_name)
-        .map_err(|e| LibvirtError::NotFound(format!("VM '{vm_name}' not found: {e}")))?;
+    let domain = lookup_domain(conn, vm_name)?;
 
     let snap = DomainSnapshot::lookup_by_name(&domain, snap_name, 0)
         .map_err(|e| LibvirtError::NotFound(format!("Snapshot '{snap_name}' not found: {e}")))?;

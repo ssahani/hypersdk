@@ -19,7 +19,7 @@ fn state_to_string(state: u32) -> String {
     }
 }
 
-fn lookup_domain(conn: &Connect, name: &str) -> Result<Domain, LibvirtError> {
+pub fn lookup_domain(conn: &Connect, name: &str) -> Result<Domain, LibvirtError> {
     Domain::lookup_by_name(conn, name)
         .map_err(|e| LibvirtError::NotFound(format!("VM '{name}' not found: {e}")))
 }
