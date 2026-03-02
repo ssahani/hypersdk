@@ -832,12 +832,7 @@ impl App {
                 if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
                     Some(self.batch_delete_dialog())
                 } else {
-                    self.resolve_vm_name().map(|name| ConfirmationDialog {
-                        title: "Delete VM".to_string(),
-                        message: "This will permanently delete the VM and its storage.".to_string(),
-                        resource_name: name.clone(),
-                        action: format!("delete-vm:{name}"),
-                    })
+                    self.resolve_vm_name().map(|name| Self::delete_vm_dialog(&name))
                 }
             }
             Some(SidebarItem::Network(_)) | Some(SidebarItem::Category(SidebarCategory::Networks)) => {
@@ -867,6 +862,15 @@ impl App {
             resource_name: format!("{}/{}", pool, vol.name),
             action: format!("delete-vol:{}:{}", pool, vol.name),
         })
+    }
+
+    fn delete_vm_dialog(name: &str) -> ConfirmationDialog {
+        ConfirmationDialog {
+            title: "Delete VM".to_string(),
+            message: "This will permanently delete the VM and its storage.".to_string(),
+            resource_name: name.to_string(),
+            action: format!("delete-vm:{name}"),
+        }
     }
 
     fn delete_network_dialog(name: &str) -> ConfirmationDialog {
