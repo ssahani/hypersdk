@@ -1305,16 +1305,20 @@ fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
     };
     frame.render_widget(Clear, menu_area);
 
-    let items = match state.sidebar_resource_view() {
-        ResourceView::VirtualMachines => vec![
-            ("s", "Start"), ("x", "Stop (force)"), ("h", "Shutdown"),
-            ("b", "Reboot"), ("p", "Pause"), ("u", "Resume"),
-            ("d", "Delete"), ("o", "Clone"), ("v", "Virt-viewer"),
-            ("c", "Console"), ("y", "XML view"), ("n", "New VM"),
-        ],
-        ResourceView::Networks => vec![("a", "Start"), ("z", "Stop")],
-        ResourceView::Snapshots => vec![("R", "Revert"), ("d", "Delete")],
-        _ => vec![],
+    const VM_ACTIONS: &[(&str, &str)] = &[
+        ("s", "Start"), ("x", "Stop (force)"), ("h", "Shutdown"),
+        ("b", "Reboot"), ("p", "Pause"), ("u", "Resume"),
+        ("d", "Delete"), ("o", "Clone"), ("v", "Virt-viewer"),
+        ("c", "Console"), ("y", "XML view"), ("n", "New VM"),
+    ];
+    const NET_ACTIONS: &[(&str, &str)] = &[("a", "Start"), ("z", "Stop")];
+    const SNAP_ACTIONS: &[(&str, &str)] = &[("R", "Revert"), ("d", "Delete")];
+
+    let items: &[(&str, &str)] = match state.sidebar_resource_view() {
+        ResourceView::VirtualMachines => VM_ACTIONS,
+        ResourceView::Networks => NET_ACTIONS,
+        ResourceView::Snapshots => SNAP_ACTIONS,
+        _ => &[],
     };
 
     let lines: Vec<Line> = items.iter()
@@ -1326,14 +1330,7 @@ fn render_context_menu(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .border_style(LABEL_STYLE)
-        .title(" Actions ")
-        .title_style(ORANGE_BOLD)
-        .style(Style::new().bg(Color::Black));
-
-    frame.render_widget(Paragraph::new(lines).block(block), menu_area);
+    frame.render_widget(Paragraph::new(lines).block(dialog_block(" Actions ", ORANGE_BOLD)), menu_area);
 }
 
 // ── Confirmation dialog ─────────────────────────────────────────────────
@@ -1364,14 +1361,8 @@ fn render_confirmation_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
             ]),
         ];
 
-        let block = Block::new()
-            .borders(Borders::ALL)
-            .border_style(Style::new().fg(ERROR_COLOR).add_modifier(Modifier::BOLD))
-            .title(format!(" {} ", dialog.title))
-            .title_style(Style::new().fg(ERROR_COLOR).add_modifier(Modifier::BOLD))
-            .style(Style::new().bg(Color::Black));
-
-        frame.render_widget(Paragraph::new(lines).block(block), dialog_area);
+        let error_bold = Style::new().fg(ERROR_COLOR).add_modifier(Modifier::BOLD);
+        frame.render_widget(Paragraph::new(lines).block(dialog_block(&format!(" {} ", dialog.title), error_bold)), dialog_area);
     }
 }
 
@@ -1434,14 +1425,7 @@ fn render_create_vm_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
             Span::styled(":cancel", DARK_ORANGE_STYLE),
         ]));
 
-        let block = Block::new()
-            .borders(Borders::ALL)
-            .border_style(ORANGE_BOLD)
-            .title(" Create VM ")
-            .title_style(ORANGE_BOLD)
-            .style(Style::new().bg(Color::Black));
-
-        frame.render_widget(Paragraph::new(lines).block(block), dialog_area);
+        frame.render_widget(Paragraph::new(lines).block(dialog_block(" Create VM ", ORANGE_BOLD)), dialog_area);
     }
 }
 
@@ -1499,27 +1483,17 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
         )),
     ];
 
-    let block = Block::new()
-        .borders(Borders::ALL)
-        .border_style(ORANGE_BOLD)
-        .title(" Help ")
-        .title_style(ORANGE_BOLD)
-        .style(Style::new().bg(Color::Black));
-
     frame.render_widget(
         Paragraph::new(lines)
             .style(TEXT_STYLE)
-            .block(block)
+            .block(dialog_block(" Help ", ORANGE_BOLD))
             .scroll((state.help_scroll, 0)),
         help_area,
     );
 }
 
 fn help_section(title: &str) -> Line<'_> {
-    Line::from(Span::styled(
-        title,
-        NAME_STYLE.add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
-    ))
+    Line::from(Span::styled(title, NAME_BOLD.add_modifier(Modifier::UNDERLINED)))
 }
 
 fn help_line(text: &str) -> Line<'_> {
@@ -1640,6 +1614,15 @@ fn build_context_help_line(state: &AppState) -> Line<'static> {
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────
+
+fn dialog_block(title: &str, border_style: Style) -> Block<'static> {
+    Block::new()
+        .borders(Borders::ALL)
+        .border_style(border_style)
+        .title(title.to_string())
+        .title_style(border_style)
+        .style(Style::new().bg(Color::Black))
+}
 
 fn state_indicator(vm_state: &str) -> &'static str {
     match vm_state {
