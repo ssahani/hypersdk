@@ -12,8 +12,12 @@ fn add_gauge(output: &mut String, name: &str, help: &str, value: impl Display) {
     output.push_str(&format!("# HELP {name} {help}\n# TYPE {name} gauge\n{name} {value}\n"));
 }
 
+fn escape_label(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+}
+
 fn add_labeled(output: &mut String, name: &str, label: &str, value: impl Display) {
-    output.push_str(&format!("{name}{{vm=\"{label}\"}} {value}\n"));
+    output.push_str(&format!("{name}{{vm=\"{}\"}} {value}\n", escape_label(label)));
 }
 
 fn add_vm_metric(output: &mut String, name: &str, help: &str, metric_type: &str, vm_metrics: &[virtspawn_core::VmMetrics], extract: impl Fn(&virtspawn_core::VmMetrics) -> String) {

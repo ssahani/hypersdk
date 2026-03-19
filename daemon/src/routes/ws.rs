@@ -160,8 +160,14 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
         }
     };
 
-    let mut stdout = child.stdout.take().unwrap();
-    let mut stdin = child.stdin.take().unwrap();
+    let mut stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => { warn!("No stdout from socat"); return; }
+    };
+    let mut stdin = match child.stdin.take() {
+        Some(s) => s,
+        None => { warn!("No stdin from socat"); return; }
+    };
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // stdout → WebSocket
