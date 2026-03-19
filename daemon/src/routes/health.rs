@@ -1,15 +1,14 @@
 use axum::extract::State;
+use axum::http::StatusCode;
+use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
 use virtspawn_core::LibvirtManager;
 
-use crate::error::AppError;
-
 async fn health_check(
     State(manager): State<LibvirtManager>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    // Verify libvirt connection is alive
+) -> impl IntoResponse {
     let alive = manager
         .with_conn(|conn| {
             conn.get_hostname()
@@ -17,10 +16,19 @@ async fn health_check(
         })
         .is_ok();
 
-    Ok(Json(serde_json::json!({
-        "status": if alive { "healthy" } else { "unhealthy" },
-        "libvirt": alive,
-    })))
+    let status = if alive {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status,
+        Json(serde_json::json!({
+            "status": if alive { "healthy" } else { "unhealthy" },
+            "libvirt": alive,
+        })),
+    )
 }
 
 pub fn health_routes() -> Router<LibvirtManager> {

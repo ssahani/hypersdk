@@ -13,22 +13,22 @@ export default function StoragePage() {
   const toast = useToastContext()
 
   const loadPools = useCallback(async () => {
-    try { setPools(await listPools()) } catch (e: unknown) { toast.error(`${e}`) } finally { setLoading(false) }
+    try { setPools(await listPools()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
   }, [toast])
 
   const loadVolumes = async (pool: string) => {
-    try { setVolumes(await listVolumes(pool)); setSelectedPool(pool) } catch (e: unknown) { toast.error(`${e}`) }
+    try { setVolumes(await listVolumes(pool)); setSelectedPool(pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   useEffect(() => { loadPools() }, [loadPools])
 
   const poolAction = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
-    try { await fn(name); toast.success(`${label} '${name}' OK`); loadPools() } catch (e: unknown) { toast.error(`${e}`) }
+    try { await fn(name); toast.success(`${label} '${name}' OK`); loadPools() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   const handleDeleteVol = async () => {
     if (!deleteTarget) return
-    try { await deleteVolume(deleteTarget.pool, deleteTarget.vol); toast.success(`Deleted volume '${deleteTarget.vol}'`); loadVolumes(deleteTarget.pool) } catch (e: unknown) { toast.error(`${e}`) }
+    try { await deleteVolume(deleteTarget.pool, deleteTarget.vol); toast.success(`Deleted volume '${deleteTarget.vol}'`); loadVolumes(deleteTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
     setDeleteTarget(null)
   }
 

@@ -21,15 +21,22 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null)
 
   useEffect(() => {
+    let retryDelay = 1000
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
+
     function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/watch`)
       wsRef.current = ws
 
-      ws.onopen = () => setIsConnected(true)
+      ws.onopen = () => {
+        setIsConnected(true)
+        retryDelay = 1000
+      }
       ws.onclose = () => {
         setIsConnected(false)
-        setTimeout(connect, 3000)
+        retryTimer = setTimeout(connect, retryDelay)
+        retryDelay = Math.min(retryDelay * 2, 30000)
       }
       ws.onerror = () => ws.close()
       ws.onmessage = (event) => {
@@ -41,7 +48,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     }
 
     connect()
-    return () => wsRef.current?.close()
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer)
+      wsRef.current?.close()
+    }
   }, [])
 
   const subscribe = useCallback((callback: (msg: WSMessage) => void) => {

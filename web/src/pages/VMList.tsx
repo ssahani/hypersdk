@@ -19,7 +19,7 @@ export default function VMList() {
     try {
       setVMs(await listVMs())
     } catch (e: unknown) {
-      toast.error(`Failed to load VMs: ${e}`)
+      toast.error(`Failed to load VMs: ${e instanceof Error ? e.message : e}`)
     } finally {
       setLoading(false)
     }
@@ -34,7 +34,7 @@ export default function VMList() {
       toast.success(`${label} '${name}' OK`)
       load()
     } catch (e: unknown) {
-      toast.error(`${label} '${name}' failed: ${e}`)
+      toast.error(`${label} '${name}' failed: ${e instanceof Error ? e.message : e}`)
     }
   }
 

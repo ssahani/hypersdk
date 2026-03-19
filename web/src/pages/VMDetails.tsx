@@ -25,7 +25,7 @@ export default function VMDetailsPage() {
         try { setMetrics(await getVMMetrics(name)) } catch { /* no metrics */ }
       }
     } catch (e: unknown) {
-      toast.error(`Failed to load VM: ${e}`)
+      toast.error(`Failed to load VM: ${e instanceof Error ? e.message : e}`)
     } finally {
       setLoading(false)
     }
@@ -35,12 +35,12 @@ export default function VMDetailsPage() {
 
   const action = async (fn: (n: string) => Promise<void>, label: string) => {
     if (!name) return
-    try { await fn(name); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e}`) }
+    try { await fn(name); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const toggleAutostart = async () => {
     if (!name || !vm) return
-    try { await setAutostart(name, !vm.autostart); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e}`) }
+    try { await setAutostart(name, !vm.autostart); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>

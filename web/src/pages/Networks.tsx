@@ -11,17 +11,17 @@ export default function NetworksPage() {
   const toast = useToastContext()
 
   const load = useCallback(async () => {
-    try { setNetworks(await listNetworks()) } catch (e: unknown) { toast.error(`${e}`) } finally { setLoading(false) }
+    try { setNetworks(await listNetworks()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
 
   const action = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
-    try { await fn(name); toast.success(`${label} '${name}' OK`); load() } catch (e: unknown) { toast.error(`${e}`) }
+    try { await fn(name); toast.success(`${label} '${name}' OK`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   const toggleAutostart = async (net: NetworkInfo) => {
-    try { await setNetworkAutostart(net.name, !net.autostart); toast.success(`Autostart ${!net.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e}`) }
+    try { await setNetworkAutostart(net.name, !net.autostart); toast.success(`Autostart ${!net.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   const handleDelete = async () => {

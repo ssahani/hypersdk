@@ -30,7 +30,7 @@ export default function CreateVMPage() {
       toast.success(`Created VM '${form.name}'`)
       navigate('/vms')
     } catch (e: unknown) {
-      toast.error(`Failed to create VM: ${e}`)
+      toast.error(`Failed to create VM: ${e instanceof Error ? e.message : e}`)
     } finally {
       setSubmitting(false)
     }

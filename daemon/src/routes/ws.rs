@@ -165,7 +165,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // stdout → WebSocket
-    let read_task = tokio::spawn(async move {
+    let mut read_task = tokio::spawn(async move {
         let mut buf = [0u8; 4096];
         loop {
             match stdout.read(&mut buf).await {
@@ -182,7 +182,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     });
 
     // WebSocket → stdin
-    let write_task = tokio::spawn(async move {
+    let mut write_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
                 Message::Text(text) => {
@@ -202,8 +202,8 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     });
 
     tokio::select! {
-        _ = read_task => {}
-        _ = write_task => {}
+        _ = &mut read_task => { write_task.abort(); }
+        _ = &mut write_task => { read_task.abort(); }
     }
 
     let _ = child.kill().await;
@@ -256,7 +256,7 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // TCP → WebSocket (binary frames)
-    let read_task = tokio::spawn(async move {
+    let mut read_task = tokio::spawn(async move {
         let mut buf = [0u8; 65536];
         loop {
             match tcp_read.read(&mut buf).await {
@@ -276,7 +276,7 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
     });
 
     // WebSocket → TCP
-    let write_task = tokio::spawn(async move {
+    let mut write_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
                 Message::Binary(data) => {
@@ -296,8 +296,8 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
     });
 
     tokio::select! {
-        _ = read_task => {}
-        _ = write_task => {}
+        _ = &mut read_task => { write_task.abort(); }
+        _ = &mut write_task => { read_task.abort(); }
     }
 
     info!("VNC WebSocket proxy closed for VM '{}' port {}", name, port);

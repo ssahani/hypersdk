@@ -11,18 +11,18 @@ export default function SnapshotsPage() {
   const toast = useToastContext()
 
   const load = useCallback(async () => {
-    try { setSnapshots(await listAllSnapshots()) } catch (e: unknown) { toast.error(`${e}`) } finally { setLoading(false) }
+    try { setSnapshots(await listAllSnapshots()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
 
   const handleRevert = async (snap: SnapshotInfo) => {
-    try { await revertSnapshot(snap.vm_name, snap.name); toast.success(`Reverted '${snap.vm_name}' to '${snap.name}'`); load() } catch (e: unknown) { toast.error(`${e}`) }
+    try { await revertSnapshot(snap.vm_name, snap.name); toast.success(`Reverted '${snap.vm_name}' to '${snap.name}'`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    try { await deleteSnapshot(deleteTarget.vm_name, deleteTarget.name); toast.success(`Deleted snapshot '${deleteTarget.name}'`); load() } catch (e: unknown) { toast.error(`${e}`) }
+    try { await deleteSnapshot(deleteTarget.vm_name, deleteTarget.name); toast.success(`Deleted snapshot '${deleteTarget.name}'`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
     setDeleteTarget(null)
   }
 

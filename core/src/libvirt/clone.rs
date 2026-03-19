@@ -30,7 +30,7 @@ fn replace_domain_name(xml: &str, new_name: &str) -> String {
     if let (Some(start), Some(end)) = (xml.find("<name>"), xml.find("</name>")) {
         let before = &xml[..start];
         let after = &xml[end + "</name>".len()..];
-        format!("{before}<name>{new_name}</name>{after}")
+        format!("{before}<name>{}</name>{after}", crate::xml::escape(new_name))
     } else {
         xml.to_string()
     }
