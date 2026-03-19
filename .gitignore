@@ -1,1 +1,10 @@
 /target
+*.log
+*.pid
+*.swp
+*.swo
+*~
+.env
+.env.local
+.vscode/
+.idea/

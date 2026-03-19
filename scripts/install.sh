@@ -64,9 +64,16 @@ install_rust() {
         return
     fi
     info "Installing Rust toolchain..."
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    source "$HOME/.cargo/env" 2>/dev/null || true
+    if ! curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y; then
+        fail "Rust installation failed"
+    fi
+    if [ -f "$HOME/.cargo/env" ]; then
+        source "$HOME/.cargo/env"
+    fi
     export PATH="$HOME/.cargo/bin:$PATH"
+    if ! command -v cargo &>/dev/null; then
+        fail "Rust installed but cargo not found in PATH"
+    fi
     ok "Rust installed ($(rustc --version))"
 }
 
@@ -93,10 +100,18 @@ build_virtspawn() {
     cd "$BUILD_DIR"
 
     info "Building Rust binaries (release)..."
-    make release
+    if ! make release; then
+        fail "Rust build failed"
+    fi
 
     info "Building web frontend..."
-    make web
+    if command -v npm &>/dev/null; then
+        if ! make web; then
+            warn "Web frontend build failed — installing without web UI"
+        fi
+    else
+        warn "npm not found — skipping web frontend build"
+    fi
 
     info "Installing..."
     make install

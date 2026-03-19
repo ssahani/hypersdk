@@ -123,8 +123,6 @@ pub fn revert_snapshot(
 }
 
 fn extract_parent_name(xml_str: &str) -> Option<String> {
-    let parent_start = xml_str.find("<parent>")?;
-    let parent_end = xml_str.find("</parent>")?;
-    let block = &xml_str[parent_start..parent_end];
-    xml::extract_simple_text(block, "name")
+    let blocks = xml::split_blocks(xml_str, "parent");
+    blocks.first().and_then(|block| xml::extract_simple_text(block, "name"))
 }
