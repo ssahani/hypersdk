@@ -1,7 +1,8 @@
 # virtspawn daemon configuration
-# Install to /etc/virtspawn/config.toml
+# Installed to /etc/virtspawn/config.toml
 #
 # User config at ~/.virtspawn/config.toml takes precedence.
+# CLI arguments override all config file values.
 
 [general]
 refresh_interval_secs = 5

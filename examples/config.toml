@@ -1,12 +1,32 @@
+# ─────────────────────────────────────────────────────────────────────
 # virtspawn configuration
-# Default location: ~/.virtspawn/config.toml
+# ─────────────────────────────────────────────────────────────────────
+#
+# Config file locations (checked in order, first found wins):
+#   1. ~/.virtspawn/config.toml   (user config)
+#   2. /etc/virtspawn/config.toml (system config)
+#
+# CLI arguments override all config file values.
+# All settings below show the built-in defaults.
 
 [general]
+# How often the TUI polls the daemon for updated data (in seconds).
+# Lower values give faster updates but increase API traffic.
+# Range: 1-60 recommended.
 refresh_interval_secs = 5
 
 [daemon]
+# Address and port the daemon binds to.
+# Use "0.0.0.0" to listen on all interfaces (for remote TUI access).
+# Use "127.0.0.1" to restrict to localhost only.
 host = "127.0.0.1"
 port = 8081
 
 [libvirt]
+# Libvirt connection URI.
+# Common values:
+#   "qemu:///system"   — system VMs (requires root or libvirt group)
+#   "qemu:///session"  — user-session VMs (no root needed)
+#   "qemu+ssh://user@host/system" — remote host over SSH
+#   "qemu+tcp://host/system"      — remote host over TCP
 uri = "qemu:///system"

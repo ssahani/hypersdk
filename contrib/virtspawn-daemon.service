@@ -11,11 +11,27 @@ ExecStart=/usr/local/bin/virtspawn-daemon --config /etc/virtspawn/config.toml
 Restart=on-failure
 RestartSec=5
 Environment=RUST_LOG=info
+
+# Filesystem protection
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/var/lib/libvirt
-NoNewPrivileges=true
 PrivateTmp=true
+
+# Privilege restrictions
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+# Network: only needed for daemon bind + libvirt socket
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# System call filter
+SystemCallArchitectures=native
 
 [Install]
 WantedBy=multi-user.target
