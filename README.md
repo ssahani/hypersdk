@@ -1,32 +1,31 @@
 # virtspawn
 
-**A modern libvirt VM management suite** — Rust daemon with REST/WebSocket API and a keyboard-driven terminal UI.
+**A modern libvirt VM management suite** — Rust daemon with REST/WebSocket API, a web UI with VNC console, and a keyboard-driven terminal UI.
 
-Manage virtual machines, networks, storage, and snapshots from your terminal with a polished ratatui interface, or integrate with the REST API for automation.
+Manage virtual machines, networks, storage, and snapshots from your browser or terminal. Full VNC console access, live metrics, and Prometheus integration — all through a single daemon.
 
 ---
 
 ## Architecture
 
 ```
-                    +-----------------------+
-                    |    virtspawn-tui       |
-                    |   (ratatui terminal)   |
-                    +-----------+-----------+
-                                |
-                          HTTP / WebSocket
-                                |
-                    +-----------+-----------+
-                    |   virtspawn-daemon    |
-                    |    (axum REST API)    |
-                    +-----------+-----------+
-                                |
-                           libvirt API
-                                |
-                    +-----------+-----------+
-                    |    QEMU / KVM         |
-                    |   Virtual Machines    |
-                    +-----------------------+
+  ┌─────────────────────┐   ┌──────────────────────┐
+  │   virtspawn Web UI  │   │   virtspawn TUI      │
+  │  (React + noVNC)    │   │  (ratatui terminal)  │
+  └─────────┬───────────┘   └──────────┬───────────┘
+            │                          │
+            └────────┬─────────────────┘
+                     │  HTTP / WebSocket
+            ┌────────┴─────────────────┐
+            │    virtspawn-daemon      │
+            │  (axum REST API + noVNC  │
+            │   + VNC/console proxy)   │
+            └────────┬─────────────────┘
+                     │  libvirt API
+            ┌────────┴─────────────────┐
+            │     QEMU / KVM          │
+            │   Virtual Machines       │
+            └──────────────────────────┘
 ```
 
 ### Workspace Layout
@@ -34,18 +33,37 @@ Manage virtual machines, networks, storage, and snapshots from your terminal wit
 ```
 virtspawn/
 ├── core/       Shared library — types, config, libvirt bindings, validation, XML helpers
-├── daemon/     REST + WebSocket server (axum) with Prometheus metrics
+├── daemon/     REST + WebSocket server (axum), VNC proxy, noVNC serving, Prometheus metrics
 ├── tui/        Terminal UI client (ratatui) with sidebar + content panel layout
+├── web/        Web frontend (React 19 + TypeScript + Tailwind + Recharts + xterm.js)
 ├── contrib/    Systemd unit, default config
-└── examples/   Example user configuration
+├── examples/   Example user configuration
+└── scripts/    Install and demo scripts
 ```
 
 ---
 
 ## Features
 
+### Web UI (http://localhost:8081)
+- **Dashboard** — VM stats, host info, CPU/memory usage charts, VM list with state indicators
+- **VM Management** — start, stop, shutdown, reboot, pause, resume, delete with confirmation dialogs
+- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots) with live metrics and autostart toggle
+- **Create VM** — form with template selector (linux-small/medium/large, windows, minimal), validation
+- **VNC Console** — in-browser VM display via noVNC, connected through daemon's WebSocket proxy — see the actual login screen, no external tools needed
+- **Serial Console** — xterm.js terminal connected to VM's serial PTY via socat
+- **Networks** — list, start/stop, toggle autostart, delete
+- **Storage** — pool cards with capacity bars, volume browser, delete volumes
+- **Snapshots** — list all across VMs, revert, delete
+- **Host Info** — hypervisor, CPU model/cores/threads, memory, libvirt version
+- **Live Metrics** — real-time memory/disk/network I/O per VM
+- **Toast notifications** — success/error/warning feedback for all actions
+- **WebSocket live updates** — dashboard auto-refreshes when VM state changes
+- **Responsive** — works on desktop and mobile with collapsible nav
+- **Dark theme** — modern dark UI
+
 ### VM Management
-- **Create** from parameters or templates (linux-small/medium/large, windows, minimal) with auto-generated qcow2 disk, VNC graphics, virtio devices, q35 machine type
+- **Create** from parameters or templates with auto-generated qcow2 disk, VNC graphics, virtio devices, q35 machine type
 - **Interactive creation dialog** — form-based VM creation with template dropdown, field validation, Tab navigation (`n` key)
 - **Lifecycle** — start, stop (force), shutdown (graceful), reboot, pause, resume, delete with confirmation dialogs
 - **Clone** with automatic UUID regeneration and unique MAC addresses
@@ -53,7 +71,7 @@ virtspawn/
 - **Rename** VMs (requires shutoff state)
 - **Autostart** toggle per VM, network, and storage pool
 - **Disk management** — hot attach/detach disks to running or stopped VMs
-- **Console access** — launch `virt-viewer`, noVNC, SSH, or `virsh console` directly from TUI
+- **Console access** — VNC in browser, virt-viewer, SSH, or virsh console
 
 ### Live Metrics & Monitoring
 - **Memory usage** with Unicode block bar graphs (`▁▂▃▄▅▆▇█`)
@@ -65,79 +83,86 @@ virtspawn/
 ### Snapshots, Networks, Storage
 - **Snapshots** — list, create, delete, revert across all VMs
 - **Networks** — create, delete, start, stop, toggle autostart for virtual networks (NAT with DHCP)
-- **Storage** — browse pools with capacity/usage, start/stop/refresh pools, toggle autostart, volume browser with breadcrumb navigation
+- **Storage** — browse pools with capacity/usage, start/stop/refresh pools, toggle autostart, volume browser
 
 ### TUI Experience
-- **vSphere-style sidebar + content layout** — left inventory tree with collapsible categories, right content panel with object-specific views
-- **Sub-tabs per object** — Summary, Monitor, Configure tabs for VMs with `Tab`/`1`/`2`/`3` switching
-- **Focus model** — `h`/`←` focuses sidebar, `l`/`→` focuses content panel; borders highlight active panel
-- **Inventory sidebar** — collapsible VMs/Networks/Storage/Snapshots groups with state indicators and running/total counts
-- **Resource counts** — `VMs (3/5)` (running/total), `Networks (2/4)` (active/total), etc.
-- **Fuzzy search** — character-by-character matching with scored results, not just substring
-- **Context-sensitive footer** — shows only relevant keybindings based on focus panel and selected item state
-- **Recent tasks bar** — last 3 audit events shown with color-coded results
-- **Modal confirmation dialogs** — centered overlay with resource name and warning
-- **Responsive layout** — sidebar width auto-adjusts (22-30 chars), content columns adapt to terminal width
-- **Toast notifications** with level-aware icons — `✓` success, `✗` error, `⚠` warning, `ℹ` info
-- **Multi-select** — batch operations on multiple VMs (start/stop/reboot/delete all at once)
-- **Sorting** — by name, state, CPU, or memory with ascending/descending toggle
-- **Context menu** — quick-access action overlay (`Ctrl+Space`)
-- **Audit trail** — persistent log at `~/.virtspawn/audit.log`, viewable via `:events` command
-- **Mouse support** — click to select sidebar items or content rows, scroll wheel navigates per-panel
+- **vSphere-style sidebar + content layout** — left inventory tree with collapsible categories
+- **Sub-tabs per object** — Summary, Monitor, Configure tabs for VMs
+- **Fuzzy search** — scored character-by-character matching
+- **Multi-select** — batch operations on multiple VMs
+- **Sorting** — by name, state, CPU, or memory
 - **Command mode** — vim-style `:command` interface
+- **Mouse support** — click, scroll, select
+- **Audit trail** — persistent log at `~/.virtspawn/audit.log`
 
 ### Infrastructure
 - **WebSocket** — real-time VM state change notifications
+- **VNC WebSocket proxy** — built-in TCP-to-WebSocket proxy for VNC, no external websockify needed
+- **Serial console proxy** — WebSocket-to-PTY bridge via socat
+- **noVNC serving** — auto-discovers system noVNC installation and serves at `/novnc/`
 - **Connection resilience** — auto-reconnects to libvirt if connection drops
 - **Systemd service** — hardened unit file with security restrictions
 - **Config hierarchy** — user config > system config > defaults > CLI overrides
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
 - **Graceful shutdown** — daemon handles SIGTERM/SIGINT cleanly
-- **Request tracing** — HTTP logging via tower-http
 
 ---
 
 ## Quick Start
 
+### One-Line Install
+
+```bash
+curl -sSL https://raw.githubusercontent.com/ssahani/-virtspawn/main/scripts/install.sh | sudo bash
+```
+
+Or manually:
+
 ### Prerequisites
 
 - Rust toolchain (1.70+)
+- Node.js 18+ and npm (for web UI)
 - `libvirt-devel` / `libvirt-dev` package
 - `qemu-img` (for VM creation)
+- `socat` (for serial console)
+- `novnc` (for VNC console — optional, auto-detected)
 - Running `libvirtd` service
 
 ```bash
 # Fedora / RHEL / CentOS
-sudo dnf install libvirt-devel qemu-img
+sudo dnf install libvirt-devel qemu-img socat novnc
 sudo systemctl enable --now libvirtd
 
 # Debian / Ubuntu
-sudo apt install libvirt-dev qemu-utils
+sudo apt install libvirt-dev qemu-utils socat novnc
 sudo systemctl enable --now libvirtd
 
 # Arch Linux
-sudo pacman -S libvirt qemu-base
+sudo pacman -S libvirt qemu-base socat novnc
 sudo systemctl enable --now libvirtd
 
 # openSUSE
-sudo zypper install libvirt-devel qemu-tools
+sudo zypper install libvirt-devel qemu-tools socat novnc
 sudo systemctl enable --now libvirtd
 ```
 
 ### Build & Run
 
 ```bash
-# Clone the repository
 git clone https://github.com/ssahani/-virtspawn.git
 cd virtspawn
 
-# Build optimized release binaries
+# Build everything (daemon + TUI + web UI)
 make release
+make web
 
-# Terminal 1 — start the daemon
+# Start the daemon
 ./target/release/virtspawn-daemon
 
-# Terminal 2 — start the TUI
+# Open in browser
+xdg-open http://localhost:8081
+
+# Or use the TUI
 ./target/release/virtspawn-tui
 ```
 
@@ -145,16 +170,51 @@ make release
 
 ```bash
 make release
+make web
 sudo make install
 sudo systemctl enable --now virtspawn-daemon
-virtspawn   # the TUI binary is installed as 'virtspawn'
 ```
 
 This installs:
 - `virtspawn-daemon` → `/usr/local/bin/virtspawn-daemon`
 - `virtspawn` (TUI) → `/usr/local/bin/virtspawn`
+- Web UI → `/usr/local/share/virtspawn/web/`
 - Config → `/etc/virtspawn/config.toml`
 - Systemd unit → `/usr/lib/systemd/system/virtspawn-daemon.service`
+
+After install, open **http://localhost:8081** in your browser.
+
+---
+
+## Web UI Pages
+
+| Page | URL | Description |
+|------|-----|-------------|
+| Dashboard | `/` | Stats cards, CPU/memory charts, VM list, host info |
+| VM List | `/vms` | Table with search, state badges, lifecycle actions |
+| VM Details | `/vms/{name}` | Tabbed view: Overview, Disks, Network, Snapshots |
+| Create VM | `/create` | Template selector + form with validation |
+| VNC Console | `/vms/{name}/console` | In-browser VNC display via noVNC |
+| Serial Console | `/vms/{name}/console` | xterm.js terminal to VM serial port |
+| Networks | `/networks` | Start/stop, autostart toggle, delete |
+| Storage | `/storage` | Pool cards with usage bars, volume browser |
+| Snapshots | `/snapshots` | List all, revert, delete |
+| Host Info | `/node` | Hypervisor, CPU, memory, libvirt version |
+| Live Metrics | `/events` | Real-time per-VM metrics table |
+
+### Console Access
+
+The VNC console connects directly through the daemon — no external websockify or noVNC server needed:
+
+```
+Browser → noVNC (served at /novnc/) → WebSocket (/ws/v1/vnc/{name}) → daemon TCP proxy → QEMU VNC
+```
+
+The serial console uses socat to connect to the VM's PTY:
+
+```
+Browser → xterm.js → WebSocket (/ws/v1/console/{name}) → socat → VM PTY (/dev/pts/X)
+```
 
 ---
 
@@ -190,7 +250,6 @@ virtspawn-daemon                                    # defaults
 virtspawn-daemon --port 9090 --host 127.0.0.1        # localhost only
 virtspawn-daemon --libvirt-uri qemu:///session       # user session
 virtspawn-daemon --config /path/to/config.toml      # custom config
-virtspawn-daemon -p 9090                            # short flag for port
 RUST_LOG=tower_http=debug virtspawn-daemon          # enable request tracing
 ```
 
@@ -201,7 +260,6 @@ virtspawn                                           # defaults
 virtspawn --url http://192.168.1.10:8081            # remote daemon
 virtspawn --refresh 10                              # 10s refresh interval
 virtspawn --config /path/to/config.toml             # custom config
-virtspawn -u http://localhost:9090                   # short flag for url
 ```
 
 ---
@@ -214,27 +272,10 @@ virtspawn -u http://localhost:9090                   # short flag for url
 |-----|--------|
 | `h` / `←` | Focus sidebar panel |
 | `l` / `→` | Focus content panel (`l` on a VM opens logs instead) |
-| `j` / `↓` | Move down (sidebar: items, content: rows or scroll) |
+| `j` / `↓` | Move down |
 | `k` / `↑` | Move up |
 | `g` / `G` | Jump to top / bottom |
 | `PageUp` / `PageDown` | Jump 10 items |
-
-### Sidebar
-
-| Key | Action |
-|-----|--------|
-| `Space` | Collapse/expand category, or toggle multi-select on VM |
-| `Enter` | Expand/collapse category, or select object and focus content |
-| `Backspace` | Exit volume browser (back to pools) |
-
-### Content Sub-Tabs (when a VM is selected)
-
-| Key | Action |
-|-----|--------|
-| `Tab` / `Shift+Tab` | Cycle through Summary → Monitor → Configure |
-| `1` | Summary tab |
-| `2` | Monitor tab |
-| `3` | Configure tab |
 
 ### VM Actions
 
@@ -250,69 +291,29 @@ virtspawn -u http://localhost:9090                   # short flag for url
 | `t` | Toggle autostart |
 | `n` | New VM (interactive dialog) |
 | `o` | Clone (shows command hint) |
-| `Enter` | Show details (metrics, interfaces, disks) |
-| `y` | View raw XML (scrollable) |
+| `y` | View raw XML |
 | `l` | View VM logs |
 | `v` | Launch virt-viewer |
-| `V` | Open noVNC in browser |
 | `c` | Open virsh console |
 | `e` | SSH to VM |
-
-### Multi-Select (VMs)
-
-| Key | Action |
-|-----|--------|
-| `Space` | Toggle selection on current VM |
-| `A` | Select all VMs |
-| `Esc` | Clear selection |
-
-Selected VMs can be batch-operated with `s`, `x`, `H`, `b`, `p`, `u`, `d`.
-
-### Resource Actions
-
-| Key | Context | Action |
-|-----|---------|--------|
-| `a` | Networks / Storage | Start |
-| `z` | Networks / Storage | Stop |
-| `t` | Networks / Storage | Toggle autostart |
-| `y` | Networks | View XML |
-| `d` | Networks / Snapshots / Volumes | Delete (with confirmation) |
-| `Enter` | Storage pools | Browse volumes |
-| `Backspace` | Volumes | Back to pools |
-| `n` | Snapshots | Create snapshot (opens command pre-filled) |
-| `R` | Snapshots | Revert to snapshot |
-| `r` | Storage pools | Refresh pool |
-
-### General
-
-| Key | Action |
-|-----|--------|
 | `/` | Fuzzy search |
 | `:` | Command mode |
-| `r` | Refresh current view |
-| `Ctrl+Space` | Context menu |
-| `N` / `S` / `C` / `M` | Sort by name / state / CPU / memory |
-| `?` / `F1` | Help overlay (scrollable) |
-| `q` / `Esc` | Quit / close overlay / clear selection |
+| `?` | Help overlay |
 
 ### Commands
 
 | Command | Action |
 |---------|--------|
 | `:create` | Open VM creation dialog |
-| `:create <name>` | Create VM with defaults (2 vCPU, 2 GB, 20 GB) |
-| `:create <name> <vcpus> <mem>` | Create VM with custom resources |
-| `:template <tmpl> <name>` | Create VM from template |
-| `:templates` | List available templates |
+| `:create <name>` | Create VM with defaults |
+| `:template <tmpl> <name>` | Create from template |
 | `:clone <source> <new>` | Clone a VM |
 | `:snap <vm> <name>` | Create a snapshot |
-| `:rename <old> <new>` | Rename a VM (must be shutoff) |
-| `:resize <name> vcpus <n>` | Set vCPU count (next boot) |
-| `:resize <name> memory <mb>` | Set memory in MB (next boot) |
+| `:rename <old> <new>` | Rename a VM |
+| `:resize <name> vcpus <n>` | Set vCPU count |
+| `:resize <name> memory <mb>` | Set memory |
 | `:netcreate <name>` | Create a NAT network |
-| `:netdelete <name>` | Delete a network |
 | `:vms` `:net` `:storage` `:snap` `:events` `:node` | Switch view |
-| `:quit` / `:q` | Quit |
 
 ---
 
@@ -325,83 +326,81 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON.
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/vms` | List all VMs |
-| `POST` | `/vms` | Create VM (`{"name": "...", "vcpus": 2, "memory_mb": 2048, ...}`) |
-| `GET` | `/vms/{name}` | VM details (UUID, state, interfaces, disks) |
-| `DELETE` | `/vms/{name}` | Delete VM (stops if running, then undefines) |
-| `GET` | `/vms/{name}/xml` | Raw libvirt XML definition |
+| `POST` | `/vms` | Create VM |
+| `GET` | `/vms/{name}` | VM details |
+| `DELETE` | `/vms/{name}` | Delete VM |
+| `GET` | `/vms/{name}/xml` | Raw XML |
 | `POST` | `/vms/{name}/start` | Start |
-| `POST` | `/vms/{name}/stop` | Force stop (destroy) |
-| `POST` | `/vms/{name}/shutdown` | Graceful ACPI shutdown |
+| `POST` | `/vms/{name}/stop` | Force stop |
+| `POST` | `/vms/{name}/shutdown` | Graceful shutdown |
 | `POST` | `/vms/{name}/reboot` | Reboot |
 | `POST` | `/vms/{name}/pause` | Suspend |
 | `POST` | `/vms/{name}/resume` | Resume |
-| `POST` | `/vms/{name}/clone` | Clone (`{"new_name": "..."}`) |
-| `POST` | `/vms/{name}/autostart/{enabled}` | Set autostart (`true`/`false`) |
-| `POST` | `/vms/{name}/vcpus/{count}` | Set vCPU count (config, next boot) |
-| `POST` | `/vms/{name}/memory/{mb}` | Set max memory in MB (next boot) |
-| `POST` | `/vms/{name}/rename` | Rename (`{"new_name": "..."}`, must be shutoff) |
-| `POST` | `/vms/{name}/disk/attach` | Attach disk (`{"source": "/path/to/img", "target": "vdb", "driver": "qcow2"}`) |
-| `POST` | `/vms/{name}/disk/detach/{target}` | Detach disk by target device (e.g. `vdb`) |
-| `GET` | `/vms/console-info/{name}` | Console type, VNC/SPICE port, websocket port |
-
-### Metrics
-
-| Method | Path | Description |
-|--------|------|-------------|
-| `GET` | `/metrics` | All running VM metrics |
-| `GET` | `/metrics/{name}` | Single VM metrics |
-
-Response fields: `cpu_time_ns`, `vcpus`, `memory_total_mb`, `memory_used_mb`, `memory_pct`, `disk_rd_bytes`, `disk_wr_bytes`, `net_rx_bytes`, `net_tx_bytes`.
+| `POST` | `/vms/{name}/clone` | Clone |
+| `POST` | `/vms/{name}/autostart/{enabled}` | Set autostart |
+| `POST` | `/vms/{name}/vcpus/{count}` | Set vCPUs |
+| `POST` | `/vms/{name}/memory/{mb}` | Set memory |
+| `POST` | `/vms/{name}/rename` | Rename |
+| `POST` | `/vms/{name}/disk/attach` | Attach disk |
+| `POST` | `/vms/{name}/disk/detach/{target}` | Detach disk |
+| `GET` | `/vms/console-info/{name}` | Console info |
 
 ### Snapshots
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/snapshots` | All snapshots across all VMs |
-| `GET` | `/vms/{vm}/snapshots` | Snapshots for a specific VM |
-| `POST` | `/vms/{vm}/snapshots` | Create (`{"name": "...", "description": "..."}`) |
-| `DELETE` | `/vms/{vm}/snapshots/{snap}` | Delete snapshot |
-| `POST` | `/vms/{vm}/snapshots/{snap}/revert` | Revert VM to snapshot |
+| `GET` | `/snapshots` | All snapshots |
+| `GET` | `/vms/{vm}/snapshots` | VM snapshots |
+| `POST` | `/vms/{vm}/snapshots` | Create |
+| `DELETE` | `/vms/{vm}/snapshots/{snap}` | Delete |
+| `POST` | `/vms/{vm}/snapshots/{snap}/revert` | Revert |
 
 ### Networks
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/networks` | List all virtual networks |
-| `POST` | `/networks` | Create NAT network (`{"name": "...", "subnet": "192.168.100", ...}`) |
-| `DELETE` | `/networks/{name}` | Delete (stops first if active) |
-| `POST` | `/networks/{name}/start` | Start network |
-| `POST` | `/networks/{name}/stop` | Stop network |
-| `GET` | `/networks/{name}/xml` | Network XML definition |
-| `POST` | `/networks/{name}/autostart/{enabled}` | Set autostart |
+| `GET` | `/networks` | List |
+| `POST` | `/networks` | Create |
+| `DELETE` | `/networks/{name}` | Delete |
+| `POST` | `/networks/{name}/start` | Start |
+| `POST` | `/networks/{name}/stop` | Stop |
+| `GET` | `/networks/{name}/xml` | XML |
+| `POST` | `/networks/{name}/autostart/{enabled}` | Autostart |
 
 ### Storage
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/storage/pools` | List all storage pools |
-| `POST` | `/storage/pools/{name}/start` | Activate pool |
-| `POST` | `/storage/pools/{name}/stop` | Deactivate pool |
-| `POST` | `/storage/pools/{name}/refresh` | Refresh pool metadata |
-| `POST` | `/storage/pools/{name}/autostart/{enabled}` | Set pool autostart |
-| `GET` | `/storage/pools/{pool}/volumes` | List volumes in a pool |
-| `POST` | `/storage/pools/{pool}/volumes` | Create volume (`{"name": "...", "capacity_gb": 10, "format": "qcow2"}`) |
+| `GET` | `/storage/pools` | List pools |
+| `POST` | `/storage/pools/{name}/start` | Start pool |
+| `POST` | `/storage/pools/{name}/stop` | Stop pool |
+| `POST` | `/storage/pools/{name}/refresh` | Refresh |
+| `POST` | `/storage/pools/{name}/autostart/{enabled}` | Autostart |
+| `GET` | `/storage/pools/{pool}/volumes` | List volumes |
+| `POST` | `/storage/pools/{pool}/volumes` | Create volume |
 | `DELETE` | `/storage/pools/{pool}/volumes/{vol}` | Delete volume |
+
+### WebSocket
+
+| Path | Description |
+|------|-------------|
+| `/ws/v1/watch` | Real-time VM state changes |
+| `/ws/v1/console/{name}` | Serial console (PTY bridge) |
+| `/ws/v1/vnc/{name}` | VNC display proxy |
 
 ### Other
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/node` | Host info: hostname, hypervisor, CPU, memory, VM counts |
-| `GET` | `/templates` | Available VM templates with specs |
-| `GET` | `/prometheus` | Metrics in Prometheus exposition format |
-| `GET` | `/health` | Health check (returns libvirt connection status) |
-| `WS` | `/ws/v1/watch` | Real-time VM state change notifications |
+| `GET` | `/node` | Host info |
+| `GET` | `/templates` | VM templates |
+| `GET` | `/prometheus` | Prometheus metrics |
+| `GET` | `/health` | Health check |
 
 ### API Examples
 
 ```bash
-# List all VMs
+# List VMs
 curl -s http://localhost:8081/api/v1/vms | jq
 
 # Create a VM
@@ -418,81 +417,18 @@ curl -s http://localhost:8081/api/v1/metrics/test-vm | jq
 # Create a snapshot
 curl -s -X POST http://localhost:8081/api/v1/vms/test-vm/snapshots \
   -H 'Content-Type: application/json' \
-  -d '{"name": "before-upgrade", "description": "Pre-upgrade checkpoint"}' | jq
+  -d '{"name": "snap1", "description": "test snapshot"}' | jq
 
 # Clone a VM
 curl -s -X POST http://localhost:8081/api/v1/vms/test-vm/clone \
   -H 'Content-Type: application/json' \
   -d '{"new_name": "test-vm-clone"}' | jq
 
-# Create a network
-curl -s -X POST http://localhost:8081/api/v1/networks \
-  -H 'Content-Type: application/json' \
-  -d '{"name": "lab-net", "subnet": "10.0.0", "dhcp_start": "10.0.0.100", "dhcp_end": "10.0.0.200"}' | jq
-
-# Check host info
+# Host info
 curl -s http://localhost:8081/api/v1/node | jq
 
-# Prometheus metrics (for Grafana scraping)
+# Prometheus metrics
 curl -s http://localhost:8081/api/v1/prometheus
-
-# WebSocket — watch VM state changes
-websocat ws://localhost:8081/ws/v1/watch
-```
-
----
-
-## VM Templates
-
-Predefined configurations for quick provisioning:
-
-| Template | vCPUs | RAM | Disk | OS Variant |
-|----------|-------|-----|------|------------|
-| `linux-small` | 1 | 1 GB | 10 GB | linux2022 |
-| `linux-medium` | 2 | 4 GB | 40 GB | linux2022 |
-| `linux-large` | 4 | 8 GB | 80 GB | linux2022 |
-| `windows` | 4 | 8 GB | 60 GB | win11 |
-| `minimal` | 1 | 512 MB | 5 GB | linux2022 |
-
-**Usage:**
-
-```bash
-# TUI command mode
-:template linux-medium my-vm
-
-# Interactive dialog — press 'n', then use ←/→ on the Template field
-
-# REST API
-curl -s -X POST http://localhost:8081/api/v1/vms \
-  -H 'Content-Type: application/json' \
-  -d '{"name": "my-vm", "vcpus": 2, "memory_mb": 4096, "disk_gb": 40}'
-```
-
----
-
-## Systemd Service
-
-The daemon ships with a hardened systemd unit:
-
-```bash
-sudo make install                              # installs binary + unit + config
-sudo systemctl enable --now virtspawn-daemon   # start on boot
-sudo systemctl status virtspawn-daemon         # check status
-sudo journalctl -u virtspawn-daemon -f         # follow logs
-```
-
-Security hardening applied:
-- `ProtectSystem=strict` — filesystem is read-only except explicitly listed paths
-- `ProtectHome=read-only` — home directories are read-only
-- `NoNewPrivileges=true` — prevents privilege escalation
-- `PrivateTmp=true` — isolated `/tmp`
-- `ReadWritePaths=/var/lib/libvirt` — allows writing disk images
-
-To uninstall:
-
-```bash
-sudo systemctl disable --now virtspawn-daemon
-sudo make uninstall
 ```
 
 ---
@@ -500,23 +436,35 @@ sudo make uninstall
 ## Makefile Targets
 
 ```
-make help       # Show all targets with descriptions
+make help       # Show all targets
 ```
 
 | Target | Description |
 |--------|-------------|
-| `make` / `make build` | Build in debug mode |
-| `make release` | Build optimized release binaries |
-| `make test` | Run all tests |
-| `make fmt` | Format code with `rustfmt` |
-| `make fmt-check` | Check formatting (CI-friendly) |
-| `make lint` | Run clippy lints |
-| `make check` | Run `cargo check` |
-| `make clean` | Remove build artifacts |
-| `sudo make install` | Install binaries, config, and systemd unit |
+| `make release` | Build optimized Rust binaries |
+| `make web` | Build web frontend (npm) |
+| `make build` | Build in debug mode |
+| `make test` | Run all Rust tests |
+| `make lint` | Run clippy |
+| `make fmt` | Format code |
+| `sudo make install` | Install binaries, web UI, config, systemd unit |
 | `sudo make uninstall` | Remove installed files |
-| `make run-daemon` | Run daemon in debug mode |
-| `make run-tui` | Run TUI in debug mode |
+| `make run-daemon` | Run daemon (debug) |
+| `make run-tui` | Run TUI (debug) |
+| `make clean` | Remove all build artifacts |
+
+---
+
+## Systemd Service
+
+```bash
+sudo make install
+sudo systemctl enable --now virtspawn-daemon
+sudo systemctl status virtspawn-daemon
+sudo journalctl -u virtspawn-daemon -f
+```
+
+Security hardening: `ProtectSystem=strict`, `NoNewPrivileges=true`, `PrivateTmp=true`, `ProtectKernelTunables/Modules/Logs=true`, `RestrictAddressFamilies`, `SystemCallArchitectures=native`.
 
 ---
 
@@ -525,55 +473,40 @@ make help       # Show all targets with descriptions
 ### Daemon won't start
 
 ```bash
-# Check if libvirtd is running
-sudo systemctl status libvirtd
-
-# Test libvirt connectivity directly
-virsh -c qemu:///system list --all
-
-# Check daemon logs
-journalctl -u virtspawn-daemon -e
-
-# Run daemon with debug logging
-RUST_LOG=debug virtspawn-daemon
+sudo systemctl status libvirtd              # Is libvirtd running?
+virsh -c qemu:///system list --all          # Can you connect?
+journalctl -u virtspawn-daemon -e           # Check logs
+RUST_LOG=debug virtspawn-daemon             # Debug logging
 ```
 
-### TUI can't connect to daemon
+### Web UI shows blank page
 
 ```bash
-# Verify daemon is listening
-curl http://127.0.0.1:8081/api/v1/health
-
-# Connect to a remote daemon
-virtspawn --url http://192.168.1.10:8081
-
-# Check for port conflicts
-ss -tlnp | grep 8081
+ls /usr/local/share/virtspawn/web/index.html   # Is web UI installed?
+make web && sudo make install                   # Rebuild and reinstall
 ```
 
-### Permission denied errors
+### VNC console won't connect
 
 ```bash
-# Add your user to the libvirt group
-sudo usermod -aG libvirt $USER
-newgrp libvirt
-
-# Or use the session URI (no root needed, fewer features)
-virtspawn-daemon --libvirt-uri qemu:///session
+virsh vncdisplay <vm-name>                  # Is VNC port assigned?
+curl -s http://localhost:8081/api/v1/vms/console-info/<vm-name> | jq   # Check port
+# VNC only works on running VMs with graphics configured
 ```
 
-### VM creation fails
+### Serial console disconnects immediately
 
 ```bash
-# Verify qemu-img is installed
-qemu-img --version
+which socat                                 # Is socat installed?
+sudo dnf install socat                      # Install socat
+virsh console <vm-name>                     # Does it work directly?
+```
 
-# Check the default storage pool exists and is active
-virsh pool-list --all
-virsh pool-start default  # if inactive
+### Permission denied
 
-# Verify the storage pool path is writable
-ls -la /var/lib/libvirt/images/
+```bash
+sudo usermod -aG libvirt $USER && newgrp libvirt
+# Or: virtspawn-daemon --libvirt-uri qemu:///session
 ```
 
 ---
@@ -583,36 +516,26 @@ ls -la /var/lib/libvirt/images/
 | Component | Technology |
 |-----------|------------|
 | Language | [Rust](https://www.rust-lang.org/) |
-| Daemon framework | [Axum](https://github.com/tokio-rs/axum) |
-| Async runtime | [Tokio](https://tokio.rs) |
+| Daemon | [Axum](https://github.com/tokio-rs/axum) + [Tokio](https://tokio.rs) |
 | Terminal UI | [Ratatui](https://ratatui.rs) |
-| Libvirt bindings | [virt](https://crates.io/crates/virt) |
+| Web UI | [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org/) + [Tailwind CSS 4](https://tailwindcss.com) |
+| Charts | [Recharts](https://recharts.org) |
+| VNC Console | [noVNC](https://novnc.com) (served from system install) |
+| Serial Console | [xterm.js](https://xtermjs.org) + socat |
+| Libvirt | [virt](https://crates.io/crates/virt) crate |
 | HTTP client | [Reqwest](https://crates.io/crates/reqwest) |
-| Serialization | [Serde](https://serde.rs) + [serde_json](https://crates.io/crates/serde_json) |
-| Config parsing | [TOML](https://crates.io/crates/toml) |
-| CLI parsing | [Clap](https://clap.rs) (derive) |
-| Error handling | [anyhow](https://crates.io/crates/anyhow) + [thiserror](https://crates.io/crates/thiserror) |
-| Logging | [tracing](https://crates.io/crates/tracing) + [tower-http](https://crates.io/crates/tower-http) |
+| Serialization | [Serde](https://serde.rs) |
+| CLI | [Clap](https://clap.rs) |
 
 ---
 
 ## Contributing
 
-Contributions are welcome! To get started:
-
 ```bash
 git clone https://github.com/ssahani/-virtspawn.git
 cd virtspawn
-make build          # debug build
-make test           # run tests
-make lint           # clippy
-make fmt-check      # formatting check
+make build && make test && make lint && make fmt-check
 ```
-
-Before submitting a PR:
-1. Run `make test` — all tests must pass
-2. Run `make lint` — no clippy warnings allowed
-3. Run `make fmt` — code must be formatted
 
 ---
 
