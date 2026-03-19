@@ -236,15 +236,16 @@ async fn get_pool_xml_handler(
 // ── Volume Resize/Clone ─────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
-struct ResizeVolumeRequest { capacity_gb: u64 }
+struct ResizeVolumeRequest { capacity_gb: f64 }
 
 async fn resize_volume_handler(
     State(manager): State<LibvirtManager>,
     Path((pool, vol)): Path<(String, String)>,
     Json(req): Json<ResizeVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::resize_volume(conn, &pool, &vol, req.capacity_gb))?;
-    Ok(Json(serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": req.capacity_gb })))
+    let capacity = req.capacity_gb.ceil() as u64;
+    manager.with_conn(|conn| storage::resize_volume(conn, &pool, &vol, capacity))?;
+    Ok(Json(serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": capacity })))
 }
 
 #[derive(serde::Deserialize)]
