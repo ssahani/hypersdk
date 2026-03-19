@@ -87,3 +87,34 @@ export const renameVM = (name: string, newName: string) => apiPostVoid(`${API}/v
 export const getMetrics = () => apiGet<VmMetrics[]>(`${API}/metrics`)
 export const getVMMetrics = (name: string) => apiGet<VmMetrics>(`${API}/metrics/${name}`)
 export const getTemplates = () => apiGet<VmTemplate[]>(`${API}/templates`)
+
+export interface GuestInterface {
+  name: string
+  hwaddr: string
+  addrs: GuestAddress[]
+}
+
+export interface GuestAddress {
+  addr: string
+  type: number
+  prefix: number
+}
+
+export interface BootConfig {
+  boot_devices: string[]
+  kernel?: string
+  initrd?: string
+  cmdline?: string
+}
+
+export const getInterfaces = (name: string) => apiGet<GuestInterface[]>(`${API}/vms/${name}/interfaces`)
+export const getHostname = (name: string) => apiGet<string>(`${API}/vms/${name}/hostname`)
+export const insertCdrom = (name: string, path: string, target: string) => apiPostVoid(`${API}/vms/${name}/cdrom/insert`, { path, target })
+export const ejectCdrom = (name: string, target: string) => apiPostVoid(`${API}/vms/${name}/cdrom/eject`, { target })
+export const managedSave = (name: string) => apiPostVoid(`${API}/vms/${name}/managed-save`)
+export const managedSaveRemove = (name: string) => apiPostVoid(`${API}/vms/${name}/managed-save/remove`)
+export const hasManagedSave = (name: string) => apiGet<boolean>(`${API}/vms/${name}/managed-save/status`)
+export const getBootConfig = (name: string) => apiGet<BootConfig>(`${API}/vms/${name}/boot`)
+export const setBootOrder = (name: string, devices: string[]) => apiPostVoid(`${API}/vms/${name}/boot`, { boot_devices: devices })
+export const migrateVM = (name: string, destUri: string) => apiPostVoid(`${API}/vms/${name}/migrate`, { dest_uri: destUri })
+export const setMemoryBalloon = (name: string, mb: number) => apiPostVoid(`${API}/vms/${name}/memory-balloon/${mb}`)

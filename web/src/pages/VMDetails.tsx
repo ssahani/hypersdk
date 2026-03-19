@@ -1,16 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router'
-import { getVM, getVMMetrics, startVM, stopVM, shutdownVM, rebootVM, pauseVM, resumeVM, setAutostart, VmDetails, VmMetrics } from '../api/vm'
+import { getVM, getVMMetrics, startVM, stopVM, shutdownVM, rebootVM, pauseVM, resumeVM, setAutostart, getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove, insertCdrom, ejectCdrom, VmDetails, VmMetrics, GuestInterface, BootConfig } from '../api/vm'
 import { listSnapshots, SnapshotInfo } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw, ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal } from 'lucide-react'
+import { ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw, ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal, Save, Disc, CircleX } from 'lucide-react'
 
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
   const [vm, setVM] = useState<VmDetails | null>(null)
   const [metrics, setMetrics] = useState<VmMetrics | null>(null)
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
+  const [guestIfaces, setGuestIfaces] = useState<GuestInterface[]>([])
+  const [bootConfig, setBootConfig] = useState<BootConfig | null>(null)
+  const [managedSaveStatus, setManagedSaveStatus] = useState<boolean>(false)
+  const [cdromPath, setCdromPath] = useState('')
+  const [cdromTarget, setCdromTarget] = useState('hdc')
+  const [showCdromDialog, setShowCdromDialog] = useState(false)
   const [tab, setTab] = useState<'overview' | 'disks' | 'network' | 'snapshots'>('overview')
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
@@ -23,7 +29,10 @@ export default function VMDetailsPage() {
       setSnapshots(snapData)
       if (vmData.state === 'running') {
         try { setMetrics(await getVMMetrics(name)) } catch { /* no metrics */ }
+        try { setGuestIfaces(await getInterfaces(name)) } catch { /* guest agent may not be running */ }
       }
+      try { setBootConfig(await getBootConfig(name)) } catch { /* boot config may not be available */ }
+      try { setManagedSaveStatus(await hasManagedSave(name)) } catch { /* managed save status may not be available */ }
     } catch (e: unknown) {
       toast.error(`Failed to load VM: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -36,6 +45,16 @@ export default function VMDetailsPage() {
   const action = async (fn: (n: string) => Promise<void>, label: string) => {
     if (!name) return
     try { await fn(name); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleInsertCdrom = async () => {
+    if (!name) return
+    try { await insertCdrom(name, cdromPath, cdromTarget); toast.success('CD-ROM inserted'); setShowCdromDialog(false); setCdromPath('') } catch (e: unknown) { toast.error(`Insert CD-ROM failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleEjectCdrom = async () => {
+    if (!name) return
+    try { await ejectCdrom(name, cdromTarget); toast.success('CD-ROM ejected') } catch (e: unknown) { toast.error(`Eject CD-ROM failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const toggleAutostart = async () => {
@@ -76,6 +95,10 @@ export default function VMDetailsPage() {
             </>
           )}
           {vm.state === 'paused' && <button onClick={() => action(resumeVM, 'Resume')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded text-sm transition flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Resume</button>}
+          {vm.state === 'running' && <button onClick={() => action(managedSave, 'Managed Save')} className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 rounded text-sm transition flex items-center gap-1"><Save className="w-4 h-4" /> Managed Save</button>}
+          {managedSaveStatus && <button onClick={() => action(managedSaveRemove, 'Remove Managed Save')} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded text-sm transition flex items-center gap-1"><Save className="w-4 h-4" /> Remove Save</button>}
+          <button onClick={() => setShowCdromDialog(true)} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition flex items-center gap-1"><Disc className="w-4 h-4" /> Insert CD</button>
+          <button onClick={handleEjectCdrom} className="px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition flex items-center gap-1"><CircleX className="w-4 h-4" /> Eject CD</button>
         </div>
       </div>
 
@@ -97,6 +120,7 @@ export default function VMDetailsPage() {
             <InfoRow label="OS Type" value={vm.os_type} />
             <InfoRow label="Architecture" value={vm.arch} />
             <InfoRow label="Persistent" value={vm.persistent ? 'Yes' : 'No'} />
+            <InfoRow label="Managed Save" value={managedSaveStatus ? 'Yes' : 'No'} />
             <div className="flex items-center justify-between py-2">
               <span className="text-gray-400 text-sm">Autostart</span>
               <button onClick={toggleAutostart} className="flex items-center gap-2 text-sm">
@@ -105,6 +129,33 @@ export default function VMDetailsPage() {
               </button>
             </div>
           </div>
+
+          {bootConfig && (
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-4">
+              <h3 className="text-lg font-semibold">Boot Configuration</h3>
+              <InfoRow label="Boot Devices" value={bootConfig.boot_devices.join(', ') || 'None'} />
+              {bootConfig.kernel && <InfoRow label="Kernel" value={bootConfig.kernel} />}
+              {bootConfig.initrd && <InfoRow label="Initrd" value={bootConfig.initrd} />}
+              {bootConfig.cmdline && <InfoRow label="Cmdline" value={bootConfig.cmdline} />}
+            </div>
+          )}
+
+          {guestIfaces.length > 0 && (
+            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-4">
+              <h3 className="text-lg font-semibold">Guest IP Addresses</h3>
+              {guestIfaces.map((iface, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-medium text-blue-400">{iface.name} <span className="text-gray-500 font-mono text-xs">{iface.hwaddr}</span></div>
+                  {iface.addrs.map((addr, j) => (
+                    <div key={j} className="flex items-center justify-between py-1 pl-4 border-b border-gray-700/50">
+                      <span className="text-gray-400 text-sm">{addr.type === 0 ? 'IPv4' : 'IPv6'}</span>
+                      <span className="text-sm font-mono">{addr.addr}/{addr.prefix}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
 
           {metrics && (
             <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-4">
@@ -168,6 +219,29 @@ export default function VMDetailsPage() {
               </tbody>
             </table>
           )}
+        </div>
+      )}
+      {showCdromDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCdromDialog(false)}>
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-700/50">
+              <span className="text-lg font-semibold">Insert CD-ROM</span>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">ISO Path</label>
+                <input type="text" value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} placeholder="/var/lib/libvirt/images/file.iso" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Target Device</label>
+                <input type="text" value={cdromTarget} onChange={(e) => setCdromTarget(e.target.value)} placeholder="hdc" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button onClick={() => setShowCdromDialog(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+              <button onClick={handleInsertCdrom} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Insert</button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { listPools, listVolumes, startPool, stopPool, refreshPool, deleteVolume, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
+import { createPool, deletePool, getPoolXml, resizeVolume, cloneVolume } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive } from 'lucide-react'
+import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize } from 'lucide-react'
 
 export default function StoragePage() {
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
@@ -10,6 +11,17 @@ export default function StoragePage() {
   const [selectedPool, setSelectedPool] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<{ pool: string; vol: string } | null>(null)
+  const [deletePoolTarget, setDeletePoolTarget] = useState<string | null>(null)
+  const [showCreatePool, setShowCreatePool] = useState(false)
+  const [newPoolName, setNewPoolName] = useState('')
+  const [newPoolType, setNewPoolType] = useState('dir')
+  const [newPoolPath, setNewPoolPath] = useState('')
+  const [xmlContent, setXmlContent] = useState<string | null>(null)
+  const [xmlName, setXmlName] = useState('')
+  const [resizeTarget, setResizeTarget] = useState<{ pool: string; vol: string } | null>(null)
+  const [resizeGb, setResizeGb] = useState('')
+  const [cloneTarget, setCloneTarget] = useState<{ pool: string; vol: string } | null>(null)
+  const [cloneName, setCloneName] = useState('')
   const toast = useToastContext()
 
   const loadPools = useCallback(async () => {
@@ -30,6 +42,32 @@ export default function StoragePage() {
     if (!deleteTarget) return
     try { await deleteVolume(deleteTarget.pool, deleteTarget.vol); toast.success(`Deleted volume '${deleteTarget.vol}'`); loadVolumes(deleteTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
     setDeleteTarget(null)
+  }
+
+  const handleDeletePool = async () => {
+    if (!deletePoolTarget) return
+    try { await deletePool(deletePoolTarget); toast.success(`Deleted pool '${deletePoolTarget}'`); loadPools() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    setDeletePoolTarget(null)
+  }
+
+  const handleCreatePool = async () => {
+    try { await createPool({ name: newPoolName, pool_type: newPoolType, target_path: newPoolPath }); toast.success(`Created pool '${newPoolName}'`); setShowCreatePool(false); setNewPoolName(''); setNewPoolPath(''); loadPools() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+  }
+
+  const showPoolXml = async (name: string) => {
+    try { const xml = await getPoolXml(name); setXmlContent(xml); setXmlName(name) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleResize = async () => {
+    if (!resizeTarget) return
+    try { await resizeVolume(resizeTarget.pool, resizeTarget.vol, parseFloat(resizeGb)); toast.success(`Resized volume '${resizeTarget.vol}'`); loadVolumes(resizeTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    setResizeTarget(null); setResizeGb('')
+  }
+
+  const handleClone = async () => {
+    if (!cloneTarget) return
+    try { await cloneVolume(cloneTarget.pool, cloneTarget.vol, cloneName); toast.success(`Cloned volume '${cloneTarget.vol}' to '${cloneName}'`); loadVolumes(cloneTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    setCloneTarget(null); setCloneName('')
   }
 
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
@@ -55,7 +93,11 @@ export default function StoragePage() {
                     <td className="px-6 py-3 text-sm">{v.allocation_gb.toFixed(2)} GB</td>
                     <td className="px-6 py-3 text-sm text-gray-400 truncate max-w-xs hidden lg:table-cell">{v.path}</td>
                     <td className="px-6 py-3 text-right">
-                      <button onClick={() => setDeleteTarget({ pool: selectedPool, vol: v.name })} className="p-1.5 hover:bg-red-600/20 rounded transition"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => { setResizeTarget({ pool: selectedPool, vol: v.name }); setResizeGb(v.capacity_gb.toFixed(2)) }} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Resize"><Maximize className="w-4 h-4 text-blue-400" /></button>
+                        <button onClick={() => { setCloneTarget({ pool: selectedPool, vol: v.name }); setCloneName(`${v.name}-clone`) }} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Clone"><Copy className="w-4 h-4 text-green-400" /></button>
+                        <button onClick={() => setDeleteTarget({ pool: selectedPool, vol: v.name })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -64,6 +106,44 @@ export default function StoragePage() {
           )}
         </div>
         <ConfirmDialog open={!!deleteTarget} title="Delete Volume" message={`Delete volume '${deleteTarget?.vol}'?`} confirmLabel="Delete" onConfirm={handleDeleteVol} onCancel={() => setDeleteTarget(null)} />
+
+        {resizeTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setResizeTarget(null)}>
+            <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Resize Volume</span></div>
+              <div className="p-5 space-y-4">
+                <div className="text-sm text-gray-400">Volume: <span className="text-white font-medium">{resizeTarget.vol}</span></div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">New Size (GB)</label>
+                  <input type="number" step="0.01" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-5 pb-5">
+                <button onClick={() => setResizeTarget(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onClick={handleResize} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Resize</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {cloneTarget && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setCloneTarget(null)}>
+            <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Clone Volume</span></div>
+              <div className="p-5 space-y-4">
+                <div className="text-sm text-gray-400">Source: <span className="text-white font-medium">{cloneTarget.vol}</span></div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">New Volume Name</label>
+                  <input type="text" value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-5 pb-5">
+                <button onClick={() => setCloneTarget(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onClick={handleClone} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Clone</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -72,7 +152,10 @@ export default function StoragePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Storage Pools</h1>
-        <button onClick={loadPools} className="p-2 hover:bg-gray-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowCreatePool(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Pool</button>
+          <button onClick={loadPools} className="p-2 hover:bg-gray-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pools.map((pool) => (
@@ -103,6 +186,8 @@ export default function StoragePage() {
                   <button onClick={() => poolAction(pool.name, stopPool, 'Stop pool')} className="p-1.5 hover:bg-red-600/20 rounded transition"><Square className="w-4 h-4 text-red-400" /></button>
                 </>
               )}
+              <button onClick={() => showPoolXml(pool.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className="w-4 h-4 text-blue-400" /></button>
+              <button onClick={() => setDeletePoolTarget(pool.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete Pool"><Trash2 className="w-4 h-4 text-red-400" /></button>
             </div>
           </div>
         ))}

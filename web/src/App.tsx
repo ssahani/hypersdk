@@ -15,6 +15,9 @@ const Snapshots = lazy(() => import('./pages/Snapshots'))
 const NodeInfo = lazy(() => import('./pages/NodeInfo'))
 const Events = lazy(() => import('./pages/Events'))
 const Console = lazy(() => import('./pages/Console'))
+const Capabilities = lazy(() => import('./pages/Capabilities'))
+const Devices = lazy(() => import('./pages/Devices'))
+const NWFilters = lazy(() => import('./pages/NWFilters'))
 
 function App() {
   return (
@@ -36,6 +39,9 @@ function App() {
                   <Route path="/snapshots" element={<Snapshots />} />
                   <Route path="/node" element={<NodeInfo />} />
                   <Route path="/events" element={<Events />} />
+                  <Route path="/capabilities" element={<Capabilities />} />
+                  <Route path="/devices" element={<Devices />} />
+                  <Route path="/nwfilters" element={<NWFilters />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

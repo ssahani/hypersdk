@@ -197,15 +197,18 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 |------|-----|-------------|
 | Dashboard | `/` | Stats cards, CPU/memory charts, VM list, host info |
 | VM List | `/vms` | Table with search, state badges, lifecycle actions |
-| VM Details | `/vms/{name}` | Tabbed view: Overview, Disks, Network, Snapshots |
+| VM Details | `/vms/{name}` | Overview (IPs, boot config), Disks, Network, Snapshots |
 | Create VM | `/create` | Template selector + form with validation |
 | VNC Console | `/vms/{name}/console` | In-browser VNC display via noVNC |
 | Serial Console | `/vms/{name}/console` | xterm.js terminal to VM serial port |
 | Networks | `/networks` | Start/stop, autostart toggle, delete |
-| Storage | `/storage` | Pool cards with usage bars, volume browser |
+| Storage | `/storage` | Pool cards with create/delete, volume browser with resize/clone |
 | Snapshots | `/snapshots` | List all, revert, delete |
 | Host Info | `/node` | Hypervisor, CPU, memory, libvirt version |
 | Live Metrics | `/events` | Real-time per-VM metrics table |
+| Capabilities | `/capabilities` | Hypervisor capabilities, guest types, SMBIOS sysinfo |
+| Node Devices | `/devices` | PCI, USB, SCSI, network device inventory |
+| Network Filters | `/nwfilters` | List/delete libvirt network filters |
 
 ### Console Access
 
@@ -349,6 +352,17 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON.
 | `POST` | `/vms/{name}/disk/attach` | Attach disk |
 | `POST` | `/vms/{name}/disk/detach/{target}` | Detach disk |
 | `GET` | `/vms/console-info/{name}` | Console info |
+| `GET` | `/vms/{name}/interfaces` | Guest IP addresses (DHCP/agent) |
+| `GET` | `/vms/{name}/hostname` | Guest hostname |
+| `POST` | `/vms/{name}/cdrom/insert` | Insert ISO (`{"iso_path": "...", "target": "sda"}`) |
+| `POST` | `/vms/{name}/cdrom/eject/{target}` | Eject CD-ROM |
+| `POST` | `/vms/{name}/managed-save` | Hibernate (managed save) |
+| `DELETE` | `/vms/{name}/managed-save` | Remove saved state |
+| `GET` | `/vms/{name}/managed-save/status` | Check if saved |
+| `GET` | `/vms/{name}/boot` | Boot config (devices, firmware, UEFI) |
+| `POST` | `/vms/{name}/boot` | Set boot order (`{"devices": ["hd", "cdrom"]}`) |
+| `POST` | `/vms/{name}/migrate` | Migrate (`{"dest_uri": "...", "live": true}`) |
+| `POST` | `/vms/{name}/balloon/{mb}` | Live memory balloon |
 
 ### Snapshots
 
@@ -384,6 +398,25 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON.
 | `GET` | `/storage/pools/{pool}/volumes` | List volumes |
 | `POST` | `/storage/pools/{pool}/volumes` | Create volume |
 | `DELETE` | `/storage/pools/{pool}/volumes/{vol}` | Delete volume |
+| `POST` | `/storage/pools` | Create pool (`{"name": "...", "pool_type": "dir", "target_path": "/path"}`) |
+| `DELETE` | `/storage/pools/{name}` | Delete pool |
+| `GET` | `/storage/pools/{name}/xml` | Pool XML |
+| `POST` | `/storage/pools/{pool}/volumes/{vol}/resize` | Resize (`{"capacity_gb": 20}`) |
+| `POST` | `/storage/pools/{pool}/volumes/{vol}/clone` | Clone (`{"new_name": "..."}`) |
+
+### Host & Infrastructure
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/capabilities` | Hypervisor capabilities (arch, CPU, guest types) |
+| `GET` | `/sysinfo` | SMBIOS system info XML |
+| `GET` | `/devices` | List all node devices (PCI, USB, SCSI) |
+| `GET` | `/devices/{name}` | Device XML |
+| `GET` | `/nwfilters` | List network filters |
+| `GET` | `/nwfilters/{name}` | Filter XML |
+| `DELETE` | `/nwfilters/{name}` | Delete filter |
+| `GET` | `/secrets` | List libvirt secrets |
+| `DELETE` | `/secrets/{uuid}` | Delete secret |
 
 ### WebSocket
 
