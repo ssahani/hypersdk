@@ -60,6 +60,7 @@ uninstall: ## Remove installed files
 	rm -f $(DESTDIR)$(BINDIR)/virtspawn
 	rm -f $(DESTDIR)$(UNITDIR)/virtspawn-daemon.service
 	rm -rf $(DESTDIR)$(DATADIR)/virtspawn
+	rm -rf $(DESTDIR)$(SYSCONFDIR)/virtspawn
 
 run-daemon: build ## Run the daemon (debug)
 	$(CARGO) run -p virtspawn-daemon
