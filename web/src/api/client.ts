@@ -4,7 +4,11 @@ export async function apiGet<T>(url: string): Promise<T> {
     const body = await res.text().catch(() => '')
     throw new Error(body || res.statusText)
   }
-  return res.json()
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return res.json()
+  }
+  return await res.text() as T
 }
 
 export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
@@ -17,7 +21,11 @@ export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
     const text = await res.text().catch(() => '')
     throw new Error(text || res.statusText)
   }
-  return res.json()
+  const contentType = res.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return res.json()
+  }
+  return await res.text() as T
 }
 
 export async function apiPostVoid(url: string, body?: unknown): Promise<void> {
