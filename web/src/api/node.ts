@@ -1,0 +1,26 @@
+import { apiGet } from './client'
+
+const API = '/api/v1'
+
+export interface NodeInfo {
+  hostname: string
+  hypervisor: string
+  hypervisor_version: string
+  lib_version: string
+  cpu_model: string
+  cpu_cores: number
+  cpu_threads: number
+  cpu_sockets: number
+  memory_mb: number
+  numa_nodes: number
+  active_vms: number
+  defined_vms: number
+}
+
+export interface HealthStatus {
+  status: string
+  libvirt: boolean
+}
+
+export const getNodeInfo = () => apiGet<NodeInfo>(`${API}/node`)
+export const getHealth = () => apiGet<HealthStatus>(`${API}/health`)

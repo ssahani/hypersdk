@@ -1,12 +1,13 @@
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
+DATADIR ?= $(PREFIX)/share
 SYSCONFDIR ?= /etc
 UNITDIR ?= /usr/lib/systemd/system
 
 CARGO ?= cargo
 CARGO_FLAGS ?=
 
-.PHONY: all build release debug clean install uninstall fmt lint test check help
+.PHONY: all build release debug clean install uninstall fmt lint test check web web-clean help
 
 all: build
 
@@ -18,7 +19,7 @@ release: ## Build in release mode
 
 debug: build ## Alias for build
 
-clean: ## Remove build artifacts
+clean: web-clean ## Remove build artifacts
 	$(CARGO) clean
 
 fmt: ## Format code
@@ -36,17 +37,29 @@ test: ## Run tests
 check: ## Run cargo check
 	$(CARGO) check --workspace
 
-install: ## Install binaries, config, and systemd unit (run 'make release' first)
+web: ## Build web frontend
+	cd web && npm install && npm run build
+
+web-clean: ## Remove web build artifacts
+	rm -rf web/dist web/node_modules
+
+install: ## Install binaries, web UI, config, and systemd unit (run 'make release' first)
 	@test -f target/release/virtspawn-daemon || { echo "Run 'make release' first"; exit 1; }
 	install -Dm755 target/release/virtspawn-daemon $(DESTDIR)$(BINDIR)/virtspawn-daemon
 	install -Dm755 target/release/virtspawn-tui $(DESTDIR)$(BINDIR)/virtspawn
 	install -Dm644 contrib/virtspawn.toml $(DESTDIR)$(SYSCONFDIR)/virtspawn/config.toml
 	install -Dm644 contrib/virtspawn-daemon.service $(DESTDIR)$(UNITDIR)/virtspawn-daemon.service
+	@if [ -d web/dist ]; then \
+		mkdir -p $(DESTDIR)$(DATADIR)/virtspawn/web; \
+		cp -r web/dist/* $(DESTDIR)$(DATADIR)/virtspawn/web/; \
+		echo "Installed web UI to $(DESTDIR)$(DATADIR)/virtspawn/web"; \
+	fi
 
 uninstall: ## Remove installed files
 	rm -f $(DESTDIR)$(BINDIR)/virtspawn-daemon
 	rm -f $(DESTDIR)$(BINDIR)/virtspawn
 	rm -f $(DESTDIR)$(UNITDIR)/virtspawn-daemon.service
+	rm -rf $(DESTDIR)$(DATADIR)/virtspawn
 
 run-daemon: build ## Run the daemon (debug)
 	$(CARGO) run -p virtspawn-daemon
