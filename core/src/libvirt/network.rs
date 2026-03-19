@@ -36,14 +36,14 @@ pub fn list_networks(conn: &Connect) -> Result<Vec<NetworkInfo>, LibvirtError> {
 pub fn start_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.create()
-        .map_err(LibvirtError::map_op("Failed to start network '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start network '{name}': {e}")))?;
     Ok(())
 }
 
 pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.destroy()
-        .map_err(LibvirtError::map_op("Failed to stop network '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to stop network '{name}': {e}")))?;
     Ok(())
 }
 
@@ -58,19 +58,23 @@ pub fn create_network(
 
     let xml = format!(
         r#"<network>
-  <name>{name}</name>
+  <name>{}</name>
   <forward mode='nat'/>
   <bridge stp='on' delay='0'/>
-  <ip address='{subnet}.1' netmask='255.255.255.0'>
+  <ip address='{}.1' netmask='255.255.255.0'>
     <dhcp>
-      <range start='{dhcp_start}' end='{dhcp_end}'/>
+      <range start='{}' end='{}'/>
     </dhcp>
   </ip>
 </network>"#,
+        crate::xml::escape(name),
+        crate::xml::escape(subnet),
+        crate::xml::escape(dhcp_start),
+        crate::xml::escape(dhcp_end),
     );
 
     Network::define_xml(conn, &xml)
-        .map_err(LibvirtError::map_op("Failed to create network '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to create network '{name}': {e}")))?;
 
     Ok(())
 }
@@ -83,7 +87,7 @@ pub fn delete_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     }
 
     net.undefine()
-        .map_err(LibvirtError::map_op("Failed to delete network '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to delete network '{name}': {e}")))?;
     Ok(())
 }
 

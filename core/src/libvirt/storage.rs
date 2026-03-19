@@ -89,14 +89,14 @@ pub fn delete_volume(conn: &Connect, pool_name: &str, vol_name: &str) -> Result<
 pub fn start_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.create(0)
-        .map_err(LibvirtError::map_op("Failed to start pool '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start pool '{name}': {e}")))?;
     Ok(())
 }
 
 pub fn stop_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.destroy()
-        .map_err(LibvirtError::map_op("Failed to stop pool '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to stop pool '{name}': {e}")))?;
     Ok(())
 }
 
@@ -113,16 +113,18 @@ pub fn create_volume(
     let capacity_bytes = capacity_gb * 1024 * 1024 * 1024;
     let xml = format!(
         r#"<volume>
-  <name>{vol_name}</name>
+  <name>{}</name>
   <capacity unit='bytes'>{capacity_bytes}</capacity>
   <target>
-    <format type='{format}'/>
+    <format type='{}'/>
   </target>
 </volume>"#,
+        crate::xml::escape(vol_name),
+        crate::xml::escape(format),
     );
 
     StorageVol::create_xml(&pool, &xml, 0)
-        .map_err(LibvirtError::map_op("Failed to create volume '{vol_name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to create volume '{vol_name}': {e}")))?;
     Ok(())
 }
 
@@ -136,7 +138,7 @@ pub fn set_pool_autostart(conn: &Connect, name: &str, autostart: bool) -> Result
 pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, name)?;
     pool.refresh(0)
-        .map_err(LibvirtError::map_op("Failed to refresh pool '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to refresh pool '{name}': {e}")))?;
     Ok(())
 }
 

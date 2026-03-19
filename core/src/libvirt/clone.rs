@@ -56,17 +56,19 @@ fn remove_xml_element(xml: &str, tag: &str) -> String {
 fn randomize_mac_addresses(xml: &str) -> String {
     let mut result = String::new();
     let mut remaining = xml;
+    let mut counter: u64 = 0;
 
     while let Some(pos) = remaining.find("<mac ") {
         result.push_str(&remaining[..pos]);
         let tag_start = &remaining[pos..];
         if let Some(end) = tag_start.find("/>") {
-            // Replace the entire <mac .../> tag with a new MAC
-            let new_mac = generate_mac();
+            let new_mac = generate_mac(counter);
+            counter += 1;
             result.push_str(&format!("<mac address='{new_mac}'/>"));
             remaining = &remaining[pos + end + 2..];
         } else if let Some(end) = tag_start.find('>') {
-            let new_mac = generate_mac();
+            let new_mac = generate_mac(counter);
+            counter += 1;
             result.push_str(&format!("<mac address='{new_mac}'/>"));
             remaining = &remaining[pos + end + 1..];
         } else {
@@ -78,7 +80,7 @@ fn randomize_mac_addresses(xml: &str) -> String {
     result
 }
 
-fn generate_mac() -> String {
+fn generate_mac(counter: u64) -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
     let s = RandomState::new();
@@ -87,6 +89,7 @@ fn generate_mac() -> String {
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos() as u64);
+    h.write_u64(counter);
     let hash = h.finish();
     let bytes = hash.to_le_bytes();
     format!(

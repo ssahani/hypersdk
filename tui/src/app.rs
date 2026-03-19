@@ -148,6 +148,7 @@ impl App {
             KeyCode::Char('/') => {
                 self.state.input_mode = InputMode::Search;
                 self.state.search_query.clear();
+                self.state.search_active = false;
                 self.state.filtered_indices.clear();
                 return;
             }
@@ -583,6 +584,7 @@ impl App {
             KeyCode::Esc => {
                 self.state.input_mode = InputMode::Normal;
                 self.state.search_query.clear();
+                self.state.search_active = false;
                 self.state.filtered_indices.clear();
                 self.state.clamp_selection();
             }

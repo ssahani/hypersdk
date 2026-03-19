@@ -14,3 +14,18 @@ pub fn format_bytes(bytes: u64) -> String {
         format!("{bytes} B")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_format_bytes() {
+        assert_eq!(format_bytes(0), "0 B");
+        assert_eq!(format_bytes(512), "512 B");
+        assert_eq!(format_bytes(1024), "1.0 KB");
+        assert_eq!(format_bytes(1_048_576), "1.0 MB");
+        assert_eq!(format_bytes(1_073_741_824), "1.0 GB");
+        assert_eq!(format_bytes(2_684_354_560), "2.5 GB");
+    }
+}

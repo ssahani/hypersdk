@@ -15,6 +15,17 @@ pub fn create_vm(conn: &Connect, req: &CreateVmRequest) -> Result<(), LibvirtErr
     crate::validate::validate_memory_mb(req.memory_mb)?;
     crate::validate::validate_disk_gb(req.disk_gb)?;
 
+    // Validate ISO path if provided
+    if !req.iso.is_empty() {
+        let iso_path = std::path::Path::new(&req.iso);
+        if !iso_path.is_absolute() {
+            return Err(LibvirtError::Operation("ISO path must be absolute".to_string()));
+        }
+        if !iso_path.exists() {
+            return Err(LibvirtError::Operation(format!("ISO file not found: {}", req.iso)));
+        }
+    }
+
     // Determine storage pool path for disk
     let disk_path = find_disk_path(conn, &req.name)?;
 
@@ -73,6 +84,9 @@ fn create_qcow2_disk(path: &str, size_gb: u64) -> Result<(), LibvirtError> {
 
 fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
     let memory_kib = req.memory_mb * 1024;
+    let name = crate::xml::escape(&req.name);
+    let network = crate::xml::escape(&req.network);
+    let disk_path = crate::xml::escape(disk_path);
 
     let cdrom_xml = if !req.iso.is_empty() {
         format!(
@@ -83,7 +97,7 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
       <target dev='sda' bus='sata'/>
       <readonly/>
     </disk>"#,
-            req.iso
+            crate::xml::escape(&req.iso)
         )
     } else {
         String::new()
@@ -137,12 +151,12 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
     </rng>
   </devices>
 </domain>"#,
-        name = req.name,
+        name = name,
         memory_kib = memory_kib,
         vcpus = req.vcpus,
         boot_dev = boot_dev,
         disk_path = disk_path,
         cdrom_xml = cdrom_xml,
-        network = req.network,
+        network = network,
     )
 }

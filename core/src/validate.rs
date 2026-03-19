@@ -66,3 +66,66 @@ pub fn validate_disk_gb(disk_gb: u64) -> Result<(), LibvirtError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_name_valid() {
+        assert!(validate_name("my-vm").is_ok());
+        assert!(validate_name("vm_01").is_ok());
+        assert!(validate_name("test.vm").is_ok());
+        assert!(validate_name("a").is_ok());
+    }
+
+    #[test]
+    fn test_validate_name_empty() {
+        assert!(validate_name("").is_err());
+    }
+
+    #[test]
+    fn test_validate_name_too_long() {
+        let long = "a".repeat(65);
+        assert!(validate_name(&long).is_err());
+        assert!(validate_name(&"a".repeat(64)).is_ok());
+    }
+
+    #[test]
+    fn test_validate_name_invalid_chars() {
+        assert!(validate_name("my vm").is_err());
+        assert!(validate_name("vm@host").is_err());
+        assert!(validate_name("foo/bar").is_err());
+        assert!(validate_name("a<b").is_err());
+    }
+
+    #[test]
+    fn test_validate_name_bad_start() {
+        assert!(validate_name("-myvm").is_err());
+        assert!(validate_name(".myvm").is_err());
+    }
+
+    #[test]
+    fn test_validate_vcpus() {
+        assert!(validate_vcpus(0).is_err());
+        assert!(validate_vcpus(1).is_ok());
+        assert!(validate_vcpus(256).is_ok());
+        assert!(validate_vcpus(257).is_err());
+    }
+
+    #[test]
+    fn test_validate_memory_mb() {
+        assert!(validate_memory_mb(63).is_err());
+        assert!(validate_memory_mb(64).is_ok());
+        assert!(validate_memory_mb(1_048_576).is_ok());
+        assert!(validate_memory_mb(1_048_577).is_err());
+    }
+
+    #[test]
+    fn test_validate_disk_gb() {
+        assert!(validate_disk_gb(0).is_err());
+        assert!(validate_disk_gb(1).is_ok());
+        assert!(validate_disk_gb(10_240).is_ok());
+        assert!(validate_disk_gb(10_241).is_err());
+    }
+}

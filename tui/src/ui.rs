@@ -849,7 +849,7 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
         .style(ORANGE_BOLD)
         .bottom_margin(1);
 
-    let items: Vec<(usize, _)> = if !state.filtered_indices.is_empty() {
+    let items: Vec<(usize, _)> = if state.search_active {
         state.filtered_indices.iter()
             .filter_map(|&i| state.vms.get(i).map(|vm| (i, vm)))
             .collect()
@@ -901,7 +901,7 @@ fn render_vm_table(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
-    let count = if state.filtered_indices.is_empty() { state.vms.len() } else { state.filtered_indices.len() };
+    let count = if state.search_active { state.filtered_indices.len() } else { state.vms.len() };
     let running = state.vms.iter().filter(|v| v.state == "running").count();
 
     let mut widths: Vec<Constraint> = vec![

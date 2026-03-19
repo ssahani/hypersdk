@@ -77,9 +77,11 @@ pub fn create_snapshot(
 
     let xml_str = format!(
         r#"<domainsnapshot>
-  <name>{snap_name}</name>
-  <description>{description}</description>
-</domainsnapshot>"#
+  <name>{}</name>
+  <description>{}</description>
+</domainsnapshot>"#,
+        crate::xml::escape(snap_name),
+        crate::xml::escape(description),
     );
 
     DomainSnapshot::create_xml(&domain, &xml_str, 0)

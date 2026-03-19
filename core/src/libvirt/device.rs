@@ -18,6 +18,14 @@ fn get_domain_flags(domain: &Domain) -> u32 {
 }
 
 pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Result<(), LibvirtError> {
+    let source_path = std::path::Path::new(&req.source);
+    if !source_path.is_absolute() {
+        return Err(LibvirtError::Operation("Disk source path must be absolute".to_string()));
+    }
+    if !source_path.exists() {
+        return Err(LibvirtError::Operation(format!("Disk source not found: {}", req.source)));
+    }
+
     let domain = lookup_domain(conn, vm_name)?;
 
     let xml = format!(
@@ -26,9 +34,9 @@ pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Re
   <source file='{source}'/>
   <target dev='{target}' bus='virtio'/>
 </disk>"#,
-        driver = req.driver,
-        source = req.source,
-        target = req.target,
+        driver = crate::xml::escape(&req.driver),
+        source = crate::xml::escape(&req.source),
+        target = crate::xml::escape(&req.target),
     );
 
     let flags = get_domain_flags(&domain);
@@ -43,13 +51,14 @@ pub fn detach_disk(conn: &Connect, vm_name: &str, target: &str) -> Result<(), Li
 
     let xml = format!(
         r#"<disk type='file' device='disk'>
-  <target dev='{target}'/>
+  <target dev='{}'/>
 </disk>"#,
+        crate::xml::escape(target),
     );
 
     let flags = get_domain_flags(&domain);
     domain
         .detach_device_flags(&xml, flags)
-        .map_err(LibvirtError::map_op("Failed to detach disk '{target}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to detach disk '{target}': {e}")))?;
     Ok(())
 }

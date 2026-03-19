@@ -135,7 +135,7 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 
     domain
         .undefine()
-        .map_err(LibvirtError::map_op("Failed to delete VM '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
 
     Ok(())
 }
@@ -166,7 +166,7 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
 
     domain
         .rename(new_name, 0)
-        .map_err(LibvirtError::map_op("Failed to rename VM '{name}'"))?;
+        .map_err(|e| LibvirtError::Operation(format!("Failed to rename VM '{name}': {e}")))?;
 
     Ok(())
 }

@@ -691,6 +691,7 @@ pub struct AppState {
 
     // Search
     pub search_query: String,
+    pub search_active: bool,
     pub filtered_indices: Vec<usize>,
 
     // Sort
@@ -929,7 +930,7 @@ impl AppState {
     }
 
     pub fn current_list_len(&self) -> usize {
-        if !self.filtered_indices.is_empty() {
+        if self.search_active {
             return self.filtered_indices.len();
         }
         match self.resource_view {
@@ -955,7 +956,7 @@ impl AppState {
         if self.resource_view != ResourceView::VirtualMachines {
             return None;
         }
-        let idx = if !self.filtered_indices.is_empty() {
+        let idx = if self.search_active {
             *self.filtered_indices.get(self.selected_index)?
         } else {
             self.selected_index
@@ -986,9 +987,11 @@ impl AppState {
 
     pub fn apply_search_filter(&mut self) {
         if self.search_query.is_empty() {
+            self.search_active = false;
             self.filtered_indices.clear();
             return;
         }
+        self.search_active = true;
         let query = self.search_query.to_lowercase();
 
         let mut scored = match self.resource_view {
@@ -1038,7 +1041,6 @@ impl AppState {
         }
     }
 }
-
 
 // ── Searchable trait ────────────────────────────────────────────────────
 
@@ -1134,4 +1136,167 @@ pub fn fuzzy_match(target: &str, query: &str) -> i32 {
     }
 
     score
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_fuzzy_match_exact() {
+        assert!(fuzzy_match("myvm", "myvm") > 0);
+    }
+
+    #[test]
+    fn test_fuzzy_match_substring() {
+        let score = fuzzy_match("my-test-vm", "test");
+        assert!(score >= 100);
+    }
+
+    #[test]
+    fn test_fuzzy_match_no_match() {
+        assert_eq!(fuzzy_match("abc", "xyz"), 0);
+    }
+
+    #[test]
+    fn test_fuzzy_match_empty_query() {
+        assert_eq!(fuzzy_match("anything", ""), 1);
+    }
+
+    #[test]
+    fn test_fuzzy_match_query_longer_than_target() {
+        assert_eq!(fuzzy_match("ab", "abc"), 0);
+    }
+
+    #[test]
+    fn test_fuzzy_match_fuzzy_order() {
+        // "mxvx" matches "mv" fuzzy but not as substring
+        let score_a = fuzzy_match("mvhost", "mv");
+        let score_b = fuzzy_match("m-x-v-host", "mv");
+        // substring match scores higher than fuzzy
+        assert!(score_a > score_b);
+    }
+
+    #[test]
+    fn test_search_filter_no_matches_returns_zero() {
+        let mut state = AppState::new();
+        state.resource_view = ResourceView::VirtualMachines;
+        state.vms = vec![
+            VmInfo { name: "alpha".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
+            VmInfo { name: "bravo".into(), state: "shutoff".into(), vcpus: 2, memory_mb: 1024 },
+        ];
+        state.search_query = "zzzznotfound".into();
+        state.apply_search_filter();
+        assert!(state.search_active);
+        assert_eq!(state.current_list_len(), 0);
+    }
+
+    #[test]
+    fn test_search_filter_empty_query_shows_all() {
+        let mut state = AppState::new();
+        state.resource_view = ResourceView::VirtualMachines;
+        state.vms = vec![
+            VmInfo { name: "alpha".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
+        ];
+        state.search_query.clear();
+        state.apply_search_filter();
+        assert!(!state.search_active);
+        assert_eq!(state.current_list_len(), 1);
+    }
+
+    #[test]
+    fn test_search_filter_with_matches() {
+        let mut state = AppState::new();
+        state.resource_view = ResourceView::VirtualMachines;
+        state.vms = vec![
+            VmInfo { name: "alpha".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
+            VmInfo { name: "bravo".into(), state: "shutoff".into(), vcpus: 2, memory_mb: 1024 },
+            VmInfo { name: "charlie".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
+        ];
+        state.search_query = "alpha".into();
+        state.apply_search_filter();
+        assert!(state.search_active);
+        assert_eq!(state.current_list_len(), 1);
+    }
+
+    #[test]
+    fn test_form_validate_valid() {
+        let mut form = CreateVmForm::new();
+        form.fields[FIELD_NAME].value = "test-vm".into();
+        assert!(form.validate());
+    }
+
+    #[test]
+    fn test_form_validate_empty_name() {
+        let mut form = CreateVmForm::new();
+        form.fields[FIELD_NAME].value = String::new();
+        assert!(!form.validate());
+        assert!(form.fields[FIELD_NAME].validation_error.is_some());
+    }
+
+    #[test]
+    fn test_form_validate_bad_vcpus() {
+        let mut form = CreateVmForm::new();
+        form.fields[FIELD_NAME].value = "myvm".into();
+        form.fields[FIELD_VCPUS].value = "0".into();
+        assert!(!form.validate());
+        assert!(form.fields[FIELD_VCPUS].validation_error.is_some());
+    }
+
+    #[test]
+    fn test_form_apply_template() {
+        let mut form = CreateVmForm::new();
+        let tmpl = VmTemplate::find("linux-small").unwrap();
+        form.apply_template(&tmpl);
+        assert_eq!(form.fields[FIELD_VCPUS].value, "1");
+        assert_eq!(form.fields[FIELD_MEMORY].value, "1024");
+        assert_eq!(form.fields[FIELD_DISK].value, "10");
+    }
+
+    #[test]
+    fn test_dashboard_compute() {
+        let mut state = AppState::new();
+        state.vms = vec![
+            VmInfo { name: "a".into(), state: "running".into(), vcpus: 2, memory_mb: 1024 },
+            VmInfo { name: "b".into(), state: "shutoff".into(), vcpus: 1, memory_mb: 512 },
+            VmInfo { name: "c".into(), state: "paused".into(), vcpus: 4, memory_mb: 2048 },
+        ];
+        state.compute_dashboard();
+        assert_eq!(state.dashboard.total_vms, 3);
+        assert_eq!(state.dashboard.running_vms, 1);
+        assert_eq!(state.dashboard.stopped_vms, 1);
+        assert_eq!(state.dashboard.paused_vms, 1);
+        assert_eq!(state.dashboard.total_vcpus, 7);
+        assert_eq!(state.dashboard.total_memory_mb, 3584);
+    }
+
+    #[test]
+    fn test_sort_vms() {
+        let mut state = AppState::new();
+        state.vms = vec![
+            VmInfo { name: "charlie".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
+            VmInfo { name: "alpha".into(), state: "shutoff".into(), vcpus: 2, memory_mb: 1024 },
+            VmInfo { name: "bravo".into(), state: "paused".into(), vcpus: 4, memory_mb: 256 },
+        ];
+        state.sort_column = SortColumn::Name;
+        state.sort_direction = SortDirection::Ascending;
+        state.sort_vms();
+        assert_eq!(state.vms[0].name, "alpha");
+        assert_eq!(state.vms[2].name, "charlie");
+
+        state.sort_direction = SortDirection::Descending;
+        state.sort_vms();
+        assert_eq!(state.vms[0].name, "charlie");
+    }
+
+    #[test]
+    fn test_push_bounded() {
+        let mut buf = std::collections::VecDeque::new();
+        for i in 0..5 {
+            push_bounded(&mut buf, i, 3);
+        }
+        assert_eq!(buf.len(), 3);
+        assert_eq!(buf[0], 2);
+        assert_eq!(buf[2], 4);
+    }
 }
