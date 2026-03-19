@@ -17,9 +17,9 @@ refresh_interval_secs = 5
 
 [daemon]
 # Address and port the daemon binds to.
-# Use "0.0.0.0" to listen on all interfaces (for remote TUI access).
+# Use "0.0.0.0" to listen on all interfaces (default).
 # Use "127.0.0.1" to restrict to localhost only.
-host = "127.0.0.1"
+host = "0.0.0.0"
 port = 8081
 
 [libvirt]

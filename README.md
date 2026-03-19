@@ -172,7 +172,7 @@ Config files are loaded in order of precedence:
 refresh_interval_secs = 5    # TUI polling interval
 
 [daemon]
-host = "127.0.0.1"           # Bind address
+host = "0.0.0.0"             # Bind address (all interfaces)
 port = 8081                  # Bind port
 
 [libvirt]
@@ -187,7 +187,7 @@ See [`examples/config.toml`](examples/config.toml) for the full annotated config
 
 ```bash
 virtspawn-daemon                                    # defaults
-virtspawn-daemon --port 9090 --host 0.0.0.0         # custom bind
+virtspawn-daemon --port 9090 --host 127.0.0.1        # localhost only
 virtspawn-daemon --libvirt-uri qemu:///session       # user session
 virtspawn-daemon --config /path/to/config.toml      # custom config
 virtspawn-daemon -p 9090                            # short flag for port
