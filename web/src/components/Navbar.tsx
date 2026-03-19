@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import {
   Server, Plus, Home, Network, HardDrive, Camera, Cpu,
-  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog,
+  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb,
 } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
 
@@ -40,7 +40,7 @@ const navGroups: NavGroup[] = [
       { to: '/node', icon: <Cpu className="w-4 h-4" />, label: 'Host Info' },
       { to: '/events', icon: <Activity className="w-4 h-4" />, label: 'Live Metrics' },
       { to: '/capabilities', icon: <MonitorCog className="w-4 h-4" />, label: 'Capabilities' },
-      { to: '/devices', icon: <Cpu className="w-4 h-4" />, label: 'Node Devices' },
+      { to: '/devices', icon: <Usb className="w-4 h-4" />, label: 'Node Devices' },
     ],
   },
 ]

@@ -192,6 +192,54 @@ export default function StoragePage() {
           </div>
         ))}
       </div>
+
+      <ConfirmDialog open={!!deletePoolTarget} title="Delete Pool" message={`Delete storage pool '${deletePoolTarget}'? This cannot be undone.`} confirmLabel="Delete" onConfirm={handleDeletePool} onCancel={() => setDeletePoolTarget(null)} />
+
+      {showCreatePool && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreatePool(false)}>
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Create Storage Pool</span></div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Name</label>
+                <input type="text" value={newPoolName} onChange={(e) => setNewPoolName(e.target.value)} placeholder="my-pool" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Type</label>
+                <select value={newPoolType} onChange={(e) => setNewPoolType(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                  <option value="dir">dir</option>
+                  <option value="fs">fs</option>
+                  <option value="netfs">netfs</option>
+                  <option value="logical">logical</option>
+                  <option value="disk">disk</option>
+                  <option value="iscsi">iscsi</option>
+                  <option value="zfs">zfs</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Target Path</label>
+                <input type="text" value={newPoolPath} onChange={(e) => setNewPoolPath(e.target.value)} placeholder="/var/lib/libvirt/images" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button onClick={() => setShowCreatePool(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+              <button onClick={handleCreatePool} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {xmlContent !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setXmlContent(null)}>
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
+              <span className="text-lg font-semibold font-mono">{xmlName}</span>
+              <button onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
+            </div>
+            <pre className="p-5 text-sm text-gray-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
