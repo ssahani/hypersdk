@@ -146,43 +146,48 @@ sudo zypper install libvirt-devel qemu-tools socat novnc
 sudo systemctl enable --now libvirtd
 ```
 
-### Build & Run
+### Build & Deploy (recommended)
 
 ```bash
 git clone https://github.com/ssahani/-virtspawn.git
 cd virtspawn
 
-# Build everything (daemon + TUI + web UI)
-make release
-make web
+# Build everything (Rust binaries + web frontend)
+make
 
-# Start the daemon
-./target/release/virtspawn-daemon
-
-# Open in browser
-xdg-open http://localhost:8081
-
-# Or use the TUI
-./target/release/virtspawn-tui
+# Install and start the daemon
+sudo make deploy
 ```
 
-### Install System-Wide
+That's it. Open **http://localhost:8081** in your browser, or run `virtspawn` for the TUI.
+
+### What `make deploy` does
+
+1. Installs `virtspawn-daemon` → `/usr/local/bin/virtspawn-daemon`
+2. Installs `virtspawn` (TUI) → `/usr/local/bin/virtspawn`
+3. Installs web UI → `/usr/local/share/virtspawn/web/`
+4. Installs config → `/etc/virtspawn/config.toml`
+5. Installs systemd unit → `/usr/lib/systemd/system/virtspawn-daemon.service`
+6. Reloads systemd and starts the daemon
+
+### Service Management
 
 ```bash
-make release
-make web
-sudo make install
-sudo systemctl enable --now virtspawn-daemon
+sudo make start     # start the daemon
+sudo make stop      # stop the daemon
+sudo make restart   # restart after changes
+sudo make status    # check if running
+sudo make uninstall # stop + remove everything
 ```
 
-This installs:
-- `virtspawn-daemon` → `/usr/local/bin/virtspawn-daemon`
-- `virtspawn` (TUI) → `/usr/local/bin/virtspawn`
-- Web UI → `/usr/local/share/virtspawn/web/`
-- Config → `/etc/virtspawn/config.toml`
-- Systemd unit → `/usr/lib/systemd/system/virtspawn-daemon.service`
+### Development Mode (no install)
 
-After install, open **http://localhost:8081** in your browser.
+```bash
+make build                          # debug build
+./target/debug/virtspawn-daemon     # run daemon
+./target/debug/virtspawn-tui        # run TUI
+cd web && npm run dev               # web UI dev server with hot reload (port 3000)
+```
 
 ---
 
@@ -441,17 +446,36 @@ make help       # Show all targets
 
 | Target | Description |
 |--------|-------------|
-| `make release` | Build optimized Rust binaries |
-| `make web` | Build web frontend (npm) |
+| `make` | Build everything (Rust release + web frontend) |
+| `sudo make deploy` | Install and start daemon (one command) |
+| `sudo make start` | Start the daemon service |
+| `sudo make stop` | Stop the daemon service |
+| `sudo make restart` | Restart the daemon service |
+| `sudo make status` | Show daemon service status |
+| `sudo make install` | Install binaries, web UI, config, systemd unit |
+| `sudo make uninstall` | Stop, disable, and remove everything |
+| `make release` | Build optimized Rust binaries only |
+| `make web` | Build web frontend only |
 | `make build` | Build in debug mode |
 | `make test` | Run all Rust tests |
 | `make lint` | Run clippy |
 | `make fmt` | Format code |
-| `sudo make install` | Install binaries, web UI, config, systemd unit |
-| `sudo make uninstall` | Remove installed files |
-| `make run-daemon` | Run daemon (debug) |
-| `make run-tui` | Run TUI (debug) |
+| `make run-daemon` | Run daemon in debug mode |
+| `make run-tui` | Run TUI in debug mode |
 | `make clean` | Remove all build artifacts |
+
+### Typical Workflows
+
+```bash
+# First time setup
+make && sudo make deploy
+
+# After code changes
+make && sudo make restart
+
+# Full cleanup
+sudo make uninstall && make clean
+```
 
 ---
 
