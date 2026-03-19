@@ -4,16 +4,12 @@ import { listVMs, getMetrics, VmInfo, VmMetrics } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
-import { getStateColor } from '../utils/vm'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera } from 'lucide-react'
+import { getStateColor, getStateBadgeClasses } from '../utils/vm'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight } from 'lucide-react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 
-interface MetricsPoint {
-  time: string
-  cpu: number
-  memory: number
-}
+interface MetricsPoint { time: string; cpu: number; memory: number }
 
 export default function Dashboard() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -29,160 +25,141 @@ export default function Dashboard() {
       const [vmData, netData, poolData, nodeData] = await Promise.all([
         listVMs(), listNetworks(), listPools(), getNodeInfo(),
       ])
-      setVMs(vmData)
-      setNetworks(netData)
-      setPools(poolData)
-      setNode(nodeData)
-    } catch (error) {
-      console.error('Failed to load data:', error)
-    } finally {
-      setLoading(false)
-    }
+      setVMs(vmData); setNetworks(netData); setPools(poolData); setNode(nodeData)
+    } catch (error) { console.error('Failed to load data:', error) } finally { setLoading(false) }
   }, [])
 
   const loadMetrics = useCallback(async () => {
     try {
       const metrics = await getMetrics()
       const avgMem = metrics.length > 0
-        ? metrics.reduce((sum: number, m: VmMetrics) => sum + m.memory_pct, 0) / metrics.length
-        : 0
+        ? metrics.reduce((sum: number, m: VmMetrics) => sum + m.memory_pct, 0) / metrics.length : 0
       setMetricsHistory((prev) => [
-        ...prev.slice(-19),
-        { time: new Date().toLocaleTimeString(), cpu: 0, memory: parseFloat(avgMem.toFixed(1)) },
+        ...prev.slice(-29),
+        { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), cpu: 0, memory: parseFloat(avgMem.toFixed(1)) },
       ])
-    } catch { /* metrics not available */ }
+    } catch { /* no metrics */ }
   }, [])
 
   useEffect(() => {
-    loadData()
-    loadMetrics()
+    loadData(); loadMetrics()
     const interval = setInterval(() => { loadData(); loadMetrics() }, 10000)
     return () => clearInterval(interval)
   }, [loadData, loadMetrics])
 
-  useEffect(() => {
-    return subscribe(() => loadData())
-  }, [subscribe, loadData])
+  useEffect(() => subscribe(() => loadData()), [subscribe, loadData])
 
   const running = vms.filter((v) => v.state === 'running').length
-  const stopped = vms.length - running
+  const stopped = vms.filter((v) => v.state === 'shutoff').length
+  const paused = vms.length - running - stopped
   const totalVcpus = vms.reduce((s, v) => s + v.vcpus, 0)
   const totalMemGB = (vms.reduce((s, v) => s + v.memory_mb, 0) / 1024).toFixed(1)
   const activeNets = networks.filter((n) => n.active).length
   const activePools = pools.filter((p) => p.state === 'running').length
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-      </div>
-    )
-  }
+  if (loading) return <DashboardSkeleton />
 
   return (
-    <div className="space-y-6">
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard icon={<Server className="w-8 h-8" />} title="Virtual Machines" value={`${running} / ${vms.length}`} subtitle={`${running} running, ${stopped} stopped`} color="blue" />
-        <StatCard icon={<Cpu className="w-8 h-8" />} title="Total vCPUs" value={totalVcpus} subtitle={node ? `Host: ${node.cpu_model}` : ''} color="purple" />
-        <StatCard icon={<HardDrive className="w-8 h-8" />} title="Total Memory" value={`${totalMemGB} GB`} subtitle={node ? `Host: ${(node.memory_mb / 1024).toFixed(0)} GB` : ''} color="orange" />
-        <StatCard icon={<Network className="w-8 h-8" />} title="Networks" value={`${activeNets} / ${networks.length}`} subtitle={`${activeNets} active`} color="green" />
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
+          <p className="text-sm text-slate-400 mt-0.5">
+            {node ? `${node.hostname} — ${node.hypervisor} ${node.hypervisor_version}` : 'Loading host info...'}
+          </p>
+        </div>
+        <Link to="/create" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg text-sm font-medium shadow-lg shadow-blue-600/20 transition-all">
+          <Server className="w-4 h-4" /> New VM
+        </Link>
       </div>
 
-      {/* Secondary stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <div className="flex items-center gap-3 mb-2">
-            <Database className="w-5 h-5 text-cyan-500" />
-            <span className="text-gray-400 text-sm">Storage Pools</span>
-          </div>
-          <div className="text-2xl font-bold">{activePools} / {pools.length}</div>
-          <div className="text-xs text-gray-500 mt-1">{activePools} active</div>
-        </div>
-        {node && (
-          <>
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <div className="flex items-center gap-3 mb-2">
-                <Activity className="w-5 h-5 text-green-500" />
-                <span className="text-gray-400 text-sm">Hypervisor</span>
-              </div>
-              <div className="text-2xl font-bold">{node.hypervisor}</div>
-              <div className="text-xs text-gray-500 mt-1">v{node.hypervisor_version} &middot; libvirt v{node.lib_version}</div>
-            </div>
-            <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-              <div className="flex items-center gap-3 mb-2">
-                <Camera className="w-5 h-5 text-yellow-500" />
-                <span className="text-gray-400 text-sm">Host</span>
-              </div>
-              <div className="text-2xl font-bold">{node.hostname}</div>
-              <div className="text-xs text-gray-500 mt-1">{node.cpu_cores} cores &middot; {node.cpu_threads} threads &middot; {node.cpu_sockets} sockets</div>
-            </div>
-          </>
-        )}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Virtual Machines" value={vms.length} badge={<span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">{running} running</span>} />
+        <StatCard gradient="stat-card-purple" icon={<Cpu className="w-6 h-6" />} iconColor="text-purple-400" title="Total vCPUs" value={totalVcpus} badge={node ? <span className="text-xs text-slate-500">{node.cpu_cores}c / {node.cpu_threads}t host</span> : undefined} />
+        <StatCard gradient="stat-card-orange" icon={<HardDrive className="w-6 h-6" />} iconColor="text-orange-400" title="Allocated Memory" value={`${totalMemGB} GB`} badge={node ? <span className="text-xs text-slate-500">{(node.memory_mb / 1024).toFixed(0)} GB host</span> : undefined} />
+        <StatCard gradient="stat-card-green" icon={<Network className="w-6 h-6" />} iconColor="text-emerald-400" title="Networks" value={networks.length} badge={<span className="text-xs text-slate-500">{activeNets} active</span>} />
+      </div>
+
+      {/* Secondary stats row */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <MiniStat icon={<Database className="w-4 h-4 text-cyan-400" />} label="Storage Pools" value={`${activePools}/${pools.length}`} />
+        <MiniStat icon={<Camera className="w-4 h-4 text-yellow-400" />} label="Running" value={running} extra={stopped > 0 ? `${stopped} stopped` : undefined} />
+        <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
+        <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="Libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <Cpu className="w-5 h-5 text-blue-500" />
-            CPU Usage Trend
-          </h3>
-          <ResponsiveContainer width="100%" height={200}>
+        <ChartCard title="CPU Usage" icon={<Cpu className="w-4 h-4 text-blue-400" />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].cpu}%` : '-'}>
+          <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={metricsHistory}>
               <defs>
-                <linearGradient id="colorCpu" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8} />
+                <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
                   <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="time" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} domain={[0, 100]} />
-              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem' }} />
-              <Area type="monotone" dataKey="cpu" stroke="#3b82f6" fillOpacity={1} fill="url(#colorCpu)" />
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="time" stroke="#475569" fontSize={11} tickLine={false} />
+              <YAxis stroke="#475569" fontSize={11} domain={[0, 100]} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.75rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} labelStyle={{ color: '#94a3b8' }} />
+              <Area type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#cpuGrad)" />
             </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
 
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-          <h3 className="text-lg font-semibold flex items-center gap-2 mb-4">
-            <HardDrive className="w-5 h-5 text-green-500" />
-            Memory Usage Trend
-          </h3>
-          <ResponsiveContainer width="100%" height={200}>
-            <LineChart data={metricsHistory}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-              <XAxis dataKey="time" stroke="#9ca3af" fontSize={12} />
-              <YAxis stroke="#9ca3af" fontSize={12} domain={[0, 100]} />
-              <Tooltip contentStyle={{ backgroundColor: '#1f2937', border: '1px solid #374151', borderRadius: '0.5rem' }} />
-              <Line type="monotone" dataKey="memory" stroke="#10b981" strokeWidth={2} dot={false} />
-            </LineChart>
+        <ChartCard title="Memory Usage" icon={<HardDrive className="w-4 h-4 text-emerald-400" />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].memory}%` : '-'}>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={metricsHistory}>
+              <defs>
+                <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+              <XAxis dataKey="time" stroke="#475569" fontSize={11} tickLine={false} />
+              <YAxis stroke="#475569" fontSize={11} domain={[0, 100]} tickLine={false} />
+              <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.75rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} labelStyle={{ color: '#94a3b8' }} />
+              <Area type="monotone" dataKey="memory" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#memGrad)" />
+            </AreaChart>
           </ResponsiveContainer>
-        </div>
+        </ChartCard>
       </div>
 
       {/* VM List */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700">
-        <div className="p-6 border-b border-gray-700 flex items-center justify-between">
-          <h2 className="text-xl font-semibold">Virtual Machines</h2>
-          <Link to="/vms" className="text-sm text-blue-400 hover:text-blue-300">View all →</Link>
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-white">Virtual Machines</h2>
+          <Link to="/vms" className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition font-medium">
+            View all <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
         </div>
-        <div className="divide-y divide-gray-700">
+        <div className="divide-y divide-slate-700/30">
           {vms.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">No VMs found. <Link to="/create" className="text-blue-400 hover:underline">Create one</Link>.</div>
+            <div className="px-6 py-12 text-center">
+              <Server className="w-12 h-12 text-slate-600 mx-auto mb-3" />
+              <p className="text-slate-400 font-medium">No virtual machines</p>
+              <p className="text-sm text-slate-500 mt-1">Create your first VM to get started</p>
+              <Link to="/create" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition">
+                <Server className="w-4 h-4" /> Create VM
+              </Link>
+            </div>
           ) : (
-            vms.slice(0, 8).map((vm) => (
-              <Link to={`/vms/${vm.name}`} key={vm.name} className="block p-4 hover:bg-gray-700 transition">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className={`w-3 h-3 rounded-full ${getStateColor(vm.state)}`} />
-                    <div>
-                      <div className="font-medium">{vm.name}</div>
-                      <div className="text-sm text-gray-400">{vm.vcpus} vCPUs &middot; {vm.memory_mb} MB</div>
-                    </div>
+            vms.slice(0, 10).map((vm) => (
+              <Link to={`/vms/${vm.name}`} key={vm.name} className="flex items-center justify-between px-6 py-3.5 table-row-hover group">
+                <div className="flex items-center gap-4">
+                  <div className={`w-2.5 h-2.5 rounded-full ${getStateColor(vm.state)} ${vm.state === 'running' ? 'animate-pulse-dot' : ''}`} />
+                  <div>
+                    <div className="font-medium text-white group-hover:text-blue-400 transition">{vm.name}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{vm.vcpus} vCPU · {vm.memory_mb} MB</div>
                   </div>
-                  <span className="text-sm text-gray-400 capitalize">{vm.state}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
+                  <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" />
                 </div>
               </Link>
             ))
@@ -193,16 +170,57 @@ export default function Dashboard() {
   )
 }
 
-function StatCard({ icon, title, value, subtitle, color }: { icon: React.ReactNode; title: string; value: string | number; subtitle?: string; color: string }) {
-  const colors: Record<string, string> = { blue: 'text-blue-500', green: 'text-green-500', purple: 'text-purple-500', orange: 'text-orange-500' }
+function StatCard({ gradient, icon, iconColor, title, value, badge }: { gradient: string; icon: React.ReactNode; iconColor: string; title: string; value: string | number; badge?: React.ReactNode }) {
   return (
-    <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
-      <div className={colors[color]}>{icon}</div>
-      <div className="mt-4">
-        <div className="text-3xl font-bold">{value}</div>
-        <div className="text-gray-400 text-sm mt-1">{title}</div>
-        {subtitle && <div className="text-xs text-gray-500 mt-1">{subtitle}</div>}
+    <div className={`${gradient} rounded-xl p-5 border border-slate-700/30 shadow-lg`}>
+      <div className="flex items-start justify-between">
+        <div className={iconColor}>{icon}</div>
+        {badge}
       </div>
+      <div className="mt-3">
+        <div className="text-2xl font-bold text-white">{value}</div>
+        <div className="text-sm text-slate-400 mt-0.5">{title}</div>
+      </div>
+    </div>
+  )
+}
+
+function MiniStat({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: string | number; extra?: string }) {
+  return (
+    <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30 flex items-center gap-3">
+      {icon}
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-slate-500">{label}</div>
+        <div className="text-sm font-semibold text-white">{value}</div>
+      </div>
+      {extra && <span className="text-[10px] text-slate-500">{extra}</span>}
+    </div>
+  )
+}
+
+function ChartCard({ title, icon, current, children }: { title: string; icon: React.ReactNode; current: string; children: React.ReactNode }) {
+  return (
+    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-white flex items-center gap-2">{icon} {title}</h3>
+        <span className="text-xs text-slate-400 font-mono">{current}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function DashboardSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="h-8 w-48 skeleton" />
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => <div key={i} className="h-28 skeleton" />)}
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {[...Array(2)].map((_, i) => <div key={i} className="h-72 skeleton" />)}
+      </div>
+      <div className="h-64 skeleton" />
     </div>
   )
 }
