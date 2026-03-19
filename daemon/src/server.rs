@@ -14,6 +14,12 @@ pub fn create_app(manager: LibvirtManager) -> Router {
         .nest("/api/v1", routes::api_routes())
         .nest("/ws/v1", routes::websocket_routes());
 
+    // Serve noVNC static files at /novnc/
+    if let Some(novnc_dir) = find_novnc() {
+        tracing::info!("Serving noVNC from {}", novnc_dir.display());
+        router = router.nest_service("/novnc", ServeDir::new(&novnc_dir));
+    }
+
     if let Some(dir) = web_dir {
         tracing::info!("Serving web UI from {}", dir.display());
         let index = dir.join("index.html");
@@ -36,4 +42,13 @@ fn find_web_dist() -> Option<PathBuf> {
         PathBuf::from("../web/dist"),
     ];
     candidates.into_iter().find(|p| p.join("index.html").exists())
+}
+
+fn find_novnc() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from("/usr/share/novnc"),
+        PathBuf::from("/usr/local/share/novnc"),
+        PathBuf::from("/usr/share/noVNC"),
+    ];
+    candidates.into_iter().find(|p| p.join("vnc.html").exists())
 }

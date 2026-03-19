@@ -94,56 +94,66 @@ async fn console_handler(
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    // Verify VM exists
-    let exists = manager
+    // Get the PTY path from VM XML
+    let pty_path = manager
         .with_conn(|conn| {
-            domain::lookup_domain(conn, &name).map(|_| ())
+            let xml = domain::get_vm_xml(conn, &name)?;
+            let path = virtspawn_core::xml::extract_attr(&xml, "console", "tty")
+                .or_else(|| {
+                    // Look for <source path='...' /> inside <console>
+                    for block in virtspawn_core::xml::split_blocks(&xml, "console") {
+                        if let Some(p) = virtspawn_core::xml::extract_attr(&block, "source", "path")
+                        {
+                            return Some(p);
+                        }
+                    }
+                    None
+                });
+            Ok(path)
         })
-        .is_ok();
+        .ok()
+        .flatten();
 
-    if !exists {
-        return ws.on_upgrade(|mut socket| async move {
-            let _ = socket
-                .send(Message::Text(
-                    format!("\r\nError: VM '{}' not found\r\n", name).into(),
-                ))
-                .await;
-            let _ = socket.close().await;
-        });
-    }
-
-    let uri = manager
-        .with_conn(|conn| {
-            let uri = conn
-                .get_uri()
-                .map_err(|e| virtspawn_core::LibvirtError::Connection(e.to_string()))?;
-            Ok(uri)
-        })
-        .unwrap_or_else(|_| "qemu:///system".to_string());
-
-    ws.on_upgrade(move |socket| handle_console(socket, name, uri))
+    ws.on_upgrade(move |socket| handle_console(socket, name, pty_path))
 }
 
-async fn handle_console(socket: WebSocket, name: String, uri: String) {
+async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String>) {
     info!("Console WebSocket connected for VM '{}'", name);
 
-    // Spawn virsh console as a PTY process
-    let child = tokio::process::Command::new("virsh")
-        .args(["-c", &uri, "console", &name, "--force"])
+    let pty = match pty_path {
+        Some(ref p) if std::path::Path::new(p).exists() => p.clone(),
+        _ => {
+            let (mut sink, _) = socket.split();
+            let _ = sink
+                .send(Message::Text(
+                    format!("\r\nNo console PTY found for VM '{}'. Is it running?\r\n", name)
+                        .into(),
+                ))
+                .await;
+            return;
+        }
+    };
+
+    // Use socat to connect to the PTY — this gives us proper raw I/O
+    let child = tokio::process::Command::new("socat")
+        .args([
+            format!("OPEN:{},rawer", pty).as_str(),
+            "STDIO",
+        ])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
         .kill_on_drop(true)
         .spawn();
 
     let mut child = match child {
         Ok(c) => c,
         Err(e) => {
-            warn!("Failed to spawn virsh console: {}", e);
+            warn!("Failed to spawn socat for console: {}", e);
             let (mut sink, _) = socket.split();
             let _ = sink
                 .send(Message::Text(
-                    format!("\r\nFailed to start console: {}\r\n", e).into(),
+                    format!("\r\nFailed to open console: {}. Is 'socat' installed?\r\n", e).into(),
                 ))
                 .await;
             return;
@@ -152,7 +162,6 @@ async fn handle_console(socket: WebSocket, name: String, uri: String) {
 
     let mut stdout = child.stdout.take().unwrap();
     let mut stdin = child.stdin.take().unwrap();
-
     let (mut ws_sink, mut ws_stream) = socket.split();
 
     // stdout → WebSocket
@@ -208,7 +217,6 @@ async fn vnc_handler(
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    // Get VNC port from VM XML
     let port = manager
         .with_conn(|conn| {
             let xml = domain::get_vm_xml(conn, &name)?;
@@ -219,30 +227,35 @@ async fn vnc_handler(
         })
         .unwrap_or(0);
 
-    if port == 0 {
-        return ws.on_upgrade(|mut socket| async move {
-            let _ = socket.close().await;
-        });
-    }
-
-    ws.on_upgrade(move |socket| handle_vnc_proxy(socket, port))
+    ws.on_upgrade(move |socket| handle_vnc_proxy(socket, name, port))
 }
 
-async fn handle_vnc_proxy(socket: WebSocket, port: u16) {
-    info!("VNC WebSocket proxy connecting to port {}", port);
+async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
+    if port == 0 {
+        info!("VNC: no port for VM '{}'", name);
+        let (mut sink, _) = socket.split();
+        let _ = sink.close().await;
+        return;
+    }
+
+    info!("VNC WebSocket proxy connecting to 127.0.0.1:{} for VM '{}'", port, name);
 
     let tcp = match tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
         Ok(s) => s,
         Err(e) => {
             warn!("Failed to connect to VNC port {}: {}", port, e);
+            let (mut sink, _) = socket.split();
+            let _ = sink.close().await;
             return;
         }
     };
 
+    info!("VNC TCP connected to port {} for VM '{}'", port, name);
+
     let (mut tcp_read, mut tcp_write) = tcp.into_split();
     let (mut ws_sink, mut ws_stream) = socket.split();
 
-    // TCP → WebSocket (binary)
+    // TCP → WebSocket (binary frames)
     let read_task = tokio::spawn(async move {
         let mut buf = [0u8; 65536];
         loop {
@@ -287,7 +300,7 @@ async fn handle_vnc_proxy(socket: WebSocket, port: u16) {
         _ = write_task => {}
     }
 
-    info!("VNC WebSocket proxy closed for port {}", port);
+    info!("VNC WebSocket proxy closed for VM '{}' port {}", name, port);
 }
 
 // ── Routes ──────────────────────────────────────────────────────────
