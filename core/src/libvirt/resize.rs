@@ -22,3 +22,22 @@ pub fn set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), Libv
         .map_err(|e| LibvirtError::Operation(format!("Failed to set memory for '{name}': {e}")))?;
     Ok(())
 }
+
+pub fn pin_vcpu(conn: &Connect, name: &str, vcpu: u32, cpus: &[bool]) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let cpumap: Vec<u8> = cpus.chunks(8).map(|chunk| {
+        chunk.iter().enumerate().fold(0u8, |acc, (i, &set)| if set { acc | (1 << i) } else { acc })
+    }).collect();
+    domain
+        .pin_vcpu(vcpu, &cpumap)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to pin vCPU {vcpu} for '{name}': {e}")))?;
+    Ok(())
+}
+
+pub fn set_memory_balloon(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    domain
+        .set_memory(memory_mb * 1024)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to balloon memory for '{name}': {e}")))?;
+    Ok(())
+}

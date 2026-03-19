@@ -1,12 +1,21 @@
+pub mod boot;
+pub mod capabilities;
+pub mod cdrom;
 pub mod clone;
 pub mod connection;
 pub mod create;
 pub mod device;
 pub mod domain;
+pub mod guest_agent;
 pub mod metrics;
+pub mod migrate;
 pub mod network;
 pub mod node;
+pub mod node_device;
+pub mod nwfilter;
 pub mod resize;
+pub mod save_restore;
+pub mod secret;
 pub mod snapshot;
 pub mod storage;
 

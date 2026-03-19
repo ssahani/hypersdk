@@ -142,6 +142,95 @@ pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
+pub fn create_pool(conn: &Connect, name: &str, pool_type: &str, target_path: &str) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(name)?;
+
+    let xml = match pool_type {
+        "dir" => format!(
+            r#"<pool type='dir'>
+  <name>{}</name>
+  <target><path>{}</path></target>
+</pool>"#,
+            crate::xml::escape(name),
+            crate::xml::escape(target_path),
+        ),
+        "logical" => format!(
+            r#"<pool type='logical'>
+  <name>{}</name>
+  <source><name>{}</name></source>
+  <target><path>{}</path></target>
+</pool>"#,
+            crate::xml::escape(name),
+            crate::xml::escape(name),
+            crate::xml::escape(target_path),
+        ),
+        _ => format!(
+            r#"<pool type='{}'>
+  <name>{}</name>
+  <target><path>{}</path></target>
+</pool>"#,
+            crate::xml::escape(pool_type),
+            crate::xml::escape(name),
+            crate::xml::escape(target_path),
+        ),
+    };
+
+    let pool = StoragePool::define_xml(conn, &xml, 0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to create pool '{name}': {e}")))?;
+    pool.build(0).ok(); // build may fail for some pool types, that's fine
+    pool.create(0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start pool '{name}': {e}")))?;
+    pool.set_autostart(true).ok();
+    Ok(())
+}
+
+pub fn delete_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let pool = lookup_pool(conn, name)?;
+    if pool.is_active().unwrap_or(false) {
+        let _ = pool.destroy();
+    }
+    pool.undefine()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to delete pool '{name}': {e}")))?;
+    Ok(())
+}
+
+pub fn get_pool_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
+    let pool = lookup_pool(conn, name)?;
+    pool.get_xml_desc(0)
+        .map_err(LibvirtError::map_op("Failed to get pool XML"))
+}
+
+pub fn resize_volume(conn: &Connect, pool_name: &str, vol_name: &str, capacity_gb: u64) -> Result<(), LibvirtError> {
+    let pool = lookup_pool(conn, pool_name)?;
+    let vol = StorageVol::lookup_by_name(&pool, vol_name)
+        .map_err(|e| LibvirtError::NotFound(format!("Volume '{}' not found: {}", vol_name, e)))?;
+    let capacity_bytes = capacity_gb * 1024 * 1024 * 1024;
+    vol.resize(capacity_bytes, 0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to resize volume '{vol_name}': {e}")))?;
+    Ok(())
+}
+
+pub fn clone_volume(conn: &Connect, pool_name: &str, src_vol: &str, new_name: &str) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(new_name)?;
+    let pool = lookup_pool(conn, pool_name)?;
+    let vol = StorageVol::lookup_by_name(&pool, src_vol)
+        .map_err(|e| LibvirtError::NotFound(format!("Volume '{}' not found: {}", src_vol, e)))?;
+
+    let vol_info = vol.get_info().map_err(LibvirtError::map_op("Failed to get volume info"))?;
+    let xml = format!(
+        r#"<volume>
+  <name>{}</name>
+  <capacity unit='bytes'>{}</capacity>
+</volume>"#,
+        crate::xml::escape(new_name),
+        vol_info.capacity,
+    );
+
+    StorageVol::create_xml_from(&pool, &xml, &vol, 0)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to clone volume: {e}")))?;
+    Ok(())
+}
+
 fn bytes_to_gb(bytes: u64) -> f64 {
     bytes as f64 / (1024.0 * 1024.0 * 1024.0)
 }
