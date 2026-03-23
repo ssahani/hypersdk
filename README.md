@@ -663,6 +663,7 @@ PDF documentation is available in `demo-screenshots/`:
 | [virtspawn-quickstart.pdf](demo-screenshots/virtspawn-quickstart.pdf) | Quick Start Guide — prerequisites, build, install, access, TUI shortcuts, config, troubleshooting |
 | [virtspawn-api-reference.pdf](demo-screenshots/virtspawn-api-reference.pdf) | Complete API reference — all 30+ endpoints, curl examples, response formats, automation scripts |
 | [virtspawn-security-architecture.pdf](demo-screenshots/virtspawn-security-architecture.pdf) | Security & Architecture — system diagram, input validation, SSRF prevention, comparison table |
+| [virtspawn-demo-scripts-guide.pdf](demo-screenshots/virtspawn-demo-scripts-guide.pdf) | Demo & Scripts Guide — 30-step demo walkthrough, status/backup/bulk scripts reference |
 
 Regenerate PDFs:
 ```bash
@@ -670,6 +671,7 @@ python3 demo-screenshots/generate_pdf.py              # demo deck
 python3 demo-screenshots/generate_quickstart_pdf.py    # quickstart guide
 python3 demo-screenshots/generate_api_pdf.py           # API reference
 python3 demo-screenshots/generate_security_pdf.py      # security & architecture
+python3 demo-screenshots/generate_demo_guide_pdf.py    # demo & scripts guide
 ```
 
 ---
