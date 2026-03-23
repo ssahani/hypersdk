@@ -24,8 +24,8 @@ pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError
             Err(_) => continue,
         };
 
-        // Only collect metrics for running VMs
-        if info.state != 1 {
+        // Only collect metrics for running VMs (state 1 = VIR_DOMAIN_RUNNING)
+        if info.state != 1 /* VIR_DOMAIN_RUNNING */ {
             continue;
         }
 
@@ -121,17 +121,17 @@ fn collect_block_stats(domain: &Domain) -> (u64, u64) {
 }
 
 fn collect_net_stats(domain: &Domain) -> (u64, u64) {
-    let ifaces = ["vnet0", "vnet1", "vnet2", "macvtap0"];
     let mut rx_total: u64 = 0;
     let mut tx_total: u64 = 0;
 
-    for iface in &ifaces {
-        if let Ok(stats) = domain.interface_stats(iface) {
-            if stats.rx_bytes > 0 {
-                rx_total += stats.rx_bytes as u64;
-            }
-            if stats.tx_bytes > 0 {
-                tx_total += stats.tx_bytes as u64;
+    // Get actual interface names from VM XML to avoid hardcoded list
+    if let Ok(xml) = domain.get_xml_desc(0) {
+        for block in crate::xml::split_blocks(&xml, "interface") {
+            if let Some(target) = crate::xml::extract_attr(&block, "target", "dev") {
+                if let Ok(stats) = domain.interface_stats(&target) {
+                    if stats.rx_bytes > 0 { rx_total += stats.rx_bytes as u64; }
+                    if stats.tx_bytes > 0 { tx_total += stats.tx_bytes as u64; }
+                }
             }
         }
     }

@@ -250,9 +250,9 @@ async fn resize_volume_handler(
     Path((pool, vol)): Path<(String, String)>,
     Json(req): Json<ResizeVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if req.capacity_gb <= 0.0 {
+    if req.capacity_gb <= 0.0 || req.capacity_gb > 10_240.0 {
         return Err(virtspawn_core::LibvirtError::Operation(
-            "capacity_gb must be greater than 0".to_string(),
+            "capacity_gb must be between 0 and 10240 (10 TB)".to_string(),
         ).into());
     }
     let capacity = req.capacity_gb.ceil() as u64;

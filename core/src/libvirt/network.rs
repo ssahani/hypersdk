@@ -77,6 +77,15 @@ pub fn create_network(
     validate_ip(dhcp_start, "DHCP start")?;
     validate_ip(dhcp_end, "DHCP end")?;
 
+    // Ensure DHCP start <= end
+    let start: std::net::Ipv4Addr = dhcp_start.parse().unwrap(); // safe: validated above
+    let end: std::net::Ipv4Addr = dhcp_end.parse().unwrap();
+    if u32::from(start) > u32::from(end) {
+        return Err(LibvirtError::Operation(format!(
+            "DHCP start ({dhcp_start}) must not be greater than end ({dhcp_end})"
+        )));
+    }
+
     let xml = format!(
         r#"<network>
   <name>{}</name>
