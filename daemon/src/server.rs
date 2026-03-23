@@ -1,6 +1,5 @@
 use axum::Router;
 use std::path::PathBuf;
-use tower_http::cors::{CorsLayer, AllowOrigin};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use virtspawn_core::LibvirtManager;
@@ -28,15 +27,10 @@ pub fn create_app(manager: LibvirtManager) -> Router {
         );
     }
 
-    // Only allow same-origin requests (the web UI is served from the same host)
-    let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::mirror_request())
-        .allow_methods(tower_http::cors::Any)
-        .allow_headers(tower_http::cors::Any);
-
+    // No CORS layer — web UI is served from the same origin, so cross-origin
+    // requests are not needed. This blocks requests from other origins entirely.
     router
         .layer(TraceLayer::new_for_http())
-        .layer(cors)
         .with_state(manager)
 }
 
