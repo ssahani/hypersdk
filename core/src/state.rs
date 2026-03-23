@@ -97,6 +97,37 @@ pub struct StorageVolumeInfo {
     pub vol_type: String,
 }
 
+// -- Backup Types -------------------------------------------------------
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BackupInfo {
+    pub id: String,
+    pub timestamp: String,
+    pub vm_filter: String,
+    pub vm_count: u32,
+    pub net_count: u32,
+    pub with_disks: bool,
+    pub nfs_target: String,
+    pub size: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct BackupRequest {
+    #[serde(default)]
+    pub vm_name: String,
+    #[serde(default)]
+    pub with_disks: bool,
+    #[serde(default)]
+    pub nfs_target: String,
+    #[serde(default)]
+    pub retain: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RestoreRequest {
+    pub backup_id: String,
+}
+
 // ── Node / Host Types ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -550,6 +581,7 @@ pub enum SidebarCategory {
     Networks,
     Storage,
     Snapshots,
+    Backups,
 }
 
 impl SidebarCategory {
@@ -559,6 +591,7 @@ impl SidebarCategory {
             Self::Networks,
             Self::Storage,
             Self::Snapshots,
+            Self::Backups,
         ]
     }
 
@@ -568,6 +601,7 @@ impl SidebarCategory {
             Self::Networks => "Networks",
             Self::Storage => "Storage",
             Self::Snapshots => "Snapshots",
+            Self::Backups => "Backups",
         }
     }
 }
@@ -590,6 +624,7 @@ pub enum ResourceView {
     Networks,
     StoragePools,
     Snapshots,
+    Backups,
     Events,
     Node,
 }
@@ -670,6 +705,7 @@ pub struct AppState {
     pub xml_content: String,
     pub scroll_offset: u16,
     pub dashboard: DashboardStats,
+    pub backups: Vec<BackupInfo>,
     pub volumes: Vec<StorageVolumeInfo>,
     pub browsing_pool: Option<String>,
     pub log_content: String,
@@ -746,6 +782,7 @@ impl AppState {
              self.storage_pools.iter().map(|p| SidebarItem::StoragePool(p.name.clone())).collect()),
             (SidebarCategory::Snapshots,
              self.snapshots.iter().map(|s| SidebarItem::Snapshot(s.vm_name.clone(), s.name.clone())).collect()),
+            (SidebarCategory::Backups, vec![]),
         ];
 
         for (cat, children) in categories {
@@ -783,6 +820,7 @@ impl AppState {
             Some(SidebarItem::Category(SidebarCategory::Networks)) | Some(SidebarItem::Network(_)) => ResourceView::Networks,
             Some(SidebarItem::Category(SidebarCategory::Storage)) | Some(SidebarItem::StoragePool(_)) => ResourceView::StoragePools,
             Some(SidebarItem::Category(SidebarCategory::Snapshots)) | Some(SidebarItem::Snapshot(_, _)) => ResourceView::Snapshots,
+            Some(SidebarItem::Category(SidebarCategory::Backups)) => ResourceView::Backups,
             None => ResourceView::VirtualMachines,
         }
     }
@@ -938,6 +976,7 @@ impl AppState {
             ResourceView::Networks => self.networks.len(),
             ResourceView::StoragePools => self.storage_pools.len(),
             ResourceView::Snapshots => self.snapshots.len(),
+            ResourceView::Backups => self.backups.len(),
             ResourceView::Events => self.audit_events.len(),
             ResourceView::Node => 1,
         }
@@ -999,7 +1038,7 @@ impl AppState {
             ResourceView::Networks => score_searchable(&self.networks, &query),
             ResourceView::StoragePools => score_searchable(&self.storage_pools, &query),
             ResourceView::Snapshots => score_searchable(&self.snapshots, &query),
-            ResourceView::Events | ResourceView::Node => vec![],
+            ResourceView::Backups | ResourceView::Events | ResourceView::Node => vec![],
         };
 
         scored.sort_by(|a, b| b.1.cmp(&a.1));

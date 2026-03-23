@@ -13,3 +13,9 @@ port = 8081
 
 [libvirt]
 uri = "qemu:///system"
+
+[backup]
+backup_dir = "/var/lib/virtspawn/backups"
+# nfs_target = "192.168.1.100:/backups/virtspawn"
+with_disks = false
+retain = 7

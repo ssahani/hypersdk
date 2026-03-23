@@ -4,7 +4,8 @@ import { getVM, getVMMetrics, startVM, stopVM, shutdownVM, rebootVM, pauseVM, re
 import { listSnapshots, SnapshotInfo } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw, ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal, Save, Disc, CircleX } from 'lucide-react'
+import { ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw, ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal, Save, Disc, CircleX, Archive } from 'lucide-react'
+import { triggerBackup } from '../api/backup'
 
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
@@ -100,6 +101,7 @@ export default function VMDetailsPage() {
           {hasSave && <button onClick={() => action(managedSaveRemove, 'Remove Save')} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm transition flex items-center gap-1"><Save className="w-4 h-4" /> Remove Save</button>}
           <button onClick={() => setShowCdromDialog(true)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Disc className="w-4 h-4" /> CD</button>
           <button onClick={handleEjectCdrom} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><CircleX className="w-4 h-4" /> Eject</button>
+          <button onClick={async () => { try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup started for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Archive className="w-4 h-4" /> Backup</button>
         </div>
       </div>
 

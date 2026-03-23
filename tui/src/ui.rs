@@ -217,6 +217,9 @@ fn render_sidebar(frame: &mut Frame, area: Rect, state: &AppState) {
                     SidebarCategory::Snapshots => {
                         format!("{}", state.snapshots.len())
                     }
+                    SidebarCategory::Backups => {
+                        format!("{}", state.backups.len())
+                    }
                 };
                 let label = format!("{arrow} {} ({count_label})", cat.label());
                 let style = if is_selected {
@@ -324,6 +327,9 @@ fn render_content_panel(frame: &mut Frame, area: Rect, state: &AppState) {
         }
         Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
             render_snapshot_table(frame, area, state);
+        }
+        Some(SidebarItem::Category(SidebarCategory::Backups)) => {
+            render_backup_table(frame, area, state);
         }
         Some(SidebarItem::Vm(name)) => {
             let name = name.clone();
@@ -1059,6 +1065,49 @@ fn render_snapshot_table(frame: &mut Frame, area: Rect, state: &AppState) {
     frame.render_widget(table, area);
 }
 
+fn render_backup_table(frame: &mut Frame, area: Rect, state: &AppState) {
+    let header = Row::new(vec![
+        Cell::from("Backup ID"), Cell::from("Scope"),
+        Cell::from("VMs"), Cell::from("Nets"),
+        Cell::from("Disks"), Cell::from("Target"), Cell::from("Size"),
+    ])
+    .style(ORANGE_BOLD)
+    .bottom_margin(1);
+
+    let rows: Vec<Row> = state.backups.iter().enumerate()
+        .map(|(i, b)| {
+            let scope_style = if b.vm_filter == "all" { Style::new().fg(Color::Blue) } else { Style::new().fg(Color::Green) };
+            let disk_text = if b.with_disks { "Yes" } else { "No" };
+            let disk_style = if b.with_disks { Style::new().fg(Color::Yellow) } else { DIM_STYLE };
+            let target_text = if b.nfs_target == "local" { "Local" } else { b.nfs_target.as_str() };
+            let row = Row::new(vec![
+                Cell::from(b.id.as_str()).style(NAME_STYLE),
+                Cell::from(b.vm_filter.as_str()).style(scope_style),
+                Cell::from(b.vm_count.to_string()).style(TEXT_STYLE),
+                Cell::from(b.net_count.to_string()).style(TEXT_STYLE),
+                Cell::from(disk_text).style(disk_style),
+                Cell::from(target_text).style(DIM_STYLE),
+                Cell::from(b.size.as_str()).style(TEXT_STYLE),
+            ]);
+            select_row(row, i, state.selected_index)
+        })
+        .collect();
+
+    let table = Table::new(
+        rows,
+        [
+            Constraint::Percentage(22), Constraint::Percentage(15),
+            Constraint::Percentage(8), Constraint::Percentage(8),
+            Constraint::Percentage(8), Constraint::Percentage(22),
+            Constraint::Percentage(12),
+        ],
+    )
+    .header(header)
+    .column_spacing(1)
+    .block(content_block(state, &format!(" Backups ({}) ", state.backups.len())));
+    frame.render_widget(table, area);
+}
+
 fn render_events_table(frame: &mut Frame, area: Rect, state: &AppState) {
     let header = Row::new(vec![
         Cell::from("Time"), Cell::from("Action"),
@@ -1483,8 +1532,15 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
         help_line("/  Search (fuzzy)  :  Command  r  Refresh  Ctrl+Space  Menu"),
         help_line("?/F1  Help    q/Esc  Quit"),
         Line::from(""),
+        help_section("Backup Commands"),
+        help_line(":backups  Browse backups"),
+        help_line(":backup run  Backup all VMs"),
+        help_line(":backup run <vm>  Backup single VM"),
+        help_line(":backup restore <id>  Restore from backup"),
+        help_line(":backup delete <id>  Delete a backup"),
+        Line::from(""),
         help_section("Commands"),
-        help_line(":vms :net :storage :snap :events :node :quit"),
+        help_line(":vms :net :storage :snap :events :node :backups :quit"),
         help_line(":create  :clone <s> <n>  :snap <vm> <n>"),
         help_line(":template <tmpl> <n>  :rename <old> <new>"),
         help_line(":resize <n> vcpus|memory <v>"),

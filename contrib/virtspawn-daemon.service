@@ -15,7 +15,7 @@ Environment=RUST_LOG=info
 # Filesystem protection
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/libvirt /dev/pts
+ReadWritePaths=/var/lib/libvirt /var/lib/virtspawn /dev/pts
 PrivateTmp=true
 
 # Privilege restrictions

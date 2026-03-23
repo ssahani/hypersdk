@@ -1,4 +1,5 @@
 mod advanced;
+mod backup;
 mod console;
 mod health;
 mod metrics;
@@ -27,6 +28,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(prometheus::prometheus_routes())
         .merge(console::console_routes())
         .merge(advanced::advanced_routes())
+        .merge(backup::backup_routes())
 }
 
 pub fn websocket_routes() -> Router<LibvirtManager> {

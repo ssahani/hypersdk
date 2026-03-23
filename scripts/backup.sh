@@ -1,87 +1,426 @@
 #!/bin/bash
 # virtspawn backup — backup VM configs and optionally disk images
+# Supports local and NFS backup targets with retention policies.
+#
 # Usage:
-#   ./scripts/backup.sh                    # Backup XML configs only
-#   ./scripts/backup.sh --with-disks       # Backup configs + disk images
-#   ./scripts/backup.sh --list             # List what would be backed up
-#   ./scripts/backup.sh --restore <dir>    # Restore configs from backup
+#   ./scripts/backup.sh                         # Backup XML configs only
+#   ./scripts/backup.sh --with-disks            # Backup configs + disk images
+#   ./scripts/backup.sh --incremental           # Incremental disk backup (rsync hardlinks)
+#   ./scripts/backup.sh --list                  # List what would be backed up
+#   ./scripts/backup.sh --restore <dir>         # Restore configs from backup
+#   ./scripts/backup.sh --nfs 192.168.1.10:/backups  # Backup to NFS share
+#   ./scripts/backup.sh --retain 7              # Keep only last 7 backups
+#   ./scripts/backup.sh --config /etc/virtspawn/backup.conf  # Use config file
+#   ./scripts/backup.sh --vm myvm                # Backup a single VM only
+#   ./scripts/backup.sh --vm myvm --with-disks   # Single VM with disks
+#   ./scripts/backup.sh --verify <dir>           # Verify backup checksums
 set -eo pipefail
 
 API="${VIRTSPAWN_API:-http://localhost:8081/api/v1}"
 BACKUP_DIR="${VIRTSPAWN_BACKUP_DIR:-$HOME/virtspawn-backups}"
 DATE=$(date +%Y%m%d-%H%M%S)
-BACKUP_PATH="$BACKUP_DIR/$DATE"
+VM_FILTER=""
+NFS_TARGET=""
+NFS_MOUNT_POINT="/mnt/virtspawn-backup"
+NFS_OPTS="vers=4,soft,timeo=30"
+UNMOUNT_AFTER=true
+RETAIN=0
+CONFIG_FILE=""
+LOG_TAG="virtspawn-backup"
+INCREMENTAL=false
+VERIFY_DIR=""
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
 
-info()  { echo -e "${CYAN}[INFO]${NC} $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
-fail()  { echo -e "${RED}[FAIL]${NC} $*"; exit 1; }
+# Detect if running under systemd (no tty)
+if [ -t 1 ]; then
+    INTERACTIVE=true
+else
+    INTERACTIVE=false
+    RED=''; GREEN=''; YELLOW=''; CYAN=''; BOLD=''; NC=''
+fi
+
+info()  {
+    echo "[INFO] $*"
+    $INTERACTIVE || logger -t "$LOG_TAG" "INFO: $*"
+}
+ok()    {
+    echo "[OK] $*"
+    $INTERACTIVE || logger -t "$LOG_TAG" "OK: $*"
+}
+warn()  {
+    echo "[WARN] $*"
+    $INTERACTIVE || logger -t "$LOG_TAG" "WARN: $*"
+}
+fail()  {
+    echo "[FAIL] $*"
+    $INTERACTIVE || logger -t "$LOG_TAG" "FAIL: $*"
+    # Write failed status before exiting
+    if [ -n "${BACKUP_PATH:-}" ] && [ -d "$BACKUP_PATH" ]; then
+        echo "failed" > "$BACKUP_PATH/backup.status"
+        echo "$*" >> "$BACKUP_PATH/backup.status"
+    fi
+    exit 1
+}
 
 WITH_DISKS=false
 LIST_ONLY=false
 RESTORE_DIR=""
 
+# ── Status tracking ──────────────────────────────────────────────────
+
+write_status() {
+    local status="$1"
+    local message="${2:-}"
+    local progress="${3:-}"
+    [ -z "${BACKUP_PATH:-}" ] && return 0
+    [ -d "$BACKUP_PATH" ] || return 0
+    {
+        echo "status=$status"
+        echo "message=$message"
+        echo "progress=$progress"
+        echo "updated=$(date +%Y%m%d-%H%M%S)"
+    } > "$BACKUP_PATH/backup.status"
+}
+
+# ── Load config file ──────────────────────────────────────────────────
+
+load_config() {
+    local conf="$1"
+    [ -f "$conf" ] || return 0
+
+    while IFS='=' read -r key value; do
+        key=$(echo "$key" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        [ -z "$key" ] && continue
+        [[ "$key" == \#* ]] && continue
+
+        value=$(echo "$value" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//;s/^"//;s/"$//')
+
+        case "$key" in
+            api_url)        API="$value" ;;
+            backup_dir)     BACKUP_DIR="$value" ;;
+            nfs_target)     NFS_TARGET="$value" ;;
+            nfs_mount_point) NFS_MOUNT_POINT="$value" ;;
+            nfs_opts)       NFS_OPTS="$value" ;;
+            unmount_after)  [ "$value" = "true" ] && UNMOUNT_AFTER=true || UNMOUNT_AFTER=false ;;
+            with_disks)     [ "$value" = "true" ] && WITH_DISKS=true ;;
+            retain)         RETAIN="$value" ;;
+        esac
+    done < "$conf"
+
+    info "Loaded config from $conf"
+}
+
+# ── NFS mount/unmount ─────────────────────────────────────────────────
+
+mount_nfs() {
+    [ -z "$NFS_TARGET" ] && return 0
+
+    info "Mounting NFS share: $NFS_TARGET -> $NFS_MOUNT_POINT"
+    mkdir -p "$NFS_MOUNT_POINT"
+
+    if mountpoint -q "$NFS_MOUNT_POINT" 2>/dev/null; then
+        local current_src
+        current_src=$(findmnt -n -o SOURCE "$NFS_MOUNT_POINT" 2>/dev/null || true)
+        if [ "$current_src" = "$NFS_TARGET" ]; then
+            ok "NFS already mounted at $NFS_MOUNT_POINT"
+        else
+            fail "Mount point $NFS_MOUNT_POINT is in use by $current_src (expected $NFS_TARGET)"
+        fi
+    else
+        mount -t nfs -o "$NFS_OPTS" "$NFS_TARGET" "$NFS_MOUNT_POINT" || fail "NFS mount failed: $NFS_TARGET"
+        ok "NFS mounted"
+    fi
+
+    BACKUP_DIR="$NFS_MOUNT_POINT"
+}
+
+unmount_nfs() {
+    [ -z "$NFS_TARGET" ] && return 0
+    $UNMOUNT_AFTER || return 0
+
+    if mountpoint -q "$NFS_MOUNT_POINT" 2>/dev/null; then
+        info "Unmounting NFS share..."
+        sync
+        umount "$NFS_MOUNT_POINT" && ok "NFS unmounted" || warn "NFS unmount failed (may still be busy)"
+    fi
+}
+
+# ── Retention (prune old backups) ─────────────────────────────────────
+
+prune_old_backups() {
+    [ "$RETAIN" -le 0 ] 2>/dev/null && return 0
+
+    info "Applying retention policy: keep last $RETAIN backups"
+
+    local dirs=()
+    while IFS= read -r d; do
+        [ -d "$d" ] && dirs+=("$d")
+    done < <(find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -name '[0-9]*-[0-9]*' | sort)
+
+    local backup_count=${#dirs[@]}
+    if [ "$backup_count" -le "$RETAIN" ]; then
+        info "  $backup_count backups exist, nothing to prune"
+        return 0
+    fi
+
+    local to_remove=$((backup_count - RETAIN))
+    info "  Pruning $to_remove old backup(s) (keeping $RETAIN of $backup_count)"
+
+    for ((i = 0; i < to_remove; i++)); do
+        local target="${dirs[$i]}"
+        info "  Removing: $(basename "$target")"
+        rm -rf "$target"
+    done
+
+    ok "Pruned $to_remove old backup(s)"
+}
+
+# ── Checksums ─────────────────────────────────────────────────────────
+
+generate_checksums() {
+    local dir="$1"
+    info "Generating checksums..."
+    (cd "$dir" && find . -type f ! -name 'checksums.sha256' ! -name 'backup.status' \
+        -exec sha256sum {} \; > checksums.sha256)
+    local count
+    count=$(wc -l < "$dir/checksums.sha256")
+    ok "Generated $count checksums"
+}
+
+verify_checksums() {
+    local dir="$1"
+    if [ ! -f "$dir/checksums.sha256" ]; then
+        warn "No checksums.sha256 file found in $dir"
+        return 1
+    fi
+
+    info "Verifying checksums in $dir..."
+    local result
+    if (cd "$dir" && sha256sum -c checksums.sha256 2>&1); then
+        ok "All checksums verified"
+        return 0
+    else
+        warn "Checksum verification failed"
+        return 1
+    fi
+}
+
+# ── Find previous backup for incremental ─────────────────────────────
+
+find_previous_backup() {
+    local latest=""
+    while IFS= read -r d; do
+        [ -d "$d/disks" ] && latest="$d"
+    done < <(find "$BACKUP_DIR" -maxdepth 1 -mindepth 1 -type d -name '[0-9]*-[0-9]*' | sort)
+    echo "$latest"
+}
+
+# ── Parse arguments ──────────────────────────────────────────────────
+
+# First pass: find config file
 for arg in "$@"; do
     case "$arg" in
-        --with-disks) WITH_DISKS=true ;;
-        --list)       LIST_ONLY=true ;;
-        --restore)    shift; RESTORE_DIR="${2:-}" ;;
+        --config)  CONFIG_FILE="__next__" ;;
+        *)
+            if [ "$CONFIG_FILE" = "__next__" ]; then
+                CONFIG_FILE="$arg"
+            fi
+            ;;
+    esac
+done
+
+# Load default config if it exists
+if [ -z "$CONFIG_FILE" ] && [ -f /etc/virtspawn/backup.conf ]; then
+    load_config /etc/virtspawn/backup.conf
+elif [ -n "$CONFIG_FILE" ] && [ "$CONFIG_FILE" != "__next__" ]; then
+    load_config "$CONFIG_FILE"
+fi
+
+# Second pass: CLI args override config
+PREV_ARG=""
+for arg in "$@"; do
+    case "$PREV_ARG" in
+        --nfs)      NFS_TARGET="$arg"; PREV_ARG=""; continue ;;
+        --retain)   RETAIN="$arg"; PREV_ARG=""; continue ;;
+        --restore)  RESTORE_DIR="$arg"; PREV_ARG=""; continue ;;
+        --config)   PREV_ARG=""; continue ;;
+        --mount-point) NFS_MOUNT_POINT="$arg"; PREV_ARG=""; continue ;;
+        --nfs-opts) NFS_OPTS="$arg"; PREV_ARG=""; continue ;;
+        --vm)       VM_FILTER="$arg"; PREV_ARG=""; continue ;;
+        --verify)   VERIFY_DIR="$arg"; PREV_ARG=""; continue ;;
+    esac
+
+    case "$arg" in
+        --with-disks)   WITH_DISKS=true ;;
+        --incremental)  INCREMENTAL=true; WITH_DISKS=true ;;
+        --list)         LIST_ONLY=true ;;
+        --no-unmount)   UNMOUNT_AFTER=false ;;
+        --unmount)      UNMOUNT_AFTER=true ;;
+        --nfs|--retain|--restore|--config|--mount-point|--nfs-opts|--vm|--verify)
+            PREV_ARG="$arg" ;;
         --help|-h)
-            echo "Usage: $0 [--with-disks] [--list] [--restore <dir>]"
-            echo "  --with-disks   Also copy disk images (can be very large)"
-            echo "  --list         Show what would be backed up without doing it"
-            echo "  --restore DIR  Restore VM configs from a backup directory"
-            echo ""
-            echo "Environment:"
-            echo "  VIRTSPAWN_API        API URL (default: http://localhost:8081/api/v1)"
-            echo "  VIRTSPAWN_BACKUP_DIR Backup root (default: ~/virtspawn-backups)"
+            cat <<'HELPEOF'
+Usage: backup.sh [OPTIONS]
+
+Backup modes:
+  (default)              Backup XML configs (VMs, networks, pools)
+  --vm NAME              Backup a single VM only (config + optionally disk)
+  --with-disks           Also copy disk images (can be very large)
+  --incremental          Incremental disk backup (hardlinks unchanged files)
+  --list                 Show what would be backed up without doing it
+  --restore DIR          Restore VM/network/pool configs from a backup directory
+  --verify DIR           Verify backup integrity (checksums)
+
+NFS options:
+  --nfs SERVER:/PATH     Mount NFS share and backup there
+  --mount-point PATH     NFS mount point (default: /mnt/virtspawn-backup)
+  --nfs-opts OPTS        NFS mount options (default: vers=4,soft,timeo=30)
+  --no-unmount           Leave NFS mounted after backup
+  --unmount              Unmount NFS after backup (default)
+
+Retention:
+  --retain N             Keep only the last N backups, prune older ones
+
+Config:
+  --config FILE          Load config from file (default: /etc/virtspawn/backup.conf)
+
+Environment:
+  VIRTSPAWN_API          API URL (default: http://localhost:8081/api/v1)
+  VIRTSPAWN_BACKUP_DIR   Backup root (default: ~/virtspawn-backups)
+
+Timer setup:
+  sudo systemctl enable --now virtspawn-backup.timer    # daily backups
+  sudo systemctl list-timers virtspawn-backup           # check schedule
+  journalctl -u virtspawn-backup.service                # check logs
+HELPEOF
             exit 0
             ;;
     esac
 done
 
-# Handle restore
+# ── Handle verify ────────────────────────────────────────────────────
+
+if [ -n "$VERIFY_DIR" ]; then
+    mount_nfs
+    verify_checksums "$VERIFY_DIR"
+    unmount_nfs
+    exit $?
+fi
+
+# ── Handle restore ───────────────────────────────────────────────────
+
 if [ -n "$RESTORE_DIR" ]; then
-    echo -e "${BOLD}Restoring from $RESTORE_DIR${NC}"
+    mount_nfs
+
+    echo "Restoring from $RESTORE_DIR"
     if [ ! -d "$RESTORE_DIR/vms" ]; then
         fail "No vms/ directory in $RESTORE_DIR"
     fi
+
+    # Restore VMs
+    info "Restoring VM definitions..."
     for xml in "$RESTORE_DIR"/vms/*.xml; do
+        [ -f "$xml" ] || continue
         name=$(basename "$xml" .xml)
         info "Defining VM: $name"
-        sudo virsh define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
+        virsh define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
     done
+
+    # Restore networks
     if [ -d "$RESTORE_DIR/networks" ]; then
+        info "Restoring network definitions..."
         for xml in "$RESTORE_DIR"/networks/*.xml; do
+            [ -f "$xml" ] || continue
             name=$(basename "$xml" .xml)
             info "Defining network: $name"
-            sudo virsh net-define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
+            virsh net-define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
         done
     fi
+
+    # Restore storage pools
+    if [ -d "$RESTORE_DIR/pools" ]; then
+        info "Restoring storage pool definitions..."
+        for xml in "$RESTORE_DIR"/pools/*.xml; do
+            [ -f "$xml" ] || continue
+            name=$(basename "$xml" .xml)
+            info "Defining pool: $name"
+            virsh pool-define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
+        done
+    fi
+
+    # Restore disk images if present
+    if [ -d "$RESTORE_DIR/disks" ]; then
+        info "Restoring disk images..."
+        for disk_file in "$RESTORE_DIR"/disks/*; do
+            [ -f "$disk_file" ] || continue
+            disk_name=$(basename "$disk_file")
+            # Try to find original path from VM XMLs
+            dest="/var/lib/libvirt/images/$disk_name"
+            if [ -f "$dest" ]; then
+                warn "  $disk_name already exists at $dest, skipping"
+            else
+                info "  Copying $disk_name -> $dest"
+                cp "$disk_file" "$dest" && ok "  $disk_name restored" || warn "  $disk_name copy failed"
+            fi
+        done
+    fi
+
     ok "Restore complete"
+
+    unmount_nfs
     exit 0
 fi
 
-# Check daemon
+# ── Mount NFS if configured ──────────────────────────────────────────
+
+mount_nfs
+
+BACKUP_PATH="$BACKUP_DIR/$DATE"
+
+# ── Check daemon ─────────────────────────────────────────────────────
+
 curl -sf "$API/health" > /dev/null 2>&1 || fail "Daemon not reachable at $API"
 
-# Gather data
-VMS=$(curl -sf "$API/vms" 2>/dev/null)
-NETS=$(curl -sf "$API/networks" 2>/dev/null)
-POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null)
+# ── Gather data ──────────────────────────────────────────────────────
 
-VM_NAMES=$(echo "$VMS" | python3 -c "import json,sys; [print(v['name']) for v in json.load(sys.stdin)]" 2>/dev/null)
-NET_NAMES=$(echo "$NETS" | python3 -c "import json,sys; [print(n['name']) for n in json.load(sys.stdin)]" 2>/dev/null)
+if [ -n "$VM_FILTER" ]; then
+    VM_DETAIL=$(curl -sf "$API/vms/$VM_FILTER" 2>/dev/null) || fail "VM '$VM_FILTER' not found"
+    VM_NAMES="$VM_FILTER"
+    VM_COUNT=1
+    NET_NAMES=""
+    NET_COUNT=0
+    POOLS=""
+else
+    VMS=$(curl -sf "$API/vms" 2>/dev/null)
+    NETS=$(curl -sf "$API/networks" 2>/dev/null)
+    POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null)
 
-VM_COUNT=$(echo "$VM_NAMES" | grep -c . || true)
-NET_COUNT=$(echo "$NET_NAMES" | grep -c . || true)
+    VM_NAMES=$(echo "$VMS" | python3 -c "import json,sys; [print(v['name']) for v in json.load(sys.stdin)]" 2>/dev/null)
+    NET_NAMES=$(echo "$NETS" | python3 -c "import json,sys; [print(n['name']) for n in json.load(sys.stdin)]" 2>/dev/null)
+
+    VM_COUNT=$(echo "$VM_NAMES" | grep -c . || true)
+    NET_COUNT=$(echo "$NET_NAMES" | grep -c . || true)
+fi
+
+# Total steps for progress tracking
+TOTAL_STEPS=$((VM_COUNT + NET_COUNT + 2)) # +2 for pool+checksums
+$WITH_DISKS && TOTAL_STEPS=$((TOTAL_STEPS + VM_COUNT))
+CURRENT_STEP=0
+
+update_progress() {
+    CURRENT_STEP=$((CURRENT_STEP + 1))
+    local pct=$((CURRENT_STEP * 100 / TOTAL_STEPS))
+    [ $pct -gt 100 ] && pct=100
+    write_status "running" "$1" "$pct"
+}
+
+# ── List mode ────────────────────────────────────────────────────────
 
 if $LIST_ONLY; then
-    echo -e "${BOLD}Backup plan${NC}"
-    echo -e "  VMs ($VM_COUNT):"
+    echo "Backup plan"
+    echo "  VMs ($VM_COUNT):"
     echo "$VM_NAMES" | while read -r name; do
         [ -z "$name" ] && continue
         echo "    $name"
@@ -95,27 +434,40 @@ for disk in d.get('disks',[]):
 " 2>/dev/null
         fi
     done
-    echo -e "  Networks ($NET_COUNT):"
+    echo "  Networks ($NET_COUNT):"
     echo "$NET_NAMES" | while read -r name; do
         [ -z "$name" ] && continue
         echo "    $name"
     done
     echo ""
-    echo -e "  Backup to: $BACKUP_PATH"
-    $WITH_DISKS && echo -e "  ${YELLOW}Disk images will be copied (may be large)${NC}"
+    echo "  Backup to: $BACKUP_PATH"
+    [ -n "$VM_FILTER" ] && echo "  Mode: single VM ($VM_FILTER)"
+    [ -n "$NFS_TARGET" ] && echo "  NFS target: $NFS_TARGET"
+    [ "$RETAIN" -gt 0 ] 2>/dev/null && echo "  Retention: keep last $RETAIN"
+    $WITH_DISKS && echo "  Disk images will be copied (may be large)"
+    $INCREMENTAL && echo "  Incremental mode: hardlink unchanged files"
+
+    unmount_nfs
     exit 0
 fi
 
-# Create backup
-echo -e "${BOLD}${CYAN}virtspawn backup${NC}"
-echo -e "  Destination: $BACKUP_PATH"
+# ── Create backup ────────────────────────────────────────────────────
+
+echo "virtspawn backup"
+[ -n "$VM_FILTER" ] && echo "  VM: $VM_FILTER"
+echo "  Destination: $BACKUP_PATH"
+[ -n "$NFS_TARGET" ] && echo "  NFS target: $NFS_TARGET"
+$INCREMENTAL && echo "  Mode: incremental"
 echo ""
 
-mkdir -p "$BACKUP_PATH/vms" "$BACKUP_PATH/networks" "$BACKUP_PATH/pools"
+mkdir -p "$BACKUP_PATH/vms"
+[ -z "$VM_FILTER" ] && mkdir -p "$BACKUP_PATH/networks" "$BACKUP_PATH/pools"
+
+# Write initial status
+write_status "running" "Starting backup" "0"
 
 # Backup VM XML configs
 info "Backing up $VM_COUNT VM configs..."
-BACKED=0
 echo "$VM_NAMES" | while read -r name; do
     [ -z "$name" ] && continue
     XML=$(curl -sf "$API/vms/$name/xml" 2>/dev/null)
@@ -124,45 +476,82 @@ echo "$VM_NAMES" | while read -r name; do
         echo "  $name"
     fi
 done
+update_progress "VM configs saved"
 ok "VM configs saved"
 
-# Backup network XML configs
-info "Backing up $NET_COUNT network configs..."
-echo "$NET_NAMES" | while read -r name; do
-    [ -z "$name" ] && continue
-    XML=$(curl -sf "$API/networks/$name/xml" 2>/dev/null)
-    if [ -n "$XML" ]; then
-        echo "$XML" > "$BACKUP_PATH/networks/$name.xml"
-        echo "  $name"
-    fi
-done
-ok "Network configs saved"
+# Backup network and pool configs (skip for per-VM backup)
+if [ -z "$VM_FILTER" ]; then
+    info "Backing up $NET_COUNT network configs..."
+    echo "$NET_NAMES" | while read -r name; do
+        [ -z "$name" ] && continue
+        XML=$(curl -sf "$API/networks/$name/xml" 2>/dev/null)
+        if [ -n "$XML" ]; then
+            echo "$XML" > "$BACKUP_PATH/networks/$name.xml"
+            echo "  $name"
+        fi
+    done
+    update_progress "Network configs saved"
+    ok "Network configs saved"
 
-# Backup pool XML configs
-POOL_NAMES=$(echo "$POOLS" | python3 -c "import json,sys; [print(p['name']) for p in json.load(sys.stdin)]" 2>/dev/null)
-info "Backing up storage pool configs..."
-echo "$POOL_NAMES" | while read -r name; do
-    [ -z "$name" ] && continue
-    XML=$(curl -sf "$API/storage/pools/$name/xml" 2>/dev/null)
-    if [ -n "$XML" ]; then
-        echo "$XML" > "$BACKUP_PATH/pools/$name.xml"
-        echo "  $name"
-    fi
-done
-ok "Pool configs saved"
+    POOL_NAMES=$(echo "$POOLS" | python3 -c "import json,sys; [print(p['name']) for p in json.load(sys.stdin)]" 2>/dev/null)
+    info "Backing up storage pool configs..."
+    echo "$POOL_NAMES" | while read -r name; do
+        [ -z "$name" ] && continue
+        XML=$(curl -sf "$API/storage/pools/$name/xml" 2>/dev/null)
+        if [ -n "$XML" ]; then
+            echo "$XML" > "$BACKUP_PATH/pools/$name.xml"
+            echo "  $name"
+        fi
+    done
+    update_progress "Pool configs saved"
+    ok "Pool configs saved"
 
-# Save VM list as JSON
-echo "$VMS" | python3 -m json.tool > "$BACKUP_PATH/vms.json" 2>/dev/null
-echo "$NETS" | python3 -m json.tool > "$BACKUP_PATH/networks.json" 2>/dev/null
-echo "$POOLS" | python3 -m json.tool > "$BACKUP_PATH/pools.json" 2>/dev/null
+    # Save JSON snapshots
+    echo "$VMS" | python3 -m json.tool > "$BACKUP_PATH/vms.json" 2>/dev/null
+    echo "$NETS" | python3 -m json.tool > "$BACKUP_PATH/networks.json" 2>/dev/null
+    echo "$POOLS" | python3 -m json.tool > "$BACKUP_PATH/pools.json" 2>/dev/null
 
-# Save node info
-curl -sf "$API/node" | python3 -m json.tool > "$BACKUP_PATH/node.json" 2>/dev/null
+    # Save node info
+    curl -sf "$API/node" | python3 -m json.tool > "$BACKUP_PATH/node.json" 2>/dev/null
+else
+    echo "$VM_DETAIL" | python3 -m json.tool > "$BACKUP_PATH/vm-detail.json" 2>/dev/null
+fi
 
 # Optionally backup disk images
 if $WITH_DISKS; then
     mkdir -p "$BACKUP_PATH/disks"
+
+    # Find previous backup for incremental
+    LINK_DEST=""
+    if $INCREMENTAL; then
+        PREV_BACKUP=$(find_previous_backup)
+        if [ -n "$PREV_BACKUP" ] && [ -d "$PREV_BACKUP/disks" ]; then
+            LINK_DEST="$PREV_BACKUP/disks"
+            info "Incremental: linking against $(basename "$PREV_BACKUP")"
+        else
+            info "No previous backup with disks found, doing full copy"
+        fi
+    fi
+
     info "Backing up disk images (this may take a while)..."
+    DISK_NUM=0
+    DISK_TOTAL=0
+
+    # Count disks first for progress
+    echo "$VM_NAMES" | while read -r name; do
+        [ -z "$name" ] && continue
+        DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null)
+        echo "$DETAILS" | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+for disk in d.get('disks',[]):
+    print(disk['source'])
+" 2>/dev/null | while read -r disk_path; do
+            [ -z "$disk_path" ] && continue
+            [ -f "$disk_path" ] && DISK_TOTAL=$((DISK_TOTAL + 1))
+        done
+    done
+
     echo "$VM_NAMES" | while read -r name; do
         [ -z "$name" ] && continue
         DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null)
@@ -175,24 +564,70 @@ for disk in d.get('disks',[]):
             [ -z "$disk_path" ] && continue
             if [ -f "$disk_path" ]; then
                 disk_name=$(basename "$disk_path")
-                echo "  Copying: $disk_path"
-                cp "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+                DISK_NUM=$((DISK_NUM + 1))
+                write_status "running" "Copying disk: $disk_name" ""
+
+                if [ -n "$LINK_DEST" ]; then
+                    # Incremental: use rsync with hardlinks
+                    echo "  Syncing: $disk_path (incremental)"
+                    rsync -a --link-dest="$LINK_DEST" "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+                else
+                    echo "  Copying: $disk_path"
+                    cp "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+                fi
             else
                 warn "  Disk not found: $disk_path"
             fi
         done
     done
+    update_progress "Disk images saved"
     ok "Disk images saved"
 fi
 
-# Summary
+# Save backup metadata
+POOL_COUNT=0
+if [ -z "$VM_FILTER" ] && [ -n "$POOL_NAMES" ]; then
+    POOL_COUNT=$(echo "$POOL_NAMES" | grep -c . || true)
+fi
+
+cat > "$BACKUP_PATH/backup.meta" <<META
+timestamp=$DATE
+hostname=$(hostname)
+api_url=$API
+with_disks=$WITH_DISKS
+incremental=$INCREMENTAL
+nfs_target=${NFS_TARGET:-local}
+vm_filter=${VM_FILTER:-all}
+vm_count=$VM_COUNT
+net_count=$NET_COUNT
+pool_count=$POOL_COUNT
+META
+
+# Generate checksums
+generate_checksums "$BACKUP_PATH"
+
+# ── Summary ──────────────────────────────────────────────────────────
+
 TOTAL_SIZE=$(du -sh "$BACKUP_PATH" 2>/dev/null | cut -f1)
 FILE_COUNT=$(find "$BACKUP_PATH" -type f | wc -l)
 
 echo ""
-echo -e "${GREEN}${BOLD}Backup complete${NC}"
-echo -e "  Location: $BACKUP_PATH"
-echo -e "  Files:    $FILE_COUNT"
-echo -e "  Size:     $TOTAL_SIZE"
+echo "Backup complete"
+echo "  Location: $BACKUP_PATH"
+echo "  Files:    $FILE_COUNT"
+echo "  Size:     $TOTAL_SIZE"
+$INCREMENTAL && echo "  Mode:     incremental"
 echo ""
-echo -e "  Restore:  $0 --restore $BACKUP_PATH"
+echo "  Restore:  $0 --restore $BACKUP_PATH"
+echo "  Verify:   $0 --verify $BACKUP_PATH"
+
+# Write completed status
+write_status "completed" "Backup complete: $FILE_COUNT files, $TOTAL_SIZE" "100"
+
+# ── Prune old backups ────────────────────────────────────────────────
+
+prune_old_backups
+
+# ── Cleanup NFS ──────────────────────────────────────────────────────
+
+unmount_nfs

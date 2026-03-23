@@ -1,7 +1,8 @@
 use anyhow::Result;
 use virtspawn_core::{
-    CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest, CreateVmRequest, NetworkInfo,
-    NodeInfo, RenameVmRequest, SnapshotInfo, StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
+    BackupInfo, BackupRequest, CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest,
+    CreateVmRequest, NetworkInfo, NodeInfo, RenameVmRequest, RestoreRequest, SnapshotInfo,
+    StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
 };
 
 pub struct DaemonClient {
@@ -254,5 +255,26 @@ impl DaemonClient {
     pub async fn get_console_info(&self, name: &str) -> Result<serde_json::Value> {
         self.get_json(&format!("/api/v1/vms/console-info/{name}"))
             .await
+    }
+
+    // ── Backups ─────────────────────────────────────────────────────────
+
+    pub async fn fetch_backups(&self) -> Result<Vec<BackupInfo>> {
+        self.get_json("/api/v1/backups").await
+    }
+
+    pub async fn trigger_backup(&self, req: &BackupRequest) -> Result<()> {
+        self.post_json("/api/v1/backups", req).await
+    }
+
+    pub async fn restore_backup(&self, backup_id: &str) -> Result<()> {
+        let req = RestoreRequest {
+            backup_id: backup_id.to_string(),
+        };
+        self.post_json("/api/v1/backups/restore", &req).await
+    }
+
+    pub async fn delete_backup(&self, id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/backups/{id}")).await
     }
 }

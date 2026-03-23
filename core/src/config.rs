@@ -10,6 +10,8 @@ pub struct VirtspawnConfig {
     pub daemon: DaemonConfig,
     #[serde(default)]
     pub libvirt: LibvirtConfig,
+    #[serde(default)]
+    pub backup: BackupConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -46,6 +48,37 @@ fn default_port() -> u16 {
 
 fn default_libvirt_uri() -> String {
     "qemu:///system".to_string()
+}
+
+fn default_backup_dir() -> String {
+    "/var/lib/virtspawn/backups".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BackupConfig {
+    #[serde(default = "default_backup_dir")]
+    pub backup_dir: String,
+    #[serde(default)]
+    pub nfs_target: String,
+    #[serde(default)]
+    pub with_disks: bool,
+    #[serde(default = "default_retain")]
+    pub retain: u32,
+}
+
+fn default_retain() -> u32 {
+    7
+}
+
+impl Default for BackupConfig {
+    fn default() -> Self {
+        Self {
+            backup_dir: default_backup_dir(),
+            nfs_target: String::new(),
+            with_disks: false,
+            retain: default_retain(),
+        }
+    }
 }
 
 impl Default for GeneralConfig {

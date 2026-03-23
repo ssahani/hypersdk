@@ -1,0 +1,27 @@
+[Unit]
+Description=virtspawn VM backup
+Documentation=https://github.com/ssahani/-virtspawn
+After=libvirtd.service network-online.target virtspawn-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/share/virtspawn/scripts/backup.sh --config /etc/virtspawn/backup.conf
+
+# Allow NFS mounts and disk access
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/virtspawn /mnt/virtspawn-backup
+PrivateTmp=true
+
+# Need mount capability for NFS
+AmbientCapabilities=CAP_SYS_ADMIN
+NoNewPrivileges=false
+
+# Network: needed for API calls + NFS
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=virtspawn-backup

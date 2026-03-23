@@ -321,10 +321,23 @@ install_files() {
         info "Config already exists, not overwriting"
     fi
 
-    # Systemd unit
+    # Systemd units
     install -Dm644 contrib/virtspawn-daemon.service /usr/lib/systemd/system/virtspawn-daemon.service
+    install -Dm644 contrib/virtspawn-backup.service /usr/lib/systemd/system/virtspawn-backup.service
+    install -Dm644 contrib/virtspawn-backup.timer /usr/lib/systemd/system/virtspawn-backup.timer
     systemctl daemon-reload
-    ok "Systemd unit installed"
+    ok "Systemd units installed"
+
+    # Backup script and config
+    install -Dm755 scripts/backup.sh /usr/local/share/virtspawn/scripts/backup.sh
+    if [ ! -f /etc/virtspawn/backup.conf ]; then
+        install -Dm644 contrib/backup.conf /etc/virtspawn/backup.conf
+        ok "Backup config -> /etc/virtspawn/backup.conf"
+    else
+        info "Backup config already exists, not overwriting"
+    fi
+    mkdir -p /var/lib/virtspawn/backups
+    ok "Backup infrastructure installed"
 
     # Web UI
     if [ -d web/dist ]; then
@@ -481,10 +494,14 @@ uninstall() {
 
     systemctl stop virtspawn-daemon 2>/dev/null || true
     systemctl disable virtspawn-daemon 2>/dev/null || true
+    systemctl stop virtspawn-backup.timer 2>/dev/null || true
+    systemctl disable virtspawn-backup.timer 2>/dev/null || true
 
     rm -f /usr/local/bin/virtspawn-daemon
     rm -f /usr/local/bin/virtspawn
     rm -f /usr/lib/systemd/system/virtspawn-daemon.service
+    rm -f /usr/lib/systemd/system/virtspawn-backup.service
+    rm -f /usr/lib/systemd/system/virtspawn-backup.timer
     rm -rf /usr/local/share/virtspawn
     systemctl daemon-reload 2>/dev/null || true
 

@@ -18,6 +18,7 @@ const Console = lazy(() => import('./pages/Console'))
 const Capabilities = lazy(() => import('./pages/Capabilities'))
 const Devices = lazy(() => import('./pages/Devices'))
 const NWFilters = lazy(() => import('./pages/NWFilters'))
+const Backups = lazy(() => import('./pages/Backups'))
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
                   <Route path="/capabilities" element={<Capabilities />} />
                   <Route path="/devices" element={<Devices />} />
                   <Route path="/nwfilters" element={<NWFilters />} />
+                  <Route path="/backups" element={<Backups />} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </Suspense>

@@ -1208,6 +1208,29 @@ impl App {
                 let desc: Vec<String> = VmTemplate::all().iter().map(|t| format!("{}: {}", t.name, t.description)).collect();
                 self.state.status_message = desc.join(" | ");
             }
+            ["backups"] | ["backup"] => {
+                self.navigate_to_category(SidebarCategory::Backups);
+                if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
+            }
+            ["backup", "run"] => {
+                let req = virtspawn_core::BackupRequest::default();
+                let r = self.client.trigger_backup(&req).await;
+                self.report_cmd_result(r, "Backup started (all VMs)", "backup", "all", false).await;
+            }
+            ["backup", "run", vm_name] => {
+                let req = virtspawn_core::BackupRequest { vm_name: vm_name.to_string(), ..Default::default() };
+                let r = self.client.trigger_backup(&req).await;
+                self.report_cmd_result(r, &format!("Backup started for '{vm_name}'"), "backup", vm_name, false).await;
+            }
+            ["backup", "restore", backup_id] => {
+                let r = self.client.restore_backup(backup_id).await;
+                self.report_cmd_result(r, &format!("Restore started from '{backup_id}'"), "restore", backup_id, true).await;
+            }
+            ["backup", "delete", backup_id] => {
+                let r = self.client.delete_backup(backup_id).await;
+                self.report_cmd_result(r, &format!("Deleted backup '{backup_id}'"), "delete-backup", backup_id, false).await;
+                if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
+            }
             ["q"] | ["quit"] => self.should_quit = true,
             _ => self.state.status_message = format!("Unknown command: {cmd}"),
         }
@@ -1256,6 +1279,7 @@ impl App {
         if let Ok(pools) = pools { self.state.storage_pools = pools; }
         if let Ok(snaps) = snaps { self.state.snapshots = snaps; }
         if let Ok(info) = node { self.state.node_info = Some(info); }
+        if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
         if let Ok(m) = metrics { self.state.vm_metrics = m; self.state.record_metrics_snapshot(); }
 
         if let Some(pool) = self.state.browsing_pool.clone() {
