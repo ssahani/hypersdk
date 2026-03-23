@@ -15,10 +15,8 @@ Environment=RUST_LOG=info
 # Filesystem protection
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/libvirt /var/lib/virtspawn
+ReadWritePaths=/var/lib/libvirt /dev/pts
 PrivateTmp=true
-# PTY access needed for serial console
-DeviceAllow=/dev/pts/* rw
 
 # Privilege restrictions
 NoNewPrivileges=true

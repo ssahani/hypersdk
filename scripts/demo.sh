@@ -188,7 +188,7 @@ echo -e "  ${BLUE}POST${NC} /storage/pools/default/volumes/x/resize with -1"
 result=$(curl -s -X POST "${API}/storage/pools/default/volumes/x/resize" \
     -H 'Content-Type: application/json' \
     -d '{"capacity_gb":-1}')
-if echo "$result" | grep -qF "greater than 0"; then
+if echo "$result" | grep -qF "capacity_gb must be"; then
     echo -e "  ${GREEN}BLOCKED${NC}: $result"
 else
     echo -e "  ${RED}NOT BLOCKED${NC}: $result"

@@ -456,7 +456,7 @@ run_tests() {
     resize_resp=$(curl -s -X POST http://localhost:8081/api/v1/storage/pools/default/volumes/x/resize \
         -H 'Content-Type: application/json' \
         -d '{"capacity_gb":-1}' 2>/dev/null) || resize_resp=""
-    if echo "$resize_resp" | grep -qF "greater than 0"; then
+    if echo "$resize_resp" | grep -qF "capacity_gb must be"; then
         ok "  Resize validation works"
         passed=$((passed + 1))
     else
