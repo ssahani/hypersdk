@@ -32,13 +32,15 @@ Manage virtual machines, networks, storage, and snapshots from your browser or t
 
 ```
 virtspawn/
-├── core/       Shared library — types, config, libvirt bindings, validation, XML helpers
-├── daemon/     REST + WebSocket server (axum), VNC proxy, noVNC serving, Prometheus metrics
-├── tui/        Terminal UI client (ratatui) with sidebar + content panel layout
-├── web/        Web frontend (React 19 + TypeScript + Tailwind + Recharts + xterm.js)
-├── contrib/    Systemd unit, default config
-├── examples/   Example user configuration
-└── scripts/    Install and demo scripts
+├── core/               Shared library — types, config, libvirt bindings, validation, XML helpers
+├── daemon/             REST + WebSocket server (axum), VNC proxy, noVNC serving, Prometheus metrics
+├── tui/                Terminal UI client (ratatui) with sidebar + content panel layout
+├── web/                Web frontend (React 19 + TypeScript + Tailwind + Recharts + xterm.js)
+├── contrib/            Systemd unit, default config
+├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
+├── examples/           Example user configuration
+├── install.sh          Automated installer (Fedora/Ubuntu)
+└── Makefile            Build, install, deploy, manage targets
 ```
 
 ---
@@ -51,7 +53,7 @@ virtspawn/
 - **VM Details** — tabbed view (Overview, Disks, Network, Snapshots) with live metrics and autostart toggle
 - **Create VM** — form with template selector (linux-small/medium/large, windows, minimal), validation
 - **VNC Console** — in-browser VM display via noVNC, connected through daemon's WebSocket proxy — see the actual login screen, no external tools needed
-- **Serial Console** — xterm.js terminal connected to VM's serial PTY via socat
+- **Serial Console** — xterm.js terminal connected directly to VM's serial PTY via async I/O
 - **Networks** — list, start/stop, toggle autostart, delete
 - **Storage** — pool cards with capacity bars, volume browser, delete volumes
 - **Snapshots** — list all across VMs, revert, delete
@@ -98,51 +100,57 @@ virtspawn/
 ### Infrastructure
 - **WebSocket** — real-time VM state change notifications
 - **VNC WebSocket proxy** — built-in TCP-to-WebSocket proxy for VNC, no external websockify needed
-- **Serial console proxy** — WebSocket-to-PTY bridge via socat
+- **Serial console proxy** — direct async PTY I/O over WebSocket (no socat dependency)
 - **noVNC serving** — auto-discovers system noVNC installation and serves at `/novnc/`
 - **Connection resilience** — auto-reconnects to libvirt if connection drops
 - **Systemd service** — hardened unit file with security restrictions
 - **Config hierarchy** — user config > system config > defaults > CLI overrides
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
+- **Security hardened** — migration URI validation (SSRF prevention), ISO path canonicalization, PTY path validation, integer overflow protection, no CORS (same-origin only)
+- **Audit logging** — all operations logged with timestamps to `~/.virtspawn/audit.log`
 - **Graceful shutdown** — daemon handles SIGTERM/SIGINT cleanly
 
 ---
 
 ## Quick Start
 
-### One-Line Install
+### Automated Install (recommended)
+
+Single script that installs all dependencies, builds, and starts everything:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ssahani/-virtspawn/main/scripts/install.sh | sudo bash
+# From a fresh Fedora or Ubuntu machine:
+git clone https://github.com/ssahani/-virtspawn.git
+cd virtspawn
+sudo ./install.sh
 ```
 
-Or manually:
+The installer:
+- Detects your OS (Fedora/RHEL/Ubuntu/Debian)
+- Installs system dependencies (libvirt, qemu-kvm, gcc, nodejs)
+- Finds or installs Rust toolchain
+- Builds release binaries + web frontend
+- Installs and starts the systemd service
+- Runs 15 verification tests
 
-### Prerequisites
+Options: `--uninstall`, `--deps-only`, `--no-start`
+
+### Prerequisites (manual install)
 
 - Rust toolchain (1.70+)
 - Node.js 18+ and npm (for web UI)
 - `libvirt-devel` / `libvirt-dev` package
 - `qemu-img` (for VM creation)
-- `socat` (for serial console)
 - `novnc` (for VNC console — optional, auto-detected)
 - Running `libvirtd` service
 
 ```bash
 # Fedora / RHEL / CentOS
-sudo dnf install libvirt-devel qemu-img socat novnc
+sudo dnf install libvirt-devel qemu-kvm qemu-img virt-install
 sudo systemctl enable --now libvirtd
 
 # Debian / Ubuntu
-sudo apt install libvirt-dev qemu-utils socat novnc
-sudo systemctl enable --now libvirtd
-
-# Arch Linux
-sudo pacman -S libvirt qemu-base socat novnc
-sudo systemctl enable --now libvirtd
-
-# openSUSE
-sudo zypper install libvirt-devel qemu-tools socat novnc
+sudo apt install libvirt-dev qemu-kvm qemu-utils virtinst
 sudo systemctl enable --now libvirtd
 ```
 
@@ -218,11 +226,13 @@ The VNC console connects directly through the daemon — no external websockify 
 Browser → noVNC (served at /novnc/) → WebSocket (/ws/v1/vnc/{name}) → daemon TCP proxy → QEMU VNC
 ```
 
-The serial console uses socat to connect to the VM's PTY:
+The serial console connects directly to the VM's PTY (no socat needed):
 
 ```
-Browser → xterm.js → WebSocket (/ws/v1/console/{name}) → socat → VM PTY (/dev/pts/X)
+Browser → xterm.js → WebSocket (/ws/v1/console/{name}) → async PTY I/O → VM PTY (/dev/pts/X)
 ```
+
+> **Note:** VMs must use VNC graphics (not SPICE) for the browser console to work. New VMs created through virtspawn use VNC by default. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
 
 ---
 
@@ -551,12 +561,23 @@ curl -s http://localhost:8081/api/v1/vms/console-info/<vm-name> | jq   # Check p
 # VNC only works on running VMs with graphics configured
 ```
 
-### Serial console disconnects immediately
+### Serial console shows "Connected" but nothing appears
 
+The guest OS needs serial console enabled in its kernel cmdline:
 ```bash
-which socat                                 # Is socat installed?
-sudo dnf install socat                      # Install socat
-virsh console <vm-name>                     # Does it work directly?
+# Inside the VM, add to /etc/default/grub:
+GRUB_CMDLINE_LINUX="console=ttyS0,115200"
+# Then: sudo grub2-mkconfig -o /boot/grub2/grub.cfg && reboot
+```
+
+### VNC shows "Not Available"
+
+The VM uses SPICE graphics instead of VNC. Switch to VNC:
+```bash
+sudo virsh edit <vm-name>
+# Change: <graphics type='spice' ...>
+# To:     <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>
+# Restart the VM
 ```
 
 ### Permission denied
@@ -578,11 +599,32 @@ sudo usermod -aG libvirt $USER && newgrp libvirt
 | Web UI | [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org/) + [Tailwind CSS 4](https://tailwindcss.com) |
 | Charts | [Recharts](https://recharts.org) |
 | VNC Console | [noVNC](https://novnc.com) (served from system install) |
-| Serial Console | [xterm.js](https://xtermjs.org) + socat |
+| Serial Console | [xterm.js](https://xtermjs.org) + direct PTY I/O |
 | Libvirt | [virt](https://crates.io/crates/virt) crate |
 | HTTP client | [Reqwest](https://crates.io/crates/reqwest) |
 | Serialization | [Serde](https://serde.rs) |
 | CLI | [Clap](https://clap.rs) |
+
+---
+
+## Documentation
+
+PDF documentation is available in `demo-screenshots/`:
+
+| Document | Description |
+|----------|-------------|
+| [virtspawn-demo.pdf](demo-screenshots/virtspawn-demo.pdf) | Client presentation — features, architecture, 10 live screenshots, security |
+| [virtspawn-quickstart.pdf](demo-screenshots/virtspawn-quickstart.pdf) | Quick Start Guide — prerequisites, build, install, access, TUI shortcuts, config, troubleshooting |
+| [virtspawn-api-reference.pdf](demo-screenshots/virtspawn-api-reference.pdf) | Complete API reference — all 30+ endpoints, curl examples, response formats, automation scripts |
+| [virtspawn-security-architecture.pdf](demo-screenshots/virtspawn-security-architecture.pdf) | Security & Architecture — system diagram, input validation, SSRF prevention, comparison table |
+
+Regenerate PDFs:
+```bash
+python3 demo-screenshots/generate_pdf.py              # demo deck
+python3 demo-screenshots/generate_quickstart_pdf.py    # quickstart guide
+python3 demo-screenshots/generate_api_pdf.py           # API reference
+python3 demo-screenshots/generate_security_pdf.py      # security & architecture
+```
 
 ---
 
