@@ -18,6 +18,7 @@ export default function VMDetailsPage() {
   const [cdromPath, setCdromPath] = useState('')
   const [cdromTarget, setCdromTarget] = useState('sda')
   const [showCdromDialog, setShowCdromDialog] = useState(false)
+  const [backingUp, setBackingUp] = useState(false)
   const [tab, setTab] = useState<'overview' | 'disks' | 'network' | 'snapshots'>('overview')
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
@@ -101,7 +102,7 @@ export default function VMDetailsPage() {
           {hasSave && <button onClick={() => action(managedSaveRemove, 'Remove Save')} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm transition flex items-center gap-1"><Save className="w-4 h-4" /> Remove Save</button>}
           <button onClick={() => setShowCdromDialog(true)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Disc className="w-4 h-4" /> CD</button>
           <button onClick={handleEjectCdrom} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><CircleX className="w-4 h-4" /> Eject</button>
-          <button onClick={async () => { try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup started for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Archive className="w-4 h-4" /> Backup</button>
+          <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup started for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm transition flex items-center gap-1"><Archive className="w-4 h-4" /> {backingUp ? 'Backing up...' : 'Backup'}</button>
         </div>
       </div>
 

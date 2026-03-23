@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import {
   fetchBackups, triggerBackup, restoreBackup, deleteBackup, verifyBackup,
   getSchedule, setSchedule, downloadBackupUrl,
@@ -36,7 +36,10 @@ export default function BackupsPage() {
   const [verifyResult, setVerifyResult] = useState<VerifyResult | null>(null)
   const [verifying, setVerifying] = useState<string | null>(null)
   const [schedule, setScheduleState] = useState<ScheduleInfo | null>(null)
+  const [restoring, setRestoring] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const toast = useToastContext()
+  const backupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // Backup form state
   const [vmName, setVmName] = useState('')
@@ -61,6 +64,11 @@ export default function BackupsPage() {
 
   useEffect(() => { load() }, [load])
 
+  // Cleanup setTimeout on unmount
+  useEffect(() => {
+    return () => { if (backupTimerRef.current) clearTimeout(backupTimerRef.current) }
+  }, [])
+
   // Auto-refresh while any backup is running
   useEffect(() => {
     const hasRunning = backups.some(b => b.status === 'running')
@@ -78,7 +86,8 @@ export default function BackupsPage() {
       const result = await triggerBackup(req)
       toast.success(`Backup started: ${result.backup_id}`)
       setShowForm(false)
-      setTimeout(() => load(), 2000)
+      if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
+      backupTimerRef.current = setTimeout(() => load(), 2000)
     } catch (e: unknown) {
       toast.error(`${e instanceof Error ? e.message : e}`)
     } finally {
@@ -87,25 +96,31 @@ export default function BackupsPage() {
   }
 
   const handleRestore = async () => {
-    if (!restoreTarget) return
+    if (!restoreTarget || restoring) return
+    setRestoring(true)
     try {
       await restoreBackup({ backup_id: restoreTarget.id })
       toast.success(`Restore started from '${restoreTarget.id}'`)
       load()
     } catch (e: unknown) {
       toast.error(`${e instanceof Error ? e.message : e}`)
+    } finally {
+      setRestoring(false)
     }
     setRestoreTarget(null)
   }
 
   const handleDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget || deleting) return
+    setDeleting(true)
     try {
       await deleteBackup(deleteTarget.id)
       toast.success(`Deleted backup '${deleteTarget.id}'`)
       load()
     } catch (e: unknown) {
       toast.error(`${e instanceof Error ? e.message : e}`)
+    } finally {
+      setDeleting(false)
     }
     setDeleteTarget(null)
   }

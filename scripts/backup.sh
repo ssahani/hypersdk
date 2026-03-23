@@ -80,6 +80,10 @@ cleanup_on_exit() {
         sync 2>/dev/null || true
         umount "${NFS_MOUNT_POINT:-/mnt/virtspawn-backup}" 2>/dev/null || true
     fi
+    # Release lock
+    if [ -n "${LOCK_FD:-}" ]; then
+        eval "exec ${LOCK_FD}>&-" 2>/dev/null || true
+    fi
 }
 trap cleanup_on_exit EXIT
 
@@ -369,14 +373,39 @@ if [ -n "$RESTORE_DIR" ]; then
     # Restore disk images if present
     if [ -d "$RESTORE_DIR/disks" ]; then
         info "Restoring disk images..."
+        # Build a map of disk basenames to original paths from VM XMLs
+        declare -A DISK_DEST_MAP
+        for xml in "$RESTORE_DIR"/vms/*.xml; do
+            [ -f "$xml" ] || continue
+            # Extract disk source paths from XML
+            grep -oP 'source file=."\K[^"]+' "$xml" 2>/dev/null | while IFS= read -r src_path; do
+                local bn
+                bn=$(basename "$src_path")
+                # Check both plain and VM-prefixed names
+                local vm_bn
+                vm_bn="$(basename "$xml" .xml)_${bn}"
+                echo "${bn}|${src_path}"
+                echo "${vm_bn}|${src_path}"
+            done
+        done | while IFS='|' read -r key val; do
+            DISK_DEST_MAP["$key"]="$val"
+        done 2>/dev/null || true
+
         for disk_file in "$RESTORE_DIR"/disks/*; do
             [ -f "$disk_file" ] || continue
             disk_name=$(basename "$disk_file")
-            # Try to find original path from VM XMLs
-            dest="/var/lib/libvirt/images/$disk_name"
+            # Look up original path, fall back to /var/lib/libvirt/images/
+            dest="${DISK_DEST_MAP[$disk_name]:-}"
+            if [ -z "$dest" ]; then
+                # Strip VM name prefix if present (format: vmname_diskfile)
+                stripped="${disk_name#*_}"
+                dest="${DISK_DEST_MAP[$stripped]:-/var/lib/libvirt/images/$stripped}"
+            fi
             if [ -f "$dest" ]; then
                 warn "  $disk_name already exists at $dest, skipping"
             else
+                dest_dir=$(dirname "$dest")
+                [ -d "$dest_dir" ] || mkdir -p "$dest_dir"
                 info "  Copying $disk_name -> $dest"
                 cp "$disk_file" "$dest" && ok "  $disk_name restored" || warn "  $disk_name copy failed"
             fi
@@ -394,6 +423,16 @@ fi
 mount_nfs
 
 BACKUP_PATH="$BACKUP_DIR/$DATE"
+
+# ── Acquire lock (prevent concurrent backups) ────────────────────────
+
+LOCK_FILE="$BACKUP_DIR/.backup.lock"
+mkdir -p "$BACKUP_DIR"
+LOCK_FD=9
+eval "exec ${LOCK_FD}>\"$LOCK_FILE\""
+if ! flock -n "$LOCK_FD"; then
+    fail "Another backup is already running (lock: $LOCK_FILE)"
+fi
 
 # ── Check daemon ─────────────────────────────────────────────────────
 
@@ -484,41 +523,43 @@ write_status "running" "Starting backup" "0"
 
 # Backup VM XML configs
 info "Backing up $VM_COUNT VM configs..."
-echo "$VM_NAMES" | while read -r name; do
+while IFS= read -r name; do
     [ -z "$name" ] && continue
     XML=$(curl -sf "$API/vms/$name/xml" 2>/dev/null)
     if [ -n "$XML" ]; then
         printf '%s\n' "$XML" > "$BACKUP_PATH/vms/$name.xml"
         echo "  $name"
+    else
+        warn "  Failed to fetch XML for '$name'"
     fi
-done
+done <<< "$VM_NAMES"
 update_progress "VM configs saved"
 ok "VM configs saved"
 
 # Backup network and pool configs (skip for per-VM backup)
 if [ -z "$VM_FILTER" ]; then
     info "Backing up $NET_COUNT network configs..."
-    echo "$NET_NAMES" | while read -r name; do
+    while IFS= read -r name; do
         [ -z "$name" ] && continue
         XML=$(curl -sf "$API/networks/$name/xml" 2>/dev/null)
         if [ -n "$XML" ]; then
             printf '%s\n' "$XML" > "$BACKUP_PATH/networks/$name.xml"
             echo "  $name"
         fi
-    done
+    done <<< "$NET_NAMES"
     update_progress "Network configs saved"
     ok "Network configs saved"
 
     POOL_NAMES=$(echo "$POOLS" | python3 -c "import json,sys; [print(p['name']) for p in json.load(sys.stdin)]" 2>/dev/null)
     info "Backing up storage pool configs..."
-    echo "$POOL_NAMES" | while read -r name; do
+    while IFS= read -r name; do
         [ -z "$name" ] && continue
         XML=$(curl -sf "$API/storage/pools/$name/xml" 2>/dev/null)
         if [ -n "$XML" ]; then
             printf '%s\n' "$XML" > "$BACKUP_PATH/pools/$name.xml"
             echo "  $name"
         fi
-    done
+    done <<< "$POOL_NAMES"
     update_progress "Pool configs saved"
     ok "Pool configs saved"
 
@@ -550,52 +591,40 @@ if $WITH_DISKS; then
     fi
 
     info "Backing up disk images (this may take a while)..."
-    DISK_NUM=0
-    DISK_TOTAL=0
 
-    # Count disks first for progress
-    echo "$VM_NAMES" | while read -r name; do
+    # Collect all disk paths with VM name prefix to avoid filename collisions
+    DISK_LIST=""
+    while IFS= read -r name; do
         [ -z "$name" ] && continue
-        DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null)
-        echo "$DETAILS" | python3 -c "
+        DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null) || continue
+        PATHS=$(echo "$DETAILS" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 for disk in d.get('disks',[]):
     print(disk['source'])
-" 2>/dev/null | while read -r disk_path; do
+" 2>/dev/null)
+        while IFS= read -r disk_path; do
             [ -z "$disk_path" ] && continue
-            [ -f "$disk_path" ] && DISK_TOTAL=$((DISK_TOTAL + 1))
-        done
-    done
+            [ -f "$disk_path" ] || { warn "  Disk not found: $disk_path"; continue; }
+            DISK_LIST="${DISK_LIST}${name}|${disk_path}"$'\n'
+        done <<< "$PATHS"
+    done <<< "$VM_NAMES"
 
-    echo "$VM_NAMES" | while read -r name; do
-        [ -z "$name" ] && continue
-        DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null)
-        echo "$DETAILS" | python3 -c "
-import json,sys
-d=json.load(sys.stdin)
-for disk in d.get('disks',[]):
-    print(disk['source'])
-" 2>/dev/null | while read -r disk_path; do
-            [ -z "$disk_path" ] && continue
-            if [ -f "$disk_path" ]; then
-                disk_name=$(basename "$disk_path")
-                DISK_NUM=$((DISK_NUM + 1))
-                write_status "running" "Copying disk: $disk_name" ""
+    while IFS='|' read -r vm_name disk_path; do
+        [ -z "$disk_path" ] && continue
+        disk_basename=$(basename "$disk_path")
+        # Prefix with VM name to avoid collisions between VMs
+        disk_name="${vm_name}_${disk_basename}"
+        write_status "running" "Copying disk: $disk_basename ($vm_name)" ""
 
-                if [ -n "$LINK_DEST" ]; then
-                    # Incremental: use rsync with hardlinks
-                    echo "  Syncing: $disk_path (incremental)"
-                    rsync -a --link-dest="$LINK_DEST" "$disk_path" "$BACKUP_PATH/disks/$disk_name"
-                else
-                    echo "  Copying: $disk_path"
-                    cp "$disk_path" "$BACKUP_PATH/disks/$disk_name"
-                fi
-            else
-                warn "  Disk not found: $disk_path"
-            fi
-        done
-    done
+        if [ -n "$LINK_DEST" ]; then
+            echo "  Syncing: $disk_path (incremental)"
+            rsync -a --link-dest="$LINK_DEST" "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+        else
+            echo "  Copying: $disk_path"
+            cp "$disk_path" "$BACKUP_PATH/disks/$disk_name"
+        fi
+    done <<< "$DISK_LIST"
     update_progress "Disk images saved"
     ok "Disk images saved"
 fi
