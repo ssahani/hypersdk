@@ -39,6 +39,7 @@ virtspawn/
 ├── contrib/            Systemd unit, default config
 ├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
 ├── examples/           Example user configuration
+├── scripts/            Utility scripts (demo, status, backup, bulk operations)
 ├── install.sh          Automated installer (Fedora/Ubuntu)
 └── Makefile            Build, install, deploy, manage targets
 ```
@@ -604,6 +605,51 @@ sudo usermod -aG libvirt $USER && newgrp libvirt
 | HTTP client | [Reqwest](https://crates.io/crates/reqwest) |
 | Serialization | [Serde](https://serde.rs) |
 | CLI | [Clap](https://clap.rs) |
+
+---
+
+## Utility Scripts
+
+### Status Overview
+
+```bash
+./scripts/status.sh
+```
+
+Single-screen dashboard showing host info, all VMs with state/vCPUs/memory, live metrics (memory %, disk I/O, network I/O), networks, storage pools with usage bars, snapshots, and service status.
+
+### Backup & Restore
+
+```bash
+./scripts/backup.sh                          # Backup all VM/network/pool XML configs
+./scripts/backup.sh --with-disks             # Also copy disk images (can be large)
+./scripts/backup.sh --list                   # Preview what would be backed up
+./scripts/backup.sh --restore ~/virtspawn-backups/20260323-123456   # Restore from backup
+```
+
+Backups are saved to `~/virtspawn-backups/<timestamp>/` with VM XML, network XML, pool XML, and JSON summaries. Use `--restore` to redefine VMs on a new host.
+
+### Bulk Operations
+
+```bash
+./scripts/bulk.sh status                     # Quick VM status table
+./scripts/bulk.sh start                      # Start all stopped VMs
+./scripts/bulk.sh shutdown                   # Graceful shutdown all running VMs
+./scripts/bulk.sh stop                       # Force stop all running VMs
+./scripts/bulk.sh pause                      # Pause all running VMs
+./scripts/bulk.sh resume                     # Resume all paused VMs
+./scripts/bulk.sh snapshot                   # Auto-timestamped snapshot of all running VMs
+./scripts/bulk.sh snapshot-clean             # Delete all auto-* snapshots
+./scripts/bulk.sh start vm1 vm2              # Target specific VMs
+```
+
+### API Demo
+
+```bash
+sudo ./scripts/demo.sh                      # 30-step API demo (creates/tests/deletes a VM)
+```
+
+Exercises all 30+ API endpoints including VM lifecycle, snapshots, networks, storage, capabilities, devices, network filters, Prometheus metrics, and security validation tests.
 
 ---
 
