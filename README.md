@@ -40,6 +40,7 @@ virtspawn/
 ├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
 ├── examples/           Example user configuration
 ├── scripts/            Utility scripts (demo, status, backup, bulk operations)
+├── virtspawnctl        Management CLI (deploy, verify, health, backup, upgrade, tls)
 ├── install.sh          Automated installer (Fedora/Ubuntu)
 └── Makefile            Build, install, deploy, manage targets
 ```
@@ -127,60 +128,76 @@ virtspawn/
 
 ## Quick Start
 
-### Automated Install (recommended)
-
-Single script that installs all dependencies, builds, and starts everything:
-
-```bash
-# From a fresh Fedora or Ubuntu machine:
-git clone https://github.com/ssahani/-virtspawn.git
-cd virtspawn
-sudo ./install.sh
-```
-
-The installer:
-- Detects your OS (Fedora/RHEL/Ubuntu/Debian)
-- Installs system dependencies (libvirt, qemu-kvm, gcc, nodejs)
-- Finds or installs Rust toolchain
-- Builds release binaries + web frontend
-- Installs and starts the systemd service
-- Runs 15 verification tests
-
-Options: `--uninstall`, `--deps-only`, `--no-start`
-
-### Prerequisites (manual install)
-
-- Rust toolchain (1.70+)
-- Node.js 18+ and npm (for web UI)
-- `libvirt-devel` / `libvirt-dev` package
-- `qemu-img` (for VM creation)
-- `novnc` (for VNC console — optional, auto-detected)
-- Running `libvirtd` service
-
-```bash
-# Fedora / RHEL / CentOS
-sudo dnf install libvirt-devel qemu-kvm qemu-img virt-install
-sudo systemctl enable --now libvirtd
-
-# Debian / Ubuntu
-sudo apt install libvirt-dev qemu-kvm qemu-utils virtinst
-sudo systemctl enable --now libvirtd
-```
-
-### Build & Deploy (recommended)
+### One-Command Deployment (recommended)
 
 ```bash
 git clone https://github.com/ssahani/-virtspawn.git
 cd virtspawn
-
-# Build everything (Rust binaries + web frontend)
-make
-
-# Install and start the daemon
-sudo make deploy
+./virtspawnctl deploy    # Installs deps, builds, installs, starts, and auto-verifies
 ```
 
-That's it. Open **http://localhost:8081** in your browser, or run `virtspawn` for the TUI.
+No `sudo` needed — the script auto-escalates when required. After deployment, you'll see:
+
+```
+── Post-Install Verification ──
+✓ Service is running
+✓ API responding (HTTP 200)
+✓ VM list: 5 VM(s)
+✓ libvirt: 0 running, 1 total
+✓ All verification checks passed
+```
+
+Open **http://localhost:8081** or run `virtspawn` for the TUI.
+
+### Step-by-Step
+
+```bash
+./virtspawnctl deps            # Install dependencies (auto-sudo)
+./virtspawnctl build           # Build everything
+./virtspawnctl test            # Run tests
+./virtspawnctl install         # Install to system (auto-sudo)
+./virtspawnctl start           # Start the service (auto-sudo)
+./virtspawnctl verify          # Post-install smoke test
+```
+
+### Management Commands
+
+```bash
+./virtspawnctl status          # Check service status
+./virtspawnctl verify          # Post-install smoke test (API, VMs, libvirt)
+./virtspawnctl health          # Deep health check (disk, libvirt, timers)
+./virtspawnctl logs            # Follow logs
+./virtspawnctl restart         # Restart service (auto-sudo)
+./virtspawnctl reinstall       # Rebuild + reinstall + auto-verify (auto-sudo)
+./virtspawnctl upgrade         # Git pull + reinstall (auto-sudo)
+./virtspawnctl uninstall       # Remove everything (auto-sudo)
+./virtspawnctl doctor          # System readiness check
+./virtspawnctl tls             # Generate self-signed TLS certificate
+```
+
+### Backup Commands
+
+```bash
+./virtspawnctl backup now      # Run backup immediately
+./virtspawnctl backup enable   # Enable daily backup timer (2:00 AM)
+./virtspawnctl backup disable  # Disable backup timer
+./virtspawnctl backup status   # Show timer state + storage info
+./virtspawnctl backup logs     # Follow backup logs
+```
+
+### Alternative: Make (manual)
+
+```bash
+make                           # Build everything
+sudo make deploy               # Install and start
+```
+
+### Alternative: install.sh (legacy)
+
+```bash
+sudo ./install.sh              # Full automated install
+sudo ./install.sh --uninstall  # Remove
+```
 
 ### What `make deploy` does
 
