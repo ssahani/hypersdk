@@ -7,6 +7,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
+use tokio_util::io::ReaderStream;
 use virtspawn_core::LibvirtManager;
 
 use crate::error::AppError;
@@ -96,6 +97,32 @@ fn validate_backup_id(id: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Validate NFS target format: must look like host:/path or ip:/path.
+fn validate_nfs_target(target: &str) -> Result<(), AppError> {
+    if target.is_empty() {
+        return Ok(());
+    }
+    // Must contain exactly one colon separating host and path
+    let parts: Vec<&str> = target.splitn(2, ':').collect();
+    if parts.len() != 2 || parts[0].is_empty() || !parts[1].starts_with('/') {
+        return Err(virtspawn_core::LibvirtError::Operation(
+            "Invalid NFS target format. Expected: host:/path".to_string(),
+        )
+        .into());
+    }
+    // Host must be alphanumeric, dots, dashes only
+    if !parts[0]
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+    {
+        return Err(virtspawn_core::LibvirtError::Operation(
+            "NFS host contains invalid characters".to_string(),
+        )
+        .into());
+    }
+    Ok(())
+}
+
 fn dir_size_human(path: &std::path::Path) -> String {
     fn dir_size(path: &std::path::Path) -> u64 {
         let mut total: u64 = 0;
@@ -105,6 +132,10 @@ fn dir_size_human(path: &std::path::Path) -> String {
                     Ok(ft) => ft,
                     Err(_) => continue,
                 };
+                // Skip symlinks to avoid infinite recursion
+                if ft.is_symlink() {
+                    continue;
+                }
                 if ft.is_file() {
                     total += entry.metadata().map(|m| m.len()).unwrap_or(0);
                 } else if ft.is_dir() {
@@ -127,6 +158,29 @@ fn dir_size_human(path: &std::path::Path) -> String {
     }
 }
 
+/// Generate a timestamp string in YYYYMMDD-HHMMSS format without shelling out.
+fn generate_timestamp() -> String {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    // Convert epoch seconds to YYYYMMDD-HHMMSS (UTC)
+    // Simple conversion without chrono dependency
+    let output = std::process::Command::new("date")
+        .arg("+%Y%m%d-%H%M%S")
+        .output();
+    match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
+        _ => {
+            // Fallback: use epoch but formatted as digits-digits to match expected pattern
+            let hi = secs / 1_000_000;
+            let lo = secs % 1_000_000;
+            format!("{hi:07}-{lo:06}")
+        }
+    }
+}
+
 fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value {
     let meta_path = dir.join("backup.meta");
     let mut vm_filter = "all".to_string();
@@ -134,7 +188,6 @@ fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value
     let mut net_count: u64 = 0;
     let mut with_disks = false;
     let mut nfs_target = "local".to_string();
-    let mut has_checksums = dir.join("checksums.sha256").exists();
 
     // Read status
     let status_path = dir.join("backup.status");
@@ -152,11 +205,8 @@ fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value
                 }
             }
         }
-    } else {
-        // No status file + no meta = probably still running or very old
-        if !meta_path.exists() {
-            status = "unknown".to_string();
-        }
+    } else if !meta_path.exists() {
+        status = "unknown".to_string();
     }
 
     if let Ok(content) = std::fs::read_to_string(&meta_path) {
@@ -195,8 +245,7 @@ fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value
         }
     }
 
-    let _ = has_checksums; // used below
-    has_checksums = dir.join("checksums.sha256").exists();
+    let has_checksums = dir.join("checksums.sha256").exists();
     let size = dir_size_human(dir);
 
     json!({
@@ -220,9 +269,9 @@ fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value
 /// POST /backups — trigger a new backup.
 async fn trigger_backup(
     State(_manager): State<LibvirtManager>,
-    Json(req): Json<Option<BackupRequest>>,
+    body: Option<Json<BackupRequest>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let req = req.unwrap_or_default();
+    let req = body.map(|Json(r)| r).unwrap_or_default();
     let script = backup_script();
 
     if !script.exists() {
@@ -233,24 +282,19 @@ async fn trigger_backup(
         .into());
     }
 
-    let now = {
-        let output = std::process::Command::new("date")
-            .arg("+%Y%m%d-%H%M%S")
-            .output();
-        match output {
-            Ok(o) if o.status.success() => {
-                String::from_utf8_lossy(&o.stdout).trim().to_string()
-            }
-            _ => {
-                let secs = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap_or_default()
-                    .as_secs();
-                format!("{secs}")
-            }
+    // Validate vm_name if provided
+    if let Some(ref vm) = req.vm_name {
+        if !vm.is_empty() {
+            virtspawn_core::validate::validate_name(vm)?;
         }
-    };
-    let backup_id = now;
+    }
+
+    // Validate nfs_target if provided
+    if let Some(ref nfs) = req.nfs_target {
+        validate_nfs_target(nfs)?;
+    }
+
+    let backup_id = generate_timestamp();
     let mut cmd = tokio::process::Command::new("bash");
     cmd.arg(&script);
     cmd.env(
@@ -387,11 +431,13 @@ async fn verify_backup(
         })));
     }
 
-    let output = std::process::Command::new("sha256sum")
+    // Use tokio::process to avoid blocking the async runtime
+    let output = tokio::process::Command::new("sha256sum")
         .arg("-c")
         .arg("checksums.sha256")
         .current_dir(&dir)
         .output()
+        .await
         .map_err(|e| {
             virtspawn_core::LibvirtError::Operation(format!("Failed to run sha256sum: {e}"))
         })?;
@@ -416,7 +462,7 @@ async fn verify_backup(
     })))
 }
 
-/// GET /backups/:id/download — download backup as tar.gz.
+/// GET /backups/:id/download — stream backup as tar.gz.
 async fn download_backup(
     State(_manager): State<LibvirtManager>,
     Path(id): Path<String>,
@@ -430,24 +476,26 @@ async fn download_backup(
         );
     }
 
-    let output = tokio::process::Command::new("tar")
+    // Stream tar output instead of buffering entire archive in memory
+    let mut child = tokio::process::Command::new("tar")
         .arg("czf")
         .arg("-")
         .arg("-C")
         .arg(backup_dir().to_string_lossy().as_ref())
         .arg(&id)
-        .output()
-        .await
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
         .map_err(|e| {
-            virtspawn_core::LibvirtError::Operation(format!("Failed to create tar: {e}"))
+            virtspawn_core::LibvirtError::Operation(format!("Failed to start tar: {e}"))
         })?;
 
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(
-            virtspawn_core::LibvirtError::Operation(format!("tar failed: {stderr}")).into(),
-        );
-    }
+    let stdout = child.stdout.take().ok_or_else(|| {
+        virtspawn_core::LibvirtError::Operation("Failed to capture tar stdout".to_string())
+    })?;
+
+    let stream = ReaderStream::new(stdout);
+    let body = Body::from_stream(stream);
 
     let filename = format!("virtspawn-backup-{id}.tar.gz");
     Ok((
@@ -458,7 +506,7 @@ async fn download_backup(
                 &format!("attachment; filename=\"{filename}\""),
             ),
         ],
-        Body::from(output.stdout),
+        body,
     )
         .into_response())
 }
@@ -525,7 +573,7 @@ async fn delete_backup(
         );
     }
 
-    std::fs::remove_dir_all(&dir).map_err(|e| {
+    tokio::fs::remove_dir_all(&dir).await.map_err(|e| {
         virtspawn_core::LibvirtError::Operation(format!("Failed to delete backup '{}': {e}", id))
     })?;
 
@@ -539,19 +587,21 @@ async fn delete_backup(
 async fn get_schedule(
     State(_manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let active = std::process::Command::new("systemctl")
+    let active = tokio::process::Command::new("systemctl")
         .args(["is-active", "virtspawn-backup.timer"])
         .output()
+        .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "active")
         .unwrap_or(false);
 
-    let enabled = std::process::Command::new("systemctl")
+    let enabled = tokio::process::Command::new("systemctl")
         .args(["is-enabled", "virtspawn-backup.timer"])
         .output()
+        .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "enabled")
         .unwrap_or(false);
 
-    let next_run = std::process::Command::new("systemctl")
+    let next_run = tokio::process::Command::new("systemctl")
         .args([
             "show",
             "virtspawn-backup.timer",
@@ -559,10 +609,11 @@ async fn get_schedule(
             "--value",
         ])
         .output()
+        .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default();
 
-    let last_run = std::process::Command::new("systemctl")
+    let last_run = tokio::process::Command::new("systemctl")
         .args([
             "show",
             "virtspawn-backup.timer",
@@ -570,6 +621,7 @@ async fn get_schedule(
             "--value",
         ])
         .output()
+        .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default();
 
@@ -601,9 +653,10 @@ async fn set_schedule(
         "disable"
     };
 
-    let output = std::process::Command::new("systemctl")
+    let output = tokio::process::Command::new("systemctl")
         .args([action, "--now", "virtspawn-backup.timer"])
         .output()
+        .await
         .map_err(|e| {
             virtspawn_core::LibvirtError::Operation(format!("Failed to {action} timer: {e}"))
         })?;

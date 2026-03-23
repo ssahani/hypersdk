@@ -68,6 +68,21 @@ WITH_DISKS=false
 LIST_ONLY=false
 RESTORE_DIR=""
 
+# ── Trap for cleanup on interrupt ─────────────────────────────────
+
+cleanup_on_exit() {
+    local exit_code=$?
+    if [ $exit_code -ne 0 ] && [ -n "${BACKUP_PATH:-}" ] && [ -d "$BACKUP_PATH" ]; then
+        write_status "failed" "Backup interrupted or failed (exit $exit_code)" ""
+    fi
+    # Always try to unmount NFS on exit
+    if [ -n "${NFS_TARGET:-}" ] && mountpoint -q "${NFS_MOUNT_POINT:-/mnt/virtspawn-backup}" 2>/dev/null; then
+        sync 2>/dev/null || true
+        umount "${NFS_MOUNT_POINT:-/mnt/virtspawn-backup}" 2>/dev/null || true
+    fi
+}
+trap cleanup_on_exit EXIT
+
 # ── Status tracking ──────────────────────────────────────────────────
 
 write_status() {
@@ -304,9 +319,10 @@ done
 
 if [ -n "$VERIFY_DIR" ]; then
     mount_nfs
-    verify_checksums "$VERIFY_DIR"
+    verify_result=0
+    verify_checksums "$VERIFY_DIR" || verify_result=1
     unmount_nfs
-    exit $?
+    exit $verify_result
 fi
 
 # ── Handle restore ───────────────────────────────────────────────────
@@ -472,7 +488,7 @@ echo "$VM_NAMES" | while read -r name; do
     [ -z "$name" ] && continue
     XML=$(curl -sf "$API/vms/$name/xml" 2>/dev/null)
     if [ -n "$XML" ]; then
-        echo "$XML" > "$BACKUP_PATH/vms/$name.xml"
+        printf '%s\n' "$XML" > "$BACKUP_PATH/vms/$name.xml"
         echo "  $name"
     fi
 done
@@ -486,7 +502,7 @@ if [ -z "$VM_FILTER" ]; then
         [ -z "$name" ] && continue
         XML=$(curl -sf "$API/networks/$name/xml" 2>/dev/null)
         if [ -n "$XML" ]; then
-            echo "$XML" > "$BACKUP_PATH/networks/$name.xml"
+            printf '%s\n' "$XML" > "$BACKUP_PATH/networks/$name.xml"
             echo "  $name"
         fi
     done
@@ -499,7 +515,7 @@ if [ -z "$VM_FILTER" ]; then
         [ -z "$name" ] && continue
         XML=$(curl -sf "$API/storage/pools/$name/xml" 2>/dev/null)
         if [ -n "$XML" ]; then
-            echo "$XML" > "$BACKUP_PATH/pools/$name.xml"
+            printf '%s\n' "$XML" > "$BACKUP_PATH/pools/$name.xml"
             echo "  $name"
         fi
     done

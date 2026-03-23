@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import {
   fetchBackups, triggerBackup, restoreBackup, deleteBackup, verifyBackup,
   getSchedule, setSchedule, downloadBackupUrl,
-  BackupInfo, VerifyResult, ScheduleInfo,
+  BackupInfo, BackupRequest, VerifyResult, ScheduleInfo,
 } from '../api/backup'
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
@@ -72,10 +72,10 @@ export default function BackupsPage() {
   const handleBackup = async () => {
     setRunning(true)
     try {
-      const req: Record<string, unknown> = { with_disks: withDisks, retain, incremental }
+      const req: BackupRequest = { with_disks: withDisks, retain, incremental }
       if (vmName) req.vm_name = vmName
       if (nfsTarget) req.nfs_target = nfsTarget
-      const result = await triggerBackup(req as never)
+      const result = await triggerBackup(req)
       toast.success(`Backup started: ${result.backup_id}`)
       setShowForm(false)
       setTimeout(() => load(), 2000)
@@ -279,9 +279,9 @@ export default function BackupsPage() {
                   <td className="px-4 py-3 font-medium font-mono text-sm">{b.id}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={b.status} />
-                    {b.status === 'running' && b.progress && (
+                    {b.status === 'running' && b.progress !== '' && (
                       <div className="mt-1 w-20 bg-gray-700 rounded-full h-1.5">
-                        <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${b.progress}%` }} />
+                        <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${parseInt(b.progress) || 0}%` }} />
                       </div>
                     )}
                   </td>
