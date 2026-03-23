@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router'
 import { getVM, getVMMetrics, startVM, stopVM, shutdownVM, rebootVM, pauseVM, resumeVM, setAutostart, getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove, insertCdrom, ejectCdrom, VmDetails, VmMetrics, GuestIpAddress, BootConfig } from '../api/vm'
 import { listSnapshots, SnapshotInfo } from '../api/snapshot'
@@ -21,7 +21,7 @@ export default function VMDetailsPage() {
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!name) return
     try {
       const [vmData, snapData] = await Promise.all([getVM(name), listSnapshots(name).catch(() => [])])
@@ -38,9 +38,9 @@ export default function VMDetailsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [name, toast])
 
-  useEffect(() => { load() }, [name])
+  useEffect(() => { load() }, [load])
 
   const action = async (fn: (n: string) => Promise<void>, label: string) => {
     if (!name) return

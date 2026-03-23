@@ -48,11 +48,6 @@ pub fn get_capabilities(conn: &Connect) -> Result<HypervisorCapabilities, Libvir
     })
 }
 
-pub fn get_domain_capabilities(conn: &Connect, arch: &str, machine: &str) -> Result<String, LibvirtError> {
-    conn.get_domain_capabilities(None, Some(arch), Some(machine), None, 0)
-        .map_err(LibvirtError::map_op("Failed to get domain capabilities"))
-}
-
 pub fn get_sysinfo(conn: &Connect) -> Result<String, LibvirtError> {
     conn.get_sys_info(0)
         .map_err(LibvirtError::map_op("Failed to get sysinfo"))

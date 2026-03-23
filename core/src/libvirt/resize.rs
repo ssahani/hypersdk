@@ -35,6 +35,7 @@ pub fn pin_vcpu(conn: &Connect, name: &str, vcpu: u32, cpus: &[bool]) -> Result<
 }
 
 pub fn set_memory_balloon(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), LibvirtError> {
+    crate::validate::validate_memory_mb(memory_mb)?;
     let domain = lookup_domain(conn, name)?;
     domain
         .set_memory(memory_mb * 1024)

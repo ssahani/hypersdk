@@ -1,4 +1,4 @@
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
@@ -140,10 +140,17 @@ async fn get_sysinfo_handler(
 
 // ── Node Devices ────────────────────────────────────────────────────
 
+#[derive(serde::Deserialize)]
+struct DeviceQuery {
+    #[serde(default)]
+    capability: Option<String>,
+}
+
 async fn list_node_devices_handler(
     State(manager): State<LibvirtManager>,
+    Query(query): Query<DeviceQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let devices = manager.with_conn(|conn| node_device::list_node_devices(conn, None))?;
+    let devices = manager.with_conn(|conn| node_device::list_node_devices(conn, query.capability.as_deref()))?;
     Ok(Json(serde_json::json!(devices)))
 }
 
@@ -243,6 +250,11 @@ async fn resize_volume_handler(
     Path((pool, vol)): Path<(String, String)>,
     Json(req): Json<ResizeVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if req.capacity_gb <= 0.0 {
+        return Err(virtspawn_core::LibvirtError::Operation(
+            "capacity_gb must be greater than 0".to_string(),
+        ).into());
+    }
     let capacity = req.capacity_gb.ceil() as u64;
     manager.with_conn(|conn| storage::resize_volume(conn, &pool, &vol, capacity))?;
     Ok(Json(serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": capacity })))
@@ -260,7 +272,7 @@ async fn clone_volume_handler(
     Ok(Json(serde_json::json!({ "status": "cloned", "pool": pool, "source": vol, "clone": req.new_name })))
 }
 
-// ── CPU Pinning ─────────────────────────────────────────────────────
+// ── Memory Balloon ──────────────────────────────────────────────────
 
 async fn set_memory_balloon_handler(
     State(manager): State<LibvirtManager>,

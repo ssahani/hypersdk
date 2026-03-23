@@ -3,25 +3,21 @@ use virt::connect::Connect;
 use super::domain::lookup_domain;
 use crate::LibvirtError;
 
-pub fn migrate_vm(
-    conn: &Connect,
-    name: &str,
-    dest_uri: &str,
-    live: bool,
-) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
+const ALLOWED_URI_SCHEMES: &[&str] = &[
+    "qemu://",
+    "qemu+ssh://",
+    "qemu+tcp://",
+    "qemu+tls://",
+    "qemu+unix://",
+];
 
-    let mut flags = virt::sys::VIR_MIGRATE_PEER2PEER | virt::sys::VIR_MIGRATE_PERSIST_DEST | virt::sys::VIR_MIGRATE_UNDEFINE_SOURCE;
-    if live {
-        flags |= virt::sys::VIR_MIGRATE_LIVE;
+fn validate_migrate_uri(uri: &str) -> Result<(), LibvirtError> {
+    if !ALLOWED_URI_SCHEMES.iter().any(|scheme| uri.starts_with(scheme)) {
+        return Err(LibvirtError::Operation(format!(
+            "Invalid migration URI scheme. Allowed: {}",
+            ALLOWED_URI_SCHEMES.join(", ")
+        )));
     }
-
-    domain
-        .migrate(&Connect::open(Some(dest_uri))
-            .map_err(|e| LibvirtError::Connection(format!("Failed to connect to destination: {e}")))?,
-            flags, None, None, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to migrate VM '{name}' to '{dest_uri}': {e}")))?;
-
     Ok(())
 }
 
@@ -31,6 +27,7 @@ pub fn migrate_vm_uri(
     dest_uri: &str,
     live: bool,
 ) -> Result<(), LibvirtError> {
+    validate_migrate_uri(dest_uri)?;
     let domain = lookup_domain(conn, name)?;
 
     let mut flags = virt::sys::VIR_MIGRATE_PEER2PEER | virt::sys::VIR_MIGRATE_PERSIST_DEST;
