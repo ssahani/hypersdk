@@ -72,15 +72,17 @@ async fn main() -> anyhow::Result<()> {
 
 async fn shutdown_signal() {
     let ctrl_c = async {
-        signal::ctrl_c().await.expect("failed to listen for ctrl+c");
+        if let Err(e) = signal::ctrl_c().await {
+            tracing::error!("Failed to listen for ctrl+c: {e}");
+        }
     };
 
     #[cfg(unix)]
     let terminate = async {
-        signal::unix::signal(signal::unix::SignalKind::terminate())
-            .expect("failed to listen for SIGTERM")
-            .recv()
-            .await;
+        match signal::unix::signal(signal::unix::SignalKind::terminate()) {
+            Ok(mut sig) => { sig.recv().await; }
+            Err(e) => tracing::error!("Failed to listen for SIGTERM: {e}"),
+        }
     };
 
     #[cfg(not(unix))]

@@ -20,9 +20,9 @@ export default function ConsolePage() {
 
   useEffect(() => {
     if (!name) return
-    apiGet<ConsoleInfo>(`/api/v1/vms/console-info/${name}`)
+    apiGet<ConsoleInfo>(`/api/v1/vms/console-info/${encodeURIComponent(name)}`)
       .then(setConsoleInfo)
-      .catch(() => {})
+      .catch((e) => console.error('Failed to load console info:', e))
   }, [name])
 
   if (!name) return null

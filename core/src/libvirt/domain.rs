@@ -5,14 +5,18 @@ use crate::state::{DiskInfo, InterfaceInfo, VmDetails, VmInfo};
 use crate::xml;
 use crate::LibvirtError;
 
+// libvirt domain state constants
+const VIR_DOMAIN_RUNNING: u32 = 1;
+const VIR_DOMAIN_SHUTOFF: u32 = 5;
+
 fn state_to_string(state: u32) -> String {
     match state {
         0 => "no state".to_string(),
-        1 => "running".to_string(),
+        VIR_DOMAIN_RUNNING => "running".to_string(),
         2 => "blocked".to_string(),
         3 => "paused".to_string(),
         4 => "shutting down".to_string(),
-        5 => "shutoff".to_string(),
+        VIR_DOMAIN_SHUTOFF => "shutoff".to_string(),
         6 => "crashed".to_string(),
         7 => "suspended".to_string(),
         _ => format!("unknown ({state})"),
@@ -128,7 +132,7 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 
     let info = domain.get_info().ok();
     if let Some(info) = info {
-        if info.state == 1 {
+        if info.state == VIR_DOMAIN_RUNNING {
             let _ = domain.destroy();
         }
     }
@@ -158,7 +162,7 @@ pub fn rename_vm(conn: &Connect, name: &str, new_name: &str) -> Result<(), Libvi
         .get_info()
         .map_err(LibvirtError::map_op("Failed to get VM info"))?;
 
-    if info.state != 5 {
+    if info.state != VIR_DOMAIN_SHUTOFF {
         return Err(LibvirtError::Operation(
             "VM must be shutoff to rename".to_string(),
         ));

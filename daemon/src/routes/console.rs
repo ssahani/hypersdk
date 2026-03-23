@@ -1,4 +1,5 @@
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use axum::routing::get;
 use axum::{Json, Router};
 
@@ -18,6 +19,7 @@ struct ConsoleInfo {
 
 async fn get_console_info(
     State(manager): State<LibvirtManager>,
+    headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Json<ConsoleInfo>, AppError> {
     let xml = manager.with_conn(|conn| domain::get_vm_xml(conn, &name))?;
@@ -31,10 +33,17 @@ async fn get_console_info(
         .and_then(|s| s.parse().ok())
         .unwrap_or(-1);
 
+    // Extract hostname from Host header, fallback to 127.0.0.1
+    let listen_host = headers.get("host")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.split(':').next())
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
     Ok(Json(ConsoleInfo {
         name,
         console_type,
-        host: "127.0.0.1".to_string(),
+        host: listen_host,
         port,
         websocket_port: ws_port,
     }))

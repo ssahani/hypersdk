@@ -1,6 +1,6 @@
 use axum::Router;
 use std::path::PathBuf;
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{CorsLayer, AllowOrigin};
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use virtspawn_core::LibvirtManager;
@@ -28,19 +28,29 @@ pub fn create_app(manager: LibvirtManager) -> Router {
         );
     }
 
+    // Only allow same-origin requests (the web UI is served from the same host)
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::mirror_request())
+        .allow_methods(tower_http::cors::Any)
+        .allow_headers(tower_http::cors::Any);
+
     router
         .layer(TraceLayer::new_for_http())
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         .with_state(manager)
 }
 
 fn find_web_dist() -> Option<PathBuf> {
-    let candidates = [
+    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+    let mut candidates = vec![
         PathBuf::from("/usr/local/share/virtspawn/web"),
         PathBuf::from("/usr/share/virtspawn/web"),
-        PathBuf::from("web/dist"),
-        PathBuf::from("../web/dist"),
     ];
+    if let Some(ref exe) = exe_dir {
+        candidates.push(exe.join("web/dist"));
+    }
+    candidates.push(PathBuf::from("web/dist"));
+    candidates.push(PathBuf::from("../web/dist"));
     candidates.into_iter().find(|p| p.join("index.html").exists())
 }
 

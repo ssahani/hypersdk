@@ -35,8 +35,9 @@ impl LibvirtManager {
             return f(&conn);
         }
 
-        // Try to reconnect
+        // Try to reconnect — close old connection first
         tracing::warn!("Libvirt connection lost, reconnecting to {}", self.uri);
+        let _ = conn.close();
         match Connect::open(Some(&self.uri)) {
             Ok(new_conn) => {
                 *conn = new_conn;

@@ -46,6 +46,7 @@ pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {
                     result: parts[3].to_string(),
                 })
             } else {
+                tracing::debug!("Skipping malformed audit line: {}", line);
                 None
             }
         })

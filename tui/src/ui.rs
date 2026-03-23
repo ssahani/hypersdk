@@ -1771,9 +1771,10 @@ fn truncate_str(s: &str, max_len: usize) -> String {
     if s.len() <= max_len {
         s.to_string()
     } else if max_len > 2 {
-        format!("{}..", &s[..max_len - 2])
+        let truncated: String = s.chars().take(max_len - 2).collect();
+        format!("{truncated}..")
     } else {
-        s[..max_len].to_string()
+        s.chars().take(max_len).collect()
     }
 }
 

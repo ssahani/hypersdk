@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -16,7 +16,7 @@ export default function SerialConsole({ vmName }: Props) {
   const [connected, setConnected] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
 
-  const connect = () => {
+  const connect = useCallback(() => {
     if (!terminalRef.current) return
 
     // Dispose previous
@@ -63,7 +63,7 @@ export default function SerialConsole({ vmName }: Props) {
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(data)
     })
-  }
+  }, [vmName])
 
   useEffect(() => {
     connect()
@@ -74,7 +74,7 @@ export default function SerialConsole({ vmName }: Props) {
       wsRef.current?.close()
       xtermRef.current?.dispose()
     }
-  }, [vmName])
+  }, [connect])
 
   const reconnect = () => connect()
   const clear = () => xtermRef.current?.clear()

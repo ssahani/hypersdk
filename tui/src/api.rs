@@ -35,7 +35,9 @@ impl DaemonClient {
         let url = format!("{}{}", self.base_url, path);
         let resp = self.client.post(&url).send().await?;
         if !resp.status().is_success() {
-            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("[{status}] {body}");
         }
         Ok(())
     }
@@ -44,7 +46,9 @@ impl DaemonClient {
         let url = format!("{}{}", self.base_url, path);
         let resp = self.client.post(&url).json(body).send().await?;
         if !resp.status().is_success() {
-            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("[{status}] {body}");
         }
         Ok(())
     }
@@ -53,7 +57,9 @@ impl DaemonClient {
         let url = format!("{}{}", self.base_url, path);
         let resp = self.client.delete(&url).send().await?;
         if !resp.status().is_success() {
-            anyhow::bail!("{}", resp.text().await.unwrap_or_default());
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("[{status}] {body}");
         }
         Ok(())
     }

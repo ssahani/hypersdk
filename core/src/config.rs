@@ -135,5 +135,8 @@ impl VirtspawnConfig {
 fn dirs_or_home() -> PathBuf {
     std::env::var("HOME")
         .map(PathBuf::from)
-        .unwrap_or_else(|_| PathBuf::from("/tmp"))
+        .unwrap_or_else(|_| {
+            // Fallback: use /var/lib/virtspawn instead of world-writable /tmp
+            PathBuf::from("/var/lib/virtspawn")
+        })
 }

@@ -83,17 +83,20 @@ fn randomize_mac_addresses(xml: &str) -> String {
 fn generate_mac(counter: u64) -> String {
     use std::collections::hash_map::RandomState;
     use std::hash::{BuildHasher, Hasher};
-    let s = RandomState::new();
-    let mut h = s.build_hasher();
-    h.write_u64(std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos() as u64);
-    h.write_u64(counter);
-    let hash = h.finish();
-    let bytes = hash.to_le_bytes();
+    // RandomState is seeded from OS entropy; use two independent instances
+    // combined with counter to maximize entropy
+    let s1 = RandomState::new();
+    let s2 = RandomState::new();
+    let mut h1 = s1.build_hasher();
+    let mut h2 = s2.build_hasher();
+    h1.write_u64(counter);
+    h2.write_u64(counter.wrapping_add(1));
+    let hash1 = h1.finish();
+    let hash2 = h2.finish();
+    let b1 = hash1.to_le_bytes();
+    let b2 = hash2.to_le_bytes();
     format!(
         "52:54:00:{:02x}:{:02x}:{:02x}",
-        bytes[0], bytes[1], bytes[2]
+        b1[0] ^ b2[1], b1[2] ^ b2[3], b1[4] ^ b2[5]
     )
 }

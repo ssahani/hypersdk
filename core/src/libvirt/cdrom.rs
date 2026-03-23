@@ -6,6 +6,17 @@ use crate::LibvirtError;
 pub fn insert_cdrom(conn: &Connect, name: &str, iso_path: &str, target: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
 
+    // Validate ISO path: must be absolute and resolve to a real path (no symlink escapes)
+    let path = std::path::Path::new(iso_path);
+    if !path.is_absolute() {
+        return Err(LibvirtError::Operation("ISO path must be absolute".to_string()));
+    }
+    let resolved = path.canonicalize()
+        .map_err(|_| LibvirtError::Operation(format!("ISO file not found: {iso_path}")))?;
+    if !resolved.is_file() {
+        return Err(LibvirtError::Operation(format!("ISO path is not a file: {iso_path}")));
+    }
+
     let xml = format!(
         r#"<disk type='file' device='cdrom'>
   <driver name='qemu' type='raw'/>

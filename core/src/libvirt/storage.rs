@@ -47,7 +47,9 @@ pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> 
 
 pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolumeInfo>, LibvirtError> {
     let pool = lookup_pool(conn, pool_name)?;
-    let _ = pool.refresh(0);
+    if let Err(e) = pool.refresh(0) {
+        tracing::debug!("Pool refresh for '{}' failed (non-fatal): {}", pool_name, e);
+    }
 
     let vol_list = pool
         .list_all_volumes(0)
@@ -110,7 +112,8 @@ pub fn create_volume(
     crate::validate::validate_name(vol_name)?;
     let pool = lookup_pool(conn, pool_name)?;
 
-    let capacity_bytes = capacity_gb * 1024 * 1024 * 1024;
+    let capacity_bytes = capacity_gb.checked_mul(1024 * 1024 * 1024)
+        .ok_or_else(|| LibvirtError::Operation("Capacity overflow".to_string()))?;
     let xml = format!(
         r#"<volume>
   <name>{}</name>
@@ -204,7 +207,8 @@ pub fn resize_volume(conn: &Connect, pool_name: &str, vol_name: &str, capacity_g
     let pool = lookup_pool(conn, pool_name)?;
     let vol = StorageVol::lookup_by_name(&pool, vol_name)
         .map_err(|e| LibvirtError::NotFound(format!("Volume '{}' not found: {}", vol_name, e)))?;
-    let capacity_bytes = capacity_gb * 1024 * 1024 * 1024;
+    let capacity_bytes = capacity_gb.checked_mul(1024 * 1024 * 1024)
+        .ok_or_else(|| LibvirtError::Operation("Capacity overflow".to_string()))?;
     vol.resize(capacity_bytes, 0)
         .map_err(|e| LibvirtError::Operation(format!("Failed to resize volume '{vol_name}': {e}")))?;
     Ok(())

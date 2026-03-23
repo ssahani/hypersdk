@@ -668,15 +668,14 @@ impl App {
                     };
                     if form.template_index == 0 {
                         form.fields[FIELD_TEMPLATE].value = "(none)".to_string();
-                    } else {
-                        let tmpl = &templates[form.template_index - 1];
+                    } else if let Some(tmpl) = templates.get(form.template_index - 1) {
                         form.fields[FIELD_TEMPLATE].value = tmpl.name.clone();
                         form.apply_template(tmpl);
                     }
                 }
             }
             KeyCode::Enter => {
-                let mut form_clone = self.state.create_vm_form.clone().unwrap();
+                let Some(mut form_clone) = self.state.create_vm_form.clone() else { return; };
                 if form_clone.validate() {
                     let req = form_clone.to_create_request();
                     let name = req.name.clone();
@@ -695,7 +694,7 @@ impl App {
                 }
             }
             KeyCode::Backspace | KeyCode::Char(_) => {
-                let field = &mut form.fields[form.focused_field];
+                let Some(field) = form.fields.get_mut(form.focused_field) else { return; };
                 if field.field_type != virtspawn_core::FormFieldType::TemplateSelect {
                     match key.code {
                         KeyCode::Backspace => { field.value.pop(); }
@@ -1008,7 +1007,7 @@ impl App {
     // ── Terminal launcher helper ─────────────────────────────────────────
 
     fn launch_in_terminal(args: &[&str]) -> Option<String> {
-        const TERMINALS: &[&str] = &["gnome-terminal", "xfce4-terminal", "konsole", "xterm", "foot", "alacritty", "kitty"];
+        const TERMINALS: &[&str] = &["gnome-terminal", "xfce4-terminal", "konsole", "foot", "alacritty", "kitty", "wezterm", "xterm"];
         TERMINALS.iter().find_map(|term| {
             std::process::Command::new(term).args(["--"]).args(args).spawn().ok().map(|_| term.to_string())
         })
@@ -1094,7 +1093,7 @@ impl App {
             String::from_utf8_lossy(&o.stdout).lines().find_map(|line| {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 4 && parts[2] == "ipv4" {
-                    Some(parts[3].split('/').next().unwrap_or("").to_string())
+                    Some(parts[3].split('/').next().unwrap_or_default().to_string())
                 } else { None }
             })
         });
@@ -1151,21 +1150,35 @@ impl App {
             ["create", name] | ["create", name, ..] => {
                 let mut req = CreateVmRequest { name: name.to_string(), ..Default::default() };
                 if let ["create", _, vcpus, mem, ..] = parts.as_slice() {
-                    req.vcpus = vcpus.parse().unwrap_or(2);
-                    req.memory_mb = mem.parse().unwrap_or(2048);
+                    req.vcpus = match vcpus.parse() {
+                        Ok(v) => v,
+                        Err(_) => { self.state.status_message = format!("Invalid vCPU count: '{vcpus}'"); return; }
+                    };
+                    req.memory_mb = match mem.parse() {
+                        Ok(v) => v,
+                        Err(_) => { self.state.status_message = format!("Invalid memory value: '{mem}'"); return; }
+                    };
                 }
                 let r = self.client.create_vm(&req).await;
                 self.report_cmd_result(r, &format!("Created VM '{name}'"), "create", name, true).await;
             }
             ["resize", name, "vcpus", count] => {
-                let count: u32 = count.parse().unwrap_or(0);
-                let r = self.client.set_vcpus(name, count).await;
-                self.report_cmd_result(r, &format!("Set vCPUs for '{name}' to {count} (applies on next boot)"), "resize-vcpus", name, false).await;
+                match count.parse::<u32>() {
+                    Ok(count) => {
+                        let r = self.client.set_vcpus(name, count).await;
+                        self.report_cmd_result(r, &format!("Set vCPUs for '{name}' to {count} (applies on next boot)"), "resize-vcpus", name, false).await;
+                    }
+                    Err(_) => self.state.status_message = format!("Invalid vCPU count: '{count}'"),
+                }
             }
             ["resize", name, "memory", mb] => {
-                let mb: u64 = mb.parse().unwrap_or(0);
-                let r = self.client.set_memory(name, mb).await;
-                self.report_cmd_result(r, &format!("Set memory for '{name}' to {mb} MB (applies on next boot)"), "resize-memory", name, false).await;
+                match mb.parse::<u64>() {
+                    Ok(mb) => {
+                        let r = self.client.set_memory(name, mb).await;
+                        self.report_cmd_result(r, &format!("Set memory for '{name}' to {mb} MB (applies on next boot)"), "resize-memory", name, false).await;
+                    }
+                    Err(_) => self.state.status_message = format!("Invalid memory value: '{mb}'"),
+                }
             }
             ["rename", old_name, new_name] => {
                 let r = self.client.rename_vm(old_name, new_name).await;

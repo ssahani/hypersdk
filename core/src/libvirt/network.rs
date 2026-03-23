@@ -47,6 +47,24 @@ pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
+fn validate_ip(ip: &str, label: &str) -> Result<(), LibvirtError> {
+    if ip.parse::<std::net::Ipv4Addr>().is_err() {
+        return Err(LibvirtError::Operation(format!("Invalid {label}: '{ip}' (expected IPv4 address)")));
+    }
+    Ok(())
+}
+
+fn validate_subnet_prefix(subnet: &str) -> Result<(), LibvirtError> {
+    // Subnet should be like "192.168.100" (first 3 octets)
+    let parts: Vec<&str> = subnet.split('.').collect();
+    if parts.len() != 3 || !parts.iter().all(|p| p.parse::<u8>().is_ok()) {
+        return Err(LibvirtError::Operation(format!(
+            "Invalid subnet prefix: '{subnet}' (expected format: 192.168.100)"
+        )));
+    }
+    Ok(())
+}
+
 pub fn create_network(
     conn: &Connect,
     name: &str,
@@ -55,6 +73,9 @@ pub fn create_network(
     dhcp_end: &str,
 ) -> Result<(), LibvirtError> {
     crate::validate::validate_name(name)?;
+    validate_subnet_prefix(subnet)?;
+    validate_ip(dhcp_start, "DHCP start")?;
+    validate_ip(dhcp_end, "DHCP end")?;
 
     let xml = format!(
         r#"<network>

@@ -121,7 +121,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     info!("Console WebSocket connected for VM '{}'", name);
 
     let pty = match pty_path {
-        Some(ref p) if std::path::Path::new(p).exists() => p.clone(),
+        Some(ref p) if std::path::Path::new(p).exists() && p.starts_with("/dev/pts/") => p.clone(),
         _ => {
             let (mut sink, _) = socket.split();
             let _ = sink
