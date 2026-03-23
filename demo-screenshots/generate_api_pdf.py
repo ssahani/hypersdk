@@ -113,7 +113,7 @@ def slide_title():
     tc(d, 200, "virtspawn", ft, WHITE)
     tc(d, 290, "REST API Reference", fh, ACCENT)
     div(d, 370)
-    tc(d, 420, "Complete reference for all 30+ API endpoints", fb, GRAY)
+    tc(d, 420, "Complete reference for all 40+ API endpoints", fb, GRAY)
     tc(d, 480, "Base URL: http://localhost:8081/api/v1", fc, CYAN)
     tc(d, 560, "All responses are JSON  |  Errors return {\"error\": \"message\"}", fb, LIGHT)
     pills = [("GET", GREEN), ("POST", ACCENT), ("DELETE", RED)]
@@ -528,6 +528,51 @@ def slide_automation():
     ])
     return img
 
+def slide_backup_endpoints():
+    img = Image.new("RGB", (W, H), BG)
+    d = ImageDraw.Draw(img)
+    bar(d)
+    tc(d, 40, "Backup & Restore Endpoints", fh, WHITE)
+
+    endpoint_table(d, 110, "Backup Operations", ACCENT, [
+        ("GET", "/backups", "List all backups with status/size", "-"),
+        ("POST", "/backups", "Trigger backup", "{vm_name, with_disks, incremental, retain}"),
+        ("GET", "/backups/{id}/status", "Get backup progress & status", "-"),
+        ("POST", "/backups/{id}/verify", "Verify SHA-256 checksums", "-"),
+        ("GET", "/backups/{id}/download", "Download backup as tar.gz", "-"),
+        ("POST", "/backups/restore", "Restore from backup", "{backup_id}"),
+        ("DELETE", "/backups/{id}", "Delete a backup", "-"),
+    ])
+
+    endpoint_table(d, 480, "Schedule Management", GREEN, [
+        ("GET", "/backups/schedule", "Get systemd timer status", "-"),
+        ("POST", "/backups/schedule", "Enable/disable timer", "{enabled: true|false}"),
+    ])
+
+    d.text((80, 650), "Backup Examples", font=fsh, fill=CYAN)
+    code_block(d, 80, 700, 860, [
+        "# Backup all VMs",
+        '$ curl -X POST localhost:8081/api/v1/backups \\',
+        '  -d \'{"retain": 7}\'',
+        "",
+        "# Per-VM with disks",
+        '$ curl -X POST localhost:8081/api/v1/backups \\',
+        '  -d \'{"vm_name":"myvm","with_disks":true}\'',
+    ])
+
+    code_block(d, 980, 700, 860, [
+        "# Verify checksums",
+        '$ curl -X POST localhost:8081/api/v1/backups/20260324-020000/verify',
+        "",
+        "# Download as tar.gz",
+        '$ curl -O localhost:8081/api/v1/backups/20260324-020000/download',
+        "",
+        "# Enable scheduled backups",
+        '$ curl -X POST localhost:8081/api/v1/backups/schedule \\',
+        '  -d \'{"enabled":true}\'',
+    ])
+    return img
+
 slides = [
     slide_title(),
     slide_vm_endpoints(),
@@ -535,6 +580,7 @@ slides = [
     slide_network_storage(),
     slide_snapshots_metrics(),
     slide_advanced(),
+    slide_backup_endpoints(),
     slide_response_formats(),
     slide_websocket(),
     slide_auth_errors(),

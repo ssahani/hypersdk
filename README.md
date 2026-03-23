@@ -98,6 +98,18 @@ virtspawn/
 - **Mouse support** — click, scroll, select
 - **Audit trail** — persistent log at `~/.virtspawn/audit.log`
 
+### Backup & Restore
+- **Full or per-VM backup** — XML configs and optionally disk images
+- **NFS backup target** — auto-mount NFS, backup, unmount
+- **Incremental backup** — rsync with hardlinks for unchanged disk files
+- **SHA-256 checksums** — generated after every backup, verifiable via API
+- **Retention policy** — keep last N backups, auto-prune older ones
+- **Download** — download any backup as tar.gz from the web UI
+- **Scheduled backups** — systemd timer (daily 2 AM), enable/disable from web UI
+- **Status tracking** — live progress percentage during backup
+- **Restore** — redefine VMs, networks, storage pools, and optionally restore disk images
+- **Per-VM backup button** — one-click backup from VM details page
+
 ### Infrastructure
 - **WebSocket** — real-time VM state change notifications
 - **VNC WebSocket proxy** — built-in TCP-to-WebSocket proxy for VNC, no external websockify needed
@@ -176,8 +188,10 @@ That's it. Open **http://localhost:8081** in your browser, or run `virtspawn` fo
 2. Installs `virtspawn` (TUI) → `/usr/local/bin/virtspawn`
 3. Installs web UI → `/usr/local/share/virtspawn/web/`
 4. Installs config → `/etc/virtspawn/config.toml`
-5. Installs systemd unit → `/usr/lib/systemd/system/virtspawn-daemon.service`
-6. Reloads systemd and starts the daemon
+5. Installs systemd units → `virtspawn-daemon.service`, `virtspawn-backup.service`, `virtspawn-backup.timer`
+6. Installs backup script → `/usr/local/share/virtspawn/scripts/backup.sh`
+7. Installs backup config → `/etc/virtspawn/backup.conf`
+8. Reloads systemd and starts the daemon
 
 ### Service Management
 
@@ -218,6 +232,7 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 | Capabilities | `/capabilities` | Hypervisor capabilities, guest types, SMBIOS sysinfo |
 | Node Devices | `/devices` | PCI, USB, SCSI, network device inventory |
 | Network Filters | `/nwfilters` | List/delete libvirt network filters |
+| Backups | `/backups` | Backup/restore, download, verify, schedule timer, per-VM |
 
 ### Console Access
 
@@ -256,6 +271,12 @@ port = 8081                  # Bind port
 
 [libvirt]
 uri = "qemu:///system"       # Libvirt connection URI
+
+[backup]
+backup_dir = "/var/lib/virtspawn/backups"  # Where backups are stored
+# nfs_target = "192.168.1.100:/backups"    # NFS target (optional)
+with_disks = false                          # Include disk images by default
+retain = 7                                  # Keep last 7 backups
 ```
 
 See [`examples/config.toml`](examples/config.toml) for the full annotated configuration.
@@ -338,6 +359,11 @@ virtspawn --config /path/to/config.toml             # custom config
 | `:resize <name> vcpus <n>` | Set vCPU count |
 | `:resize <name> memory <mb>` | Set memory |
 | `:netcreate <name>` | Create a NAT network |
+| `:backups` | Browse backups |
+| `:backup run` | Backup all VMs |
+| `:backup run <vm>` | Backup single VM |
+| `:backup restore <id>` | Restore from backup |
+| `:backup delete <id>` | Delete a backup |
 | `:vms` `:net` `:storage` `:snap` `:events` `:node` | Switch view |
 
 ---
@@ -421,6 +447,20 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `POST` | `/storage/pools/{pool}/volumes/{vol}/resize` | Resize (`{"capacity_gb": 20}`) |
 | `POST` | `/storage/pools/{pool}/volumes/{vol}/clone` | Clone (`{"new_name": "..."}`) |
 
+### Backups
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/backups` | List all backups with status, size, checksums |
+| `POST` | `/backups` | Trigger backup (`{"vm_name":"...", "with_disks":true, "incremental":true, "retain":7}`) |
+| `GET` | `/backups/{id}/status` | Live backup progress and status |
+| `POST` | `/backups/{id}/verify` | Verify SHA-256 checksums |
+| `GET` | `/backups/{id}/download` | Download backup as tar.gz |
+| `POST` | `/backups/restore` | Restore from backup (`{"backup_id":"..."}`) |
+| `DELETE` | `/backups/{id}` | Delete a backup |
+| `GET` | `/backups/schedule` | Get systemd timer status |
+| `POST` | `/backups/schedule` | Enable/disable timer (`{"enabled":true}`) |
+
 ### Host & Infrastructure
 
 | Method | Path | Description |
@@ -484,6 +524,35 @@ curl -s http://localhost:8081/api/v1/node | jq
 
 # Prometheus metrics
 curl -s http://localhost:8081/api/v1/prometheus
+
+# Trigger a backup (all VMs)
+curl -s -X POST http://localhost:8081/api/v1/backups \
+  -H 'Content-Type: application/json' \
+  -d '{"retain": 7}' | jq
+
+# Backup a single VM with disks
+curl -s -X POST http://localhost:8081/api/v1/backups \
+  -H 'Content-Type: application/json' \
+  -d '{"vm_name": "test-vm", "with_disks": true}' | jq
+
+# List backups
+curl -s http://localhost:8081/api/v1/backups | jq
+
+# Verify backup checksums
+curl -s -X POST http://localhost:8081/api/v1/backups/20260324-020000/verify | jq
+
+# Download backup as tar.gz
+curl -sO http://localhost:8081/api/v1/backups/20260324-020000/download
+
+# Restore from backup
+curl -s -X POST http://localhost:8081/api/v1/backups/restore \
+  -H 'Content-Type: application/json' \
+  -d '{"backup_id": "20260324-020000"}' | jq
+
+# Enable scheduled backups
+curl -s -X POST http://localhost:8081/api/v1/backups/schedule \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled": true}' | jq
 ```
 
 ---
@@ -628,12 +697,26 @@ Single-screen dashboard showing host info, all VMs with state/vCPUs/memory, live
 
 ```bash
 ./scripts/backup.sh                          # Backup all VM/network/pool XML configs
-./scripts/backup.sh --with-disks             # Also copy disk images (can be large)
-./scripts/backup.sh --list                   # Preview what would be backed up
-./scripts/backup.sh --restore ~/virtspawn-backups/20260323-123456   # Restore from backup
+./scripts/backup.sh --vm myvm               # Backup a single VM
+./scripts/backup.sh --with-disks            # Also copy disk images
+./scripts/backup.sh --incremental           # Incremental: hardlink unchanged disk files
+./scripts/backup.sh --nfs 192.168.1.10:/bk  # Backup to NFS share
+./scripts/backup.sh --retain 7             # Keep only last 7 backups
+./scripts/backup.sh --list                  # Preview what would be backed up
+./scripts/backup.sh --restore /var/lib/virtspawn/backups/20260323-123456
+./scripts/backup.sh --verify /var/lib/virtspawn/backups/20260323-123456
 ```
 
-Backups are saved to `~/virtspawn-backups/<timestamp>/` with VM XML, network XML, pool XML, and JSON summaries. Use `--restore` to redefine VMs on a new host.
+Backups are saved to `/var/lib/virtspawn/backups/<timestamp>/` with VM/network/pool XML, JSON summaries, SHA-256 checksums, and optionally disk images. Use `--restore` to redefine VMs, networks, and storage pools (and optionally copy disk images back).
+
+**Scheduled backups** via systemd timer:
+```bash
+sudo systemctl enable --now virtspawn-backup.timer   # Daily at 2 AM
+sudo systemctl list-timers virtspawn-backup           # Check schedule
+journalctl -u virtspawn-backup.service                # View logs
+```
+
+**Config file:** `/etc/virtspawn/backup.conf` — set backup_dir, nfs_target, retention, etc.
 
 ### Bulk Operations
 

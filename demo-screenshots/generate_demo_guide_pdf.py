@@ -259,57 +259,61 @@ def slide_backup():
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     bar(d)
-    tc(d, 40, "Backup & Restore Script", fh, WHITE)
+    tc(d, 40, "Backup & Restore", fh, WHITE)
     div(d, 110)
 
-    d.text((80, 140), "Backup:", font=fsh, fill=GREEN)
-    code_block(d, 80, 185, 860, [
-        "# Preview what will be backed up",
-        "$ ./scripts/backup.sh --list",
-        "",
-        "# Backup XML configs (VMs, networks, pools)",
+    d.text((80, 130), "Backup modes:", font=fsh, fill=GREEN)
+    code_block(d, 80, 172, 860, [
+        "# Full backup (all VMs, networks, pools)",
         "$ ./scripts/backup.sh",
         "",
-        "# Also copy disk images (can be very large!)",
-        "$ ./scripts/backup.sh --with-disks",
+        "# Per-VM backup",
+        "$ ./scripts/backup.sh --vm photon-os",
+        "",
+        "# With disk images + incremental",
+        "$ ./scripts/backup.sh --with-disks --incremental",
+        "",
+        "# NFS target with retention",
+        "$ ./scripts/backup.sh --nfs 192.168.1.10:/bk --retain 7",
     ])
 
-    d.text((980, 140), "Restore:", font=fsh, fill=ORANGE)
-    code_block(d, 980, 185, 860, [
-        "# Restore VMs and networks from backup",
+    d.text((980, 130), "Restore & Verify:", font=fsh, fill=ORANGE)
+    code_block(d, 980, 172, 860, [
+        "# Restore VMs, networks, pools, disks",
         "$ ./scripts/backup.sh --restore \\",
-        "    ~/virtspawn-backups/20260323-123456",
+        "    /var/lib/virtspawn/backups/20260324-020000",
         "",
-        "# Redefines all VMs and networks",
-        "# from saved XML configurations",
+        "# Verify checksums",
+        "$ ./scripts/backup.sh --verify \\",
+        "    /var/lib/virtspawn/backups/20260324-020000",
+        "",
+        "# Scheduled backups (systemd timer)",
+        "$ sudo systemctl enable --now virtspawn-backup.timer",
     ])
 
-    d.text((80, 500), "Backup contents:", font=fsh, fill=CYAN)
-    code_block(d, 80, 545, 860, [
-        "~/virtspawn-backups/20260323-123456/",
-        "  vms/",
-        "    fedora-test-hypersdk.xml",
-        "    photon-os.xml",
-        "    ubuntu-test-hypersdk.xml",
-        "  networks/",
-        "    default.xml",
-        "  pools/",
-        "    default.xml",
-        "  vms.json          # full VM list snapshot",
-        "  networks.json     # full network list",
-        "  pools.json        # full pool list",
-        "  node.json         # host info snapshot",
-    ])
+    d.text((80, 560), "Features:", font=fsh, fill=CYAN)
+    features = [
+        "SHA-256 checksums on every backup",
+        "Status tracking with progress %",
+        "Incremental: rsync hardlinks for unchanged disks",
+        "NFS auto-mount/unmount",
+        "Retention policy (keep last N)",
+        "Download as tar.gz from web UI",
+        "Per-VM backup button on VM details page",
+        "Schedule enable/disable from web UI",
+    ]
+    y = 610
+    for f in features:
+        d.text((100, y), "  " + f, font=fb, fill=LIGHT)
+        y += 34
 
-    d.text((980, 500), "Environment variables:", font=fsh, fill=PURPLE)
-    code_block(d, 980, 545, 860, [
-        "# Custom API URL",
-        "$ VIRTSPAWN_API=http://server:8081/api/v1 \\",
-        "    ./scripts/backup.sh",
-        "",
-        "# Custom backup directory",
-        "$ VIRTSPAWN_BACKUP_DIR=/mnt/backups \\",
-        "    ./scripts/backup.sh",
+    d.text((980, 560), "Config file:", font=fsh, fill=PURPLE)
+    code_block(d, 980, 605, 860, [
+        "# /etc/virtspawn/backup.conf",
+        "backup_dir = /var/lib/virtspawn/backups",
+        "nfs_target =",
+        "with_disks = false",
+        "retain = 7",
     ])
     return img
 
@@ -384,7 +388,7 @@ def slide_all_scripts():
     scripts = [
         ("scripts/demo.sh", "30-step API demo", "Tests all endpoints, creates & deletes a VM, validates security", GREEN),
         ("scripts/status.sh", "Environment overview", "Host, VMs, metrics, networks, storage, service status", CYAN),
-        ("scripts/backup.sh", "Backup & restore", "VM/network/pool XML configs, optional disk images", ORANGE),
+        ("scripts/backup.sh", "Backup & restore", "Per-VM, NFS, incremental, checksums, scheduled timer", ORANGE),
         ("scripts/bulk.sh", "Batch operations", "Start/stop/shutdown/snapshot all VMs at once", PURPLE),
         ("install.sh", "Automated installer", "Dependencies, build, install, start, 15 verification tests", ACCENT),
     ]
