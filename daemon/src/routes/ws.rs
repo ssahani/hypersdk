@@ -134,47 +134,34 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
         }
     };
 
-    // Use socat to connect to the PTY — this gives us proper raw I/O
-    let child = tokio::process::Command::new("socat")
-        .args([
-            format!("OPEN:{},rawer", pty).as_str(),
-            "STDIO",
-        ])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::null())
-        .kill_on_drop(true)
-        .spawn();
-
-    let mut child = match child {
-        Ok(c) => c,
+    // Open PTY directly with tokio — no socat dependency needed
+    let pty_file = match tokio::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&pty)
+        .await
+    {
+        Ok(f) => f,
         Err(e) => {
-            warn!("Failed to spawn socat for console: {}", e);
+            warn!("Failed to open PTY {}: {}", pty, e);
             let (mut sink, _) = socket.split();
             let _ = sink
                 .send(Message::Text(
-                    format!("\r\nFailed to open console: {}. Is 'socat' installed?\r\n", e).into(),
+                    format!("\r\nFailed to open console PTY: {}\r\n", e).into(),
                 ))
                 .await;
             return;
         }
     };
 
-    let mut stdout = match child.stdout.take() {
-        Some(s) => s,
-        None => { warn!("No stdout from socat"); return; }
-    };
-    let mut stdin = match child.stdin.take() {
-        Some(s) => s,
-        None => { warn!("No stdin from socat"); return; }
-    };
+    let (mut pty_read, mut pty_write) = tokio::io::split(pty_file);
     let (mut ws_sink, mut ws_stream) = socket.split();
 
-    // stdout → WebSocket
+    // PTY → WebSocket
     let mut read_task = tokio::spawn(async move {
         let mut buf = [0u8; 4096];
         loop {
-            match stdout.read(&mut buf).await {
+            match pty_read.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
                     let text = String::from_utf8_lossy(&buf[..n]).to_string();
@@ -187,17 +174,17 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
         }
     });
 
-    // WebSocket → stdin
+    // WebSocket → PTY
     let mut write_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
                 Message::Text(text) => {
-                    if stdin.write_all(text.as_bytes()).await.is_err() {
+                    if pty_write.write_all(text.as_bytes()).await.is_err() {
                         break;
                     }
                 }
                 Message::Binary(data) => {
-                    if stdin.write_all(&data).await.is_err() {
+                    if pty_write.write_all(&data).await.is_err() {
                         break;
                     }
                 }
@@ -212,7 +199,6 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
         _ = &mut write_task => { read_task.abort(); }
     }
 
-    let _ = child.kill().await;
     info!("Console WebSocket closed for VM '{}'", name);
 }
 
@@ -226,9 +212,18 @@ async fn vnc_handler(
     let port = manager
         .with_conn(|conn| {
             let xml = domain::get_vm_xml(conn, &name)?;
-            let port = virtspawn_core::xml::extract_attr(&xml, "graphics", "port")
-                .and_then(|s| s.parse::<u16>().ok())
-                .unwrap_or(0);
+            // Only match VNC graphics, not SPICE
+            let mut port = 0u16;
+            for block in virtspawn_core::xml::split_blocks(&xml, "graphics") {
+                let gtype = virtspawn_core::xml::extract_attr(&block, "graphics", "type")
+                    .unwrap_or_default();
+                if gtype == "vnc" {
+                    port = virtspawn_core::xml::extract_attr(&block, "graphics", "port")
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+                    break;
+                }
+            }
             Ok(port)
         })
         .unwrap_or(0);

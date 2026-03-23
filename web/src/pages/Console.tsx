@@ -15,19 +15,27 @@ interface ConsoleInfo {
 
 export default function ConsolePage() {
   const { name } = useParams<{ name: string }>()
-  const [mode, setMode] = useState<'serial' | 'vnc'>('vnc')
+  const [mode, setMode] = useState<'serial' | 'vnc'>('serial')
   const [consoleInfo, setConsoleInfo] = useState<ConsoleInfo | null>(null)
 
   useEffect(() => {
     if (!name) return
     apiGet<ConsoleInfo>(`/api/v1/vms/console-info/${encodeURIComponent(name)}`)
-      .then(setConsoleInfo)
+      .then((info) => {
+        setConsoleInfo(info)
+        // Auto-select VNC if available, otherwise serial
+        if (info.console_type === 'vnc' && info.port > 0) {
+          setMode('vnc')
+        } else {
+          setMode('serial')
+        }
+      })
       .catch((e) => console.error('Failed to load console info:', e))
   }, [name])
 
   if (!name) return null
 
-  const vncPort = consoleInfo?.port ?? -1
+  const vncPort = consoleInfo?.console_type === 'vnc' ? (consoleInfo?.port ?? -1) : -1
 
   return (
     <div className="space-y-4">
