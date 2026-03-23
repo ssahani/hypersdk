@@ -295,6 +295,8 @@ virtspawn --config /path/to/config.toml             # custom config
 | `k` / `↑` | Move up |
 | `g` / `G` | Jump to top / bottom |
 | `PageUp` / `PageDown` | Jump 10 items |
+| `Tab` / `BackTab` | Cycle sub-tabs (Summary, Monitor, Configure) |
+| `1` / `2` / `3` | Jump to sub-tab directly |
 
 ### VM Actions
 
@@ -313,8 +315,12 @@ virtspawn --config /path/to/config.toml             # custom config
 | `y` | View raw XML |
 | `l` | View VM logs |
 | `v` | Launch virt-viewer |
+| `V` | Open noVNC in browser |
 | `c` | Open virsh console |
 | `e` | SSH to VM |
+| `Space` | Multi-select toggle |
+| `A` | Select all VMs |
+| `Ctrl+Space` | Context menu |
 | `/` | Fuzzy search |
 | `:` | Command mode |
 | `?` | Help overlay |
@@ -338,7 +344,7 @@ virtspawn --config /path/to/config.toml             # custom config
 
 ## REST API
 
-All endpoints are prefixed with `/api/v1`. Responses are JSON.
+All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML endpoints (`/xml`, `/sysinfo`) return `Content-Type: text/xml`.
 
 ### VMs
 
@@ -421,7 +427,7 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON.
 |--------|------|-------------|
 | `GET` | `/capabilities` | Hypervisor capabilities (arch, CPU, guest types) |
 | `GET` | `/sysinfo` | SMBIOS system info XML |
-| `GET` | `/devices` | List all node devices (PCI, USB, SCSI) |
+| `GET` | `/devices` | List all node devices (`?capability=pci\|net\|usb`) |
 | `GET` | `/devices/{name}` | Device XML |
 | `GET` | `/nwfilters` | List network filters |
 | `GET` | `/nwfilters/{name}` | Filter XML |
