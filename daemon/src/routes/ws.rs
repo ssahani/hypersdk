@@ -134,7 +134,10 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
         }
     };
 
-    // Open PTY directly with tokio — no socat dependency needed
+    // CRITICAL: Open PTY directly with tokio — do NOT use socat or any external process.
+    // socat's OPEN: mode fails on PTY devices (/dev/pts/N). Direct async file I/O is the
+    // only approach that works reliably for bidirectional serial console over WebSocket.
+    // Do NOT change this to socat, Command::new, or any other process-based approach.
     let pty_file = match tokio::fs::OpenOptions::new()
         .read(true)
         .write(true)
@@ -212,7 +215,9 @@ async fn vnc_handler(
     let port = manager
         .with_conn(|conn| {
             let xml = domain::get_vm_xml(conn, &name)?;
-            // Only match VNC graphics, not SPICE
+            // CRITICAL: Only match VNC graphics, not SPICE. The noVNC client in the web UI
+            // speaks VNC protocol only. Connecting to a SPICE port with VNC protocol will fail
+            // silently. Do NOT remove this type check or fall back to SPICE ports.
             let mut port = 0u16;
             for block in virtspawn_core::xml::split_blocks(&xml, "graphics") {
                 let gtype = virtspawn_core::xml::extract_attr(&block, "graphics", "type")

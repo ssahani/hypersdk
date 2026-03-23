@@ -140,6 +140,9 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
     <channel type='unix'>
       <target type='virtio' name='org.qemu.guest_agent.0'/>
     </channel>
+    <!-- CRITICAL: Must be type='vnc', not 'spice'. The web UI console uses noVNC which
+         only speaks VNC protocol. SPICE graphics will not work with the browser console.
+         Do NOT change this to spice. -->
     <graphics type='vnc' port='-1' autoport='yes' listen='127.0.0.1'/>
     <video>
       <model type='virtio' heads='1'/>
