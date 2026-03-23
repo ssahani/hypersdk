@@ -1,4 +1,4 @@
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde_json::json;
@@ -6,6 +6,15 @@ use virtspawn_core::LibvirtError;
 
 pub fn ok_json(status: &str, name: &str) -> Json<serde_json::Value> {
     Json(json!({ "status": status, "name": name }))
+}
+
+/// Response wrapper that sets Content-Type: text/xml for XML endpoints.
+pub struct Xml(pub String);
+
+impl IntoResponse for Xml {
+    fn into_response(self) -> Response {
+        ([(header::CONTENT_TYPE, "text/xml; charset=utf-8")], self.0).into_response()
+    }
 }
 
 pub struct AppError(LibvirtError);

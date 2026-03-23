@@ -8,7 +8,7 @@ use virtspawn_core::libvirt::{
 };
 use virtspawn_core::LibvirtManager;
 
-use crate::error::AppError;
+use crate::error::{AppError, Xml};
 
 // ── Guest Agent ─────────────────────────────────────────────────────
 
@@ -133,9 +133,9 @@ async fn get_capabilities_handler(
 
 async fn get_sysinfo_handler(
     State(manager): State<LibvirtManager>,
-) -> Result<String, AppError> {
+) -> Result<Xml, AppError> {
     let xml = manager.with_conn(capabilities::get_sysinfo)?;
-    Ok(xml)
+    Ok(Xml(xml))
 }
 
 // ── Node Devices ────────────────────────────────────────────────────
@@ -157,9 +157,9 @@ async fn list_node_devices_handler(
 async fn get_node_device_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
-) -> Result<String, AppError> {
+) -> Result<Xml, AppError> {
     let xml = manager.with_conn(|conn| node_device::get_node_device_xml(conn, &name))?;
-    Ok(xml)
+    Ok(Xml(xml))
 }
 
 // ── Network Filters ─────────────────────────────────────────────────
@@ -174,9 +174,9 @@ async fn list_nwfilters_handler(
 async fn get_nwfilter_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
-) -> Result<String, AppError> {
+) -> Result<Xml, AppError> {
     let xml = manager.with_conn(|conn| nwfilter::get_nwfilter_xml(conn, &name))?;
-    Ok(xml)
+    Ok(Xml(xml))
 }
 
 async fn delete_nwfilter_handler(
@@ -235,9 +235,9 @@ async fn delete_pool_handler(
 async fn get_pool_xml_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
-) -> Result<String, AppError> {
+) -> Result<Xml, AppError> {
     let xml = manager.with_conn(|conn| storage::get_pool_xml(conn, &name))?;
-    Ok(xml)
+    Ok(Xml(xml))
 }
 
 // ── Volume Resize/Clone ─────────────────────────────────────────────

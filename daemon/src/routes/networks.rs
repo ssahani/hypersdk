@@ -5,7 +5,7 @@ use axum::{Json, Router};
 use virtspawn_core::libvirt::network;
 use virtspawn_core::{CreateNetworkRequest, LibvirtManager, NetworkInfo};
 
-use crate::error::{ok_json, AppError};
+use crate::error::{ok_json, AppError, Xml};
 
 async fn list_networks(
     State(manager): State<LibvirtManager>,
@@ -52,9 +52,9 @@ async fn stop_network(
 async fn get_network_xml(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
-) -> Result<String, AppError> {
+) -> Result<Xml, AppError> {
     let xml = manager.with_conn(|conn| network::get_network_xml(conn, &name))?;
-    Ok(xml)
+    Ok(Xml(xml))
 }
 
 async fn set_network_autostart(

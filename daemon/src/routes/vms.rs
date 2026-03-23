@@ -8,7 +8,7 @@ use virtspawn_core::{
     VmInfo,
 };
 
-use crate::error::{ok_json, AppError};
+use crate::error::{ok_json, AppError, Xml};
 
 async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmInfo>>, AppError> {
     let vms = manager.with_conn(domain::list_vms)?;
@@ -26,9 +26,9 @@ async fn get_vm_details(
 async fn get_vm_xml(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
-) -> Result<String, AppError> {
+) -> Result<Xml, AppError> {
     let xml = manager.with_conn(|conn| domain::get_vm_xml(conn, &name))?;
-    Ok(xml)
+    Ok(Xml(xml))
 }
 
 async fn start_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {

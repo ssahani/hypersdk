@@ -8,7 +8,7 @@ use crate::LibvirtError;
 fn get_domain_flags(domain: &Domain) -> u32 {
     domain.get_info()
         .map(|info| {
-            if info.state == 1 {
+            if info.state == 1 /* VIR_DOMAIN_RUNNING */ {
                 virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG
             } else {
                 virt::sys::VIR_DOMAIN_AFFECT_CONFIG
