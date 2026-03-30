@@ -1,0 +1,310 @@
+//! Extra features: ISO/disk browser, USB passthrough, cloud-init, VM import, live resize.
+
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use virt::connect::Connect;
+
+use super::domain::lookup_domain;
+use crate::LibvirtError;
+
+// ── ISO / Disk Image Browser ───────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageFile {
+    pub path: String,
+    pub name: String,
+    pub size_bytes: u64,
+    pub format: String, // iso, qcow2, raw, vmdk, img
+}
+
+/// Scan common directories for ISO files.
+pub fn list_iso_files() -> Vec<ImageFile> {
+    let dirs = [
+        "/var/lib/libvirt/images",
+        "/var/lib/virtspawn/images",
+        "/home",
+        "/root",
+        "/tmp",
+    ];
+    let mut files = Vec::new();
+    for dir in &dirs {
+        scan_dir_for_extension(Path::new(dir), &["iso"], &mut files, 2);
+    }
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    files
+}
+
+/// Scan common directories for disk images (qcow2, raw, vmdk, img).
+pub fn list_disk_images() -> Vec<ImageFile> {
+    let dirs = [
+        "/var/lib/libvirt/images",
+        "/var/lib/virtspawn/images",
+    ];
+    let mut files = Vec::new();
+    for dir in &dirs {
+        scan_dir_for_extension(Path::new(dir), &["qcow2", "raw", "img", "vmdk"], &mut files, 1);
+    }
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    files
+}
+
+fn scan_dir_for_extension(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile>, max_depth: u32) {
+    scan_dir_recursive(dir, extensions, files, 0, max_depth);
+}
+
+fn scan_dir_recursive(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile>, depth: u32, max_depth: u32) {
+    if depth > max_depth { return; }
+    let entries = match std::fs::read_dir(dir) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() && depth < max_depth {
+            scan_dir_recursive(&path, extensions, files, depth + 1, max_depth);
+        } else if path.is_file() {
+            if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                let ext_lower = ext.to_lowercase();
+                if extensions.iter().any(|e| *e == ext_lower) {
+                    let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                    files.push(ImageFile {
+                        path: path.to_string_lossy().to_string(),
+                        name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
+                        size_bytes: size,
+                        format: ext_lower,
+                    });
+                }
+            }
+        }
+    }
+}
+
+// ── USB Passthrough ────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsbDevice {
+    pub bus: String,
+    pub device: String,
+    pub vendor_id: String,
+    pub product_id: String,
+    pub description: String,
+}
+
+/// List host USB devices via lsusb.
+pub fn list_usb_devices() -> Result<Vec<UsbDevice>, LibvirtError> {
+    let output = Command::new("lsusb")
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run lsusb"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut devices = Vec::new();
+
+    for line in stdout.lines() {
+        // Format: Bus 001 Device 002: ID 1234:5678 Description
+        let parts: Vec<&str> = line.splitn(7, ' ').collect();
+        if parts.len() >= 7 {
+            let bus = parts[1].to_string();
+            let device = parts[3].trim_end_matches(':').to_string();
+            let id = parts[5];
+            let id_parts: Vec<&str> = id.split(':').collect();
+            if id_parts.len() == 2 {
+                devices.push(UsbDevice {
+                    bus,
+                    device,
+                    vendor_id: id_parts[0].to_string(),
+                    product_id: id_parts[1].to_string(),
+                    description: parts[6..].join(" "),
+                });
+            }
+        }
+    }
+
+    Ok(devices)
+}
+
+/// Attach a USB device to a VM by vendor:product ID.
+pub fn attach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &str) -> Result<(), LibvirtError> {
+    // Validate hex IDs
+    if vendor_id.len() != 4 || product_id.len() != 4
+        || !vendor_id.chars().all(|c| c.is_ascii_hexdigit())
+        || !product_id.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Err(LibvirtError::Invalid("Invalid USB vendor/product ID format".to_string()));
+    }
+
+    let domain = lookup_domain(conn, vm_name)?;
+    let xml = format!(
+        r#"<hostdev mode='subsystem' type='usb' managed='yes'>
+  <source>
+    <vendor id='0x{vendor_id}'/>
+    <product id='0x{product_id}'/>
+  </source>
+</hostdev>"#,
+    );
+
+    let flags = super::device::get_domain_flags_pub(&domain);
+    domain
+        .attach_device_flags(&xml, flags)
+        .map_err(LibvirtError::map_op("Failed to attach USB device"))?;
+    Ok(())
+}
+
+/// Detach a USB device from a VM.
+pub fn detach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &str) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, vm_name)?;
+    let xml = format!(
+        r#"<hostdev mode='subsystem' type='usb' managed='yes'>
+  <source>
+    <vendor id='0x{vendor_id}'/>
+    <product id='0x{product_id}'/>
+  </source>
+</hostdev>"#,
+    );
+
+    let flags = super::device::get_domain_flags_pub(&domain);
+    domain
+        .detach_device_flags(&xml, flags)
+        .map_err(LibvirtError::map_op("Failed to detach USB device"))?;
+    Ok(())
+}
+
+// ── Cloud-init ─────────────────────────────────────────────────────
+
+/// Generate a cloud-init ISO with user-data and meta-data.
+pub fn generate_cloud_init_iso(
+    output_path: &str,
+    hostname: &str,
+    username: &str,
+    password: &str,
+    ssh_key: &str,
+) -> Result<String, LibvirtError> {
+    let tmp_dir = PathBuf::from("/tmp/virtspawn-cloud-init");
+    let _ = std::fs::create_dir_all(&tmp_dir);
+
+    // meta-data
+    let meta_data = format!("instance-id: {hostname}\nlocal-hostname: {hostname}\n");
+    std::fs::write(tmp_dir.join("meta-data"), &meta_data)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to write meta-data: {e}")))?;
+
+    // user-data
+    let mut user_data = String::from("#cloud-config\n");
+    if !username.is_empty() {
+        user_data.push_str(&format!(
+            "users:\n  - name: {username}\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    shell: /bin/bash\n"
+        ));
+        if !password.is_empty() {
+            user_data.push_str(&format!("    lock_passwd: false\n    plain_text_passwd: {password}\n"));
+        }
+        if !ssh_key.is_empty() {
+            user_data.push_str(&format!("    ssh_authorized_keys:\n      - {ssh_key}\n"));
+        }
+    }
+    if !password.is_empty() {
+        user_data.push_str("ssh_pwauth: true\n");
+    }
+
+    std::fs::write(tmp_dir.join("user-data"), &user_data)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to write user-data: {e}")))?;
+
+    // Generate ISO (try genisoimage, then mkisofs, then xorriso)
+    let iso_path = if output_path.is_empty() {
+        format!("/var/lib/libvirt/images/{hostname}-cloud-init.iso")
+    } else {
+        output_path.to_string()
+    };
+
+    let cmds = [
+        ("genisoimage", vec!["-output", &iso_path, "-V", "cidata", "-r", "-J",
+            tmp_dir.to_str().unwrap_or("/tmp/virtspawn-cloud-init")]),
+        ("mkisofs", vec!["-output", &iso_path, "-V", "cidata", "-r", "-J",
+            tmp_dir.to_str().unwrap_or("/tmp/virtspawn-cloud-init")]),
+    ];
+
+    let mut success = false;
+    for (cmd, args) in &cmds {
+        if let Ok(output) = Command::new(cmd).args(args).output() {
+            if output.status.success() {
+                success = true;
+                break;
+            }
+        }
+    }
+
+    // Cleanup
+    let _ = std::fs::remove_dir_all(&tmp_dir);
+
+    if !success {
+        return Err(LibvirtError::Operation(
+            "Failed to create cloud-init ISO. Install genisoimage or mkisofs.".to_string()
+        ));
+    }
+
+    Ok(iso_path)
+}
+
+// ── VM Import ──────────────────────────────────────────────────────
+
+/// Import a disk image by converting it to qcow2 if needed.
+pub fn import_disk_image(source: &str, dest_name: &str) -> Result<String, LibvirtError> {
+    let source_path = Path::new(source);
+    if !source_path.is_file() {
+        return Err(LibvirtError::Operation(format!("Source file not found: {source}")));
+    }
+
+    let ext = source_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+    let dest_path = format!("/var/lib/libvirt/images/{dest_name}.qcow2");
+
+    if Path::new(&dest_path).exists() {
+        return Err(LibvirtError::Operation(format!("Destination already exists: {dest_path}")));
+    }
+
+    match ext.as_str() {
+        "qcow2" => {
+            // Already qcow2, just copy
+            std::fs::copy(source, &dest_path)
+                .map_err(|e| LibvirtError::Operation(format!("Copy failed: {e}")))?;
+        }
+        "vmdk" | "vdi" | "raw" | "img" | "vpc" | "vhd" => {
+            // Convert with qemu-img
+            let output = Command::new("qemu-img")
+                .args(["convert", "-f", &ext, "-O", "qcow2", source, &dest_path])
+                .output()
+                .map_err(LibvirtError::map_op("qemu-img convert"))?;
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(LibvirtError::Operation(format!("qemu-img convert failed: {stderr}")));
+            }
+        }
+        _ => {
+            return Err(LibvirtError::Invalid(format!("Unsupported format: {ext}")));
+        }
+    }
+
+    Ok(dest_path)
+}
+
+// ── Live Resize ────────────────────────────────────────────────────
+
+/// Hot-add vCPUs to a running VM.
+pub fn live_set_vcpus(conn: &Connect, name: &str, vcpus: u32) -> Result<(), LibvirtError> {
+    crate::validate::validate_vcpus(vcpus)?;
+    let domain = lookup_domain(conn, name)?;
+
+    // Set both live and config
+    domain
+        .set_vcpus_flags(vcpus, virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to live-set vCPUs for '{name}': {e}")))?;
+    Ok(())
+}
+
+/// Hot-set memory on a running VM (requires balloon driver).
+pub fn live_set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), LibvirtError> {
+    crate::validate::validate_memory_mb(memory_mb)?;
+    let domain = lookup_domain(conn, name)?;
+
+    domain
+        .set_memory_flags(memory_mb * 1024, virt::sys::VIR_DOMAIN_AFFECT_LIVE)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to live-set memory for '{name}': {e}")))?;
+    Ok(())
+}

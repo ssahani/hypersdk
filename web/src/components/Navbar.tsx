@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import {
-  Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe,
-  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User,
+  Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe, FileText,
+  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User, Sun, Moon,
 } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
 import { useAuth } from '../contexts/AuthContext'
+import { useTheme } from '../contexts/ThemeContext'
 
 interface NavItem {
   to: string
@@ -44,6 +45,7 @@ const navGroups: NavGroup[] = [
       { to: '/events', icon: <Activity className="w-4 h-4" />, label: 'Live Metrics' },
       { to: '/capabilities', icon: <MonitorCog className="w-4 h-4" />, label: 'Capabilities' },
       { to: '/devices', icon: <Usb className="w-4 h-4" />, label: 'Node Devices' },
+      { to: '/audit', icon: <FileText className="w-4 h-4" />, label: 'Audit Log' },
     ],
   },
 ]
@@ -109,6 +111,7 @@ function DesktopDropdown({ group }: { group: NavGroup }) {
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { username, logout } = useAuth()
+  const { theme, toggleTheme } = useTheme()
 
   return (
     <nav className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-30">
@@ -136,6 +139,9 @@ export default function Navbar() {
 
           {/* Right side */}
           <div className="flex items-center gap-3">
+            <button onClick={toggleTheme} className="p-1.5 hover:bg-slate-700/60 rounded-lg transition text-slate-400 hover:text-white" title={theme === 'dark' ? 'Light mode' : 'Dark mode'} aria-label="Toggle theme">
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             <ConnectionStatus />
             <Link
               to="/create"

@@ -13,19 +13,20 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
+import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw,
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, CircleX, Archive, Copy, Pencil, ArrowRightLeft,
-  Plus, Trash2, RotateCw, Code, MemoryStick, Settings,
+  Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb,
   ChevronUp, ChevronDown, X,
 } from 'lucide-react'
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
 
-type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'xml'
-type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic'
+type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'usb' | 'xml'
+type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb'
 
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
@@ -66,6 +67,9 @@ export default function VMDetailsPage() {
   const [resizeGb, setResizeGb] = useState(20)
   const [nicNetwork, setNicNetwork] = useState('default')
   const [nicModel, setNicModel] = useState('virtio')
+  const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([])
+  const [selectedUsb, setSelectedUsb] = useState('')
+  const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
 
   const load = useCallback(async () => {
     if (!name) return
@@ -91,8 +95,12 @@ export default function VMDetailsPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Load network list for NIC attach dialog
-  useEffect(() => { listNetworks().then(setNetworks).catch(() => {}) }, [])
+  // Load network list, USB devices, ISOs for dialogs
+  useEffect(() => {
+    listNetworks().then(setNetworks).catch(() => {})
+    listUsbDevices().then(setUsbDevices).catch(() => {})
+    listIsos().then(setIsoFiles).catch(() => {})
+  }, [])
 
   // Poll per-VM metrics every 5s for charts
   useEffect(() => {
@@ -164,12 +172,30 @@ export default function VMDetailsPage() {
 
   const handleSetVcpus = async () => {
     if (!name) return
-    try { await setVcpus(name, editVcpus); toast.success(`vCPUs set to ${editVcpus}`); setDialog(null); load() } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try {
+      if (vm?.state === 'running') {
+        await liveSetVcpus(name, editVcpus)
+        toast.success(`vCPUs live-set to ${editVcpus}`)
+      } else {
+        await setVcpus(name, editVcpus)
+        toast.success(`vCPUs set to ${editVcpus} (effective on next boot)`)
+      }
+      setDialog(null); load()
+    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleSetMemory = async () => {
     if (!name) return
-    try { await setMemory(name, editMemory); toast.success(`Memory set to ${editMemory} MB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try {
+      if (vm?.state === 'running') {
+        await liveSetMemory(name, editMemory)
+        toast.success(`Memory live-set to ${editMemory} MB`)
+      } else {
+        await setMemory(name, editMemory)
+        toast.success(`Memory set to ${editMemory} MB (effective on next boot)`)
+      }
+      setDialog(null); load()
+    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleBalloon = async () => {
@@ -230,6 +256,17 @@ export default function VMDetailsPage() {
     try { await attachInterface(name, nicNetwork.trim(), nicModel); toast.success(`NIC attached to '${nicNetwork}'`); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
   }
 
+  const handleAttachUsb = async () => {
+    if (!name || !selectedUsb) return
+    const [vid, pid] = selectedUsb.split(':')
+    try { await attachUsb(name, vid, pid); toast.success('USB device attached'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleDetachUsb = async (vid: string, pid: string) => {
+    if (!name) return
+    try { await detachUsb(name, vid, pid); toast.success('USB device detached'); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
   const handleDetachNic = async (mac: string) => {
     if (!name) return
     try { await detachInterface(name, mac); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
@@ -256,6 +293,7 @@ export default function VMDetailsPage() {
     { key: 'disks', label: `Disks (${vm.disks.length})`, icon: <HardDrive className="w-4 h-4" /> },
     { key: 'network', label: `Network (${vm.interfaces.length})`, icon: <Network className="w-4 h-4" /> },
     { key: 'snapshots', label: `Snapshots (${snapshots.length})`, icon: <Camera className="w-4 h-4" /> },
+    { key: 'usb', label: 'USB Devices', icon: <Usb className="w-4 h-4" /> },
     { key: 'xml', label: 'XML', icon: <Code className="w-4 h-4" /> },
   ]
 
@@ -541,6 +579,36 @@ export default function VMDetailsPage() {
         </div>
       )}
 
+      {/* ── USB Tab ──────────────────────────────────────────────── */}
+
+      {tab === 'usb' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => setDialog('attach-usb')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach USB</button>
+          </div>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <div className="px-6 py-3 border-b border-slate-700/50"><span className="text-sm font-semibold text-slate-300">Host USB Devices</span></div>
+            <table className="w-full">
+              <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30 text-sm">
+                {usbDevices.map((d, i) => (
+                  <tr key={i} className="table-row-hover">
+                    <td className="px-6 py-2 font-mono text-xs">{d.bus}</td>
+                    <td className="px-6 py-2 font-mono text-xs">{d.device}</td>
+                    <td className="px-6 py-2 font-mono text-blue-400">{d.vendor_id}:{d.product_id}</td>
+                    <td className="px-6 py-2 text-slate-300">{d.description}</td>
+                    <td className="px-6 py-2 text-right">
+                      <button onClick={() => { setSelectedUsb(`${d.vendor_id}:${d.product_id}`); handleAttachUsb() }} className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 rounded text-xs text-blue-400 transition">Attach</button>
+                    </td>
+                  </tr>
+                ))}
+                {usbDevices.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No USB devices found on host</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* ── XML Tab ──────────────────────────────────────────────── */}
 
       {tab === 'xml' && (
@@ -661,8 +729,15 @@ export default function VMDetailsPage() {
                   No CD-ROM drive found. A new one will be attached automatically.
                 </div>
               )}
-              <label htmlFor="dlg-iso" className="block text-sm text-slate-400 mb-1">ISO File Path</label>
-              <input id="dlg-iso" type="text" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} placeholder="/var/lib/libvirt/images/image.iso" className="input-field" />
+              <label htmlFor="dlg-iso" className="block text-sm text-slate-400 mb-1">ISO File</label>
+              {isoFiles.length > 0 ? (
+                <select id="dlg-iso" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} className="input-field">
+                  <option value="">Select ISO...</option>
+                  {isoFiles.map(f => <option key={f.path} value={f.path}>{f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)</option>)}
+                </select>
+              ) : (
+                <input id="dlg-iso" type="text" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} placeholder="/var/lib/libvirt/images/image.iso" className="input-field" />
+              )}
               <label htmlFor="dlg-cdtarget" className="block text-sm text-slate-400 mb-1 mt-3">Target Device</label>
               <select id="dlg-cdtarget" value={cdromTarget} onChange={(e) => setCdromTarget(e.target.value)} className="input-field">
                 {cdromDisks.length > 0

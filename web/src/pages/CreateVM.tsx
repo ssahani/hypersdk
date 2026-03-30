@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { createVM, getTemplates, VmTemplate, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
+import { listIsos, listDiskImages, ImageFile, generateCloudInit } from '../api/extras'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Server, Layers, HardDrive } from 'lucide-react'
+import { ArrowLeft, Server, Layers, HardDrive, Cloud, Disc } from 'lucide-react'
 import { Link } from 'react-router'
 
 type DiskMode = 'new' | 'existing'
@@ -13,14 +14,22 @@ export default function CreateVMPage() {
   const [diskMode, setDiskMode] = useState<DiskMode>('new')
   const [templates, setTemplates] = useState<VmTemplate[]>([])
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
+  const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
+  const [diskFiles, setDiskFiles] = useState<ImageFile[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
+  const [showCloudInit, setShowCloudInit] = useState(false)
+  const [ciUser, setCiUser] = useState('')
+  const [ciPass, setCiPass] = useState('')
+  const [ciSshKey, setCiSshKey] = useState('')
   const toast = useToastContext()
   const navigate = useNavigate()
 
   useEffect(() => {
     getTemplates().then(setTemplates).catch(() => {})
     listNetworks().then(setNetworks).catch(() => {})
+    listIsos().then(setIsoFiles).catch(() => {})
+    listDiskImages().then(setDiskFiles).catch(() => {})
   }, [])
 
   const applyTemplate = (name: string) => {
@@ -35,6 +44,18 @@ export default function CreateVMPage() {
     if (diskMode === 'existing' && !form.existing_disk?.trim()) { toast.warning('Existing disk path is required'); return }
     setSubmitting(true)
     try {
+      // Generate cloud-init ISO if configured
+      if (showCloudInit && (ciUser || ciSshKey)) {
+        try {
+          const ciResult = await generateCloudInit(form.name, ciUser, ciPass, ciSshKey)
+          form.iso = ciResult.path // Use cloud-init ISO as the boot ISO
+          toast.info(`Cloud-init ISO created: ${ciResult.path}`)
+        } catch (e: unknown) {
+          toast.error(`Cloud-init failed: ${e instanceof Error ? e.message : e}`)
+          setSubmitting(false)
+          return
+        }
+      }
       const req = { ...form }
       if (diskMode === 'new') { req.existing_disk = '' }
       else { req.disk_gb = 0 }
@@ -119,8 +140,15 @@ export default function CreateVMPage() {
           ) : (
             <div>
               <label htmlFor="vm-existing-disk" className="block text-sm text-gray-400 mb-1">Disk Image Path *</label>
-              <input id="vm-existing-disk" type="text" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field" placeholder="/var/lib/libvirt/images/disk.qcow2" />
-              <p className="text-xs text-gray-500 mt-1">Supports qcow2, raw, and img formats. The file must already exist.</p>
+              {diskFiles.length > 0 ? (
+                <select id="vm-existing-disk" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field">
+                  <option value="">Select disk image...</option>
+                  {diskFiles.map(f => <option key={f.path} value={f.path}>{f.name} ({(f.size_bytes / 1073741824).toFixed(1)} GB)</option>)}
+                </select>
+              ) : (
+                <input id="vm-existing-disk" type="text" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field" placeholder="/var/lib/libvirt/images/disk.qcow2" />
+              )}
+              <p className="text-xs text-gray-500 mt-1">Supports qcow2, raw, and img formats.</p>
             </div>
           )}
         </div>
@@ -139,9 +167,43 @@ export default function CreateVMPage() {
           )}
         </div>
 
+        {/* ISO selection with browser */}
         <div>
-          <label htmlFor="vm-iso" className="block text-sm text-gray-400 mb-1">ISO Path (optional)</label>
-          <input id="vm-iso" type="text" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field" placeholder="/path/to/image.iso" />
+          <label htmlFor="vm-iso" className="block text-sm text-gray-400 mb-1"><Disc className="w-3 h-3 inline -mt-0.5" /> ISO Path (optional)</label>
+          {isoFiles.length > 0 ? (
+            <select id="vm-iso" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field">
+              <option value="">No ISO</option>
+              {isoFiles.map(f => <option key={f.path} value={f.path}>{f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)</option>)}
+            </select>
+          ) : (
+            <input id="vm-iso" type="text" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field" placeholder="/path/to/image.iso" />
+          )}
+        </div>
+
+        {/* Cloud-init */}
+        <div className="border-t border-gray-700 pt-4">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" checked={showCloudInit} onChange={e => setShowCloudInit(e.target.checked)} className="rounded border-gray-600" />
+            <Cloud className="w-4 h-4 text-cyan-400" />
+            <span className="text-sm font-medium">Cloud-Init Configuration</span>
+          </label>
+          {showCloudInit && (
+            <div className="mt-3 space-y-3 pl-6">
+              <div>
+                <label htmlFor="ci-user" className="block text-sm text-gray-400 mb-1">Username</label>
+                <input id="ci-user" type="text" value={ciUser} onChange={e => setCiUser(e.target.value)} className="input-field" placeholder="admin" />
+              </div>
+              <div>
+                <label htmlFor="ci-pass" className="block text-sm text-gray-400 mb-1">Password</label>
+                <input id="ci-pass" type="password" value={ciPass} onChange={e => setCiPass(e.target.value)} className="input-field" />
+              </div>
+              <div>
+                <label htmlFor="ci-ssh" className="block text-sm text-gray-400 mb-1">SSH Public Key</label>
+                <input id="ci-ssh" type="text" value={ciSshKey} onChange={e => setCiSshKey(e.target.value)} className="input-field" placeholder="ssh-ed25519 AAAA..." />
+              </div>
+              <p className="text-xs text-gray-500">Generates a cloud-init ISO and attaches it as CD-ROM. The guest OS must support cloud-init.</p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">

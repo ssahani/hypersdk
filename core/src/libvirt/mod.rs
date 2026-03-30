@@ -5,6 +5,7 @@ pub mod clone;
 pub mod connection;
 pub mod create;
 pub mod device;
+pub mod extras;
 pub mod domain;
 pub mod guest_agent;
 pub mod host_network;

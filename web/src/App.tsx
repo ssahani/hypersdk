@@ -3,6 +3,7 @@ import { Suspense, lazy } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
+import { ThemeProvider } from './contexts/ThemeContext'
 import Navbar from './components/Navbar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
@@ -22,6 +23,7 @@ const Devices = lazy(() => import('./pages/Devices'))
 const NWFilters = lazy(() => import('./pages/NWFilters'))
 const Backups = lazy(() => import('./pages/Backups'))
 const HostNetworking = lazy(() => import('./pages/HostNetworking'))
+const AuditLog = lazy(() => import('./pages/AuditLog'))
 
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
@@ -61,6 +63,7 @@ function AuthenticatedApp() {
                 <Route path="/nwfilters" element={<NWFilters />} />
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/host-networking" element={<HostNetworking />} />
+                <Route path="/audit" element={<AuditLog />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>
@@ -73,11 +76,13 @@ function AuthenticatedApp() {
 
 function App() {
   return (
-    <ToastProvider>
-      <AuthProvider>
-        <AuthenticatedApp />
-      </AuthProvider>
-    </ToastProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <AuthProvider>
+          <AuthenticatedApp />
+        </AuthProvider>
+      </ToastProvider>
+    </ThemeProvider>
   )
 }
 

@@ -5,6 +5,10 @@ use super::domain::lookup_domain;
 use crate::state::AttachDiskRequest;
 use crate::LibvirtError;
 
+pub fn get_domain_flags_pub(domain: &Domain) -> u32 {
+    get_domain_flags(domain)
+}
+
 fn get_domain_flags(domain: &Domain) -> u32 {
     domain.get_info()
         .map(|info| {
