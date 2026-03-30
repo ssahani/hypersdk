@@ -86,6 +86,18 @@ pub async fn auth_middleware(
         }
     }
 
+    // Also check query parameter ?token= (needed for WebSocket/iframe connections
+    // where cookies can't be passed, e.g., noVNC iframe)
+    if let Some(query) = req.uri().query() {
+        for param in query.split('&') {
+            if let Some(token) = param.strip_prefix("token=") {
+                if !token.is_empty() && store.validate_session(token).is_some() {
+                    return next.run(req).await;
+                }
+            }
+        }
+    }
+
     (
         StatusCode::UNAUTHORIZED,
         Json(serde_json::json!({ "error": "Authentication required" })),
