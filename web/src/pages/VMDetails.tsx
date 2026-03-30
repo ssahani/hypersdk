@@ -640,17 +640,40 @@ export default function VMDetailsPage() {
             </DialogBox>
           )}
 
-          {dialog === 'cdrom' && (
-            <DialogBox title="Insert CD-ROM" icon={<Disc className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleInsertCdrom} confirmLabel="Insert">
-              <label htmlFor="dlg-iso" className="block text-sm text-slate-400 mb-1">ISO Path</label>
-              <input id="dlg-iso" type="text" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} placeholder="/var/lib/libvirt/images/file.iso" className="input-field" />
+          {dialog === 'cdrom' && (() => {
+            const cdromDisks = vm?.disks.filter(d => d.device === 'cdrom') || []
+            return (
+            <DialogBox title="CD-ROM Management" icon={<Disc className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleInsertCdrom} confirmLabel="Mount ISO">
+              {/* Show existing CD-ROM devices */}
+              {cdromDisks.length > 0 && (
+                <div className="mb-4 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                  <span className="text-xs text-slate-500 block mb-2">Current CD-ROM devices:</span>
+                  {cdromDisks.map((d, i) => (
+                    <div key={i} className="flex items-center justify-between py-1">
+                      <span className="text-sm"><span className="font-mono text-blue-400">{d.target}</span> {d.source ? <span className="text-slate-400 text-xs ml-2">{d.source.split('/').pop()}</span> : <span className="text-slate-500 text-xs ml-2">(empty)</span>}</span>
+                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${e instanceof Error ? e.message : e}`)) } }} className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-400 transition">Eject</button>}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {cdromDisks.length === 0 && (
+                <div className="mb-3 p-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-400">
+                  No CD-ROM drive found. A new one will be attached automatically.
+                </div>
+              )}
+              <label htmlFor="dlg-iso" className="block text-sm text-slate-400 mb-1">ISO File Path</label>
+              <input id="dlg-iso" type="text" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} placeholder="/var/lib/libvirt/images/image.iso" className="input-field" />
               <label htmlFor="dlg-cdtarget" className="block text-sm text-slate-400 mb-1 mt-3">Target Device</label>
-              <input id="dlg-cdtarget" type="text" value={cdromTarget} onChange={(e) => setCdromTarget(e.target.value)} className="input-field" />
-              <div className="mt-3">
-                <button onClick={() => { if (name) { ejectCdrom(name, cdromTarget).then(() => { toast.success('CD-ROM ejected'); load() }).catch((e: unknown) => toast.error(`Eject failed: ${e instanceof Error ? e.message : e}`)) } }} className="text-xs text-red-400 hover:text-red-300 transition">Eject current CD-ROM</button>
-              </div>
+              <select id="dlg-cdtarget" value={cdromTarget} onChange={(e) => setCdromTarget(e.target.value)} className="input-field">
+                {cdromDisks.length > 0
+                  ? cdromDisks.map(d => <option key={d.target} value={d.target}>{d.target}</option>)
+                  : <><option value="sda">sda</option><option value="sdb">sdb</option><option value="hda">hda</option></>
+                }
+              </select>
+              <p className="text-xs text-slate-500 mt-2">Enter the full path to an ISO file on the host. The VM {vm?.state === 'running' ? 'will see the change immediately' : 'will see it on next start'}.</p>
             </DialogBox>
-          )}
+            )
+          })()}
 
           {dialog === 'attach-disk' && (
             <DialogBox title="Attach Disk" icon={<HardDrive className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleAttachDisk} confirmLabel="Attach">
