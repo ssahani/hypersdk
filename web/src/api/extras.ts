@@ -56,6 +56,16 @@ export const setVmTags = (vm: string, tags: string[]) =>
   apiPost<{ status: string; name: string; tags: string[] }>(`${API}/vms/${vm}/tags`, { tags })
 export const getAllTags = () => apiGet<Record<string, number>>(`${API}/tags`)
 
+// DHCP leases
+export interface DhcpLease {
+  network: string
+  mac: string
+  ip: string
+  hostname: string
+  expiry: string
+}
+export const listDhcpLeases = () => apiGet<DhcpLease[]>(`${API}/dhcp-leases`)
+
 // Host stats
 export interface HostStats {
   cpu_percent: number

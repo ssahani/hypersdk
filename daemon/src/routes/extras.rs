@@ -107,6 +107,15 @@ async fn live_memory_handler(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb, "live": true })))
 }
 
+// ── DHCP Leases ────────────────────────────────────────────────────
+
+async fn list_dhcp_leases(
+    State(m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let leases = m.with_conn(extras::list_dhcp_leases)?;
+    Ok(Json(serde_json::json!(leases)))
+}
+
 // ── Host System Stats ──────────────────────────────────────────────
 
 async fn get_host_stats(
@@ -187,8 +196,9 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/tags", get(get_all_tags_handler))
         // PCI
         .route("/host/pci", get(list_pci_handler))
-        // Host stats
+        // Host stats + DHCP
         .route("/host/stats", get(get_host_stats))
+        .route("/dhcp-leases", get(list_dhcp_leases))
         // Save as template
         .route("/vms/{name}/save-template", post(save_template_handler))
 }

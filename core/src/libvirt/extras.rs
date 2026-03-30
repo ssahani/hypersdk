@@ -480,6 +480,69 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
     Ok(())
 }
 
+// ── DHCP Leases ──────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DhcpLease {
+    pub network: String,
+    pub mac: String,
+    pub ip: String,
+    pub hostname: String,
+    pub expiry: String,
+}
+
+/// Get DHCP leases from all active libvirt networks via virsh.
+pub fn list_dhcp_leases(conn: &Connect) -> Result<Vec<DhcpLease>, LibvirtError> {
+    let networks = conn.list_all_networks(0)
+        .map_err(LibvirtError::map_op("Failed to list networks"))?;
+
+    let mut leases = Vec::new();
+    for net in networks {
+        let net_name = net.get_name().unwrap_or_default();
+        if !net.is_active().unwrap_or(false) { continue; }
+
+        // Use virsh net-dhcp-leases to get lease info
+        if let Ok(output) = Command::new("virsh").args(["net-dhcp-leases", &net_name]).output() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for line in stdout.lines().skip(2) {
+                // Format: Expiry  MAC  Protocol  IP  Hostname  ClientID
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 5 && parts[0] != "-" {
+                    // Expiry is "YYYY-MM-DD HH:MM:SS" (2 columns) or "-"
+                    let (expiry, rest) = if parts[0].contains('-') && parts.len() >= 6 {
+                        (format!("{} {}", parts[0], parts[1]), &parts[2..])
+                    } else {
+                        (parts[0].to_string(), &parts[1..])
+                    };
+                    if rest.len() >= 4 {
+                        leases.push(DhcpLease {
+                            network: net_name.clone(),
+                            mac: rest[0].to_string(),
+                            ip: rest[2].to_string(),
+                            hostname: if rest.len() > 3 && rest[3] != "-" { rest[3].to_string() } else { String::new() },
+                            expiry,
+                        });
+                    }
+                }
+            }
+        }
+    }
+    Ok(leases)
+}
+
+fn format_lease_expiry(epoch: i64) -> String {
+    if epoch <= 0 { return "static".to_string(); }
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let remaining = epoch - now;
+    if remaining <= 0 { return "expired".to_string(); }
+    let hours = remaining / 3600;
+    let mins = (remaining % 3600) / 60;
+    format!("{hours}h {mins}m")
+}
+
 // ── PCI / IOMMU Passthrough Listing ───────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
