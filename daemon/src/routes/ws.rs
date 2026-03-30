@@ -340,6 +340,97 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
     info!("VNC WebSocket proxy closed for VM '{}' port {}", name, port);
 }
 
+// ── SPICE WebSocket proxy ──────────────────────────────────────────
+
+async fn spice_handler(
+    ws: WebSocketUpgrade,
+    Path(name): Path<String>,
+    State(manager): State<LibvirtManager>,
+) -> impl IntoResponse {
+    let port = manager
+        .with_conn(|conn| {
+            let xml = domain::get_vm_xml(conn, &name)?;
+            let mut port = 0u16;
+            for block in virtspawn_core::xml::split_blocks(&xml, "graphics") {
+                let gtype = virtspawn_core::xml::extract_attr(&block, "graphics", "type")
+                    .unwrap_or_default();
+                if gtype == "spice" {
+                    port = virtspawn_core::xml::extract_attr(&block, "graphics", "port")
+                        .and_then(|s| s.parse().ok())
+                        .unwrap_or(0);
+                    break;
+                }
+            }
+            Ok(port)
+        })
+        .unwrap_or(0);
+
+    ws.on_upgrade(move |socket| handle_spice_proxy(socket, name, port))
+}
+
+async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
+    if port == 0 {
+        info!("SPICE: no port for VM '{}'", name);
+        let (mut sink, _) = socket.split();
+        let _ = sink.close().await;
+        return;
+    }
+
+    info!("SPICE WebSocket proxy connecting to 127.0.0.1:{} for VM '{}'", port, name);
+
+    let tcp = match tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("Failed to connect to SPICE port {}: {}", port, e);
+            let (mut sink, _) = socket.split();
+            let _ = sink.close().await;
+            return;
+        }
+    };
+
+    info!("SPICE TCP connected to port {} for VM '{}'", port, name);
+
+    let (mut tcp_read, mut tcp_write) = tcp.into_split();
+    let (mut ws_sink, mut ws_stream) = socket.split();
+
+    let mut read_task = tokio::spawn(async move {
+        let mut buf = [0u8; 65536];
+        loop {
+            match tcp_read.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    if ws_sink.send(Message::Binary(buf[..n].to_vec().into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let mut write_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_stream.next().await {
+            match msg {
+                Message::Binary(data) => {
+                    if tcp_write.write_all(&data).await.is_err() { break; }
+                }
+                Message::Text(text) => {
+                    if tcp_write.write_all(text.as_bytes()).await.is_err() { break; }
+                }
+                Message::Ping(_) | Message::Pong(_) => {}
+                Message::Close(_) => break,
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = &mut read_task => { write_task.abort(); }
+        _ = &mut write_task => { read_task.abort(); }
+    }
+
+    info!("SPICE WebSocket proxy closed for VM '{}' port {}", name, port);
+}
+
 // ── Routes ──────────────────────────────────────────────────────────
 
 pub fn ws_routes() -> Router<LibvirtManager> {
@@ -347,4 +438,5 @@ pub fn ws_routes() -> Router<LibvirtManager> {
         .route("/watch", get(ws_handler))
         .route("/console/{name}", get(console_handler))
         .route("/vnc/{name}", get(vnc_handler))
+        .route("/spice/{name}", get(spice_handler))
 }

@@ -35,6 +35,12 @@ pub fn create_app(manager: LibvirtManager) -> Router {
         router = router.nest_service("/novnc", ServeDir::new(&novnc_dir));
     }
 
+    // Serve spice-html5 for SPICE console
+    if let Some(spice_dir) = find_spice_html5() {
+        tracing::info!("Serving spice-html5 from {}", spice_dir.display());
+        router = router.nest_service("/spice-html5", ServeDir::new(&spice_dir));
+    }
+
     if let Some(dir) = web_dir {
         tracing::info!("Serving web UI from {}", dir.display());
         let index = dir.join("index.html");
@@ -58,6 +64,14 @@ fn find_web_dist() -> Option<PathBuf> {
     candidates.push(PathBuf::from("web/dist"));
     candidates.push(PathBuf::from("../web/dist"));
     candidates.into_iter().find(|p| p.join("index.html").exists())
+}
+
+fn find_spice_html5() -> Option<PathBuf> {
+    let candidates = [
+        PathBuf::from("/usr/share/spice-html5"),
+        PathBuf::from("/usr/local/share/spice-html5"),
+    ];
+    candidates.into_iter().find(|p| p.join("spice.html").exists() || p.join("spice_auto.html").exists())
 }
 
 fn find_novnc() -> Option<PathBuf> {
