@@ -1,3 +1,4 @@
+pub mod automation;
 pub mod boot;
 pub mod capabilities;
 pub mod cdrom;

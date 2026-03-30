@@ -86,14 +86,11 @@ pub async fn auth_middleware(
         }
     }
 
-    // Also check query parameter ?token= (needed for WebSocket/iframe connections
-    // where cookies can't be passed, e.g., noVNC iframe)
-    if let Some(query) = req.uri().query() {
-        for param in query.split('&') {
-            if let Some(token) = param.strip_prefix("token=") {
-                if !token.is_empty() && store.validate_session(token).is_some() {
-                    return next.run(req).await;
-                }
+    // Check Authorization header for API tokens (Bearer vs_xxx)
+    if let Some(auth_header) = req.headers().get("authorization").and_then(|v| v.to_str().ok()) {
+        if let Some(token) = auth_header.strip_prefix("Bearer ") {
+            if virtspawn_core::libvirt::automation::validate_api_token(token).is_some() {
+                return next.run(req).await;
             }
         }
     }
