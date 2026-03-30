@@ -30,9 +30,13 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
     loop {
         tick.tick().await;
 
-        let current = manager
-            .with_conn(domain::list_vms)
-            .unwrap_or_default();
+        let current = match manager.with_conn(domain::list_vms) {
+            Ok(vms) => vms,
+            Err(e) => {
+                warn!("Failed to list VMs for watch: {}", e);
+                Vec::new()
+            }
+        };
 
         let mut changes = Vec::new();
         let mut current_names: HashMap<String, String> = HashMap::with_capacity(current.len());
@@ -95,24 +99,29 @@ async fn console_handler(
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
     // Get the PTY path from VM XML
-    let pty_path = manager
-        .with_conn(|conn| {
-            let xml = domain::get_vm_xml(conn, &name)?;
-            let path = virtspawn_core::xml::extract_attr(&xml, "console", "tty")
-                .or_else(|| {
-                    // Look for <source path='...' /> inside <console>
-                    for block in virtspawn_core::xml::split_blocks(&xml, "console") {
-                        if let Some(p) = virtspawn_core::xml::extract_attr(&block, "source", "path")
-                        {
+    let pty_path = match manager.with_conn(|conn| {
+        let xml = domain::get_vm_xml(conn, &name)?;
+        let path = virtspawn_core::xml::extract_attr(&xml, "console", "tty")
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                // Look for <source path='...' /> inside <console>
+                for block in virtspawn_core::xml::split_blocks(&xml, "console") {
+                    if let Some(p) = virtspawn_core::xml::extract_attr(&block, "source", "path") {
+                        if !p.is_empty() {
                             return Some(p);
                         }
                     }
-                    None
-                });
-            Ok(path)
-        })
-        .ok()
-        .flatten();
+                }
+                None
+            });
+        Ok(path)
+    }) {
+        Ok(path) => path,
+        Err(e) => {
+            warn!("Failed to get console info for VM '{}': {}", name, e);
+            None
+        }
+    };
 
     ws.on_upgrade(move |socket| handle_console(socket, name, pty_path))
 }
@@ -121,7 +130,28 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     info!("Console WebSocket connected for VM '{}'", name);
 
     let pty = match pty_path {
-        Some(ref p) if std::path::Path::new(p).exists() && p.starts_with("/dev/pts/") => p.clone(),
+        Some(ref p) => match std::fs::canonicalize(p) {
+            Ok(canonical) if canonical.starts_with("/dev/pts/") => canonical.to_string_lossy().to_string(),
+            Ok(canonical) => {
+                warn!("PTY path '{}' resolved to '{}' which is outside /dev/pts/", p, canonical.display());
+                let (mut sink, _) = socket.split();
+                let _ = sink
+                    .send(Message::Text(
+                        format!("\r\nInvalid PTY path for VM '{}'\r\n", name).into(),
+                    ))
+                    .await;
+                return;
+            }
+            Err(_) => {
+                let (mut sink, _) = socket.split();
+                let _ = sink
+                    .send(Message::Text(
+                        format!("\r\nNo console PTY found for VM '{}'. Is it running?\r\n", name).into(),
+                    ))
+                    .await;
+                return;
+            }
+        },
         _ => {
             let (mut sink, _) = socket.split();
             let _ = sink
@@ -178,6 +208,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
     });
 
     // WebSocket → PTY
+    let console_name = name.clone();
     let mut write_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
@@ -191,8 +222,8 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
                         break;
                     }
                 }
+                Message::Ping(_) | Message::Pong(_) => { /* axum handles pong automatically */ }
                 Message::Close(_) => break,
-                _ => {}
             }
         }
     });
@@ -202,7 +233,7 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
         _ = &mut write_task => { read_task.abort(); }
     }
 
-    info!("Console WebSocket closed for VM '{}'", name);
+    info!("Console WebSocket closed for VM '{}'", console_name);
 }
 
 // ── VNC WebSocket proxy ─────────────────────────────────────────────
@@ -295,8 +326,8 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
                         break;
                     }
                 }
+                Message::Ping(_) | Message::Pong(_) => { /* axum handles pong automatically */ }
                 Message::Close(_) => break,
-                _ => {}
             }
         }
     });

@@ -55,9 +55,11 @@ async fn get_console_info(
     }
 
     // Extract hostname from Host header, fallback to 127.0.0.1
+    // Validate hostname contains only safe characters to prevent header injection
     let listen_host = headers.get("host")
         .and_then(|v| v.to_str().ok())
         .and_then(|h| h.split(':').next())
+        .filter(|h| h.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-'))
         .unwrap_or("127.0.0.1")
         .to_string();
 

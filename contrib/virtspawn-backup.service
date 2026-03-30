@@ -16,7 +16,8 @@ PrivateTmp=true
 
 # Need mount capability for NFS
 AmbientCapabilities=CAP_SYS_ADMIN
-NoNewPrivileges=false
+CapabilityBoundingSet=CAP_SYS_ADMIN CAP_NET_ADMIN CAP_DAC_OVERRIDE
+NoNewPrivileges=true
 
 # Network: needed for API calls + NFS
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

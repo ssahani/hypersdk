@@ -97,6 +97,7 @@ async fn set_vcpus(
     State(manager): State<LibvirtManager>,
     Path((name, count)): Path<(String, u32)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    virtspawn_core::validate::validate_vcpus(count)?;
     manager.with_conn(|conn| resize::set_vcpus(conn, &name, count))?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "vcpus": count })))
 }
@@ -105,6 +106,7 @@ async fn set_memory(
     State(manager): State<LibvirtManager>,
     Path((name, mb)): Path<(String, u64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    virtspawn_core::validate::validate_memory_mb(mb)?;
     manager.with_conn(|conn| resize::set_memory(conn, &name, mb))?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb })))
 }
@@ -135,6 +137,43 @@ async fn rename_vm_handler(
     Ok(Json(serde_json::json!({ "status": "renamed", "old_name": name, "new_name": req.new_name })))
 }
 
+#[derive(serde::Deserialize)]
+struct ResizeDiskRequest { size_gb: u64 }
+
+async fn resize_disk_handler(
+    State(manager): State<LibvirtManager>,
+    Path((name, target)): Path<(String, String)>,
+    Json(req): Json<ResizeDiskRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| device::resize_block_device(conn, &name, &target, req.size_gb))?;
+    Ok(Json(serde_json::json!({ "status": "resized", "name": name, "target": target, "size_gb": req.size_gb })))
+}
+
+#[derive(serde::Deserialize)]
+struct AttachInterfaceRequest {
+    network: String,
+    #[serde(default = "default_nic_model")]
+    model: String,
+}
+fn default_nic_model() -> String { "virtio".to_string() }
+
+async fn attach_interface_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<AttachInterfaceRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| device::attach_interface(conn, &name, &req.network, &req.model))?;
+    Ok(Json(serde_json::json!({ "status": "attached", "name": name, "network": req.network })))
+}
+
+async fn detach_interface_handler(
+    State(manager): State<LibvirtManager>,
+    Path((name, mac)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    manager.with_conn(|conn| device::detach_interface(conn, &name, &mac))?;
+    Ok(Json(serde_json::json!({ "status": "detached", "name": name, "mac": mac })))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -155,4 +194,7 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/rename", post(rename_vm_handler))
         .route("/vms/{name}/disk/attach", post(attach_disk_handler))
         .route("/vms/{name}/disk/detach/{target}", post(detach_disk_handler))
+        .route("/vms/{name}/disk/resize/{target}", post(resize_disk_handler))
+        .route("/vms/{name}/nic/attach", post(attach_interface_handler))
+        .route("/vms/{name}/nic/detach/{mac}", post(detach_interface_handler))
 }

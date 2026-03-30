@@ -51,10 +51,11 @@ export default function BackupsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [b, v, s] = await Promise.all([fetchBackups(), listVMs(), getSchedule()])
-      setBackups(b)
-      setVms(v)
-      setScheduleState(s)
+      const [bResult, vResult, sResult] = await Promise.allSettled([fetchBackups(), listVMs(), getSchedule()])
+      if (bResult.status === 'fulfilled') setBackups(bResult.value)
+      else toast.error(`Failed to load backups: ${bResult.reason instanceof Error ? bResult.reason.message : bResult.reason}`)
+      if (vResult.status === 'fulfilled') setVms(vResult.value)
+      if (sResult.status === 'fulfilled') setScheduleState(sResult.value)
     } catch (e: unknown) {
       toast.error(`${e instanceof Error ? e.message : e}`)
     } finally {

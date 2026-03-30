@@ -57,6 +57,8 @@ export interface CreateVmRequest {
   iso?: string
   network?: string
   os_variant?: string
+  existing_disk?: string
+  firmware?: string
 }
 
 export interface VmTemplate {
@@ -121,3 +123,6 @@ export const getBootConfig = (name: string) => apiGet<BootConfig>(`${API}/vms/${
 export const setBootOrder = (name: string, devices: string[]) => apiPostVoid(`${API}/vms/${name}/boot`, { devices })
 export const migrateVM = (name: string, destUri: string, live: boolean) => apiPostVoid(`${API}/vms/${name}/migrate`, { dest_uri: destUri, live })
 export const setMemoryBalloon = (name: string, mb: number) => apiPostVoid(`${API}/vms/${name}/balloon/${mb}`)
+export const resizeDisk = (name: string, target: string, sizeGb: number) => apiPostVoid(`${API}/vms/${name}/disk/resize/${target}`, { size_gb: sizeGb })
+export const attachInterface = (name: string, network: string, model: string = 'virtio') => apiPostVoid(`${API}/vms/${name}/nic/attach`, { network, model })
+export const detachInterface = (name: string, mac: string) => apiPostVoid(`${API}/vms/${name}/nic/detach/${mac}`)

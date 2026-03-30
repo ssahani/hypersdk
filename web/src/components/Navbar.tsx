@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import {
   Server, Plus, Home, Network, HardDrive, Camera, Cpu,
-  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive,
+  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User,
 } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
+import { useAuth } from '../contexts/AuthContext'
 
 interface NavItem {
   to: string
@@ -106,6 +107,7 @@ function DesktopDropdown({ group }: { group: NavGroup }) {
 
 export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const { username, logout } = useAuth()
 
   return (
     <nav className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-30">
@@ -141,6 +143,14 @@ export default function Navbar() {
               <Plus className="w-4 h-4" />
               Create VM
             </Link>
+            {username && (
+              <div className="hidden sm:flex items-center gap-2">
+                <span className="text-xs text-slate-400 flex items-center gap-1"><User className="w-3 h-3" />{username}</span>
+                <button onClick={logout} className="p-1.5 hover:bg-slate-700 rounded-lg transition text-slate-400 hover:text-red-400" title="Sign out" aria-label="Sign out">
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             <button
               className="lg:hidden p-2 hover:bg-slate-700/60 rounded-lg transition"
               onClick={() => setMobileOpen(!mobileOpen)}
@@ -173,6 +183,15 @@ export default function Navbar() {
               <Plus className="w-4 h-4" />
               Create VM
             </Link>
+            {username && (
+              <button
+                onClick={() => { setMobileOpen(false); logout() }}
+                className="flex items-center justify-center gap-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-700 rounded-lg transition text-sm text-slate-300"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign out ({username})
+              </button>
+            )}
           </div>
         </div>
       )}

@@ -13,27 +13,59 @@ pub fn create_vm(conn: &Connect, req: &CreateVmRequest) -> Result<(), LibvirtErr
     crate::validate::validate_name(&req.name)?;
     crate::validate::validate_vcpus(req.vcpus)?;
     crate::validate::validate_memory_mb(req.memory_mb)?;
-    crate::validate::validate_disk_gb(req.disk_gb)?;
+
+    // Validate and normalize firmware
+    let firmware = if req.firmware.is_empty() { "bios" } else { &req.firmware };
+    if firmware != "bios" && firmware != "uefi" {
+        return Err(LibvirtError::Invalid("Firmware must be 'bios' or 'uefi'".to_string()));
+    }
+    if firmware == "uefi" {
+        let ovmf_path = find_ovmf_code();
+        if ovmf_path.is_none() {
+            return Err(LibvirtError::Operation(
+                "UEFI firmware (OVMF) not found. Install edk2-ovmf (Fedora/RHEL) or ovmf (Debian/Ubuntu).".to_string()
+            ));
+        }
+    }
 
     // Validate ISO path if provided
     if !req.iso.is_empty() {
         let iso_path = std::path::Path::new(&req.iso);
         if !iso_path.is_absolute() {
-            return Err(LibvirtError::Operation("ISO path must be absolute".to_string()));
+            return Err(LibvirtError::Invalid("ISO path must be absolute".to_string()));
         }
-        if !iso_path.exists() {
-            return Err(LibvirtError::Operation(format!("ISO file not found: {}", req.iso)));
+        if !iso_path.is_file() {
+            return Err(LibvirtError::Operation(format!("ISO file not found or is not a file: {}", req.iso)));
         }
     }
 
-    // Determine storage pool path for disk
-    let disk_path = find_disk_path(conn, &req.name)?;
+    let disk_path = if !req.existing_disk.is_empty() {
+        // Use existing disk image
+        let disk = std::path::Path::new(&req.existing_disk);
+        if !disk.is_absolute() {
+            return Err(LibvirtError::Invalid("Existing disk path must be absolute".to_string()));
+        }
+        if !disk.is_file() {
+            return Err(LibvirtError::Operation(format!("Disk image not found: {}", req.existing_disk)));
+        }
+        req.existing_disk.clone()
+    } else {
+        // Create new disk
+        crate::validate::validate_disk_gb(req.disk_gb)?;
+        let path = find_disk_path(conn, &req.name)?;
+        create_qcow2_disk(&path, req.disk_gb)?;
+        path
+    };
 
-    // Create qcow2 disk image
-    create_qcow2_disk(&disk_path, req.disk_gb)?;
+    // Detect disk driver from extension
+    let disk_driver = if disk_path.ends_with(".raw") || disk_path.ends_with(".img") {
+        "raw"
+    } else {
+        "qcow2"
+    };
 
     // Generate domain XML
-    let xml = generate_domain_xml(req, &disk_path);
+    let xml = generate_domain_xml(req, &disk_path, disk_driver, firmware);
 
     // Define the domain
     Domain::define_xml(conn, &xml)
@@ -82,11 +114,30 @@ fn create_qcow2_disk(path: &str, size_gb: u64) -> Result<(), LibvirtError> {
     Ok(())
 }
 
-fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
+/// Search common OVMF firmware locations across distros.
+fn find_ovmf_code() -> Option<String> {
+    let candidates = [
+        "/usr/share/edk2/ovmf/OVMF_CODE.fd",           // Fedora/RHEL
+        "/usr/share/OVMF/OVMF_CODE.fd",                 // Ubuntu/Debian
+        "/usr/share/edk2/x64/OVMF_CODE.fd",             // Arch
+        "/usr/share/qemu/OVMF_CODE.fd",                 // openSUSE
+        "/usr/share/edk2/ovmf/OVMF_CODE.secboot.fd",    // Secure boot variant
+        "/usr/share/OVMF/OVMF_CODE_4M.fd",              // Ubuntu newer
+    ];
+    for path in &candidates {
+        if Path::new(path).is_file() {
+            return Some(path.to_string());
+        }
+    }
+    None
+}
+
+fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str, disk_driver: &str, firmware: &str) -> String {
     let memory_kib = req.memory_mb * 1024;
     let name = crate::xml::escape(&req.name);
     let network = crate::xml::escape(&req.network);
     let disk_path = crate::xml::escape(disk_path);
+    let disk_driver = crate::xml::escape(disk_driver);
 
     let cdrom_xml = if !req.iso.is_empty() {
         format!(
@@ -105,15 +156,36 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
 
     let boot_dev = if req.iso.is_empty() { "hd" } else { "cdrom" };
 
+    // UEFI firmware support
+    let os_xml = if firmware == "uefi" {
+        let ovmf_path = find_ovmf_code().unwrap_or_else(|| "/usr/share/edk2/ovmf/OVMF_CODE.fd".to_string());
+        format!(
+            r#"<os>
+    <type arch='x86_64' machine='pc-q35-9.0'>hvm</type>
+    <loader readonly='yes' type='pflash'>{ovmf_path}</loader>
+    <nvram>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>
+    <boot dev='{boot_dev}'/>
+  </os>"#,
+            ovmf_path = crate::xml::escape(&ovmf_path),
+            name = name,
+            boot_dev = boot_dev,
+        )
+    } else {
+        format!(
+            r#"<os>
+    <type arch='x86_64' machine='pc-q35-9.0'>hvm</type>
+    <boot dev='{boot_dev}'/>
+  </os>"#,
+            boot_dev = boot_dev,
+        )
+    };
+
     format!(
         r#"<domain type='kvm'>
   <name>{name}</name>
   <memory unit='KiB'>{memory_kib}</memory>
   <vcpu placement='static'>{vcpus}</vcpu>
-  <os>
-    <type arch='x86_64' machine='pc-q35-9.0'>hvm</type>
-    <boot dev='{boot_dev}'/>
-  </os>
+  {os_xml}
   <features>
     <acpi/>
     <apic/>
@@ -126,7 +198,7 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
   <devices>
     <emulator>/usr/bin/qemu-system-x86_64</emulator>
     <disk type='file' device='disk'>
-      <driver name='qemu' type='qcow2'/>
+      <driver name='qemu' type='{disk_driver}'/>
       <source file='{disk_path}'/>
       <target dev='vda' bus='virtio'/>
     </disk>{cdrom_xml}
@@ -157,7 +229,8 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str) -> String {
         name = name,
         memory_kib = memory_kib,
         vcpus = req.vcpus,
-        boot_dev = boot_dev,
+        os_xml = os_xml,
+        disk_driver = disk_driver,
         disk_path = disk_path,
         cdrom_xml = cdrom_xml,
         network = network,

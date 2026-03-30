@@ -82,7 +82,7 @@ cleanup_on_exit() {
     fi
     # Release lock
     if [ -n "${LOCK_FD:-}" ]; then
-        eval "exec ${LOCK_FD}>&-" 2>/dev/null || true
+        exec 9>&- 2>/dev/null || true
     fi
 }
 trap cleanup_on_exit EXIT
@@ -95,12 +95,14 @@ write_status() {
     local progress="${3:-}"
     [ -z "${BACKUP_PATH:-}" ] && return 0
     [ -d "$BACKUP_PATH" ] || return 0
+    # Atomic write: write to temp file then move
     {
         echo "status=$status"
         echo "message=$message"
         echo "progress=$progress"
         echo "updated=$(date +%Y%m%d-%H%M%S)"
-    } > "$BACKUP_PATH/backup.status"
+    } > "$BACKUP_PATH/backup.status.tmp" && \
+    mv "$BACKUP_PATH/backup.status.tmp" "$BACKUP_PATH/backup.status"
 }
 
 # ── Load config file ──────────────────────────────────────────────────
@@ -137,7 +139,7 @@ mount_nfs() {
     [ -z "$NFS_TARGET" ] && return 0
 
     info "Mounting NFS share: $NFS_TARGET -> $NFS_MOUNT_POINT"
-    mkdir -p "$NFS_MOUNT_POINT"
+    mkdir -p "$NFS_MOUNT_POINT" || fail "Cannot create NFS mount point: $NFS_MOUNT_POINT"
 
     if mountpoint -q "$NFS_MOUNT_POINT" 2>/dev/null; then
         local current_src
@@ -162,14 +164,22 @@ unmount_nfs() {
     if mountpoint -q "$NFS_MOUNT_POINT" 2>/dev/null; then
         info "Unmounting NFS share..."
         sync
-        umount "$NFS_MOUNT_POINT" && ok "NFS unmounted" || warn "NFS unmount failed (may still be busy)"
+        if umount "$NFS_MOUNT_POINT"; then
+            ok "NFS unmounted"
+        else
+            warn "NFS unmount failed (may still be busy)"
+        fi
     fi
 }
 
 # ── Retention (prune old backups) ─────────────────────────────────────
 
 prune_old_backups() {
-    [ "$RETAIN" -le 0 ] 2>/dev/null && return 0
+    if ! [[ "$RETAIN" =~ ^[0-9]+$ ]]; then
+        warn "Invalid RETAIN value: $RETAIN (skipping prune)"
+        return 0
+    fi
+    [ "$RETAIN" -le 0 ] && return 0
 
     info "Applying retention policy: keep last $RETAIN backups"
 
@@ -345,7 +355,11 @@ if [ -n "$RESTORE_DIR" ]; then
         [ -f "$xml" ] || continue
         name=$(basename "$xml" .xml)
         info "Defining VM: $name"
-        virsh define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
+        if virsh define "$xml" 2>&1; then
+            ok "  $name defined"
+        else
+            warn "  $name failed"
+        fi
     done
 
     # Restore networks
@@ -355,7 +369,11 @@ if [ -n "$RESTORE_DIR" ]; then
             [ -f "$xml" ] || continue
             name=$(basename "$xml" .xml)
             info "Defining network: $name"
-            virsh net-define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
+            if virsh net-define "$xml" 2>&1; then
+                ok "  $name defined"
+            else
+                warn "  $name failed"
+            fi
         done
     fi
 
@@ -366,7 +384,11 @@ if [ -n "$RESTORE_DIR" ]; then
             [ -f "$xml" ] || continue
             name=$(basename "$xml" .xml)
             info "Defining pool: $name"
-            virsh pool-define "$xml" 2>&1 && ok "  $name defined" || warn "  $name failed"
+            if virsh pool-define "$xml" 2>&1; then
+                ok "  $name defined"
+            else
+                warn "  $name failed"
+            fi
         done
     fi
 
@@ -375,21 +397,27 @@ if [ -n "$RESTORE_DIR" ]; then
         info "Restoring disk images..."
         # Build a map of disk basenames to original paths from VM XMLs
         declare -A DISK_DEST_MAP
+        # Collect mappings into a variable first, then parse (avoids subshell scoping)
+        local disk_mappings=""
         for xml in "$RESTORE_DIR"/vms/*.xml; do
             [ -f "$xml" ] || continue
-            # Extract disk source paths from XML
-            grep -oP 'source file=."\K[^"]+' "$xml" 2>/dev/null | while IFS= read -r src_path; do
+            # Extract disk source paths from XML using grep -o (portable)
+            local src_paths
+            src_paths=$(grep -o 'source file="[^"]*"' "$xml" 2>/dev/null | cut -d'"' -f2 || true)
+            while IFS= read -r src_path; do
+                [ -z "$src_path" ] && continue
                 local bn
                 bn=$(basename "$src_path")
-                # Check both plain and VM-prefixed names
                 local vm_bn
                 vm_bn="$(basename "$xml" .xml)_${bn}"
-                echo "${bn}|${src_path}"
-                echo "${vm_bn}|${src_path}"
-            done
-        done | while IFS='|' read -r key val; do
+                disk_mappings="${disk_mappings}${bn}|${src_path}"$'\n'
+                disk_mappings="${disk_mappings}${vm_bn}|${src_path}"$'\n'
+            done <<< "$src_paths"
+        done
+        while IFS='|' read -r key val; do
+            [ -z "$key" ] && continue
             DISK_DEST_MAP["$key"]="$val"
-        done 2>/dev/null || true
+        done <<< "$disk_mappings"
 
         for disk_file in "$RESTORE_DIR"/disks/*; do
             [ -f "$disk_file" ] || continue
@@ -407,7 +435,11 @@ if [ -n "$RESTORE_DIR" ]; then
                 dest_dir=$(dirname "$dest")
                 [ -d "$dest_dir" ] || mkdir -p "$dest_dir"
                 info "  Copying $disk_name -> $dest"
-                cp "$disk_file" "$dest" && ok "  $disk_name restored" || warn "  $disk_name copy failed"
+                if cp "$disk_file" "$dest"; then
+                    ok "  $disk_name restored"
+                else
+                    warn "  $disk_name copy failed"
+                fi
             fi
         done
     fi
@@ -427,10 +459,10 @@ BACKUP_PATH="$BACKUP_DIR/$DATE"
 # ── Acquire lock (prevent concurrent backups) ────────────────────────
 
 LOCK_FILE="$BACKUP_DIR/.backup.lock"
-mkdir -p "$BACKUP_DIR"
+mkdir -p "$BACKUP_DIR" || fail "Cannot create backup directory: $BACKUP_DIR"
 LOCK_FD=9
-eval "exec ${LOCK_FD}>\"$LOCK_FILE\""
-if ! flock -n "$LOCK_FD"; then
+exec 9>"$LOCK_FILE" || fail "Cannot create lock file: $LOCK_FILE"
+if ! flock -n 9; then
     fail "Another backup is already running (lock: $LOCK_FILE)"
 fi
 
@@ -448,9 +480,12 @@ if [ -n "$VM_FILTER" ]; then
     NET_COUNT=0
     POOLS=""
 else
-    VMS=$(curl -sf "$API/vms" 2>/dev/null)
-    NETS=$(curl -sf "$API/networks" 2>/dev/null)
-    POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null)
+    VMS=$(curl -sf "$API/vms" 2>/dev/null) || fail "Failed to fetch VM list from API"
+    NETS=$(curl -sf "$API/networks" 2>/dev/null) || fail "Failed to fetch network list from API"
+    POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null) || fail "Failed to fetch storage pool list from API"
+
+    # Validate JSON responses before parsing
+    echo "$VMS" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null || fail "API returned invalid JSON for VMs"
 
     VM_NAMES=$(echo "$VMS" | python3 -c "import json,sys; [print(v['name']) for v in json.load(sys.stdin)]" 2>/dev/null)
     NET_NAMES=$(echo "$NETS" | python3 -c "import json,sys; [print(n['name']) for n in json.load(sys.stdin)]" 2>/dev/null)

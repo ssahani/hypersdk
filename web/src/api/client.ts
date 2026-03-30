@@ -2,7 +2,7 @@ export async function apiGet<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(body || res.statusText)
+    throw new Error(body || `HTTP ${res.status}: ${res.statusText}`)
   }
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -19,7 +19,7 @@ export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || res.statusText)
+    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
   }
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -36,7 +36,7 @@ export async function apiPostVoid(url: string, body?: unknown): Promise<void> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || res.statusText)
+    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
   }
 }
 
@@ -44,6 +44,6 @@ export async function apiDelete(url: string): Promise<void> {
   const res = await fetch(url, { method: 'DELETE' })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || res.statusText)
+    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
   }
 }

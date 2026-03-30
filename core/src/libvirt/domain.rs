@@ -6,19 +6,25 @@ use crate::xml;
 use crate::LibvirtError;
 
 // libvirt domain state constants
+const VIR_DOMAIN_NOSTATE: u32 = 0;
 const VIR_DOMAIN_RUNNING: u32 = 1;
+const VIR_DOMAIN_BLOCKED: u32 = 2;
+const VIR_DOMAIN_PAUSED: u32 = 3;
+const VIR_DOMAIN_SHUTDOWN: u32 = 4;
 const VIR_DOMAIN_SHUTOFF: u32 = 5;
+const VIR_DOMAIN_CRASHED: u32 = 6;
+const VIR_DOMAIN_PMSUSPENDED: u32 = 7;
 
 fn state_to_string(state: u32) -> String {
     match state {
-        0 => "no state".to_string(),
+        VIR_DOMAIN_NOSTATE => "no state".to_string(),
         VIR_DOMAIN_RUNNING => "running".to_string(),
-        2 => "blocked".to_string(),
-        3 => "paused".to_string(),
-        4 => "shutting down".to_string(),
+        VIR_DOMAIN_BLOCKED => "blocked".to_string(),
+        VIR_DOMAIN_PAUSED => "paused".to_string(),
+        VIR_DOMAIN_SHUTDOWN => "shutting down".to_string(),
         VIR_DOMAIN_SHUTOFF => "shutoff".to_string(),
-        6 => "crashed".to_string(),
-        7 => "suspended".to_string(),
+        VIR_DOMAIN_CRASHED => "crashed".to_string(),
+        VIR_DOMAIN_PMSUSPENDED => "suspended".to_string(),
         _ => format!("unknown ({state})"),
     }
 }

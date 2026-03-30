@@ -9,10 +9,13 @@ pub fn insert_cdrom(conn: &Connect, name: &str, iso_path: &str, target: &str) ->
     // Validate ISO path: must be absolute and resolve to a real path (no symlink escapes)
     let path = std::path::Path::new(iso_path);
     if !path.is_absolute() {
-        return Err(LibvirtError::Operation("ISO path must be absolute".to_string()));
+        return Err(LibvirtError::Invalid("ISO path must be absolute".to_string()));
+    }
+    if !path.exists() {
+        return Err(LibvirtError::Operation(format!("ISO file not found: {iso_path}")));
     }
     let resolved = path.canonicalize()
-        .map_err(|_| LibvirtError::Operation(format!("ISO file not found: {iso_path}")))?;
+        .map_err(|_| LibvirtError::Operation(format!("Failed to resolve ISO path: {iso_path}")))?;
     if !resolved.is_file() {
         return Err(LibvirtError::Operation(format!("ISO path is not a file: {iso_path}")));
     }

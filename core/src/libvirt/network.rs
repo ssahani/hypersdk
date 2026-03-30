@@ -47,11 +47,9 @@ pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
-fn validate_ip(ip: &str, label: &str) -> Result<(), LibvirtError> {
-    if ip.parse::<std::net::Ipv4Addr>().is_err() {
-        return Err(LibvirtError::Operation(format!("Invalid {label}: '{ip}' (expected IPv4 address)")));
-    }
-    Ok(())
+fn validate_ip(ip: &str, label: &str) -> Result<std::net::Ipv4Addr, LibvirtError> {
+    ip.parse::<std::net::Ipv4Addr>()
+        .map_err(|_| LibvirtError::Invalid(format!("Invalid {label}: '{ip}' (expected IPv4 address)")))
 }
 
 fn validate_subnet_prefix(subnet: &str) -> Result<(), LibvirtError> {
@@ -74,18 +72,29 @@ pub fn create_network(
 ) -> Result<(), LibvirtError> {
     crate::validate::validate_name(name)?;
     validate_subnet_prefix(subnet)?;
-    validate_ip(dhcp_start, "DHCP start")?;
-    validate_ip(dhcp_end, "DHCP end")?;
-
-    // Ensure DHCP start <= end (parse is safe here — validate_ip already confirmed valid IPv4)
-    let start: std::net::Ipv4Addr = dhcp_start.parse()
-        .map_err(|_| LibvirtError::Operation(format!("Invalid DHCP start: '{dhcp_start}'")))?;
-    let end: std::net::Ipv4Addr = dhcp_end.parse()
-        .map_err(|_| LibvirtError::Operation(format!("Invalid DHCP end: '{dhcp_end}'")))?;
+    let start = validate_ip(dhcp_start, "DHCP start")?;
+    let end = validate_ip(dhcp_end, "DHCP end")?;
     if u32::from(start) > u32::from(end) {
-        return Err(LibvirtError::Operation(format!(
+        return Err(LibvirtError::Invalid(format!(
             "DHCP start ({dhcp_start}) must not be greater than end ({dhcp_end})"
         )));
+    }
+
+    // Validate DHCP range is within the subnet
+    let subnet_octets: Vec<u8> = subnet.split('.').filter_map(|p| p.parse().ok()).collect();
+    if subnet_octets.len() == 3 {
+        let start_octets = start.octets();
+        let end_octets = end.octets();
+        if start_octets[0] != subnet_octets[0] || start_octets[1] != subnet_octets[1] || start_octets[2] != subnet_octets[2] {
+            return Err(LibvirtError::Invalid(format!(
+                "DHCP start ({dhcp_start}) is not within subnet {subnet}.0/24"
+            )));
+        }
+        if end_octets[0] != subnet_octets[0] || end_octets[1] != subnet_octets[1] || end_octets[2] != subnet_octets[2] {
+            return Err(LibvirtError::Invalid(format!(
+                "DHCP end ({dhcp_end}) is not within subnet {subnet}.0/24"
+            )));
+        }
     }
 
     let xml = format!(

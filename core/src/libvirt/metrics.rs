@@ -1,9 +1,16 @@
 use virt::connect::Connect;
 use virt::domain::Domain;
+use tracing::warn;
 
 use super::domain::lookup_domain;
 use crate::state::VmMetrics;
 use crate::LibvirtError;
+
+// libvirt memory stat tag constants
+const VIR_DOMAIN_MEMORY_STAT_UNUSED: u32 = 4;
+const VIR_DOMAIN_MEMORY_STAT_AVAILABLE: u32 = 6;
+const VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON: u32 = 8;
+const VIR_DOMAIN_MEMORY_STAT_RSS: u32 = 9;
 
 pub fn get_vm_metrics(conn: &Connect, name: &str) -> Result<VmMetrics, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
@@ -21,7 +28,10 @@ pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError
         let name = domain.get_name().unwrap_or_default();
         let info = match domain.get_info() {
             Ok(i) => i,
-            Err(_) => continue,
+            Err(e) => {
+                warn!("Failed to get info for VM '{}': {}", name, e);
+                continue;
+            }
         };
 
         // Only collect metrics for running VMs (state 1 = VIR_DOMAIN_RUNNING)
@@ -29,8 +39,9 @@ pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError
             continue;
         }
 
-        if let Ok(m) = collect_domain_metrics(&domain, &name) {
-            metrics.push(m);
+        match collect_domain_metrics(&domain, &name) {
+            Ok(m) => metrics.push(m),
+            Err(e) => warn!("Failed to collect metrics for VM '{}': {}", name, e),
         }
     }
 
@@ -45,7 +56,13 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
     let cpu_time_ns = info.cpu_time;
 
     // Memory stats
-    let mem_stats = domain.memory_stats(16).unwrap_or_default();
+    let mem_stats = match domain.memory_stats(16) {
+        Ok(stats) => stats,
+        Err(e) => {
+            warn!("Failed to get memory stats for VM '{}': {}", name, e);
+            Vec::new()
+        }
+    };
     let mut actual_kb: u64 = 0;
     let mut available_kb: u64 = 0;
     let mut unused_kb: u64 = 0;
@@ -53,10 +70,10 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
 
     for stat in &mem_stats {
         match stat.tag {
-            6 => actual_kb = stat.val,
-            8 => available_kb = stat.val,
-            4 => unused_kb = stat.val,
-            9 => rss_kb = stat.val,
+            VIR_DOMAIN_MEMORY_STAT_UNUSED => unused_kb = stat.val,
+            VIR_DOMAIN_MEMORY_STAT_AVAILABLE => actual_kb = stat.val,
+            VIR_DOMAIN_MEMORY_STAT_ACTUAL_BALLOON => available_kb = stat.val,
+            VIR_DOMAIN_MEMORY_STAT_RSS => rss_kb = stat.val,
             _ => {}
         }
     }
@@ -102,17 +119,21 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
 }
 
 fn collect_block_stats(domain: &Domain) -> (u64, u64) {
-    let targets = ["vda", "vdb", "sda", "sdb", "hda"];
     let mut rd_total: u64 = 0;
     let mut wr_total: u64 = 0;
 
-    for target in &targets {
-        if let Ok(stats) = domain.get_block_stats(target) {
-            if stats.rd_bytes > 0 {
-                rd_total += stats.rd_bytes as u64;
-            }
-            if stats.wr_bytes > 0 {
-                wr_total += stats.wr_bytes as u64;
+    // Get actual block device targets from VM XML instead of hardcoded list
+    if let Ok(xml) = domain.get_xml_desc(0) {
+        for block in crate::xml::split_blocks(&xml, "disk") {
+            if let Some(target) = crate::xml::extract_attr(&block, "target", "dev") {
+                if let Ok(stats) = domain.get_block_stats(&target) {
+                    if stats.rd_bytes > 0 {
+                        rd_total += stats.rd_bytes as u64;
+                    }
+                    if stats.wr_bytes > 0 {
+                        wr_total += stats.wr_bytes as u64;
+                    }
+                }
             }
         }
     }

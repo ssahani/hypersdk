@@ -196,6 +196,16 @@ pub struct CreateVmRequest {
     pub network: String,
     #[serde(default = "default_os_variant")]
     pub os_variant: String,
+    /// Use an existing disk image instead of creating a new one
+    #[serde(default)]
+    pub existing_disk: String,
+    /// Firmware type: "bios" (default) or "uefi"
+    #[serde(default = "default_firmware")]
+    pub firmware: String,
+}
+
+fn default_firmware() -> String {
+    "bios".to_string()
 }
 
 fn default_vcpus() -> u32 { 2 }
@@ -214,6 +224,8 @@ impl Default for CreateVmRequest {
             iso: String::new(),
             network: default_network(),
             os_variant: default_os_variant(),
+            existing_disk: String::new(),
+            firmware: default_firmware(),
         }
     }
 }

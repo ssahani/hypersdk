@@ -14,7 +14,8 @@ pub fn clone_vm(conn: &Connect, source_name: &str, new_name: &str) -> Result<(),
         .map_err(LibvirtError::map_op("Failed to get XML"))?;
 
     // Replace the VM name in the XML
-    let new_xml = replace_domain_name(&xml, new_name);
+    let new_xml = replace_domain_name(&xml, new_name)
+        .ok_or_else(|| LibvirtError::Operation("Failed to replace VM name in XML: <name> element not found".to_string()))?;
     // Remove UUID so libvirt generates a new one
     let new_xml = remove_xml_element(&new_xml, "uuid");
     // Generate new MAC addresses
@@ -26,14 +27,12 @@ pub fn clone_vm(conn: &Connect, source_name: &str, new_name: &str) -> Result<(),
     Ok(())
 }
 
-fn replace_domain_name(xml: &str, new_name: &str) -> String {
-    if let (Some(start), Some(end)) = (xml.find("<name>"), xml.find("</name>")) {
-        let before = &xml[..start];
-        let after = &xml[end + "</name>".len()..];
-        format!("{before}<name>{}</name>{after}", crate::xml::escape(new_name))
-    } else {
-        xml.to_string()
-    }
+fn replace_domain_name(xml: &str, new_name: &str) -> Option<String> {
+    let start = xml.find("<name>")?;
+    let end = xml.find("</name>")?;
+    let before = &xml[..start];
+    let after = &xml[end + "</name>".len()..];
+    Some(format!("{before}<name>{}</name>{after}", crate::xml::escape(new_name)))
 }
 
 fn remove_xml_element(xml: &str, tag: &str) -> String {

@@ -70,3 +70,23 @@ code {
 /* Table hover */
 .table-row-hover { transition: background-color 0.15s ease; }
 .table-row-hover:hover { background-color: rgba(59, 130, 246, 0.05); }
+
+/* Form input */
+.input-field {
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  background-color: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: #e2e8f0;
+  transition: border-color 0.15s ease;
+}
+.input-field:focus {
+  outline: none;
+  border-color: #3b82f6;
+}
+.input-field:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

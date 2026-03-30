@@ -31,6 +31,8 @@ pub enum LibvirtError {
     Connection(String),
     #[error("Not found: {0}")]
     NotFound(String),
+    #[error("Invalid input: {0}")]
+    Invalid(String),
     #[error("Operation failed: {0}")]
     Operation(String),
     #[error("Internal error: {0}")]

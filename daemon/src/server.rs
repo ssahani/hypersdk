@@ -1,19 +1,37 @@
+use axum::middleware;
 use axum::Router;
 use std::path::PathBuf;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use virtspawn_core::LibvirtManager;
 
+use crate::auth::{self, SessionStore};
 use crate::routes;
 
 pub fn create_app(manager: LibvirtManager) -> Router {
     let web_dir = find_web_dist();
+    let session_store = SessionStore::new();
+
+    // All routes under /api/v1 — auth routes skip middleware internally
+    let api = routes::api_routes()
+        .merge(auth::auth_routes(session_store.clone()))
+        .route_layer(middleware::from_fn_with_state(
+            session_store.clone(),
+            auth::auth_middleware,
+        ))
+        .with_state(manager.clone());
+
+    let ws = routes::websocket_routes()
+        .route_layer(middleware::from_fn_with_state(
+            session_store,
+            auth::auth_middleware,
+        ))
+        .with_state(manager);
 
     let mut router = Router::new()
-        .nest("/api/v1", routes::api_routes())
-        .nest("/ws/v1", routes::websocket_routes());
+        .nest("/api/v1", api)
+        .nest("/ws/v1", ws);
 
-    // Serve noVNC static files at /novnc/
     if let Some(novnc_dir) = find_novnc() {
         tracing::info!("Serving noVNC from {}", novnc_dir.display());
         router = router.nest_service("/novnc", ServeDir::new(&novnc_dir));
@@ -27,11 +45,7 @@ pub fn create_app(manager: LibvirtManager) -> Router {
         );
     }
 
-    // No CORS layer — web UI is served from the same origin, so cross-origin
-    // requests are not needed. This blocks requests from other origins entirely.
-    router
-        .layer(TraceLayer::new_for_http())
-        .with_state(manager)
+    router.layer(TraceLayer::new_for_http())
 }
 
 fn find_web_dist() -> Option<PathBuf> {

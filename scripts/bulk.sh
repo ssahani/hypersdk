@@ -53,7 +53,7 @@ get_vms() {
 
 get_vm_names_by_state() {
     local state="$1"
-    get_vms | python3 -c "import json,sys; [print(v['name']) for v in json.load(sys.stdin) if v['state']=='$state']" 2>/dev/null
+    get_vms | python3 -c "import json,sys; state=sys.argv[1]; [print(v['name']) for v in json.load(sys.stdin) if v['state']==state]" "$state" 2>/dev/null
 }
 
 # If specific VMs given, use those; otherwise use state-based selection
@@ -78,19 +78,17 @@ do_action() {
         return
     fi
 
-    local total=0 success=0 failed=0
     echo -e "${BOLD}${verb^} VMs${NC}"
 
-    echo "$targets" | while read -r name; do
+    while read -r name; do
         [ -z "$name" ] && continue
-        total=$((total + 1))
         result=$(curl -s -X POST "$API/vms/$name/$endpoint" 2>/dev/null)
         if echo "$result" | grep -qF "status"; then
             ok "  $name"
         else
             fail "  $name: $result"
         fi
-    done
+    done <<< "$targets"
 }
 
 DATE=$(date +%Y%m%d-%H%M%S)
@@ -103,7 +101,7 @@ case "$ACTION" in
             exit 0
         fi
         echo -e "${BOLD}Starting VMs${NC}"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/start" 2>/dev/null)
             if echo "$result" | grep -qF "started"; then
@@ -111,7 +109,7 @@ case "$ACTION" in
             else
                 fail "  $name: $(echo "$result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error','unknown'))" 2>/dev/null || echo "$result")"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     stop)
@@ -121,7 +119,7 @@ case "$ACTION" in
             exit 0
         fi
         echo -e "${BOLD}${RED}Force stopping VMs${NC}"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/stop" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
@@ -129,7 +127,7 @@ case "$ACTION" in
             else
                 fail "  $name"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     shutdown)
@@ -139,7 +137,7 @@ case "$ACTION" in
             exit 0
         fi
         echo -e "${BOLD}Shutting down VMs${NC}"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/shutdown" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
@@ -147,7 +145,7 @@ case "$ACTION" in
             else
                 fail "  $name"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     pause)
@@ -157,7 +155,7 @@ case "$ACTION" in
             exit 0
         fi
         echo -e "${BOLD}Pausing VMs${NC}"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/pause" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
@@ -165,7 +163,7 @@ case "$ACTION" in
             else
                 fail "  $name"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     resume)
@@ -175,7 +173,7 @@ case "$ACTION" in
             exit 0
         fi
         echo -e "${BOLD}Resuming VMs${NC}"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/resume" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
@@ -183,7 +181,7 @@ case "$ACTION" in
             else
                 fail "  $name"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     reboot)
@@ -193,7 +191,7 @@ case "$ACTION" in
             exit 0
         fi
         echo -e "${BOLD}Rebooting VMs${NC}"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/reboot" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
@@ -201,7 +199,7 @@ case "$ACTION" in
             else
                 fail "  $name"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     snapshot)
@@ -212,7 +210,7 @@ case "$ACTION" in
         fi
         SNAP_NAME="auto-$DATE"
         echo -e "${BOLD}Creating snapshots${NC} ($SNAP_NAME)"
-        echo "$targets" | while read -r name; do
+        while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/snapshots" \
                 -H 'Content-Type: application/json' \
@@ -222,7 +220,7 @@ case "$ACTION" in
             else
                 fail "  $name: $(echo "$result" | python3 -c "import json,sys; print(json.load(sys.stdin).get('error','unknown'))" 2>/dev/null || echo "$result")"
             fi
-        done
+        done <<< "$targets"
         ;;
 
     snapshot-clean)

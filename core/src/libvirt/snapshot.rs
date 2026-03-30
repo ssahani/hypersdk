@@ -1,5 +1,6 @@
 use virt::connect::Connect;
 use virt::domain_snapshot::DomainSnapshot;
+use tracing::warn;
 
 use super::domain::lookup_domain;
 use crate::state::SnapshotInfo;
@@ -23,7 +24,13 @@ pub fn list_snapshots(conn: &Connect, vm_name: &str) -> Result<Vec<SnapshotInfo>
             .get_name()
             .map_err(LibvirtError::map_op("Failed to get snapshot name"))?;
 
-        let xml_str = snap.get_xml_desc(0).unwrap_or_default();
+        let xml_str = match snap.get_xml_desc(0) {
+            Ok(x) => x,
+            Err(e) => {
+                warn!("Failed to get XML for snapshot '{}': {}", name, e);
+                String::new()
+            }
+        };
 
         let creation_time = xml::extract_simple_text(&xml_str, "creationTime")
             .and_then(|s| s.parse::<i64>().ok())
@@ -59,8 +66,9 @@ pub fn list_all_snapshots(conn: &Connect) -> Result<Vec<SnapshotInfo>, LibvirtEr
     let mut all_snaps = Vec::new();
     for domain in domains {
         let name = domain.get_name().unwrap_or_default();
-        if let Ok(snaps) = list_snapshots(conn, &name) {
-            all_snaps.extend(snaps);
+        match list_snapshots(conn, &name) {
+            Ok(snaps) => all_snaps.extend(snaps),
+            Err(e) => warn!("Failed to list snapshots for VM '{}': {}", name, e),
         }
     }
 

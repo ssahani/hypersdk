@@ -42,8 +42,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data) as WSMessage
-          subscribersRef.current.forEach((cb) => cb(msg))
-        } catch { /* ignore non-JSON */ }
+          subscribersRef.current.forEach((cb) => {
+            try {
+              cb(msg)
+            } catch (e) {
+              console.error('WebSocket subscriber error:', e)
+            }
+          })
+        } catch {
+          if (import.meta.env.DEV) {
+            console.warn('Non-JSON WebSocket message:', event.data)
+          }
+        }
       }
     }
 

@@ -43,16 +43,18 @@ pub fn set_boot_order(conn: &Connect, name: &str, devices: &[String]) -> Result<
         .get_xml_desc(virt::sys::VIR_DOMAIN_XML_INACTIVE)
         .map_err(LibvirtError::map_op("Failed to get VM XML"))?;
 
-    // Remove existing boot entries and add new ones
-    let mut new_xml = xml.clone();
-    // Remove old boot lines
-    while let Some(start) = new_xml.find("<boot dev=") {
-        if let Some(end) = new_xml[start..].find("/>") {
-            new_xml = format!("{}{}", &new_xml[..start], &new_xml[start + end + 2..]);
+    // Remove existing boot entries and add new ones in a single pass
+    let mut new_xml = String::with_capacity(xml.len());
+    let mut remaining = xml.as_str();
+    while let Some(start) = remaining.find("<boot dev=") {
+        new_xml.push_str(&remaining[..start]);
+        if let Some(end) = remaining[start..].find("/>") {
+            remaining = &remaining[start + end + 2..];
         } else {
             break;
         }
     }
+    new_xml.push_str(remaining);
 
     // Insert new boot entries before </os>
     if let Some(os_end) = new_xml.find("</os>") {

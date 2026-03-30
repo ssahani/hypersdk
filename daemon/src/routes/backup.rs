@@ -85,12 +85,19 @@ fn backup_script() -> PathBuf {
 fn validate_backup_id(id: &str) -> Result<(), AppError> {
     if id.is_empty() || id.len() > 64 {
         return Err(
-            virtspawn_core::LibvirtError::Operation("Invalid backup id length".to_string()).into(),
+            virtspawn_core::LibvirtError::Invalid("Invalid backup id length".to_string()).into(),
         );
     }
     if !id.chars().all(|c| c.is_ascii_digit() || c == '-') {
-        return Err(virtspawn_core::LibvirtError::Operation(
+        return Err(virtspawn_core::LibvirtError::Invalid(
             "Backup id must contain only digits and dashes".to_string(),
+        )
+        .into());
+    }
+    // Explicitly reject path traversal patterns
+    if id.contains("..") || id.contains('/') || id.contains('\\') {
+        return Err(virtspawn_core::LibvirtError::Invalid(
+            "Backup id contains invalid path characters".to_string(),
         )
         .into());
     }
@@ -105,18 +112,32 @@ fn validate_nfs_target(target: &str) -> Result<(), AppError> {
     // Must contain exactly one colon separating host and path
     let parts: Vec<&str> = target.splitn(2, ':').collect();
     if parts.len() != 2 || parts[0].is_empty() || !parts[1].starts_with('/') {
-        return Err(virtspawn_core::LibvirtError::Operation(
+        return Err(virtspawn_core::LibvirtError::Invalid(
             "Invalid NFS target format. Expected: host:/path".to_string(),
         )
         .into());
     }
+    let host = parts[0];
     // Host must be alphanumeric, dots, dashes only
-    if !parts[0]
-        .chars()
-        .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
-    {
-        return Err(virtspawn_core::LibvirtError::Operation(
+    if !host.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-') {
+        return Err(virtspawn_core::LibvirtError::Invalid(
             "NFS host contains invalid characters".to_string(),
+        )
+        .into());
+    }
+    // Reject suspicious hostname patterns
+    if host.contains("..") || host.starts_with('-') || host.ends_with('-')
+        || host.starts_with('.') || host.ends_with('.')
+    {
+        return Err(virtspawn_core::LibvirtError::Invalid(
+            "NFS host has invalid format".to_string(),
+        )
+        .into());
+    }
+    // Path must not contain traversal
+    if parts[1].contains("..") {
+        return Err(virtspawn_core::LibvirtError::Invalid(
+            "NFS path must not contain '..'".to_string(),
         )
         .into());
     }
@@ -158,27 +179,33 @@ fn dir_size_human(path: &std::path::Path) -> String {
     }
 }
 
-/// Generate a timestamp string in YYYYMMDD-HHMMSS format without shelling out.
+/// Generate a timestamp string in YYYYMMDD-HHMMSS format (pure Rust, no shell).
 fn generate_timestamp() -> String {
     let secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
 
-    // Convert epoch seconds to YYYYMMDD-HHMMSS (UTC)
-    // Simple conversion without chrono dependency
-    let output = std::process::Command::new("date")
-        .arg("+%Y%m%d-%H%M%S")
-        .output();
-    match output {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_string(),
-        _ => {
-            // Fallback: use epoch but formatted as digits-digits to match expected pattern
-            let hi = secs / 1_000_000;
-            let lo = secs % 1_000_000;
-            format!("{hi:07}-{lo:06}")
-        }
-    }
+    // Convert epoch seconds to YYYYMMDD-HHMMSS (UTC) without chrono
+    let days_since_epoch = secs / 86400;
+    let time_of_day = secs % 86400;
+    let hours = time_of_day / 3600;
+    let minutes = (time_of_day % 3600) / 60;
+    let seconds = time_of_day % 60;
+
+    // Civil date from days since 1970-01-01 (algorithm from Howard Hinnant)
+    let z = days_since_epoch as i64 + 719468;
+    let era = z / 146097;
+    let doe = z - era * 146097;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+
+    format!("{y:04}{m:02}{d:02}-{hours:02}{minutes:02}{seconds:02}")
 }
 
 fn parse_backup_meta(dir: &std::path::Path, dir_name: &str) -> serde_json::Value {
@@ -371,7 +398,11 @@ async fn get_backup_status(
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
-    if !dir.exists() || !dir.is_dir() {
+    // Canonicalize and verify the path is within the backup directory
+    let dir = dir.canonicalize().map_err(|_| {
+        virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
+    })?;
+    if !dir.starts_with(backup_dir()) || !dir.is_dir() {
         return Err(
             virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
@@ -414,7 +445,10 @@ async fn verify_backup(
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
-    if !dir.exists() || !dir.is_dir() {
+    let dir = dir.canonicalize().map_err(|_| {
+        virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
+    })?;
+    if !dir.starts_with(backup_dir()) || !dir.is_dir() {
         return Err(
             virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );

@@ -26,7 +26,10 @@ export default function VMList() {
   }, [toast])
 
   useEffect(() => { load() }, [load])
-  useEffect(() => subscribe(() => load()), [subscribe, load])
+  useEffect(() => {
+    const unsubscribe = subscribe(() => load())
+    return () => unsubscribe()
+  }, [subscribe, load])
 
   const action = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
     try {
@@ -51,7 +54,7 @@ export default function VMList() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Virtual Machines</h1>
         <div className="flex items-center gap-3">
-          <button onClick={load} className="p-2 hover:bg-gray-700 rounded transition" title="Refresh">
+          <button onClick={load} className="p-2 hover:bg-gray-700 rounded transition" title="Refresh" aria-label="Refresh VM list">
             <RefreshCw className="w-4 h-4" />
           </button>
           <Link to="/create" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm transition">+ Create VM</Link>

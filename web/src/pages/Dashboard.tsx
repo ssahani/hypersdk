@@ -47,7 +47,10 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [loadData, loadMetrics])
 
-  useEffect(() => subscribe(() => loadData()), [subscribe, loadData])
+  useEffect(() => {
+    const unsubscribe = subscribe(() => loadData())
+    return () => unsubscribe()
+  }, [subscribe, loadData])
 
   const running = vms.filter((v) => v.state === 'running').length
   const stopped = vms.filter((v) => v.state === 'shutoff').length

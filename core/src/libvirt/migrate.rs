@@ -13,10 +13,16 @@ const ALLOWED_URI_SCHEMES: &[&str] = &[
 
 fn validate_migrate_uri(uri: &str) -> Result<(), LibvirtError> {
     if !ALLOWED_URI_SCHEMES.iter().any(|scheme| uri.starts_with(scheme)) {
-        return Err(LibvirtError::Operation(format!(
+        return Err(LibvirtError::Invalid(format!(
             "Invalid migration URI scheme. Allowed: {}",
             ALLOWED_URI_SCHEMES.join(", ")
         )));
+    }
+    // Validate URI doesn't contain shell metacharacters
+    if uri.contains(|c: char| c == ';' || c == '|' || c == '&' || c == '$' || c == '`' || c == '\n') {
+        return Err(LibvirtError::Invalid(
+            "Migration URI contains invalid characters".to_string(),
+        ));
     }
     Ok(())
 }
