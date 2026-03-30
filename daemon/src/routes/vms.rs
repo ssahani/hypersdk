@@ -4,11 +4,21 @@ use axum::{Json, Router};
 
 use virtspawn_core::libvirt::{clone, create, device, domain, resize};
 use virtspawn_core::{
-    AttachDiskRequest, CloneVmRequest, CreateVmRequest, LibvirtManager, RenameVmRequest, VmDetails,
-    VmInfo,
+    audit, AttachDiskRequest, AuditEvent, CloneVmRequest, CreateVmRequest, LibvirtManager,
+    RenameVmRequest, VmDetails, VmInfo,
 };
 
 use crate::error::{ok_json, AppError, Xml};
+
+fn log_audit(action: &str, target: &str, result: &str) {
+    let event = AuditEvent {
+        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        action: action.to_string(),
+        target: target.to_string(),
+        result: result.to_string(),
+    };
+    audit::write_audit_event(&event);
+}
 
 async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmInfo>>, AppError> {
     let vms = manager.with_conn(domain::list_vms)?;
@@ -33,16 +43,19 @@ async fn get_vm_xml(
 
 async fn start_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::start_vm(conn, &name))?;
+    log_audit("start", &name, "ok");
     Ok(ok_json("started", &name))
 }
 
 async fn stop_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::stop_vm(conn, &name))?;
+    log_audit("stop", &name, "ok");
     Ok(ok_json("stopped", &name))
 }
 
 async fn shutdown_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::shutdown_vm(conn, &name))?;
+    log_audit("shutdown", &name, "ok");
     Ok(ok_json("shutting down", &name))
 }
 
@@ -63,6 +76,7 @@ async fn resume_vm(State(manager): State<LibvirtManager>, Path(name): Path<Strin
 
 async fn delete_vm_handler(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| domain::delete_vm(conn, &name))?;
+    log_audit("delete", &name, "ok");
     Ok(ok_json("deleted", &name))
 }
 
@@ -81,6 +95,7 @@ async fn clone_vm_handler(
     Json(req): Json<CloneVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     manager.with_conn(|conn| clone::clone_vm(conn, &name, &req.new_name))?;
+    log_audit("clone", &format!("{name} -> {}", req.new_name), "ok");
     Ok(Json(serde_json::json!({ "status": "cloned", "source": name, "clone": req.new_name })))
 }
 
@@ -90,6 +105,7 @@ async fn create_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name = req.name.clone();
     manager.with_conn(|conn| create::create_vm(conn, &req))?;
+    log_audit("create", &name, "ok");
     Ok(ok_json("created", &name))
 }
 

@@ -24,6 +24,7 @@ const NWFilters = lazy(() => import('./pages/NWFilters'))
 const Backups = lazy(() => import('./pages/Backups'))
 const HostNetworking = lazy(() => import('./pages/HostNetworking'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
+const ImportVM = lazy(() => import('./pages/ImportVM'))
 
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
@@ -64,6 +65,7 @@ function AuthenticatedApp() {
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/host-networking" element={<HostNetworking />} />
                 <Route path="/audit" element={<AuditLog />} />
+                <Route path="/import" element={<ImportVM />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

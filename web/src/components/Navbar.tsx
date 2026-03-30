@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import {
-  Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe, FileText,
+  Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe, FileText, Upload,
   Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User, Sun, Moon,
 } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
@@ -25,6 +25,7 @@ const navGroups: NavGroup[] = [
     items: [
       { to: '/', icon: <Home className="w-4 h-4" />, label: 'Dashboard' },
       { to: '/vms', icon: <Server className="w-4 h-4" />, label: 'Virtual Machines' },
+      { to: '/import', icon: <Upload className="w-4 h-4" />, label: 'Import VM' },
     ],
   },
   {
