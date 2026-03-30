@@ -27,10 +27,9 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
   const wsPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
   const wsProxyPath = `ws/v1/vnc/${encodeURIComponent(vmName)}`
   const novncParams = new URLSearchParams({
-    host: wsHost, port: wsPort, path: wsProxyPath,
-    autoconnect: 'true', resize: 'scale', reconnect: 'true', reconnect_delay: '2000',
+    host: wsHost, port: wsPort, path: wsProxyPath, scale: 'true',
   })
-  const novncUrl = `/novnc/vnc.html?${novncParams.toString()}`
+  const novncUrl = `/novnc/vnc_lite.html?${novncParams.toString()}`
 
   return (
     <div className={fullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : ''}>
