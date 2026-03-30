@@ -5,19 +5,32 @@ import { getStateBadgeClasses } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal } from 'lucide-react'
+import { getAllTags, getVmTags } from '../api/extras'
+import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag } from 'lucide-react'
 
 export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [vmTagsMap, setVmTagsMap] = useState<Record<string, string[]>>({})
+  const [allTagNames, setAllTagNames] = useState<string[]>([])
+  const [tagFilter, setTagFilter] = useState('')
   const toast = useToastContext()
   const { subscribe } = useWebSocketContext()
 
   const load = useCallback(async () => {
     try {
-      setVMs(await listVMs())
+      const vmList = await listVMs()
+      setVMs(vmList)
+      // Load tags for all VMs
+      const tagMap: Record<string, string[]> = {}
+      await Promise.all(vmList.map(async (vm) => {
+        try { const t = await getVmTags(vm.name); tagMap[vm.name] = t.tags } catch { /* optional */ }
+      }))
+      setVmTagsMap(tagMap)
+      // Load all unique tag names
+      try { const counts = await getAllTags(); setAllTagNames(Object.keys(counts).sort()) } catch { /* optional */ }
     } catch (e: unknown) {
       toast.error(`Failed to load VMs: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -47,7 +60,11 @@ export default function VMList() {
     setDeleteTarget(null)
   }
 
-  const filtered = vms.filter((v) => v.name.toLowerCase().includes(search.toLowerCase()) || v.state.includes(search.toLowerCase()))
+  const filtered = vms.filter((v) => {
+    const matchesSearch = v.name.toLowerCase().includes(search.toLowerCase()) || v.state.includes(search.toLowerCase())
+    const matchesTag = !tagFilter || (vmTagsMap[v.name] || []).includes(tagFilter)
+    return matchesSearch && matchesTag
+  })
 
   return (
     <div className="space-y-6">
@@ -61,15 +78,30 @@ export default function VMList() {
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-        <input
-          type="text"
-          placeholder="Search VMs..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
-        />
+      <div className="flex items-center gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search VMs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        {allTagNames.length > 0 && (
+          <div className="flex items-center gap-1.5">
+            <Tag className="w-4 h-4 text-gray-400" />
+            <select
+              value={tagFilter}
+              onChange={(e) => setTagFilter(e.target.value)}
+              className="bg-gray-800 border border-gray-700 rounded-lg text-sm py-2 px-3 focus:outline-none focus:border-blue-500 text-gray-300"
+            >
+              <option value="">All tags</option>
+              {allTagNames.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -94,7 +126,12 @@ export default function VMList() {
               {filtered.map((vm) => (
                 <tr key={vm.name} className="hover:bg-gray-700/50 transition">
                   <td className="px-6 py-4">
-                    <Link to={`/vms/${vm.name}`} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Link to={`/vms/${vm.name}`} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
+                      {(vmTagsMap[vm.name] || []).map(t => (
+                        <span key={t} className="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-[10px] font-medium">{t}</span>
+                      ))}
+                    </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 rounded text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>

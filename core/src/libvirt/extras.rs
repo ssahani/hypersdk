@@ -1,6 +1,7 @@
-//! Extra features: ISO/disk browser, USB passthrough, cloud-init, VM import, live resize.
+//! Extra features: ISO/disk browser, USB passthrough, cloud-init, VM import, live resize, tags, PCI listing.
 
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use virt::connect::Connect;
@@ -307,4 +308,118 @@ pub fn live_set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(),
         .set_memory_flags(memory_mb * 1024, virt::sys::VIR_DOMAIN_AFFECT_LIVE)
         .map_err(|e| LibvirtError::Operation(format!("Failed to live-set memory for '{name}': {e}")))?;
     Ok(())
+}
+
+// ── VM Tags ───────────────────────────────────────────────────────
+
+const TAGS_FILE: &str = "/var/lib/virtspawn/tags.json";
+
+/// Tag map: vm_name -> list of tags.
+pub type TagMap = HashMap<String, Vec<String>>;
+
+/// Load tags from the JSON file. Returns empty map if file doesn't exist.
+pub fn load_tags() -> TagMap {
+    match std::fs::read_to_string(TAGS_FILE) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(_) => HashMap::new(),
+    }
+}
+
+/// Save tags to the JSON file.
+pub fn save_tags(tags: &TagMap) -> Result<(), LibvirtError> {
+    let dir = Path::new(TAGS_FILE).parent().unwrap_or(Path::new("/var/lib/virtspawn"));
+    let _ = std::fs::create_dir_all(dir);
+    let data = serde_json::to_string_pretty(tags)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to serialize tags: {e}")))?;
+    std::fs::write(TAGS_FILE, data)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to write tags file: {e}")))?;
+    Ok(())
+}
+
+/// Set tags for a specific VM (replaces existing tags).
+pub fn set_vm_tags(vm_name: &str, tags: Vec<String>) -> Result<(), LibvirtError> {
+    let mut map = load_tags();
+    if tags.is_empty() {
+        map.remove(vm_name);
+    } else {
+        map.insert(vm_name.to_string(), tags);
+    }
+    save_tags(&map)
+}
+
+/// Get tags for a specific VM.
+pub fn get_vm_tags(vm_name: &str) -> Vec<String> {
+    let map = load_tags();
+    map.get(vm_name).cloned().unwrap_or_default()
+}
+
+// ── PCI / IOMMU Passthrough Listing ───────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PciDevice {
+    pub slot: String,
+    pub class: String,
+    pub vendor: String,
+    pub device: String,
+    pub iommu_group: String,
+}
+
+/// List host PCI devices by parsing `lspci -vmm` output.
+pub fn list_pci_devices() -> Result<Vec<PciDevice>, LibvirtError> {
+    let output = Command::new("lspci")
+        .args(["-vmm"])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run lspci"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut devices = Vec::new();
+    let mut slot = String::new();
+    let mut class = String::new();
+    let mut vendor = String::new();
+    let mut device = String::new();
+    let mut iommu = String::new();
+
+    for line in stdout.lines() {
+        if line.trim().is_empty() {
+            if !slot.is_empty() {
+                devices.push(PciDevice {
+                    slot: slot.clone(),
+                    class: class.clone(),
+                    vendor: vendor.clone(),
+                    device: device.clone(),
+                    iommu_group: iommu.clone(),
+                });
+            }
+            slot.clear();
+            class.clear();
+            vendor.clear();
+            device.clear();
+            iommu.clear();
+            continue;
+        }
+        if let Some((key, val)) = line.split_once(':') {
+            let key = key.trim();
+            let val = val.trim().to_string();
+            match key {
+                "Slot" => slot = val,
+                "Class" => class = val,
+                "Vendor" => vendor = val,
+                "Device" => device = val,
+                "IOMMUGroup" => iommu = val,
+                _ => {}
+            }
+        }
+    }
+    // Flush last entry
+    if !slot.is_empty() {
+        devices.push(PciDevice {
+            slot,
+            class,
+            vendor,
+            device,
+            iommu_group: iommu,
+        });
+    }
+
+    Ok(devices)
 }

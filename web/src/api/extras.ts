@@ -49,3 +49,19 @@ export const liveSetMemory = (vm: string, mb: number) => apiPostVoid(`${API}/vms
 
 // Audit
 export const getAuditLog = () => apiGet<AuditEvent[]>(`${API}/audit`)
+
+// Tags
+export const getVmTags = (vm: string) => apiGet<{ tags: string[] }>(`${API}/vms/${vm}/tags`)
+export const setVmTags = (vm: string, tags: string[]) =>
+  apiPost<{ status: string; name: string; tags: string[] }>(`${API}/vms/${vm}/tags`, { tags })
+export const getAllTags = () => apiGet<Record<string, number>>(`${API}/tags`)
+
+// PCI
+export interface PciDevice {
+  slot: string
+  class: string
+  vendor: string
+  device: string
+  iommu_group: string
+}
+export const listPciDevices = () => apiGet<PciDevice[]>(`${API}/host/pci`)

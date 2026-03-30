@@ -13,19 +13,19 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
-import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory } from '../api/extras'
+import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw,
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, CircleX, Archive, Copy, Pencil, ArrowRightLeft,
   Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb,
-  ChevronUp, ChevronDown, X,
+  ChevronUp, ChevronDown, X, Tag, Monitor,
 } from 'lucide-react'
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
 
-type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'usb' | 'xml'
+type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml'
 type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb'
 
 export default function VMDetailsPage() {
@@ -70,6 +70,9 @@ export default function VMDetailsPage() {
   const [usbDevices, setUsbDevices] = useState<UsbDevice[]>([])
   const [selectedUsb, setSelectedUsb] = useState('')
   const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
+  const [vmTags, setVmTags] = useState<string[]>([])
+  const [newTag, setNewTag] = useState('')
+  const [pciDevices, setPciDevices] = useState<PciDevice[]>([])
 
   const load = useCallback(async () => {
     if (!name) return
@@ -86,6 +89,7 @@ export default function VMDetailsPage() {
       }
       try { setBootConfig(await getBootConfig(name)) } catch { /* optional */ }
       try { const s = await hasManagedSave(name); setHasSave(s.has_managed_save) } catch { /* optional */ }
+      try { const t = await getVmTags(name); setVmTags(t.tags) } catch { /* optional */ }
     } catch (e: unknown) {
       toast.error(`Failed to load VM: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -100,6 +104,7 @@ export default function VMDetailsPage() {
     listNetworks().then(setNetworks).catch(() => {})
     listUsbDevices().then(setUsbDevices).catch(() => {})
     listIsos().then(setIsoFiles).catch(() => {})
+    listPciDevices().then(setPciDevices).catch(() => {})
   }, [])
 
   // Poll per-VM metrics every 5s for charts
@@ -293,7 +298,7 @@ export default function VMDetailsPage() {
     { key: 'disks', label: `Disks (${vm.disks.length})`, icon: <HardDrive className="w-4 h-4" /> },
     { key: 'network', label: `Network (${vm.interfaces.length})`, icon: <Network className="w-4 h-4" /> },
     { key: 'snapshots', label: `Snapshots (${snapshots.length})`, icon: <Camera className="w-4 h-4" /> },
-    { key: 'usb', label: 'USB Devices', icon: <Usb className="w-4 h-4" /> },
+    { key: 'devices', label: 'Devices', icon: <Monitor className="w-4 h-4" /> },
     { key: 'xml', label: 'XML', icon: <Code className="w-4 h-4" /> },
   ]
 
@@ -307,6 +312,17 @@ export default function VMDetailsPage() {
           <div className="flex items-center gap-3 mt-1">
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
             <span className="text-sm text-slate-500 font-mono">{vm.uuid}</span>
+          </div>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {vmTags.map((t) => (
+              <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-xs font-medium">
+                <Tag className="w-3 h-3" />{t}
+                <button onClick={async () => { const next = vmTags.filter(x => x !== t); try { await apiSetVmTags(vm.name, next); setVmTags(next) } catch {} }} className="hover:text-red-400 ml-0.5" aria-label={`Remove tag ${t}`}><X className="w-3 h-3" /></button>
+              </span>
+            ))}
+            <form className="inline-flex items-center gap-1" onSubmit={async (e) => { e.preventDefault(); const tag = newTag.trim(); if (!tag || vmTags.includes(tag)) return; const next = [...vmTags, tag]; try { await apiSetVmTags(vm.name, next); setVmTags(next); setNewTag('') } catch {} }}>
+              <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 text-slate-300" />
+            </form>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
@@ -579,32 +595,57 @@ export default function VMDetailsPage() {
         </div>
       )}
 
-      {/* ── USB Tab ──────────────────────────────────────────────── */}
+      {/* ── Devices Tab (USB + PCI) ─────────────────────────────── */}
 
-      {tab === 'usb' && (
-        <div className="space-y-4">
-          <div className="flex justify-end">
-            <button onClick={() => setDialog('attach-usb')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach USB</button>
+      {tab === 'devices' && (
+        <div className="space-y-6">
+          {/* USB Devices */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><Usb className="w-5 h-5 text-blue-400" /> USB Devices</h3>
+              <button onClick={() => setDialog('attach-usb')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach USB</button>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+              <table className="w-full">
+                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
+                <tbody className="divide-y divide-slate-700/30 text-sm">
+                  {usbDevices.map((d, i) => (
+                    <tr key={i} className="table-row-hover">
+                      <td className="px-6 py-2 font-mono text-xs">{d.bus}</td>
+                      <td className="px-6 py-2 font-mono text-xs">{d.device}</td>
+                      <td className="px-6 py-2 font-mono text-blue-400">{d.vendor_id}:{d.product_id}</td>
+                      <td className="px-6 py-2 text-slate-300">{d.description}</td>
+                      <td className="px-6 py-2 text-right">
+                        <button onClick={() => { setSelectedUsb(`${d.vendor_id}:${d.product_id}`); handleAttachUsb() }} className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 rounded text-xs text-blue-400 transition">Attach</button>
+                      </td>
+                    </tr>
+                  ))}
+                  {usbDevices.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No USB devices found on host</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <div className="px-6 py-3 border-b border-slate-700/50"><span className="text-sm font-semibold text-slate-300">Host USB Devices</span></div>
-            <table className="w-full">
-              <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Bus</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">ID</th><th className="px-6 py-2">Description</th><th className="px-6 py-2 text-right">Actions</th></tr></thead>
-              <tbody className="divide-y divide-slate-700/30 text-sm">
-                {usbDevices.map((d, i) => (
-                  <tr key={i} className="table-row-hover">
-                    <td className="px-6 py-2 font-mono text-xs">{d.bus}</td>
-                    <td className="px-6 py-2 font-mono text-xs">{d.device}</td>
-                    <td className="px-6 py-2 font-mono text-blue-400">{d.vendor_id}:{d.product_id}</td>
-                    <td className="px-6 py-2 text-slate-300">{d.description}</td>
-                    <td className="px-6 py-2 text-right">
-                      <button onClick={() => { setSelectedUsb(`${d.vendor_id}:${d.product_id}`); handleAttachUsb() }} className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 rounded text-xs text-blue-400 transition">Attach</button>
-                    </td>
-                  </tr>
-                ))}
-                {usbDevices.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No USB devices found on host</td></tr>}
-              </tbody>
-            </table>
+
+          {/* PCI Devices */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-purple-400" /> PCI Devices</h3>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+              <table className="w-full">
+                <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Slot</th><th className="px-6 py-2">Class</th><th className="px-6 py-2">Vendor</th><th className="px-6 py-2">Device</th><th className="px-6 py-2">IOMMU Group</th></tr></thead>
+                <tbody className="divide-y divide-slate-700/30 text-sm">
+                  {pciDevices.map((d, i) => (
+                    <tr key={i} className="table-row-hover">
+                      <td className="px-6 py-2 font-mono text-xs text-blue-400">{d.slot}</td>
+                      <td className="px-6 py-2 text-slate-300">{d.class}</td>
+                      <td className="px-6 py-2 text-slate-300">{d.vendor}</td>
+                      <td className="px-6 py-2 text-slate-300">{d.device}</td>
+                      <td className="px-6 py-2 font-mono text-xs text-slate-400">{d.iommu_group || '-'}</td>
+                    </tr>
+                  ))}
+                  {pciDevices.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No PCI devices found or lspci not available</td></tr>}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

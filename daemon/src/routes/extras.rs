@@ -116,6 +116,50 @@ async fn get_audit_log(
     Ok(Json(serde_json::json!(events)))
 }
 
+// ── VM Tags ───────────────────────────────────────────────────────
+
+async fn get_vm_tags_handler(
+    State(_m): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let tags = extras::get_vm_tags(&name);
+    Ok(Json(serde_json::json!({ "tags": tags })))
+}
+
+#[derive(Deserialize)]
+struct SetTagsRequest { tags: Vec<String> }
+
+async fn set_vm_tags_handler(
+    State(_m): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<SetTagsRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    extras::set_vm_tags(&name, req.tags.clone())?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tags": req.tags })))
+}
+
+async fn get_all_tags_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let map = extras::load_tags();
+    let mut counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+    for tags in map.values() {
+        for tag in tags {
+            *counts.entry(tag.clone()).or_insert(0) += 1;
+        }
+    }
+    Ok(Json(serde_json::json!(counts)))
+}
+
+// ── PCI Passthrough ───────────────────────────────────────────────
+
+async fn list_pci_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let devices = extras::list_pci_devices()?;
+    Ok(Json(serde_json::json!(devices)))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn extras_routes() -> Router<LibvirtManager> {
@@ -136,4 +180,9 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/live/memory/{mb}", post(live_memory_handler))
         // Audit
         .route("/audit", get(get_audit_log))
+        // Tags
+        .route("/vms/{name}/tags", get(get_vm_tags_handler).post(set_vm_tags_handler))
+        .route("/tags", get(get_all_tags_handler))
+        // PCI
+        .route("/host/pci", get(list_pci_handler))
 }
