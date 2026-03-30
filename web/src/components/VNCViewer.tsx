@@ -12,7 +12,7 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   const containerRef = useRef<HTMLDivElement>(null)
-  const rfbRef = useRef<InstanceType<typeof RFB> | null>(null)
+  const rfbRef = useRef<RFB | null>(null)
 
   useEffect(() => {
     if (port <= 0 || !containerRef.current) return
@@ -22,13 +22,33 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
 
     setStatus('connecting')
 
+    // Clear container before creating new RFB
+    while (containerRef.current.firstChild) {
+      containerRef.current.removeChild(containerRef.current.firstChild)
+    }
+
     try {
       const rfb = new RFB(containerRef.current, wsUrl)
+      rfb.viewOnly = false
       rfb.scaleViewport = true
-      rfb.resizeSession = true
+      rfb.resizeSession = false
+      rfb.focusOnClick = true
 
-      rfb.addEventListener('connect', () => setStatus('connected'))
+      rfb.addEventListener('connect', () => {
+        setStatus('connected')
+        // Force a resize after connection
+        if (containerRef.current) {
+          const canvas = containerRef.current.querySelector('canvas')
+          if (canvas) {
+            canvas.style.width = '100%'
+            canvas.style.height = '100%'
+          }
+        }
+      })
       rfb.addEventListener('disconnect', () => setStatus('disconnected'))
+      rfb.addEventListener('credentialsrequired', () => {
+        rfb.sendCredentials({ password: '' })
+      })
 
       rfbRef.current = rfb
     } catch (e) {
@@ -38,7 +58,7 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
 
     return () => {
       if (rfbRef.current) {
-        rfbRef.current.disconnect()
+        try { rfbRef.current.disconnect() } catch { /* ignore */ }
         rfbRef.current = null
       }
     }
@@ -78,8 +98,12 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
       </div>
       <div
         ref={containerRef}
-        className={`w-full bg-black ${fullscreen ? 'flex-1' : ''}`}
-        style={fullscreen ? {} : { minHeight: '600px' }}
+        style={{
+          width: '100%',
+          height: fullscreen ? '100%' : '600px',
+          overflow: 'hidden',
+          backgroundColor: '#000',
+        }}
       />
     </div>
   )
