@@ -26,7 +26,8 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
   // noVNC needs host + port + path to construct the WebSocket URL
   const wsHost = window.location.hostname
   const wsPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
-  const wsProxyPath = `ws/v1/vnc/${encodeURIComponent(vmName)}`
+  const safeVmName = encodeURIComponent(vmName)
+  const wsProxyPath = `ws/v1/vnc/${safeVmName}`
   const novncUrl = `/novnc/vnc_lite.html?host=${wsHost}&port=${wsPort}&path=${encodeURIComponent(wsProxyPath)}&scale=true`
 
   return (
