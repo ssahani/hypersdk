@@ -56,6 +56,29 @@ export const setVmTags = (vm: string, tags: string[]) =>
   apiPost<{ status: string; name: string; tags: string[] }>(`${API}/vms/${vm}/tags`, { tags })
 export const getAllTags = () => apiGet<Record<string, number>>(`${API}/tags`)
 
+// Host stats
+export interface HostStats {
+  cpu_percent: number
+  memory_total_mb: number
+  memory_used_mb: number
+  memory_percent: number
+  swap_total_mb: number
+  swap_used_mb: number
+  disk_total_gb: number
+  disk_used_gb: number
+  disk_percent: number
+  load_1: number
+  load_5: number
+  load_15: number
+  uptime_secs: number
+  processes: number
+}
+export const getHostStats = () => apiGet<HostStats>(`${API}/host/stats`)
+
+// Save as template
+export const saveVmAsTemplate = (vm: string, templateName: string) =>
+  apiPost<{ status: string }>(`${API}/vms/${vm}/save-template`, { template_name: templateName })
+
 // PCI
 export interface PciDevice {
   slot: string

@@ -107,6 +107,29 @@ async fn live_memory_handler(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb, "live": true })))
 }
 
+// ── Host System Stats ──────────────────────────────────────────────
+
+async fn get_host_stats(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let stats = extras::get_host_stats();
+    Ok(Json(serde_json::json!(stats)))
+}
+
+// ── Save VM as Template ────────────────────────────────────────────
+
+#[derive(Deserialize)]
+struct SaveTemplateRequest { template_name: String }
+
+async fn save_template_handler(
+    State(m): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<SaveTemplateRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    m.with_conn(|conn| extras::save_vm_as_template(conn, &name, &req.template_name))?;
+    Ok(Json(serde_json::json!({ "status": "saved", "name": name, "template": req.template_name })))
+}
+
 // ── Audit Log ──────────────────────────────────────────────────────
 
 async fn get_audit_log(
@@ -164,4 +187,8 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/tags", get(get_all_tags_handler))
         // PCI
         .route("/host/pci", get(list_pci_handler))
+        // Host stats
+        .route("/host/stats", get(get_host_stats))
+        // Save as template
+        .route("/vms/{name}/save-template", post(save_template_handler))
 }

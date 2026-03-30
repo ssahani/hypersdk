@@ -353,6 +353,133 @@ pub fn get_vm_tags(vm_name: &str) -> Vec<String> {
     map.get(vm_name).cloned().unwrap_or_default()
 }
 
+// ── Host System Stats ──────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostStats {
+    pub cpu_percent: f64,
+    pub memory_total_mb: u64,
+    pub memory_used_mb: u64,
+    pub memory_percent: f64,
+    pub swap_total_mb: u64,
+    pub swap_used_mb: u64,
+    pub disk_total_gb: f64,
+    pub disk_used_gb: f64,
+    pub disk_percent: f64,
+    pub load_1: f64,
+    pub load_5: f64,
+    pub load_15: f64,
+    pub uptime_secs: u64,
+    pub processes: u32,
+}
+
+pub fn get_host_stats() -> HostStats {
+    let cpu_percent = parse_cpu_percent();
+    let (mem_total, mem_used, swap_total, swap_used) = parse_meminfo();
+    let (disk_total, disk_used) = parse_disk_usage("/");
+    let (l1, l5, l15) = parse_loadavg();
+    let uptime = parse_uptime();
+    let procs = std::fs::read_dir("/proc")
+        .map(|d| d.filter(|e| e.as_ref().ok().and_then(|e| e.file_name().to_str().map(|s| s.chars().all(|c| c.is_ascii_digit()))).unwrap_or(false)).count() as u32)
+        .unwrap_or(0);
+
+    let mem_pct = if mem_total > 0 { (mem_used as f64 / mem_total as f64 * 100.0).min(100.0) } else { 0.0 };
+    let disk_pct = if disk_total > 0.0 { (disk_used / disk_total * 100.0).min(100.0) } else { 0.0 };
+
+    HostStats {
+        cpu_percent, memory_total_mb: mem_total, memory_used_mb: mem_used, memory_percent: mem_pct,
+        swap_total_mb: swap_total, swap_used_mb: swap_used,
+        disk_total_gb: disk_total, disk_used_gb: disk_used, disk_percent: disk_pct,
+        load_1: l1, load_5: l5, load_15: l15, uptime_secs: uptime, processes: procs,
+    }
+}
+
+fn parse_cpu_percent() -> f64 {
+    // Read /proc/stat for cpu line
+    let stat = std::fs::read_to_string("/proc/stat").unwrap_or_default();
+    let line = stat.lines().next().unwrap_or("");
+    let vals: Vec<u64> = line.split_whitespace().skip(1).filter_map(|s| s.parse().ok()).collect();
+    if vals.len() >= 4 {
+        let total: u64 = vals.iter().sum();
+        let idle = vals[3];
+        if total > 0 { ((total - idle) as f64 / total as f64 * 100.0).min(100.0) } else { 0.0 }
+    } else { 0.0 }
+}
+
+fn parse_meminfo() -> (u64, u64, u64, u64) {
+    let content = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
+    let mut total: u64 = 0;
+    let mut available: u64 = 0;
+    let mut swap_total: u64 = 0;
+    let mut swap_free: u64 = 0;
+    for line in content.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 2 {
+            let val: u64 = parts[1].parse().unwrap_or(0);
+            match parts[0] {
+                "MemTotal:" => total = val / 1024,
+                "MemAvailable:" => available = val / 1024,
+                "SwapTotal:" => swap_total = val / 1024,
+                "SwapFree:" => swap_free = val / 1024,
+                _ => {}
+            }
+        }
+    }
+    (total, total.saturating_sub(available), swap_total, swap_total.saturating_sub(swap_free))
+}
+
+fn parse_disk_usage(path: &str) -> (f64, f64) {
+    let output = Command::new("df").args(["-BG", path]).output().ok();
+    if let Some(out) = output {
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        if let Some(line) = stdout.lines().nth(1) {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() >= 4 {
+                let total: f64 = parts[1].trim_end_matches('G').parse().unwrap_or(0.0);
+                let used: f64 = parts[2].trim_end_matches('G').parse().unwrap_or(0.0);
+                return (total, used);
+            }
+        }
+    }
+    (0.0, 0.0)
+}
+
+fn parse_loadavg() -> (f64, f64, f64) {
+    let content = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
+    let parts: Vec<f64> = content.split_whitespace().take(3).filter_map(|s| s.parse().ok()).collect();
+    if parts.len() >= 3 { (parts[0], parts[1], parts[2]) } else { (0.0, 0.0, 0.0) }
+}
+
+fn parse_uptime() -> u64 {
+    let content = std::fs::read_to_string("/proc/uptime").unwrap_or_default();
+    content.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()).map(|f| f as u64).unwrap_or(0)
+}
+
+// ── Save VM as Template ──────────────────────────────────────────
+
+/// Save a VM's configuration as a reusable template.
+pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, vm_name)?;
+    let info = domain.get_info().map_err(LibvirtError::map_op("Failed to get VM info"))?;
+
+    let template = serde_json::json!({
+        "name": template_name,
+        "description": format!("Saved from VM '{}'", vm_name),
+        "vcpus": info.nr_virt_cpu,
+        "memory_mb": info.memory / 1024,
+        "disk_gb": 20,
+        "os_variant": "linux2022",
+    });
+
+    let templates_dir = "/var/lib/virtspawn/templates";
+    let _ = std::fs::create_dir_all(templates_dir);
+    let path = format!("{}/{}.json", templates_dir, template_name);
+    std::fs::write(&path, serde_json::to_string_pretty(&template).unwrap_or_default())
+        .map_err(|e| LibvirtError::Operation(format!("Failed to save template: {e}")))?;
+
+    Ok(())
+}
+
 // ── PCI / IOMMU Passthrough Listing ───────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

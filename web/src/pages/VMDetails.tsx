@@ -13,13 +13,13 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
-import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice } from '../api/extras'
+import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw,
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, CircleX, Archive, Copy, Pencil, ArrowRightLeft,
-  Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb,
+  Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb, Layers,
   ChevronUp, ChevronDown, X, Tag, Monitor,
 } from 'lucide-react'
 
@@ -354,6 +354,7 @@ export default function VMDetailsPage() {
         {vm.state === 'shutoff' && <button onClick={() => openDialog('rename')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Pencil className="w-3 h-3 inline -mt-0.5" /> Rename</button>}
         <button onClick={() => openDialog('migrate')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><ArrowRightLeft className="w-3 h-3 inline -mt-0.5" /> Migrate</button>
         <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup started for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
+        <button onClick={async () => { const tname = prompt('Template name:', `${vm.name}-template`); if (!tname) return; try { await saveVmAsTemplate(vm.name, tname); toast.success(`Saved as template '${tname}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
       </div>
 

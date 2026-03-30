@@ -4,8 +4,9 @@ import { listVMs, getMetrics, VmInfo, VmMetrics } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
+import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge } from 'lucide-react'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 
@@ -17,6 +18,7 @@ export default function Dashboard() {
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
   const [node, setNode] = useState<NodeInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [hostStats, setHostStats] = useState<HostStats | null>(null)
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const { subscribe } = useWebSocketContext()
 
@@ -26,6 +28,7 @@ export default function Dashboard() {
         listVMs(), listNetworks(), listPools(), getNodeInfo(),
       ])
       setVMs(vmData); setNetworks(netData); setPools(poolData); setNode(nodeData)
+      try { setHostStats(await getHostStats()) } catch { /* optional */ }
     } catch (error) { console.error('Failed to load data:', error) } finally { setLoading(false) }
   }, [])
 
@@ -84,6 +87,16 @@ export default function Dashboard() {
         <StatCard gradient="stat-card-orange" icon={<HardDrive className="w-6 h-6" />} iconColor="text-orange-400" title="Allocated Memory" value={`${totalMemGB} GB`} badge={node ? <span className="text-xs text-slate-500">{(node.memory_mb / 1024).toFixed(0)} GB host</span> : undefined} />
         <StatCard gradient="stat-card-green" icon={<Network className="w-6 h-6" />} iconColor="text-emerald-400" title="Networks" value={networks.length} badge={<span className="text-xs text-slate-500">{activeNets} active</span>} />
       </div>
+
+      {/* Host Resource Usage */}
+      {hostStats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <ResourceBar icon={<Gauge className="w-4 h-4 text-blue-400" />} label="Host CPU" value={hostStats.cpu_percent} extra={`Load: ${hostStats.load_1.toFixed(1)}`} />
+          <ResourceBar icon={<HardDrive className="w-4 h-4 text-emerald-400" />} label="Host Memory" value={hostStats.memory_percent} extra={`${(hostStats.memory_used_mb / 1024).toFixed(1)} / ${(hostStats.memory_total_mb / 1024).toFixed(1)} GB`} />
+          <ResourceBar icon={<Database className="w-4 h-4 text-orange-400" />} label="Host Disk" value={hostStats.disk_percent} extra={`${hostStats.disk_used_gb.toFixed(0)} / ${hostStats.disk_total_gb.toFixed(0)} GB`} />
+          <MiniStat icon={<Clock className="w-4 h-4 text-purple-400" />} label="Uptime" value={formatUptime(hostStats.uptime_secs)} extra={`${hostStats.processes} procs`} />
+        </div>
+      )}
 
       {/* Secondary stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -186,6 +199,31 @@ function StatCard({ gradient, icon, iconColor, title, value, badge }: { gradient
       </div>
     </div>
   )
+}
+
+function ResourceBar({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: number; extra?: string }) {
+  const color = value > 90 ? 'bg-red-500' : value > 70 ? 'bg-yellow-500' : 'bg-blue-500'
+  return (
+    <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30">
+      <div className="flex items-center gap-2 mb-1.5">
+        {icon}
+        <span className="text-xs text-slate-500 flex-1">{label}</span>
+        <span className="text-xs font-semibold text-white">{value.toFixed(1)}%</span>
+      </div>
+      <div className="w-full bg-slate-700 rounded-full h-1.5">
+        <div className={`${color} h-1.5 rounded-full transition-all`} style={{ width: `${Math.min(value, 100)}%` }} />
+      </div>
+      {extra && <div className="text-[10px] text-slate-500 mt-1">{extra}</div>}
+    </div>
+  )
+}
+
+function formatUptime(secs: number): string {
+  const days = Math.floor(secs / 86400)
+  const hours = Math.floor((secs % 86400) / 3600)
+  if (days > 0) return `${days}d ${hours}h`
+  const mins = Math.floor((secs % 3600) / 60)
+  return `${hours}h ${mins}m`
 }
 
 function MiniStat({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: string | number; extra?: string }) {
