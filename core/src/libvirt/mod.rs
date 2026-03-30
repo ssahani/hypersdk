@@ -7,6 +7,7 @@ pub mod create;
 pub mod device;
 pub mod domain;
 pub mod guest_agent;
+pub mod host_network;
 pub mod metrics;
 pub mod migrate;
 pub mod network;

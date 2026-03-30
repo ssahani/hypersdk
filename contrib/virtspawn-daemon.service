@@ -12,26 +12,13 @@ Restart=on-failure
 RestartSec=5
 Environment=RUST_LOG=info
 
-# Filesystem protection
-ProtectSystem=strict
+# Filesystem protection — relaxed for host networking management
+# (ip, iptables, nmcli need access to /sys, /proc, /run)
 ProtectHome=read-only
-ReadWritePaths=/var/lib/libvirt /var/lib/virtspawn /dev/pts
 PrivateTmp=true
 
-# Privilege restrictions
-NoNewPrivileges=true
-ProtectKernelTunables=true
-ProtectKernelModules=true
-ProtectKernelLogs=true
-ProtectControlGroups=true
-RestrictSUIDSGID=true
-LockPersonality=true
-
-# Network: only needed for daemon bind + libvirt socket
-RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-
-# System call filter
-SystemCallArchitectures=native
+# Network access
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
 
 [Install]
 WantedBy=multi-user.target

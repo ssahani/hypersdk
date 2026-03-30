@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import {
-  Server, Plus, Home, Network, HardDrive, Camera, Cpu,
+  Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe,
   Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User,
 } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
@@ -34,6 +34,7 @@ const navGroups: NavGroup[] = [
       { to: '/snapshots', icon: <Camera className="w-4 h-4" />, label: 'Snapshots' },
       { to: '/nwfilters', icon: <Shield className="w-4 h-4" />, label: 'Network Filters' },
       { to: '/backups', icon: <Archive className="w-4 h-4" />, label: 'Backups' },
+      { to: '/host-networking', icon: <Globe className="w-4 h-4" />, label: 'Host Networking' },
     ],
   },
   {

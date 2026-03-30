@@ -1,0 +1,483 @@
+import { useCallback, useEffect, useState } from 'react'
+import { listVMs, VmInfo, getInterfaces, GuestIpAddress } from '../api/vm'
+import { listNetworks, NetworkInfo } from '../api/network'
+import {
+  listHostInterfaces, listPortForwards, listFirewallRules,
+  createBridge, deleteBridge, createPortForward, deletePortForward,
+  createFirewallRule, deleteFirewallRule,
+  HostInterface, PortForwardRule, FirewallRule,
+} from '../api/hostNetwork'
+import { useToastContext } from '../contexts/ToastContext'
+import {
+  Network, Globe, Shield, Router, Plus, Trash2, RefreshCw,
+  ArrowRight, Monitor, Server, Wifi, Cable, X,
+} from 'lucide-react'
+
+type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall'
+type Dialog = null | 'bridge' | 'portforward' | 'firewall'
+
+interface TopologyNode {
+  id: string; label: string; type: 'vm' | 'network' | 'bridge' | 'host-nic'
+  x: number; y: number; state?: string; extra?: string
+}
+interface TopologyEdge { from: string; to: string; label?: string }
+
+export default function HostNetworkingPage() {
+  const [tab, setTab] = useState<Tab>('topology')
+  const [dialog, setDialog] = useState<Dialog>(null)
+  const [loading, setLoading] = useState(true)
+  const toast = useToastContext()
+
+  // Data
+  const [vms, setVMs] = useState<VmInfo[]>([])
+  const [networks, setNetworks] = useState<NetworkInfo[]>([])
+  const [hostIfaces, setHostIfaces] = useState<HostInterface[]>([])
+  const [portForwards, setPortForwards] = useState<PortForwardRule[]>([])
+  const [firewallRules, setFirewallRules] = useState<FirewallRule[]>([])
+  const [vmIps, setVmIps] = useState<Record<string, GuestIpAddress[]>>({})
+
+  // Dialog state
+  const [brName, setBrName] = useState('')
+  const [brIfaces, setBrIfaces] = useState<string[]>([])
+  const [brMtu, setBrMtu] = useState(1500)
+  const [brStp, setBrStp] = useState(true)
+  const [pfProto, setPfProto] = useState('tcp')
+  const [pfHostPort, setPfHostPort] = useState(0)
+  const [pfVmIp, setPfVmIp] = useState('')
+  const [pfVmPort, setPfVmPort] = useState(0)
+  const [pfDesc, setPfDesc] = useState('')
+  const [fwVmIp, setFwVmIp] = useState('')
+  const [fwDir, setFwDir] = useState('inbound')
+  const [fwProto, setFwProto] = useState('tcp')
+  const [fwPort, setFwPort] = useState(0)
+  const [fwAction, setFwAction] = useState('accept')
+  const [fwDesc, setFwDesc] = useState('')
+
+  const load = useCallback(async () => {
+    try {
+      const [v, n, h, pf, fw] = await Promise.allSettled([
+        listVMs(), listNetworks(), listHostInterfaces(),
+        listPortForwards(), listFirewallRules(),
+      ])
+      if (v.status === 'fulfilled') setVMs(v.value)
+      if (n.status === 'fulfilled') setNetworks(n.value)
+      if (h.status === 'fulfilled') setHostIfaces(h.value)
+      if (pf.status === 'fulfilled') setPortForwards(pf.value)
+      if (fw.status === 'fulfilled') setFirewallRules(fw.value)
+
+      // Fetch guest IPs for running VMs
+      if (v.status === 'fulfilled') {
+        const ips: Record<string, GuestIpAddress[]> = {}
+        for (const vm of v.value.filter(vm => vm.state === 'running')) {
+          try { ips[vm.name] = await getInterfaces(vm.name) } catch { /* no agent */ }
+        }
+        setVmIps(ips)
+      }
+    } catch (e: unknown) {
+      toast.error(`Load failed: ${e instanceof Error ? e.message : e}`)
+    } finally { setLoading(false) }
+  }, [toast])
+
+  useEffect(() => { load() }, [load])
+
+  // ── Topology data ──────────────────────────────────────────────
+
+  const buildTopology = (): { nodes: TopologyNode[]; edges: TopologyEdge[] } => {
+    const nodes: TopologyNode[] = []
+    const edges: TopologyEdge[] = []
+    const COL_VM = 80, COL_NET = 350, COL_BR = 550, COL_HOST = 750
+    let vmY = 40, netY = 40, brY = 40, hostY = 40
+
+    // Host NICs
+    const physicalNics = hostIfaces.filter(i => i.iface_type === 'physical')
+    const bridges = hostIfaces.filter(i => i.iface_type === 'bridge')
+
+    for (const nic of physicalNics) {
+      nodes.push({ id: `host-${nic.name}`, label: nic.name, type: 'host-nic', x: COL_HOST, y: hostY, state: nic.state, extra: nic.ipv4.join(', ') })
+      hostY += 80
+    }
+
+    // Bridges
+    for (const br of bridges) {
+      nodes.push({ id: `br-${br.name}`, label: br.name, type: 'bridge', x: COL_BR, y: brY, state: br.state, extra: br.ipv4.join(', ') })
+      // Connect bridge to its master/enslaved NICs
+      for (const nic of hostIfaces.filter(i => i.master === br.name)) {
+        edges.push({ from: `br-${br.name}`, to: `host-${nic.name}` })
+      }
+      brY += 80
+    }
+
+    // Libvirt networks
+    for (const net of networks) {
+      nodes.push({ id: `net-${net.name}`, label: net.name, type: 'network', x: COL_NET, y: netY, state: net.active ? 'active' : 'inactive', extra: net.bridge })
+      // Connect to bridge if bridge name matches
+      if (net.bridge) {
+        const brNode = nodes.find(n => n.id === `br-${net.bridge}`)
+        if (brNode) {
+          edges.push({ from: `net-${net.name}`, to: `br-${net.bridge}` })
+        }
+      }
+      netY += 80
+    }
+
+    // VMs
+    for (const vm of vms) {
+      const ips = vmIps[vm.name] || []
+      const ipStr = ips.map(i => i.address).join(', ')
+      nodes.push({ id: `vm-${vm.name}`, label: vm.name, type: 'vm', x: COL_VM, y: vmY, state: vm.state, extra: ipStr })
+      // Connect VM to its network (simplified - connect to default or first)
+      if (networks.length > 0) {
+        edges.push({ from: `vm-${vm.name}`, to: `net-${networks[0].name}` })
+      }
+      vmY += 80
+    }
+
+    return { nodes, edges }
+  }
+
+  // ── Handlers ───────────────────────────────────────────────────
+
+  const handleCreateBridge = async () => {
+    if (!brName.trim()) return
+    try {
+      await createBridge({ name: brName.trim(), interfaces: brIfaces, mtu: brMtu, stp: brStp })
+      toast.success(`Bridge '${brName}' created`); setDialog(null); setBrName(''); setBrIfaces([]); load()
+    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleDeleteBridge = async (name: string) => {
+    try { await deleteBridge(name); toast.success(`Bridge '${name}' deleted`); load() }
+    catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleCreatePortForward = async () => {
+    if (!pfVmIp || pfHostPort === 0 || pfVmPort === 0) return
+    try {
+      await createPortForward({ protocol: pfProto, host_port: pfHostPort, vm_ip: pfVmIp, vm_port: pfVmPort, description: pfDesc })
+      toast.success(`Port forward ${pfHostPort} -> ${pfVmIp}:${pfVmPort} created`); setDialog(null); load()
+    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleDeletePortForward = async (r: PortForwardRule) => {
+    try { await deletePortForward({ protocol: r.protocol, host_port: r.host_port, vm_ip: r.vm_ip, vm_port: r.vm_port }); toast.success('Rule deleted'); load() }
+    catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleCreateFirewallRule = async () => {
+    if (!fwVmIp) return
+    try {
+      await createFirewallRule({ vm_ip: fwVmIp, direction: fwDir, protocol: fwProto, port: fwPort, action: fwAction, description: fwDesc })
+      toast.success('Firewall rule created'); setDialog(null); load()
+    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleDeleteFirewallRule = async (r: FirewallRule) => {
+    try { await deleteFirewallRule({ vm_ip: r.vm_ip, direction: r.direction, protocol: r.protocol, port: r.port, action: r.action }); toast.success('Rule deleted'); load() }
+    catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  // Collect all known VM IPs for dropdowns
+  const allVmIps = Object.entries(vmIps).flatMap(([name, ips]) => ips.map(ip => ({ name, ip: ip.address })))
+
+  const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
+    { key: 'topology', label: 'Topology', icon: <Globe className="w-4 h-4" /> },
+    { key: 'portforward', label: `Port Forwarding (${portForwards.length})`, icon: <ArrowRight className="w-4 h-4" /> },
+    { key: 'bridges', label: `Bridges`, icon: <Router className="w-4 h-4" /> },
+    { key: 'firewall', label: `Firewall (${firewallRules.length})`, icon: <Shield className="w-4 h-4" /> },
+  ]
+
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="w-6 h-6 text-blue-400" /> Host Networking</h1>
+          <p className="text-sm text-slate-400 mt-0.5">{hostIfaces.length} interfaces, {networks.length} libvirt networks</p>
+        </div>
+        <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+      </div>
+
+      <div className="flex gap-1 border-b border-slate-700/50">
+        {tabs.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-2 px-4 py-2.5 text-sm transition border-b-2 ${tab === t.key ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
+            {t.icon} {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Topology ──────────────────────────────────────────── */}
+      {tab === 'topology' && (() => {
+        const { nodes, edges } = buildTopology()
+        const maxY = Math.max(...nodes.map(n => n.y), 200) + 80
+        return (
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 overflow-x-auto">
+            <div className="flex items-center gap-6 mb-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><Monitor className="w-3 h-3 text-blue-400" /> VMs</span>
+              <span className="flex items-center gap-1"><Wifi className="w-3 h-3 text-green-400" /> Networks</span>
+              <span className="flex items-center gap-1"><Router className="w-3 h-3 text-orange-400" /> Bridges</span>
+              <span className="flex items-center gap-1"><Cable className="w-3 h-3 text-purple-400" /> Host NICs</span>
+            </div>
+            <svg width="900" height={maxY} className="w-full" viewBox={`0 0 900 ${maxY}`}>
+              {/* Column labels */}
+              <text x="80" y="20" textAnchor="middle" className="fill-slate-500 text-[11px]">Virtual Machines</text>
+              <text x="350" y="20" textAnchor="middle" className="fill-slate-500 text-[11px]">Networks</text>
+              <text x="550" y="20" textAnchor="middle" className="fill-slate-500 text-[11px]">Bridges</text>
+              <text x="750" y="20" textAnchor="middle" className="fill-slate-500 text-[11px]">Host NICs</text>
+
+              {/* Edges */}
+              {edges.map((e, i) => {
+                const from = nodes.find(n => n.id === e.from)
+                const to = nodes.find(n => n.id === e.to)
+                if (!from || !to) return null
+                return <line key={i} x1={from.x + 60} y1={from.y + 20} x2={to.x - 60} y2={to.y + 20} stroke="#334155" strokeWidth="2" strokeDasharray="6 3" />
+              })}
+
+              {/* Nodes */}
+              {nodes.map(n => {
+                const colors = {
+                  vm: { bg: '#1e3a5f', border: '#3b82f6', icon: '#60a5fa' },
+                  network: { bg: '#1a3c34', border: '#10b981', icon: '#34d399' },
+                  bridge: { bg: '#3d2b1a', border: '#f59e0b', icon: '#fbbf24' },
+                  'host-nic': { bg: '#2d1b4e', border: '#a855f7', icon: '#c084fc' },
+                }[n.type]
+                return (
+                  <g key={n.id}>
+                    <rect x={n.x - 55} y={n.y} width="120" height="44" rx="8" fill={colors.bg} stroke={colors.border} strokeWidth="1.5" />
+                    <circle cx={n.x - 40} cy={n.y + 14} r="4" fill={n.state === 'running' || n.state === 'up' || n.state === 'active' ? '#22c55e' : '#64748b'} />
+                    <text x={n.x - 30} y={n.y + 18} className="fill-slate-200 text-[11px] font-medium">{n.label.length > 14 ? n.label.slice(0, 12) + '..' : n.label}</text>
+                    {n.extra && <text x={n.x - 50} y={n.y + 36} className="fill-slate-500 text-[9px]">{n.extra.length > 18 ? n.extra.slice(0, 16) + '..' : n.extra}</text>}
+                  </g>
+                )
+              })}
+            </svg>
+          </div>
+        )
+      })()}
+
+      {/* ── Port Forwarding ───────────────────────────────────── */}
+      {tab === 'portforward' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => setDialog('portforward')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Add Rule</button>
+          </div>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <table className="w-full">
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Protocol</th><th className="px-6 py-3">Host Port</th><th className="px-6 py-3">VM Destination</th><th className="px-6 py-3">Description</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {portForwards.map(r => (
+                  <tr key={r.id} className="table-row-hover">
+                    <td className="px-6 py-3 text-sm font-mono">{r.protocol.toUpperCase()}</td>
+                    <td className="px-6 py-3 text-sm font-mono text-blue-400">{r.host_port}</td>
+                    <td className="px-6 py-3 text-sm font-mono">{r.vm_ip}:{r.vm_port}</td>
+                    <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeletePortForward(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                  </tr>
+                ))}
+                {portForwards.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No port forwarding rules. Add one to expose a VM service on the host.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Bridges ───────────────────────────────────────────── */}
+      {tab === 'bridges' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => setDialog('bridge')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Bridge</button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {hostIfaces.filter(i => i.iface_type === 'bridge').map(br => (
+              <div key={br.name} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${br.state === 'up' ? 'bg-green-500' : 'bg-slate-500'}`} />
+                    <span className="font-semibold">{br.name}</span>
+                  </div>
+                  {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>}
+                </div>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between text-slate-400"><span>MAC</span><span className="font-mono text-xs">{br.mac}</span></div>
+                  <div className="flex justify-between text-slate-400"><span>MTU</span><span>{br.mtu}</span></div>
+                  <div className="flex justify-between text-slate-400"><span>IP</span><span className="font-mono text-xs">{br.ipv4.join(', ') || 'none'}</span></div>
+                  {br.master && <div className="flex justify-between text-slate-400"><span>Master</span><span>{br.master}</span></div>}
+                </div>
+                {/* Show enslaved interfaces */}
+                {hostIfaces.filter(i => i.master === br.name).length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-slate-700/30">
+                    <span className="text-xs text-slate-500">Ports:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {hostIfaces.filter(i => i.master === br.name).map(p => (
+                        <span key={p.name} className="px-2 py-0.5 bg-slate-700 rounded text-xs">{p.name}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {hostIfaces.filter(i => i.iface_type === 'bridge').length === 0 && (
+              <div className="col-span-full text-center text-slate-500 py-8">No bridges found. Create one to enable bridged networking for VMs.</div>
+            )}
+          </div>
+
+          {/* Physical interfaces available */}
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <div className="px-6 py-3 border-b border-slate-700/50"><span className="text-sm font-semibold text-slate-300">Host Interfaces</span></div>
+            <table className="w-full">
+              <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-6 py-2">Name</th><th className="px-6 py-2">Type</th><th className="px-6 py-2">State</th><th className="px-6 py-2">MAC</th><th className="px-6 py-2">IP</th><th className="px-6 py-2">MTU</th><th className="px-6 py-2">Master</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30 text-sm">
+                {hostIfaces.map(i => (
+                  <tr key={i.name} className="table-row-hover">
+                    <td className="px-6 py-2 font-mono">{i.name}</td>
+                    <td className="px-6 py-2"><span className={`px-1.5 py-0.5 rounded text-xs ${i.iface_type === 'physical' ? 'bg-purple-500/20 text-purple-400' : i.iface_type === 'bridge' ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-700 text-slate-400'}`}>{i.iface_type}</span></td>
+                    <td className="px-6 py-2"><span className={i.state === 'up' ? 'text-green-400' : 'text-slate-500'}>{i.state}</span></td>
+                    <td className="px-6 py-2 font-mono text-xs text-slate-400">{i.mac}</td>
+                    <td className="px-6 py-2 font-mono text-xs">{i.ipv4.join(', ') || '-'}</td>
+                    <td className="px-6 py-2 text-slate-400">{i.mtu}</td>
+                    <td className="px-6 py-2 text-slate-400">{i.master || '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Firewall ──────────────────────────────────────────── */}
+      {tab === 'firewall' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <button onClick={() => setDialog('firewall')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Add Rule</button>
+          </div>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <table className="w-full">
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM IP</th><th className="px-6 py-3">Direction</th><th className="px-6 py-3">Protocol</th><th className="px-6 py-3">Port</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Description</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {firewallRules.map(r => (
+                  <tr key={r.id} className="table-row-hover">
+                    <td className="px-6 py-3 text-sm font-mono">{r.vm_ip}</td>
+                    <td className="px-6 py-3 text-sm">{r.direction === 'inbound' ? <span className="text-blue-400">Inbound</span> : <span className="text-orange-400">Outbound</span>}</td>
+                    <td className="px-6 py-3 text-sm font-mono">{r.protocol.toUpperCase()}</td>
+                    <td className="px-6 py-3 text-sm font-mono">{r.port || 'all'}</td>
+                    <td className="px-6 py-3 text-sm">{r.action === 'accept' ? <span className="text-green-400">Allow</span> : <span className="text-red-400">Block</span>}</td>
+                    <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeleteFirewallRule(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                  </tr>
+                ))}
+                {firewallRules.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">No per-VM firewall rules. Add rules to control traffic to/from specific VMs.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Dialogs ───────────────────────────────────────────── */}
+      {dialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" onClick={() => setDialog(null)}>
+
+          {dialog === 'bridge' && (
+            <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
+                <span className="text-lg font-semibold flex items-center gap-2"><Router className="w-5 h-5 text-orange-400" /> Create Bridge</span>
+                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+              </div>
+              <div className="p-5 space-y-3">
+                <div><label htmlFor="br-name" className="block text-sm text-slate-400 mb-1">Bridge Name</label><input id="br-name" autoFocus value={brName} onChange={e => setBrName(e.target.value)} className="input-field" placeholder="br0" /></div>
+                <div><label className="block text-sm text-slate-400 mb-1">Physical Interfaces</label>
+                  <div className="flex flex-wrap gap-2">
+                    {hostIfaces.filter(i => i.iface_type === 'physical' && !i.master).map(i => (
+                      <label key={i.name} className="flex items-center gap-1.5 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-sm cursor-pointer hover:bg-slate-800">
+                        <input type="checkbox" checked={brIfaces.includes(i.name)} onChange={e => setBrIfaces(e.target.checked ? [...brIfaces, i.name] : brIfaces.filter(n => n !== i.name))} className="rounded border-slate-600" />{i.name}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label htmlFor="br-mtu" className="block text-sm text-slate-400 mb-1">MTU</label><input id="br-mtu" type="number" value={brMtu} onChange={e => setBrMtu(parseInt(e.target.value) || 1500)} className="input-field" /></div>
+                  <div><label className="block text-sm text-slate-400 mb-1">STP</label>
+                    <label className="flex items-center gap-2 mt-1.5"><input type="checkbox" checked={brStp} onChange={e => setBrStp(e.target.checked)} className="rounded border-slate-600" /><span className="text-sm">Enabled</span></label>
+                  </div>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-5 pb-5">
+                <button onClick={() => setDialog(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onClick={handleCreateBridge} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              </div>
+            </div>
+          )}
+
+          {dialog === 'portforward' && (
+            <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
+                <span className="text-lg font-semibold flex items-center gap-2"><ArrowRight className="w-5 h-5 text-cyan-400" /> Port Forward</span>
+                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+              </div>
+              <div className="p-5 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label htmlFor="pf-proto" className="block text-sm text-slate-400 mb-1">Protocol</label>
+                    <select id="pf-proto" value={pfProto} onChange={e => setPfProto(e.target.value)} className="input-field"><option value="tcp">TCP</option><option value="udp">UDP</option></select>
+                  </div>
+                  <div><label htmlFor="pf-hport" className="block text-sm text-slate-400 mb-1">Host Port</label><input id="pf-hport" type="number" autoFocus min={1} max={65535} value={pfHostPort || ''} onChange={e => setPfHostPort(parseInt(e.target.value) || 0)} className="input-field" placeholder="8080" /></div>
+                </div>
+                <div><label htmlFor="pf-vmip" className="block text-sm text-slate-400 mb-1">VM IP Address</label>
+                  {allVmIps.length > 0 ? (
+                    <select id="pf-vmip" value={pfVmIp} onChange={e => setPfVmIp(e.target.value)} className="input-field">
+                      <option value="">Select VM...</option>
+                      {allVmIps.map(v => <option key={`${v.name}-${v.ip}`} value={v.ip}>{v.name} ({v.ip})</option>)}
+                    </select>
+                  ) : <input id="pf-vmip" type="text" value={pfVmIp} onChange={e => setPfVmIp(e.target.value)} className="input-field" placeholder="192.168.122.10" />}
+                </div>
+                <div><label htmlFor="pf-vport" className="block text-sm text-slate-400 mb-1">VM Port</label><input id="pf-vport" type="number" min={1} max={65535} value={pfVmPort || ''} onChange={e => setPfVmPort(parseInt(e.target.value) || 0)} className="input-field" placeholder="80" /></div>
+                <div><label htmlFor="pf-desc" className="block text-sm text-slate-400 mb-1">Description</label><input id="pf-desc" type="text" value={pfDesc} onChange={e => setPfDesc(e.target.value)} className="input-field" placeholder="Web server" /></div>
+                <p className="text-xs text-slate-500">Host 0.0.0.0:{pfHostPort || '?'} {'\u2192'} VM {pfVmIp || '?'}:{pfVmPort || '?'}</p>
+              </div>
+              <div className="flex justify-end gap-3 px-5 pb-5">
+                <button onClick={() => setDialog(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onClick={handleCreatePortForward} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              </div>
+            </div>
+          )}
+
+          {dialog === 'firewall' && (
+            <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
+                <span className="text-lg font-semibold flex items-center gap-2"><Shield className="w-5 h-5 text-red-400" /> Firewall Rule</span>
+                <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+              </div>
+              <div className="p-5 space-y-3">
+                <div><label htmlFor="fw-vmip" className="block text-sm text-slate-400 mb-1">VM IP</label>
+                  {allVmIps.length > 0 ? (
+                    <select id="fw-vmip" value={fwVmIp} onChange={e => setFwVmIp(e.target.value)} className="input-field">
+                      <option value="">Select VM...</option>
+                      {allVmIps.map(v => <option key={`${v.name}-${v.ip}`} value={v.ip}>{v.name} ({v.ip})</option>)}
+                    </select>
+                  ) : <input id="fw-vmip" autoFocus type="text" value={fwVmIp} onChange={e => setFwVmIp(e.target.value)} className="input-field" placeholder="192.168.122.10" />}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label htmlFor="fw-dir" className="block text-sm text-slate-400 mb-1">Direction</label>
+                    <select id="fw-dir" value={fwDir} onChange={e => setFwDir(e.target.value)} className="input-field"><option value="inbound">Inbound</option><option value="outbound">Outbound</option></select>
+                  </div>
+                  <div><label htmlFor="fw-action" className="block text-sm text-slate-400 mb-1">Action</label>
+                    <select id="fw-action" value={fwAction} onChange={e => setFwAction(e.target.value)} className="input-field"><option value="accept">Allow</option><option value="drop">Block</option></select>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><label htmlFor="fw-proto" className="block text-sm text-slate-400 mb-1">Protocol</label>
+                    <select id="fw-proto" value={fwProto} onChange={e => setFwProto(e.target.value)} className="input-field"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="icmp">ICMP</option><option value="all">All</option></select>
+                  </div>
+                  <div><label htmlFor="fw-port" className="block text-sm text-slate-400 mb-1">Port (0 = all)</label><input id="fw-port" type="number" min={0} max={65535} value={fwPort} onChange={e => setFwPort(parseInt(e.target.value) || 0)} className="input-field" /></div>
+                </div>
+                <div><label htmlFor="fw-desc" className="block text-sm text-slate-400 mb-1">Description</label><input id="fw-desc" type="text" value={fwDesc} onChange={e => setFwDesc(e.target.value)} className="input-field" placeholder="Allow SSH" /></div>
+              </div>
+              <div className="flex justify-end gap-3 px-5 pb-5">
+                <button onClick={() => setDialog(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onClick={handleCreateFirewallRule} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
