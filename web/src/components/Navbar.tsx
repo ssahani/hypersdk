@@ -72,12 +72,23 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 
 function DesktopDropdown({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false)
+  const closeTimer = useState<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
   const hasActive = group.items.some((i) => i.to === location.pathname)
 
+  const handleEnter = () => {
+    if (closeTimer[0]) { clearTimeout(closeTimer[0]); closeTimer[1](null) }
+    setOpen(true)
+  }
+  const handleLeave = () => {
+    const timer = setTimeout(() => setOpen(false), 400)
+    closeTimer[1](timer)
+  }
+
   return (
-    <div className="relative" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
       <button
+        onClick={() => setOpen(o => !o)}
         className={`flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
           hasActive ? 'text-blue-400' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
         }`}
