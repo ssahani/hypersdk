@@ -116,27 +116,7 @@ async fn get_audit_log(
     Ok(Json(serde_json::json!(events)))
 }
 
-// ── VM Tags ───────────────────────────────────────────────────────
-
-async fn get_vm_tags_handler(
-    State(_m): State<LibvirtManager>,
-    Path(name): Path<String>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let tags = extras::get_vm_tags(&name);
-    Ok(Json(serde_json::json!({ "tags": tags })))
-}
-
-#[derive(Deserialize)]
-struct SetTagsRequest { tags: Vec<String> }
-
-async fn set_vm_tags_handler(
-    State(_m): State<LibvirtManager>,
-    Path(name): Path<String>,
-    Json(req): Json<SetTagsRequest>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    extras::set_vm_tags(&name, req.tags.clone())?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tags": req.tags })))
-}
+// ── Tags (all tags summary) ──────────────────────────────────────
 
 async fn get_all_tags_handler(
     State(_m): State<LibvirtManager>,
@@ -180,8 +160,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/live/memory/{mb}", post(live_memory_handler))
         // Audit
         .route("/audit", get(get_audit_log))
-        // Tags
-        .route("/vms/{name}/tags", get(get_vm_tags_handler).post(set_vm_tags_handler))
+        // Tags (per-VM tags are in vms.rs)
         .route("/tags", get(get_all_tags_handler))
         // PCI
         .route("/host/pci", get(list_pci_handler))

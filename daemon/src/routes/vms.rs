@@ -174,6 +174,28 @@ async fn detach_interface_handler(
     Ok(Json(serde_json::json!({ "status": "detached", "name": name, "mac": mac })))
 }
 
+// ── VM Tags ────────────────────────────────────────────────────────
+
+async fn get_vm_tags_handler(
+    State(_m): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let tags = virtspawn_core::libvirt::extras::get_vm_tags(&name);
+    Ok(Json(serde_json::json!({ "tags": tags })))
+}
+
+#[derive(serde::Deserialize)]
+struct SetTagsRequest { tags: Vec<String> }
+
+async fn set_vm_tags_handler(
+    State(_m): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<SetTagsRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    virtspawn_core::libvirt::extras::set_vm_tags(&name, req.tags.clone())?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tags": req.tags })))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -197,4 +219,5 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/disk/resize/{target}", post(resize_disk_handler))
         .route("/vms/{name}/nic/attach", post(attach_interface_handler))
         .route("/vms/{name}/nic/detach/{mac}", post(detach_interface_handler))
+        .route("/vms/{name}/tags", get(get_vm_tags_handler).post(set_vm_tags_handler))
 }
