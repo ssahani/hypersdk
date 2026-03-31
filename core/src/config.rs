@@ -12,6 +12,28 @@ pub struct VirtspawnConfig {
     pub libvirt: LibvirtConfig,
     #[serde(default)]
     pub backup: BackupConfig,
+    #[serde(default)]
+    pub tls: TlsConfig,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TlsConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub cert_path: String,
+    #[serde(default)]
+    pub key_path: String,
+}
+
+impl Default for TlsConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            cert_path: String::new(),
+            key_path: String::new(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]

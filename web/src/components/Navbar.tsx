@@ -47,6 +47,7 @@ const navGroups: NavGroup[] = [
       { to: '/capabilities', icon: <MonitorCog className="w-4 h-4" />, label: 'Capabilities' },
       { to: '/devices', icon: <Usb className="w-4 h-4" />, label: 'Node Devices' },
       { to: '/audit', icon: <FileText className="w-4 h-4" />, label: 'Audit Log' },
+      { to: '/api-docs', icon: <FileText className="w-4 h-4" />, label: 'API Docs' },
       { to: '/settings', icon: <Shield className="w-4 h-4" />, label: 'Settings' },
     ],
   },

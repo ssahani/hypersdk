@@ -431,6 +431,101 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
     info!("SPICE WebSocket proxy closed for VM '{}' port {}", name, port);
 }
 
+// ── SSH WebSocket proxy ─────────────────────────────────────────────
+
+async fn ssh_handler(
+    ws: WebSocketUpgrade,
+    Path(host): Path<String>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| handle_ssh_proxy(socket, host))
+}
+
+async fn handle_ssh_proxy(socket: WebSocket, host: String) {
+    // Validate host: must be a hostname or IP, no path traversal or injection
+    if host.is_empty()
+        || host.contains('/')
+        || host.contains('\\')
+        || host.contains(' ')
+        || host.contains('\0')
+    {
+        info!("SSH: invalid host '{}'", host);
+        let (mut sink, _) = socket.split();
+        let _ = sink.close().await;
+        return;
+    }
+
+    let addr = format!("{}:22", host);
+    info!("SSH WebSocket proxy connecting to {}", addr);
+
+    let tcp = match tokio::net::TcpStream::connect(&addr).await {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("Failed to connect to SSH at {}: {}", addr, e);
+            let (mut sink, _) = socket.split();
+            let _ = sink
+                .send(Message::Text(
+                    format!("\r\nFailed to connect to {}: {}\r\n", addr, e).into(),
+                ))
+                .await;
+            let _ = sink.close().await;
+            return;
+        }
+    };
+
+    info!("SSH TCP connected to {}", addr);
+
+    let (mut tcp_read, mut tcp_write) = tcp.into_split();
+    let (mut ws_sink, mut ws_stream) = socket.split();
+
+    // TCP -> WebSocket (binary frames)
+    let mut read_task = tokio::spawn(async move {
+        let mut buf = [0u8; 65536];
+        loop {
+            match tcp_read.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    if ws_sink
+                        .send(Message::Binary(buf[..n].to_vec().into()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    // WebSocket -> TCP
+    let ssh_host = host.clone();
+    let mut write_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_stream.next().await {
+            match msg {
+                Message::Binary(data) => {
+                    if tcp_write.write_all(&data).await.is_err() {
+                        break;
+                    }
+                }
+                Message::Text(text) => {
+                    if tcp_write.write_all(text.as_bytes()).await.is_err() {
+                        break;
+                    }
+                }
+                Message::Ping(_) | Message::Pong(_) => { /* axum handles pong automatically */ }
+                Message::Close(_) => break,
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = &mut read_task => { write_task.abort(); }
+        _ = &mut write_task => { read_task.abort(); }
+    }
+
+    info!("SSH WebSocket proxy closed for host '{}'", ssh_host);
+}
+
 // ── Routes ──────────────────────────────────────────────────────────
 
 pub fn ws_routes() -> Router<LibvirtManager> {
@@ -439,4 +534,5 @@ pub fn ws_routes() -> Router<LibvirtManager> {
         .route("/console/{name}", get(console_handler))
         .route("/vnc/{name}", get(vnc_handler))
         .route("/spice/{name}", get(spice_handler))
+        .route("/ssh/{host}", get(ssh_handler))
 }

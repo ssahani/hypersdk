@@ -98,3 +98,15 @@ export interface PciDevice {
   iommu_group: string
 }
 export const listPciDevices = () => apiGet<PciDevice[]>(`${API}/host/pci`)
+
+// IOMMU Groups
+export interface IommuDevice {
+  bdf: string
+  vendor: string
+  device_name: string
+}
+export interface IommuGroup {
+  group_id: number
+  devices: IommuDevice[]
+}
+export const listIommuGroups = () => apiGet<IommuGroup[]>(`${API}/host/iommu-groups`)

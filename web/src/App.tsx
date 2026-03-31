@@ -26,6 +26,8 @@ const HostNetworking = lazy(() => import('./pages/HostNetworking'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const ImportVM = lazy(() => import('./pages/ImportVM'))
+const SSHPage = lazy(() => import('./pages/SSHPage'))
+const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
@@ -67,6 +69,8 @@ function AuthenticatedApp() {
                 <Route path="/host-networking" element={<HostNetworking />} />
                 <Route path="/audit" element={<AuditLog />} />
                 <Route path="/import" element={<ImportVM />} />
+                <Route path="/ssh/:host" element={<SSHPage />} />
+                <Route path="/api-docs" element={<ApiDocs />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

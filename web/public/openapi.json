@@ -1,0 +1,1162 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "virtspawn API",
+    "version": "1.0.0",
+    "description": "REST API for managing libvirt virtual machines, networks, storage, and more."
+  },
+  "servers": [
+    { "url": "/api/v1", "description": "Default API base" }
+  ],
+  "security": [
+    { "bearerAuth": [] },
+    { "cookieAuth": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Bearer token authentication"
+      },
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "session",
+        "description": "Cookie-based session authentication"
+      }
+    },
+    "schemas": {
+      "VmSummary": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "state": { "type": "string" },
+          "uuid": { "type": "string" },
+          "vcpus": { "type": "integer" },
+          "memory_mb": { "type": "integer" },
+          "autostart": { "type": "boolean" }
+        }
+      },
+      "VmDetails": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "state": { "type": "string" },
+          "uuid": { "type": "string" },
+          "vcpus": { "type": "integer" },
+          "memory_mb": { "type": "integer" },
+          "os_type": { "type": "string" },
+          "arch": { "type": "string" },
+          "persistent": { "type": "boolean" },
+          "autostart": { "type": "boolean" },
+          "disks": { "type": "array", "items": { "$ref": "#/components/schemas/DiskInfo" } },
+          "interfaces": { "type": "array", "items": { "$ref": "#/components/schemas/InterfaceInfo" } }
+        }
+      },
+      "DiskInfo": {
+        "type": "object",
+        "properties": {
+          "target": { "type": "string" },
+          "device": { "type": "string" },
+          "driver": { "type": "string" },
+          "source": { "type": "string" }
+        }
+      },
+      "InterfaceInfo": {
+        "type": "object",
+        "properties": {
+          "mac_address": { "type": "string" },
+          "source": { "type": "string" },
+          "model": { "type": "string" }
+        }
+      },
+      "CreateVmRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string" },
+          "vcpus": { "type": "integer", "default": 2 },
+          "memory_mb": { "type": "integer", "default": 2048 },
+          "disk_gb": { "type": "integer", "default": 20 },
+          "os_variant": { "type": "string" },
+          "iso_path": { "type": "string" },
+          "network": { "type": "string", "default": "default" }
+        }
+      },
+      "VmMetrics": {
+        "type": "object",
+        "properties": {
+          "memory_used_mb": { "type": "integer" },
+          "memory_total_mb": { "type": "integer" },
+          "memory_pct": { "type": "number" },
+          "disk_rd_bytes": { "type": "integer" },
+          "disk_wr_bytes": { "type": "integer" },
+          "net_rx_bytes": { "type": "integer" },
+          "net_tx_bytes": { "type": "integer" }
+        }
+      },
+      "SnapshotInfo": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "description": { "type": "string" },
+          "state": { "type": "string" },
+          "creation_time": { "type": "integer" },
+          "is_current": { "type": "boolean" }
+        }
+      },
+      "NetworkInfo": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "uuid": { "type": "string" },
+          "active": { "type": "boolean" },
+          "autostart": { "type": "boolean" },
+          "bridge": { "type": "string" }
+        }
+      },
+      "StoragePool": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "state": { "type": "string" },
+          "autostart": { "type": "boolean" },
+          "capacity_bytes": { "type": "integer" },
+          "allocation_bytes": { "type": "integer" },
+          "available_bytes": { "type": "integer" }
+        }
+      },
+      "NodeInfo": {
+        "type": "object",
+        "properties": {
+          "hostname": { "type": "string" },
+          "cpu_model": { "type": "string" },
+          "cpus": { "type": "integer" },
+          "memory_mb": { "type": "integer" },
+          "libvirt_version": { "type": "string" }
+        }
+      },
+      "BootConfig": {
+        "type": "object",
+        "properties": {
+          "boot_devices": { "type": "array", "items": { "type": "string" } },
+          "firmware": { "type": "string" },
+          "secure_boot": { "type": "boolean" },
+          "kernel": { "type": "string" },
+          "initrd": { "type": "string" },
+          "cmdline": { "type": "string" }
+        }
+      },
+      "HostStats": {
+        "type": "object",
+        "properties": {
+          "cpu_percent": { "type": "number" },
+          "memory_total_mb": { "type": "integer" },
+          "memory_used_mb": { "type": "integer" },
+          "memory_percent": { "type": "number" },
+          "load_1": { "type": "number" },
+          "load_5": { "type": "number" },
+          "load_15": { "type": "number" },
+          "uptime_secs": { "type": "integer" }
+        }
+      },
+      "PciDevice": {
+        "type": "object",
+        "properties": {
+          "slot": { "type": "string" },
+          "class": { "type": "string" },
+          "vendor": { "type": "string" },
+          "device": { "type": "string" },
+          "iommu_group": { "type": "string" }
+        }
+      },
+      "IommuGroup": {
+        "type": "object",
+        "properties": {
+          "group_id": { "type": "integer" },
+          "devices": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "bdf": { "type": "string" },
+                "vendor": { "type": "string" },
+                "device_name": { "type": "string" }
+              }
+            }
+          }
+        }
+      },
+      "StatusResponse": {
+        "type": "object",
+        "properties": {
+          "status": { "type": "string" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "tags": ["Health"],
+        "responses": { "200": { "description": "Service is healthy" } }
+      }
+    },
+    "/node": {
+      "get": {
+        "summary": "Get hypervisor node info",
+        "tags": ["Node"],
+        "responses": { "200": { "description": "Node information", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NodeInfo" } } } } }
+      }
+    },
+    "/vms": {
+      "get": {
+        "summary": "List all virtual machines",
+        "tags": ["VMs"],
+        "responses": { "200": { "description": "List of VMs", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/VmSummary" } } } } } }
+      },
+      "post": {
+        "summary": "Create a new virtual machine",
+        "tags": ["VMs"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateVmRequest" } } } },
+        "responses": { "200": { "description": "VM created" } }
+      }
+    },
+    "/vms/{name}": {
+      "get": {
+        "summary": "Get VM details",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM details", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VmDetails" } } } } }
+      },
+      "delete": {
+        "summary": "Delete a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM deleted" } }
+      }
+    },
+    "/vms/{name}/xml": {
+      "get": {
+        "summary": "Get VM XML configuration",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "XML string" } }
+      }
+    },
+    "/vms/{name}/start": {
+      "post": {
+        "summary": "Start a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM started" } }
+      }
+    },
+    "/vms/{name}/stop": {
+      "post": {
+        "summary": "Force stop a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM stopped" } }
+      }
+    },
+    "/vms/{name}/shutdown": {
+      "post": {
+        "summary": "Gracefully shutdown a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM shutdown initiated" } }
+      }
+    },
+    "/vms/{name}/reboot": {
+      "post": {
+        "summary": "Reboot a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM rebooted" } }
+      }
+    },
+    "/vms/{name}/pause": {
+      "post": {
+        "summary": "Pause a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM paused" } }
+      }
+    },
+    "/vms/{name}/resume": {
+      "post": {
+        "summary": "Resume a paused VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM resumed" } }
+      }
+    },
+    "/vms/{name}/clone": {
+      "post": {
+        "summary": "Clone a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "new_name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "VM cloned" } }
+      }
+    },
+    "/vms/{name}/rename": {
+      "post": {
+        "summary": "Rename a VM (must be shutoff)",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "new_name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "VM renamed" } }
+      }
+    },
+    "/vms/{name}/autostart/{enabled}": {
+      "post": {
+        "summary": "Set VM autostart",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "enabled", "in": "path", "required": true, "schema": { "type": "boolean" } }
+        ],
+        "responses": { "200": { "description": "Autostart updated" } }
+      }
+    },
+    "/vms/{name}/vcpus/{count}": {
+      "post": {
+        "summary": "Set VM vCPU count",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "count", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "vCPUs updated" } }
+      }
+    },
+    "/vms/{name}/memory/{mb}": {
+      "post": {
+        "summary": "Set VM memory",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "mb", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Memory updated" } }
+      }
+    },
+    "/vms/{name}/disk/attach": {
+      "post": {
+        "summary": "Attach a disk to a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "source": { "type": "string" }, "target": { "type": "string" }, "driver": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Disk attached" } }
+      }
+    },
+    "/vms/{name}/disk/detach/{target}": {
+      "post": {
+        "summary": "Detach a disk from a VM",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "target", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Disk detached" } }
+      }
+    },
+    "/vms/{name}/disk/resize/{target}": {
+      "post": {
+        "summary": "Resize a VM disk",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "target", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "size_gb": { "type": "integer" } } } } } },
+        "responses": { "200": { "description": "Disk resized" } }
+      }
+    },
+    "/vms/{name}/nic/attach": {
+      "post": {
+        "summary": "Attach a network interface to a VM",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "network": { "type": "string" }, "model": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "NIC attached" } }
+      }
+    },
+    "/vms/{name}/nic/detach/{mac}": {
+      "post": {
+        "summary": "Detach a network interface from a VM",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "mac", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "NIC detached" } }
+      }
+    },
+    "/vms/{name}/tags": {
+      "get": {
+        "summary": "Get VM tags",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Tags list" } }
+      },
+      "post": {
+        "summary": "Set VM tags",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "tags": { "type": "array", "items": { "type": "string" } } } } } } },
+        "responses": { "200": { "description": "Tags updated" } }
+      }
+    },
+    "/vms/{name}/interfaces": {
+      "get": {
+        "summary": "Get guest IP addresses via guest agent",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Guest IP addresses" } }
+      }
+    },
+    "/vms/{name}/hostname": {
+      "get": {
+        "summary": "Get guest hostname via guest agent",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Guest hostname" } }
+      }
+    },
+    "/vms/{name}/cdrom/insert": {
+      "post": {
+        "summary": "Insert a CD-ROM ISO",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "iso_path": { "type": "string" }, "target": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "CD-ROM inserted" } }
+      }
+    },
+    "/vms/{name}/cdrom/eject/{target}": {
+      "post": {
+        "summary": "Eject a CD-ROM",
+        "tags": ["Advanced"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "target", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "CD-ROM ejected" } }
+      }
+    },
+    "/vms/{name}/managed-save": {
+      "post": {
+        "summary": "Create a managed save of a VM",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Managed save created" } }
+      },
+      "delete": {
+        "summary": "Remove managed save of a VM",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Managed save removed" } }
+      }
+    },
+    "/vms/{name}/managed-save/status": {
+      "get": {
+        "summary": "Check if VM has a managed save",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Managed save status" } }
+      }
+    },
+    "/vms/{name}/boot": {
+      "get": {
+        "summary": "Get VM boot configuration",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Boot config", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/BootConfig" } } } } }
+      },
+      "post": {
+        "summary": "Set VM boot order",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "boot_devices": { "type": "array", "items": { "type": "string" } } } } } } },
+        "responses": { "200": { "description": "Boot order updated" } }
+      }
+    },
+    "/vms/{name}/migrate": {
+      "post": {
+        "summary": "Migrate a VM to another host",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "dest_uri": { "type": "string" }, "live": { "type": "boolean" } } } } } },
+        "responses": { "200": { "description": "Migration started" } }
+      }
+    },
+    "/vms/{name}/balloon/{mb}": {
+      "post": {
+        "summary": "Set memory balloon target on a running VM",
+        "tags": ["Advanced"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "mb", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Balloon adjusted" } }
+      }
+    },
+    "/vms/{name}/live/vcpus/{count}": {
+      "post": {
+        "summary": "Hot-set vCPUs on a running VM",
+        "tags": ["Extras"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "count", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "vCPUs live-set" } }
+      }
+    },
+    "/vms/{name}/live/memory/{mb}": {
+      "post": {
+        "summary": "Hot-set memory on a running VM",
+        "tags": ["Extras"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "mb", "in": "path", "required": true, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Memory live-set" } }
+      }
+    },
+    "/vms/{name}/usb/attach": {
+      "post": {
+        "summary": "Attach a USB device to a VM",
+        "tags": ["Extras"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "vendor_id": { "type": "string" }, "product_id": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "USB attached" } }
+      }
+    },
+    "/vms/{name}/usb/detach": {
+      "post": {
+        "summary": "Detach a USB device from a VM",
+        "tags": ["Extras"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "vendor_id": { "type": "string" }, "product_id": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "USB detached" } }
+      }
+    },
+    "/vms/{name}/save-template": {
+      "post": {
+        "summary": "Save VM configuration as a reusable template",
+        "tags": ["Extras"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "template_name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Template saved" } }
+      }
+    },
+    "/vms/console-info/{name}": {
+      "get": {
+        "summary": "Get console type info for a VM (VNC/SPICE/serial)",
+        "tags": ["Console"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Console info" } }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "summary": "Get metrics for all running VMs",
+        "tags": ["Metrics"],
+        "responses": { "200": { "description": "Metrics map" } }
+      }
+    },
+    "/metrics/{name}": {
+      "get": {
+        "summary": "Get metrics for a specific VM",
+        "tags": ["Metrics"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM metrics", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/VmMetrics" } } } } }
+      }
+    },
+    "/prometheus": {
+      "get": {
+        "summary": "Get metrics in Prometheus text format",
+        "tags": ["Metrics"],
+        "responses": { "200": { "description": "Prometheus metrics text" } }
+      }
+    },
+    "/snapshots": {
+      "get": {
+        "summary": "List all snapshots across all VMs",
+        "tags": ["Snapshots"],
+        "responses": { "200": { "description": "All snapshots" } }
+      }
+    },
+    "/vms/{vm_name}/snapshots": {
+      "get": {
+        "summary": "List snapshots for a specific VM",
+        "tags": ["Snapshots"],
+        "parameters": [{ "name": "vm_name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "VM snapshots", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/SnapshotInfo" } } } } } }
+      },
+      "post": {
+        "summary": "Create a snapshot for a VM",
+        "tags": ["Snapshots"],
+        "parameters": [{ "name": "vm_name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "description": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Snapshot created" } }
+      }
+    },
+    "/vms/{vm_name}/snapshots/{snap_name}": {
+      "delete": {
+        "summary": "Delete a snapshot",
+        "tags": ["Snapshots"],
+        "parameters": [
+          { "name": "vm_name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "snap_name", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Snapshot deleted" } }
+      }
+    },
+    "/vms/{vm_name}/snapshots/{snap_name}/revert": {
+      "post": {
+        "summary": "Revert VM to a snapshot",
+        "tags": ["Snapshots"],
+        "parameters": [
+          { "name": "vm_name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "snap_name", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Reverted to snapshot" } }
+      }
+    },
+    "/networks": {
+      "get": {
+        "summary": "List all virtual networks",
+        "tags": ["Networks"],
+        "responses": { "200": { "description": "Network list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NetworkInfo" } } } } } }
+      },
+      "post": {
+        "summary": "Create a virtual network",
+        "tags": ["Networks"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "bridge_name": { "type": "string" }, "subnet": { "type": "string" }, "dhcp_start": { "type": "string" }, "dhcp_end": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Network created" } }
+      }
+    },
+    "/networks/{name}": {
+      "delete": {
+        "summary": "Delete a virtual network",
+        "tags": ["Networks"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Network deleted" } }
+      }
+    },
+    "/networks/{name}/start": {
+      "post": {
+        "summary": "Start a virtual network",
+        "tags": ["Networks"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Network started" } }
+      }
+    },
+    "/networks/{name}/stop": {
+      "post": {
+        "summary": "Stop a virtual network",
+        "tags": ["Networks"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Network stopped" } }
+      }
+    },
+    "/networks/{name}/xml": {
+      "get": {
+        "summary": "Get network XML configuration",
+        "tags": ["Networks"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Network XML" } }
+      }
+    },
+    "/networks/{name}/autostart/{enabled}": {
+      "post": {
+        "summary": "Set network autostart",
+        "tags": ["Networks"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "enabled", "in": "path", "required": true, "schema": { "type": "boolean" } }
+        ],
+        "responses": { "200": { "description": "Autostart updated" } }
+      }
+    },
+    "/storage/pools": {
+      "get": {
+        "summary": "List all storage pools",
+        "tags": ["Storage"],
+        "responses": { "200": { "description": "Storage pool list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/StoragePool" } } } } } }
+      },
+      "post": {
+        "summary": "Create a storage pool",
+        "tags": ["Storage"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "pool_type": { "type": "string" }, "target_path": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Pool created" } }
+      }
+    },
+    "/storage/pools/{name}/start": {
+      "post": {
+        "summary": "Start a storage pool",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Pool started" } }
+      }
+    },
+    "/storage/pools/{name}/stop": {
+      "post": {
+        "summary": "Stop a storage pool",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Pool stopped" } }
+      }
+    },
+    "/storage/pools/{name}/refresh": {
+      "post": {
+        "summary": "Refresh a storage pool",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Pool refreshed" } }
+      }
+    },
+    "/storage/pools/{name}/autostart/{enabled}": {
+      "post": {
+        "summary": "Set storage pool autostart",
+        "tags": ["Storage"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "enabled", "in": "path", "required": true, "schema": { "type": "boolean" } }
+        ],
+        "responses": { "200": { "description": "Pool autostart updated" } }
+      }
+    },
+    "/storage/pools/{name}": {
+      "delete": {
+        "summary": "Delete a storage pool",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Pool deleted" } }
+      }
+    },
+    "/storage/pools/{name}/xml": {
+      "get": {
+        "summary": "Get storage pool XML",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Pool XML" } }
+      }
+    },
+    "/storage/pools/{pool_name}/volumes": {
+      "get": {
+        "summary": "List volumes in a storage pool",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "pool_name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Volume list" } }
+      },
+      "post": {
+        "summary": "Create a volume in a storage pool",
+        "tags": ["Storage"],
+        "parameters": [{ "name": "pool_name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "capacity_gb": { "type": "number" }, "format": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Volume created" } }
+      }
+    },
+    "/storage/pools/{pool_name}/volumes/{vol_name}": {
+      "delete": {
+        "summary": "Delete a volume",
+        "tags": ["Storage"],
+        "parameters": [
+          { "name": "pool_name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "vol_name", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Volume deleted" } }
+      }
+    },
+    "/storage/pools/{pool}/volumes/{vol}/resize": {
+      "post": {
+        "summary": "Resize a storage volume",
+        "tags": ["Storage"],
+        "parameters": [
+          { "name": "pool", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "vol", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "size_gb": { "type": "number" } } } } } },
+        "responses": { "200": { "description": "Volume resized" } }
+      }
+    },
+    "/storage/pools/{pool}/volumes/{vol}/clone": {
+      "post": {
+        "summary": "Clone a storage volume",
+        "tags": ["Storage"],
+        "parameters": [
+          { "name": "pool", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "vol", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "new_name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Volume cloned" } }
+      }
+    },
+    "/backups": {
+      "get": {
+        "summary": "List all backups",
+        "tags": ["Backups"],
+        "responses": { "200": { "description": "Backup list" } }
+      },
+      "post": {
+        "summary": "Trigger a backup",
+        "tags": ["Backups"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "vm_name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Backup triggered" } }
+      }
+    },
+    "/backups/restore": {
+      "post": {
+        "summary": "Restore from a backup",
+        "tags": ["Backups"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "backup_id": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Restore initiated" } }
+      }
+    },
+    "/backups/schedule": {
+      "get": {
+        "summary": "Get backup schedule",
+        "tags": ["Backups"],
+        "responses": { "200": { "description": "Current schedule" } }
+      },
+      "post": {
+        "summary": "Set backup schedule",
+        "tags": ["Backups"],
+        "responses": { "200": { "description": "Schedule updated" } }
+      }
+    },
+    "/backups/{id}": {
+      "delete": {
+        "summary": "Delete a backup",
+        "tags": ["Backups"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Backup deleted" } }
+      }
+    },
+    "/backups/{id}/status": {
+      "get": {
+        "summary": "Get backup status",
+        "tags": ["Backups"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Backup status" } }
+      }
+    },
+    "/backups/{id}/verify": {
+      "post": {
+        "summary": "Verify a backup",
+        "tags": ["Backups"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Verification result" } }
+      }
+    },
+    "/backups/{id}/download": {
+      "get": {
+        "summary": "Download a backup archive",
+        "tags": ["Backups"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Backup file stream" } }
+      }
+    },
+    "/capabilities": {
+      "get": {
+        "summary": "Get hypervisor capabilities XML",
+        "tags": ["Advanced"],
+        "responses": { "200": { "description": "Capabilities XML" } }
+      }
+    },
+    "/sysinfo": {
+      "get": {
+        "summary": "Get SMBIOS system info XML",
+        "tags": ["Advanced"],
+        "responses": { "200": { "description": "Sysinfo XML" } }
+      }
+    },
+    "/devices": {
+      "get": {
+        "summary": "List node devices",
+        "tags": ["Advanced"],
+        "responses": { "200": { "description": "Device list" } }
+      }
+    },
+    "/devices/{name}": {
+      "get": {
+        "summary": "Get node device details",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Device details" } }
+      }
+    },
+    "/nwfilters": {
+      "get": {
+        "summary": "List network filters",
+        "tags": ["Advanced"],
+        "responses": { "200": { "description": "Network filter list" } }
+      }
+    },
+    "/nwfilters/{name}": {
+      "get": {
+        "summary": "Get network filter XML",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "NWFilter XML" } }
+      },
+      "delete": {
+        "summary": "Delete a network filter",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "NWFilter deleted" } }
+      }
+    },
+    "/secrets": {
+      "get": {
+        "summary": "List secrets",
+        "tags": ["Advanced"],
+        "responses": { "200": { "description": "Secret list" } }
+      }
+    },
+    "/secrets/{uuid}": {
+      "delete": {
+        "summary": "Delete a secret",
+        "tags": ["Advanced"],
+        "parameters": [{ "name": "uuid", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Secret deleted" } }
+      }
+    },
+    "/templates": {
+      "get": {
+        "summary": "List saved VM templates",
+        "tags": ["Templates"],
+        "responses": { "200": { "description": "Template list" } }
+      }
+    },
+    "/browse/isos": {
+      "get": {
+        "summary": "List available ISO files on host",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "ISO file list" } }
+      }
+    },
+    "/browse/disks": {
+      "get": {
+        "summary": "List available disk images on host",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "Disk image list" } }
+      }
+    },
+    "/host/usb": {
+      "get": {
+        "summary": "List host USB devices",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "USB device list" } }
+      }
+    },
+    "/host/pci": {
+      "get": {
+        "summary": "List host PCI devices",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "PCI device list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PciDevice" } } } } } }
+      }
+    },
+    "/host/iommu-groups": {
+      "get": {
+        "summary": "List IOMMU groups with PCI device info",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "IOMMU group list", "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/IommuGroup" } } } } } }
+      }
+    },
+    "/host/stats": {
+      "get": {
+        "summary": "Get host system stats (CPU, memory, disk, load)",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "Host stats", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HostStats" } } } } }
+      }
+    },
+    "/host/interfaces": {
+      "get": {
+        "summary": "List host network interfaces",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Interface list" } }
+      }
+    },
+    "/host/bridges": {
+      "post": {
+        "summary": "Create a network bridge",
+        "tags": ["Host Networking"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Bridge created" } }
+      }
+    },
+    "/host/bridges/{name}": {
+      "delete": {
+        "summary": "Delete a network bridge",
+        "tags": ["Host Networking"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Bridge deleted" } }
+      }
+    },
+    "/portforward": {
+      "get": {
+        "summary": "List port forwarding rules",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Port forward list" } }
+      },
+      "post": {
+        "summary": "Create a port forwarding rule",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Rule created" } }
+      }
+    },
+    "/portforward/delete": {
+      "post": {
+        "summary": "Delete a port forwarding rule",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Rule deleted" } }
+      }
+    },
+    "/firewall": {
+      "get": {
+        "summary": "List firewall rules",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Firewall rule list" } }
+      },
+      "post": {
+        "summary": "Create a firewall rule",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Rule created" } }
+      }
+    },
+    "/firewall/delete": {
+      "post": {
+        "summary": "Delete a firewall rule",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "Rule deleted" } }
+      }
+    },
+    "/cloud-init": {
+      "post": {
+        "summary": "Generate a cloud-init ISO",
+        "tags": ["Extras"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "hostname": { "type": "string" }, "username": { "type": "string" }, "password": { "type": "string" }, "ssh_key": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Cloud-init ISO created" } }
+      }
+    },
+    "/import/disk": {
+      "post": {
+        "summary": "Import a disk image (converts to qcow2 if needed)",
+        "tags": ["Extras"],
+        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "source": { "type": "string" }, "dest_name": { "type": "string" } } } } } },
+        "responses": { "200": { "description": "Disk imported" } }
+      }
+    },
+    "/audit": {
+      "get": {
+        "summary": "Get audit log events",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "Audit event list" } }
+      }
+    },
+    "/tags": {
+      "get": {
+        "summary": "Get all tags summary with counts",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "Tag counts map" } }
+      }
+    },
+    "/dhcp-leases": {
+      "get": {
+        "summary": "List DHCP leases from active networks",
+        "tags": ["Extras"],
+        "responses": { "200": { "description": "DHCP lease list" } }
+      }
+    },
+    "/roles": {
+      "get": {
+        "summary": "List RBAC roles",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Role list" } }
+      },
+      "post": {
+        "summary": "Set a user role",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Role set" } }
+      }
+    },
+    "/tokens": {
+      "get": {
+        "summary": "List API tokens",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Token list" } }
+      },
+      "post": {
+        "summary": "Create an API token",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Token created" } }
+      }
+    },
+    "/tokens/{token}": {
+      "delete": {
+        "summary": "Delete an API token",
+        "tags": ["Automation"],
+        "parameters": [{ "name": "token", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Token deleted" } }
+      }
+    },
+    "/alert-rules": {
+      "get": {
+        "summary": "List alert rules",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Alert rule list" } }
+      },
+      "post": {
+        "summary": "Save alert rules",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Rules saved" } }
+      }
+    },
+    "/alerts": {
+      "get": {
+        "summary": "List active alerts",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Alert list" } }
+      }
+    },
+    "/alerts/{id}/ack": {
+      "post": {
+        "summary": "Acknowledge an alert",
+        "tags": ["Automation"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Alert acknowledged" } }
+      }
+    },
+    "/webhooks": {
+      "get": {
+        "summary": "List webhooks",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Webhook list" } }
+      },
+      "post": {
+        "summary": "Save webhook configuration",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Webhooks saved" } }
+      }
+    },
+    "/schedules": {
+      "get": {
+        "summary": "List scheduled tasks",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Schedule list" } }
+      },
+      "post": {
+        "summary": "Save scheduled tasks",
+        "tags": ["Automation"],
+        "responses": { "200": { "description": "Schedules saved" } }
+      }
+    }
+  }
+}

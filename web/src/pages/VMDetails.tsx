@@ -13,14 +13,14 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
-import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate } from '../api/extras'
+import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate, listIommuGroups, IommuGroup } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import {
   ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw,
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, CircleX, Archive, Copy, Pencil, ArrowRightLeft,
   Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb, Layers,
-  ChevronUp, ChevronDown, X, Tag, Monitor,
+  ChevronUp, ChevronDown, X, Tag, Monitor, Shield,
 } from 'lucide-react'
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
@@ -73,6 +73,9 @@ export default function VMDetailsPage() {
   const [vmTags, setVmTags] = useState<string[]>([])
   const [newTag, setNewTag] = useState('')
   const [pciDevices, setPciDevices] = useState<PciDevice[]>([])
+  const [iommuGroups, setIommuGroups] = useState<IommuGroup[]>([])
+  const [sshIp, setSshIp] = useState('')
+  const [sshDialogOpen, setSshDialogOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!name) return
@@ -105,6 +108,7 @@ export default function VMDetailsPage() {
     listUsbDevices().then(setUsbDevices).catch(() => {})
     listIsos().then(setIsoFiles).catch(() => {})
     listPciDevices().then(setPciDevices).catch(() => {})
+    listIommuGroups().then(setIommuGroups).catch(() => {})
   }, [])
 
   // Poll per-VM metrics every 5s for charts
@@ -327,6 +331,7 @@ export default function VMDetailsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Link to={`/vms/${vm.name}/console`} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
+          <button onClick={() => setSshDialogOpen(true)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> SSH</button>
           {vm.state === 'shutoff' && <button onClick={() => action(startVM, 'Start')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition flex items-center gap-1"><Play className="w-4 h-4" /> Start</button>}
           {vm.state === 'running' && (
             <>
@@ -648,6 +653,34 @@ export default function VMDetailsPage() {
               </table>
             </div>
           </div>
+
+          {/* IOMMU Groups */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Shield className="w-5 h-5 text-orange-400" /> IOMMU Groups</h3>
+            {iommuGroups.length === 0 ? (
+              <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-8 text-center text-slate-500">No IOMMU groups found. IOMMU may not be enabled or /sys/kernel/iommu_groups is empty.</div>
+            ) : (
+              <div className="space-y-3">
+                {iommuGroups.map((g) => (
+                  <div key={g.group_id} className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+                    <div className="px-5 py-2.5 bg-slate-800/80 border-b border-slate-700/50 text-sm font-medium text-orange-400">Group {g.group_id} ({g.devices.length} device{g.devices.length !== 1 ? 's' : ''})</div>
+                    <table className="w-full">
+                      <thead><tr className="border-b border-slate-700/50 text-left text-xs text-slate-500"><th className="px-5 py-2">BDF</th><th className="px-5 py-2">Vendor</th><th className="px-5 py-2">Device</th></tr></thead>
+                      <tbody className="divide-y divide-slate-700/30 text-sm">
+                        {g.devices.map((d, i) => (
+                          <tr key={i} className="table-row-hover">
+                            <td className="px-5 py-2 font-mono text-xs text-blue-400">{d.bdf}</td>
+                            <td className="px-5 py-2 text-slate-300">{d.vendor || '-'}</td>
+                            <td className="px-5 py-2 text-slate-300">{d.device_name || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -838,6 +871,27 @@ export default function VMDetailsPage() {
               </select>
             </DialogBox>
           )}
+        </DialogOverlay>
+      )}
+
+      {/* SSH Dialog */}
+      {sshDialogOpen && (
+        <DialogOverlay onClose={() => setSshDialogOpen(false)}>
+          <DialogBox title="SSH Connection" icon={<Terminal className="w-5 h-5 text-green-400" />} onClose={() => setSshDialogOpen(false)} onConfirm={() => { if (sshIp.trim()) { setSshDialogOpen(false); navigate(`/ssh/${encodeURIComponent(sshIp.trim())}`) } }} confirmLabel="Connect">
+            <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Host IP Address</label>
+            <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field" />
+            {guestIps.length > 0 && (
+              <div className="mt-3">
+                <span className="text-xs text-slate-500">Detected IPs:</span>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {guestIps.map((ip, i) => (
+                    <button key={i} onClick={() => setSshIp(ip.address)} className="px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-xs text-blue-400 hover:bg-slate-700 transition">{ip.address}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <p className="text-xs text-slate-500 mt-2">Connects via the WebSocket SSH proxy to port 22 on the specified host.</p>
+          </DialogBox>
         </DialogOverlay>
       )}
     </div>

@@ -172,6 +172,15 @@ async fn list_pci_handler(
     Ok(Json(serde_json::json!(devices)))
 }
 
+// ── IOMMU Groups ─────────────────────────────────────────────────
+
+async fn list_iommu_groups_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let groups = extras::list_iommu_groups()?;
+    Ok(Json(serde_json::json!(groups)))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn extras_routes() -> Router<LibvirtManager> {
@@ -196,6 +205,8 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/tags", get(get_all_tags_handler))
         // PCI
         .route("/host/pci", get(list_pci_handler))
+        // IOMMU
+        .route("/host/iommu-groups", get(list_iommu_groups_handler))
         // Host stats + DHCP
         .route("/host/stats", get(get_host_stats))
         .route("/dhcp-leases", get(list_dhcp_leases))

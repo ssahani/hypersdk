@@ -26,3 +26,4 @@ rand = "0.8"
 hex = "0.4"
 tower = "0.5"
 http = "1"
+axum-server = { version = "0.7", features = ["tls-rustls"] }

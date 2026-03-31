@@ -61,11 +61,25 @@ async fn main() -> anyhow::Result<()> {
 
     let bind_addr = config.bind_addr();
     let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
-    info!("listening on {bind_addr}");
 
-    axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal())
-        .await?;
+    if config.tls.enabled && !config.tls.cert_path.is_empty() && !config.tls.key_path.is_empty() {
+        info!("listening on {bind_addr} (TLS enabled)");
+        info!("  cert: {}", config.tls.cert_path);
+        info!("  key:  {}", config.tls.key_path);
+
+        let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
+            &config.tls.cert_path, &config.tls.key_path
+        ).await?;
+
+        axum_server::bind_rustls(bind_addr.parse()?, tls_config)
+            .serve(app.into_make_service())
+            .await?;
+    } else {
+        info!("listening on {bind_addr}");
+        axum::serve(listener, app)
+            .with_graceful_shutdown(shutdown_signal())
+            .await?;
+    }
 
     info!("Shutting down");
     Ok(())

@@ -543,6 +543,104 @@ fn format_lease_expiry(epoch: i64) -> String {
     format!("{hours}h {mins}m")
 }
 
+// ── IOMMU Groups ─────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IommuDevice {
+    pub bdf: String,     // e.g. "0000:01:00.0"
+    pub vendor: String,
+    pub device_name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IommuGroup {
+    pub group_id: u32,
+    pub devices: Vec<IommuDevice>,
+}
+
+/// Read /sys/kernel/iommu_groups/*/devices/* and return IOMMU groups with PCI device info.
+pub fn list_iommu_groups() -> Result<Vec<IommuGroup>, LibvirtError> {
+    let iommu_base = Path::new("/sys/kernel/iommu_groups");
+    if !iommu_base.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut groups = Vec::new();
+    let mut group_dirs: Vec<_> = std::fs::read_dir(iommu_base)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to read IOMMU groups: {e}")))?
+        .flatten()
+        .collect();
+
+    // Sort by group number
+    group_dirs.sort_by_key(|e| {
+        e.file_name()
+            .to_str()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(u32::MAX)
+    });
+
+    for entry in &group_dirs {
+        let group_id = match entry.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) {
+            Some(id) => id,
+            None => continue,
+        };
+
+        let devices_dir = entry.path().join("devices");
+        if !devices_dir.is_dir() {
+            continue;
+        }
+
+        let mut devices = Vec::new();
+        if let Ok(dev_entries) = std::fs::read_dir(&devices_dir) {
+            for dev_entry in dev_entries.flatten() {
+                let bdf = dev_entry.file_name().to_string_lossy().to_string();
+
+                // Try to read vendor/device description via lspci -s BDF -mm
+                let (vendor, device_name) = match Command::new("lspci")
+                    .args(["-s", &bdf, "-mm"])
+                    .output()
+                {
+                    Ok(output) => {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        parse_lspci_mm_line(&stdout)
+                    }
+                    Err(_) => (String::new(), String::new()),
+                };
+
+                devices.push(IommuDevice {
+                    bdf,
+                    vendor,
+                    device_name,
+                });
+            }
+        }
+
+        devices.sort_by(|a, b| a.bdf.cmp(&b.bdf));
+
+        groups.push(IommuGroup {
+            group_id,
+            devices,
+        });
+    }
+
+    Ok(groups)
+}
+
+/// Parse a single line of `lspci -s BDF -mm` output to extract vendor and device name.
+fn parse_lspci_mm_line(line: &str) -> (String, String) {
+    // Format: Slot\tClass\tVendor\tDevice\t...
+    // Fields are quoted with double-quotes
+    let fields: Vec<&str> = line.trim().split('\t').collect();
+    // lspci -mm outputs: Slot  Class  Vendor  Device  SVendor  SDevice  PhySlot  Rev  ProgIf
+    if fields.len() >= 4 {
+        let vendor = fields[2].trim_matches('"').to_string();
+        let device = fields[3].trim_matches('"').to_string();
+        (vendor, device)
+    } else {
+        (String::new(), String::new())
+    }
+}
+
 // ── PCI / IOMMU Passthrough Listing ───────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
