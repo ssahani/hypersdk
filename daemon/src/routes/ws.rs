@@ -447,6 +447,9 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         || host.contains('\\')
         || host.contains(' ')
         || host.contains('\0')
+        || host.contains(';')
+        || host.contains('|')
+        || host.contains('&')
     {
         info!("SSH: invalid host '{}'", host);
         let (mut sink, _) = socket.split();
@@ -454,17 +457,28 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         return;
     }
 
-    let addr = format!("{}:22", host);
-    info!("SSH WebSocket proxy connecting to {}", addr);
+    info!("SSH WebSocket spawning ssh process to {}", host);
 
-    let tcp = match tokio::net::TcpStream::connect(&addr).await {
-        Ok(s) => s,
+    // Spawn ssh via 'script' to allocate a PTY (ssh requires a PTY for interactive login)
+    // script -qfc "ssh ..." /dev/null allocates a PTY and runs the command
+    let mut child = match tokio::process::Command::new("script")
+        .args([
+            "-qfc",
+            &format!("ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR {host}"),
+            "/dev/null",
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+    {
+        Ok(c) => c,
         Err(e) => {
-            warn!("Failed to connect to SSH at {}: {}", addr, e);
+            warn!("Failed to spawn ssh to {}: {}", host, e);
             let (mut sink, _) = socket.split();
             let _ = sink
                 .send(Message::Text(
-                    format!("\r\nFailed to connect to {}: {}\r\n", addr, e).into(),
+                    format!("\r\nFailed to start SSH to {}: {}\r\n", host, e).into(),
                 ))
                 .await;
             let _ = sink.close().await;
@@ -472,23 +486,35 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         }
     };
 
-    info!("SSH TCP connected to {}", addr);
+    let mut stdin = match child.stdin.take() {
+        Some(s) => s,
+        None => {
+            let (mut sink, _) = socket.split();
+            let _ = sink.send(Message::Text("\r\nFailed to get SSH stdin\r\n".into())).await;
+            return;
+        }
+    };
 
-    let (mut tcp_read, mut tcp_write) = tcp.into_split();
+    let mut stdout = match child.stdout.take() {
+        Some(s) => s,
+        None => {
+            let (mut sink, _) = socket.split();
+            let _ = sink.send(Message::Text("\r\nFailed to get SSH stdout\r\n".into())).await;
+            return;
+        }
+    };
+
     let (mut ws_sink, mut ws_stream) = socket.split();
 
-    // TCP -> WebSocket (binary frames)
+    // SSH stdout → WebSocket
     let mut read_task = tokio::spawn(async move {
-        let mut buf = [0u8; 65536];
+        let mut buf = [0u8; 4096];
         loop {
-            match tcp_read.read(&mut buf).await {
+            match stdout.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
-                    if ws_sink
-                        .send(Message::Binary(buf[..n].to_vec().into()))
-                        .await
-                        .is_err()
-                    {
+                    let text = String::from_utf8_lossy(&buf[..n]).to_string();
+                    if ws_sink.send(Message::Text(text.into())).await.is_err() {
                         break;
                     }
                 }
@@ -497,22 +523,22 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         }
     });
 
-    // WebSocket -> TCP
+    // WebSocket → SSH stdin
     let ssh_host = host.clone();
     let mut write_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
-                Message::Binary(data) => {
-                    if tcp_write.write_all(&data).await.is_err() {
-                        break;
-                    }
-                }
                 Message::Text(text) => {
-                    if tcp_write.write_all(text.as_bytes()).await.is_err() {
+                    if stdin.write_all(text.as_bytes()).await.is_err() {
                         break;
                     }
                 }
-                Message::Ping(_) | Message::Pong(_) => { /* axum handles pong automatically */ }
+                Message::Binary(data) => {
+                    if stdin.write_all(&data).await.is_err() {
+                        break;
+                    }
+                }
+                Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => break,
             }
         }
@@ -523,7 +549,10 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         _ = &mut write_task => { read_task.abort(); }
     }
 
-    info!("SSH WebSocket proxy closed for host '{}'", ssh_host);
+    // Kill ssh process
+    let _ = child.kill().await;
+
+    info!("SSH WebSocket closed for host '{}'", ssh_host);
 }
 
 // ── Routes ──────────────────────────────────────────────────────────
