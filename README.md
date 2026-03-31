@@ -1,31 +1,37 @@
 # virtspawn
 
-**A modern libvirt VM management suite** — Rust daemon with REST/WebSocket API, a web UI with VNC console, and a keyboard-driven terminal UI.
+**A modern libvirt VM management suite** — Rust daemon with REST/WebSocket API, a web UI with VNC/SPICE/Serial/SSH console, and a keyboard-driven terminal UI.
 
-Manage virtual machines, networks, storage, and snapshots from your browser or terminal. Full VNC console access, live metrics, and Prometheus integration — all through a single daemon.
+Manage virtual machines, networks, storage, snapshots, host networking, and automation from your browser or terminal. PAM authentication with RBAC, full console access (VNC, SPICE, Serial, SSH), live metrics, Prometheus integration, alerts, webhooks, scheduled actions, and more — all through a single daemon.
 
 ---
 
 ## Architecture
 
 ```
-  ┌─────────────────────┐   ┌──────────────────────┐
-  │   virtspawn Web UI  │   │   virtspawn TUI      │
-  │  (React + noVNC)    │   │  (ratatui terminal)  │
-  └─────────┬───────────┘   └──────────┬───────────┘
-            │                          │
-            └────────┬─────────────────┘
-                     │  HTTP / WebSocket
+  ┌─────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
+  │   virtspawn Web UI  │   │   virtspawn TUI      │   │  API / Automation    │
+  │  (React + noVNC +   │   │  (ratatui terminal)  │   │  (curl / scripts /   │
+  │   SPICE + xterm.js) │   │                      │   │   Bearer tokens)     │
+  └─────────┬───────────┘   └──────────┬───────────┘   └──────────┬───────────┘
+            │                          │                          │
+            └────────┬─────────────────┼──────────────────────────┘
+                     │  HTTP / WebSocket (optional TLS)
             ┌────────┴─────────────────┐
             │    virtspawn-daemon      │
-            │  (axum REST API + noVNC  │
-            │   + VNC/console proxy)   │
-            └────────┬─────────────────┘
-                     │  libvirt API
-            ┌────────┴─────────────────┐
-            │     QEMU / KVM          │
-            │   Virtual Machines       │
-            └──────────────────────────┘
+            │  PAM auth + RBAC + API   │
+            │  tokens + cookie sessions│
+            │  VNC/SPICE/Serial/SSH    │
+            │  console proxies         │
+            └──┬────────┬──────────┬───┘
+               │        │          │
+     libvirt API    host cmds    iptables
+               │        │          │
+  ┌────────────┴──┐  ┌──┴───┐  ┌──┴──────────┐
+  │  QEMU / KVM  │  │ Host │  │ Networking   │
+  │  Virtual     │  │ mgmt │  │ port-forward │
+  │  Machines    │  │      │  │ firewall     │
+  └──────────────┘  └──────┘  └──────────────┘
 ```
 
 ### Workspace Layout
@@ -36,12 +42,13 @@ virtspawn/
 ├── daemon/             REST + WebSocket server (axum), VNC proxy, noVNC serving, Prometheus metrics
 ├── tui/                Terminal UI client (ratatui) with sidebar + content panel layout
 ├── web/                Web frontend (React 19 + TypeScript + Tailwind + Recharts + xterm.js)
-├── contrib/            Systemd unit, default config
+├── contrib/            Systemd units, default config, sync-deploy script
 ├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
 ├── examples/           Example user configuration
 ├── scripts/            Utility scripts (demo, status, backup, bulk operations)
 ├── virtspawnctl        Management CLI (deploy, verify, health, backup, upgrade, tls)
-├── install.sh          Automated installer (Fedora/Ubuntu)
+├── install.sh          Automated installer (Fedora/RHEL/Ubuntu/Debian/openSUSE/Arch)
+├── sync-deploy.sh      Remote deploy via rsync+sshpass
 └── Makefile            Build, install, deploy, manage targets
 ```
 
@@ -49,33 +56,65 @@ virtspawn/
 
 ## Features
 
+### Authentication & Security
+- **PAM authentication** — login with system credentials, persistent cookie sessions
+- **RBAC** — role-based access control with admin, operator, and readonly roles
+- **API tokens** — Bearer token authentication for automation and scripting
+- **TLS support** — optional HTTPS via `[tls]` config section with cert/key paths
+- **Same-origin only** — no CORS (prevents cross-site attacks)
+
 ### Web UI (http://localhost:8081)
-- **Dashboard** — VM stats, host info, CPU/memory usage charts, VM list with state indicators
+- **Dashboard** — VM stats, host CPU/memory/disk gauges, VM list with state indicators
 - **VM Management** — start, stop, shutdown, reboot, pause, resume, delete with confirmation dialogs
 - **VM Details** — tabbed view (Overview, Disks, Network, Snapshots) with live metrics and autostart toggle
-- **Create VM** — form with template selector (linux-small/medium/large, windows, minimal), validation
-- **VNC Console** — in-browser VM display via noVNC, connected through daemon's WebSocket proxy — see the actual login screen, no external tools needed
+- **Create VM** — form with template selector (linux-small/medium/large, windows, minimal), validation, UEFI firmware selection, cloud-init support
+- **Import VM** — convert and import VMDK/VDI/VHD disk images to qcow2
+- **VNC Console** — in-browser VM display via noVNC RFB client (dynamically loaded from server)
+- **SPICE Console** — in-browser SPICE display via spice-html5
 - **Serial Console** — xterm.js terminal connected directly to VM's serial PTY via async I/O
+- **SSH Console** — browser-based SSH access via spawned ssh process with PTY WebSocket
+- **Host Networking** — visual network topology (SVG graph), port forwarding, bridge management, per-VM firewall rules, DHCP lease viewer
 - **Networks** — list, start/stop, toggle autostart, delete
 - **Storage** — pool cards with capacity bars, volume browser, delete volumes
 - **Snapshots** — list all across VMs, revert, delete
-- **Host Info** — hypervisor, CPU model/cores/threads, memory, libvirt version
-- **Live Metrics** — real-time memory/disk/network I/O per VM
+- **Host Info** — hypervisor, CPU model/cores/threads, memory, libvirt version, DMI hardware details (vendor, product, BIOS)
+- **Systemd Services** — browse and manage host systemd services
+- **System Logs** — journald log browser
+- **Audit Log** — view all operation history with timestamps
+- **Settings** — RBAC role management, API tokens, alert rules, webhooks, scheduled actions, notification channels
+- **ISO/Disk Browser** — browse available ISO images and disk images on the host
+- **API Docs** — built-in OpenAPI documentation page
+- **Live Metrics** — real-time per-VM time-series metrics charts (memory, disk I/O, network I/O)
+- **PCI/IOMMU Devices** — PCI device listing with IOMMU group info
 - **Toast notifications** — success/error/warning feedback for all actions
 - **WebSocket live updates** — dashboard auto-refreshes when VM state changes
 - **Responsive** — works on desktop and mobile with collapsible nav
-- **Dark theme** — modern dark UI
+- **Dark/light theme** — toggle between dark and light themes
 
 ### VM Management
 - **Create** from parameters or templates with auto-generated qcow2 disk, VNC graphics, virtio devices, q35 machine type
+- **Create from existing disk** — use an existing qcow2/raw/vmdk disk image instead of creating a new one
+- **UEFI firmware** — select UEFI boot with auto-detected OVMF paths
+- **Cloud-init** — generate cloud-init ISO with hostname, user, password, SSH key
+- **Import VM** — convert VMDK/VDI/VHD disk images to qcow2 and create a VM
 - **Interactive creation dialog** — form-based VM creation with template dropdown, field validation, Tab navigation (`n` key)
 - **Lifecycle** — start, stop (force), shutdown (graceful), reboot, pause, resume, delete with confirmation dialogs
 - **Clone** with automatic UUID regeneration and unique MAC addresses
-- **Resize** vCPUs and memory (applies on next boot)
+- **Live resize** — edit vCPUs and memory on running VMs (live hotplug)
+- **Resize** vCPUs and memory (also applies on next boot for stopped VMs)
+- **Memory balloon** — live memory balloon adjustment for running VMs
 - **Rename** VMs (requires shutoff state)
+- **Edit boot order** — configure boot device priority (hd, cdrom, network, etc.)
 - **Autostart** toggle per VM, network, and storage pool
-- **Disk management** — hot attach/detach disks to running or stopped VMs
-- **Console access** — VNC in browser, virt-viewer, SSH, or virsh console
+- **Disk management** — hot attach/detach disks to running or stopped VMs, with resize support
+- **NIC attach/detach** — add or remove network interfaces on VMs
+- **CD-ROM insert/eject** — auto-detects existing cdrom device, creates new if needed
+- **USB passthrough** — attach/detach USB devices by vendor:product ID
+- **VM tags/labels** — tag VMs with filtering support
+- **Save as template** — save a VM configuration as a reusable template
+- **Snapshots with descriptions** — create, delete, revert snapshots with optional descriptions
+- **Migrate** — live or offline migration to remote hosts
+- **Console access** — VNC, SPICE, serial, and SSH in browser; also virt-viewer and virsh console
 
 ### Live Metrics & Monitoring
 - **Memory usage** with Unicode block bar graphs (`▁▂▃▄▅▆▇█`)
@@ -88,6 +127,29 @@ virtspawn/
 - **Snapshots** — list, create, delete, revert across all VMs
 - **Networks** — create, delete, start, stop, toggle autostart for virtual networks (NAT with DHCP)
 - **Storage** — browse pools with capacity/usage, start/stop/refresh pools, toggle autostart, volume browser
+
+### Host Networking
+- **Network topology** — visual SVG graph of bridges, networks, and VMs
+- **Bridge creation** — auto-detects nmcli vs netplan vs ip (distro-aware: netplan for Ubuntu, nmcli for RHEL/Fedora)
+- **Port forwarding** — iptables DNAT rules for exposing VM services
+- **Per-VM firewall rules** — iptables FORWARD chain rules per VM
+- **DHCP lease viewer** — see active DHCP leases across networks
+
+### Automation
+- **Alerts** — configurable CPU/memory/disk threshold alerts
+- **Webhooks** — HTTP POST notifications on VM events
+- **Scheduled actions** — daily VM start/stop/shutdown on schedule
+- **Snapshot scheduler** — automatic snapshots with configurable retention
+- **Notifications** — send alerts via Slack, email, Telegram, or webhook
+
+### Host Management
+- **Systemd service manager** — browse and control host systemd services
+- **System logs** — journald log browser with filtering
+- **Host shutdown/reboot** — trigger from the dashboard
+- **Hostname/timezone** — configure from the web UI
+- **PCI/IOMMU listing** — enumerate PCI devices and IOMMU groups
+- **USB device listing** — list connected USB devices for passthrough
+- **DMI hardware info** — vendor, product, BIOS version, CPU model details
 
 ### TUI Experience
 - **vSphere-style sidebar + content layout** — left inventory tree with collapsible categories
@@ -112,17 +174,24 @@ virtspawn/
 - **Per-VM backup button** — one-click backup from VM details page
 
 ### Infrastructure
+- **PAM authentication** — system user login with persistent cookie sessions
+- **RBAC** — admin/operator/readonly roles with granular permissions
+- **API tokens** — Bearer authentication for automation scripts
+- **TLS** — optional HTTPS with configurable cert/key paths
 - **WebSocket** — real-time VM state change notifications
 - **VNC WebSocket proxy** — built-in TCP-to-WebSocket proxy for VNC, no external websockify needed
+- **SPICE WebSocket proxy** — built-in proxy for SPICE console
 - **Serial console proxy** — direct async PTY I/O over WebSocket (no socat dependency)
+- **SSH proxy** — browser SSH via spawned ssh process with PTY WebSocket
 - **noVNC serving** — auto-discovers system noVNC installation and serves at `/novnc/`
 - **Connection resilience** — auto-reconnects to libvirt if connection drops
 - **Systemd service** — hardened unit file with security restrictions
 - **Config hierarchy** — user config > system config > defaults > CLI overrides
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
 - **Security hardened** — migration URI validation (SSRF prevention), ISO path canonicalization, PTY path validation, integer overflow protection, no CORS (same-origin only)
-- **Audit logging** — all operations logged with timestamps to `~/.virtspawn/audit.log`
+- **Audit logging** — all operations logged with timestamps
 - **Graceful shutdown** — daemon handles SIGTERM/SIGINT cleanly
+- **Distro support** — installer supports Fedora, RHEL, Ubuntu, Debian, openSUSE, Arch Linux
 
 ---
 
@@ -192,11 +261,25 @@ make                           # Build everything
 sudo make deploy               # Install and start
 ```
 
-### Alternative: install.sh (legacy)
+### Alternative: install.sh
+
+Supports Fedora, RHEL, Ubuntu, Debian, openSUSE, and Arch Linux.
 
 ```bash
-sudo ./install.sh              # Full automated install
-sudo ./install.sh --uninstall  # Remove
+sudo ./install.sh                          # Full automated install
+sudo ./install.sh --bind 0.0.0.0           # Bind to all interfaces
+sudo ./install.sh --open-firewall          # Open port in firewalld/ufw
+sudo ./install.sh --remote user@host       # Remote install via SSH
+sudo ./install.sh --deps-only              # Install dependencies only
+sudo ./install.sh --no-start               # Install without starting service
+sudo ./install.sh --uninstall              # Remove everything
+```
+
+### Remote Deploy
+
+```bash
+./sync-deploy.sh user@remote-host    # rsync + sshpass remote deployment
+sudo ./install.sh --remote user@host # Remote install via SSH
 ```
 
 ### What `make deploy` does
@@ -235,37 +318,56 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 
 | Page | URL | Description |
 |------|-----|-------------|
-| Dashboard | `/` | Stats cards, CPU/memory charts, VM list, host info |
+| Dashboard | `/` | Stats cards, CPU/memory/disk gauges, VM list, host info |
 | VM List | `/vms` | Table with search, state badges, lifecycle actions |
 | VM Details | `/vms/{name}` | Overview (IPs, boot config), Disks, Network, Snapshots |
-| Create VM | `/create` | Template selector + form with validation |
+| Create VM | `/create` | Template selector + form with validation, UEFI, cloud-init |
+| Import VM | `/import` | Convert and import VMDK/VDI/VHD disk images |
 | VNC Console | `/vms/{name}/console` | In-browser VNC display via noVNC |
+| SPICE Console | `/vms/{name}/console` | In-browser SPICE display via spice-html5 |
 | Serial Console | `/vms/{name}/console` | xterm.js terminal to VM serial port |
+| SSH Console | `/ssh/:host` | Browser-based SSH via spawned ssh process with PTY |
+| Host Networking | `/host-networking` | Network topology, port forwarding, bridges, firewall |
 | Networks | `/networks` | Start/stop, autostart toggle, delete |
 | Storage | `/storage` | Pool cards with create/delete, volume browser with resize/clone |
 | Snapshots | `/snapshots` | List all, revert, delete |
-| Host Info | `/node` | Hypervisor, CPU, memory, libvirt version |
-| Live Metrics | `/events` | Real-time per-VM metrics table |
+| Host Info | `/node` | Hypervisor, CPU, memory, libvirt version, DMI hardware |
+| Services | `/services` | Systemd service browser and manager |
+| System Logs | `/logs` | Journald log browser |
+| Audit Log | `/audit` | Operation history with timestamps |
+| Settings | `/settings` | RBAC roles, API tokens, alerts, webhooks, schedules, notifications |
+| Live Metrics | `/events` | Real-time per-VM time-series metrics charts |
 | Capabilities | `/capabilities` | Hypervisor capabilities, guest types, SMBIOS sysinfo |
 | Node Devices | `/devices` | PCI, USB, SCSI, network device inventory |
 | Network Filters | `/nwfilters` | List/delete libvirt network filters |
 | Backups | `/backups` | Backup/restore, download, verify, schedule timer, per-VM |
+| API Docs | `/api-docs` | Built-in OpenAPI documentation |
 
 ### Console Access
 
-The VNC console connects directly through the daemon — no external websockify or noVNC server needed:
+Four console types are supported, auto-selected based on VM graphics configuration:
 
+**VNC** — connects directly through the daemon (no external websockify or noVNC server needed):
 ```
 Browser → noVNC (served at /novnc/) → WebSocket (/ws/v1/vnc/{name}) → daemon TCP proxy → QEMU VNC
 ```
 
-The serial console connects directly to the VM's PTY (no socat needed):
+**SPICE** — for VMs with SPICE graphics:
+```
+Browser → spice-html5 → WebSocket (/ws/v1/spice/{name}) → daemon TCP proxy → QEMU SPICE
+```
 
+**Serial** — connects directly to the VM's PTY (no socat needed):
 ```
 Browser → xterm.js → WebSocket (/ws/v1/console/{name}) → async PTY I/O → VM PTY (/dev/pts/X)
 ```
 
-> **Note:** VMs must use VNC graphics (not SPICE) for the browser console to work. New VMs created through virtspawn use VNC by default. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
+**SSH** — browser-based SSH access:
+```
+Browser → xterm.js → WebSocket (/ws/v1/ssh/{host}) → spawned ssh process → remote host
+```
+
+> **Note:** New VMs created through virtspawn use VNC by default. The console page auto-detects the graphics type and selects VNC or SPICE accordingly. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
 
 ---
 
@@ -289,11 +391,21 @@ port = 8081                  # Bind port
 [libvirt]
 uri = "qemu:///system"       # Libvirt connection URI
 
+[tls]
+enabled = true                              # Enable HTTPS
+cert_path = "/etc/virtspawn/cert.pem"       # TLS certificate
+key_path = "/etc/virtspawn/key.pem"         # TLS private key
+
 [backup]
 backup_dir = "/var/lib/virtspawn/backups"  # Where backups are stored
 # nfs_target = "192.168.1.100:/backups"    # NFS target (optional)
 with_disks = false                          # Include disk images by default
 retain = 7                                  # Keep last 7 backups
+```
+
+Generate a self-signed TLS certificate:
+```bash
+./virtspawnctl tls    # Generates cert.pem and key.pem in /etc/virtspawn/
 ```
 
 See [`examples/config.toml`](examples/config.toml) for the full annotated configuration.
@@ -423,6 +535,16 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `POST` | `/vms/{name}/boot` | Set boot order (`{"devices": ["hd", "cdrom"]}`) |
 | `POST` | `/vms/{name}/migrate` | Migrate (`{"dest_uri": "...", "live": true}`) |
 | `POST` | `/vms/{name}/balloon/{mb}` | Live memory balloon |
+| `POST` | `/vms/{name}/disk/resize/{target}` | Resize attached disk |
+| `POST` | `/vms/{name}/nic/attach` | Attach network interface |
+| `POST` | `/vms/{name}/nic/detach/{mac}` | Detach network interface by MAC |
+| `POST` | `/vms/{name}/usb/attach` | USB passthrough attach (`{"vendor_id":"...", "product_id":"..."}`) |
+| `POST` | `/vms/{name}/usb/detach` | USB passthrough detach |
+| `POST` | `/vms/{name}/live/vcpus/{n}` | Live vCPU hotplug |
+| `POST` | `/vms/{name}/live/memory/{mb}` | Live memory hotplug |
+| `GET` | `/vms/{name}/tags` | Get VM tags |
+| `POST` | `/vms/{name}/tags` | Set VM tags |
+| `POST` | `/vms/{name}/save-template` | Save VM as reusable template |
 
 ### Snapshots
 
@@ -491,6 +613,80 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `DELETE` | `/nwfilters/{name}` | Delete filter |
 | `GET` | `/secrets` | List libvirt secrets |
 | `DELETE` | `/secrets/{uuid}` | Delete secret |
+| `GET` | `/host/interfaces` | List host network interfaces |
+| `GET` | `/host/bridges` | List host bridges |
+| `GET` | `/host/stats` | Host resource statistics |
+| `GET` | `/host/pci` | PCI device listing |
+| `GET` | `/host/iommu-groups` | IOMMU group listing |
+| `GET` | `/host/usb` | USB device listing |
+| `GET` | `/host/system-info` | DMI hardware details (vendor, product, BIOS) |
+| `GET` | `/host/backends` | Available backend capabilities |
+| `POST` | `/host/shutdown` | Shut down the host |
+| `POST` | `/host/reboot` | Reboot the host |
+| `POST` | `/host/hostname` | Set hostname |
+| `POST` | `/host/timezone` | Set timezone |
+
+### Browsing & Import
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/browse/isos` | List available ISO images |
+| `GET` | `/browse/disks` | List available disk images |
+| `POST` | `/cloud-init` | Generate cloud-init ISO |
+| `POST` | `/import/disk` | Import and convert VMDK/VDI/VHD to qcow2 |
+
+### Networking & Firewall
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/portforward` | List port forwarding rules |
+| `POST` | `/portforward` | Create port forwarding rule |
+| `GET` | `/firewall` | List firewall rules |
+| `POST` | `/firewall` | Create firewall rule |
+| `GET` | `/dhcp-leases` | List DHCP leases |
+| `GET` | `/tags` | List all tags across VMs |
+
+### Authentication
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api/v1/auth/login` | Login with PAM credentials |
+| `POST` | `/api/v1/auth/logout` | Logout and clear session |
+| `GET` | `/api/v1/auth/session` | Get current session info |
+
+### RBAC & Tokens
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/roles` | List roles |
+| `POST` | `/roles` | Create/update role |
+| `GET` | `/tokens` | List API tokens |
+| `POST` | `/tokens` | Create API token |
+
+### Automation & Monitoring
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/alert-rules` | List alert rules |
+| `POST` | `/alert-rules` | Create/update alert rule |
+| `GET` | `/alerts` | List triggered alerts |
+| `GET` | `/webhooks` | List webhooks |
+| `POST` | `/webhooks` | Create webhook |
+| `GET` | `/schedules` | List scheduled actions |
+| `POST` | `/schedules` | Create scheduled action |
+| `GET` | `/snapshot-schedules` | List snapshot schedules |
+| `POST` | `/snapshot-schedules` | Create snapshot schedule |
+| `GET` | `/notifications` | List notification channels |
+| `POST` | `/notifications` | Create notification channel (Slack/email/Telegram/webhook) |
+
+### Services & Logs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/services` | List systemd services |
+| `POST` | `/services/{name}/{action}` | Control service (start/stop/restart/enable/disable) |
+| `GET` | `/logs` | Query journald logs |
+| `GET` | `/audit` | View audit log |
 
 ### WebSocket
 
@@ -499,6 +695,8 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `/ws/v1/watch` | Real-time VM state changes |
 | `/ws/v1/console/{name}` | Serial console (PTY bridge) |
 | `/ws/v1/vnc/{name}` | VNC display proxy |
+| `/ws/v1/spice/{name}` | SPICE display proxy |
+| `/ws/v1/ssh/{host}` | SSH terminal proxy |
 
 ### Other
 
@@ -570,6 +768,43 @@ curl -s -X POST http://localhost:8081/api/v1/backups/restore \
 curl -s -X POST http://localhost:8081/api/v1/backups/schedule \
   -H 'Content-Type: application/json' \
   -d '{"enabled": true}' | jq
+
+# Login (PAM authentication)
+curl -s -X POST http://localhost:8081/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"username": "admin", "password": "secret"}' -c cookies.txt | jq
+
+# Use API token (Bearer auth)
+curl -s http://localhost:8081/api/v1/vms \
+  -H 'Authorization: Bearer your-api-token' | jq
+
+# Live resize vCPUs on running VM
+curl -s -X POST http://localhost:8081/api/v1/vms/test-vm/live/vcpus/4 | jq
+
+# Tag a VM
+curl -s -X POST http://localhost:8081/api/v1/vms/test-vm/tags \
+  -H 'Content-Type: application/json' \
+  -d '{"tags": ["production", "web"]}' | jq
+
+# USB passthrough
+curl -s -X POST http://localhost:8081/api/v1/vms/test-vm/usb/attach \
+  -H 'Content-Type: application/json' \
+  -d '{"vendor_id": "0x1234", "product_id": "0x5678"}' | jq
+
+# Create port forwarding rule
+curl -s -X POST http://localhost:8081/api/v1/portforward \
+  -H 'Content-Type: application/json' \
+  -d '{"host_port": 8080, "vm_ip": "192.168.122.10", "vm_port": 80, "protocol": "tcp"}' | jq
+
+# Create alert rule
+curl -s -X POST http://localhost:8081/api/v1/alert-rules \
+  -H 'Content-Type: application/json' \
+  -d '{"metric": "cpu", "threshold": 90, "duration_secs": 300}' | jq
+
+# Generate cloud-init ISO
+curl -s -X POST http://localhost:8081/api/v1/cloud-init \
+  -H 'Content-Type: application/json' \
+  -d '{"hostname": "myvm", "user": "admin", "ssh_key": "ssh-rsa AAAA..."}' | jq
 ```
 
 ---
@@ -692,7 +927,8 @@ sudo usermod -aG libvirt $USER && newgrp libvirt
 | Web UI | [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org/) + [Tailwind CSS 4](https://tailwindcss.com) |
 | Charts | [Recharts](https://recharts.org) |
 | VNC Console | [noVNC](https://novnc.com) (served from system install) |
-| Serial Console | [xterm.js](https://xtermjs.org) + direct PTY I/O |
+| SPICE Console | [spice-html5](https://gitlab.freedesktop.org/niclas/spice-html5) |
+| Serial/SSH Console | [xterm.js](https://xtermjs.org) + direct PTY I/O |
 | Libvirt | [virt](https://crates.io/crates/virt) crate |
 | HTTP client | [Reqwest](https://crates.io/crates/reqwest) |
 | Serialization | [Serde](https://serde.rs) |
