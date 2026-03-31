@@ -874,25 +874,36 @@ export default function VMDetailsPage() {
         </DialogOverlay>
       )}
 
-      {/* SSH Dialog */}
+      {/* SSH Dialog — standalone, not using DialogOverlay/DialogBox to avoid click conflicts */}
       {sshDialogOpen && (
-        <DialogOverlay onClose={() => setSshDialogOpen(false)}>
-          <DialogBox title="SSH Connection" icon={<Terminal className="w-5 h-5 text-green-400" />} onClose={() => setSshDialogOpen(false)} onConfirm={() => { if (sshIp.trim()) { window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` } }} confirmLabel="Connect">
-            <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Host IP Address</label>
-            <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field" onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) { window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` } }} />
-            {guestIps.length > 0 && (
-              <div className="mt-3">
-                <span className="text-xs text-slate-500">Detected IPs:</span>
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {guestIps.map((ip, i) => (
-                    <button key={i} onClick={() => setSshIp(ip.address)} className="px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-xs text-blue-400 hover:bg-slate-700 transition">{ip.address}</button>
-                  ))}
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true">
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
+              <span className="text-lg font-semibold flex items-center gap-2"><Terminal className="w-5 h-5 text-green-400" /> SSH Connection</span>
+              <button onClick={() => setSshDialogOpen(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Host IP Address</label>
+              <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field"
+                onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` }} />
+              {guestIps.length > 0 && (
+                <div>
+                  <span className="text-xs text-slate-500">Detected IPs:</span>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {guestIps.map((ip, i) => (
+                      <button key={i} type="button" onClick={() => setSshIp(ip.address)} className="px-2 py-0.5 bg-slate-900 border border-slate-700 rounded text-xs text-blue-400 hover:bg-slate-700 transition">{ip.address}</button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
-            <p className="text-xs text-slate-500 mt-2">Connects via the WebSocket SSH proxy to port 22 on the specified host.</p>
-          </DialogBox>
-        </DialogOverlay>
+              )}
+              <p className="text-xs text-slate-500">Opens browser SSH terminal to port 22 on the specified host.</p>
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5">
+              <button type="button" onClick={() => setSshDialogOpen(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+              <button type="button" onClick={() => { if (sshIp.trim()) window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` }} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Connect</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
