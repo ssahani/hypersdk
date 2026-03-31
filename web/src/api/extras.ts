@@ -110,3 +110,46 @@ export interface IommuGroup {
   devices: IommuDevice[]
 }
 export const listIommuGroups = () => apiGet<IommuGroup[]>(`${API}/host/iommu-groups`)
+
+// Systemd Services
+export interface SystemdService {
+  name: string
+  description: string
+  active_state: string
+  sub_state: string
+  enabled: string
+}
+export const listServices = () => apiGet<SystemdService[]>(`${API}/services`)
+export const serviceAction = (name: string, action: string) =>
+  apiPost<{ status: string }>(`${API}/services/${encodeURIComponent(name)}/${action}`)
+
+// System Logs
+export interface JournalEntry {
+  timestamp: string
+  unit: string
+  priority: string
+  message: string
+}
+export const getJournalLogs = (lines: number = 100, priority?: string, unit?: string) => {
+  const params = new URLSearchParams({ lines: String(lines) })
+  if (priority) params.set('priority', priority)
+  if (unit) params.set('unit', unit)
+  return apiGet<JournalEntry[]>(`${API}/logs?${params.toString()}`)
+}
+
+// Host Shutdown/Reboot
+export const hostShutdown = () => apiPost<{ status: string }>(`${API}/host/shutdown`)
+export const hostReboot = () => apiPost<{ status: string }>(`${API}/host/reboot`)
+
+// System Info
+export interface SystemInfo {
+  hostname: string
+  timezone: string
+  kernel_version: string
+  os_name: string
+  os_version: string
+  os_pretty_name: string
+}
+export const getSystemInfo = () => apiGet<SystemInfo>(`${API}/host/system-info`)
+export const setHostname = (hostname: string) => apiPost<{ status: string }>(`${API}/host/hostname`, { hostname })
+export const setTimezone = (timezone: string) => apiPost<{ status: string }>(`${API}/host/timezone`, { timezone })

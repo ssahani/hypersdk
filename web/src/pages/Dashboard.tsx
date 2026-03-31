@@ -6,7 +6,8 @@ import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
 import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw } from 'lucide-react'
+import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 
@@ -55,6 +56,19 @@ export default function Dashboard() {
     return () => unsubscribe()
   }, [subscribe, loadData])
 
+  const [showShutdownConfirm, setShowShutdownConfirm] = useState(false)
+  const [showRebootConfirm, setShowRebootConfirm] = useState(false)
+
+  const handleHostShutdown = async () => {
+    try { await hostShutdown() } catch (e) { console.error('Shutdown failed:', e) }
+    setShowShutdownConfirm(false)
+  }
+
+  const handleHostReboot = async () => {
+    try { await hostReboot() } catch (e) { console.error('Reboot failed:', e) }
+    setShowRebootConfirm(false)
+  }
+
   const running = vms.filter((v) => v.state === 'running').length
   const stopped = vms.filter((v) => v.state === 'shutoff').length
   const paused = vms.length - running - stopped
@@ -75,9 +89,17 @@ export default function Dashboard() {
             {node ? `${node.hostname} — ${node.hypervisor} ${node.hypervisor_version}` : 'Loading host info...'}
           </p>
         </div>
-        <Link to="/create" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg text-sm font-medium shadow-lg shadow-blue-600/20 transition-all">
-          <Server className="w-4 h-4" /> New VM
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowRebootConfirm(true)} className="flex items-center gap-1.5 px-3 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/30 rounded-lg text-sm font-medium text-yellow-400 transition-all" title="Reboot host">
+            <RotateCcw className="w-4 h-4" /> Reboot
+          </button>
+          <button onClick={() => setShowShutdownConfirm(true)} className="flex items-center gap-1.5 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/30 rounded-lg text-sm font-medium text-red-400 transition-all" title="Shutdown host">
+            <Power className="w-4 h-4" /> Shutdown
+          </button>
+          <Link to="/create" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg text-sm font-medium shadow-lg shadow-blue-600/20 transition-all">
+            <Server className="w-4 h-4" /> New VM
+          </Link>
+        </div>
       </div>
 
       {/* Stat Cards */}
@@ -144,6 +166,34 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </ChartCard>
       </div>
+
+      {/* Shutdown Confirmation */}
+      {showShutdownConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowShutdownConfirm(false)}>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Shutdown</h3>
+            <p className="text-sm text-slate-400 mb-6">Are you sure you want to shut down this host? All running VMs will be stopped and the system will power off.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowShutdownConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
+              <button onClick={handleHostShutdown} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition">Shut Down</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reboot Confirmation */}
+      {showRebootConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowRebootConfirm(false)}>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Reboot</h3>
+            <p className="text-sm text-slate-400 mb-6">Are you sure you want to reboot this host? All running VMs will be stopped and the system will restart.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowRebootConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
+              <button onClick={handleHostReboot} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-sm font-medium transition">Reboot</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* VM List */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">

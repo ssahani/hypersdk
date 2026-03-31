@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router'
 import {
   Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe, FileText, Upload,
   Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User, Sun, Moon,
+  Cog, ScrollText,
 } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
 import { useAuth } from '../contexts/AuthContext'
@@ -46,6 +47,8 @@ const navGroups: NavGroup[] = [
       { to: '/events', icon: <Activity className="w-4 h-4" />, label: 'Live Metrics' },
       { to: '/capabilities', icon: <MonitorCog className="w-4 h-4" />, label: 'Capabilities' },
       { to: '/devices', icon: <Usb className="w-4 h-4" />, label: 'Node Devices' },
+      { to: '/services', icon: <Cog className="w-4 h-4" />, label: 'Services' },
+      { to: '/logs', icon: <ScrollText className="w-4 h-4" />, label: 'System Logs' },
       { to: '/audit', icon: <FileText className="w-4 h-4" />, label: 'Audit Log' },
       { to: '/api-docs', icon: <FileText className="w-4 h-4" />, label: 'API Docs' },
       { to: '/settings', icon: <Shield className="w-4 h-4" />, label: 'Settings' },

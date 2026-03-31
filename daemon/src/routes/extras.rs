@@ -3,9 +3,19 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use virtspawn_core::libvirt::extras;
-use virtspawn_core::{audit, LibvirtManager};
+use virtspawn_core::{audit, AuditEvent, LibvirtManager};
 
 use crate::error::AppError;
+
+fn log_audit(action: &str, target: &str, result: &str) {
+    let event = AuditEvent {
+        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        action: action.to_string(),
+        target: target.to_string(),
+        result: result.to_string(),
+    };
+    audit::write_audit_event(&event);
+}
 
 // ── ISO / Disk Browser ─────────────────────────────────────────────
 
@@ -181,6 +191,88 @@ async fn list_iommu_groups_handler(
     Ok(Json(serde_json::json!(groups)))
 }
 
+// ── Systemd Services ──────────────────────────────────────────────
+
+async fn list_services_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let services = extras::list_services()?;
+    Ok(Json(serde_json::json!(services)))
+}
+
+async fn service_action_handler(
+    State(_m): State<LibvirtManager>,
+    Path((name, action)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    log_audit("service_action", &format!("{action} {name}"), "");
+    extras::service_action(&name, &action)?;
+    Ok(Json(serde_json::json!({ "status": "ok", "service": name, "action": action })))
+}
+
+// ── System Logs ───────────────────────────────────────────────────
+
+async fn get_logs_handler(
+    State(_m): State<LibvirtManager>,
+    axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let lines: u32 = params.get("lines").and_then(|v| v.parse().ok()).unwrap_or(100);
+    let priority = params.get("priority").map(|s| s.as_str());
+    let unit = params.get("unit").map(|s| s.as_str());
+    let entries = extras::get_journal_logs(lines, priority, unit)?;
+    Ok(Json(serde_json::json!(entries)))
+}
+
+// ── Host Shutdown/Reboot ──────────────────────────────────────────
+
+async fn host_shutdown_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    log_audit("host_shutdown", "host", "");
+    extras::host_shutdown()?;
+    Ok(Json(serde_json::json!({ "status": "shutting_down" })))
+}
+
+async fn host_reboot_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    log_audit("host_reboot", "host", "");
+    extras::host_reboot()?;
+    Ok(Json(serde_json::json!({ "status": "rebooting" })))
+}
+
+// ── Host System Info ──────────────────────────────────────────────
+
+async fn get_system_info_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let info = extras::get_system_info()?;
+    Ok(Json(serde_json::json!(info)))
+}
+
+#[derive(Deserialize)]
+struct SetHostnameRequest { hostname: String }
+
+async fn set_hostname_handler(
+    State(_m): State<LibvirtManager>,
+    Json(req): Json<SetHostnameRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    log_audit("set_hostname", &req.hostname, "");
+    extras::set_hostname(&req.hostname)?;
+    Ok(Json(serde_json::json!({ "status": "ok", "hostname": req.hostname })))
+}
+
+#[derive(Deserialize)]
+struct SetTimezoneRequest { timezone: String }
+
+async fn set_timezone_handler(
+    State(_m): State<LibvirtManager>,
+    Json(req): Json<SetTimezoneRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    log_audit("set_timezone", &req.timezone, "");
+    extras::set_timezone(&req.timezone)?;
+    Ok(Json(serde_json::json!({ "status": "ok", "timezone": req.timezone })))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn extras_routes() -> Router<LibvirtManager> {
@@ -212,4 +304,16 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/dhcp-leases", get(list_dhcp_leases))
         // Save as template
         .route("/vms/{name}/save-template", post(save_template_handler))
+        // Systemd services
+        .route("/services", get(list_services_handler))
+        .route("/services/{name}/{action}", post(service_action_handler))
+        // System logs
+        .route("/logs", get(get_logs_handler))
+        // Host shutdown/reboot
+        .route("/host/shutdown", post(host_shutdown_handler))
+        .route("/host/reboot", post(host_reboot_handler))
+        // Host system info
+        .route("/host/system-info", get(get_system_info_handler))
+        .route("/host/hostname", post(set_hostname_handler))
+        .route("/host/timezone", post(set_timezone_handler))
 }

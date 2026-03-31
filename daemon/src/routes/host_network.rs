@@ -16,6 +16,16 @@ async fn list_interfaces(
     Ok(Json(serde_json::json!(interfaces)))
 }
 
+async fn get_network_backends(
+    State(_manager): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let (net_backend, fw_backend) = host_network::get_detected_backends();
+    Ok(Json(serde_json::json!({
+        "network_backend": net_backend,
+        "firewall_backend": fw_backend,
+    })))
+}
+
 // ── Bridges ────────────────────────────────────────────────────────
 
 async fn create_bridge_handler(
@@ -96,8 +106,9 @@ async fn delete_firewall_rule(
 
 pub fn host_network_routes() -> Router<LibvirtManager> {
     Router::new()
-        // Host interfaces
+        // Host interfaces + detected backends
         .route("/host/interfaces", get(list_interfaces))
+        .route("/host/backends", get(get_network_backends))
         // Bridges
         .route("/host/bridges", post(create_bridge_handler))
         .route("/host/bridges/{name}", delete(delete_bridge_handler))

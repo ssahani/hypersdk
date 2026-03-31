@@ -28,6 +28,8 @@ const SettingsPage = lazy(() => import('./pages/Settings'))
 const ImportVM = lazy(() => import('./pages/ImportVM'))
 const SSHPage = lazy(() => import('./pages/SSHPage'))
 const ApiDocs = lazy(() => import('./pages/ApiDocs'))
+const Services = lazy(() => import('./pages/Services'))
+const Logs = lazy(() => import('./pages/Logs'))
 
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
@@ -71,6 +73,8 @@ function AuthenticatedApp() {
                 <Route path="/import" element={<ImportVM />} />
                 <Route path="/ssh/:host" element={<SSHPage />} />
                 <Route path="/api-docs" element={<ApiDocs />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/logs" element={<Logs />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>

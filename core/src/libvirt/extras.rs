@@ -641,6 +641,398 @@ fn parse_lspci_mm_line(line: &str) -> (String, String) {
     }
 }
 
+// ── Systemd Service Manager ─────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemdService {
+    pub name: String,
+    pub description: String,
+    pub active_state: String,
+    pub sub_state: String,
+    pub enabled: String,
+}
+
+/// List all systemd services via `systemctl list-units --type=service`.
+pub fn list_services() -> Result<Vec<SystemdService>, LibvirtError> {
+    let output = Command::new("systemctl")
+        .args(["list-units", "--type=service", "--all", "--no-pager", "--plain", "--output=json"])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run systemctl list-units"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // Try JSON parse first (systemd 252+)
+    if let Ok(units) = serde_json::from_str::<Vec<serde_json::Value>>(&stdout) {
+        let mut services: Vec<SystemdService> = units
+            .iter()
+            .filter_map(|u| {
+                let name = u.get("unit")?.as_str()?.to_string();
+                Some(SystemdService {
+                    name: name.clone(),
+                    description: u.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string(),
+                    active_state: u.get("active").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                    sub_state: u.get("sub").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                    enabled: String::new(), // filled below
+                })
+            })
+            .collect();
+
+        // Batch-fetch enabled states
+        fill_enabled_states(&mut services);
+        return Ok(services);
+    }
+
+    // Fallback: parse plain text output
+    let plain_output = Command::new("systemctl")
+        .args(["list-units", "--type=service", "--all", "--no-pager", "--plain"])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run systemctl list-units (plain)"))?;
+
+    let plain_stdout = String::from_utf8_lossy(&plain_output.stdout);
+    let mut services = Vec::new();
+    for line in plain_stdout.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() >= 4 && parts[0].ends_with(".service") {
+            services.push(SystemdService {
+                name: parts[0].to_string(),
+                description: parts[4..].join(" "),
+                active_state: parts[2].to_string(),
+                sub_state: parts[3].to_string(),
+                enabled: String::new(),
+            });
+        }
+    }
+    fill_enabled_states(&mut services);
+    Ok(services)
+}
+
+fn fill_enabled_states(services: &mut [SystemdService]) {
+    // Collect all service names and query enabled state in batch
+    let names: Vec<String> = services.iter().map(|s| s.name.clone()).collect();
+    for chunk in names.chunks(50) {
+        let mut args = vec!["is-enabled", "--no-pager"];
+        let chunk_owned: Vec<&str> = chunk.iter().map(|s| s.as_str()).collect();
+        args.extend(chunk_owned.iter());
+        if let Ok(output) = Command::new("systemctl").args(&args).output() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            for (i, line) in stdout.lines().enumerate() {
+                let global_idx = names.iter().position(|n| {
+                    chunk.get(i).map_or(false, |c| n == c)
+                });
+                if let Some(idx) = global_idx {
+                    services[idx].enabled = line.trim().to_string();
+                }
+            }
+        }
+    }
+}
+
+/// Validate a systemd service name (alphanumeric, dash, underscore, dot, @).
+fn validate_service_name(name: &str) -> Result<(), LibvirtError> {
+    if name.is_empty() || name.len() > 256 {
+        return Err(LibvirtError::Invalid("Service name too short or too long".to_string()));
+    }
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@') {
+        return Err(LibvirtError::Invalid("Service name contains invalid characters".to_string()));
+    }
+    Ok(())
+}
+
+/// Perform a systemctl action (start/stop/restart/enable/disable) on a service.
+pub fn service_action(name: &str, action: &str) -> Result<(), LibvirtError> {
+    validate_service_name(name)?;
+
+    let valid_actions = ["start", "stop", "restart", "enable", "disable"];
+    if !valid_actions.contains(&action) {
+        return Err(LibvirtError::Invalid(format!("Invalid action: {action}. Must be one of: start, stop, restart, enable, disable")));
+    }
+
+    let output = Command::new("systemctl")
+        .args([action, name])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run systemctl"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!("systemctl {action} {name} failed: {stderr}")));
+    }
+
+    Ok(())
+}
+
+// ── System Logs (journald) ──────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalEntry {
+    pub timestamp: String,
+    pub unit: String,
+    pub priority: String,
+    pub message: String,
+}
+
+/// Get journal logs from journalctl.
+pub fn get_journal_logs(lines: u32, priority: Option<&str>, unit: Option<&str>) -> Result<Vec<JournalEntry>, LibvirtError> {
+    let lines_str = lines.min(5000).to_string();
+    let mut args = vec!["--no-pager", "-n", &lines_str, "-o", "json"];
+
+    let priority_owned;
+    if let Some(p) = priority {
+        // Validate priority
+        let valid = ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug", "0", "1", "2", "3", "4", "5", "6", "7"];
+        if !valid.contains(&p) {
+            return Err(LibvirtError::Invalid(format!("Invalid priority: {p}")));
+        }
+        priority_owned = format!("-p");
+        args.push(&priority_owned);
+        args.push(p);
+    }
+
+    let unit_owned;
+    if let Some(u) = unit {
+        if !u.is_empty() {
+            // Validate unit name
+            if !u.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@' || c == '*') {
+                return Err(LibvirtError::Invalid("Invalid unit name".to_string()));
+            }
+            unit_owned = format!("-u");
+            args.push(&unit_owned);
+            args.push(u);
+        }
+    }
+
+    let output = Command::new("journalctl")
+        .args(&args)
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run journalctl"))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut entries = Vec::new();
+
+    for line in stdout.lines() {
+        let line = line.trim();
+        if line.is_empty() { continue; }
+        if let Ok(obj) = serde_json::from_str::<serde_json::Value>(line) {
+            let timestamp = obj.get("__REALTIME_TIMESTAMP")
+                .and_then(|v| v.as_str())
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(|us| {
+                    let secs = us / 1_000_000;
+                    format_epoch_timestamp(secs)
+                })
+                .unwrap_or_default();
+
+            let unit_field = obj.get("_SYSTEMD_UNIT")
+                .or_else(|| obj.get("SYSLOG_IDENTIFIER"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            let prio_val = obj.get("PRIORITY")
+                .and_then(|v| v.as_str().and_then(|s| s.parse::<u8>().ok()).or_else(|| v.as_u64().map(|n| n as u8)))
+                .unwrap_or(6);
+            let priority_str = match prio_val {
+                0 => "emerg",
+                1 => "alert",
+                2 => "crit",
+                3 => "err",
+                4 => "warning",
+                5 => "notice",
+                6 => "info",
+                7 => "debug",
+                _ => "info",
+            }.to_string();
+
+            let message = obj.get("MESSAGE")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+
+            entries.push(JournalEntry {
+                timestamp,
+                unit: unit_field,
+                priority: priority_str,
+                message,
+            });
+        }
+    }
+
+    Ok(entries)
+}
+
+fn format_epoch_timestamp(secs: u64) -> String {
+    // Calculate date/time from epoch seconds
+    // Days calculation
+    let mut days = secs / 86400;
+    let time_of_day = secs % 86400;
+    let hours = time_of_day / 3600;
+    let minutes = (time_of_day % 3600) / 60;
+    let seconds = time_of_day % 60;
+
+    // Calculate year/month/day from days since epoch (1970-01-01)
+    let mut year: u64 = 1970;
+    loop {
+        let days_in_year = if is_leap_year(year) { 366 } else { 365 };
+        if days < days_in_year { break; }
+        days -= days_in_year;
+        year += 1;
+    }
+    let month_days = if is_leap_year(year) {
+        [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    } else {
+        [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+    };
+    let mut month: u64 = 1;
+    for md in &month_days {
+        if days < *md as u64 { break; }
+        days -= *md as u64;
+        month += 1;
+    }
+    let day = days + 1;
+
+    format!("{year:04}-{month:02}-{day:02}T{hours:02}:{minutes:02}:{seconds:02}")
+}
+
+fn is_leap_year(y: u64) -> bool {
+    (y % 4 == 0 && y % 100 != 0) || (y % 400 == 0)
+}
+
+// ── Hostname / Timezone / System Info ────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemInfo {
+    pub hostname: String,
+    pub timezone: String,
+    pub kernel_version: String,
+    pub os_name: String,
+    pub os_version: String,
+    pub os_pretty_name: String,
+}
+
+/// Get system info: hostname, timezone, kernel, OS.
+pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
+    let hostname = std::fs::read_to_string("/etc/hostname")
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+
+    // Get timezone from timedatectl
+    let timezone = Command::new("timedatectl")
+        .args(["show", "--property=Timezone", "--value"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    // Get kernel version
+    let kernel_version = Command::new("uname")
+        .args(["-r"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    // Parse /etc/os-release
+    let os_release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
+    let mut os_name = String::new();
+    let mut os_version = String::new();
+    let mut os_pretty_name = String::new();
+    for line in os_release.lines() {
+        if let Some((key, val)) = line.split_once('=') {
+            let val = val.trim_matches('"');
+            match key {
+                "NAME" => os_name = val.to_string(),
+                "VERSION" => os_version = val.to_string(),
+                "PRETTY_NAME" => os_pretty_name = val.to_string(),
+                _ => {}
+            }
+        }
+    }
+
+    Ok(SystemInfo {
+        hostname,
+        timezone,
+        kernel_version,
+        os_name,
+        os_version,
+        os_pretty_name,
+    })
+}
+
+/// Set hostname via hostnamectl.
+pub fn set_hostname(name: &str) -> Result<(), LibvirtError> {
+    // Validate hostname: RFC 1123
+    if name.is_empty() || name.len() > 253 {
+        return Err(LibvirtError::Invalid("Hostname must be 1-253 characters".to_string()));
+    }
+    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.') {
+        return Err(LibvirtError::Invalid("Hostname contains invalid characters".to_string()));
+    }
+    if name.starts_with('-') || name.ends_with('-') {
+        return Err(LibvirtError::Invalid("Hostname must not start or end with a dash".to_string()));
+    }
+
+    let output = Command::new("hostnamectl")
+        .args(["set-hostname", name])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run hostnamectl"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!("hostnamectl set-hostname failed: {stderr}")));
+    }
+    Ok(())
+}
+
+/// Set timezone via timedatectl.
+pub fn set_timezone(tz: &str) -> Result<(), LibvirtError> {
+    // Validate timezone: alphanumeric, slash, dash, underscore, plus
+    if tz.is_empty() || tz.len() > 64 {
+        return Err(LibvirtError::Invalid("Timezone must be 1-64 characters".to_string()));
+    }
+    if !tz.chars().all(|c| c.is_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '+') {
+        return Err(LibvirtError::Invalid("Timezone contains invalid characters".to_string()));
+    }
+
+    let output = Command::new("timedatectl")
+        .args(["set-timezone", tz])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run timedatectl"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!("timedatectl set-timezone failed: {stderr}")));
+    }
+    Ok(())
+}
+
+// ── Host Shutdown/Reboot ────────────────────────────────────────
+
+/// Shut down the host machine.
+pub fn host_shutdown() -> Result<(), LibvirtError> {
+    let output = Command::new("shutdown")
+        .args(["-h", "now"])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run shutdown"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!("shutdown failed: {stderr}")));
+    }
+    Ok(())
+}
+
+/// Reboot the host machine.
+pub fn host_reboot() -> Result<(), LibvirtError> {
+    let output = Command::new("shutdown")
+        .args(["-r", "now"])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run reboot"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!("reboot failed: {stderr}")));
+    }
+    Ok(())
+}
+
 // ── PCI / IOMMU Passthrough Listing ───────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

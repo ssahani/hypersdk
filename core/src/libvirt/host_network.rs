@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::Path;
 use std::process::Command;
 
 use crate::LibvirtError;
@@ -94,6 +95,38 @@ pub struct CreateBridgeRequest {
 fn default_mtu() -> u32 { 1500 }
 fn default_stp() -> bool { true }
 
+/// Detect the network management backend on this system.
+fn detect_network_backend() -> &'static str {
+    // Check for netplan (Ubuntu/Debian with systemd-networkd)
+    if Path::new("/usr/sbin/netplan").exists() || Path::new("/usr/bin/netplan").exists() {
+        return "netplan";
+    }
+    // Check for NetworkManager (Fedora/RHEL)
+    if Command::new(find_bin("nmcli")).arg("--version").output().is_ok() {
+        return "nmcli";
+    }
+    // Fallback: raw ip commands
+    "ip"
+}
+
+/// Detect the firewall backend.
+fn detect_firewall_backend() -> &'static str {
+    // Check for ufw (Ubuntu)
+    if let Ok(output) = Command::new(find_bin("ufw")).arg("status").output() {
+        if output.status.success() {
+            return "ufw";
+        }
+    }
+    // Check for firewalld (RHEL/Fedora)
+    if let Ok(output) = Command::new(find_bin("firewall-cmd")).arg("--state").output() {
+        if output.status.success() {
+            return "firewalld";
+        }
+    }
+    // Fallback: iptables
+    "iptables"
+}
+
 pub fn create_bridge(req: &CreateBridgeRequest) -> Result<(), LibvirtError> {
     crate::validate::validate_name(&req.name)?;
     if req.mtu < 68 || req.mtu > 9216 {
@@ -107,12 +140,49 @@ pub fn create_bridge(req: &CreateBridgeRequest) -> Result<(), LibvirtError> {
         }
     }
 
-    // Try nmcli first (NetworkManager), fall back to ip commands
-    if Command::new(find_bin("nmcli")).arg("--version").output().is_ok() {
-        create_bridge_nmcli(req)
-    } else {
-        create_bridge_ip(req)
+    // Auto-detect network backend
+    match detect_network_backend() {
+        "netplan" => create_bridge_netplan(req),
+        "nmcli" => create_bridge_nmcli(req),
+        _ => create_bridge_ip(req),
     }
+}
+
+/// Create bridge via netplan (Ubuntu with systemd-networkd).
+fn create_bridge_netplan(req: &CreateBridgeRequest) -> Result<(), LibvirtError> {
+    let interfaces_yaml = if req.interfaces.is_empty() {
+        String::from("        interfaces: []")
+    } else {
+        let ifaces: Vec<String> = req.interfaces.iter().map(|i| format!("          - {i}")).collect();
+        format!("        interfaces:\n{}", ifaces.join("\n"))
+    };
+
+    let stp_val = if req.stp { "true" } else { "false" };
+    let yaml = format!(
+        r#"network:
+  version: 2
+  bridges:
+    {name}:
+      mtu: {mtu}
+{interfaces}
+      parameters:
+        stp: {stp}
+      dhcp4: false
+"#,
+        name = req.name,
+        mtu = req.mtu,
+        interfaces = interfaces_yaml,
+        stp = stp_val,
+    );
+
+    let config_path = format!("/etc/netplan/90-virtspawn-{}.yaml", req.name);
+    std::fs::write(&config_path, &yaml)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to write netplan config: {e}")))?;
+
+    // Apply netplan
+    run_cmd(find_bin("netplan"), &["apply"], "Failed to apply netplan")?;
+
+    Ok(())
 }
 
 fn create_bridge_nmcli(req: &CreateBridgeRequest) -> Result<(), LibvirtError> {
@@ -162,6 +232,17 @@ fn create_bridge_ip(req: &CreateBridgeRequest) -> Result<(), LibvirtError> {
 
 pub fn delete_bridge(name: &str) -> Result<(), LibvirtError> {
     crate::validate::validate_name(name)?;
+
+    match detect_network_backend() {
+        "netplan" => {
+            // Remove netplan config and apply
+            let config_path = format!("/etc/netplan/90-virtspawn-{name}.yaml");
+            let _ = std::fs::remove_file(&config_path);
+            run_cmd(find_bin("netplan"), &["apply"], "Failed to apply netplan")?;
+            return Ok(());
+        }
+        _ => {}
+    }
 
     if Command::new(find_bin("nmcli")).arg("--version").output().is_ok() {
         // Delete all slave connections first
@@ -237,6 +318,11 @@ pub fn list_port_forwards() -> Result<Vec<PortForwardRule>, LibvirtError> {
     }
 
     Ok(rules)
+}
+
+/// Get the detected network/firewall backends for display in the UI.
+pub fn get_detected_backends() -> (String, String) {
+    (detect_network_backend().to_string(), detect_firewall_backend().to_string())
 }
 
 pub fn create_port_forward(req: &CreatePortForwardRequest) -> Result<(), LibvirtError> {

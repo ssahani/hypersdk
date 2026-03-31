@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getNodeInfo, getHealth, NodeInfo, HealthStatus } from '../api/node'
-import { getHostStats, HostStats } from '../api/extras'
+import { getHostStats, HostStats, getSystemInfo, setHostname, setTimezone, SystemInfo } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Cpu, HardDrive, Server, Activity, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor } from 'lucide-react'
+import { Cpu, HardDrive, Server, Activity, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X } from 'lucide-react'
 
 interface StatsPoint { time: string; cpu: number; mem: number; disk: number; load: number }
 
@@ -12,12 +12,18 @@ export default function NodeInfoPage() {
   const [stats, setStats] = useState<HostStats | null>(null)
   const [history, setHistory] = useState<StatsPoint[]>([])
   const [loading, setLoading] = useState(true)
+  const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null)
+  const [editingHostname, setEditingHostname] = useState(false)
+  const [editingTimezone, setEditingTimezone] = useState(false)
+  const [hostnameInput, setHostnameInput] = useState('')
+  const [timezoneInput, setTimezoneInput] = useState('')
 
   const load = useCallback(() => {
-    Promise.allSettled([getNodeInfo(), getHealth(), getHostStats()])
-      .then(([n, h, s]) => {
+    Promise.allSettled([getNodeInfo(), getHealth(), getHostStats(), getSystemInfo()])
+      .then(([n, h, s, si]) => {
         if (n.status === 'fulfilled') setNode(n.value)
         if (h.status === 'fulfilled') setHealth(h.value)
+        if (si.status === 'fulfilled') setSysInfo(si.value)
         if (s.status === 'fulfilled') {
           setStats(s.value)
           const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -64,6 +70,68 @@ export default function NodeInfoPage() {
           {health.libvirt ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-red-400" />}
           <span className="text-sm">Libvirt: <strong className={health.libvirt ? 'text-green-400' : 'text-red-400'}>{health.status}</strong></span>
           <span className="text-xs text-slate-500 ml-auto">{node.hypervisor} {node.hypervisor_version} / libvirt {node.lib_version}</span>
+        </div>
+      )}
+
+      {/* System Info */}
+      {sysInfo && (
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-cyan-400" /> System Configuration</h3>
+          <InfoRow label="OS" value={sysInfo.os_pretty_name || `${sysInfo.os_name} ${sysInfo.os_version}`} />
+          <InfoRow label="Kernel" value={sysInfo.kernel_version} />
+
+          {/* Editable Hostname */}
+          <div className="flex items-center justify-between py-2 border-b border-slate-700/30">
+            <span className="text-slate-400 text-sm">Hostname</span>
+            {editingHostname ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={hostnameInput}
+                  onChange={e => setHostnameInput(e.target.value)}
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button onClick={async () => {
+                  try { await setHostname(hostnameInput); load() } catch (e) { console.error(e) }
+                  setEditingHostname(false)
+                }} className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditingHostname(false)} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{sysInfo.hostname}</span>
+                <button onClick={() => { setHostnameInput(sysInfo.hostname); setEditingHostname(true) }} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><Pencil className="w-3.5 h-3.5" /></button>
+              </div>
+            )}
+          </div>
+
+          {/* Editable Timezone */}
+          <div className="flex items-center justify-between py-2 border-b border-slate-700/30">
+            <span className="text-slate-400 text-sm">Timezone</span>
+            {editingTimezone ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={timezoneInput}
+                  onChange={e => setTimezoneInput(e.target.value)}
+                  placeholder="e.g. America/New_York"
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  autoFocus
+                />
+                <button onClick={async () => {
+                  try { await setTimezone(timezoneInput); load() } catch (e) { console.error(e) }
+                  setEditingTimezone(false)
+                }} className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditingTimezone(false)} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X className="w-4 h-4" /></button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{sysInfo.timezone}</span>
+                <button onClick={() => { setTimezoneInput(sysInfo.timezone); setEditingTimezone(true) }} className="p-1 hover:bg-slate-700 rounded text-slate-400 hover:text-white transition"><Pencil className="w-3.5 h-3.5" /></button>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
