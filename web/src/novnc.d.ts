@@ -1,34 +1,23 @@
-declare module '@novnc/novnc/lib/rfb.js' {
-  interface RFBCredentials {
-    password?: string
-  }
-
-  interface RFBOptions {
-    credentials?: RFBCredentials
-    shared?: boolean
-    wsProtocols?: string[]
-  }
-
+declare module '/novnc/core/rfb.js' {
   export default class RFB {
-    constructor(target: HTMLElement, urlOrChannel: string | WebSocket, options?: RFBOptions)
+    constructor(target: HTMLElement, url: string, options?: Record<string, unknown>);
+    scaleViewport: boolean;
+    resizeSession: boolean;
+    focusOnClick: boolean;
+    addEventListener(event: string, callback: (e: unknown) => void): void;
+    sendCredentials(creds: { password: string }): void;
+    disconnect(): void;
+  }
+}
 
-    scaleViewport: boolean
-    resizeSession: boolean
-    showDotCursor: boolean
-    viewOnly: boolean
-    clipViewport: boolean
-    dragViewport: boolean
-    focusOnClick: boolean
-
-    disconnect(): void
-    sendCredentials(credentials: RFBCredentials): void
-    sendKey(keysym: number, code: string, down?: boolean): void
-    sendCtrlAltDel(): void
-    machineShutdown(): void
-    machineReboot(): void
-    machineReset(): void
-
-    addEventListener(type: string, listener: (event: any) => void): void
-    removeEventListener(type: string, listener: (event: any) => void): void
+declare module 'novnc-core/lib/rfb' {
+  export default class RFB {
+    constructor(target: HTMLElement, url: string, options?: Record<string, unknown>);
+    scaleViewport: boolean;
+    resizeSession: boolean;
+    focusOnClick: boolean;
+    addEventListener(event: string, callback: (e: unknown) => void): void;
+    sendCredentials(creds: { password: string }): void;
+    disconnect(): void;
   }
 }

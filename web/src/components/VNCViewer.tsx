@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Maximize, Minimize, Monitor } from 'lucide-react'
-// @ts-expect-error novnc-core has no types
-import RFB from 'novnc-core/lib/rfb'
+import { Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 
 interface Props {
   vmName: string
@@ -10,57 +8,80 @@ interface Props {
 
 export default function VNCViewer({ vmName, port = -1 }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
-  const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
+  const [status, setStatus] = useState<'loading' | 'connecting' | 'connected' | 'disconnected'>('loading')
   const containerRef = useRef<HTMLDivElement>(null)
-  const rfbRef = useRef<RFB | null>(null)
+  const rfbRef = useRef<unknown>(null)
 
   useEffect(() => {
     if (port <= 0 || !containerRef.current) return
 
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const wsUrl = `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}`
+    let cancelled = false
 
-    setStatus('connecting')
+    async function connect() {
+      if (!containerRef.current || cancelled) return
 
-    // Clear container before creating new RFB
-    while (containerRef.current.firstChild) {
-      containerRef.current.removeChild(containerRef.current.firstChild)
-    }
+      // Clear container
+      containerRef.current.innerHTML = ''
 
-    try {
-      const rfb = new RFB(containerRef.current, wsUrl)
-      rfb.viewOnly = false
-      rfb.scaleViewport = true
-      rfb.resizeSession = false
-      rfb.focusOnClick = true
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsUrl = `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}`
 
-      rfb.addEventListener('connect', () => {
-        setStatus('connected')
-        // Force a resize after connection
-        if (containerRef.current) {
-          const canvas = containerRef.current.querySelector('canvas')
-          if (canvas) {
-            canvas.style.width = '100%'
-            canvas.style.height = '100%'
-          }
+      // Dynamically import RFB from server-hosted noVNC (ESM module)
+      // This is the same noVNC that's served at /novnc/core/rfb.js
+      try {
+        setStatus('connecting')
+        // Load noVNC RFB from server-hosted ESM files (same approach as Cockpit)
+        // Use Function constructor to avoid bundler trying to resolve the path
+        const loadRfb = new Function('return import("/novnc/core/rfb.js")')
+        const module = await loadRfb() as { default: new (...args: unknown[]) => Record<string, unknown> }
+        const RFB = module.default
+
+        if (cancelled || !containerRef.current) return
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rfb: any = new (RFB as any)(containerRef.current, wsUrl)
+        rfb.scaleViewport = true
+        rfb.resizeSession = false
+        rfb.focusOnClick = true
+
+        rfb.addEventListener('connect', () => {
+          if (!cancelled) setStatus('connected')
+        })
+        rfb.addEventListener('disconnect', () => {
+          if (!cancelled) setStatus('disconnected')
+        })
+        rfb.addEventListener('credentialsrequired', () => {
+          rfb.sendCredentials({ password: '' })
+        })
+
+        rfbRef.current = rfb
+      } catch (e) {
+        console.error('Failed to load noVNC RFB:', e)
+
+        // Fallback: try novnc-core npm package
+        try {
+          const { default: RFB } = await import(/* @vite-ignore */ 'novnc-core/lib/rfb')
+          if (cancelled || !containerRef.current) return
+
+          const rfb = new RFB(containerRef.current, wsUrl)
+          rfb.scaleViewport = true
+          rfb.addEventListener('connect', () => { if (!cancelled) setStatus('connected') })
+          rfb.addEventListener('disconnect', () => { if (!cancelled) setStatus('disconnected') })
+          rfbRef.current = rfb
+        } catch {
+          setStatus('disconnected')
         }
-      })
-      rfb.addEventListener('disconnect', () => setStatus('disconnected'))
-      rfb.addEventListener('credentialsrequired', () => {
-        rfb.sendCredentials({ password: '' })
-      })
-
-      rfbRef.current = rfb
-    } catch (e) {
-      console.error('RFB connection failed:', e)
-      setStatus('disconnected')
+      }
     }
+
+    connect()
 
     return () => {
-      if (rfbRef.current) {
-        try { rfbRef.current.disconnect() } catch { /* ignore */ }
-        rfbRef.current = null
+      cancelled = true
+      if (rfbRef.current && typeof (rfbRef.current as { disconnect?: () => void }).disconnect === 'function') {
+        try { (rfbRef.current as { disconnect: () => void }).disconnect() } catch { /* ignore */ }
       }
+      rfbRef.current = null
     }
   }, [vmName, port])
 
@@ -76,8 +97,8 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
     )
   }
 
-  const statusColor = status === 'connected' ? 'bg-green-500' : status === 'connecting' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
-  const statusText = status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : 'Disconnected'
+  const statusColor = status === 'connected' ? 'bg-green-500' : status === 'connecting' || status === 'loading' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+  const statusText = status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'loading' ? 'Loading VNC client...' : 'Disconnected'
 
   return (
     <div className={fullscreen ? 'fixed inset-0 z-50 bg-black flex flex-col' : ''}>
@@ -89,7 +110,7 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
         </div>
         <div className="flex items-center gap-2">
           {status === 'disconnected' && (
-            <button onClick={() => window.location.reload()} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition">Reconnect</button>
+            <button onClick={() => window.location.reload()} className="px-2 py-1 bg-blue-600 hover:bg-blue-700 rounded text-xs transition flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Reconnect</button>
           )}
           <button onClick={() => setFullscreen(!fullscreen)} className="p-1.5 hover:bg-gray-700 rounded transition" title="Fullscreen">
             {fullscreen ? <Minimize className="w-4 h-4 text-gray-400" /> : <Maximize className="w-4 h-4 text-gray-400" />}
@@ -100,8 +121,7 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
         ref={containerRef}
         style={{
           width: '100%',
-          height: fullscreen ? '100%' : '600px',
-          overflow: 'hidden',
+          height: fullscreen ? 'calc(100vh - 44px)' : '600px',
           backgroundColor: '#000',
         }}
       />
