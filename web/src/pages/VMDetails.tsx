@@ -877,9 +877,9 @@ export default function VMDetailsPage() {
       {/* SSH Dialog */}
       {sshDialogOpen && (
         <DialogOverlay onClose={() => setSshDialogOpen(false)}>
-          <DialogBox title="SSH Connection" icon={<Terminal className="w-5 h-5 text-green-400" />} onClose={() => setSshDialogOpen(false)} onConfirm={() => { if (sshIp.trim()) { setSshDialogOpen(false); navigate(`/ssh/${encodeURIComponent(sshIp.trim())}`) } }} confirmLabel="Connect">
+          <DialogBox title="SSH Connection" icon={<Terminal className="w-5 h-5 text-green-400" />} onClose={() => setSshDialogOpen(false)} onConfirm={() => { if (sshIp.trim()) { window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` } }} confirmLabel="Connect">
             <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Host IP Address</label>
-            <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field" />
+            <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field" onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) { window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` } }} />
             {guestIps.length > 0 && (
               <div className="mt-3">
                 <span className="text-xs text-slate-500">Detected IPs:</span>
