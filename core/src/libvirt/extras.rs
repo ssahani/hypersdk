@@ -906,6 +906,15 @@ pub struct SystemInfo {
     pub os_name: String,
     pub os_version: String,
     pub os_pretty_name: String,
+    // Hardware info from DMI
+    pub product_name: String,
+    pub sys_vendor: String,
+    pub bios_version: String,
+    pub bios_date: String,
+    pub board_name: String,
+    pub serial_number: String,
+    pub cpu_model: String,
+    pub virtualization: String,
 }
 
 /// Get system info: hostname, timezone, kernel, OS.
@@ -946,13 +955,36 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         }
     }
 
+    // DMI hardware info
+    let read_dmi = |name: &str| -> String {
+        std::fs::read_to_string(format!("/sys/class/dmi/id/{name}"))
+            .unwrap_or_default().trim().to_string()
+    };
+    let product_name = read_dmi("product_name");
+    let sys_vendor = read_dmi("sys_vendor");
+    let bios_version = read_dmi("bios_version");
+    let bios_date = read_dmi("bios_date");
+    let board_name = read_dmi("board_name");
+    let serial_number = read_dmi("product_serial");
+
+    // CPU model from /proc/cpuinfo
+    let cpu_model = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default()
+        .lines().find(|l| l.starts_with("model name"))
+        .and_then(|l| l.split(':').nth(1))
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    // Detect virtualization
+    let virtualization = Command::new("systemd-detect-virt")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|_| "none".to_string());
+
     Ok(SystemInfo {
-        hostname,
-        timezone,
-        kernel_version,
-        os_name,
-        os_version,
-        os_pretty_name,
+        hostname, timezone, kernel_version,
+        os_name, os_version, os_pretty_name,
+        product_name, sys_vendor, bios_version, bios_date,
+        board_name, serial_number, cpu_model, virtualization,
     })
 }
 

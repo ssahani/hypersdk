@@ -89,6 +89,40 @@ async fn save_schedules_handler(State(_m): State<LibvirtManager>, Json(schedules
     Ok(Json(serde_json::json!({"status": "ok"})))
 }
 
+// ── Notification Channels ─────────────────────────────────────────
+
+async fn list_notifications(State(_m): State<LibvirtManager>) -> Result<Json<serde_json::Value>, AppError> {
+    let channels = automation::load_notification_channels();
+    Ok(Json(serde_json::json!(channels)))
+}
+
+async fn save_notifications_handler(State(_m): State<LibvirtManager>, Json(channels): Json<Vec<automation::NotificationChannel>>) -> Result<Json<serde_json::Value>, AppError> {
+    automation::save_notification_channels(&channels)?;
+    Ok(Json(serde_json::json!({"status": "ok"})))
+}
+
+#[derive(Deserialize)]
+struct TestNotificationRequest {
+    channel: automation::NotificationChannel,
+}
+
+async fn test_notification(State(_m): State<LibvirtManager>, Json(req): Json<TestNotificationRequest>) -> Result<Json<serde_json::Value>, AppError> {
+    automation::send_notification(&req.channel, "virtspawn test", "This is a test notification from virtspawn.")?;
+    Ok(Json(serde_json::json!({"status": "sent"})))
+}
+
+// ── Snapshot Schedules ────────────────────────────────────────────
+
+async fn list_snapshot_schedules(State(_m): State<LibvirtManager>) -> Result<Json<serde_json::Value>, AppError> {
+    let schedules = automation::load_snapshot_schedules();
+    Ok(Json(serde_json::json!(schedules)))
+}
+
+async fn save_snapshot_schedules_handler(State(_m): State<LibvirtManager>, Json(schedules): Json<Vec<automation::SnapshotSchedule>>) -> Result<Json<serde_json::Value>, AppError> {
+    automation::save_snapshot_schedules(&schedules)?;
+    Ok(Json(serde_json::json!({"status": "ok"})))
+}
+
 // ── Router ─────────────────────────────────────────────────────────
 
 pub fn automation_routes() -> Router<LibvirtManager> {
@@ -106,4 +140,9 @@ pub fn automation_routes() -> Router<LibvirtManager> {
         .route("/webhooks", get(list_webhooks).post(save_webhooks_handler))
         // Schedules
         .route("/schedules", get(list_schedules).post(save_schedules_handler))
+        // Notification Channels
+        .route("/notifications", get(list_notifications).post(save_notifications_handler))
+        .route("/notifications/test", post(test_notification))
+        // Snapshot Schedules
+        .route("/snapshot-schedules", get(list_snapshot_schedules).post(save_snapshot_schedules_handler))
 }

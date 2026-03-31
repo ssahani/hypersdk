@@ -297,6 +297,121 @@ pub fn save_schedules(schedules: &[ScheduledAction]) -> Result<(), LibvirtError>
     Ok(())
 }
 
+// ── Notification Channels ─────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NotificationChannel {
+    pub id: String,
+    pub channel_type: String, // slack, email, telegram, webhook
+    pub config: String,       // webhook URL, email address, or bot token
+    pub enabled: bool,
+}
+
+fn notifications_path() -> String { format!("{DATA_DIR}/notifications.json") }
+
+pub fn load_notification_channels() -> Vec<NotificationChannel> {
+    match std::fs::read_to_string(notifications_path()) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn save_notification_channels(channels: &[NotificationChannel]) -> Result<(), LibvirtError> {
+    let _ = std::fs::create_dir_all(DATA_DIR);
+    let data = serde_json::to_string_pretty(channels)
+        .map_err(|e| LibvirtError::Operation(format!("Serialize notifications: {e}")))?;
+    std::fs::write(notifications_path(), data)
+        .map_err(|e| LibvirtError::Operation(format!("Write notifications: {e}")))?;
+    Ok(())
+}
+
+/// Send a notification through the given channel.
+pub fn send_notification(channel: &NotificationChannel, subject: &str, message: &str) -> Result<(), LibvirtError> {
+    if !channel.enabled {
+        return Ok(());
+    }
+    match channel.channel_type.as_str() {
+        "slack" => {
+            let body = serde_json::json!({ "text": format!("{subject}: {message}") }).to_string();
+            let url = channel.config.clone();
+            std::process::Command::new("curl")
+                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .output()
+                .map_err(|e| LibvirtError::Operation(format!("Slack notification failed: {e}")))?;
+            Ok(())
+        }
+        "email" => {
+            let addr = &channel.config;
+            let full_message = format!("Subject: {subject}\n\n{message}");
+            let mut child = std::process::Command::new("sendmail")
+                .arg(addr)
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .map_err(|e| LibvirtError::Operation(format!("sendmail failed: {e}")))?;
+            if let Some(mut stdin) = child.stdin.take() {
+                use std::io::Write;
+                let _ = stdin.write_all(full_message.as_bytes());
+            }
+            let _ = child.wait();
+            Ok(())
+        }
+        "telegram" => {
+            // config format: "bot_token:chat_id"
+            let parts: Vec<&str> = channel.config.splitn(2, ':').collect();
+            if parts.len() != 2 {
+                return Err(LibvirtError::Invalid("Telegram config must be bot_token:chat_id".into()));
+            }
+            let url = format!("https://api.telegram.org/bot{}/sendMessage", parts[0]);
+            let body = serde_json::json!({ "chat_id": parts[1], "text": format!("{subject}: {message}") }).to_string();
+            std::process::Command::new("curl")
+                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .output()
+                .map_err(|e| LibvirtError::Operation(format!("Telegram notification failed: {e}")))?;
+            Ok(())
+        }
+        "webhook" => {
+            let body = serde_json::json!({ "subject": subject, "message": message }).to_string();
+            let url = channel.config.clone();
+            std::process::Command::new("curl")
+                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .output()
+                .map_err(|e| LibvirtError::Operation(format!("Webhook notification failed: {e}")))?;
+            Ok(())
+        }
+        other => Err(LibvirtError::Invalid(format!("Unknown channel type: {other}"))),
+    }
+}
+
+// ── Snapshot Schedules ────────────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotSchedule {
+    pub id: String,
+    pub vm_name: String,
+    pub interval_hours: u32,
+    pub retain_count: u32,
+    pub enabled: bool,
+    pub last_run: String,
+}
+
+fn snapshot_schedules_path() -> String { format!("{DATA_DIR}/snapshot-schedules.json") }
+
+pub fn load_snapshot_schedules() -> Vec<SnapshotSchedule> {
+    match std::fs::read_to_string(snapshot_schedules_path()) {
+        Ok(data) => serde_json::from_str(&data).unwrap_or_default(),
+        Err(_) => Vec::new(),
+    }
+}
+
+pub fn save_snapshot_schedules(schedules: &[SnapshotSchedule]) -> Result<(), LibvirtError> {
+    let _ = std::fs::create_dir_all(DATA_DIR);
+    let data = serde_json::to_string_pretty(schedules)
+        .map_err(|e| LibvirtError::Operation(format!("Serialize snapshot schedules: {e}")))?;
+    std::fs::write(snapshot_schedules_path(), data)
+        .map_err(|e| LibvirtError::Operation(format!("Write snapshot schedules: {e}")))?;
+    Ok(())
+}
+
 /// Check if a schedule should run now (simple daily HH:MM matching).
 pub fn should_run_now(schedule: &str) -> bool {
     let now = chrono::Local::now();

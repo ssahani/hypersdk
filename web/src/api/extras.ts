@@ -149,6 +149,14 @@ export interface SystemInfo {
   os_name: string
   os_version: string
   os_pretty_name: string
+  product_name: string
+  sys_vendor: string
+  bios_version: string
+  bios_date: string
+  board_name: string
+  serial_number: string
+  cpu_model: string
+  virtualization: string
 }
 export const getSystemInfo = () => apiGet<SystemInfo>(`${API}/host/system-info`)
 export const setHostname = (hostname: string) => apiPost<{ status: string }>(`${API}/host/hostname`, { hostname })

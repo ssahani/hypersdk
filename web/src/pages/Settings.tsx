@@ -3,16 +3,19 @@ import {
   listRoles, setRole, listTokens, createToken, deleteToken,
   listAlertRules, saveAlertRules, listAlerts, acknowledgeAlert,
   listWebhooks, saveWebhooks, listSchedules, saveSchedules,
+  listNotificationChannels, saveNotificationChannels, testNotification,
+  listSnapshotSchedules, saveSnapshotSchedules,
   UserRole, ApiToken, AlertRule, Alert, WebhookConfig, ScheduledAction,
+  NotificationChannel, SnapshotSchedule,
 } from '../api/automation'
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   Settings, Users, Key, Bell, Webhook, Clock, Plus, Trash2, RefreshCw,
-  Check, X, Shield, AlertCircle, Eye,
+  Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare,
 } from 'lucide-react'
 
-type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules'
+type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('roles')
@@ -26,6 +29,8 @@ export default function SettingsPage() {
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [webhooks, setWebhooks] = useState<WebhookConfig[]>([])
   const [schedules, setSchedules] = useState<ScheduledAction[]>([])
+  const [notificationChannels, setNotificationChannels] = useState<NotificationChannel[]>([])
+  const [snapshotSchedules, setSnapshotSchedules] = useState<SnapshotSchedule[]>([])
   const [vms, setVMs] = useState<VmInfo[]>([])
 
   // Forms
@@ -39,11 +44,17 @@ export default function SettingsPage() {
   const [newSchedVm, setNewSchedVm] = useState('')
   const [newSchedAction, setNewSchedAction] = useState('shutdown')
   const [newSchedTime, setNewSchedTime] = useState('22:00')
+  const [newNotifType, setNewNotifType] = useState('slack')
+  const [newNotifConfig, setNewNotifConfig] = useState('')
+  const [newSnapVm, setNewSnapVm] = useState('')
+  const [newSnapInterval, setNewSnapInterval] = useState('24')
+  const [newSnapRetain, setNewSnapRetain] = useState('5')
 
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
       listRoles(), listTokens(), listAlertRules(), listAlerts(),
       listWebhooks(), listSchedules(), listVMs(),
+      listNotificationChannels(), listSnapshotSchedules(),
     ])
     if (results[0].status === 'fulfilled') setRoles(results[0].value)
     if (results[1].status === 'fulfilled') setTokens(results[1].value)
@@ -52,6 +63,8 @@ export default function SettingsPage() {
     if (results[4].status === 'fulfilled') setWebhooks(results[4].value)
     if (results[5].status === 'fulfilled') setSchedules(results[5].value)
     if (results[6].status === 'fulfilled') setVMs(results[6].value)
+    if (results[7].status === 'fulfilled') setNotificationChannels(results[7].value)
+    if (results[8].status === 'fulfilled') setSnapshotSchedules(results[8].value)
     setLoading(false)
   }, [])
 
@@ -63,6 +76,8 @@ export default function SettingsPage() {
     { key: 'alerts', label: `Alerts (${alerts.filter(a => !a.acknowledged).length})`, icon: <Bell className="w-4 h-4" /> },
     { key: 'webhooks', label: 'Webhooks', icon: <Webhook className="w-4 h-4" /> },
     { key: 'schedules', label: 'Schedules', icon: <Clock className="w-4 h-4" /> },
+    { key: 'notifications', label: 'Notifications', icon: <MessageSquare className="w-4 h-4" /> },
+    { key: 'snapshots', label: 'Snapshot Schedules', icon: <Camera className="w-4 h-4" /> },
   ]
 
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
@@ -254,6 +269,81 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Notifications ─────────────────────────────────── */}
+      {tab === 'notifications' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={newNotifType} onChange={e => setNewNotifType(e.target.value)} className="input-field w-36">
+              <option value="slack">Slack</option>
+              <option value="email">Email</option>
+              <option value="telegram">Telegram</option>
+              <option value="webhook">Webhook</option>
+            </select>
+            <input value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
+            <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+          </div>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <table className="w-full">
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Type</th><th className="px-6 py-3">Config</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {notificationChannels.map((ch, i) => (
+                  <tr key={ch.id} className="table-row-hover">
+                    <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${ch.channel_type === 'slack' ? 'bg-purple-500/20 text-purple-400' : ch.channel_type === 'email' ? 'bg-blue-500/20 text-blue-400' : ch.channel_type === 'telegram' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700 text-slate-400'}`}>{ch.channel_type}</span></td>
+                    <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
+                    <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next) }} /></td>
+                    <td className="px-6 py-3 text-right flex items-center justify-end gap-1">
+                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className="w-4 h-4 text-blue-400" /></button>
+                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                    </td>
+                  </tr>
+                ))}
+                {notificationChannels.length === 0 && <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No notification channels. Add Slack, Email, Telegram, or Webhook to receive alerts.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-slate-500">Slack: paste incoming webhook URL. Email: recipient address (requires sendmail). Telegram: bot_token:chat_id format.</p>
+        </div>
+      )}
+
+      {/* ── Snapshot Schedules ─────────────────────────────── */}
+      {tab === 'snapshots' && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={newSnapVm} onChange={e => setNewSnapVm(e.target.value)} className="input-field flex-1">
+              <option value="">Select VM...</option>
+              {vms.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
+            </select>
+            <select value={newSnapInterval} onChange={e => setNewSnapInterval(e.target.value)} className="input-field w-28">
+              <option value="1">Every 1h</option>
+              <option value="4">Every 4h</option>
+              <option value="12">Every 12h</option>
+              <option value="24">Every 24h</option>
+            </select>
+            <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} className="input-field w-24" placeholder="Retain" min="1" max="100" />
+            <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+          </div>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+            <table className="w-full">
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Interval</th><th className="px-6 py-3">Retain</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {snapshotSchedules.map((s, i) => (
+                  <tr key={s.id} className="table-row-hover">
+                    <td className="px-6 py-3 font-medium">{s.vm_name}</td>
+                    <td className="px-6 py-3 text-sm">{s.interval_hours}h</td>
+                    <td className="px-6 py-3 text-sm">{s.retain_count}</td>
+                    <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
+                    <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...snapshotSchedules]; next[i].enabled = e.target.checked; setSnapshotSchedules(next); saveSnapshotSchedules(next) }} /></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                  </tr>
+                ))}
+                {snapshotSchedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No snapshot schedules. Add one to automatically snapshot VMs at regular intervals.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-xs text-slate-500">Snapshots are taken automatically at the configured interval. Old snapshots beyond the retain count are pruned.</p>
         </div>
       )}
     </div>

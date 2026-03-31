@@ -30,3 +30,14 @@ export const saveWebhooks = (hooks: WebhookConfig[]) => apiPost<unknown>(`${API}
 export interface ScheduledAction { id: string; vm_name: string; action: string; schedule: string; enabled: boolean; last_run: string }
 export const listSchedules = () => apiGet<ScheduledAction[]>(`${API}/schedules`)
 export const saveSchedules = (schedules: ScheduledAction[]) => apiPost<unknown>(`${API}/schedules`, schedules)
+
+// Notification Channels
+export interface NotificationChannel { id: string; channel_type: string; config: string; enabled: boolean }
+export const listNotificationChannels = () => apiGet<NotificationChannel[]>(`${API}/notifications`)
+export const saveNotificationChannels = (channels: NotificationChannel[]) => apiPost<unknown>(`${API}/notifications`, channels)
+export const testNotification = (channel: NotificationChannel) => apiPost<unknown>(`${API}/notifications/test`, { channel })
+
+// Snapshot Schedules
+export interface SnapshotSchedule { id: string; vm_name: string; interval_hours: number; retain_count: number; enabled: boolean; last_run: string }
+export const listSnapshotSchedules = () => apiGet<SnapshotSchedule[]>(`${API}/snapshot-schedules`)
+export const saveSnapshotSchedules = (schedules: SnapshotSchedule[]) => apiPost<unknown>(`${API}/snapshot-schedules`, schedules)

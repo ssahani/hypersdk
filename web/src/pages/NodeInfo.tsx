@@ -79,6 +79,13 @@ export default function NodeInfoPage() {
           <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-cyan-400" /> System Configuration</h3>
           <InfoRow label="OS" value={sysInfo.os_pretty_name || `${sysInfo.os_name} ${sysInfo.os_version}`} />
           <InfoRow label="Kernel" value={sysInfo.kernel_version} />
+          {sysInfo.cpu_model && <InfoRow label="CPU Model" value={sysInfo.cpu_model} />}
+          {sysInfo.sys_vendor && <InfoRow label="Vendor" value={sysInfo.sys_vendor} />}
+          {sysInfo.product_name && <InfoRow label="Product" value={sysInfo.product_name} />}
+          {sysInfo.board_name && <InfoRow label="Board" value={sysInfo.board_name} />}
+          {sysInfo.bios_version && <InfoRow label="BIOS" value={`${sysInfo.bios_version} (${sysInfo.bios_date})`} />}
+          {sysInfo.serial_number && sysInfo.serial_number !== 'None' && <InfoRow label="Serial" value={sysInfo.serial_number} />}
+          {sysInfo.virtualization && sysInfo.virtualization !== 'none' && <InfoRow label="Virtualization" value={sysInfo.virtualization} />}
 
           {/* Editable Hostname */}
           <div className="flex items-center justify-between py-2 border-b border-slate-700/30">
