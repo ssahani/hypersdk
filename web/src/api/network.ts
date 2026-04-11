@@ -20,8 +20,8 @@ export interface CreateNetworkRequest {
 
 export const listNetworks = () => apiGet<NetworkInfo[]>(`${API}/networks`)
 export const createNetwork = (req: CreateNetworkRequest) => apiPost<unknown>(`${API}/networks`, req)
-export const deleteNetwork = (name: string) => apiDelete(`${API}/networks/${name}`)
-export const startNetwork = (name: string) => apiPostVoid(`${API}/networks/${name}/start`)
-export const stopNetwork = (name: string) => apiPostVoid(`${API}/networks/${name}/stop`)
-export const getNetworkXml = (name: string) => apiGet<string>(`${API}/networks/${name}/xml`)
-export const setNetworkAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/networks/${name}/autostart/${enabled}`)
+export const deleteNetwork = (name: string) => apiDelete(`${API}/networks/${encodeURIComponent(name)}`)
+export const startNetwork = (name: string) => apiPostVoid(`${API}/networks/${encodeURIComponent(name)}/start`)
+export const stopNetwork = (name: string) => apiPostVoid(`${API}/networks/${encodeURIComponent(name)}/stop`)
+export const getNetworkXml = (name: string) => apiGet<string>(`${API}/networks/${encodeURIComponent(name)}/xml`)
+export const setNetworkAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/networks/${encodeURIComponent(name)}/autostart/${enabled}`)

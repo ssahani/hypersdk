@@ -28,10 +28,10 @@ export interface CreateVolumeRequest {
 }
 
 export const listPools = () => apiGet<StoragePoolInfo[]>(`${API}/storage/pools`)
-export const startPool = (name: string) => apiPostVoid(`${API}/storage/pools/${name}/start`)
-export const stopPool = (name: string) => apiPostVoid(`${API}/storage/pools/${name}/stop`)
-export const refreshPool = (name: string) => apiPostVoid(`${API}/storage/pools/${name}/refresh`)
-export const setPoolAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/storage/pools/${name}/autostart/${enabled}`)
-export const listVolumes = (pool: string) => apiGet<StorageVolumeInfo[]>(`${API}/storage/pools/${pool}/volumes`)
-export const createVolume = (pool: string, req: CreateVolumeRequest) => apiPost<unknown>(`${API}/storage/pools/${pool}/volumes`, req)
-export const deleteVolume = (pool: string, vol: string) => apiDelete(`${API}/storage/pools/${pool}/volumes/${vol}`)
+export const startPool = (name: string) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/start`)
+export const stopPool = (name: string) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/stop`)
+export const refreshPool = (name: string) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/refresh`)
+export const setPoolAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/autostart/${enabled}`)
+export const listVolumes = (pool: string) => apiGet<StorageVolumeInfo[]>(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes`)
+export const createVolume = (pool: string, req: CreateVolumeRequest) => apiPost<unknown>(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes`, req)
+export const deleteVolume = (pool: string, vol: string) => apiDelete(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes/${encodeURIComponent(vol)}`)

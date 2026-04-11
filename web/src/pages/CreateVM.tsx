@@ -45,10 +45,11 @@ export default function CreateVMPage() {
     setSubmitting(true)
     try {
       // Generate cloud-init ISO if configured
+      let cloudInitIso: string | undefined
       if (showCloudInit && (ciUser || ciSshKey)) {
         try {
           const ciResult = await generateCloudInit(form.name, ciUser, ciPass, ciSshKey)
-          form.iso = ciResult.path // Use cloud-init ISO as the boot ISO
+          cloudInitIso = ciResult.path
           toast.info(`Cloud-init ISO created: ${ciResult.path}`)
         } catch (e: unknown) {
           toast.error(`Cloud-init failed: ${e instanceof Error ? e.message : e}`)
@@ -57,6 +58,7 @@ export default function CreateVMPage() {
         }
       }
       const req = { ...form }
+      if (cloudInitIso) { req.iso = cloudInitIso }
       if (diskMode === 'new') { req.existing_disk = '' }
       else { req.disk_gb = 0 }
       await createVM(req)

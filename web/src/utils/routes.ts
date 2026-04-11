@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   Home, Server, Upload, Network, HardDrive, Camera, Shield, Archive, Globe,
-  Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText,
+  Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -31,6 +31,7 @@ export const navGroups: NavGroup[] = [
       { to: '/storage', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Storage' },
       { to: '/snapshots', icon: React.createElement(Camera, { className: 'w-4 h-4' }), label: 'Snapshots' },
       { to: '/nwfilters', icon: React.createElement(Shield, { className: 'w-4 h-4' }), label: 'Network Filters' },
+      { to: '/secrets', icon: React.createElement(Key, { className: 'w-4 h-4' }), label: 'Secrets' },
       { to: '/backups', icon: React.createElement(Archive, { className: 'w-4 h-4' }), label: 'Backups' },
       { to: '/host-networking', icon: React.createElement(Globe, { className: 'w-4 h-4' }), label: 'Host Networking' },
     ],
@@ -63,6 +64,7 @@ export const routeLabels: Record<string, string> = {
   '/capabilities': 'Capabilities',
   '/devices': 'Node Devices',
   '/nwfilters': 'Network Filters',
+  '/secrets': 'Secrets',
   '/backups': 'Backups',
   '/host-networking': 'Host Networking',
   '/audit': 'Audit Log',

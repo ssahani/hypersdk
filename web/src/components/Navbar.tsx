@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
@@ -28,17 +28,17 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
 
 function DesktopDropdown({ group }: { group: NavGroup }) {
   const [open, setOpen] = useState(false)
-  const closeTimer = useState<ReturnType<typeof setTimeout> | null>(null)
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
   const hasActive = group.items.some((i) => i.to === location.pathname)
 
   const handleEnter = () => {
-    if (closeTimer[0]) { clearTimeout(closeTimer[0]); closeTimer[1](null) }
+    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
     setOpen(true)
   }
   const handleLeave = () => {
     const timer = setTimeout(() => setOpen(false), 400)
-    closeTimer[1](timer)
+    closeTimer.current = timer
   }
 
   return (

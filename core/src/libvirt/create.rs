@@ -29,15 +29,20 @@ pub fn create_vm(conn: &Connect, req: &CreateVmRequest) -> Result<(), LibvirtErr
     }
 
     // Validate ISO path if provided
-    if !req.iso.is_empty() {
+    let resolved_iso: Option<std::path::PathBuf> = if !req.iso.is_empty() {
         let iso_path = std::path::Path::new(&req.iso);
         if !iso_path.is_absolute() {
             return Err(LibvirtError::Invalid("ISO path must be absolute".to_string()));
         }
+        let iso_path = iso_path.canonicalize()
+            .map_err(|e| LibvirtError::Invalid(format!("Cannot resolve ISO path: {e}")))?;
         if !iso_path.is_file() {
-            return Err(LibvirtError::Operation(format!("ISO file not found or is not a file: {}", req.iso)));
+            return Err(LibvirtError::Operation(format!("ISO file not found or is not a file: {}", iso_path.display())));
         }
-    }
+        Some(iso_path)
+    } else {
+        None
+    };
 
     let disk_path = if !req.existing_disk.is_empty() {
         // Use existing disk image
@@ -65,7 +70,8 @@ pub fn create_vm(conn: &Connect, req: &CreateVmRequest) -> Result<(), LibvirtErr
     };
 
     // Generate domain XML
-    let xml = generate_domain_xml(req, &disk_path, disk_driver, firmware);
+    let iso_str = resolved_iso.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
+    let xml = generate_domain_xml(req, &disk_path, disk_driver, firmware, &iso_str);
 
     // Define the domain
     Domain::define_xml(conn, &xml)
@@ -132,14 +138,14 @@ fn find_ovmf_code() -> Option<String> {
     None
 }
 
-fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str, disk_driver: &str, firmware: &str) -> String {
+fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str, disk_driver: &str, firmware: &str, iso_path: &str) -> String {
     let memory_kib = req.memory_mb * 1024;
     let name = crate::xml::escape(&req.name);
     let network = crate::xml::escape(&req.network);
     let disk_path = crate::xml::escape(disk_path);
     let disk_driver = crate::xml::escape(disk_driver);
 
-    let cdrom_xml = if !req.iso.is_empty() {
+    let cdrom_xml = if !iso_path.is_empty() {
         format!(
             r#"
     <disk type='file' device='cdrom'>
@@ -148,13 +154,13 @@ fn generate_domain_xml(req: &CreateVmRequest, disk_path: &str, disk_driver: &str
       <target dev='sda' bus='sata'/>
       <readonly/>
     </disk>"#,
-            crate::xml::escape(&req.iso)
+            crate::xml::escape(iso_path)
         )
     } else {
         String::new()
     };
 
-    let boot_dev = if req.iso.is_empty() { "hd" } else { "cdrom" };
+    let boot_dev = if iso_path.is_empty() { "hd" } else { "cdrom" };
 
     // UEFI firmware support
     let os_xml = if firmware == "uefi" {

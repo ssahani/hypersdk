@@ -31,9 +31,9 @@ export const listDiskImages = () => apiGet<ImageFile[]>(`${API}/browse/disks`)
 // USB
 export const listUsbDevices = () => apiGet<UsbDevice[]>(`${API}/host/usb`)
 export const attachUsb = (vm: string, vendor_id: string, product_id: string) =>
-  apiPostVoid(`${API}/vms/${vm}/usb/attach`, { vendor_id, product_id })
+  apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/usb/attach`, { vendor_id, product_id })
 export const detachUsb = (vm: string, vendor_id: string, product_id: string) =>
-  apiPostVoid(`${API}/vms/${vm}/usb/detach`, { vendor_id, product_id })
+  apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/usb/detach`, { vendor_id, product_id })
 
 // Cloud-init
 export const generateCloudInit = (hostname: string, username: string, password: string, ssh_key: string) =>
@@ -44,16 +44,16 @@ export const importDisk = (source: string, dest_name: string) =>
   apiPost<{ status: string; path: string }>(`${API}/import/disk`, { source, dest_name })
 
 // Live resize
-export const liveSetVcpus = (vm: string, count: number) => apiPostVoid(`${API}/vms/${vm}/live/vcpus/${count}`)
-export const liveSetMemory = (vm: string, mb: number) => apiPostVoid(`${API}/vms/${vm}/live/memory/${mb}`)
+export const liveSetVcpus = (vm: string, count: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/live/vcpus/${count}`)
+export const liveSetMemory = (vm: string, mb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/live/memory/${mb}`)
 
 // Audit
 export const getAuditLog = () => apiGet<AuditEvent[]>(`${API}/audit`)
 
 // Tags
-export const getVmTags = (vm: string) => apiGet<{ tags: string[] }>(`${API}/vms/${vm}/tags`)
+export const getVmTags = (vm: string) => apiGet<{ tags: string[] }>(`${API}/vms/${encodeURIComponent(vm)}/tags`)
 export const setVmTags = (vm: string, tags: string[]) =>
-  apiPost<{ status: string; name: string; tags: string[] }>(`${API}/vms/${vm}/tags`, { tags })
+  apiPost<{ status: string; name: string; tags: string[] }>(`${API}/vms/${encodeURIComponent(vm)}/tags`, { tags })
 export const getAllTags = () => apiGet<Record<string, number>>(`${API}/tags`)
 
 // DHCP leases
@@ -87,7 +87,7 @@ export const getHostStats = () => apiGet<HostStats>(`${API}/host/stats`)
 
 // Save as template
 export const saveVmAsTemplate = (vm: string, templateName: string) =>
-  apiPost<{ status: string }>(`${API}/vms/${vm}/save-template`, { template_name: templateName })
+  apiPost<{ status: string }>(`${API}/vms/${encodeURIComponent(vm)}/save-template`, { template_name: templateName })
 
 // PCI
 export interface PciDevice {
@@ -121,7 +121,7 @@ export interface SystemdService {
 }
 export const listServices = () => apiGet<SystemdService[]>(`${API}/services`)
 export const serviceAction = (name: string, action: string) =>
-  apiPost<{ status: string }>(`${API}/services/${encodeURIComponent(name)}/${action}`)
+  apiPost<{ status: string }>(`${API}/services/${encodeURIComponent(name)}/${encodeURIComponent(action)}`)
 
 // System Logs
 export interface JournalEntry {

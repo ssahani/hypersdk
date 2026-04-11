@@ -60,7 +60,7 @@ pub fn save_roles(roles: &RoleMap) -> Result<(), LibvirtError> {
 
 pub fn get_user_role(username: &str) -> Role {
     let roles = load_roles();
-    roles.get(username).cloned().unwrap_or(Role::Admin) // default: admin (backward compat)
+    roles.get(username).cloned().unwrap_or(Role::ReadOnly) // default: least privilege
 }
 
 pub fn set_user_role(username: &str, role: Role) -> Result<(), LibvirtError> {
@@ -257,11 +257,15 @@ pub fn fire_webhook(event: &str, payload: &serde_json::Value) {
         if !hook.enabled { continue; }
         if !hook.events.contains(&event.to_string()) && !hook.events.contains(&"*".to_string()) { continue; }
         let url = hook.url.clone();
+        // Validate URL scheme to prevent arbitrary command injection
+        if !url.starts_with("http://") && !url.starts_with("https://") {
+            continue;
+        }
         let body = serde_json::json!({ "event": event, "data": payload }).to_string();
         // Fire and forget in background
         std::thread::spawn(move || {
             let _ = std::process::Command::new("curl")
-                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, "--", &url])
                 .output();
         });
     }
@@ -342,7 +346,13 @@ pub fn send_notification(channel: &NotificationChannel, subject: &str, message: 
         }
         "email" => {
             let addr = &channel.config;
-            let full_message = format!("Subject: {subject}\n\n{message}");
+            // Validate email address: must contain @, no spaces or newlines
+            if !addr.contains('@') || addr.contains(' ') || addr.contains('\n') || addr.contains('\r') {
+                return Err(LibvirtError::Invalid("Invalid email address".to_string()));
+            }
+            // Sanitize subject to prevent header injection
+            let safe_subject: String = subject.chars().filter(|c| *c != '\r' && *c != '\n').collect();
+            let full_message = format!("Subject: {safe_subject}\n\n{message}");
             let mut child = std::process::Command::new("sendmail")
                 .arg(addr)
                 .stdin(std::process::Stdio::piped())
@@ -356,10 +366,10 @@ pub fn send_notification(channel: &NotificationChannel, subject: &str, message: 
             Ok(())
         }
         "telegram" => {
-            // config format: "bot_token:chat_id"
-            let parts: Vec<&str> = channel.config.splitn(2, ':').collect();
+            // config format: "bot_token|chat_id" (use | delimiter because bot tokens contain ':')
+            let parts: Vec<&str> = channel.config.splitn(2, '|').collect();
             if parts.len() != 2 {
-                return Err(LibvirtError::Invalid("Telegram config must be bot_token:chat_id".into()));
+                return Err(LibvirtError::Invalid("Telegram config must be bot_token|chat_id".into()));
             }
             let url = format!("https://api.telegram.org/bot{}/sendMessage", parts[0]);
             let body = serde_json::json!({ "chat_id": parts[1], "text": format!("{subject}: {message}") }).to_string();

@@ -8,11 +8,11 @@ import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
 import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
-import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import { useToastContext } from '../contexts/ToastContext'
 
-interface MetricsPoint { time: string; cpu: number; memory: number }
+interface MetricsPoint { time: string; memory: number }
 
 export default function Dashboard() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -47,7 +47,7 @@ export default function Dashboard() {
         ? metrics.reduce((sum: number, m: VmMetrics) => sum + m.memory_pct, 0) / metrics.length : 0
       setMetricsHistory((prev) => [
         ...prev.slice(-29),
-        { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), cpu: 0, memory: parseFloat(avgMem.toFixed(1)) },
+        { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }), memory: parseFloat(avgMem.toFixed(1)) },
       ])
     } catch { /* no metrics */ }
   }, [])
@@ -136,25 +136,7 @@ export default function Dashboard() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="CPU Usage" icon={<Cpu className="w-4 h-4 text-blue-400" />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].cpu}%` : '-'}>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={metricsHistory}>
-              <defs>
-                <linearGradient id="cpuGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="time" stroke="#475569" fontSize={11} tickLine={false} />
-              <YAxis stroke="#475569" fontSize={11} domain={[0, 100]} tickLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.75rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} labelStyle={{ color: '#94a3b8' }} />
-              <Area type="monotone" dataKey="cpu" stroke="#3b82f6" strokeWidth={2} fillOpacity={1} fill="url(#cpuGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
+      <div className="grid grid-cols-1 gap-6">
         <ChartCard title="Memory Usage" icon={<HardDrive className="w-4 h-4 text-emerald-400" />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].memory}%` : '-'}>
           <ResponsiveContainer width="100%" height={220}>
             <AreaChart data={metricsHistory}>

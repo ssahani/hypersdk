@@ -80,12 +80,13 @@ export default function BackupsPage() {
 
   const handleBackup = async () => {
     setRunning(true)
+    toast.info('Backup started...')
     try {
       const req: BackupRequest = { with_disks: withDisks, retain, incremental }
       if (vmName) req.vm_name = vmName
       if (nfsTarget) req.nfs_target = nfsTarget
       const result = await triggerBackup(req)
-      toast.success(`Backup started: ${result.backup_id}`)
+      toast.success(`Backup triggered successfully: ${result.backup_id}`)
       setShowForm(false)
       if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
       backupTimerRef.current = setTimeout(() => load(), 2000)
@@ -99,9 +100,10 @@ export default function BackupsPage() {
   const handleRestore = async () => {
     if (!restoreTarget || restoring) return
     setRestoring(true)
+    toast.info('Restore started in background...')
     try {
       await restoreBackup({ backup_id: restoreTarget.id })
-      toast.success(`Restore started from '${restoreTarget.id}'`)
+      toast.success(`Restore completed from '${restoreTarget.id}'`)
       load()
     } catch (e: unknown) {
       toast.error(`${e instanceof Error ? e.message : e}`)

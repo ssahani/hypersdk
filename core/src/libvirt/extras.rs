@@ -153,6 +153,14 @@ pub fn attach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &s
 
 /// Detach a USB device from a VM.
 pub fn detach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &str) -> Result<(), LibvirtError> {
+    // Validate hex IDs
+    if vendor_id.len() != 4 || product_id.len() != 4
+        || !vendor_id.chars().all(|c| c.is_ascii_hexdigit())
+        || !product_id.chars().all(|c| c.is_ascii_hexdigit())
+    {
+        return Err(LibvirtError::Invalid("Invalid USB vendor/product ID format".to_string()));
+    }
+
     let domain = lookup_domain(conn, vm_name)?;
     let xml = format!(
         r#"<hostdev mode='subsystem' type='usb' managed='yes'>
@@ -249,9 +257,16 @@ pub fn generate_cloud_init_iso(
 /// Import a disk image by converting it to qcow2 if needed.
 pub fn import_disk_image(source: &str, dest_name: &str) -> Result<String, LibvirtError> {
     let source_path = Path::new(source);
-    if !source_path.is_file() {
-        return Err(LibvirtError::Operation(format!("Source file not found: {source}")));
+    if !source_path.is_absolute() {
+        return Err(LibvirtError::Invalid("Source path must be absolute".to_string()));
     }
+    let source_path = source_path.canonicalize()
+        .map_err(|e| LibvirtError::Invalid(format!("Cannot resolve source path: {e}")))?;
+    if !source_path.is_file() {
+        return Err(LibvirtError::Operation(format!("Source file not found: {}", source_path.display())));
+    }
+
+    crate::validate::validate_name(dest_name)?;
 
     let ext = source_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
     let dest_path = format!("/var/lib/libvirt/images/{dest_name}.qcow2");
@@ -263,13 +278,14 @@ pub fn import_disk_image(source: &str, dest_name: &str) -> Result<String, Libvir
     match ext.as_str() {
         "qcow2" => {
             // Already qcow2, just copy
-            std::fs::copy(source, &dest_path)
+            std::fs::copy(&source_path, &dest_path)
                 .map_err(|e| LibvirtError::Operation(format!("Copy failed: {e}")))?;
         }
         "vmdk" | "vdi" | "raw" | "img" | "vpc" | "vhd" => {
             // Convert with qemu-img
+            let source_str = source_path.to_string_lossy();
             let output = Command::new("qemu-img")
-                .args(["convert", "-f", &ext, "-O", "qcow2", source, &dest_path])
+                .args(["convert", "-f", &ext, "-O", "qcow2", &*source_str, &dest_path])
                 .output()
                 .map_err(LibvirtError::map_op("qemu-img convert"))?;
             if !output.status.success() {
@@ -459,6 +475,7 @@ fn parse_uptime() -> u64 {
 
 /// Save a VM's configuration as a reusable template.
 pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(template_name)?;
     let domain = lookup_domain(conn, vm_name)?;
     let info = domain.get_info().map_err(LibvirtError::map_op("Failed to get VM info"))?;
 

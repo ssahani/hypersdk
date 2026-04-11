@@ -180,7 +180,8 @@ fn create_bridge_netplan(req: &CreateBridgeRequest) -> Result<(), LibvirtError> 
         .map_err(|e| LibvirtError::Operation(format!("Failed to write netplan config: {e}")))?;
 
     // Apply netplan
-    run_cmd(find_bin("netplan"), &["apply"], "Failed to apply netplan")?;
+    let netplan_bin = find_bin("netplan");
+    run_cmd(&netplan_bin, &["apply"], "Failed to apply netplan")?;
 
     Ok(())
 }
@@ -238,7 +239,8 @@ pub fn delete_bridge(name: &str) -> Result<(), LibvirtError> {
             // Remove netplan config and apply
             let config_path = format!("/etc/netplan/90-virtspawn-{name}.yaml");
             let _ = std::fs::remove_file(&config_path);
-            run_cmd(find_bin("netplan"), &["apply"], "Failed to apply netplan")?;
+            let netplan_bin = find_bin("netplan");
+            run_cmd(&netplan_bin, &["apply"], "Failed to apply netplan")?;
             return Ok(());
         }
         _ => {}
@@ -515,9 +517,7 @@ pub fn delete_firewall_rule(req: &CreateFirewallRuleRequest) -> Result<(), Libvi
 // ── Helpers ────────────────────────────────────────────────────────
 
 /// Find binary in common locations.
-fn find_bin(name: &str) -> &str {
-    // Leak a static string for the found path — called infrequently
-    // Alternatively, we could just set PATH but this is simpler
+fn find_bin(name: &str) -> String {
     let candidates = [
         format!("/usr/bin/{name}"),
         format!("/usr/sbin/{name}"),
@@ -526,10 +526,10 @@ fn find_bin(name: &str) -> &str {
     ];
     for c in &candidates {
         if std::path::Path::new(c).exists() {
-            return Box::leak(c.clone().into_boxed_str());
+            return c.clone();
         }
     }
-    Box::leak(name.to_string().into_boxed_str())
+    name.to_string()
 }
 
 fn run_cmd(cmd: &str, args: &[&str], context: &str) -> Result<(), LibvirtError> {

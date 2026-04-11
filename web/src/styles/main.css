@@ -141,6 +141,7 @@ code {
 .light-theme .border-slate-700,
 .light-theme .border-slate-700\/30 { border-color: #e2e8f0; }
 .light-theme .divide-slate-700\/30 > :not([hidden]) ~ :not([hidden]) { border-color: #e2e8f0; }
+.light-theme .border-slate-600 { border-color: #cbd5e1; }
 .light-theme .skeleton { background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); }
 .light-theme .stat-card-blue { background: linear-gradient(135deg, #dbeafe 0%, #f8fafc 100%); }
 .light-theme .stat-card-green { background: linear-gradient(135deg, #d1fae5 0%, #f8fafc 100%); }

@@ -60,7 +60,7 @@ export const listHostInterfaces = () => apiGet<HostInterface[]>(`${API}/host/int
 
 // Bridges
 export const createBridge = (req: CreateBridgeRequest) => apiPost<unknown>(`${API}/host/bridges`, req)
-export const deleteBridge = (name: string) => apiDelete(`${API}/host/bridges/${name}`)
+export const deleteBridge = (name: string) => apiDelete(`${API}/host/bridges/${encodeURIComponent(name)}`)
 
 // Port forwarding
 export const listPortForwards = () => apiGet<PortForwardRule[]>(`${API}/portforward`)

@@ -11,6 +11,7 @@ import {
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
 import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate, listIommuGroups, IommuGroup } from '../api/extras'
@@ -76,6 +77,11 @@ export default function VMDetailsPage() {
   const [iommuGroups, setIommuGroups] = useState<IommuGroup[]>([])
   const [sshIp, setSshIp] = useState('')
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
+
+  // Confirmation dialog state for destructive actions
+  const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
+  const [detachNicMac, setDetachNicMac] = useState<string | null>(null)
+  const [deleteSnapName, setDeleteSnapName] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!name) return
@@ -176,7 +182,8 @@ export default function VMDetailsPage() {
 
   const handleMigrate = async () => {
     if (!name || !migrateUri.trim()) return
-    try { await migrateVM(name, migrateUri.trim(), migrateLive); toast.success('Migration started'); setDialog(null) } catch (e: unknown) { toast.error(`Migration failed: ${e instanceof Error ? e.message : e}`) }
+    toast.info('Starting migration...')
+    try { await migrateVM(name, migrateUri.trim(), migrateLive); toast.success('Migration completed'); setDialog(null) } catch (e: unknown) { toast.error(`Migration failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleSetVcpus = async () => {
@@ -241,7 +248,7 @@ export default function VMDetailsPage() {
     if (!name || !attachSource.trim()) return
     try {
       const { apiPostVoid } = await import('../api/client')
-      await apiPostVoid(`/api/v1/vms/${name}/disk/attach`, { source: attachSource.trim(), target: attachTarget, driver: attachDriver })
+      await apiPostVoid(`/api/v1/vms/${encodeURIComponent(name)}/disk/attach`, { source: attachSource.trim(), target: attachTarget, driver: attachDriver })
       toast.success('Disk attached'); setDialog(null); setAttachSource(''); load(); setVmXml('')
     } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
   }
@@ -250,7 +257,7 @@ export default function VMDetailsPage() {
     if (!name) return
     try {
       const { apiPostVoid } = await import('../api/client')
-      await apiPostVoid(`/api/v1/vms/${name}/disk/detach/${targetDev}`)
+      await apiPostVoid(`/api/v1/vms/${encodeURIComponent(name)}/disk/detach/${encodeURIComponent(targetDev)}`)
       toast.success(`Disk '${targetDev}' detached`); load(); setVmXml('')
     } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
   }
@@ -265,9 +272,11 @@ export default function VMDetailsPage() {
     try { await attachInterface(name, nicNetwork.trim(), nicModel); toast.success(`NIC attached to '${nicNetwork}'`); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
   }
 
-  const handleAttachUsb = async () => {
-    if (!name || !selectedUsb) return
-    const [vid, pid] = selectedUsb.split(':')
+  const handleAttachUsb = async (vendorId?: string, productId?: string) => {
+    if (!name) return
+    const vid = vendorId ?? selectedUsb.split(':')[0]
+    const pid = productId ?? selectedUsb.split(':')[1]
+    if (!vid || !pid) return
     try { await attachUsb(name, vid, pid); toast.success('USB device attached'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
   }
 
@@ -279,6 +288,18 @@ export default function VMDetailsPage() {
   const handleDetachNic = async (mac: string) => {
     if (!name) return
     try { await detachInterface(name, mac); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const confirmDetachDisk = async () => {
+    if (detachDiskTarget) { await handleDetachDisk(detachDiskTarget); setDetachDiskTarget(null) }
+  }
+
+  const confirmDetachNic = async () => {
+    if (detachNicMac) { await handleDetachNic(detachNicMac); setDetachNicMac(null) }
+  }
+
+  const confirmDeleteSnapshot = async () => {
+    if (deleteSnapName) { await handleDeleteSnapshot(deleteSnapName); setDeleteSnapName(null) }
   }
 
   const toggleAutostart = async () => {
@@ -358,7 +379,7 @@ export default function VMDetailsPage() {
         <button onClick={() => openDialog('clone')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Copy className="w-3 h-3 inline -mt-0.5" /> Clone</button>
         {vm.state === 'shutoff' && <button onClick={() => openDialog('rename')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Pencil className="w-3 h-3 inline -mt-0.5" /> Rename</button>}
         <button onClick={() => openDialog('migrate')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><ArrowRightLeft className="w-3 h-3 inline -mt-0.5" /> Migrate</button>
-        <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup started for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
+        <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); toast.info('Backup started in background'); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup triggered successfully for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
         <button onClick={async () => { const tname = prompt('Template name:', `${vm.name}-template`); if (!tname) return; try { await saveVmAsTemplate(vm.name, tname); toast.success(`Saved as template '${tname}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
       </div>
@@ -518,7 +539,7 @@ export default function VMDetailsPage() {
                         {d.device === 'disk' && <button onClick={() => { setResizeTarget(d.target); setResizeGb(20); setDialog('resize-disk') }} className="p-1 hover:bg-blue-600/20 rounded transition" title="Resize disk" aria-label={`Resize ${d.target}`}>
                           <HardDrive className="w-4 h-4 text-blue-400" />
                         </button>}
-                        <button onClick={() => handleDetachDisk(d.target)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach disk" aria-label={`Detach ${d.target}`}>
+                        <button onClick={() => setDetachDiskTarget(d.target)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach disk" aria-label={`Detach ${d.target}`}>
                           <Trash2 className="w-4 h-4 text-red-400" />
                         </button>
                       </div>
@@ -549,7 +570,7 @@ export default function VMDetailsPage() {
                     <td className="px-6 py-3 text-sm">{iface.source}</td>
                     <td className="px-6 py-3 text-sm">{iface.model}</td>
                     <td className="px-6 py-3 text-right">
-                      <button onClick={() => handleDetachNic(iface.mac_address)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach NIC" aria-label={`Detach ${iface.mac_address}`}>
+                      <button onClick={() => setDetachNicMac(iface.mac_address)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach NIC" aria-label={`Detach ${iface.mac_address}`}>
                         <Trash2 className="w-4 h-4 text-red-400" />
                       </button>
                     </td>
@@ -587,7 +608,7 @@ export default function VMDetailsPage() {
                           <button onClick={() => handleRevertSnapshot(s.name)} className="p-1 hover:bg-blue-600/20 rounded transition" title="Revert to this snapshot" aria-label={`Revert to ${s.name}`}>
                             <RotateCw className="w-4 h-4 text-blue-400" />
                           </button>
-                          <button onClick={() => handleDeleteSnapshot(s.name)} className="p-1 hover:bg-red-600/20 rounded transition" title="Delete snapshot" aria-label={`Delete ${s.name}`}>
+                          <button onClick={() => setDeleteSnapName(s.name)} className="p-1 hover:bg-red-600/20 rounded transition" title="Delete snapshot" aria-label={`Delete ${s.name}`}>
                             <Trash2 className="w-4 h-4 text-red-400" />
                           </button>
                         </div>
@@ -622,7 +643,7 @@ export default function VMDetailsPage() {
                       <td className="px-6 py-2 font-mono text-blue-400">{d.vendor_id}:{d.product_id}</td>
                       <td className="px-6 py-2 text-slate-300">{d.description}</td>
                       <td className="px-6 py-2 text-right">
-                        <button onClick={() => { setSelectedUsb(`${d.vendor_id}:${d.product_id}`); handleAttachUsb() }} className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 rounded text-xs text-blue-400 transition">Attach</button>
+                        <button onClick={() => handleAttachUsb(d.vendor_id, d.product_id)} className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 rounded text-xs text-blue-400 transition">Attach</button>
                       </td>
                     </tr>
                   ))}
@@ -873,6 +894,32 @@ export default function VMDetailsPage() {
           )}
         </DialogOverlay>
       )}
+
+      {/* Confirmation Dialogs for destructive actions */}
+      <ConfirmDialog
+        open={detachDiskTarget !== null}
+        title="Detach Disk"
+        message={`This will detach disk '${detachDiskTarget}' from the VM. The disk image will not be deleted.`}
+        confirmLabel="Detach"
+        onConfirm={confirmDetachDisk}
+        onCancel={() => setDetachDiskTarget(null)}
+      />
+      <ConfirmDialog
+        open={detachNicMac !== null}
+        title="Detach Network Interface"
+        message={`This will remove the network interface with MAC '${detachNicMac}' from the VM.`}
+        confirmLabel="Detach"
+        onConfirm={confirmDetachNic}
+        onCancel={() => setDetachNicMac(null)}
+      />
+      <ConfirmDialog
+        open={deleteSnapName !== null}
+        title="Delete Snapshot"
+        message={`This will permanently delete snapshot '${deleteSnapName}'. This cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={confirmDeleteSnapshot}
+        onCancel={() => setDeleteSnapName(null)}
+      />
 
       {/* SSH Dialog — standalone, not using DialogOverlay/DialogBox to avoid click conflicts */}
       {sshDialogOpen && (

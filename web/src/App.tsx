@@ -27,6 +27,7 @@ const Console = lazy(() => import('./pages/Console'))
 const Capabilities = lazy(() => import('./pages/Capabilities'))
 const Devices = lazy(() => import('./pages/Devices'))
 const NWFilters = lazy(() => import('./pages/NWFilters'))
+const Secrets = lazy(() => import('./pages/Secrets'))
 const Backups = lazy(() => import('./pages/Backups'))
 const HostNetworking = lazy(() => import('./pages/HostNetworking'))
 const AuditLog = lazy(() => import('./pages/AuditLog'))
@@ -103,6 +104,7 @@ function AuthenticatedApp() {
                 <Route path="/capabilities" element={<Capabilities />} />
                 <Route path="/devices" element={<Devices />} />
                 <Route path="/nwfilters" element={<NWFilters />} />
+                <Route path="/secrets" element={<Secrets />} />
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/host-networking" element={<HostNetworking />} />
                 <Route path="/audit" element={<AuditLog />} />
