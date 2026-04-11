@@ -9,6 +9,7 @@ use rand::Rng;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
 use tracing::{info, warn};
 use virtspawn_core::LibvirtManager;
 
@@ -16,16 +17,28 @@ use virtspawn_core::LibvirtManager;
 #[derive(Clone)]
 pub struct SessionStore {
     sessions: Arc<Mutex<HashMap<String, SessionData>>>,
+    ws_tokens: Arc<Mutex<HashMap<String, WsTokenData>>>,
 }
 
 struct SessionData {
     username: String,
+    created_at: Instant,
+}
+
+const SESSION_TTL_SECS: u64 = 86400; // 24 hours
+const MAX_SESSIONS: usize = 1000;
+const MAX_SESSIONS_PER_USER: usize = 10;
+
+struct WsTokenData {
+    username: String,
+    created_at: Instant,
 }
 
 impl SessionStore {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            ws_tokens: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -35,18 +48,93 @@ impl SessionStore {
         let token = hex::encode(token_bytes);
 
         let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        sessions.insert(token.clone(), SessionData { username: username.to_string() });
+
+        // Purge expired sessions
+        sessions.retain(|_, data| data.created_at.elapsed().as_secs() < SESSION_TTL_SECS);
+
+        // Enforce MAX_SESSIONS: if over, remove the oldest session
+        if sessions.len() >= MAX_SESSIONS {
+            if let Some(oldest_token) = sessions
+                .iter()
+                .min_by_key(|(_, data)| data.created_at)
+                .map(|(tok, _)| tok.clone())
+            {
+                sessions.remove(&oldest_token);
+            }
+        }
+
+        // Enforce MAX_SESSIONS_PER_USER: if over for this user, remove the oldest
+        let user_sessions: Vec<String> = sessions
+            .iter()
+            .filter(|(_, data)| data.username == username)
+            .map(|(tok, _)| tok.clone())
+            .collect();
+        if user_sessions.len() >= MAX_SESSIONS_PER_USER {
+            if let Some(oldest_token) = user_sessions
+                .iter()
+                .min_by_key(|tok| sessions.get(tok.as_str()).map(|d| d.created_at))
+                .cloned()
+            {
+                sessions.remove(&oldest_token);
+            }
+        }
+
+        sessions.insert(
+            token.clone(),
+            SessionData {
+                username: username.to_string(),
+                created_at: Instant::now(),
+            },
+        );
         token
     }
 
     fn validate_session(&self, token: &str) -> Option<String> {
-        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
-        sessions.get(token).map(|s| s.username.clone())
+        let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(data) = sessions.get(token) {
+            if data.created_at.elapsed().as_secs() < SESSION_TTL_SECS {
+                return Some(data.username.clone());
+            }
+            // Session expired — remove it
+            sessions.remove(token);
+        }
+        None
     }
 
     fn remove_session(&self, token: &str) {
         let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         sessions.remove(token);
+    }
+
+    /// Create a single-use WebSocket token valid for 60 seconds.
+    pub fn create_ws_token(&self, username: &str) -> String {
+        let mut rng = rand::thread_rng();
+        let token_bytes: [u8; 32] = rng.gen();
+        let token = hex::encode(token_bytes);
+
+        let mut ws_tokens = self.ws_tokens.lock().unwrap_or_else(|e| e.into_inner());
+        // Purge expired ws tokens while we have the lock
+        ws_tokens.retain(|_, data| data.created_at.elapsed().as_secs() < 60);
+        ws_tokens.insert(
+            token.clone(),
+            WsTokenData {
+                username: username.to_string(),
+                created_at: Instant::now(),
+            },
+        );
+        token
+    }
+
+    /// Validate and consume a single-use WebSocket token.
+    /// Returns the username if the token exists and is less than 60 seconds old.
+    pub fn validate_ws_token(&self, token: &str) -> Option<String> {
+        let mut ws_tokens = self.ws_tokens.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(data) = ws_tokens.remove(token) {
+            if data.created_at.elapsed().as_secs() < 60 {
+                return Some(data.username);
+            }
+        }
+        None
     }
 }
 
@@ -98,6 +186,81 @@ pub async fn auth_middleware(
     (
         StatusCode::UNAUTHORIZED,
         Json(serde_json::json!({ "error": "Authentication required" })),
+    )
+        .into_response()
+}
+
+// ── WebSocket token handler ────────────────────────────────────────
+
+/// Create a single-use WebSocket token. Must be called from an authenticated context.
+pub async fn ws_token_handler(
+    Extension(sessions): Extension<SessionStore>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    // Extract username from session cookie
+    let username = headers
+        .get(header::COOKIE)
+        .and_then(|v| v.to_str().ok())
+        .and_then(|cookie_header| {
+            for part in cookie_header.split(';') {
+                let part = part.trim();
+                if let Some(value) = part.strip_prefix("virtspawn_session=") {
+                    let token = value.trim();
+                    if !token.is_empty() {
+                        return sessions.validate_session(token);
+                    }
+                }
+            }
+            None
+        })
+        .or_else(|| {
+            // Fall back to Authorization header (Bearer API token)
+            headers
+                .get("authorization")
+                .and_then(|v| v.to_str().ok())
+                .and_then(|auth| auth.strip_prefix("Bearer "))
+                .and_then(|token| {
+                    virtspawn_core::libvirt::automation::validate_api_token(token)
+                        .map(|api_token| api_token.username)
+                })
+        });
+
+    match username {
+        Some(user) => {
+            let token = sessions.create_ws_token(&user);
+            (StatusCode::OK, Json(serde_json::json!({ "token": token }))).into_response()
+        }
+        None => {
+            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Authentication required" }))).into_response()
+        }
+    }
+}
+
+/// WebSocket auth middleware — checks for `?token=` query parameter.
+pub async fn ws_auth_middleware(
+    State(store): State<SessionStore>,
+    req: Request<Body>,
+    next: Next,
+) -> Response {
+    // Extract token from query string
+    let token = req
+        .uri()
+        .query()
+        .and_then(|q| {
+            q.split('&').find_map(|pair| {
+                pair.strip_prefix("token=").map(|v| v.to_string())
+            })
+        });
+
+    if let Some(ref tok) = token {
+        if store.validate_ws_token(tok).is_some() {
+            return next.run(req).await;
+        }
+    }
+
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({ "error": "Valid WebSocket token required" })),
     )
         .into_response()
 }
@@ -176,5 +339,6 @@ pub fn auth_routes(session_store: SessionStore) -> Router<LibvirtManager> {
         .route("/auth/login", post(login_handler))
         .route("/auth/logout", post(logout_handler))
         .route("/auth/session", get(session_handler))
+        .route("/ws-token", post(ws_token_handler))
         .layer(Extension(session_store))
 }

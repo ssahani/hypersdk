@@ -126,3 +126,5 @@ export const setMemoryBalloon = (name: string, mb: number) => apiPostVoid(`${API
 export const resizeDisk = (name: string, target: string, sizeGb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/disk/resize/${encodeURIComponent(target)}`, { size_gb: sizeGb })
 export const attachInterface = (name: string, network: string, model: string = 'virtio') => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/attach`, { network, model })
 export const detachInterface = (name: string, mac: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/detach/${encodeURIComponent(mac)}`)
+export const getVMLogs = (name: string, lines = 500) =>
+  apiGet<{ vm_name: string; log_path: string; content: string }>(`${API}/vms/${encodeURIComponent(name)}/logs?lines=${lines}`)

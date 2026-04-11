@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive } from 'lucide-react'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star } from 'lucide-react'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
@@ -9,6 +9,8 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { navGroups } from '../utils/routes'
 import { getStateBadgeClasses } from '../utils/vm'
+import { getRecentVMs } from '../utils/recentVMs'
+import { getPinnedVMs } from '../utils/pinnedVMs'
 
 interface PaletteItem {
   id: string
@@ -75,6 +77,31 @@ export default function CommandPalette() {
 
   // Build items list
   const items: PaletteItem[] = []
+
+  // Recent VMs
+  const recentNames = getRecentVMs()
+  for (const rName of recentNames) {
+    items.push({
+      id: `recent-${rName}`,
+      icon: <Clock className="w-4 h-4" />,
+      label: rName,
+      action: () => go(`/vms/${rName}`),
+      category: 'Recent',
+    })
+  }
+
+  // Pinned VMs
+  const pinnedNames = getPinnedVMs()
+  for (const pName of pinnedNames) {
+    if (recentNames.includes(pName)) continue // avoid duplicates with Recent
+    items.push({
+      id: `pinned-${pName}`,
+      icon: <Star className="w-4 h-4" />,
+      label: pName,
+      action: () => go(`/vms/${pName}`),
+      category: 'Pinned',
+    })
+  }
 
   // Quick actions
   items.push(
@@ -152,7 +179,7 @@ export default function CommandPalette() {
   const filtered = q ? items.filter(i => i.label.toLowerCase().includes(q) || (i.sublabel || '').toLowerCase().includes(q)) : items
 
   // Group by category
-  const categories = ['Quick Actions', 'Pages', 'Virtual Machines', 'Networks', 'Storage Pools', 'Snapshots']
+  const categories = ['Recent', 'Pinned', 'Quick Actions', 'Pages', 'Virtual Machines', 'Networks', 'Storage Pools', 'Snapshots']
   const grouped = categories
     .map(cat => ({ cat, items: filtered.filter(i => i.category === cat) }))
     .filter(g => g.items.length > 0)

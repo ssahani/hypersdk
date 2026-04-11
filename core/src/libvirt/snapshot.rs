@@ -80,19 +80,30 @@ pub fn create_snapshot(
     vm_name: &str,
     snap_name: &str,
     description: &str,
+    disk_only: bool,
 ) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
+
+    let memory_line = if disk_only {
+        "\n  <memory snapshot='no'/>"
+    } else {
+        ""
+    };
 
     let xml_str = format!(
         r#"<domainsnapshot>
   <name>{}</name>
-  <description>{}</description>
+  <description>{}</description>{}
 </domainsnapshot>"#,
         crate::xml::escape(snap_name),
         crate::xml::escape(description),
+        memory_line,
     );
 
-    DomainSnapshot::create_xml(&domain, &xml_str, 0)
+    // VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY = 16
+    let flags: u32 = if disk_only { 16 } else { 0 };
+
+    DomainSnapshot::create_xml(&domain, &xml_str, flags)
         .map_err(LibvirtError::map_op("Failed to create snapshot"))?;
 
     Ok(())

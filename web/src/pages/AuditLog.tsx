@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { getAuditLog, AuditEvent } from '../api/extras'
 import { useToastContext } from '../contexts/ToastContext'
-import { FileText, RefreshCw, Search, CheckCircle, XCircle } from 'lucide-react'
+import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'lucide-react'
+import { downloadJSON, downloadCSV } from '../utils/export'
 
 export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEvent[]>([])
@@ -34,7 +35,11 @@ export default function AuditLogPage() {
           <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-blue-400" /> Audit Log</h1>
           <p className="text-sm text-slate-400 mt-0.5">{events.length} events</p>
         </div>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => downloadJSON(filtered, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON"><Download className="w-4 h-4" /></button>
+          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
+          <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
 
       <div className="relative">

@@ -60,6 +60,8 @@ pub struct CreateSnapshotRequest {
     pub name: String,
     #[serde(default)]
     pub description: String,
+    #[serde(default)]
+    pub disk_only: bool,
 }
 
 // ── Network Types ───────────────────────────────────────────────────────

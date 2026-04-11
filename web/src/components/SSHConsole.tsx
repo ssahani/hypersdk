@@ -3,6 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { RefreshCw, Trash2, Maximize, Minimize } from 'lucide-react'
+import { getWsToken } from '../api/client'
 
 interface Props {
   host: string
@@ -16,7 +17,7 @@ export default function SSHConsole({ host }: Props) {
   const [connected, setConnected] = useState(false)
   const [fullscreen, setFullscreen] = useState(false)
 
-  const connect = useCallback(() => {
+  const connect = useCallback(async () => {
     if (!terminalRef.current) return
 
     // Dispose previous
@@ -44,9 +45,17 @@ export default function SSHConsole({ host }: Props) {
     xtermRef.current = term
     fitRef.current = fit
 
+    let token: string
+    try {
+      token = await getWsToken()
+    } catch {
+      term.write('\r\n\x1b[31m● Failed to obtain WebSocket token\x1b[0m\r\n')
+      return
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const encodedHost = encodeURIComponent(host)
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/ssh/${encodedHost}`)
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/ssh/${encodedHost}?token=${encodeURIComponent(token)}`)
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
 

@@ -51,3 +51,10 @@ export async function apiDelete(url: string): Promise<void> {
     throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
   }
 }
+
+export async function getWsToken(): Promise<string> {
+  const res = await fetch('/api/v1/ws-token', { method: 'POST', credentials: 'same-origin' })
+  if (!res.ok) throw new Error('Failed to get WebSocket token')
+  const data = await res.json()
+  return data.token
+}

@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Maximize, Minimize, Monitor } from 'lucide-react'
+import { getWsToken } from '../api/client'
 
 interface Props {
   vmName: string
@@ -8,6 +9,17 @@ interface Props {
 
 export default function SPICEViewer({ vmName, port = -1 }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
+  const [token, setToken] = useState<string | null>(null)
+  const [tokenError, setTokenError] = useState(false)
+
+  useEffect(() => {
+    if (port <= 0) return
+    let cancelled = false
+    getWsToken()
+      .then(t => { if (!cancelled) setToken(t) })
+      .catch(() => { if (!cancelled) setTokenError(true) })
+    return () => { cancelled = true }
+  }, [port])
 
   if (port <= 0) {
     return (
@@ -21,9 +33,27 @@ export default function SPICEViewer({ vmName, port = -1 }: Props) {
     )
   }
 
+  if (tokenError) {
+    return (
+      <div className="flex flex-col items-center justify-center bg-black rounded-lg p-12 text-center" style={{ minHeight: '500px' }}>
+        <Monitor className="w-16 h-16 text-slate-600 mb-4" />
+        <h3 className="text-lg font-semibold text-red-400 mb-2">Authentication Failed</h3>
+        <p className="text-sm text-slate-500 max-w-md">Failed to obtain WebSocket token.</p>
+      </div>
+    )
+  }
+
+  if (!token) {
+    return (
+      <div className="flex items-center justify-center bg-black rounded-lg" style={{ minHeight: '500px' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500" />
+      </div>
+    )
+  }
+
   const wsHost = window.location.hostname
   const wsPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
-  const wsProxyPath = `ws/v1/spice/${encodeURIComponent(vmName)}`
+  const wsProxyPath = `ws/v1/spice/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}`
   const spiceUrl = `/spice-html5/spice_auto.html?host=${wsHost}&port=${wsPort}&path=${encodeURIComponent(wsProxyPath)}`
 
   return (

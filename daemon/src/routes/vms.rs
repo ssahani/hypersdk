@@ -1,11 +1,13 @@
-use axum::extract::{Path, State};
+use std::collections::HashMap;
+
+use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::{clone, create, device, domain, resize};
 use virtspawn_core::{
-    audit, AttachDiskRequest, AuditEvent, CloneVmRequest, CreateVmRequest, LibvirtManager,
-    RenameVmRequest, VmDetails, VmInfo,
+    audit, AttachDiskRequest, AuditEvent, CloneVmRequest, CreateVmRequest, LibvirtError,
+    LibvirtManager, RenameVmRequest, VmDetails, VmInfo,
 };
 
 use crate::error::{ok_json, AppError, Xml};
@@ -212,6 +214,36 @@ async fn set_vm_tags_handler(
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tags": req.tags })))
 }
 
+async fn get_vm_logs(
+    Path(name): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
+    State(_manager): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    // Validate name has no path separators
+    if name.contains('/') || name.contains('\\') || name.contains("..") {
+        return Err(LibvirtError::Invalid("Invalid VM name".into()).into());
+    }
+    let lines: usize = params
+        .get("lines")
+        .and_then(|l| l.parse().ok())
+        .unwrap_or(500)
+        .min(5000);
+    let log_path = format!("/var/log/libvirt/qemu/{}.log", name);
+    let content = match std::fs::read_to_string(&log_path) {
+        Ok(c) => {
+            let all_lines: Vec<&str> = c.lines().collect();
+            let start = all_lines.len().saturating_sub(lines);
+            all_lines[start..].join("\n")
+        }
+        Err(_) => String::new(),
+    };
+    Ok(Json(serde_json::json!({
+        "vm_name": name,
+        "log_path": log_path,
+        "content": content,
+    })))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -236,4 +268,5 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/nic/attach", post(attach_interface_handler))
         .route("/vms/{name}/nic/detach/{mac}", post(detach_interface_handler))
         .route("/vms/{name}/tags", get(get_vm_tags_handler).post(set_vm_tags_handler))
+        .route("/vms/{name}/logs", get(get_vm_logs))
 }

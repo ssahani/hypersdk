@@ -6,6 +6,7 @@ import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
 import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
+import { getRecentVMs } from '../utils/recentVMs'
 import { timeAgo } from '../utils/time'
 import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2 } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
@@ -135,6 +136,22 @@ export default function Dashboard() {
         <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
         <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="Libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
+
+      {/* Recently Viewed */}
+      {(() => {
+        const recent = getRecentVMs()
+        if (recent.length === 0) return null
+        return (
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="text-sm text-slate-400">Recent:</span>
+            {recent.map(name => (
+              <Link key={name} to={`/vms/${name}`} className="px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-blue-400 hover:text-blue-300 hover:border-slate-600/50 transition">
+                {name}
+              </Link>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Charts */}
       <div className="grid grid-cols-1 gap-6">

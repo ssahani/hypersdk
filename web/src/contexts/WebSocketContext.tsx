@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from 'react'
+import { getWsToken } from '../api/client'
 
 interface WSMessage {
   type: string
@@ -36,9 +37,17 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     let retryDelay = 1000
     let retryTimer: ReturnType<typeof setTimeout> | null = null
 
-    function connect() {
+    async function connect() {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/watch`)
+      let token: string
+      try {
+        token = await getWsToken()
+      } catch {
+        retryTimer = setTimeout(connect, retryDelay)
+        retryDelay = Math.min(retryDelay * 2, 30000)
+        return
+      }
+      const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/watch?token=${encodeURIComponent(token)}`)
       wsRef.current = ws
 
       ws.onopen = () => {

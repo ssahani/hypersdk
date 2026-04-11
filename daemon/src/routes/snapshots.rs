@@ -27,7 +27,7 @@ async fn create_snapshot_handler(
     Path(vm_name): Path<String>,
     Json(req): Json<CreateSnapshotRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| snapshot::create_snapshot(conn, &vm_name, &req.name, &req.description))?;
+    manager.with_conn(|conn| snapshot::create_snapshot(conn, &vm_name, &req.name, &req.description, req.disk_only))?;
     Ok(Json(serde_json::json!({ "status": "created", "vm": vm_name, "snapshot": req.name })))
 }
 

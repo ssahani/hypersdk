@@ -221,6 +221,7 @@ impl DaemonClient {
         let req = CreateSnapshotRequest {
             name: snap_name.to_string(),
             description: desc.to_string(),
+            disk_only: false,
         };
         self.post_json(&format!("/api/v1/vms/{vm_name}/snapshots"), &req)
             .await

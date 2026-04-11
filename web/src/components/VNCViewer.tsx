@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
+import { getWsToken } from '../api/client'
 
 interface Props {
   vmName: string
@@ -24,7 +25,15 @@ export default function VNCViewer({ vmName, port = -1 }: Props) {
       containerRef.current.innerHTML = ''
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}`
+      let token: string
+      try {
+        token = await getWsToken()
+      } catch {
+        setStatus('disconnected')
+        return
+      }
+      if (cancelled) return
+      const wsUrl = `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}`
 
       // Dynamically import RFB from server-hosted noVNC (ESM module)
       // This is the same noVNC that's served at /novnc/core/rfb.js

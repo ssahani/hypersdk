@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getMetrics, VmMetrics } from '../api/vm'
-import { Activity, RefreshCw } from 'lucide-react'
+import { Activity, RefreshCw, Download } from 'lucide-react'
+import { downloadJSON, downloadCSV } from '../utils/export'
 import { formatBytes } from '../utils/vm'
 
 export default function EventsPage() {
@@ -19,7 +20,11 @@ export default function EventsPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Activity className="w-6 h-6" /> Live Metrics</h1>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => downloadJSON(metrics, 'metrics.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
+          <button onClick={() => downloadCSV(metrics as unknown as Record<string, unknown>[], 'metrics.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
+          <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
 
       {metrics.length === 0 ? (

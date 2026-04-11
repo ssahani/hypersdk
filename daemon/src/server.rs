@@ -21,9 +21,13 @@ pub fn create_app(manager: LibvirtManager) -> Router {
         ))
         .with_state(manager.clone());
 
-    // WebSocket routes don't use auth middleware — noVNC iframe can't pass
-    // HttpOnly cookies, and these routes only proxy to localhost VNC/PTY ports.
+    // WebSocket routes use single-use token auth via ?token= query parameter.
+    // Clients first POST /api/v1/ws-token to get a short-lived token.
     let ws = routes::websocket_routes()
+        .route_layer(middleware::from_fn_with_state(
+            session_store.clone(),
+            auth::ws_auth_middleware,
+        ))
         .with_state(manager);
 
     let mut router = Router::new()

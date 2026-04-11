@@ -5,12 +5,13 @@ import {
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
-  insertCdrom, ejectCdrom,
+  insertCdrom, ejectCdrom, getVMLogs,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig,
 } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
+import { addRecentVM } from '../utils/recentVMs'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
@@ -26,7 +27,7 @@ import {
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
 
-type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml'
+type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml' | 'logs'
 type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
 
 export default function VMDetailsPage() {
@@ -78,6 +79,9 @@ export default function VMDetailsPage() {
   const [sshIp, setSshIp] = useState('')
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
+  const [snapDiskOnly, setSnapDiskOnly] = useState(false)
+  const [logsContent, setLogsContent] = useState('')
+  const [logsLines, setLogsLines] = useState(500)
 
   // Confirmation dialog state for destructive actions
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
@@ -90,6 +94,7 @@ export default function VMDetailsPage() {
       const [vmData, snapData] = await Promise.all([getVM(name), listSnapshots(name).catch(() => [])])
       setVM(vmData)
       setSnapshots(snapData)
+      addRecentVM(name)
       if (vmData.state === 'running') {
         try { setMetrics(await getVMMetrics(name)) } catch { /* no metrics */ }
         try { setGuestIps(await getInterfaces(name)) } catch { /* no guest agent */ }
@@ -151,6 +156,13 @@ export default function VMDetailsPage() {
       getVMXml(name).then(setVmXml).catch(() => setVmXml('Failed to load XML'))
     }
   }, [tab, name, vmXml])
+
+  // Load logs when tab switches to logs
+  useEffect(() => {
+    if (tab === 'logs' && name) {
+      getVMLogs(name, logsLines).then((r) => setLogsContent(r.content)).catch(() => setLogsContent('Failed to load logs'))
+    }
+  }, [tab, name, logsLines])
 
   const action = async (fn: (n: string) => Promise<void>, label: string) => {
     if (!name) return
@@ -233,7 +245,7 @@ export default function VMDetailsPage() {
 
   const handleCreateSnapshot = async () => {
     if (!name || !snapName.trim()) return
-    try { await createSnapshot(name, snapName.trim(), snapDesc); toast.success(`Snapshot '${snapName}' created`); setDialog(null); setSnapName(''); setSnapDesc(''); load() } catch (e: unknown) { toast.error(`Snapshot failed: ${e instanceof Error ? e.message : e}`) }
+    try { await createSnapshot(name, snapName.trim(), snapDesc, snapDiskOnly); toast.success(`Snapshot '${snapName}' created`); setDialog(null); setSnapName(''); setSnapDesc(''); setSnapDiskOnly(false); load() } catch (e: unknown) { toast.error(`Snapshot failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleDeleteSnapshot = async (snapN: string) => {
@@ -350,6 +362,7 @@ export default function VMDetailsPage() {
     { key: 'snapshots', label: `Snapshots (${snapshots.length})`, icon: <Camera className="w-4 h-4" /> },
     { key: 'devices', label: 'Devices', icon: <Monitor className="w-4 h-4" /> },
     { key: 'xml', label: 'XML', icon: <Code className="w-4 h-4" /> },
+    { key: 'logs', label: 'Logs', icon: <Terminal className="w-4 h-4" /> },
   ]
 
   return (
@@ -745,6 +758,26 @@ export default function VMDetailsPage() {
         </div>
       )}
 
+      {/* ── Logs Tab ────────────────────────────────────────────── */}
+
+      {tab === 'logs' && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+          <div className="px-6 py-3 border-b border-slate-700/50 flex items-center justify-between">
+            <span className="text-sm text-slate-400">QEMU Log ({`/var/log/libvirt/qemu/${vm.name}.log`})</span>
+            <div className="flex items-center gap-3">
+              <select value={logsLines} onChange={(e) => setLogsLines(parseInt(e.target.value))} className="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-xs text-slate-300">
+                <option value={500}>500 lines</option>
+                <option value={1000}>1000 lines</option>
+                <option value={2000}>2000 lines</option>
+                <option value={5000}>5000 lines</option>
+              </select>
+              <button onClick={() => { if (name) getVMLogs(name, logsLines).then((r) => setLogsContent(r.content)).catch(() => setLogsContent('Failed to load logs')) }} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Refresh</button>
+            </div>
+          </div>
+          <pre className="p-6 text-xs font-mono text-slate-300 overflow-x-auto max-h-[600px] overflow-y-auto whitespace-pre">{logsContent || 'No log content available.'}</pre>
+        </div>
+      )}
+
       {/* ── Dialogs ─────────────────────────────────────────────── */}
 
       {dialog && (
@@ -802,11 +835,15 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'snapshot' && (
-            <DialogBox title="Create Snapshot" icon={<Camera className="w-5 h-5 text-green-400" />} onClose={() => setDialog(null)} onConfirm={handleCreateSnapshot} confirmLabel="Create">
+            <DialogBox title="Create Snapshot" icon={<Camera className="w-5 h-5 text-green-400" />} onClose={() => { setDialog(null); setSnapDiskOnly(false) }} onConfirm={handleCreateSnapshot} confirmLabel="Create">
               <label htmlFor="dlg-snap-name" className="block text-sm text-slate-400 mb-1">Snapshot Name</label>
               <input id="dlg-snap-name" type="text" autoFocus value={snapName} onChange={(e) => setSnapName(e.target.value)} className="input-field" placeholder="before-upgrade" />
               <label htmlFor="dlg-snap-desc" className="block text-sm text-slate-400 mb-1 mt-3">Description (optional)</label>
               <input id="dlg-snap-desc" type="text" value={snapDesc} onChange={(e) => setSnapDesc(e.target.value)} className="input-field" placeholder="Snapshot before kernel upgrade" />
+              <div className="flex items-center gap-2 mt-3">
+                <input id="dlg-snap-disk-only" type="checkbox" checked={snapDiskOnly} onChange={(e) => setSnapDiskOnly(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                <label htmlFor="dlg-snap-disk-only" className="text-sm text-slate-300">Disk-only snapshot (faster, no memory state)</label>
+              </div>
             </DialogBox>
           )}
 

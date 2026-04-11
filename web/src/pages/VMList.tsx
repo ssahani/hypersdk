@@ -6,7 +6,9 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
-import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X } from 'lucide-react'
+import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star } from 'lucide-react'
+import { downloadJSON, downloadCSV } from '../utils/export'
+import { isPinned, togglePin } from '../utils/pinnedVMs'
 
 export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -19,6 +21,7 @@ export default function VMList() {
   const [selectedVMs, setSelectedVMs] = useState<Set<string>>(new Set())
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => (localStorage.getItem('vmlist-view') as 'table' | 'grid') || 'table')
+  const [pinnedRefresh, setPinnedRefresh] = useState(0)
   const toast = useToastContext()
   const { subscribe } = useWebSocketContext()
 
@@ -70,6 +73,12 @@ export default function VMList() {
     return matchesSearch && matchesTag
   })
 
+  const sorted = [...filtered].sort((a, b) => {
+    const ap = isPinned(a.name) ? 0 : 1
+    const bp = isPinned(b.name) ? 0 : 1
+    return ap - bp
+  })
+
   const toggleSelect = (name: string) => {
     setSelectedVMs(prev => {
       const next = new Set(prev)
@@ -107,6 +116,8 @@ export default function VMList() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Virtual Machines</h1>
         <div className="flex items-center gap-3">
+          <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
+          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
           <button onClick={() => setViewMode(v => v === 'table' ? 'grid' : 'table')} className="p-2 hover:bg-slate-700 rounded transition" title={viewMode === 'table' ? 'Grid view' : 'Table view'}>
             {viewMode === 'table' ? <LayoutGrid className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
           </button>
@@ -165,13 +176,16 @@ export default function VMList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/50">
-              {filtered.map((vm) => (
+              {sorted.map((vm) => (
                 <tr key={vm.name} className="hover:bg-slate-700/50 transition">
                   <td className="px-3 py-4">
                     <input type="checkbox" checked={selectedVMs.has(vm.name)} onChange={() => toggleSelect(vm.name)} className="rounded border-slate-600 bg-slate-900" />
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">
+                      <button onClick={(e) => { e.preventDefault(); togglePin(vm.name); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vm.name) ? 'Unpin' : 'Pin'}>
+                        <Star className={`w-3.5 h-3.5 ${isPinned(vm.name) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
+                      </button>
                       <Link to={`/vms/${vm.name}`} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
                       {(vmTagsMap[vm.name] || []).map(t => (
                         <span key={t} className="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-[10px] font-medium">{t}</span>
@@ -225,11 +239,14 @@ export default function VMList() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filtered.map((vm) => (
+          {sorted.map((vm) => (
             <div key={vm.name} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <input type="checkbox" checked={selectedVMs.has(vm.name)} onChange={() => toggleSelect(vm.name)} className="rounded border-slate-600 bg-slate-900 shrink-0" />
+                  <button onClick={(e) => { e.preventDefault(); togglePin(vm.name); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vm.name) ? 'Unpin' : 'Pin'}>
+                    <Star className={`w-3.5 h-3.5 ${isPinned(vm.name) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
+                  </button>
                   <Link to={`/vms/${vm.name}`} className="font-semibold text-blue-400 hover:text-blue-300 truncate">{vm.name}</Link>
                 </div>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
