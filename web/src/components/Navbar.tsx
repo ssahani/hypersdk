@@ -1,9 +1,11 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon } from 'lucide-react'
+import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
+import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
+import { timeAgo } from '../utils/time'
 import { navGroups, NavItem, NavGroup } from '../utils/routes'
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
@@ -79,6 +81,19 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { username, logout } = useAuth()
   const { theme, toggleTheme } = useTheme()
+  const { events } = useWebSocketContext()
+  const [bellOpen, setBellOpen] = useState(false)
+  const bellRef = useRef<HTMLDivElement>(null)
+  const recentCount = events.filter((e: VMEvent) => Date.now() - e.timestamp < 300_000).length
+
+  useEffect(() => {
+    if (!bellOpen) return
+    const handler = (e: MouseEvent) => {
+      if (bellRef.current && !bellRef.current.contains(e.target as Node)) setBellOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [bellOpen])
 
   return (
     <nav className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-30">
@@ -109,6 +124,36 @@ export default function Navbar() {
             <button onClick={toggleTheme} className="p-1.5 hover:bg-slate-700/60 rounded-lg transition text-slate-400 hover:text-white" title={theme === 'dark' ? 'Light mode' : 'Dark mode'} aria-label="Toggle theme">
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
+            <div className="relative" ref={bellRef}>
+              <button onClick={() => setBellOpen(o => !o)} className="relative p-1.5 hover:bg-slate-700/60 rounded-lg transition text-slate-400 hover:text-white" title="Notifications" aria-label="Notifications">
+                <Bell className="w-4 h-4" />
+                {recentCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">{recentCount > 9 ? '9+' : recentCount}</span>
+                )}
+              </button>
+              {bellOpen && (
+                <div className="absolute top-full right-0 mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl py-2 w-80 z-40 animate-fade-in origin-top-right max-h-[400px] overflow-y-auto">
+                  <div className="px-4 py-2 border-b border-slate-700/50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recent Activity</div>
+                  {events.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-sm text-slate-500">No recent events</div>
+                  ) : (
+                    events.slice(0, 20).map((ev: VMEvent, i: number) => (
+                      <div key={i} className="px-4 py-2.5 hover:bg-slate-700/40 transition text-sm">
+                        <div className="flex items-center justify-between">
+                          <span className="text-white font-medium">{ev.name}</span>
+                          <span className="text-[10px] text-slate-500">{timeAgo(ev.timestamp)}</span>
+                        </div>
+                        <div className="text-xs text-slate-400 mt-0.5">
+                          {ev.event === 'state_change' && `${ev.old_state} → ${ev.new_state}`}
+                          {ev.event === 'vm_added' && 'VM created'}
+                          {ev.event === 'vm_removed' && 'VM removed'}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
             <ConnectionStatus />
             <Link
               to="/create"

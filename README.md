@@ -65,13 +65,16 @@ virtspawn/
 
 ### Web UI (http://localhost:8081)
 - **Premium login page** — split-screen layout with animated gradient background, floating orbs, feature showcase cards, glassmorphism form
-- **Command palette** — `Ctrl+K` / `Cmd+K` to search VMs, navigate pages, and run quick actions (start/stop/console) with keyboard navigation
+- **Command palette** — `Ctrl+K` / `Cmd+K` to search VMs, networks, storage pools, snapshots, navigate pages, and run quick actions with keyboard navigation
+- **Notification bell** — global notification center in navbar with badge count, showing real-time VM state changes, additions, and removals
 - **Breadcrumb navigation** — auto-generated from route path on every page
 - **Keyboard shortcuts** — `g d` (dashboard), `g v` (VMs), `g n` (networks), `g s` (storage), `g c` (create), `?` (help overlay)
-- **Dashboard** — VM stats, host memory gauge, VM list with inline quick actions (start/shutdown/console), metric charts
+- **Dashboard** — VM stats, host memory gauge, VM list with inline quick actions (start/shutdown/console), metric charts, real-time activity feed
+- **Batch VM operations** — multi-select VMs with checkboxes, floating action bar for batch start/shutdown/stop/delete
 - **VM Management** — start, stop, shutdown, reboot, pause, resume, delete with confirmation dialogs
-- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots, Devices, XML) with live metrics, confirmation dialogs for destructive actions (detach disk/NIC, delete snapshot)
-- **Create VM** — form with template selector (linux-small/medium/large, windows, minimal), validation, UEFI firmware selection, cloud-init support
+- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots, Devices, XML) with live metrics, confirmation dialogs, XML download, save-as-template dialog
+- **VM list views** — toggle between table and card grid layouts with localStorage persistence
+- **Create VM** — form with built-in and saved template selectors, validation, UEFI firmware selection, cloud-init support
 - **Import VM** — convert and import VMDK/VDI/VHD disk images to qcow2
 - **VNC Console** — in-browser VM display via noVNC RFB client (dynamically loaded from server)
 - **SPICE Console** — in-browser SPICE display via spice-html5
@@ -79,7 +82,7 @@ virtspawn/
 - **SSH Console** — browser-based SSH access via spawned ssh process with PTY WebSocket
 - **Host Networking** — visual network topology (SVG graph), port forwarding, bridge management, per-VM firewall rules, DHCP lease viewer
 - **Networks** — list, start/stop, toggle autostart, delete
-- **Storage** — pool cards with capacity bars, volume browser with resize/clone, delete volumes
+- **Storage** — pool cards with capacity bars and autostart toggle, volume browser with create/resize/clone/delete
 - **Snapshots** — list all across VMs, revert, delete
 - **Secrets** — libvirt secrets management (list, view XML, delete)
 - **Host Info** — hypervisor, CPU model/cores/threads, memory, libvirt version, DMI hardware details (vendor, product, BIOS)
@@ -88,7 +91,7 @@ virtspawn/
 - **Audit Log** — view all operation history with timestamps
 - **Settings** — RBAC role management, API tokens, alert rules, webhooks, scheduled actions, notification channels
 - **ISO/Disk Browser** — browse available ISO images and disk images on the host
-- **API Docs** — built-in OpenAPI documentation page
+- **API Docs** — built-in OpenAPI documentation with interactive API playground (try endpoints in-browser)
 - **Live Metrics** — real-time per-VM time-series metrics charts (memory, disk I/O, network I/O)
 - **PCI/IOMMU Devices** — PCI device listing with IOMMU group info
 - **Toast notifications** — success/error/warning/info feedback for all actions, progress toasts for long-running operations (backup, restore, migration)
@@ -325,9 +328,9 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 
 | Page | URL | Description |
 |------|-----|-------------|
-| Dashboard | `/` | Stats cards, memory gauge, VM list with quick actions, metric charts |
-| VM List | `/vms` | Table with search, tag filtering, state badges, lifecycle actions |
-| VM Details | `/vms/{name}` | 6 tabs (Overview, Disks, Network, Snapshots, Devices, XML), confirmation dialogs |
+| Dashboard | `/` | Stats cards, memory gauge, VM list with quick actions, metric charts, activity feed |
+| VM List | `/vms` | Table/grid view with search, tag filtering, batch operations, state badges, lifecycle actions |
+| VM Details | `/vms/{name}` | 6 tabs, confirmation dialogs, XML download, save-as-template dialog |
 | Create VM | `/create` | Template selector + form with validation, UEFI, cloud-init |
 | Import VM | `/import` | Convert and import VMDK/VDI/VHD disk images |
 | Console | `/vms/{name}/console` | Auto-detect VNC/Serial, in-browser display via noVNC or xterm.js |
@@ -347,7 +350,7 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 | Node Devices | `/devices` | PCI, USB, SCSI, network device inventory with XML viewer |
 | Network Filters | `/nwfilters` | List/delete libvirt network filters |
 | Backups | `/backups` | Backup/restore, download, verify, schedule timer, per-VM |
-| API Docs | `/api-docs` | Built-in OpenAPI documentation with search |
+| API Docs | `/api-docs` | OpenAPI documentation with search and interactive API playground |
 
 ### Console Access
 

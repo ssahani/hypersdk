@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Play } from 'lucide-react'
 
 interface PathItem {
   summary?: string
@@ -27,6 +27,11 @@ export default function ApiDocs() {
   const [spec, setSpec] = useState<OpenApiSpec | null>(null)
   const [search, setSearch] = useState('')
   const [error, setError] = useState('')
+  const [tryEndpoint, setTryEndpoint] = useState<string | null>(null)
+  const [tryPath, setTryPath] = useState('')
+  const [tryBody, setTryBody] = useState('')
+  const [tryResponse, setTryResponse] = useState<{ status: number; body: string } | null>(null)
+  const [tryLoading, setTryLoading] = useState(false)
 
   useEffect(() => {
     fetch('/openapi.json')
@@ -68,6 +73,25 @@ export default function ApiDocs() {
     )
   }, [endpoints, search])
 
+  const tryIt = async (method: string, path: string, body?: string) => {
+    setTryLoading(true)
+    setTryResponse(null)
+    try {
+      const opts: RequestInit = { method, credentials: 'same-origin' as RequestCredentials }
+      if (body && body.trim()) {
+        opts.headers = { 'Content-Type': 'application/json' }
+        opts.body = body
+      }
+      const res = await fetch(path, opts)
+      const text = await res.text()
+      let formatted = text
+      try { formatted = JSON.stringify(JSON.parse(text), null, 2) } catch { /* not json */ }
+      setTryResponse({ status: res.status, body: formatted })
+    } catch (e: unknown) {
+      setTryResponse({ status: 0, body: `Error: ${e instanceof Error ? e.message : String(e)}` })
+    } finally { setTryLoading(false) }
+  }
+
   if (error) return <div className="text-red-400 py-12 text-center">{error}</div>
   if (!spec) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
@@ -92,20 +116,72 @@ export default function ApiDocs() {
       <div className="text-xs text-slate-500">{filtered.length} of {endpoints.length} endpoints</div>
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 divide-y divide-slate-700/30 overflow-hidden">
-        {filtered.map((ep, i) => (
-          <div key={`${ep.method}-${ep.path}-${i}`} className="flex items-center gap-4 px-5 py-3 hover:bg-slate-700/20 transition">
-            <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${METHOD_COLORS[ep.method.toLowerCase()] || 'bg-slate-600/20 text-slate-400'}`} style={{ minWidth: '60px', textAlign: 'center' }}>
-              {ep.method}
-            </span>
-            <code className="text-sm font-mono text-blue-300 flex-shrink-0">{ep.path}</code>
-            <span className="text-sm text-slate-400 truncate">{ep.summary}</span>
-            <div className="flex gap-1 ml-auto flex-shrink-0">
-              {ep.tags.map((t) => (
-                <span key={t} className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] text-slate-400">{t}</span>
-              ))}
+        {filtered.map((ep, i) => {
+          const key = `${ep.method}-${ep.path}`
+          return (
+            <div key={`${key}-${i}`}>
+              <div className="flex items-center gap-4 px-5 py-3 hover:bg-slate-700/20 transition">
+                <span className={`px-2.5 py-0.5 rounded text-xs font-bold border ${METHOD_COLORS[ep.method.toLowerCase()] || 'bg-slate-600/20 text-slate-400'}`} style={{ minWidth: '60px', textAlign: 'center' }}>
+                  {ep.method}
+                </span>
+                <code className="text-sm font-mono text-blue-300 flex-shrink-0">{ep.path}</code>
+                <span className="text-sm text-slate-400 truncate">{ep.summary}</span>
+                <div className="flex gap-1 ml-auto flex-shrink-0">
+                  {ep.tags.map((t) => (
+                    <span key={t} className="px-1.5 py-0.5 bg-slate-700 rounded text-[10px] text-slate-400">{t}</span>
+                  ))}
+                </div>
+                <button
+                  onClick={() => {
+                    if (tryEndpoint === key) {
+                      setTryEndpoint(null)
+                    } else {
+                      setTryEndpoint(key)
+                      setTryPath(ep.path)
+                      setTryBody('')
+                      setTryResponse(null)
+                    }
+                  }}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium transition flex-shrink-0 ${
+                    tryEndpoint === key
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-slate-700 hover:bg-slate-600 text-slate-300'
+                  }`}
+                >
+                  <Play className="w-3 h-3" />
+                  Try
+                </button>
+              </div>
+              {tryEndpoint === key && (
+                <div className="bg-slate-900 border-t border-slate-700/30 px-5 py-4 space-y-3">
+                  <div>
+                    <label className="block text-xs text-slate-400 mb-1">URL</label>
+                    <input value={tryPath} onChange={e => setTryPath(e.target.value)} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-200 font-mono text-xs" />
+                  </div>
+                  {ep.method !== 'GET' && (
+                    <div>
+                      <label className="block text-xs text-slate-400 mb-1">Request Body (JSON)</label>
+                      <textarea value={tryBody} onChange={e => setTryBody(e.target.value)} rows={4} className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-200 font-mono text-xs" placeholder='{"key": "value"}' />
+                    </div>
+                  )}
+                  <button onClick={() => tryIt(ep.method, tryPath, tryBody)} disabled={tryLoading} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg text-sm font-medium transition">
+                    {tryLoading ? 'Sending...' : 'Send Request'}
+                  </button>
+                  {tryResponse && (
+                    <div>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${tryResponse.status >= 200 && tryResponse.status < 300 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                          {tryResponse.status || 'Error'}
+                        </span>
+                      </div>
+                      <pre className="bg-slate-950 rounded-lg p-3 text-xs font-mono text-slate-300 overflow-auto max-h-64">{tryResponse.body}</pre>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          )
+        })}
         {filtered.length === 0 && (
           <div className="px-6 py-8 text-center text-slate-500">No endpoints match your search</div>
         )}

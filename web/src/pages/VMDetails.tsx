@@ -19,7 +19,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import {
   ArrowLeft, Play, Square, Power, RotateCcw, Pause, RefreshCw,
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
-  Save, Disc, CircleX, Archive, Copy, Pencil, ArrowRightLeft,
+  Save, Disc, Archive, Copy, Pencil, ArrowRightLeft, Download,
   Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb, Layers,
   ChevronUp, ChevronDown, X, Tag, Monitor, Shield,
 } from 'lucide-react'
@@ -27,7 +27,7 @@ import {
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
 
 type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml'
-type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb'
+type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
 
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
@@ -77,6 +77,7 @@ export default function VMDetailsPage() {
   const [iommuGroups, setIommuGroups] = useState<IommuGroup[]>([])
   const [sshIp, setSshIp] = useState('')
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
 
   // Confirmation dialog state for destructive actions
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
@@ -164,6 +165,7 @@ export default function VMDetailsPage() {
       if (d === 'boot-order') setBootDevices(bootConfig?.boot_devices || [])
       if (d === 'clone') setCloneName(`${vm.name}-clone`)
       if (d === 'rename') setNewName(vm.name)
+      if (d === 'save-template') setTemplateName(`${vm.name}-template`)
     }
     setDialog(d)
   }
@@ -290,6 +292,29 @@ export default function VMDetailsPage() {
     try { await detachInterface(name, mac); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
   }
 
+  const handleSaveTemplate = async () => {
+    if (!name || !templateName.trim()) return
+    try {
+      await saveVmAsTemplate(name, templateName.trim())
+      toast.success(`Saved as template '${templateName.trim()}'`)
+      setDialog(null)
+    } catch (e: unknown) {
+      toast.error(`Save template failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const downloadXml = () => {
+    if (!vmXml || !vm) return
+    const blob = new Blob([vmXml], { type: 'text/xml' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${vm.name}.xml`
+    a.click()
+    URL.revokeObjectURL(url)
+    toast.success('XML downloaded')
+  }
+
   const confirmDetachDisk = async () => {
     if (detachDiskTarget) { await handleDetachDisk(detachDiskTarget); setDetachDiskTarget(null) }
   }
@@ -380,7 +405,7 @@ export default function VMDetailsPage() {
         {vm.state === 'shutoff' && <button onClick={() => openDialog('rename')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Pencil className="w-3 h-3 inline -mt-0.5" /> Rename</button>}
         <button onClick={() => openDialog('migrate')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><ArrowRightLeft className="w-3 h-3 inline -mt-0.5" /> Migrate</button>
         <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); toast.info('Backup started in background'); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup triggered successfully for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
-        <button onClick={async () => { const tname = prompt('Template name:', `${vm.name}-template`); if (!tname) return; try { await saveVmAsTemplate(vm.name, tname); toast.success(`Saved as template '${tname}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
+        <button onClick={() => openDialog('save-template')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
       </div>
 
@@ -711,7 +736,10 @@ export default function VMDetailsPage() {
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-3 border-b border-slate-700/50 flex items-center justify-between">
             <span className="text-sm text-slate-400">Domain XML Configuration</span>
-            <button onClick={() => { if (vmXml) navigator.clipboard.writeText(vmXml).then(() => toast.success('XML copied')) }} className="text-xs text-blue-400 hover:text-blue-300 transition">Copy</button>
+            <div className="flex items-center gap-3">
+              <button onClick={downloadXml} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>
+              <button onClick={() => { if (vmXml) navigator.clipboard.writeText(vmXml).then(() => toast.success('XML copied')) }} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><Copy className="w-3 h-3" /> Copy</button>
+            </div>
           </div>
           <pre className="p-6 text-xs font-mono text-slate-300 overflow-x-auto max-h-[600px] whitespace-pre">{vmXml || 'Loading...'}</pre>
         </div>
@@ -890,6 +918,14 @@ export default function VMDetailsPage() {
                 <option value="e1000">e1000</option>
                 <option value="rtl8139">rtl8139</option>
               </select>
+            </DialogBox>
+          )}
+
+          {dialog === 'save-template' && (
+            <DialogBox title="Save as Template" icon={<Layers className="w-5 h-5 text-purple-400" />} onClose={() => setDialog(null)} onConfirm={handleSaveTemplate} confirmLabel="Save">
+              <label htmlFor="dlg-template-name" className="block text-sm text-slate-400 mb-1">Template Name</label>
+              <input id="dlg-template-name" type="text" autoFocus value={templateName} onChange={(e) => setTemplateName(e.target.value)} className="input-field" placeholder="my-vm-template" />
+              <p className="text-xs text-slate-500 mt-2">Saves the VM configuration as a reusable template. Disk images are not included.</p>
             </DialogBox>
           )}
         </DialogOverlay>
