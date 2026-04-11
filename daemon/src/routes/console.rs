@@ -4,7 +4,7 @@ use axum::routing::get;
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::domain;
-use virtspawn_core::LibvirtManager;
+use virtspawn_core::{LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
 
@@ -22,7 +22,13 @@ async fn get_console_info(
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Json<ConsoleInfo>, AppError> {
-    let xml = manager.with_conn(|conn| domain::get_vm_xml(conn, &name))?;
+    let name2 = name.clone();
+    let xml = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| domain::get_vm_xml(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
 
     // Find VNC graphics first, then fall back to any graphics type
     let mut console_type = virtspawn_core::unknown_string();

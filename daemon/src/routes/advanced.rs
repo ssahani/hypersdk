@@ -6,7 +6,7 @@ use virtspawn_core::libvirt::{
     boot, capabilities, cdrom, guest_agent, migrate, node_device, nwfilter,
     save_restore, secret, storage,
 };
-use virtspawn_core::LibvirtManager;
+use virtspawn_core::{LibvirtError, LibvirtManager};
 
 use crate::error::{AppError, Xml};
 
@@ -16,16 +16,24 @@ async fn get_interfaces(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let ifaces = manager.with_conn(|conn| guest_agent::get_guest_interfaces(conn, &name))?;
-    Ok(Json(serde_json::json!(ifaces)))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| guest_agent::get_guest_interfaces(conn, &name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 async fn get_hostname(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let hostname = manager.with_conn(|conn| guest_agent::get_guest_hostname(conn, &name))?;
-    Ok(Json(serde_json::json!({ "hostname": hostname })))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| guest_agent::get_guest_hostname(conn, &name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!({ "hostname": result? })))
 }
 
 // ── CD-ROM ──────────────────────────────────────────────────────────
@@ -44,15 +52,29 @@ async fn insert_cdrom_handler(
     Path(name): Path<String>,
     Json(req): Json<CdromRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| cdrom::insert_cdrom(conn, &name, &req.iso_path, &req.target))?;
-    Ok(Json(serde_json::json!({ "status": "inserted", "name": name, "target": req.target })))
+    let name2 = name.clone();
+    let target = req.target.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| cdrom::insert_cdrom(conn, &name2, &req.iso_path, &req.target))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "inserted", "name": name, "target": target })))
 }
 
 async fn eject_cdrom_handler(
     State(manager): State<LibvirtManager>,
     Path((name, target)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| cdrom::eject_cdrom(conn, &name, &target))?;
+    let name2 = name.clone();
+    let target2 = target.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| cdrom::eject_cdrom(conn, &name2, &target2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "ejected", "name": name, "target": target })))
 }
 
@@ -62,7 +84,13 @@ async fn managed_save_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| save_restore::managed_save(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| save_restore::managed_save(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "saved", "name": name })))
 }
 
@@ -70,7 +98,13 @@ async fn managed_save_remove_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| save_restore::managed_save_remove(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| save_restore::managed_save_remove(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "removed", "name": name })))
 }
 
@@ -78,7 +112,13 @@ async fn has_managed_save_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let has_save = manager.with_conn(|conn| save_restore::has_managed_save(conn, &name))?;
+    let name2 = name.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| save_restore::has_managed_save(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let has_save = result?;
     Ok(Json(serde_json::json!({ "name": name, "has_managed_save": has_save })))
 }
 
@@ -88,8 +128,12 @@ async fn get_boot_config_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let config = manager.with_conn(|conn| boot::get_boot_config(conn, &name))?;
-    Ok(Json(serde_json::json!(config)))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| boot::get_boot_config(conn, &name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 #[derive(serde::Deserialize)]
@@ -100,7 +144,14 @@ async fn set_boot_order_handler(
     Path(name): Path<String>,
     Json(req): Json<BootOrderRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| boot::set_boot_order(conn, &name, &req.devices))?;
+    let name2 = name.clone();
+    let devices = req.devices.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| boot::set_boot_order(conn, &name2, &devices))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "boot_devices": req.devices })))
 }
 
@@ -118,7 +169,14 @@ async fn migrate_handler(
     Path(name): Path<String>,
     Json(req): Json<MigrateRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| migrate::migrate_vm_uri(conn, &name, &req.dest_uri, req.live))?;
+    let name2 = name.clone();
+    let dest_uri = req.dest_uri.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| migrate::migrate_vm_uri(conn, &name2, &dest_uri, req.live))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "migrated", "name": name, "destination": req.dest_uri })))
 }
 
@@ -127,15 +185,23 @@ async fn migrate_handler(
 async fn get_capabilities_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let caps = manager.with_conn(capabilities::get_capabilities)?;
-    Ok(Json(serde_json::json!(caps)))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(capabilities::get_capabilities)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 async fn get_sysinfo_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Xml, AppError> {
-    let xml = manager.with_conn(capabilities::get_sysinfo)?;
-    Ok(Xml(xml))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(capabilities::get_sysinfo)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Xml(result?))
 }
 
 // ── Node Devices ────────────────────────────────────────────────────
@@ -150,16 +216,24 @@ async fn list_node_devices_handler(
     State(manager): State<LibvirtManager>,
     Query(query): Query<DeviceQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let devices = manager.with_conn(|conn| node_device::list_node_devices(conn, query.capability.as_deref()))?;
-    Ok(Json(serde_json::json!(devices)))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| node_device::list_node_devices(conn, query.capability.as_deref()))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 async fn get_node_device_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let xml = manager.with_conn(|conn| node_device::get_node_device_xml(conn, &name))?;
-    Ok(Xml(xml))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| node_device::get_node_device_xml(conn, &name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Xml(result?))
 }
 
 // ── Network Filters ─────────────────────────────────────────────────
@@ -167,23 +241,37 @@ async fn get_node_device_handler(
 async fn list_nwfilters_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let filters = manager.with_conn(nwfilter::list_nwfilters)?;
-    Ok(Json(serde_json::json!(filters)))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(nwfilter::list_nwfilters)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 async fn get_nwfilter_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let xml = manager.with_conn(|conn| nwfilter::get_nwfilter_xml(conn, &name))?;
-    Ok(Xml(xml))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| nwfilter::get_nwfilter_xml(conn, &name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Xml(result?))
 }
 
 async fn delete_nwfilter_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| nwfilter::delete_nwfilter(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| nwfilter::delete_nwfilter(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
 }
 
@@ -192,15 +280,25 @@ async fn delete_nwfilter_handler(
 async fn list_secrets_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let secrets = manager.with_conn(secret::list_secrets)?;
-    Ok(Json(serde_json::json!(secrets)))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(secret::list_secrets)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 async fn delete_secret_handler(
     State(manager): State<LibvirtManager>,
     Path(uuid): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| secret::delete_secret(conn, &uuid))?;
+    let uuid2 = uuid.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| secret::delete_secret(conn, &uuid2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "deleted", "uuid": uuid })))
 }
 
@@ -220,15 +318,27 @@ async fn create_pool_handler(
     State(manager): State<LibvirtManager>,
     Json(req): Json<CreatePoolRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::create_pool(conn, &req.name, &req.pool_type, &req.target_path))?;
-    Ok(Json(serde_json::json!({ "status": "created", "name": req.name })))
+    let req_name = req.name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::create_pool(conn, &req.name, &req.pool_type, &req.target_path))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "created", "name": req_name })))
 }
 
 async fn delete_pool_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::delete_pool(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::delete_pool(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
 }
 
@@ -236,8 +346,12 @@ async fn get_pool_xml_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let xml = manager.with_conn(|conn| storage::get_pool_xml(conn, &name))?;
-    Ok(Xml(xml))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::get_pool_xml(conn, &name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Xml(result?))
 }
 
 // ── Volume Resize/Clone ─────────────────────────────────────────────
@@ -256,7 +370,14 @@ async fn resize_volume_handler(
         ).into());
     }
     let capacity = req.capacity_gb.ceil() as u64;
-    manager.with_conn(|conn| storage::resize_volume(conn, &pool, &vol, capacity))?;
+    let pool2 = pool.clone();
+    let vol2 = vol.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::resize_volume(conn, &pool2, &vol2, capacity))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": capacity })))
 }
 
@@ -268,7 +389,15 @@ async fn clone_volume_handler(
     Path((pool, vol)): Path<(String, String)>,
     Json(req): Json<CloneVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::clone_volume(conn, &pool, &vol, &req.new_name))?;
+    let pool2 = pool.clone();
+    let vol2 = vol.clone();
+    let new_name = req.new_name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::clone_volume(conn, &pool2, &vol2, &new_name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "cloned", "pool": pool, "source": vol, "clone": req.new_name })))
 }
 
@@ -278,7 +407,13 @@ async fn set_memory_balloon_handler(
     State(manager): State<LibvirtManager>,
     Path((name, mb)): Path<(String, u64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| virtspawn_core::libvirt::resize::set_memory_balloon(conn, &name, mb))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| virtspawn_core::libvirt::resize::set_memory_balloon(conn, &name2, mb))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb })))
 }
 

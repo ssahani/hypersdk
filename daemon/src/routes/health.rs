@@ -9,12 +9,16 @@ use virtspawn_core::LibvirtManager;
 async fn health_check(
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let alive = manager
-        .with_conn(|conn| {
-            conn.get_hostname()
-                .map_err(|e| virtspawn_core::LibvirtError::Connection(e.to_string()))
-        })
-        .is_ok();
+    let alive = tokio::task::spawn_blocking(move || {
+        manager
+            .with_conn(|conn| {
+                conn.get_hostname()
+                    .map_err(|e| virtspawn_core::LibvirtError::Connection(e.to_string()))
+            })
+            .is_ok()
+    })
+    .await
+    .unwrap_or(false);
 
     let status = if alive {
         StatusCode::OK

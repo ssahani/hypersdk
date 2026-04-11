@@ -3,10 +3,23 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
+use std::sync::Mutex;
 
 use crate::LibvirtError;
 
 const DATA_DIR: &str = "/var/lib/virtspawn";
+
+/// Global mutex for JSON file read-modify-write operations.
+/// Since all operations go through the same daemon process, a process-level
+/// mutex is sufficient to prevent race conditions on concurrent requests.
+static JSON_LOCK: Mutex<()> = Mutex::new(());
+
+/// Execute a closure while holding the JSON file lock.
+/// Prevents concurrent read-modify-write races on JSON state files.
+pub fn with_json_lock<T, F: FnOnce() -> T>(f: F) -> T {
+    let _guard = JSON_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+    f()
+}
 
 // ── RBAC ───────────────────────────────────────────────────────────
 
@@ -64,9 +77,11 @@ pub fn get_user_role(username: &str) -> Role {
 }
 
 pub fn set_user_role(username: &str, role: Role) -> Result<(), LibvirtError> {
-    let mut roles = load_roles();
-    roles.insert(username.to_string(), role);
-    save_roles(&roles)
+    with_json_lock(|| {
+        let mut roles = load_roles();
+        roles.insert(username.to_string(), role);
+        save_roles(&roles)
+    })
 }
 
 // ── API Tokens ─────────────────────────────────────────────────────
@@ -101,23 +116,25 @@ fn save_tokens(tokens: &TokenMap) -> Result<(), LibvirtError> {
 }
 
 pub fn create_api_token(name: &str, username: &str, role: Role) -> Result<ApiToken, LibvirtError> {
-    use rand::Rng;
-    let mut rng = rand::thread_rng();
-    let bytes: [u8; 32] = rng.gen();
-    let token = format!("vs_{}", hex::encode(bytes));
+    with_json_lock(|| {
+        use rand::Rng;
+        let mut rng = rand::thread_rng();
+        let bytes: [u8; 32] = rng.gen();
+        let token = format!("vs_{}", hex::encode(bytes));
 
-    let api_token = ApiToken {
-        name: name.to_string(),
-        token: token.clone(),
-        username: username.to_string(),
-        role,
-        created: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-    };
+        let api_token = ApiToken {
+            name: name.to_string(),
+            token: token.clone(),
+            username: username.to_string(),
+            role,
+            created: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        };
 
-    let mut tokens = load_tokens();
-    tokens.insert(token, api_token.clone());
-    save_tokens(&tokens)?;
-    Ok(api_token)
+        let mut tokens = load_tokens();
+        tokens.insert(token, api_token.clone());
+        save_tokens(&tokens)?;
+        Ok(api_token)
+    })
 }
 
 pub fn validate_api_token(token: &str) -> Option<ApiToken> {
@@ -126,9 +143,11 @@ pub fn validate_api_token(token: &str) -> Option<ApiToken> {
 }
 
 pub fn delete_api_token(token: &str) -> Result<(), LibvirtError> {
-    let mut tokens = load_tokens();
-    tokens.remove(token);
-    save_tokens(&tokens)
+    with_json_lock(|| {
+        let mut tokens = load_tokens();
+        tokens.remove(token);
+        save_tokens(&tokens)
+    })
 }
 
 pub fn list_api_tokens() -> Vec<ApiToken> {
@@ -183,12 +202,14 @@ fn default_alert_rules() -> Vec<AlertRule> {
 }
 
 pub fn save_alert_rules(rules: &[AlertRule]) -> Result<(), LibvirtError> {
-    let _ = std::fs::create_dir_all(DATA_DIR);
-    let data = serde_json::to_string_pretty(rules)
-        .map_err(|e| LibvirtError::Operation(format!("Serialize alert rules: {e}")))?;
-    std::fs::write(alert_rules_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("Write alert rules: {e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let _ = std::fs::create_dir_all(DATA_DIR);
+        let data = serde_json::to_string_pretty(rules)
+            .map_err(|e| LibvirtError::Operation(format!("Serialize alert rules: {e}")))?;
+        std::fs::write(alert_rules_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("Write alert rules: {e}")))?;
+        Ok(())
+    })
 }
 
 pub fn load_alerts() -> Vec<Alert> {
@@ -199,28 +220,32 @@ pub fn load_alerts() -> Vec<Alert> {
 }
 
 pub fn save_alert(alert: &Alert) -> Result<(), LibvirtError> {
-    let mut alerts = load_alerts();
-    // Keep only last 100 alerts
-    if alerts.len() > 100 { alerts.drain(0..alerts.len()-100); }
-    alerts.push(alert.clone());
-    let _ = std::fs::create_dir_all(DATA_DIR);
-    let data = serde_json::to_string_pretty(&alerts)
-        .map_err(|e| LibvirtError::Operation(format!("Serialize alerts: {e}")))?;
-    std::fs::write(alerts_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("Write alerts: {e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let mut alerts = load_alerts();
+        // Keep only last 100 alerts
+        if alerts.len() > 100 { alerts.drain(0..alerts.len()-100); }
+        alerts.push(alert.clone());
+        let _ = std::fs::create_dir_all(DATA_DIR);
+        let data = serde_json::to_string_pretty(&alerts)
+            .map_err(|e| LibvirtError::Operation(format!("Serialize alerts: {e}")))?;
+        std::fs::write(alerts_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("Write alerts: {e}")))?;
+        Ok(())
+    })
 }
 
 pub fn acknowledge_alert(id: &str) -> Result<(), LibvirtError> {
-    let mut alerts = load_alerts();
-    for a in &mut alerts {
-        if a.id == id { a.acknowledged = true; }
-    }
-    let data = serde_json::to_string_pretty(&alerts)
-        .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-    std::fs::write(alerts_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let mut alerts = load_alerts();
+        for a in &mut alerts {
+            if a.id == id { a.acknowledged = true; }
+        }
+        let data = serde_json::to_string_pretty(&alerts)
+            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        std::fs::write(alerts_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        Ok(())
+    })
 }
 
 // ── Webhooks ───────────────────────────────────────────────────────
@@ -243,12 +268,14 @@ pub fn load_webhooks() -> Vec<WebhookConfig> {
 }
 
 pub fn save_webhooks(hooks: &[WebhookConfig]) -> Result<(), LibvirtError> {
-    let _ = std::fs::create_dir_all(DATA_DIR);
-    let data = serde_json::to_string_pretty(hooks)
-        .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-    std::fs::write(webhooks_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let _ = std::fs::create_dir_all(DATA_DIR);
+        let data = serde_json::to_string_pretty(hooks)
+            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        std::fs::write(webhooks_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        Ok(())
+    })
 }
 
 pub fn fire_webhook(event: &str, payload: &serde_json::Value) {
@@ -293,12 +320,14 @@ pub fn load_schedules() -> Vec<ScheduledAction> {
 }
 
 pub fn save_schedules(schedules: &[ScheduledAction]) -> Result<(), LibvirtError> {
-    let _ = std::fs::create_dir_all(DATA_DIR);
-    let data = serde_json::to_string_pretty(schedules)
-        .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-    std::fs::write(schedules_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let _ = std::fs::create_dir_all(DATA_DIR);
+        let data = serde_json::to_string_pretty(schedules)
+            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        std::fs::write(schedules_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        Ok(())
+    })
 }
 
 // ── Notification Channels ─────────────────────────────────────────
@@ -321,12 +350,14 @@ pub fn load_notification_channels() -> Vec<NotificationChannel> {
 }
 
 pub fn save_notification_channels(channels: &[NotificationChannel]) -> Result<(), LibvirtError> {
-    let _ = std::fs::create_dir_all(DATA_DIR);
-    let data = serde_json::to_string_pretty(channels)
-        .map_err(|e| LibvirtError::Operation(format!("Serialize notifications: {e}")))?;
-    std::fs::write(notifications_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("Write notifications: {e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let _ = std::fs::create_dir_all(DATA_DIR);
+        let data = serde_json::to_string_pretty(channels)
+            .map_err(|e| LibvirtError::Operation(format!("Serialize notifications: {e}")))?;
+        std::fs::write(notifications_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("Write notifications: {e}")))?;
+        Ok(())
+    })
 }
 
 /// Send a notification through the given channel.
@@ -414,12 +445,14 @@ pub fn load_snapshot_schedules() -> Vec<SnapshotSchedule> {
 }
 
 pub fn save_snapshot_schedules(schedules: &[SnapshotSchedule]) -> Result<(), LibvirtError> {
-    let _ = std::fs::create_dir_all(DATA_DIR);
-    let data = serde_json::to_string_pretty(schedules)
-        .map_err(|e| LibvirtError::Operation(format!("Serialize snapshot schedules: {e}")))?;
-    std::fs::write(snapshot_schedules_path(), data)
-        .map_err(|e| LibvirtError::Operation(format!("Write snapshot schedules: {e}")))?;
-    Ok(())
+    with_json_lock(|| {
+        let _ = std::fs::create_dir_all(DATA_DIR);
+        let data = serde_json::to_string_pretty(schedules)
+            .map_err(|e| LibvirtError::Operation(format!("Serialize snapshot schedules: {e}")))?;
+        std::fs::write(snapshot_schedules_path(), data)
+            .map_err(|e| LibvirtError::Operation(format!("Write snapshot schedules: {e}")))?;
+        Ok(())
+    })
 }
 
 /// Check if a schedule should run now (simple daily HH:MM matching).

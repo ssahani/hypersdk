@@ -30,14 +30,24 @@ fn add_vm_metric(output: &mut String, name: &str, help: &str, metric_type: &str,
 async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoResponse {
     let mut output = String::new();
 
-    if let Ok(info) = manager.with_conn(node::get_node_info) {
+    // Collect both node info and VM metrics in a single spawn_blocking call
+    let m = manager.clone();
+    let data = tokio::task::spawn_blocking(move || {
+        let node_info = m.with_conn(node::get_node_info).ok();
+        let vm_metrics = m.with_conn(metrics::get_all_vm_metrics).ok();
+        (node_info, vm_metrics)
+    })
+    .await
+    .unwrap_or((None, None));
+
+    if let Some(info) = data.0 {
         add_gauge(&mut output, "virtspawn_node_memory_mb", "Total host memory in MB", info.memory_mb);
         add_gauge(&mut output, "virtspawn_node_cpus", "Total host CPU cores", info.cpu_cores);
         add_gauge(&mut output, "virtspawn_vms_active", "Number of active VMs", info.active_vms);
         add_gauge(&mut output, "virtspawn_vms_defined", "Number of defined VMs", info.defined_vms);
     }
 
-    if let Ok(vm_metrics) = manager.with_conn(metrics::get_all_vm_metrics) {
+    if let Some(vm_metrics) = data.1 {
         add_vm_metric(&mut output, "virtspawn_vm_cpu_time_seconds_total", "CPU time in seconds", "counter", &vm_metrics,
             |m| format!("{:.3}", m.cpu_time_ns as f64 / 1_000_000_000.0));
         add_vm_metric(&mut output, "virtspawn_vm_memory_used_mb", "Memory used in MB", "gauge", &vm_metrics,

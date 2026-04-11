@@ -3,30 +3,42 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::storage;
-use virtspawn_core::{CreateVolumeRequest, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
+use virtspawn_core::{CreateVolumeRequest, LibvirtError, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
 
 use crate::error::{ok_json, AppError};
 
 async fn list_pools(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<StoragePoolInfo>>, AppError> {
-    let pools = manager.with_conn(storage::list_pools)?;
-    Ok(Json(pools))
+    let result = tokio::task::spawn_blocking(move || manager.with_conn(storage::list_pools))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(result?))
 }
 
 async fn list_volumes(
     State(manager): State<LibvirtManager>,
     Path(pool_name): Path<String>,
 ) -> Result<Json<Vec<StorageVolumeInfo>>, AppError> {
-    let vols = manager.with_conn(|conn| storage::list_volumes(conn, &pool_name))?;
-    Ok(Json(vols))
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::list_volumes(conn, &pool_name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(result?))
 }
 
 async fn start_pool(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::start_pool(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::start_pool(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(ok_json("started", &name))
 }
 
@@ -34,7 +46,13 @@ async fn stop_pool(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::stop_pool(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::stop_pool(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(ok_json("stopped", &name))
 }
 
@@ -42,7 +60,13 @@ async fn refresh_pool(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::refresh_pool(conn, &name))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::refresh_pool(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(ok_json("refreshed", &name))
 }
 
@@ -50,7 +74,13 @@ async fn set_pool_autostart(
     State(manager): State<LibvirtManager>,
     Path((name, enabled)): Path<(String, bool)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::set_pool_autostart(conn, &name, enabled))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::set_pool_autostart(conn, &name2, enabled))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     let label = if enabled { "enabled" } else { "disabled" };
     Ok(ok_json(label, &name))
 }
@@ -59,7 +89,14 @@ async fn delete_volume(
     State(manager): State<LibvirtManager>,
     Path((pool_name, vol_name)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    manager.with_conn(|conn| storage::delete_volume(conn, &pool_name, &vol_name))?;
+    let pool2 = pool_name.clone();
+    let vol2 = vol_name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| storage::delete_volume(conn, &pool2, &vol2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "deleted", "pool": pool_name, "volume": vol_name })))
 }
 
@@ -69,9 +106,15 @@ async fn create_volume(
     Json(req): Json<CreateVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let vol_name = req.name.clone();
-    manager.with_conn(|conn| {
-        storage::create_volume(conn, &pool_name, &req.name, req.capacity_gb, &req.format)
-    })?;
+    let pool2 = pool_name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| {
+            storage::create_volume(conn, &pool2, &req.name, req.capacity_gb, &req.format)
+        })
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "created", "pool": pool_name, "volume": vol_name })))
 }
 

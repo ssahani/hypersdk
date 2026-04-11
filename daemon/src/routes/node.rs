@@ -3,15 +3,17 @@ use axum::routing::get;
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::node;
-use virtspawn_core::{LibvirtManager, NodeInfo};
+use virtspawn_core::{LibvirtError, LibvirtManager, NodeInfo};
 
 use crate::error::AppError;
 
 async fn get_node_info(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<NodeInfo>, AppError> {
-    let info = manager.with_conn(node::get_node_info)?;
-    Ok(Json(info))
+    let result = tokio::task::spawn_blocking(move || manager.with_conn(node::get_node_info))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(result?))
 }
 
 pub fn node_routes() -> Router<LibvirtManager> {

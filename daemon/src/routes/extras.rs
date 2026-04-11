@@ -3,7 +3,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use virtspawn_core::libvirt::extras;
-use virtspawn_core::{audit, AuditEvent, LibvirtManager};
+use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
 
@@ -50,7 +50,13 @@ async fn attach_usb_handler(
     Path(name): Path<String>,
     Json(req): Json<UsbRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    m.with_conn(|conn| extras::attach_usb(conn, &name, &req.vendor_id, &req.product_id))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        m.with_conn(|conn| extras::attach_usb(conn, &name2, &req.vendor_id, &req.product_id))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "attached", "name": name })))
 }
 
@@ -59,7 +65,13 @@ async fn detach_usb_handler(
     Path(name): Path<String>,
     Json(req): Json<UsbRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    m.with_conn(|conn| extras::detach_usb(conn, &name, &req.vendor_id, &req.product_id))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        m.with_conn(|conn| extras::detach_usb(conn, &name2, &req.vendor_id, &req.product_id))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "detached", "name": name })))
 }
 
@@ -105,7 +117,13 @@ async fn live_vcpus_handler(
     State(m): State<LibvirtManager>,
     Path((name, count)): Path<(String, u32)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    m.with_conn(|conn| extras::live_set_vcpus(conn, &name, count))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        m.with_conn(|conn| extras::live_set_vcpus(conn, &name2, count))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "vcpus": count, "live": true })))
 }
 
@@ -113,7 +131,13 @@ async fn live_memory_handler(
     State(m): State<LibvirtManager>,
     Path((name, mb)): Path<(String, u64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    m.with_conn(|conn| extras::live_set_memory(conn, &name, mb))?;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        m.with_conn(|conn| extras::live_set_memory(conn, &name2, mb))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb, "live": true })))
 }
 
@@ -122,8 +146,10 @@ async fn live_memory_handler(
 async fn list_dhcp_leases(
     State(m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let leases = m.with_conn(extras::list_dhcp_leases)?;
-    Ok(Json(serde_json::json!(leases)))
+    let result = tokio::task::spawn_blocking(move || m.with_conn(extras::list_dhcp_leases))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
 }
 
 // ── Host System Stats ──────────────────────────────────────────────
@@ -145,7 +171,14 @@ async fn save_template_handler(
     Path(name): Path<String>,
     Json(req): Json<SaveTemplateRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    m.with_conn(|conn| extras::save_vm_as_template(conn, &name, &req.template_name))?;
+    let name2 = name.clone();
+    let template_name = req.template_name.clone();
+    tokio::task::spawn_blocking(move || {
+        m.with_conn(|conn| extras::save_vm_as_template(conn, &name2, &template_name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
     Ok(Json(serde_json::json!({ "status": "saved", "name": name, "template": req.template_name })))
 }
 

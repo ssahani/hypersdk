@@ -2,12 +2,20 @@
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::os::unix::fs::DirBuilderExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use virt::connect::Connect;
 
 use super::domain::lookup_domain;
+use super::automation::with_json_lock;
 use crate::LibvirtError;
+
+/// Escape a string for safe inclusion in YAML single-quoted scalars.
+/// Wraps the value in single quotes and escapes internal single quotes by doubling them.
+fn yaml_escape(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
 
 // ── ISO / Disk Image Browser ───────────────────────────────────────
 
@@ -189,24 +197,39 @@ pub fn generate_cloud_init_iso(
     ssh_key: &str,
 ) -> Result<String, LibvirtError> {
     let tmp_dir = PathBuf::from("/tmp/virtspawn-cloud-init");
-    let _ = std::fs::create_dir_all(&tmp_dir);
+    std::fs::DirBuilder::new()
+        .recursive(true)
+        .mode(0o700)
+        .create(&tmp_dir)
+        .map_err(|e| LibvirtError::Operation(format!("Failed to create cloud-init temp dir: {e}")))?;
 
-    // meta-data
-    let meta_data = format!("instance-id: {hostname}\nlocal-hostname: {hostname}\n");
+    // meta-data (escape user-provided hostname to prevent YAML injection)
+    let meta_data = format!(
+        "instance-id: {}\nlocal-hostname: {}\n",
+        yaml_escape(hostname),
+        yaml_escape(hostname),
+    );
     std::fs::write(tmp_dir.join("meta-data"), &meta_data)
         .map_err(|e| LibvirtError::Operation(format!("Failed to write meta-data: {e}")))?;
 
-    // user-data
+    // user-data (escape all user-provided values to prevent YAML injection)
     let mut user_data = String::from("#cloud-config\n");
     if !username.is_empty() {
         user_data.push_str(&format!(
-            "users:\n  - name: {username}\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    shell: /bin/bash\n"
+            "users:\n  - name: {}\n    sudo: ALL=(ALL) NOPASSWD:ALL\n    shell: /bin/bash\n",
+            yaml_escape(username),
         ));
         if !password.is_empty() {
-            user_data.push_str(&format!("    lock_passwd: false\n    plain_text_passwd: {password}\n"));
+            user_data.push_str(&format!(
+                "    lock_passwd: false\n    plain_text_passwd: {}\n",
+                yaml_escape(password),
+            ));
         }
         if !ssh_key.is_empty() {
-            user_data.push_str(&format!("    ssh_authorized_keys:\n      - {ssh_key}\n"));
+            user_data.push_str(&format!(
+                "    ssh_authorized_keys:\n      - {}\n",
+                yaml_escape(ssh_key),
+            ));
         }
     }
     if !password.is_empty() {
@@ -354,13 +377,15 @@ pub fn save_tags(tags: &TagMap) -> Result<(), LibvirtError> {
 
 /// Set tags for a specific VM (replaces existing tags).
 pub fn set_vm_tags(vm_name: &str, tags: Vec<String>) -> Result<(), LibvirtError> {
-    let mut map = load_tags();
-    if tags.is_empty() {
-        map.remove(vm_name);
-    } else {
-        map.insert(vm_name.to_string(), tags);
-    }
-    save_tags(&map)
+    with_json_lock(|| {
+        let mut map = load_tags();
+        if tags.is_empty() {
+            map.remove(vm_name);
+        } else {
+            map.insert(vm_name.to_string(), tags);
+        }
+        save_tags(&map)
+    })
 }
 
 /// Get tags for a specific VM.
