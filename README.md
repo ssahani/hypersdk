@@ -1056,4 +1056,6 @@ make build && make test && make lint && make fmt-check
 
 ## License
 
-MIT
+**HyperSDK Proprietary** — All rights reserved. See [LICENSE](LICENSE) for details.
+
+This software is the proprietary property of HyperSDK. Pricing to be determined. Contact HyperSDK for licensing options.
