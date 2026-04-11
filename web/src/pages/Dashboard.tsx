@@ -1,15 +1,16 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router'
-import { listVMs, getMetrics, VmInfo, VmMetrics } from '../api/vm'
+import { listVMs, getMetrics, startVM, shutdownVM, VmInfo, VmMetrics } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
 import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
+import { useToastContext } from '../contexts/ToastContext'
 
 interface MetricsPoint { time: string; cpu: number; memory: number }
 
@@ -22,6 +23,12 @@ export default function Dashboard() {
   const [hostStats, setHostStats] = useState<HostStats | null>(null)
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const { subscribe } = useWebSocketContext()
+  const toast = useToastContext()
+
+  const vmAction = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
+    try { await fn(name); toast.success(`${label} '${name}' OK`); loadData() }
+    catch (e: unknown) { toast.error(`${label} '${name}' failed: ${e instanceof Error ? e.message : e}`) }
+  }
 
   const loadData = useCallback(async () => {
     try {
@@ -215,19 +222,36 @@ export default function Dashboard() {
             </div>
           ) : (
             vms.slice(0, 10).map((vm) => (
-              <Link to={`/vms/${vm.name}`} key={vm.name} className="flex items-center justify-between px-6 py-3.5 table-row-hover group">
-                <div className="flex items-center gap-4">
-                  <div className={`w-2.5 h-2.5 rounded-full ${getStateColor(vm.state)} ${vm.state === 'running' ? 'animate-pulse-dot' : ''}`} />
-                  <div>
-                    <div className="font-medium text-white group-hover:text-blue-400 transition">{vm.name}</div>
+              <div key={vm.name} className="flex items-center justify-between px-6 py-3.5 table-row-hover group">
+                <Link to={`/vms/${vm.name}`} className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${getStateColor(vm.state)} ${vm.state === 'running' ? 'animate-pulse-dot' : ''}`} />
+                  <div className="min-w-0">
+                    <div className="font-medium text-white group-hover:text-blue-400 transition truncate">{vm.name}</div>
                     <div className="text-xs text-slate-500 mt-0.5">{vm.vcpus} vCPU · {vm.memory_mb} MB</div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3">
+                </Link>
+                <div className="flex items-center gap-2">
+                  {vm.state === 'running' && (
+                    <>
+                      <Link to={`/vms/${vm.name}/console`} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
+                        <Terminal className="w-3.5 h-3.5 text-slate-400" />
+                      </Link>
+                      <button onClick={() => vmAction(vm.name, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
+                        <Power className="w-3.5 h-3.5 text-yellow-400" />
+                      </button>
+                    </>
+                  )}
+                  {vm.state === 'shutoff' && (
+                    <button onClick={() => vmAction(vm.name, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
+                      <Play className="w-3.5 h-3.5 text-green-400" />
+                    </button>
+                  )}
                   <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
-                  <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" />
+                  <Link to={`/vms/${vm.name}`} className="p-1">
+                    <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" />
+                  </Link>
                 </div>
-              </Link>
+              </div>
             ))
           )}
         </div>

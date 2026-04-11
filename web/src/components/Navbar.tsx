@@ -1,60 +1,10 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router'
-import {
-  Server, Plus, Home, Network, HardDrive, Camera, Cpu, Globe, FileText, Upload,
-  Menu, X, ChevronDown, Activity, Zap, Shield, MonitorCog, Usb, Archive, LogOut, User, Sun, Moon,
-  Cog, ScrollText,
-} from 'lucide-react'
+import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
-
-interface NavItem {
-  to: string
-  icon: React.ReactNode
-  label: string
-}
-
-interface NavGroup {
-  label: string
-  items: NavItem[]
-}
-
-const navGroups: NavGroup[] = [
-  {
-    label: 'Core',
-    items: [
-      { to: '/', icon: <Home className="w-4 h-4" />, label: 'Dashboard' },
-      { to: '/vms', icon: <Server className="w-4 h-4" />, label: 'Virtual Machines' },
-      { to: '/import', icon: <Upload className="w-4 h-4" />, label: 'Import VM' },
-    ],
-  },
-  {
-    label: 'Infrastructure',
-    items: [
-      { to: '/networks', icon: <Network className="w-4 h-4" />, label: 'Networks' },
-      { to: '/storage', icon: <HardDrive className="w-4 h-4" />, label: 'Storage' },
-      { to: '/snapshots', icon: <Camera className="w-4 h-4" />, label: 'Snapshots' },
-      { to: '/nwfilters', icon: <Shield className="w-4 h-4" />, label: 'Network Filters' },
-      { to: '/backups', icon: <Archive className="w-4 h-4" />, label: 'Backups' },
-      { to: '/host-networking', icon: <Globe className="w-4 h-4" />, label: 'Host Networking' },
-    ],
-  },
-  {
-    label: 'Monitoring',
-    items: [
-      { to: '/node', icon: <Cpu className="w-4 h-4" />, label: 'Host Info' },
-      { to: '/events', icon: <Activity className="w-4 h-4" />, label: 'Live Metrics' },
-      { to: '/capabilities', icon: <MonitorCog className="w-4 h-4" />, label: 'Capabilities' },
-      { to: '/devices', icon: <Usb className="w-4 h-4" />, label: 'Node Devices' },
-      { to: '/services', icon: <Cog className="w-4 h-4" />, label: 'Services' },
-      { to: '/logs', icon: <ScrollText className="w-4 h-4" />, label: 'System Logs' },
-      { to: '/audit', icon: <FileText className="w-4 h-4" />, label: 'Audit Log' },
-      { to: '/api-docs', icon: <FileText className="w-4 h-4" />, label: 'API Docs' },
-      { to: '/settings', icon: <Shield className="w-4 h-4" />, label: 'Settings' },
-    ],
-  },
-]
+import { navGroups, NavItem, NavGroup } from '../utils/routes'
 
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   const location = useLocation()

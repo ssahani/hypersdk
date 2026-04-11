@@ -1,5 +1,5 @@
-import { BrowserRouter, Routes, Route } from 'react-router'
-import { Suspense, lazy } from 'react'
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router'
+import { Suspense, lazy, useState, useCallback, useMemo } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -7,6 +7,12 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import Navbar from './components/Navbar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
+import CommandPalette from './components/CommandPalette'
+import Breadcrumb from './components/Breadcrumb'
+import ShortcutsHelp from './components/ShortcutsHelp'
+import PageSkeleton from './components/PageSkeleton'
+import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
+import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const VMList = lazy(() => import('./pages/VMList'))
@@ -31,6 +37,33 @@ const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Services = lazy(() => import('./pages/Services'))
 const Logs = lazy(() => import('./pages/Logs'))
 
+function GlobalShortcuts() {
+  const navigate = useNavigate()
+  const [showHelp, setShowHelp] = useState(false)
+
+  const shortcuts = useMemo(() => [
+    { sequence: ['g', 'd'] as [string, string], handler: () => navigate('/') },
+    { sequence: ['g', 'v'] as [string, string], handler: () => navigate('/vms') },
+    { sequence: ['g', 'n'] as [string, string], handler: () => navigate('/networks') },
+    { sequence: ['g', 's'] as [string, string], handler: () => navigate('/storage') },
+    { sequence: ['g', 'c'] as [string, string], handler: () => navigate('/create') },
+    { sequence: ['g', 'e'] as [string, string], handler: () => navigate('/events') },
+    { sequence: ['g', 'b'] as [string, string], handler: () => navigate('/backups') },
+  ], [navigate])
+
+  useSequenceShortcuts(shortcuts)
+
+  const toggleHelp = useCallback((e: KeyboardEvent) => {
+    if (isInputFocused()) return
+    e.preventDefault()
+    setShowHelp(h => !h)
+  }, [])
+
+  useKeyboardShortcut({ key: '?', handler: toggleHelp })
+
+  return showHelp ? <ShortcutsHelp onClose={() => setShowHelp(false)} /> : null
+}
+
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
 
@@ -51,8 +84,11 @@ function AuthenticatedApp() {
       <BrowserRouter>
         <div className="min-h-screen bg-slate-950 text-slate-100">
           <Navbar />
+          <CommandPalette />
+          <GlobalShortcuts />
           <main className="container mx-auto px-4 py-8">
-            <Suspense fallback={<div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>}>
+            <Breadcrumb />
+            <Suspense fallback={<PageSkeleton />}>
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/vms" element={<VMList />} />
