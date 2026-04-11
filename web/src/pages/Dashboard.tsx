@@ -6,13 +6,21 @@ import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
 import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2 } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import { useToastContext } from '../contexts/ToastContext'
 
 interface MetricsPoint { time: string; memory: number }
+
+function timeAgo(ts: number): string {
+  const secs = Math.floor((Date.now() - ts) / 1000)
+  if (secs < 10) return 'just now'
+  if (secs < 60) return `${secs}s ago`
+  if (secs < 3600) return `${Math.floor(secs / 60)}m ago`
+  return `${Math.floor(secs / 3600)}h ago`
+}
 
 export default function Dashboard() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -22,7 +30,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [hostStats, setHostStats] = useState<HostStats | null>(null)
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
-  const { subscribe } = useWebSocketContext()
+  const { subscribe, events } = useWebSocketContext()
   const toast = useToastContext()
 
   const vmAction = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
@@ -238,6 +246,35 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Activity Feed */}
+      {events.length > 0 && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-700/50">
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Activity className="w-5 h-5 text-green-400" /> Activity Feed
+            </h2>
+          </div>
+          <div className="divide-y divide-slate-700/30 max-h-64 overflow-y-auto">
+            {events.map((ev, i) => (
+              <div key={i} className="px-6 py-2.5 flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2">
+                  {ev.event === 'state_change' && <ArrowRight className="w-3.5 h-3.5 text-blue-400" />}
+                  {ev.event === 'vm_added' && <Plus className="w-3.5 h-3.5 text-green-400" />}
+                  {ev.event === 'vm_removed' && <Trash2 className="w-3.5 h-3.5 text-red-400" />}
+                  <span className="text-white font-medium">{ev.name}</span>
+                  {ev.event === 'state_change' && (
+                    <span className="text-slate-400">{ev.old_state} → {ev.new_state}</span>
+                  )}
+                  {ev.event === 'vm_added' && <span className="text-green-400">created</span>}
+                  {ev.event === 'vm_removed' && <span className="text-red-400">removed</span>}
+                </div>
+                <span className="text-xs text-slate-500">{timeAgo(ev.timestamp)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

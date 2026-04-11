@@ -1,7 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight } from 'lucide-react'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive } from 'lucide-react'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
+import { listNetworks, NetworkInfo } from '../api/network'
+import { listPools, StoragePoolInfo } from '../api/storage'
+import { listAllSnapshots, SnapshotInfo } from '../api/snapshot'
 import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { navGroups } from '../utils/routes'
@@ -22,6 +25,9 @@ export default function CommandPalette() {
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
   const [vms, setVMs] = useState<VmInfo[]>([])
+  const [networks, setNetworks] = useState<NetworkInfo[]>([])
+  const [pools, setPools] = useState<StoragePoolInfo[]>([])
+  const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [loading, setLoading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
@@ -38,9 +44,13 @@ export default function CommandPalette() {
     setQuery('')
     setSelectedIndex(0)
     setLoading(true)
-    listVMs()
-      .then(setVMs)
-      .catch(() => setVMs([]))
+    Promise.allSettled([listVMs(), listNetworks(), listPools(), listAllSnapshots()])
+      .then(([vmR, netR, poolR, snapR]) => {
+        setVMs(vmR.status === 'fulfilled' ? vmR.value : [])
+        setNetworks(netR.status === 'fulfilled' ? netR.value : [])
+        setPools(poolR.status === 'fulfilled' ? poolR.value : [])
+        setSnapshots(snapR.status === 'fulfilled' ? snapR.value : [])
+      })
       .finally(() => setLoading(false))
   }, [open])
 
@@ -110,12 +120,39 @@ export default function CommandPalette() {
     }
   }
 
+  // Networks
+  for (const net of networks) {
+    items.push({
+      id: `net-${net.name}`, icon: <Network className="w-4 h-4" />, label: net.name,
+      badge: <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${net.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{net.active ? 'active' : 'inactive'}</span>,
+      action: () => go('/networks'), category: 'Networks',
+    })
+  }
+
+  // Storage Pools
+  for (const pool of pools) {
+    items.push({
+      id: `pool-${pool.name}`, icon: <HardDrive className="w-4 h-4" />, label: pool.name,
+      badge: <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${pool.state === 'running' ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>{pool.state}</span>,
+      action: () => go('/storage'), category: 'Storage Pools',
+    })
+  }
+
+  // Snapshots
+  for (const snap of snapshots) {
+    items.push({
+      id: `snap-${snap.vm_name}-${snap.name}`, icon: <Camera className="w-4 h-4" />,
+      label: `${snap.vm_name} / ${snap.name}`,
+      action: () => go(`/vms/${snap.vm_name}`), category: 'Snapshots',
+    })
+  }
+
   // Filter
   const q = query.toLowerCase()
   const filtered = q ? items.filter(i => i.label.toLowerCase().includes(q) || (i.sublabel || '').toLowerCase().includes(q)) : items
 
   // Group by category
-  const categories = ['Quick Actions', 'Pages', 'Virtual Machines']
+  const categories = ['Quick Actions', 'Pages', 'Virtual Machines', 'Networks', 'Storage Pools', 'Snapshots']
   const grouped = categories
     .map(cat => ({ cat, items: filtered.filter(i => i.category === cat) }))
     .filter(g => g.items.length > 0)

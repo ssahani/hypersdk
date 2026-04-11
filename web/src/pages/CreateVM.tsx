@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { createVM, getTemplates, VmTemplate, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
-import { listIsos, listDiskImages, ImageFile, generateCloudInit } from '../api/extras'
+import { listIsos, listDiskImages, ImageFile, generateCloudInit, listSavedTemplates } from '../api/extras'
 import { useToastContext } from '../contexts/ToastContext'
 import { ArrowLeft, Server, Layers, HardDrive, Cloud, Disc } from 'lucide-react'
 import { Link } from 'react-router'
@@ -16,6 +16,7 @@ export default function CreateVMPage() {
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
   const [diskFiles, setDiskFiles] = useState<ImageFile[]>([])
+  const [savedTemplates, setSavedTemplates] = useState<VmTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
   const [showCloudInit, setShowCloudInit] = useState(false)
@@ -27,15 +28,15 @@ export default function CreateVMPage() {
 
   useEffect(() => {
     getTemplates().then(setTemplates).catch(() => {})
+    listSavedTemplates().then(setSavedTemplates).catch(() => {})
     listNetworks().then(setNetworks).catch(() => {})
     listIsos().then(setIsoFiles).catch(() => {})
     listDiskImages().then(setDiskFiles).catch(() => {})
   }, [])
 
-  const applyTemplate = (name: string) => {
-    setSelectedTemplate(name)
-    const tmpl = templates.find((t) => t.name === name)
-    if (tmpl) setForm((f) => ({ ...f, vcpus: tmpl.vcpus, memory_mb: tmpl.memory_mb, disk_gb: tmpl.disk_gb, os_variant: tmpl.os_variant }))
+  const applyTemplate = (tmpl: VmTemplate) => {
+    setSelectedTemplate(tmpl.name)
+    setForm((f) => ({ ...f, vcpus: tmpl.vcpus, memory_mb: tmpl.memory_mb, disk_gb: tmpl.disk_gb, os_variant: tmpl.os_variant }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -86,7 +87,7 @@ export default function CreateVMPage() {
             {templates.map((t) => (
               <button
                 key={t.name}
-                onClick={() => applyTemplate(t.name)}
+                onClick={() => applyTemplate(t)}
                 className={`p-3 rounded-lg border text-left text-sm transition ${selectedTemplate === t.name ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/50 hover:border-slate-600'}`}
               >
                 <div className="font-medium">{t.name}</div>
@@ -94,6 +95,25 @@ export default function CreateVMPage() {
               </button>
             ))}
           </div>
+          {savedTemplates.length > 0 && (
+            <>
+              <label className="block text-sm text-slate-400 mt-4">Saved Templates</label>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                {savedTemplates.map((t) => (
+                  <button key={t.name} type="button" onClick={() => applyTemplate(t)}
+                    className={`p-3 rounded-lg border text-left text-sm transition ${
+                      selectedTemplate === t.name ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/50 hover:border-slate-600'
+                    }`}>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium">{t.name}</span>
+                      <span className="px-1.5 py-0.5 bg-emerald-500/20 text-emerald-400 rounded text-[9px] font-medium">saved</span>
+                    </div>
+                    <div className="text-xs text-slate-400 mt-1">{t.vcpus} vCPU &middot; {t.memory_mb} MB &middot; {t.disk_gb} GB</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 

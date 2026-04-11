@@ -497,6 +497,26 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
     Ok(())
 }
 
+/// List all saved templates from /var/lib/virtspawn/templates/.
+pub fn list_saved_templates() -> Vec<crate::VmTemplate> {
+    let templates_dir = "/var/lib/virtspawn/templates";
+    let mut templates = Vec::new();
+    let dir = match std::fs::read_dir(templates_dir) {
+        Ok(d) => d,
+        Err(_) => return templates,
+    };
+    for entry in dir.flatten() {
+        if entry.path().extension().map_or(false, |e| e == "json") {
+            if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                if let Ok(tmpl) = serde_json::from_str::<crate::VmTemplate>(&content) {
+                    templates.push(tmpl);
+                }
+            }
+        }
+    }
+    templates
+}
+
 // ── DHCP Leases ──────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

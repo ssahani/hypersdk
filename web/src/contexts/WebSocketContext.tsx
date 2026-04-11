@@ -5,18 +5,30 @@ interface WSMessage {
   data?: unknown
 }
 
+export interface VMEvent {
+  event: 'state_change' | 'vm_added' | 'vm_removed'
+  name: string
+  old_state?: string
+  new_state?: string
+  state?: string
+  timestamp: number
+}
+
 interface WebSocketContextType {
   isConnected: boolean
   subscribe: (callback: (msg: WSMessage) => void) => () => void
+  events: VMEvent[]
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
   isConnected: false,
   subscribe: () => () => {},
+  events: [],
 })
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false)
+  const [events, setEvents] = useState<VMEvent[]>([])
   const subscribersRef = useRef<Set<(msg: WSMessage) => void>>(new Set())
   const wsRef = useRef<WebSocket | null>(null)
 
@@ -39,19 +51,24 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         retryDelay = Math.min(retryDelay * 2, 30000)
       }
       ws.onerror = () => ws.close()
-      ws.onmessage = (event) => {
+      ws.onmessage = (e) => {
         try {
-          const msg = JSON.parse(event.data) as WSMessage
+          const data = JSON.parse(e.data)
+          if (data.changes && Array.isArray(data.changes)) {
+            const newEvents: VMEvent[] = data.changes.map((c: VMEvent) => ({ ...c, timestamp: Date.now() }))
+            setEvents(prev => [...newEvents, ...prev].slice(0, 50))
+          }
+          const msg = data as WSMessage
           subscribersRef.current.forEach((cb) => {
             try {
               cb(msg)
-            } catch (e) {
-              console.error('WebSocket subscriber error:', e)
+            } catch (err) {
+              console.error('WebSocket subscriber error:', err)
             }
           })
         } catch {
           if (import.meta.env.DEV) {
-            console.warn('Non-JSON WebSocket message:', event.data)
+            console.warn('Non-JSON WebSocket message:', e.data)
           }
         }
       }
@@ -70,7 +87,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <WebSocketContext.Provider value={{ isConnected, subscribe }}>
+    <WebSocketContext.Provider value={{ isConnected, subscribe, events }}>
       {children}
     </WebSocketContext.Provider>
   )

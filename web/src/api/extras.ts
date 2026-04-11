@@ -1,4 +1,5 @@
 import { apiGet, apiPost, apiPostVoid } from './client'
+import { VmTemplate } from './vm'
 
 const API = '/api/v1'
 
@@ -88,6 +89,9 @@ export const getHostStats = () => apiGet<HostStats>(`${API}/host/stats`)
 // Save as template
 export const saveVmAsTemplate = (vm: string, templateName: string) =>
   apiPost<{ status: string }>(`${API}/vms/${encodeURIComponent(vm)}/save-template`, { template_name: templateName })
+
+// List saved templates
+export const listSavedTemplates = () => apiGet<VmTemplate[]>(`${API}/templates/saved`)
 
 // PCI
 export interface PciDevice {

@@ -6,7 +6,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
-import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag } from 'lucide-react'
+import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X } from 'lucide-react'
 
 export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -16,6 +16,9 @@ export default function VMList() {
   const [vmTagsMap, setVmTagsMap] = useState<Record<string, string[]>>({})
   const [allTagNames, setAllTagNames] = useState<string[]>([])
   const [tagFilter, setTagFilter] = useState('')
+  const [selectedVMs, setSelectedVMs] = useState<Set<string>>(new Set())
+  const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => (localStorage.getItem('vmlist-view') as 'table' | 'grid') || 'table')
   const toast = useToastContext()
   const { subscribe } = useWebSocketContext()
 
@@ -67,11 +70,46 @@ export default function VMList() {
     return matchesSearch && matchesTag
   })
 
+  const toggleSelect = (name: string) => {
+    setSelectedVMs(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  const toggleAll = () => {
+    if (selectedVMs.size === filtered.length) setSelectedVMs(new Set())
+    else setSelectedVMs(new Set(filtered.map(v => v.name)))
+  }
+
+  const batchRun = async (fn: (name: string) => Promise<void>, label: string) => {
+    const results = await Promise.allSettled(Array.from(selectedVMs).map(name => fn(name)))
+    const ok = results.filter(r => r.status === 'fulfilled').length
+    const fail = results.filter(r => r.status === 'rejected').length
+    if (ok > 0) toast.success(`${label}: ${ok} succeeded`)
+    if (fail > 0) toast.error(`${label}: ${fail} failed`)
+    setSelectedVMs(new Set())
+    load()
+  }
+
+  const handleBatchDelete = async () => {
+    setBatchDeleteConfirm(false)
+    await batchRun(deleteVM, 'Delete')
+  }
+
+  useEffect(() => { setSelectedVMs(new Set()) }, [search, tagFilter])
+  useEffect(() => { localStorage.setItem('vmlist-view', viewMode) }, [viewMode])
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Virtual Machines</h1>
         <div className="flex items-center gap-3">
+          <button onClick={() => setViewMode(v => v === 'table' ? 'grid' : 'table')} className="p-2 hover:bg-slate-700 rounded transition" title={viewMode === 'table' ? 'Grid view' : 'Table view'}>
+            {viewMode === 'table' ? <LayoutGrid className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
+          </button>
           <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh" aria-label="Refresh VM list">
             <RefreshCw className="w-4 h-4" />
           </button>
@@ -111,11 +149,14 @@ export default function VMList() {
         <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 p-12 text-center text-slate-500">
           {search ? 'No VMs match your search.' : 'No VMs found. Create one to get started.'}
         </div>
-      ) : (
+      ) : viewMode === 'table' ? (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
+                <th className="px-3 py-3 w-8">
+                  <input type="checkbox" checked={selectedVMs.size === filtered.length && filtered.length > 0} onChange={toggleAll} className="rounded border-slate-600 bg-slate-900" />
+                </th>
                 <th className="px-6 py-3">Name</th>
                 <th className="px-6 py-3">State</th>
                 <th className="px-6 py-3 hidden md:table-cell">vCPUs</th>
@@ -126,6 +167,9 @@ export default function VMList() {
             <tbody className="divide-y divide-slate-700/50">
               {filtered.map((vm) => (
                 <tr key={vm.name} className="hover:bg-slate-700/50 transition">
+                  <td className="px-3 py-4">
+                    <input type="checkbox" checked={selectedVMs.has(vm.name)} onChange={() => toggleSelect(vm.name)} className="rounded border-slate-600 bg-slate-900" />
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <Link to={`/vms/${vm.name}`} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
@@ -179,6 +223,61 @@ export default function VMList() {
             </tbody>
           </table>
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filtered.map((vm) => (
+            <div key={vm.name} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <input type="checkbox" checked={selectedVMs.has(vm.name)} onChange={() => toggleSelect(vm.name)} className="rounded border-slate-600 bg-slate-900 shrink-0" />
+                  <Link to={`/vms/${vm.name}`} className="font-semibold text-blue-400 hover:text-blue-300 truncate">{vm.name}</Link>
+                </div>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
+              </div>
+              <div className="space-y-1 text-sm text-slate-300 mb-3">
+                <div className="flex justify-between"><span className="text-slate-500">vCPUs</span><span>{vm.vcpus}</span></div>
+                <div className="flex justify-between"><span className="text-slate-500">Memory</span><span>{vm.memory_mb} MB</span></div>
+              </div>
+              {(vmTagsMap[vm.name] || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-3">
+                  {(vmTagsMap[vm.name] || []).map(t => (
+                    <span key={t} className="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-[10px] font-medium">{t}</span>
+                  ))}
+                </div>
+              )}
+              <div className="flex items-center gap-1 pt-3 border-t border-slate-700/50">
+                {vm.state === 'running' && (
+                  <>
+                    <Link to={`/vms/${vm.name}/console`} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console"><Terminal className="w-4 h-4 text-slate-300" /></Link>
+                    <button onClick={() => action(vm.name, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown"><Power className="w-4 h-4 text-yellow-400" /></button>
+                    <button onClick={() => action(vm.name, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop"><Square className="w-4 h-4 text-red-400" /></button>
+                    <button onClick={() => action(vm.name, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause"><Pause className="w-4 h-4 text-blue-400" /></button>
+                  </>
+                )}
+                {vm.state === 'shutoff' && (
+                  <button onClick={() => action(vm.name, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className="w-4 h-4 text-green-400" /></button>
+                )}
+                {vm.state === 'paused' && (
+                  <button onClick={() => action(vm.name, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume"><RotateCcw className="w-4 h-4 text-green-400" /></button>
+                )}
+                <div className="flex-1" />
+                <button onClick={() => setDeleteTarget(vm.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selectedVMs.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800 border border-slate-700/50 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-fade-in">
+          <span className="text-sm font-medium">{selectedVMs.size} selected</span>
+          <div className="w-px h-5 bg-slate-700" />
+          <button onClick={() => batchRun(startVM, 'Start')} className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 text-green-400 rounded-lg text-xs font-medium transition">Start</button>
+          <button onClick={() => batchRun(shutdownVM, 'Shutdown')} className="px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg text-xs font-medium transition">Shutdown</button>
+          <button onClick={() => batchRun(stopVM, 'Stop')} className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition">Stop</button>
+          <button onClick={() => setBatchDeleteConfirm(true)} className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition">Delete</button>
+          <button onClick={() => setSelectedVMs(new Set())} className="p-1.5 hover:bg-slate-700 rounded-lg transition" title="Clear selection"><X className="w-4 h-4 text-slate-400" /></button>
+        </div>
       )}
 
       <ConfirmDialog
@@ -188,6 +287,15 @@ export default function VMList() {
         confirmLabel="Delete"
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={batchDeleteConfirm}
+        title="Delete VMs"
+        message={`This will permanently delete ${selectedVMs.size} VMs. Running VMs will be stopped first.`}
+        confirmLabel="Delete All"
+        onConfirm={handleBatchDelete}
+        onCancel={() => setBatchDeleteConfirm(false)}
       />
     </div>
   )

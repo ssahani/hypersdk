@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
-import { listPools, listVolumes, startPool, stopPool, refreshPool, deleteVolume, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
+import { listPools, listVolumes, startPool, stopPool, refreshPool, deleteVolume, setPoolAutostart, createVolume, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
 import { createPool, deletePool, getPoolXml, resizeVolume, cloneVolume } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize } from 'lucide-react'
+import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize, ToggleLeft, ToggleRight } from 'lucide-react'
 
 export default function StoragePage() {
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
@@ -22,6 +22,10 @@ export default function StoragePage() {
   const [resizeGb, setResizeGb] = useState('')
   const [cloneTarget, setCloneTarget] = useState<{ pool: string; vol: string } | null>(null)
   const [cloneName, setCloneName] = useState('')
+  const [showCreateVol, setShowCreateVol] = useState(false)
+  const [newVolName, setNewVolName] = useState('')
+  const [newVolCapacity, setNewVolCapacity] = useState('10')
+  const [newVolFormat, setNewVolFormat] = useState('qcow2')
   const toast = useToastContext()
 
   const loadPools = useCallback(async () => {
@@ -70,6 +74,25 @@ export default function StoragePage() {
     setCloneTarget(null); setCloneName('')
   }
 
+  const togglePoolAutostart = async (pool: StoragePoolInfo) => {
+    try {
+      await setPoolAutostart(pool.name, !pool.autostart)
+      toast.success(`Autostart ${!pool.autostart ? 'enabled' : 'disabled'} for '${pool.name}'`)
+      loadPools()
+    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleCreateVol = async () => {
+    if (!selectedPool || !newVolName.trim()) return
+    try {
+      await createVolume(selectedPool, { name: newVolName.trim(), capacity_gb: parseFloat(newVolCapacity), format: newVolFormat })
+      toast.success(`Created volume '${newVolName.trim()}'`)
+      setShowCreateVol(false)
+      setNewVolName('')
+      loadVolumes(selectedPool)
+    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
   if (selectedPool) {
@@ -79,6 +102,7 @@ export default function StoragePage() {
           <button onClick={() => { setSelectedPool(null); setVolumes([]) }} className="p-2 hover:bg-slate-700 rounded transition"><ArrowLeft className="w-5 h-5" /></button>
           <h1 className="text-2xl font-bold">Volumes in '{selectedPool}'</h1>
           <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={() => setShowCreateVol(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Volume</button>
         </div>
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           {volumes.length === 0 ? <div className="p-8 text-center text-slate-500">No volumes</div> : (
@@ -144,6 +168,36 @@ export default function StoragePage() {
             </div>
           </div>
         )}
+
+        {showCreateVol && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreateVol(false)}>
+            <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+              <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Create Volume</span></div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Name</label>
+                  <input type="text" value={newVolName} onChange={(e) => setNewVolName(e.target.value)} placeholder="my-volume.qcow2" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Capacity (GB)</label>
+                  <input type="number" step="0.01" value={newVolCapacity} onChange={(e) => setNewVolCapacity(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Format</label>
+                  <select value={newVolFormat} onChange={(e) => setNewVolFormat(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
+                    <option value="qcow2">qcow2</option>
+                    <option value="raw">raw</option>
+                    <option value="qcow">qcow</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 px-5 pb-5">
+                <button onClick={() => setShowCreateVol(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+                <button onClick={handleCreateVol} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">Create</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -186,6 +240,9 @@ export default function StoragePage() {
                   <button onClick={() => poolAction(pool.name, stopPool, 'Stop pool')} className="p-1.5 hover:bg-red-600/20 rounded transition"><Square className="w-4 h-4 text-red-400" /></button>
                 </>
               )}
+              <button onClick={() => togglePoolAutostart(pool)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title={pool.autostart ? 'Disable Autostart' : 'Enable Autostart'}>
+                {pool.autostart ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4 text-slate-500" />}
+              </button>
               <button onClick={() => showPoolXml(pool.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className="w-4 h-4 text-blue-400" /></button>
               <button onClick={() => setDeletePoolTarget(pool.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete Pool"><Trash2 className="w-4 h-4 text-red-400" /></button>
             </div>
