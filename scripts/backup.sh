@@ -18,7 +18,7 @@ set -eo pipefail
 
 API="${VIRTSPAWN_API:-http://localhost:8081/api/v1}"
 BACKUP_DIR="${VIRTSPAWN_BACKUP_DIR:-$HOME/virtspawn-backups}"
-DATE=$(date +%Y%m%d-%H%M%S)
+DATE="${VIRTSPAWN_BACKUP_ID:-$(date +%Y%m%d-%H%M%S)}"
 VM_FILTER=""
 NFS_TARGET=""
 NFS_MOUNT_POINT="/mnt/virtspawn-backup"

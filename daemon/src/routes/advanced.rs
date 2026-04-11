@@ -275,6 +275,25 @@ async fn delete_nwfilter_handler(
     Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
 }
 
+#[derive(serde::Deserialize)]
+struct DefineNwfilterRequest {
+    xml: String,
+}
+
+async fn define_nwfilter_handler(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<DefineNwfilterRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let xml = req.xml;
+    let name = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| nwfilter::define_nwfilter(conn, &xml))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "defined", "name": name })))
+}
+
 // ── Secrets ─────────────────────────────────────────────────────────
 
 async fn list_secrets_handler(
@@ -445,7 +464,7 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route("/devices", get(list_node_devices_handler))
         .route("/devices/{name}", get(get_node_device_handler))
         // Network filters
-        .route("/nwfilters", get(list_nwfilters_handler))
+        .route("/nwfilters", get(list_nwfilters_handler).post(define_nwfilter_handler))
         .route("/nwfilters/{name}", get(get_nwfilter_handler))
         .route("/nwfilters/{name}", delete(delete_nwfilter_handler))
         // Secrets

@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
-import { listNwfilters, deleteNwfilter, getNwfilterXml, NwfilterInfo } from '../api/advanced'
+import { listNwfilters, deleteNwfilter, defineNwfilter, getNwfilterXml, NwfilterInfo } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Shield, Trash2, RefreshCw, Search, Code, X } from 'lucide-react'
+import { Shield, Trash2, RefreshCw, Search, Code, X, Plus } from 'lucide-react'
 
 export default function NWFiltersPage() {
   const [filters, setFilters] = useState<NwfilterInfo[]>([])
@@ -11,6 +11,13 @@ export default function NWFiltersPage() {
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [xmlContent, setXmlContent] = useState<string | null>(null)
   const [xmlName, setXmlName] = useState('')
+  const [showCreate, setShowCreate] = useState(false)
+  const [newFilterXml, setNewFilterXml] = useState(`<filter name='my-filter' chain='root'>
+  <rule action='accept' direction='in'>
+    <tcp dstportstart='22'/>
+  </rule>
+</filter>`)
+  const [creating, setCreating] = useState(false)
   const toast = useToastContext()
 
   const load = useCallback(async () => {
@@ -29,6 +36,23 @@ export default function NWFiltersPage() {
     try { const xml = await getNwfilterXml(name); setXmlContent(xml); setXmlName(name) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
+  const handleCreate = async () => {
+    if (!newFilterXml.trim()) return
+    setCreating(true)
+    try {
+      const result = await defineNwfilter(newFilterXml)
+      toast.success(`Filter '${result.name}' created`)
+      setShowCreate(false)
+      setNewFilterXml(`<filter name='my-filter' chain='root'>
+  <rule action='accept' direction='in'>
+    <tcp dstportstart='22'/>
+  </rule>
+</filter>`)
+      load()
+    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    finally { setCreating(false) }
+  }
+
   const filtered = filters.filter(f => search === '' || f.name.toLowerCase().includes(search.toLowerCase()))
 
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
@@ -37,7 +61,10 @@ export default function NWFiltersPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Shield className="w-6 h-6" /> Network Filters ({filters.length})</h1>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition"><RefreshCw className="w-4 h-4" /></button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => setShowCreate(true)} className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition"><Plus className="w-4 h-4" />Create Filter</button>
+          <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition"><RefreshCw className="w-4 h-4" /></button>
+        </div>
       </div>
 
       <div className="relative">
@@ -78,6 +105,33 @@ export default function NWFiltersPage() {
               <button onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
             <pre className="p-5 text-sm text-slate-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
+          </div>
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowCreate(false)}>
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-5 border-b border-slate-700/50">
+              <span className="text-lg font-semibold">Create Network Filter</span>
+              <button onClick={() => setShowCreate(false)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
+            </div>
+            <div className="p-5 flex-1 flex flex-col gap-4 overflow-auto">
+              <label className="text-sm text-slate-400">Filter XML Definition</label>
+              <textarea
+                value={newFilterXml}
+                onChange={(e) => setNewFilterXml(e.target.value)}
+                rows={12}
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-sm font-mono text-slate-300 focus:outline-none focus:border-blue-500 resize-y"
+                spellCheck={false}
+              />
+              <div className="flex justify-end gap-2">
+                <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white hover:bg-slate-700 rounded-lg transition">Cancel</button>
+                <button onClick={handleCreate} disabled={creating || !newFilterXml.trim()} className="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition">
+                  {creating ? 'Creating...' : 'Create Filter'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

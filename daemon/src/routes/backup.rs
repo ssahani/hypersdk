@@ -328,6 +328,7 @@ async fn trigger_backup(
         "VIRTSPAWN_BACKUP_DIR",
         backup_dir().to_string_lossy().as_ref(),
     );
+    cmd.env("VIRTSPAWN_BACKUP_ID", &backup_id);
 
     if req.with_disks {
         cmd.arg("--with-disks");
