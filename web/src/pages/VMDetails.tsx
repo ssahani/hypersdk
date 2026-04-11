@@ -5,8 +5,8 @@ import {
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
-  insertCdrom, ejectCdrom, getVMLogs,
-  VmDetails, VmMetrics, GuestIpAddress, BootConfig,
+  insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune,
+  VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
 } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo } from '../api/snapshot'
@@ -82,6 +82,8 @@ export default function VMDetailsPage() {
   const [snapDiskOnly, setSnapDiskOnly] = useState(false)
   const [logsContent, setLogsContent] = useState('')
   const [logsLines, setLogsLines] = useState(500)
+  const [cpuTune, setCpuTune] = useState<CpuTuneInfo | null>(null)
+  const [memTune, setMemTune] = useState<MemTuneInfo | null>(null)
 
   // Confirmation dialog state for destructive actions
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
@@ -105,6 +107,8 @@ export default function VMDetailsPage() {
       try { setBootConfig(await getBootConfig(name)) } catch { /* optional */ }
       try { const s = await hasManagedSave(name); setHasSave(s.has_managed_save) } catch { /* optional */ }
       try { const t = await getVmTags(name); setVmTags(t.tags) } catch { /* optional */ }
+      try { setCpuTune(await getCpuTune(name)) } catch { /* optional */ }
+      try { setMemTune(await getMemTune(name)) } catch { /* optional */ }
     } catch (e: unknown) {
       toast.error(`Failed to load VM: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -497,6 +501,39 @@ export default function VMDetailsPage() {
                 <div className="flex justify-between text-xs text-slate-400 mb-1"><span>Memory</span><span>{metrics.memory_pct.toFixed(0)}%</span></div>
                 <div className="w-full bg-slate-700 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${metrics.memory_pct}%` }} /></div>
               </div>
+            </div>
+          )}
+
+          {(cpuTune || memTune) && (
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
+              <h3 className="text-lg font-semibold">Resource Limits</h3>
+              {cpuTune && (
+                <>
+                  <InfoRow label="CPU Shares" value={cpuTune.shares != null ? cpuTune.shares : 'Not set'} />
+                  <InfoRow label="CPU Period" value={cpuTune.period != null ? `${cpuTune.period} us` : 'Not set'} />
+                  <InfoRow label="CPU Quota" value={cpuTune.quota != null ? `${cpuTune.quota} us` : 'Not set'} />
+                </>
+              )}
+              {memTune && (
+                <>
+                  <InfoRow label="Memory Hard Limit" value={memTune.hard_limit_kb != null ? `${(memTune.hard_limit_kb / 1024).toFixed(0)} MB` : 'Not set'} />
+                  <InfoRow label="Memory Soft Limit" value={memTune.soft_limit_kb != null ? `${(memTune.soft_limit_kb / 1024).toFixed(0)} MB` : 'Not set'} />
+                  <InfoRow label="Swap Limit" value={memTune.swap_hard_limit_kb != null ? `${(memTune.swap_hard_limit_kb / 1024).toFixed(0)} MB` : 'Not set'} />
+                </>
+              )}
+              {cpuTune && cpuTune.vcpupin.length > 0 && (
+                <div className="pt-2">
+                  <span className="text-sm text-slate-400">vCPU Pinning</span>
+                  <div className="mt-1 space-y-1">
+                    {cpuTune.vcpupin.map((pin) => (
+                      <div key={pin.vcpu} className="flex items-center justify-between py-1 border-b border-slate-700/30">
+                        <span className="text-xs text-slate-400">vCPU {pin.vcpu}</span>
+                        <span className="text-xs font-mono font-medium">{pin.cpuset}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

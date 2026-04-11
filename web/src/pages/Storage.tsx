@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router'
 import { listPools, listVolumes, startPool, stopPool, refreshPool, deleteVolume, setPoolAutostart, createVolume, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
 import { createPool, deletePool, getPoolXml, resizeVolume, cloneVolume } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
@@ -232,7 +233,7 @@ export default function StoragePage() {
               )}
             </div>
             <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-700/50">
-              <button onClick={() => loadVolumes(pool.name)} className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm transition text-center">Browse</button>
+              <Link to={`/storage/${encodeURIComponent(pool.name)}`} className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm transition text-center">Browse</Link>
               {pool.state !== 'running' && <button onClick={() => poolAction(pool.name, startPool, 'Start pool')} className="p-1.5 hover:bg-green-600/20 rounded transition"><Play className="w-4 h-4 text-green-400" /></button>}
               {pool.state === 'running' && (
                 <>

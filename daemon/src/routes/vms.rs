@@ -5,6 +5,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::{clone, create, device, domain, resize};
+use virtspawn_core::libvirt::resize::{CpuTuneInfo, MemTuneInfo};
 use virtspawn_core::{
     audit, AttachDiskRequest, AuditEvent, CloneVmRequest, CreateVmRequest, LibvirtError,
     LibvirtManager, RenameVmRequest, VmDetails, VmInfo,
@@ -244,6 +245,20 @@ async fn get_vm_logs(
     })))
 }
 
+async fn get_cputune_handler(
+    Path(name): Path<String>,
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<CpuTuneInfo>, AppError> {
+    Ok(Json(manager.with_conn(|c| resize::get_cputune(c, &name))?))
+}
+
+async fn get_memtune_handler(
+    Path(name): Path<String>,
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<MemTuneInfo>, AppError> {
+    Ok(Json(manager.with_conn(|c| resize::get_memtune(c, &name))?))
+}
+
 pub fn vm_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/vms", get(list_vms))
@@ -269,4 +284,6 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/nic/detach/{mac}", post(detach_interface_handler))
         .route("/vms/{name}/tags", get(get_vm_tags_handler).post(set_vm_tags_handler))
         .route("/vms/{name}/logs", get(get_vm_logs))
+        .route("/vms/{name}/cputune", get(get_cputune_handler))
+        .route("/vms/{name}/memtune", get(get_memtune_handler))
 }

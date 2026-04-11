@@ -128,3 +128,8 @@ export const attachInterface = (name: string, network: string, model: string = '
 export const detachInterface = (name: string, mac: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/detach/${encodeURIComponent(mac)}`)
 export const getVMLogs = (name: string, lines = 500) =>
   apiGet<{ vm_name: string; log_path: string; content: string }>(`${API}/vms/${encodeURIComponent(name)}/logs?lines=${lines}`)
+
+export interface CpuTuneInfo { shares?: number; period?: number; quota?: number; vcpupin: { vcpu: number; cpuset: string }[] }
+export interface MemTuneInfo { hard_limit_kb?: number; soft_limit_kb?: number; swap_hard_limit_kb?: number }
+export const getCpuTune = (name: string) => apiGet<CpuTuneInfo>(`${API}/vms/${encodeURIComponent(name)}/cputune`)
+export const getMemTune = (name: string) => apiGet<MemTuneInfo>(`${API}/vms/${encodeURIComponent(name)}/memtune`)

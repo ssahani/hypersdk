@@ -37,6 +37,7 @@ const SSHPage = lazy(() => import('./pages/SSHPage'))
 const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Services = lazy(() => import('./pages/Services'))
 const Logs = lazy(() => import('./pages/Logs'))
+const StoragePoolDetail = lazy(() => import('./pages/StoragePoolDetail'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -98,6 +99,7 @@ function AuthenticatedApp() {
                 <Route path="/create" element={<CreateVM />} />
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />
+                <Route path="/storage/:pool" element={<StoragePoolDetail />} />
                 <Route path="/snapshots" element={<Snapshots />} />
                 <Route path="/node" element={<NodeInfo />} />
                 <Route path="/events" element={<Events />} />

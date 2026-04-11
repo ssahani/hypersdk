@@ -60,6 +60,8 @@ virtspawn/
 - **PAM authentication** — login with system credentials, persistent cookie sessions
 - **RBAC** — role-based access control with admin, operator, and readonly roles
 - **API tokens** — Bearer token authentication for automation and scripting
+- **WebSocket token authentication** — short-lived token-based auth for all console/VNC/SSH WebSocket connections
+- **Session TTL with max session limits** — 24-hour session expiry, max 1000 total sessions, max 10 sessions per user
 - **TLS support** — optional HTTPS via `[tls]` config section with cert/key paths
 - **Same-origin only** — no CORS (prevents cross-site attacks)
 
@@ -72,7 +74,7 @@ virtspawn/
 - **Dashboard** — VM stats, host memory gauge, VM list with inline quick actions (start/shutdown/console), metric charts, real-time activity feed
 - **Batch VM operations** — multi-select VMs with checkboxes, floating action bar for batch start/shutdown/stop/delete
 - **VM Management** — start, stop, shutdown, reboot, pause, resume, delete with confirmation dialogs
-- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots, Devices, XML) with live metrics, confirmation dialogs, XML download, save-as-template dialog
+- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots, Devices, XML, Logs) with live metrics, disk-only snapshots, confirmation dialogs, XML download, save-as-template dialog
 - **VM list views** — toggle between table and card grid layouts with localStorage persistence
 - **Create VM** — form with built-in and saved template selectors, validation, UEFI firmware selection, cloud-init support
 - **Import VM** — convert and import VMDK/VDI/VHD disk images to qcow2
@@ -83,12 +85,16 @@ virtspawn/
 - **Host Networking** — visual network topology (SVG graph), port forwarding, bridge management, per-VM firewall rules, DHCP lease viewer
 - **Networks** — list, start/stop, toggle autostart, delete
 - **Storage** — pool cards with capacity bars and autostart toggle, volume browser with create/resize/clone/delete
-- **Snapshots** — list all across VMs, revert, delete
+- **Snapshots** — list all across VMs, revert, delete; disk-only snapshot option for faster snapshots without memory state
 - **Secrets** — libvirt secrets management (list, view XML, delete)
 - **Host Info** — hypervisor, CPU model/cores/threads, memory, libvirt version, DMI hardware details (vendor, product, BIOS)
 - **Systemd Services** — browse and manage host systemd services
 - **System Logs** — journald log browser
 - **Audit Log** — view all operation history with timestamps
+- **Per-VM log viewer** — Logs tab in VM Details showing QEMU logs for the selected VM
+- **Data export** — CSV and JSON export buttons on VM list, audit log, and live metrics pages
+- **Recently viewed VMs** — last 5 recently viewed VMs shown on Dashboard and command palette
+- **Favorites / pin VMs** — star or pin VMs to sort them to the top of the VM list
 - **Settings** — RBAC role management, API tokens, alert rules, webhooks, scheduled actions, notification channels
 - **ISO/Disk Browser** — browse available ISO images and disk images on the host
 - **API Docs** — built-in OpenAPI documentation with interactive API playground (try endpoints in-browser)
@@ -134,7 +140,7 @@ virtspawn/
 - **State transition highlights** — rows flash when a VM changes state
 
 ### Snapshots, Networks, Storage
-- **Snapshots** — list, create, delete, revert across all VMs
+- **Snapshots** — list, create, delete, revert across all VMs; disk-only option for faster snapshots without memory state
 - **Networks** — create, delete, start, stop, toggle autostart for virtual networks (NAT with DHCP)
 - **Storage** — browse pools with capacity/usage, start/stop/refresh pools, toggle autostart, volume browser
 
@@ -188,7 +194,8 @@ virtspawn/
 - **RBAC** — admin/operator/readonly roles with granular permissions
 - **API tokens** — Bearer authentication for automation scripts
 - **TLS** — optional HTTPS with configurable cert/key paths
-- **WebSocket** — real-time VM state change notifications
+- **WebSocket** — real-time VM state change notifications with token-based authentication
+- **Session management** — 24-hour TTL, max 1000 sessions, max 10 per user
 - **VNC WebSocket proxy** — built-in TCP-to-WebSocket proxy for VNC, no external websockify needed
 - **SPICE WebSocket proxy** — built-in proxy for SPICE console
 - **Serial console proxy** — direct async PTY I/O over WebSocket (no socat dependency)
@@ -330,7 +337,7 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 |------|-----|-------------|
 | Dashboard | `/` | Stats cards, memory gauge, VM list with quick actions, metric charts, activity feed |
 | VM List | `/vms` | Table/grid view with search, tag filtering, batch operations, state badges, lifecycle actions |
-| VM Details | `/vms/{name}` | 6 tabs, confirmation dialogs, XML download, save-as-template dialog |
+| VM Details | `/vms/{name}` | 7 tabs (Overview, Disks, Network, Snapshots, Devices, XML, Logs), confirmation dialogs, XML download, save-as-template dialog |
 | Create VM | `/create` | Template selector + form with validation, UEFI, cloud-init |
 | Import VM | `/import` | Convert and import VMDK/VDI/VHD disk images |
 | Console | `/vms/{name}/console` | Auto-detect VNC/Serial, in-browser display via noVNC or xterm.js |
@@ -570,6 +577,7 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `GET` | `/vms/{name}/tags` | Get VM tags |
 | `POST` | `/vms/{name}/tags` | Set VM tags |
 | `POST` | `/vms/{name}/save-template` | Save VM as reusable template |
+| `GET` | `/vms/{name}/logs` | Get per-VM QEMU logs |
 
 ### Snapshots
 
@@ -679,6 +687,7 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `POST` | `/api/v1/auth/login` | Login with PAM credentials |
 | `POST` | `/api/v1/auth/logout` | Logout and clear session |
 | `GET` | `/api/v1/auth/session` | Get current session info |
+| `POST` | `/api/v1/ws-token` | Get short-lived WebSocket authentication token |
 
 ### RBAC & Tokens
 

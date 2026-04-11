@@ -1,7 +1,60 @@
 use virt::connect::Connect;
 
 use super::domain::lookup_domain;
-use crate::LibvirtError;
+use crate::{LibvirtError, xml};
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+pub struct CpuTuneInfo {
+    pub shares: Option<u64>,
+    pub period: Option<u64>,
+    pub quota: Option<i64>,
+    pub vcpupin: Vec<VcpuPin>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct VcpuPin {
+    pub vcpu: u32,
+    pub cpuset: String,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Default)]
+pub struct MemTuneInfo {
+    pub hard_limit_kb: Option<u64>,
+    pub soft_limit_kb: Option<u64>,
+    pub swap_hard_limit_kb: Option<u64>,
+}
+
+pub fn get_cputune(conn: &Connect, name: &str) -> Result<CpuTuneInfo, LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let xml_str = domain.get_xml_desc(0).map_err(LibvirtError::map_op("get XML"))?;
+    let mut info = CpuTuneInfo::default();
+    if let Some(block) = xml::extract_text(&xml_str, "cputune") {
+        if let Some(s) = xml::extract_simple_text(&block, "shares") { info.shares = s.trim().parse().ok(); }
+        if let Some(p) = xml::extract_simple_text(&block, "period") { info.period = p.trim().parse().ok(); }
+        if let Some(q) = xml::extract_simple_text(&block, "quota") { info.quota = q.trim().parse().ok(); }
+    }
+    // Parse vcpupin entries
+    for block in xml::split_blocks(&xml_str, "vcpupin") {
+        if let (Some(vcpu), Some(cpuset)) = (xml::extract_attr(&block, "vcpupin", "vcpu"), xml::extract_attr(&block, "vcpupin", "cpuset")) {
+            if let Ok(v) = vcpu.parse() {
+                info.vcpupin.push(VcpuPin { vcpu: v, cpuset });
+            }
+        }
+    }
+    Ok(info)
+}
+
+pub fn get_memtune(conn: &Connect, name: &str) -> Result<MemTuneInfo, LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let xml_str = domain.get_xml_desc(0).map_err(LibvirtError::map_op("get XML"))?;
+    let mut info = MemTuneInfo::default();
+    if let Some(block) = xml::extract_text(&xml_str, "memtune") {
+        if let Some(v) = xml::extract_simple_text(&block, "hard_limit") { info.hard_limit_kb = v.trim().parse().ok(); }
+        if let Some(v) = xml::extract_simple_text(&block, "soft_limit") { info.soft_limit_kb = v.trim().parse().ok(); }
+        if let Some(v) = xml::extract_simple_text(&block, "swap_hard_limit") { info.swap_hard_limit_kb = v.trim().parse().ok(); }
+    }
+    Ok(info)
+}
 
 pub fn set_vcpus(conn: &Connect, name: &str, vcpus: u32) -> Result<(), LibvirtError> {
     crate::validate::validate_vcpus(vcpus)?;
