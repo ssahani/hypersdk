@@ -64,9 +64,13 @@ virtspawn/
 - **Same-origin only** — no CORS (prevents cross-site attacks)
 
 ### Web UI (http://localhost:8081)
-- **Dashboard** — VM stats, host CPU/memory/disk gauges, VM list with state indicators
+- **Premium login page** — split-screen layout with animated gradient background, floating orbs, feature showcase cards, glassmorphism form
+- **Command palette** — `Ctrl+K` / `Cmd+K` to search VMs, navigate pages, and run quick actions (start/stop/console) with keyboard navigation
+- **Breadcrumb navigation** — auto-generated from route path on every page
+- **Keyboard shortcuts** — `g d` (dashboard), `g v` (VMs), `g n` (networks), `g s` (storage), `g c` (create), `?` (help overlay)
+- **Dashboard** — VM stats, host memory gauge, VM list with inline quick actions (start/shutdown/console), metric charts
 - **VM Management** — start, stop, shutdown, reboot, pause, resume, delete with confirmation dialogs
-- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots) with live metrics and autostart toggle
+- **VM Details** — tabbed view (Overview, Disks, Network, Snapshots, Devices, XML) with live metrics, confirmation dialogs for destructive actions (detach disk/NIC, delete snapshot)
 - **Create VM** — form with template selector (linux-small/medium/large, windows, minimal), validation, UEFI firmware selection, cloud-init support
 - **Import VM** — convert and import VMDK/VDI/VHD disk images to qcow2
 - **VNC Console** — in-browser VM display via noVNC RFB client (dynamically loaded from server)
@@ -75,8 +79,9 @@ virtspawn/
 - **SSH Console** — browser-based SSH access via spawned ssh process with PTY WebSocket
 - **Host Networking** — visual network topology (SVG graph), port forwarding, bridge management, per-VM firewall rules, DHCP lease viewer
 - **Networks** — list, start/stop, toggle autostart, delete
-- **Storage** — pool cards with capacity bars, volume browser, delete volumes
+- **Storage** — pool cards with capacity bars, volume browser with resize/clone, delete volumes
 - **Snapshots** — list all across VMs, revert, delete
+- **Secrets** — libvirt secrets management (list, view XML, delete)
 - **Host Info** — hypervisor, CPU model/cores/threads, memory, libvirt version, DMI hardware details (vendor, product, BIOS)
 - **Systemd Services** — browse and manage host systemd services
 - **System Logs** — journald log browser
@@ -86,10 +91,12 @@ virtspawn/
 - **API Docs** — built-in OpenAPI documentation page
 - **Live Metrics** — real-time per-VM time-series metrics charts (memory, disk I/O, network I/O)
 - **PCI/IOMMU Devices** — PCI device listing with IOMMU group info
-- **Toast notifications** — success/error/warning feedback for all actions
+- **Toast notifications** — success/error/warning/info feedback for all actions, progress toasts for long-running operations (backup, restore, migration)
 - **WebSocket live updates** — dashboard auto-refreshes when VM state changes
+- **Page skeleton loaders** — shimmer loading states during lazy page loads
 - **Responsive** — works on desktop and mobile with collapsible nav
-- **Dark/light theme** — toggle between dark and light themes
+- **Dark/light theme** — toggle between dark and light themes with unified slate palette
+- **Page animations** — fade-in transitions on all pages, hover effects on dashboard cards
 
 ### VM Management
 - **Create** from parameters or templates with auto-generated qcow2 disk, VNC graphics, virtio devices, q35 machine type
@@ -188,7 +195,7 @@ virtspawn/
 - **Systemd service** — hardened unit file with security restrictions
 - **Config hierarchy** — user config > system config > defaults > CLI overrides
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
-- **Security hardened** — migration URI validation (SSRF prevention), ISO path canonicalization, PTY path validation, integer overflow protection, no CORS (same-origin only)
+- **Security hardened** — migration URI validation (SSRF prevention), ISO/import path canonicalization with symlink resolution, webhook URL validation, email header injection prevention, PTY path validation, integer overflow protection, no CORS (same-origin only), RBAC defaults to ReadOnly for unknown users
 - **Audit logging** — all operations logged with timestamps
 - **Graceful shutdown** — daemon handles SIGTERM/SIGINT cleanly
 - **Distro support** — installer supports Fedora, RHEL, Ubuntu, Debian, openSUSE, Arch Linux
@@ -318,30 +325,29 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 
 | Page | URL | Description |
 |------|-----|-------------|
-| Dashboard | `/` | Stats cards, CPU/memory/disk gauges, VM list, host info |
-| VM List | `/vms` | Table with search, state badges, lifecycle actions |
-| VM Details | `/vms/{name}` | Overview (IPs, boot config), Disks, Network, Snapshots |
+| Dashboard | `/` | Stats cards, memory gauge, VM list with quick actions, metric charts |
+| VM List | `/vms` | Table with search, tag filtering, state badges, lifecycle actions |
+| VM Details | `/vms/{name}` | 6 tabs (Overview, Disks, Network, Snapshots, Devices, XML), confirmation dialogs |
 | Create VM | `/create` | Template selector + form with validation, UEFI, cloud-init |
 | Import VM | `/import` | Convert and import VMDK/VDI/VHD disk images |
-| VNC Console | `/vms/{name}/console` | In-browser VNC display via noVNC |
-| SPICE Console | `/vms/{name}/console` | In-browser SPICE display via spice-html5 |
-| Serial Console | `/vms/{name}/console` | xterm.js terminal to VM serial port |
+| Console | `/vms/{name}/console` | Auto-detect VNC/Serial, in-browser display via noVNC or xterm.js |
 | SSH Console | `/ssh/:host` | Browser-based SSH via spawned ssh process with PTY |
-| Host Networking | `/host-networking` | Network topology, port forwarding, bridges, firewall |
-| Networks | `/networks` | Start/stop, autostart toggle, delete |
+| Host Networking | `/host-networking` | SVG network topology, port forwarding, bridges, firewall |
+| Networks | `/networks` | Start/stop, autostart toggle, DHCP leases, delete |
 | Storage | `/storage` | Pool cards with create/delete, volume browser with resize/clone |
 | Snapshots | `/snapshots` | List all, revert, delete |
+| Secrets | `/secrets` | Libvirt secrets management (list, view XML, delete) |
 | Host Info | `/node` | Hypervisor, CPU, memory, libvirt version, DMI hardware |
 | Services | `/services` | Systemd service browser and manager |
-| System Logs | `/logs` | Journald log browser |
-| Audit Log | `/audit` | Operation history with timestamps |
+| System Logs | `/logs` | Journald log browser with priority/unit filtering |
+| Audit Log | `/audit` | Searchable operation history with timestamps |
 | Settings | `/settings` | RBAC roles, API tokens, alerts, webhooks, schedules, notifications |
-| Live Metrics | `/events` | Real-time per-VM time-series metrics charts |
+| Live Metrics | `/events` | Real-time per-VM memory/disk/network metrics table |
 | Capabilities | `/capabilities` | Hypervisor capabilities, guest types, SMBIOS sysinfo |
-| Node Devices | `/devices` | PCI, USB, SCSI, network device inventory |
+| Node Devices | `/devices` | PCI, USB, SCSI, network device inventory with XML viewer |
 | Network Filters | `/nwfilters` | List/delete libvirt network filters |
 | Backups | `/backups` | Backup/restore, download, verify, schedule timer, per-VM |
-| API Docs | `/api-docs` | Built-in OpenAPI documentation |
+| API Docs | `/api-docs` | Built-in OpenAPI documentation with search |
 
 ### Console Access
 
@@ -368,6 +374,22 @@ Browser → xterm.js → WebSocket (/ws/v1/ssh/{host}) → spawned ssh process �
 ```
 
 > **Note:** New VMs created through virtspawn use VNC by default. The console page auto-detects the graphics type and selects VNC or SPICE accordingly. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
+
+### Web UI Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Ctrl+K` / `Cmd+K` | Open command palette (search VMs, pages, actions) |
+| `g` then `d` | Go to Dashboard |
+| `g` then `v` | Go to Virtual Machines |
+| `g` then `n` | Go to Networks |
+| `g` then `s` | Go to Storage |
+| `g` then `c` | Create VM |
+| `g` then `e` | Go to Live Metrics |
+| `g` then `b` | Go to Backups |
+| `?` | Show keyboard shortcuts help overlay |
+
+The command palette supports fuzzy search across all pages and VMs, with inline actions (start, stop, shutdown, open console) and full keyboard navigation (arrow keys + Enter).
 
 ---
 
@@ -612,6 +634,7 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `GET` | `/nwfilters/{name}` | Filter XML |
 | `DELETE` | `/nwfilters/{name}` | Delete filter |
 | `GET` | `/secrets` | List libvirt secrets |
+| `GET` | `/secrets/{uuid}` | Secret XML |
 | `DELETE` | `/secrets/{uuid}` | Delete secret |
 | `GET` | `/host/interfaces` | List host network interfaces |
 | `GET` | `/host/bridges` | List host bridges |
