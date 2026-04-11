@@ -29,22 +29,22 @@ export default function SnapshotsPage() {
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Camera className="w-6 h-6" /> Snapshots</h1>
-        <button onClick={load} className="p-2 hover:bg-gray-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+        <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
       </div>
-      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-        {snapshots.length === 0 ? <div className="p-8 text-center text-gray-500">No snapshots across any VM.</div> : (
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+        {snapshots.length === 0 ? <div className="p-8 text-center text-slate-500">No snapshots across any VM.</div> : (
           <table className="w-full">
-            <thead><tr className="border-b border-gray-700 text-left text-sm text-gray-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">VM</th><th className="px-6 py-3">State</th><th className="px-6 py-3 hidden md:table-cell">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
-            <tbody className="divide-y divide-gray-700">
+            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">VM</th><th className="px-6 py-3">State</th><th className="px-6 py-3 hidden md:table-cell">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+            <tbody className="divide-y divide-slate-700/50">
               {snapshots.map((s) => (
-                <tr key={`${s.vm_name}/${s.name}`} className="hover:bg-gray-700/50">
+                <tr key={`${s.vm_name}/${s.name}`} className="hover:bg-slate-700/50">
                   <td className="px-6 py-3 font-medium">{s.name}</td>
                   <td className="px-6 py-3 text-sm text-blue-400">{s.vm_name}</td>
-                  <td className="px-6 py-3 text-sm text-gray-400">{s.state}</td>
-                  <td className="px-6 py-3 text-sm text-gray-400 hidden md:table-cell">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
+                  <td className="px-6 py-3 text-sm text-slate-400">{s.state}</td>
+                  <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
                   <td className="px-6 py-3">{s.is_current && <span className="text-green-400 text-xs font-medium">● Current</span>}</td>
                   <td className="px-6 py-3">
                     <div className="flex items-center justify-end gap-1">

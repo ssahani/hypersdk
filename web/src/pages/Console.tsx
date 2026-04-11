@@ -38,10 +38,10 @@ export default function ConsolePage() {
   const vncPort = consoleInfo?.console_type === 'vnc' ? (consoleInfo?.port ?? -1) : -1
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to={`/vms/${name}`} className="p-2 hover:bg-gray-700 rounded transition">
+          <Link to={`/vms/${name}`} className="p-2 hover:bg-slate-700 rounded transition">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-2xl font-bold">Console: {name}</h1>
@@ -49,7 +49,7 @@ export default function ConsolePage() {
 
         <div className="flex items-center gap-2">
           {consoleInfo && consoleInfo.port > 0 && (
-            <span className="text-xs text-gray-500 mr-2">
+            <span className="text-xs text-slate-500 mr-2">
               {consoleInfo.console_type.toUpperCase()} port {consoleInfo.port}
             </span>
           )}
@@ -57,7 +57,7 @@ export default function ConsolePage() {
           <button
             onClick={() => setMode('vnc')}
             className={`flex items-center gap-2 px-4 py-2 rounded transition ${
-              mode === 'vnc' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              mode === 'vnc' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
             }`}
           >
             <Monitor className="w-4 h-4" />
@@ -66,7 +66,7 @@ export default function ConsolePage() {
           <button
             onClick={() => setMode('serial')}
             className={`flex items-center gap-2 px-4 py-2 rounded transition ${
-              mode === 'serial' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+              mode === 'serial' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
             }`}
           >
             <TerminalIcon className="w-4 h-4" />
@@ -75,7 +75,7 @@ export default function ConsolePage() {
         </div>
       </div>
 
-      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         {mode === 'vnc' ? (
           <VNCViewer vmName={name} port={vncPort} />
         ) : (

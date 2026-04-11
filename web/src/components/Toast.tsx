@@ -27,7 +27,7 @@ export function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: 
         >
           {icons[toast.type]}
           <span className="flex-1 text-sm text-white">{toast.message}</span>
-          <button onClick={() => onClose(toast.id)} className="text-gray-400 hover:text-white">
+          <button onClick={() => onClose(toast.id)} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>
         </div>

@@ -136,16 +136,25 @@ pub fn resume_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
 
-    let info = domain.get_info().ok();
-    if let Some(info) = info {
-        if info.state == VIR_DOMAIN_RUNNING {
-            let _ = domain.destroy();
-        }
-    }
+    let info = domain
+        .get_info()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to get VM '{name}' info: {e}")))?;
 
-    domain
-        .undefine()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
+    if info.state == VIR_DOMAIN_RUNNING || info.state == VIR_DOMAIN_PAUSED {
+        domain
+            .destroy()
+            .map_err(|e| LibvirtError::Operation(format!("Failed to stop VM '{name}': {e}")))?;
+
+        // Re-lookup the domain after destroy to get a fresh handle
+        let domain = lookup_domain(conn, name)?;
+        domain
+            .undefine()
+            .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
+    } else {
+        domain
+            .undefine()
+            .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
+    }
 
     Ok(())
 }

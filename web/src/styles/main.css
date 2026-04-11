@@ -38,6 +38,32 @@ code {
 .animate-fade-in { animation: fade-in 0.4s ease-out; }
 .animate-pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
 
+@keyframes float {
+  0%, 100% { transform: translateY(0px) scale(1); }
+  50% { transform: translateY(-20px) scale(1.02); }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.25; }
+}
+
+.animate-float { animation: float 8s ease-in-out infinite; }
+.animate-glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+
+/* Login background pattern */
+.login-grid-pattern {
+  background-image: radial-gradient(circle, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* Glass card */
+.glass-card {
+  background: rgba(30, 41, 59, 0.5);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.5);
+}
+
 /* Skeleton loading */
 .skeleton {
   background: linear-gradient(90deg, #1e293b 25%, #334155 50%, #1e293b 75%);
@@ -62,7 +88,7 @@ code {
 
 /* Focus ring */
 *:focus-visible {
-  outline: 2px solid #3b82f6;
+  outline: 2px solid rgba(59, 130, 246, 0.5);
   outline-offset: 2px;
   border-radius: 4px;
 }
@@ -125,6 +151,13 @@ code {
 .light-theme .table-row-hover:hover { background-color: rgba(59, 130, 246, 0.05); }
 .light-theme ::-webkit-scrollbar-thumb { background: #cbd5e1; }
 .light-theme ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+.light-theme .login-grid-pattern {
+  background-image: radial-gradient(circle, rgba(51, 65, 85, 0.08) 1px, transparent 1px);
+}
+.light-theme .glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: rgba(226, 232, 240, 0.8);
+}
 
 /* ── Mobile Responsive ─────────────────────────────────────────── */
 

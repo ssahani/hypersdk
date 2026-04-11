@@ -22,7 +22,7 @@ function StatusBadge({ status }: { status: string }) {
     case 'failed':
       return <span className="flex items-center gap-1 text-red-400 text-xs"><XCircle className="w-3 h-3" /> Failed</span>
     default:
-      return <span className="flex items-center gap-1 text-gray-400 text-xs"><AlertCircle className="w-3 h-3" /> {status}</span>
+      return <span className="flex items-center gap-1 text-slate-400 text-xs"><AlertCircle className="w-3 h-3" /> {status}</span>
   }
 }
 
@@ -157,11 +157,11 @@ export default function BackupsPage() {
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold flex items-center gap-2"><Archive className="w-6 h-6" /> Backups</h1>
         <div className="flex items-center gap-2">
-          <button onClick={load} className="p-2 hover:bg-gray-700 rounded transition" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
           <button
             onClick={() => setShowForm(!showForm)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg transition-all text-sm font-medium shadow-lg shadow-blue-600/20"
@@ -174,14 +174,14 @@ export default function BackupsPage() {
 
       {/* Schedule card */}
       {schedule && schedule.installed && (
-        <div className="bg-gray-800 rounded-lg border border-gray-700 p-4 flex items-center justify-between">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Clock className="w-5 h-5 text-gray-400" />
+            <Clock className="w-5 h-5 text-slate-400" />
             <div>
               <span className="text-sm font-medium">Scheduled Backup</span>
-              <span className="text-xs text-gray-400 ml-2">Daily at 2:00 AM</span>
+              <span className="text-xs text-slate-400 ml-2">Daily at 2:00 AM</span>
               {schedule.next_run && schedule.enabled && (
-                <span className="text-xs text-gray-500 ml-2">Next: {schedule.next_run}</span>
+                <span className="text-xs text-slate-500 ml-2">Next: {schedule.next_run}</span>
               )}
             </div>
           </div>
@@ -189,7 +189,7 @@ export default function BackupsPage() {
             {schedule.enabled ? (
               <><ToggleRight className="w-6 h-6 text-green-400" /> <span className="text-green-400">Enabled</span></>
             ) : (
-              <><ToggleLeft className="w-6 h-6 text-gray-500" /> <span className="text-gray-500">Disabled</span></>
+              <><ToggleLeft className="w-6 h-6 text-slate-500" /> <span className="text-slate-500">Disabled</span></>
             )}
           </button>
         </div>
@@ -197,15 +197,15 @@ export default function BackupsPage() {
 
       {/* Backup form */}
       {showForm && (
-        <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 space-y-4">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-4">
           <h2 className="text-lg font-semibold">Create Backup</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm text-gray-400 mb-1">VM (leave empty for all)</label>
+              <label className="block text-sm text-slate-400 mb-1">VM (leave empty for all)</label>
               <select
                 value={vmName}
                 onChange={(e) => setVmName(e.target.value)}
-                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               >
                 <option value="">All VMs</option>
                 {vms.map((vm) => (
@@ -214,23 +214,23 @@ export default function BackupsPage() {
               </select>
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">NFS Target (optional)</label>
+              <label className="block text-sm text-slate-400 mb-1">NFS Target (optional)</label>
               <input
                 type="text"
                 value={nfsTarget}
                 onChange={(e) => setNfsTarget(e.target.value)}
                 placeholder="192.168.1.100:/backups"
-                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Retention (keep last N)</label>
+              <label className="block text-sm text-slate-400 mb-1">Retention (keep last N)</label>
               <input
                 type="number"
                 value={retain}
                 onChange={(e) => setRetain(parseInt(e.target.value) || 0)}
                 min={0}
-                className="w-full bg-gray-900 border border-gray-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
+                className="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
               />
             </div>
             <div className="flex flex-col gap-3 pt-4">
@@ -239,7 +239,7 @@ export default function BackupsPage() {
                   type="checkbox"
                   checked={withDisks}
                   onChange={(e) => { setWithDisks(e.target.checked); if (!e.target.checked) setIncremental(false) }}
-                  className="w-4 h-4 rounded bg-gray-900 border-gray-600 text-blue-600 focus:ring-blue-500"
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm">Include disk images</span>
                 {withDisks && <span className="text-xs text-yellow-400">May be very large</span>}
@@ -250,7 +250,7 @@ export default function BackupsPage() {
                     type="checkbox"
                     checked={incremental}
                     onChange={(e) => setIncremental(e.target.checked)}
-                    className="w-4 h-4 rounded bg-gray-900 border-gray-600 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm flex items-center gap-1"><Layers className="w-3 h-3" /> Incremental (hardlink unchanged)</span>
                 </label>
@@ -258,7 +258,7 @@ export default function BackupsPage() {
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
-            <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-gray-400 hover:text-white transition">Cancel</button>
+            <button onClick={() => setShowForm(false)} className="px-4 py-2 text-sm text-slate-400 hover:text-white transition">Cancel</button>
             <button
               onClick={handleBackup}
               disabled={running}
@@ -272,13 +272,13 @@ export default function BackupsPage() {
       )}
 
       {/* Backup list */}
-      <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         {backups.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No backups found. Create one to get started.</div>
+          <div className="p-8 text-center text-slate-500">No backups found. Create one to get started.</div>
         ) : (
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-700 text-left text-sm text-gray-400">
+              <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
                 <th className="px-4 py-3">Backup ID</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Scope</th>
@@ -289,14 +289,14 @@ export default function BackupsPage() {
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-700">
+            <tbody className="divide-y divide-slate-700/50">
               {backups.map((b) => (
-                <tr key={b.id} className="hover:bg-gray-700/50">
+                <tr key={b.id} className="hover:bg-slate-700/50">
                   <td className="px-4 py-3 font-medium font-mono text-sm">{b.id}</td>
                   <td className="px-4 py-3">
                     <StatusBadge status={b.status} />
                     {b.status === 'running' && b.progress !== '' && (
-                      <div className="mt-1 w-20 bg-gray-700 rounded-full h-1.5">
+                      <div className="mt-1 w-20 bg-slate-700 rounded-full h-1.5">
                         <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${parseInt(b.progress) || 0}%` }} />
                       </div>
                     )}
@@ -308,18 +308,18 @@ export default function BackupsPage() {
                       <span className="flex items-center gap-1 text-green-400"><Server className="w-3 h-3" /> {b.vm_filter}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-400 hidden md:table-cell">{b.vm_count}</td>
-                  <td className="px-4 py-3 text-sm text-gray-400 hidden lg:table-cell">
+                  <td className="px-4 py-3 text-sm text-slate-400 hidden md:table-cell">{b.vm_count}</td>
+                  <td className="px-4 py-3 text-sm text-slate-400 hidden lg:table-cell">
                     {b.nfs_target === 'local' ? 'Local' : b.nfs_target}
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {b.with_disks ? (
                       <span className="flex items-center gap-1 text-yellow-400"><HardDrive className="w-3 h-3" /> Yes</span>
                     ) : (
-                      <span className="text-gray-500">No</span>
+                      <span className="text-slate-500">No</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-sm text-gray-400">{b.size}</td>
+                  <td className="px-4 py-3 text-sm text-slate-400">{b.size}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {b.has_checksums && (
@@ -361,7 +361,7 @@ export default function BackupsPage() {
       {/* Verify result dialog */}
       {verifyResult && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setVerifyResult(null)}>
-          <div className="bg-gray-800 rounded-lg border border-gray-700 p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               {verifyResult.verified ? (
                 <><CheckCircle className="w-5 h-5 text-green-400" /> Verification Passed</>
@@ -370,19 +370,19 @@ export default function BackupsPage() {
               )}
             </h3>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-gray-400">Backup</span><span className="font-mono">{verifyResult.backup_id}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Files checked</span><span>{verifyResult.files_checked}</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">OK</span><span className="text-green-400">{verifyResult.files_ok}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Backup</span><span className="font-mono">{verifyResult.backup_id}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Files checked</span><span>{verifyResult.files_checked}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">OK</span><span className="text-green-400">{verifyResult.files_ok}</span></div>
               {verifyResult.files_failed > 0 && (
                 <>
-                  <div className="flex justify-between"><span className="text-gray-400">Failed</span><span className="text-red-400">{verifyResult.files_failed}</span></div>
-                  <div className="mt-2 bg-gray-900 rounded p-2 text-xs font-mono text-red-300 max-h-32 overflow-y-auto">
+                  <div className="flex justify-between"><span className="text-slate-400">Failed</span><span className="text-red-400">{verifyResult.files_failed}</span></div>
+                  <div className="mt-2 bg-slate-900 rounded p-2 text-xs font-mono text-red-300 max-h-32 overflow-y-auto">
                     {verifyResult.failed_files.map((f, i) => <div key={i}>{f}</div>)}
                   </div>
                 </>
               )}
             </div>
-            <button onClick={() => setVerifyResult(null)} className="mt-4 w-full px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg text-sm transition">Close</button>
+            <button onClick={() => setVerifyResult(null)} className="mt-4 w-full px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Close</button>
           </div>
         </div>
       )}

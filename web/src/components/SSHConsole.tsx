@@ -88,17 +88,17 @@ export default function SSHConsole({ host }: Props) {
   const clear = () => xtermRef.current?.clear()
 
   return (
-    <div className={fullscreen ? 'fixed inset-0 z-50 bg-gray-900 flex flex-col' : ''}>
-      <div className="flex items-center justify-between px-4 py-2 bg-gray-800 border-b border-gray-700 rounded-t-lg">
+    <div className={fullscreen ? 'fixed inset-0 z-50 bg-slate-900 flex flex-col' : ''}>
+      <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-sm text-gray-300">SSH Proxy — {host}</span>
+          <span className="text-sm text-slate-300">SSH Proxy — {host}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={clear} className="p-1.5 hover:bg-gray-700 rounded transition" title="Clear"><Trash2 className="w-4 h-4 text-gray-400" /></button>
-          <button onClick={reconnect} className="p-1.5 hover:bg-gray-700 rounded transition" title="Reconnect"><RefreshCw className="w-4 h-4 text-gray-400" /></button>
-          <button onClick={() => setFullscreen(!fullscreen)} className="p-1.5 hover:bg-gray-700 rounded transition" title="Fullscreen">
-            {fullscreen ? <Minimize className="w-4 h-4 text-gray-400" /> : <Maximize className="w-4 h-4 text-gray-400" />}
+          <button onClick={clear} className="p-1.5 hover:bg-slate-700 rounded transition" title="Clear"><Trash2 className="w-4 h-4 text-slate-400" /></button>
+          <button onClick={reconnect} className="p-1.5 hover:bg-slate-700 rounded transition" title="Reconnect"><RefreshCw className="w-4 h-4 text-slate-400" /></button>
+          <button onClick={() => setFullscreen(!fullscreen)} className="p-1.5 hover:bg-slate-700 rounded transition" title="Fullscreen">
+            {fullscreen ? <Minimize className="w-4 h-4 text-slate-400" /> : <Maximize className="w-4 h-4 text-slate-400" />}
           </button>
         </div>
       </div>

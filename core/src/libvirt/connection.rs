@@ -28,7 +28,10 @@ impl LibvirtManager {
         let mut conn = self
             .conn
             .lock()
-            .map_err(|e| LibvirtError::Internal(format!("Mutex poisoned: {e}")))?;
+            .unwrap_or_else(|e| {
+                tracing::warn!("Recovering from poisoned mutex");
+                e.into_inner()
+            });
 
         // Check if connection is alive, reconnect if needed
         if conn.is_alive().unwrap_or(false) {

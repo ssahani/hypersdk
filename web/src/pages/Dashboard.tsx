@@ -238,7 +238,7 @@ export default function Dashboard() {
 
 function StatCard({ gradient, icon, iconColor, title, value, badge }: { gradient: string; icon: React.ReactNode; iconColor: string; title: string; value: string | number; badge?: React.ReactNode }) {
   return (
-    <div className={`${gradient} rounded-xl p-5 border border-slate-700/30 shadow-lg`}>
+    <div className={`${gradient} rounded-xl p-5 border border-slate-700/30 shadow-lg hover:border-slate-600/50 transition-all duration-300`}>
       <div className="flex items-start justify-between">
         <div className={iconColor}>{icon}</div>
         {badge}
@@ -291,7 +291,7 @@ function MiniStat({ icon, label, value, extra }: { icon: React.ReactNode; label:
 
 function ChartCard({ title, icon, current, children }: { title: string; icon: React.ReactNode; current: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
+    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-300">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">{icon} {title}</h3>
         <span className="text-xs text-slate-400 font-mono">{current}</span>

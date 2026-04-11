@@ -74,24 +74,24 @@ export default function StoragePage() {
 
   if (selectedPool) {
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         <div className="flex items-center gap-4">
-          <button onClick={() => { setSelectedPool(null); setVolumes([]) }} className="p-2 hover:bg-gray-700 rounded transition"><ArrowLeft className="w-5 h-5" /></button>
+          <button onClick={() => { setSelectedPool(null); setVolumes([]) }} className="p-2 hover:bg-slate-700 rounded transition"><ArrowLeft className="w-5 h-5" /></button>
           <h1 className="text-2xl font-bold">Volumes in '{selectedPool}'</h1>
-          <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-gray-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
         </div>
-        <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
-          {volumes.length === 0 ? <div className="p-8 text-center text-gray-500">No volumes</div> : (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+          {volumes.length === 0 ? <div className="p-8 text-center text-slate-500">No volumes</div> : (
             <table className="w-full">
-              <thead><tr className="border-b border-gray-700 text-left text-sm text-gray-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Used</th><th className="px-6 py-3 hidden lg:table-cell">Path</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
-              <tbody className="divide-y divide-gray-700">
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Used</th><th className="px-6 py-3 hidden lg:table-cell">Path</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/50">
                 {volumes.map((v) => (
-                  <tr key={v.name} className="hover:bg-gray-700/50">
+                  <tr key={v.name} className="hover:bg-slate-700/50">
                     <td className="px-6 py-3 font-medium">{v.name}</td>
-                    <td className="px-6 py-3 text-sm text-gray-400">{v.vol_type}</td>
+                    <td className="px-6 py-3 text-sm text-slate-400">{v.vol_type}</td>
                     <td className="px-6 py-3 text-sm">{v.capacity_gb.toFixed(2)} GB</td>
                     <td className="px-6 py-3 text-sm">{v.allocation_gb.toFixed(2)} GB</td>
-                    <td className="px-6 py-3 text-sm text-gray-400 truncate max-w-xs hidden lg:table-cell">{v.path}</td>
+                    <td className="px-6 py-3 text-sm text-slate-400 truncate max-w-xs hidden lg:table-cell">{v.path}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button onClick={() => { setResizeTarget({ pool: selectedPool, vol: v.name }); setResizeGb(v.capacity_gb.toFixed(2)) }} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Resize"><Maximize className="w-4 h-4 text-blue-400" /></button>
@@ -112,9 +112,9 @@ export default function StoragePage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Resize Volume</span></div>
               <div className="p-5 space-y-4">
-                <div className="text-sm text-gray-400">Volume: <span className="text-white font-medium">{resizeTarget.vol}</span></div>
+                <div className="text-sm text-slate-400">Volume: <span className="text-white font-medium">{resizeTarget.vol}</span></div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">New Size (GB)</label>
+                  <label className="block text-sm text-slate-400 mb-1">New Size (GB)</label>
                   <input type="number" step="0.01" value={resizeGb} onChange={(e) => setResizeGb(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
                 </div>
               </div>
@@ -131,9 +131,9 @@ export default function StoragePage() {
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Clone Volume</span></div>
               <div className="p-5 space-y-4">
-                <div className="text-sm text-gray-400">Source: <span className="text-white font-medium">{cloneTarget.vol}</span></div>
+                <div className="text-sm text-slate-400">Source: <span className="text-white font-medium">{cloneTarget.vol}</span></div>
                 <div>
-                  <label className="block text-sm text-gray-400 mb-1">New Volume Name</label>
+                  <label className="block text-sm text-slate-400 mb-1">New Volume Name</label>
                   <input type="text" value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
                 </div>
               </div>
@@ -149,36 +149,36 @@ export default function StoragePage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Storage Pools</h1>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowCreatePool(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Pool</button>
-          <button onClick={loadPools} className="p-2 hover:bg-gray-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+          <button onClick={loadPools} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pools.map((pool) => (
-          <div key={pool.name} className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+          <div key={pool.name} className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <HardDrive className="w-5 h-5 text-cyan-500" />
                 <span className="font-semibold">{pool.name}</span>
               </div>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${pool.state === 'running' ? 'bg-green-500/20 text-green-400' : 'bg-gray-500/20 text-gray-400'}`}>{pool.state}</span>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${pool.state === 'running' ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>{pool.state}</span>
             </div>
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between"><span className="text-gray-400">Capacity</span><span>{pool.capacity_gb.toFixed(1)} GB</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Used</span><span>{pool.allocation_gb.toFixed(1)} GB</span></div>
-              <div className="flex justify-between"><span className="text-gray-400">Available</span><span>{pool.available_gb.toFixed(1)} GB</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Capacity</span><span>{pool.capacity_gb.toFixed(1)} GB</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Used</span><span>{pool.allocation_gb.toFixed(1)} GB</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">Available</span><span>{pool.available_gb.toFixed(1)} GB</span></div>
               {pool.capacity_gb > 0 && (
-                <div className="w-full bg-gray-700 rounded-full h-2 mt-2">
+                <div className="w-full bg-slate-700 rounded-full h-2 mt-2">
                   <div className="bg-cyan-500 h-2 rounded-full" style={{ width: `${(pool.allocation_gb / pool.capacity_gb * 100).toFixed(0)}%` }} />
                 </div>
               )}
             </div>
-            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-700">
-              <button onClick={() => loadVolumes(pool.name)} className="flex-1 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 rounded text-sm transition text-center">Browse</button>
+            <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-700/50">
+              <button onClick={() => loadVolumes(pool.name)} className="flex-1 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded text-sm transition text-center">Browse</button>
               {pool.state !== 'running' && <button onClick={() => poolAction(pool.name, startPool, 'Start pool')} className="p-1.5 hover:bg-green-600/20 rounded transition"><Play className="w-4 h-4 text-green-400" /></button>}
               {pool.state === 'running' && (
                 <>
@@ -201,11 +201,11 @@ export default function StoragePage() {
             <div className="p-5 border-b border-slate-700/50"><span className="text-lg font-semibold">Create Storage Pool</span></div>
             <div className="p-5 space-y-4">
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Name</label>
+                <label className="block text-sm text-slate-400 mb-1">Name</label>
                 <input type="text" value={newPoolName} onChange={(e) => setNewPoolName(e.target.value)} placeholder="my-pool" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Type</label>
+                <label className="block text-sm text-slate-400 mb-1">Type</label>
                 <select value={newPoolType} onChange={(e) => setNewPoolType(e.target.value)} className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm">
                   <option value="dir">dir</option>
                   <option value="fs">fs</option>
@@ -217,7 +217,7 @@ export default function StoragePage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-400 mb-1">Target Path</label>
+                <label className="block text-sm text-slate-400 mb-1">Target Path</label>
                 <input type="text" value={newPoolPath} onChange={(e) => setNewPoolPath(e.target.value)} placeholder="/var/lib/libvirt/images" className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-lg text-sm" />
               </div>
             </div>
@@ -236,7 +236,7 @@ export default function StoragePage() {
               <span className="text-lg font-semibold font-mono">{xmlName}</span>
               <button onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
-            <pre className="p-5 text-sm text-gray-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
+            <pre className="p-5 text-sm text-slate-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
           </div>
         </div>
       )}

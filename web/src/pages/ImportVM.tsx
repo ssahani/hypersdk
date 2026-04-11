@@ -67,9 +67,9 @@ export default function ImportVMPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
-        <Link to="/vms" className="p-2 hover:bg-gray-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
+        <Link to="/vms" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Upload className="w-6 h-6 text-cyan-400" /> Import Virtual Machine</h1>
       </div>
 
@@ -79,24 +79,24 @@ export default function ImportVMPage() {
       </div>
 
       {step === 'import' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-4">
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2"><HardDrive className="w-5 h-5 text-blue-400" /> Import Disk Image</h3>
-          <p className="text-sm text-gray-400">Convert VMDK, VDI, VHD, RAW, or IMG disk images to qcow2 format.</p>
+          <p className="text-sm text-slate-400">Convert VMDK, VDI, VHD, RAW, or IMG disk images to qcow2 format.</p>
 
           <div>
-            <label htmlFor="import-name" className="block text-sm text-gray-400 mb-1">VM Name *</label>
+            <label htmlFor="import-name" className="block text-sm text-slate-400 mb-1">VM Name *</label>
             <input id="import-name" type="text" autoFocus value={vmName} onChange={e => setVmName(e.target.value)} className="input-field" placeholder="imported-vm" />
           </div>
 
           <div>
-            <label htmlFor="import-source" className="block text-sm text-gray-400 mb-1">Source Disk Image Path *</label>
+            <label htmlFor="import-source" className="block text-sm text-slate-400 mb-1">Source Disk Image Path *</label>
             <input id="import-source" type="text" value={source} onChange={e => setSource(e.target.value)} className="input-field" placeholder="/path/to/disk.vmdk" />
-            <p className="text-xs text-gray-500 mt-1">Supported: .vmdk, .vdi, .vhd, .vpc, .raw, .img, .qcow2</p>
+            <p className="text-xs text-slate-500 mt-1">Supported: .vmdk, .vdi, .vhd, .vpc, .raw, .img, .qcow2</p>
           </div>
 
           {existingDisks.length > 0 && (
             <div>
-              <label className="block text-sm text-gray-400 mb-1">Or select existing image:</label>
+              <label className="block text-sm text-slate-400 mb-1">Or select existing image:</label>
               <select value="" onChange={e => { if (e.target.value) setSource(e.target.value) }} className="input-field">
                 <option value="">Browse disk images...</option>
                 {existingDisks.map(f => <option key={f.path} value={f.path}>{f.name} ({f.format}, {(f.size_bytes / 1073741824).toFixed(1)} GB)</option>)}
@@ -104,8 +104,8 @@ export default function ImportVMPage() {
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
-            <Link to="/vms" className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">Cancel</Link>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
+            <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Cancel</Link>
             <button onClick={handleImport} disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm transition">
               {submitting ? 'Importing...' : 'Import & Convert'}
             </button>
@@ -114,7 +114,7 @@ export default function ImportVMPage() {
       )}
 
       {step === 'configure' && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-4">
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
           <h3 className="text-lg font-semibold">Configure VM</h3>
           <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm text-green-400">
             Disk imported to: <code className="font-mono">{importedPath}</code>
@@ -122,15 +122,15 @@ export default function ImportVMPage() {
 
           <div className="grid grid-cols-3 gap-4">
             <div>
-              <label htmlFor="cfg-vcpus" className="block text-sm text-gray-400 mb-1">vCPUs</label>
+              <label htmlFor="cfg-vcpus" className="block text-sm text-slate-400 mb-1">vCPUs</label>
               <input id="cfg-vcpus" type="number" min={1} max={256} value={vcpus} onChange={e => setVcpus(parseInt(e.target.value) || 2)} className="input-field" />
             </div>
             <div>
-              <label htmlFor="cfg-memory" className="block text-sm text-gray-400 mb-1">Memory (MB)</label>
+              <label htmlFor="cfg-memory" className="block text-sm text-slate-400 mb-1">Memory (MB)</label>
               <input id="cfg-memory" type="number" min={64} value={memoryMb} onChange={e => setMemoryMb(parseInt(e.target.value) || 2048)} className="input-field" />
             </div>
             <div>
-              <label htmlFor="cfg-firmware" className="block text-sm text-gray-400 mb-1">Firmware</label>
+              <label htmlFor="cfg-firmware" className="block text-sm text-slate-400 mb-1">Firmware</label>
               <select id="cfg-firmware" value={firmware} onChange={e => setFirmware(e.target.value)} className="input-field">
                 <option value="bios">BIOS</option>
                 <option value="uefi">UEFI</option>
@@ -139,14 +139,14 @@ export default function ImportVMPage() {
           </div>
 
           <div>
-            <label htmlFor="cfg-network" className="block text-sm text-gray-400 mb-1">Network</label>
+            <label htmlFor="cfg-network" className="block text-sm text-slate-400 mb-1">Network</label>
             <select id="cfg-network" value={network} onChange={e => setNetwork(e.target.value)} className="input-field">
               {networks.map(n => <option key={n.name} value={n.name}>{n.name}</option>)}
             </select>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
-            <button onClick={() => setStep('import')} className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">Back</button>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
+            <button onClick={() => setStep('import')} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Back</button>
             <button onClick={handleCreate} disabled={submitting} className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded text-sm transition">
               {submitting ? 'Creating...' : 'Create VM'}
             </button>

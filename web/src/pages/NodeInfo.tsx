@@ -45,7 +45,7 @@ export default function NodeInfoPage() {
   }, [load])
 
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
-  if (!node) return <div className="text-center text-gray-500 py-12">Failed to load host info</div>
+  if (!node) return <div className="text-center text-slate-500 py-12">Failed to load host info</div>
 
   const formatUptime = (secs: number) => {
     const d = Math.floor(secs / 86400)

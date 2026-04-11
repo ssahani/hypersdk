@@ -6,7 +6,7 @@ export const stateColors: Record<string, string> = {
   crashed: 'bg-red-700',
   blocked: 'bg-purple-500',
   suspended: 'bg-blue-500',
-  unknown: 'bg-gray-500',
+  unknown: 'bg-slate-500',
 }
 
 export function getStateColor(state: string): string {
@@ -23,7 +23,7 @@ export function getStateBadgeClasses(state: string): string {
     blocked: 'bg-purple-500/20 text-purple-400',
     suspended: 'bg-blue-500/20 text-blue-400',
   }
-  return map[state] || 'bg-gray-500/20 text-gray-400'
+  return map[state] || 'bg-slate-500/20 text-slate-400'
 }
 
 export function formatBytes(bytes: number): string {

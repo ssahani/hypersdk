@@ -70,25 +70,25 @@ export default function CreateVMPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
-        <Link to="/vms" className="p-2 hover:bg-gray-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
+        <Link to="/vms" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
         <h1 className="text-2xl font-bold">Create Virtual Machine</h1>
       </div>
 
       {/* Templates */}
       {templates.length > 0 && (
-        <div className="bg-gray-800 rounded-lg p-6 border border-gray-700">
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
           <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><Layers className="w-5 h-5 text-blue-500" /> Templates</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {templates.map((t) => (
               <button
                 key={t.name}
                 onClick={() => applyTemplate(t.name)}
-                className={`p-3 rounded-lg border text-left text-sm transition ${selectedTemplate === t.name ? 'border-blue-500 bg-blue-500/10' : 'border-gray-700 hover:border-gray-600'}`}
+                className={`p-3 rounded-lg border text-left text-sm transition ${selectedTemplate === t.name ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700/50 hover:border-slate-600'}`}
               >
                 <div className="font-medium">{t.name}</div>
-                <div className="text-xs text-gray-400 mt-1">{t.vcpus} vCPU &middot; {t.memory_mb} MB &middot; {t.disk_gb} GB</div>
+                <div className="text-xs text-slate-400 mt-1">{t.vcpus} vCPU &middot; {t.memory_mb} MB &middot; {t.disk_gb} GB</div>
               </button>
             ))}
           </div>
@@ -96,25 +96,25 @@ export default function CreateVMPage() {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="bg-gray-800 rounded-lg p-6 border border-gray-700 space-y-4">
+      <form onSubmit={handleSubmit} className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h3 className="text-lg font-semibold flex items-center gap-2"><Server className="w-5 h-5 text-green-500" /> Configuration</h3>
 
         <div>
-          <label htmlFor="vm-name" className="block text-sm text-gray-400 mb-1">VM Name *</label>
+          <label htmlFor="vm-name" className="block text-sm text-slate-400 mb-1">VM Name *</label>
           <input id="vm-name" type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="my-vm" />
         </div>
 
         <div className="grid grid-cols-3 gap-4">
           <div>
-            <label htmlFor="vm-vcpus" className="block text-sm text-gray-400 mb-1">vCPUs</label>
+            <label htmlFor="vm-vcpus" className="block text-sm text-slate-400 mb-1">vCPUs</label>
             <input id="vm-vcpus" type="number" min={1} max={256} value={form.vcpus} onChange={(e) => setForm({ ...form, vcpus: parseInt(e.target.value) || 1 })} className="input-field" />
           </div>
           <div>
-            <label htmlFor="vm-memory" className="block text-sm text-gray-400 mb-1">Memory (MB)</label>
+            <label htmlFor="vm-memory" className="block text-sm text-slate-400 mb-1">Memory (MB)</label>
             <input id="vm-memory" type="number" min={64} value={form.memory_mb} onChange={(e) => setForm({ ...form, memory_mb: parseInt(e.target.value) || 2048 })} className="input-field" />
           </div>
           <div>
-            <label htmlFor="vm-firmware" className="block text-sm text-gray-400 mb-1">Firmware</label>
+            <label htmlFor="vm-firmware" className="block text-sm text-slate-400 mb-1">Firmware</label>
             <select id="vm-firmware" value={form.firmware || 'bios'} onChange={(e) => setForm({ ...form, firmware: e.target.value })} className="input-field">
               <option value="bios">BIOS</option>
               <option value="uefi">UEFI</option>
@@ -125,21 +125,21 @@ export default function CreateVMPage() {
         {/* Disk Section */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <HardDrive className="w-4 h-4 text-gray-400" />
-            <span className="text-sm font-medium text-gray-300">Storage</span>
+            <HardDrive className="w-4 h-4 text-slate-400" />
+            <span className="text-sm font-medium text-slate-300">Storage</span>
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setDiskMode('new')} className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'new' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>New Disk</button>
-            <button type="button" onClick={() => setDiskMode('existing')} className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'existing' ? 'bg-blue-600 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}>Existing Disk Image</button>
+            <button type="button" onClick={() => setDiskMode('new')} className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'new' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>New Disk</button>
+            <button type="button" onClick={() => setDiskMode('existing')} className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'existing' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}>Existing Disk Image</button>
           </div>
           {diskMode === 'new' ? (
             <div>
-              <label htmlFor="vm-disk" className="block text-sm text-gray-400 mb-1">Disk Size (GB)</label>
+              <label htmlFor="vm-disk" className="block text-sm text-slate-400 mb-1">Disk Size (GB)</label>
               <input id="vm-disk" type="number" min={1} value={form.disk_gb} onChange={(e) => setForm({ ...form, disk_gb: parseInt(e.target.value) || 20 })} className="input-field" />
             </div>
           ) : (
             <div>
-              <label htmlFor="vm-existing-disk" className="block text-sm text-gray-400 mb-1">Disk Image Path *</label>
+              <label htmlFor="vm-existing-disk" className="block text-sm text-slate-400 mb-1">Disk Image Path *</label>
               {diskFiles.length > 0 ? (
                 <select id="vm-existing-disk" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field">
                   <option value="">Select disk image...</option>
@@ -148,14 +148,14 @@ export default function CreateVMPage() {
               ) : (
                 <input id="vm-existing-disk" type="text" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field" placeholder="/var/lib/libvirt/images/disk.qcow2" />
               )}
-              <p className="text-xs text-gray-500 mt-1">Supports qcow2, raw, and img formats.</p>
+              <p className="text-xs text-slate-500 mt-1">Supports qcow2, raw, and img formats.</p>
             </div>
           )}
         </div>
 
         {/* Network */}
         <div>
-          <label htmlFor="vm-network" className="block text-sm text-gray-400 mb-1">Network</label>
+          <label htmlFor="vm-network" className="block text-sm text-slate-400 mb-1">Network</label>
           {networks.length > 0 ? (
             <select id="vm-network" value={form.network || 'default'} onChange={(e) => setForm({ ...form, network: e.target.value })} className="input-field">
               {networks.map((n) => (
@@ -169,7 +169,7 @@ export default function CreateVMPage() {
 
         {/* ISO selection with browser */}
         <div>
-          <label htmlFor="vm-iso" className="block text-sm text-gray-400 mb-1"><Disc className="w-3 h-3 inline -mt-0.5" /> ISO Path (optional)</label>
+          <label htmlFor="vm-iso" className="block text-sm text-slate-400 mb-1"><Disc className="w-3 h-3 inline -mt-0.5" /> ISO Path (optional)</label>
           {isoFiles.length > 0 ? (
             <select id="vm-iso" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field">
               <option value="">No ISO</option>
@@ -181,33 +181,33 @@ export default function CreateVMPage() {
         </div>
 
         {/* Cloud-init */}
-        <div className="border-t border-gray-700 pt-4">
+        <div className="border-t border-slate-700/50 pt-4">
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" checked={showCloudInit} onChange={e => setShowCloudInit(e.target.checked)} className="rounded border-gray-600" />
+            <input type="checkbox" checked={showCloudInit} onChange={e => setShowCloudInit(e.target.checked)} className="rounded border-slate-600" />
             <Cloud className="w-4 h-4 text-cyan-400" />
             <span className="text-sm font-medium">Cloud-Init Configuration</span>
           </label>
           {showCloudInit && (
             <div className="mt-3 space-y-3 pl-6">
               <div>
-                <label htmlFor="ci-user" className="block text-sm text-gray-400 mb-1">Username</label>
+                <label htmlFor="ci-user" className="block text-sm text-slate-400 mb-1">Username</label>
                 <input id="ci-user" type="text" value={ciUser} onChange={e => setCiUser(e.target.value)} className="input-field" placeholder="admin" />
               </div>
               <div>
-                <label htmlFor="ci-pass" className="block text-sm text-gray-400 mb-1">Password</label>
+                <label htmlFor="ci-pass" className="block text-sm text-slate-400 mb-1">Password</label>
                 <input id="ci-pass" type="password" value={ciPass} onChange={e => setCiPass(e.target.value)} className="input-field" />
               </div>
               <div>
-                <label htmlFor="ci-ssh" className="block text-sm text-gray-400 mb-1">SSH Public Key</label>
+                <label htmlFor="ci-ssh" className="block text-sm text-slate-400 mb-1">SSH Public Key</label>
                 <input id="ci-ssh" type="text" value={ciSshKey} onChange={e => setCiSshKey(e.target.value)} className="input-field" placeholder="ssh-ed25519 AAAA..." />
               </div>
-              <p className="text-xs text-gray-500">Generates a cloud-init ISO and attaches it as CD-ROM. The guest OS must support cloud-init.</p>
+              <p className="text-xs text-slate-500">Generates a cloud-init ISO and attaches it as CD-ROM. The guest OS must support cloud-init.</p>
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
-          <Link to="/vms" className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded text-sm transition">Cancel</Link>
+        <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
+          <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Cancel</Link>
           <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm transition">
             {submitting ? 'Creating...' : 'Create VM'}
           </button>

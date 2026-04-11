@@ -77,7 +77,7 @@ export default function NWFiltersPage() {
               <span className="text-lg font-semibold font-mono">{xmlName}</span>
               <button onClick={() => setXmlContent(null)} className="text-slate-400 hover:text-white p-1 hover:bg-slate-700 rounded-lg transition"><X className="w-4 h-4" /></button>
             </div>
-            <pre className="p-5 text-sm text-gray-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
+            <pre className="p-5 text-sm text-slate-300 overflow-auto whitespace-pre-wrap font-mono flex-1">{xmlContent}</pre>
           </div>
         </div>
       )}

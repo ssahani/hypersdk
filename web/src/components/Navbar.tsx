@@ -103,7 +103,7 @@ function DesktopDropdown({ group }: { group: NavGroup }) {
         <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl py-2 min-w-[180px] z-40 animate-fade-in">
+        <div className="absolute top-full left-0 mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl py-2 min-w-[180px] z-40 animate-fade-in origin-top">
           {group.items.map((item) => (
             <Link
               key={item.to}
@@ -135,7 +135,7 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
+          <Link to="/" className="flex items-center gap-2.5 group hover:scale-105 transition-transform duration-200">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
               <Zap className="w-4.5 h-4.5 text-white" />
             </div>
