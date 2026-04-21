@@ -21,9 +21,8 @@ backup_dir = "/var/lib/virtspawn/backups"
 with_disks = false
 retain = 7
 
-# Native HTTPS on the daemon (optional). When unset/disabled, the UI and API use HTTP on [daemon].port.
-# Uncomment and set paths to PEM cert/key to serve TLS directly (VirtspawnConfig::daemon_url uses https://).
-# [tls]
-# enabled = true
-# cert_path = "/etc/virtspawn/ssl/cert.pem"
-# key_path = "/etc/virtspawn/ssl/key.pem"
+# HTTPS is enabled by default (self-signed cert created by install.sh if missing).
+[tls]
+enabled = true
+cert_path = "/etc/virtspawn/ssl/cert.pem"
+key_path = "/etc/virtspawn/ssl/key.pem"

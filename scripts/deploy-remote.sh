@@ -12,7 +12,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 SSH_PORT="${SSH_PORT:-22}"
-HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:5092/api/v1/health}"
+HEALTH_URL="${HEALTH_URL:-https://127.0.0.1:5092/api/v1/health}"
 STRICT="${STRICT:-0}"
 # Default matches VM-style layout: rsync here → build on server → install to /usr/local + systemd
 REMOTE_DIR="${REMOTE_DIR:-~/.deployment/virtspawn}"
@@ -35,7 +35,7 @@ deploy-remote.sh check [USER@HOST | USER HOST]
 Flow: rsync → ~/.deployment/virtspawn (REMOTE_DIR) → build on server → install → systemd.
 Full install: install.sh enables + restarts the daemon (--no-start skips).
 Quick: make install then daemon-reload + try-restart (only restarts if virtspawn-daemon was active).
-Open the UI at http://HOST:5092 (HTTPS only after [tls] in /etc/virtspawn/config.toml or a reverse proxy).
+Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; replace with your CA for browsers).
 
 Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpass.
 
@@ -93,9 +93,9 @@ check_body() {
     fi
     command -v journalctl &>/dev/null && printf '\n📜 Last 5 daemon log lines\n' && \
         journalctl -u virtspawn-daemon -n 5 --no-pager 2>/dev/null || warn "no journal access for virtspawn-daemon"
-    printf '\n💚 HTTP %s\n' "$HEALTH_URL"
+    printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
     if command -v curl &>/dev/null; then
-        curl -sf --connect-timeout 3 "$HEALTH_URL" >/dev/null 2>&1 && ok "GET $HEALTH_URL" || {
+        curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null 2>&1 && ok "GET $HEALTH_URL" || {
             warn "cannot reach $HEALTH_URL"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
     else
         warn "curl missing — skip HTTP check"
@@ -133,8 +133,8 @@ run() {
     [[ "$ad" == active ]] && ok "virtspawn-daemon active"
     printf '\n📜 Last 5 daemon log lines\n'
     journalctl -u virtspawn-daemon -n 5 --no-pager 2>/dev/null || warn "no journal"
-    printf '\n💚 HTTP %s\n' "$HEALTH_URL"
-    command -v curl &>/dev/null && curl -sf --connect-timeout 3 "$HEALTH_URL" >/dev/null && ok "GET $HEALTH_URL" || warn "cannot reach $HEALTH_URL"
+    printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
+    command -v curl &>/dev/null && curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null && ok "GET $HEALTH_URL" || warn "cannot reach $HEALTH_URL"
     printf '\n'
 }
 run
@@ -244,6 +244,6 @@ check_remote "$REMOTE" || true
 
 echo ""
 echo "════════════════════════════════════════"
-echo "✅ done  🌐 http://${HOST}:5092  💚 http://${HOST}:5092/api/v1/health"
+echo "✅ done  🌐 https://${HOST}:5092  💚 https://${HOST}:5092/api/v1/health"
 echo "🔁 ./scripts/deploy-remote.sh ${USER}@${HOST} --quick"
 echo "════════════════════════════════════════"

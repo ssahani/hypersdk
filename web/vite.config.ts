@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
+/** Dev proxy → local daemon (HTTPS + self-signed cert from install.sh). */
+const daemonTarget = 'https://localhost:5092'
+
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   build: {
@@ -11,12 +14,14 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:5092',
+        target: daemonTarget,
         changeOrigin: true,
+        secure: false,
       },
       '/ws': {
-        target: 'ws://localhost:5092',
+        target: daemonTarget,
         ws: true,
+        secure: false,
       },
     },
   },

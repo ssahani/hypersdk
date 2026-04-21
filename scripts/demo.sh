@@ -3,7 +3,7 @@
 # Usage: ./scripts/demo.sh [API_URL]
 set -eo pipefail
 
-API="${1:-http://localhost:5092/api/v1}"
+API="${1:-https://localhost:5092/api/v1}"
 
 step_n=0
 step() {
@@ -19,11 +19,11 @@ api() {
     echo "  📤 $method ${path}"
     local result
     if [ "$method" = "GET" ]; then
-        result=$(curl -s "${API}${path}")
+        result=$(curl -sk "${API}${path}")
     elif [ "$method" = "DELETE" ]; then
-        result=$(curl -s -X DELETE "${API}${path}")
+        result=$(curl -sk -X DELETE "${API}${path}")
     else
-        result=$(curl -s -X "$method" "${API}${path}" -H 'Content-Type: application/json' "$@")
+        result=$(curl -sk -X "$method" "${API}${path}" -H 'Content-Type: application/json' "$@")
     fi
     echo "$result" | python3 -m json.tool 2>/dev/null || echo "$result" | head -20
     sleep 1
@@ -103,7 +103,7 @@ api GET /storage/pools
 
 step "Hypervisor Capabilities"
 echo "  📤 GET /capabilities"
-curl -s "${API}/capabilities" | python3 -c "
+curl -sk "${API}/capabilities" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
 print(f'  Host arch: {d.get(\"host_arch\",\"?\")}')
@@ -114,13 +114,13 @@ sleep 1
 
 step "System Info (SMBIOS)"
 echo "  📤 GET /sysinfo"
-curl -s "${API}/sysinfo" | head -10
+curl -sk "${API}/sysinfo" | head -10
 echo "  ... (truncated)"
 sleep 1
 
 step "Node Devices"
 echo "  📤 GET /devices"
-curl -s "${API}/devices" | python3 -c "
+curl -sk "${API}/devices" | python3 -c "
 import json,sys
 devs=json.load(sys.stdin)
 types={}
@@ -135,7 +135,7 @@ sleep 1
 
 step "Node Devices (filtered: net only)"
 echo "  📤 GET /devices?capability=net"
-curl -s "${API}/devices?capability=net" | python3 -c "
+curl -sk "${API}/devices?capability=net" | python3 -c "
 import json,sys
 devs=json.load(sys.stdin)
 print(f'  Net devices: {len(devs)}')
@@ -146,7 +146,7 @@ sleep 1
 
 step "Network Filters"
 echo "  📤 GET /nwfilters"
-curl -s "${API}/nwfilters" | python3 -c "
+curl -sk "${API}/nwfilters" | python3 -c "
 import json,sys
 f=json.load(sys.stdin)
 print(f'  {len(f)} network filters')
@@ -164,7 +164,7 @@ api GET /secrets
 step "Security: Migration URI Validation"
 echo "  Testing SSRF prevention..."
 echo "  📤 POST /vms/${DEMO_VM}/migrate with http://evil.com"
-result=$(curl -s -X POST "${API}/vms/${DEMO_VM}/migrate" \
+result=$(curl -sk -X POST "${API}/vms/${DEMO_VM}/migrate" \
     -H 'Content-Type: application/json' \
     -d '{"dest_uri":"http://evil.com","live":false}')
 if echo "$result" | grep -qF "Invalid migration URI"; then
@@ -177,7 +177,7 @@ sleep 1
 step "Security: Volume Resize Validation"
 echo "  Testing negative capacity prevention..."
 echo "  📤 POST /storage/pools/default/volumes/x/resize with -1"
-result=$(curl -s -X POST "${API}/storage/pools/default/volumes/x/resize" \
+result=$(curl -sk -X POST "${API}/storage/pools/default/volumes/x/resize" \
     -H 'Content-Type: application/json' \
     -d '{"capacity_gb":-1}')
 if echo "$result" | grep -qF "capacity_gb must be"; then
@@ -191,7 +191,7 @@ sleep 1
 
 step "Prometheus Metrics"
 echo "  📤 GET /prometheus"
-curl -s "${API}/prometheus" | head -15
+curl -sk "${API}/prometheus" | head -15
 echo "  ... (truncated)"
 sleep 1
 
@@ -214,7 +214,7 @@ api GET /vms
 echo ""
 echo "✅ Demo complete!"
 echo ""
-echo "  🌐 Web UI:  http://localhost:5092"
+echo "  🌐 Web UI:  https://localhost:5092"
 echo "  🖥️  TUI:     virtspawn"
 echo "  🔗 API:     ${API}/health"
 echo ""

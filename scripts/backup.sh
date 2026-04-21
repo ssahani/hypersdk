@@ -16,7 +16,7 @@
 #   ./scripts/backup.sh --verify <dir>           # Verify backup checksums
 set -eo pipefail
 
-API="${VIRTSPAWN_API:-http://localhost:5092/api/v1}"
+API="${VIRTSPAWN_API:-https://localhost:5092/api/v1}"
 BACKUP_DIR="${VIRTSPAWN_BACKUP_DIR:-$HOME/virtspawn-backups}"
 DATE="${VIRTSPAWN_BACKUP_ID:-$(date +%Y%m%d-%H%M%S)}"
 VM_FILTER=""
@@ -312,7 +312,7 @@ Config:
   --config FILE          Load config from file (default: /etc/virtspawn/backup.conf)
 
 Environment:
-  VIRTSPAWN_API          API URL (default: http://localhost:5092/api/v1)
+  VIRTSPAWN_API          API URL (default: https://localhost:5092/api/v1)
   VIRTSPAWN_BACKUP_DIR   Backup root (default: ~/virtspawn-backups)
 
 Timer setup:
@@ -464,21 +464,21 @@ fi
 
 # ── Check daemon ─────────────────────────────────────────────────────
 
-curl -sf "$API/health" > /dev/null 2>&1 || fail "Daemon not reachable at $API"
+curl -sfk "$API/health" > /dev/null 2>&1 || fail "Daemon not reachable at $API"
 
 # ── Gather data ──────────────────────────────────────────────────────
 
 if [ -n "$VM_FILTER" ]; then
-    VM_DETAIL=$(curl -sf "$API/vms/$VM_FILTER" 2>/dev/null) || fail "VM '$VM_FILTER' not found"
+    VM_DETAIL=$(curl -sfk "$API/vms/$VM_FILTER" 2>/dev/null) || fail "VM '$VM_FILTER' not found"
     VM_NAMES="$VM_FILTER"
     VM_COUNT=1
     NET_NAMES=""
     NET_COUNT=0
     POOLS=""
 else
-    VMS=$(curl -sf "$API/vms" 2>/dev/null) || fail "Failed to fetch VM list from API"
-    NETS=$(curl -sf "$API/networks" 2>/dev/null) || fail "Failed to fetch network list from API"
-    POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null) || fail "Failed to fetch storage pool list from API"
+    VMS=$(curl -sfk "$API/vms" 2>/dev/null) || fail "Failed to fetch VM list from API"
+    NETS=$(curl -sfk "$API/networks" 2>/dev/null) || fail "Failed to fetch network list from API"
+    POOLS=$(curl -sfk "$API/storage/pools" 2>/dev/null) || fail "Failed to fetch storage pool list from API"
 
     # Validate JSON responses before parsing
     echo "$VMS" | python3 -c "import json,sys; json.load(sys.stdin)" 2>/dev/null || fail "API returned invalid JSON for VMs"
@@ -511,7 +511,7 @@ if $LIST_ONLY; then
         [ -z "$name" ] && continue
         echo "    $name"
         if $WITH_DISKS; then
-            DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null)
+            DETAILS=$(curl -sfk "$API/vms/$name" 2>/dev/null)
             echo "$DETAILS" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
@@ -556,7 +556,7 @@ write_status "running" "Starting backup" "0"
 info "Backing up $VM_COUNT VM configs..."
 while IFS= read -r name; do
     [ -z "$name" ] && continue
-    XML=$(curl -sf "$API/vms/$name/xml" 2>/dev/null)
+    XML=$(curl -sfk "$API/vms/$name/xml" 2>/dev/null)
     if [ -n "$XML" ]; then
         printf '%s\n' "$XML" > "$BACKUP_PATH/vms/$name.xml"
         echo "  $name"
@@ -572,7 +572,7 @@ if [ -z "$VM_FILTER" ]; then
     info "Backing up $NET_COUNT network configs..."
     while IFS= read -r name; do
         [ -z "$name" ] && continue
-        XML=$(curl -sf "$API/networks/$name/xml" 2>/dev/null)
+        XML=$(curl -sfk "$API/networks/$name/xml" 2>/dev/null)
         if [ -n "$XML" ]; then
             printf '%s\n' "$XML" > "$BACKUP_PATH/networks/$name.xml"
             echo "  $name"
@@ -585,7 +585,7 @@ if [ -z "$VM_FILTER" ]; then
     info "Backing up storage pool configs..."
     while IFS= read -r name; do
         [ -z "$name" ] && continue
-        XML=$(curl -sf "$API/storage/pools/$name/xml" 2>/dev/null)
+        XML=$(curl -sfk "$API/storage/pools/$name/xml" 2>/dev/null)
         if [ -n "$XML" ]; then
             printf '%s\n' "$XML" > "$BACKUP_PATH/pools/$name.xml"
             echo "  $name"
@@ -600,7 +600,7 @@ if [ -z "$VM_FILTER" ]; then
     echo "$POOLS" | python3 -m json.tool > "$BACKUP_PATH/pools.json" 2>/dev/null
 
     # Save node info
-    curl -sf "$API/node" | python3 -m json.tool > "$BACKUP_PATH/node.json" 2>/dev/null
+    curl -sfk "$API/node" | python3 -m json.tool > "$BACKUP_PATH/node.json" 2>/dev/null
 else
     echo "$VM_DETAIL" | python3 -m json.tool > "$BACKUP_PATH/vm-detail.json" 2>/dev/null
 fi
@@ -627,7 +627,7 @@ if $WITH_DISKS; then
     DISK_LIST=""
     while IFS= read -r name; do
         [ -z "$name" ] && continue
-        DETAILS=$(curl -sf "$API/vms/$name" 2>/dev/null) || continue
+        DETAILS=$(curl -sfk "$API/vms/$name" 2>/dev/null) || continue
         PATHS=$(echo "$DETAILS" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)

@@ -9,7 +9,7 @@
 #   ./scripts/bulk.sh snapshot-clean # Delete all snapshots named 'auto-*'
 set -eo pipefail
 
-API="${VIRTSPAWN_API:-http://localhost:5092/api/v1}"
+API="${VIRTSPAWN_API:-https://localhost:5092/api/v1}"
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -31,7 +31,7 @@ usage() {
     echo "  status         Quick status of all VMs"
     echo ""
     echo "Environment:"
-    echo "  VIRTSPAWN_API  API URL (default: http://localhost:5092/api/v1)"
+    echo "  VIRTSPAWN_API  API URL (default: https://localhost:5092/api/v1)"
     exit 1
 }
 
@@ -41,11 +41,11 @@ ACTION="$1"
 shift
 
 # Check daemon
-curl -sf "$API/health" > /dev/null 2>&1 || { fail "Daemon not reachable at $API"; exit 1; }
+curl -sfk "$API/health" > /dev/null 2>&1 || { fail "Daemon not reachable at $API"; exit 1; }
 
 # Get VM list
 get_vms() {
-    curl -sf "$API/vms" 2>/dev/null
+    curl -sfk "$API/vms" 2>/dev/null
 }
 
 get_vm_names_by_state() {
@@ -79,7 +79,7 @@ do_action() {
 
     while read -r name; do
         [ -z "$name" ] && continue
-        result=$(curl -s -X POST "$API/vms/$name/$endpoint" 2>/dev/null)
+        result=$(curl -sk -X POST "$API/vms/$name/$endpoint" 2>/dev/null)
         if echo "$result" | grep -qF "status"; then
             ok "  $name"
         else
@@ -100,7 +100,7 @@ case "$ACTION" in
         echo "📋 Starting VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/start" 2>/dev/null)
+            result=$(curl -sk -X POST "$API/vms/$name/start" 2>/dev/null)
             if echo "$result" | grep -qF "started"; then
                 ok "  $name"
             else
@@ -118,7 +118,7 @@ case "$ACTION" in
         echo "⛔ Force stopping VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/stop" 2>/dev/null)
+            result=$(curl -sk -X POST "$API/vms/$name/stop" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -136,7 +136,7 @@ case "$ACTION" in
         echo "📋 Shutting down VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/shutdown" 2>/dev/null)
+            result=$(curl -sk -X POST "$API/vms/$name/shutdown" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -154,7 +154,7 @@ case "$ACTION" in
         echo "📋 Pausing VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/pause" 2>/dev/null)
+            result=$(curl -sk -X POST "$API/vms/$name/pause" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -172,7 +172,7 @@ case "$ACTION" in
         echo "📋 Resuming VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/resume" 2>/dev/null)
+            result=$(curl -sk -X POST "$API/vms/$name/resume" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -190,7 +190,7 @@ case "$ACTION" in
         echo "📋 Rebooting VMs"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/reboot" 2>/dev/null)
+            result=$(curl -sk -X POST "$API/vms/$name/reboot" 2>/dev/null)
             if echo "$result" | grep -qF "status"; then
                 ok "  $name"
             else
@@ -209,7 +209,7 @@ case "$ACTION" in
         echo "📋 Creating snapshots ($SNAP_NAME)"
         while read -r name; do
             [ -z "$name" ] && continue
-            result=$(curl -s -X POST "$API/vms/$name/snapshots" \
+            result=$(curl -sk -X POST "$API/vms/$name/snapshots" \
                 -H 'Content-Type: application/json' \
                 -d "{\"name\": \"$SNAP_NAME\", \"description\": \"Auto backup $DATE\"}" 2>/dev/null)
             if echo "$result" | grep -qF "created"; then
@@ -221,7 +221,7 @@ case "$ACTION" in
         ;;
 
     snapshot-clean)
-        SNAPS=$(curl -sf "$API/snapshots" 2>/dev/null)
+        SNAPS=$(curl -sfk "$API/snapshots" 2>/dev/null)
         if [ -z "$SNAPS" ] || [ "$SNAPS" = "[]" ]; then
             info "No snapshots found"
             exit 0
@@ -234,7 +234,7 @@ for s in json.load(sys.stdin):
         print(f'{s[\"vm_name\"]} {s[\"name\"]}')
 " 2>/dev/null | while read -r vm snap; do
             [ -z "$vm" ] && continue
-            result=$(curl -s -X DELETE "$API/vms/$vm/snapshots/$snap" 2>/dev/null)
+            result=$(curl -sk -X DELETE "$API/vms/$vm/snapshots/$snap" 2>/dev/null)
             if echo "$result" | grep -qF "deleted"; then
                 ok "  $vm/$snap"
             else

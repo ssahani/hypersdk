@@ -34,7 +34,7 @@ set -euo pipefail
 
 # ── Globals ─────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API_URL="${VIRTSPAWN_URL:-http://127.0.0.1:5092}"
+API_URL="${VIRTSPAWN_URL:-https://127.0.0.1:5092}"
 API_VERSION="v1"
 
 # ── Helpers ─────────────────────────────────────────────────────────────
@@ -363,7 +363,7 @@ cmd_verify() {
 
     info "Checking API..."
     local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/$API_VERSION/health" --max-time 5 2>/dev/null) || http_code="000"
+    http_code=$(curl -sk -o /dev/null -w "%{http_code}" "$API_URL/api/$API_VERSION/health" --max-time 5 2>/dev/null) || http_code="000"
     if [[ "$http_code" == "200" ]]; then
         ok "API responding (HTTP $http_code)"
     else
@@ -373,7 +373,7 @@ cmd_verify() {
 
     info "Checking VM list..."
     local vm_response
-    vm_response=$(curl -s "$API_URL/api/$API_VERSION/vms" --max-time 5 2>/dev/null)
+    vm_response=$(curl -sk "$API_URL/api/$API_VERSION/vms" --max-time 5 2>/dev/null)
     if [[ -n "$vm_response" ]]; then
         local vm_count
         vm_count=$(echo "$vm_response" | jq 'if type=="array" then length else 0 end' 2>/dev/null || echo "0")
@@ -425,7 +425,7 @@ cmd_health() {
     echo ""
     echo "🔗 API"
     local http_code
-    http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/$API_VERSION/health" --max-time 5 2>/dev/null) || http_code="000"
+    http_code=$(curl -sk -o /dev/null -w "%{http_code}" "$API_URL/api/$API_VERSION/health" --max-time 5 2>/dev/null) || http_code="000"
     if [[ "$http_code" == "200" ]]; then
         ok "API responding (HTTP $http_code)"
     else
@@ -662,9 +662,9 @@ cmd_tls() {
     need_root
     step "TLS Certificate Setup"
 
-    local cert_dir="/etc/virtspawn/tls"
-    local cert_file="$cert_dir/server.crt"
-    local key_file="$cert_dir/server.key"
+    local cert_dir="/etc/virtspawn/ssl"
+    local cert_file="$cert_dir/cert.pem"
+    local key_file="$cert_dir/key.pem"
 
     mkdir -p "$cert_dir"
 
@@ -699,7 +699,7 @@ cmd_tls() {
 cmd_demo() {
     step "virtspawn Interactive Demo"
 
-    if ! curl -sf "$API_URL/api/$API_VERSION/health" &>/dev/null; then
+    if ! curl -sfk "$API_URL/api/$API_VERSION/health" &>/dev/null; then
         err "virtspawn-daemon is not running at $API_URL"
         info "Start it with: ./virtspawnctl start"
         exit 1
@@ -708,15 +708,15 @@ cmd_demo() {
 
     echo ""
     echo "=== VMs ==="
-    curl -s "$API_URL/api/$API_VERSION/vms" | jq '.' 2>/dev/null || echo "(no response)"
+    curl -sk "$API_URL/api/$API_VERSION/vms" | jq '.' 2>/dev/null || echo "(no response)"
 
     echo ""
     echo "=== Health ==="
-    curl -s "$API_URL/api/$API_VERSION/health" | jq '.' 2>/dev/null
+    curl -sk "$API_URL/api/$API_VERSION/health" | jq '.' 2>/dev/null
 
     echo ""
     echo "=== System ==="
-    curl -s "$API_URL/api/$API_VERSION/system/info" | jq '.' 2>/dev/null || echo "(endpoint not available)"
+    curl -sk "$API_URL/api/$API_VERSION/system/info" | jq '.' 2>/dev/null || echo "(endpoint not available)"
 
     echo ""
     echo "📋 Quick reference:"
@@ -771,7 +771,7 @@ cmd_help() {
     echo "  ./virtspawnctl deploy          # Does everything in one command"
     echo ""
     echo "🌍 Environment:"
-    echo "  VIRTSPAWN_URL    API URL (default: http://127.0.0.1:5092)"
+    echo "  VIRTSPAWN_URL    API URL (default: https://127.0.0.1:5092; self-signed — use curl -k from scripts)"
     echo ""
 }
 

@@ -3,16 +3,16 @@
 # Usage: ./scripts/status.sh [API_URL]
 set -eo pipefail
 
-API="${1:-http://localhost:5092/api/v1}"
+API="${1:-https://localhost:5092/api/v1}"
 
 printf "📊 virtspawn status\n\n"
 
-HEALTH=$(curl -sf "$API/health" 2>/dev/null) || { echo "❌ Daemon not reachable at $API"; exit 1; }
+HEALTH=$(curl -sfk "$API/health" 2>/dev/null) || { echo "❌ Daemon not reachable at $API"; exit 1; }
 echo "✅ Daemon: healthy  ($API)"
 echo ""
 
 # Node info
-NODE=$(curl -sf "$API/node" 2>/dev/null)
+NODE=$(curl -sfk "$API/node" 2>/dev/null)
 if [ -n "$NODE" ]; then
     HOST=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['hostname'])" 2>/dev/null)
     HV=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"hypervisor\"]} {d[\"hypervisor_version\"]}')" 2>/dev/null)
@@ -26,7 +26,7 @@ if [ -n "$NODE" ]; then
 fi
 
 # VMs
-VMS=$(curl -sf "$API/vms" 2>/dev/null)
+VMS=$(curl -sfk "$API/vms" 2>/dev/null)
 if [ -n "$VMS" ]; then
     TOTAL=$(echo "$VMS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     RUNNING=$(echo "$VMS" | python3 -c "import json,sys; print(sum(1 for v in json.load(sys.stdin) if v['state']=='running'))" 2>/dev/null)
@@ -49,7 +49,7 @@ for v in vms:
 fi
 
 # Metrics for running VMs
-METRICS=$(curl -sf "$API/metrics" 2>/dev/null)
+METRICS=$(curl -sfk "$API/metrics" 2>/dev/null)
 if [ -n "$METRICS" ] && [ "$METRICS" != "[]" ]; then
     echo "📈 Live metrics"
     echo "$METRICS" | python3 -c "
@@ -70,7 +70,7 @@ if metrics:
 fi
 
 # Networks
-NETS=$(curl -sf "$API/networks" 2>/dev/null)
+NETS=$(curl -sfk "$API/networks" 2>/dev/null)
 if [ -n "$NETS" ]; then
     NET_TOTAL=$(echo "$NETS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     NET_ACTIVE=$(echo "$NETS" | python3 -c "import json,sys; print(sum(1 for n in json.load(sys.stdin) if n['active']))" 2>/dev/null)
@@ -86,7 +86,7 @@ for n in json.load(sys.stdin):
 fi
 
 # Storage
-POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null)
+POOLS=$(curl -sfk "$API/storage/pools" 2>/dev/null)
 if [ -n "$POOLS" ]; then
     POOL_TOTAL=$(echo "$POOLS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     echo "💾 Storage pools ($POOL_TOTAL)"
@@ -104,7 +104,7 @@ for p in json.load(sys.stdin):
 fi
 
 # Snapshots
-SNAPS=$(curl -sf "$API/snapshots" 2>/dev/null)
+SNAPS=$(curl -sfk "$API/snapshots" 2>/dev/null)
 if [ -n "$SNAPS" ] && [ "$SNAPS" != "[]" ]; then
     SNAP_COUNT=$(echo "$SNAPS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     echo "📸 Snapshots ($SNAP_COUNT)"

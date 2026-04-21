@@ -80,9 +80,9 @@ status: ## Show daemon service status
 deploy: install start ## Install and start (run 'make' first to build)
 	@echo ""
 	@echo "✅ virtspawn deployed and running"
-	@echo "   🌐 Web UI:  http://localhost:5092"
+	@echo "   🌐 Web UI:  https://localhost:5092"
 	@echo "   🖥️  TUI:     virtspawn"
-	@echo "   🔗 API:     http://localhost:5092/api/v1/health"
+	@echo "   🔗 API:     https://localhost:5092/api/v1/health"
 
 run-daemon: build ## Run the daemon (debug)
 	$(CARGO) run -p virtspawn-daemon

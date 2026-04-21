@@ -12,9 +12,14 @@ pub struct DaemonClient {
 
 impl DaemonClient {
     pub fn new(base_url: &str) -> Self {
+        // Self-signed certs from install.sh are normal; trust for local admin tool (same as curl -k).
+        let client = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .build()
+            .expect("reqwest client");
         Self {
             base_url: base_url.to_string(),
-            client: reqwest::Client::new(),
+            client,
         }
     }
 

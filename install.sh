@@ -161,7 +161,7 @@ install_deps_fedora() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs
-        git curl)
+        openssl git curl)
 
     info "Installing: ${packages[*]}"
     log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -179,7 +179,7 @@ install_deps_rhel() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
-        git curl)
+        openssl git curl)
 
     info "Installing: ${packages[*]}"
     log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -193,7 +193,7 @@ install_deps_debian() {
     local packages=(gcc g++ make pkg-config
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev
-        git curl)
+        openssl git curl)
 
     info "Installing: ${packages[*]}"
     DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -206,7 +206,7 @@ install_deps_suse() {
 
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon qemu-kvm
-        git curl)
+        openssl git curl)
 
     info "Installing: ${packages[*]}"
     log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -219,7 +219,7 @@ install_deps_arch() {
 
     local packages=(gcc make pkg-config
         libvirt qemu-full virt-install dnsmasq
-        git curl)
+        openssl git curl)
 
     info "Installing: ${packages[*]}"
     log_cmd pacman -S --noconfirm --needed "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -456,6 +456,58 @@ install_files() {
     fi
 }
 
+# ── TLS (HTTPS on :5092) ─────────────────────────────────────────────
+
+ensure_tls_for_https() {
+    step "TLS certificate for HTTPS (port 5092)"
+
+    command -v openssl >/dev/null 2>&1 || fail "openssl is required for HTTPS — install openssl and retry"
+
+    local cdir="/etc/virtspawn/ssl"
+    local cert="$cdir/cert.pem"
+    local key="$cdir/key.pem"
+    mkdir -p "$cdir"
+
+    if [ -f "$cert" ] && [ -f "$key" ]; then
+        ok "TLS key material already present ($cdir)"
+    else
+        local hn
+        hn=$(hostname -f 2>/dev/null || hostname)
+        info "Generating self-signed certificate (browsers show a warning until you replace with your CA)"
+        if openssl req -help 2>&1 | grep -q -- '-addext'; then
+            log_cmd openssl req -x509 -newkey rsa:4096 \
+                -keyout "$key" -out "$cert" \
+                -sha256 -days 3650 -nodes \
+                -subj "/CN=$hn/O=virtspawn" \
+                -addext "subjectAltName=DNS:$hn,DNS:localhost,IP:127.0.0.1"
+        else
+            log_cmd openssl req -x509 -newkey rsa:4096 \
+                -keyout "$key" -out "$cert" \
+                -sha256 -days 3650 -nodes \
+                -subj "/CN=$hn/O=virtspawn"
+        fi
+        [ -f "$cert" ] && [ -f "$key" ] || fail "openssl failed — see $LOG_FILE"
+        chmod 600 "$key"
+        chmod 644 "$cert"
+        ok "Self-signed certificate installed"
+    fi
+
+    local cfg="/etc/virtspawn/config.toml"
+    [ -f "$cfg" ] || return 0
+    if grep -q '^\[tls\]' "$cfg" 2>/dev/null; then
+        ok "Daemon config already defines [tls]"
+        return 0
+    fi
+    cat >> "$cfg" <<'EOF'
+
+[tls]
+enabled = true
+cert_path = "/etc/virtspawn/ssl/cert.pem"
+key_path = "/etc/virtspawn/ssl/key.pem"
+EOF
+    ok "Enabled [tls] in /etc/virtspawn/config.toml"
+}
+
 # ── Firewall ─────────────────────────────────────────────────────────
 
 open_firewall() {
@@ -489,7 +541,7 @@ start_daemon() {
 
     local retries=15
     while [ $retries -gt 0 ]; do
-        if curl -sf http://localhost:5092/api/v1/health > /dev/null 2>&1; then
+        if curl -sfk https://localhost:5092/api/v1/health > /dev/null 2>&1; then
             ok "Daemon is running and healthy"
             return
         fi
@@ -513,7 +565,7 @@ run_tests() {
 
     # Check if auth is enabled — if so, API tests are expected to return 401
     local auth_status
-    auth_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5092/api/v1/vms 2>/dev/null) || auth_status="000"
+    auth_status=$(curl -sk -o /dev/null -w "%{http_code}" https://localhost:5092/api/v1/vms 2>/dev/null) || auth_status="000"
     local auth_enabled=false
     if [ "$auth_status" = "401" ]; then
         auth_enabled=true
@@ -524,7 +576,7 @@ run_tests() {
     test_endpoint() {
         local desc="$1" url="$2" expect="$3"
         local response
-        response=$(curl -sf "$url" 2>/dev/null) || response=""
+        response=$(curl -sfk "$url" 2>/dev/null) || response=""
         if echo "$response" | grep -qF "$expect"; then
             ok "  $desc"
             passed=$((passed + 1))
@@ -534,28 +586,28 @@ run_tests() {
         fi
     }
 
-    test_endpoint "Health check"      "http://localhost:5092/api/v1/health"        "healthy"
+    test_endpoint "Health check"      "https://localhost:5092/api/v1/health"        "healthy"
 
     # API endpoint tests (skipped when auth is enabled — they correctly return 401)
     if ! $auth_enabled; then
-        test_endpoint "List VMs"          "http://localhost:5092/api/v1/vms"           "["
-        test_endpoint "Node info"         "http://localhost:5092/api/v1/node"          "hostname"
-        test_endpoint "List networks"     "http://localhost:5092/api/v1/networks"      "["
-        test_endpoint "List storage"      "http://localhost:5092/api/v1/storage/pools" "["
-        test_endpoint "Capabilities"      "http://localhost:5092/api/v1/capabilities"  "host_arch"
-        test_endpoint "List devices"      "http://localhost:5092/api/v1/devices"       "["
-        test_endpoint "List nwfilters"    "http://localhost:5092/api/v1/nwfilters"     "["
-        test_endpoint "List secrets"      "http://localhost:5092/api/v1/secrets"       "["
-        test_endpoint "Metrics endpoint"  "http://localhost:5092/api/v1/metrics"       "["
+        test_endpoint "List VMs"          "https://localhost:5092/api/v1/vms"           "["
+        test_endpoint "Node info"         "https://localhost:5092/api/v1/node"          "hostname"
+        test_endpoint "List networks"     "https://localhost:5092/api/v1/networks"      "["
+        test_endpoint "List storage"      "https://localhost:5092/api/v1/storage/pools" "["
+        test_endpoint "Capabilities"      "https://localhost:5092/api/v1/capabilities"  "host_arch"
+        test_endpoint "List devices"      "https://localhost:5092/api/v1/devices"       "["
+        test_endpoint "List nwfilters"    "https://localhost:5092/api/v1/nwfilters"     "["
+        test_endpoint "List secrets"      "https://localhost:5092/api/v1/secrets"       "["
+        test_endpoint "Metrics endpoint"  "https://localhost:5092/api/v1/metrics"       "["
     else
         info "  API tests skipped (auth enabled — endpoints correctly return 401)"
     fi
 
     # Web UI
     local http_code
-    http_code=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:5092/ 2>/dev/null) || http_code="000"
+    http_code=$(curl -sfk -o /dev/null -w "%{http_code}" https://localhost:5092/ 2>/dev/null) || http_code="000"
     if [ "$http_code" = "200" ]; then
-        ok "  Web UI serves (HTTP 200)"
+        ok "  Web UI serves (HTTPS 200)"
         passed=$((passed + 1))
     else
         echo "  ❌ FAIL Web UI (HTTP $http_code)"
@@ -584,7 +636,7 @@ run_tests() {
         info "  Security tests skipped (auth enabled)"
     else
     local migrate_resp
-    migrate_resp=$(curl -s -X POST http://localhost:5092/api/v1/vms/nonexistent/migrate \
+    migrate_resp=$(curl -sk -X POST https://localhost:5092/api/v1/vms/nonexistent/migrate \
         -H 'Content-Type: application/json' \
         -d '{"dest_uri":"http://evil.com","live":false}' 2>/dev/null) || migrate_resp=""
     if echo "$migrate_resp" | grep -qF "Invalid migration URI"; then
@@ -596,7 +648,7 @@ run_tests() {
     fi
 
     local resize_resp
-    resize_resp=$(curl -s -X POST http://localhost:5092/api/v1/storage/pools/default/volumes/x/resize \
+    resize_resp=$(curl -sk -X POST https://localhost:5092/api/v1/storage/pools/default/volumes/x/resize \
         -H 'Content-Type: application/json' \
         -d '{"capacity_gb":-1}' 2>/dev/null) || resize_resp=""
     if echo "$resize_resp" | grep -qF "capacity_gb must be"; then
@@ -649,8 +701,8 @@ remote_deploy() {
     echo "✅ Deployed to $remote"
     echo "============================================"
     echo ""
-    echo "  🌐 Web UI:  http://$remote_ip:5092"
-    echo "  🔗 API:     http://$remote_ip:5092/api/v1/health"
+    echo "  🌐 Web UI:  https://$remote_ip:5092"
+    echo "  🔗 API:     https://$remote_ip:5092/api/v1/health"
     echo ""
 }
 
@@ -682,7 +734,7 @@ uninstall() {
 
 print_summary() {
     local vm_count
-    vm_count=$(curl -sf http://localhost:5092/api/v1/vms 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || vm_count="?"
+    vm_count=$(curl -sfk https://localhost:5092/api/v1/vms 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || vm_count="?"
 
     local bind_info="localhost"
     if [ -n "$BIND_HOST" ] && [ "$BIND_HOST" != "127.0.0.1" ]; then
@@ -696,9 +748,9 @@ print_summary() {
     echo "✅ virtspawn installed successfully!"
     echo "============================================"
     echo ""
-    echo "  🌐 Web UI:    http://$bind_info:5092"
+    echo "  🌐 Web UI:    https://$bind_info:5092"
     echo "  🖥️  TUI:       virtspawn"
-    echo "  🔗 API:       http://$bind_info:5092/api/v1/health"
+    echo "  🔗 API:       https://$bind_info:5092/api/v1/health"
     echo "  📊 VMs found: $vm_count"
     echo ""
     echo "  📋 Manage:"
@@ -797,7 +849,7 @@ Prerequisites (installed automatically):
   - libvirt + QEMU/KVM
   - Rust toolchain (via rustup)
   - Node.js 18+ (via NodeSource if distro version is too old)
-  - gcc, make, pkg-config, git, curl
+  - gcc, make, pkg-config, openssl, git, curl
 
 Examples:
   Local install (default — binds to localhost only):
@@ -817,9 +869,9 @@ Examples:
     sudo ./install.sh --uninstall
 
 After install:
-  Web UI:    http://localhost:5092   (HTTPS only after [tls] in config or a reverse proxy — same URL scheme in browser)
+  Web UI:    https://localhost:5092   (self-signed by default — browser warning until you install a real cert)
   TUI:       virtspawn
-  API test:  curl http://localhost:5092/api/v1/health
+  API test:  curl -sk https://localhost:5092/api/v1/health
   Logs:      sudo journalctl -u virtspawn-daemon -f
   Config:    sudo vim /etc/virtspawn/config.toml
   Restart:   sudo systemctl restart virtspawn-daemon
@@ -859,6 +911,7 @@ HELPEOF
     build_rust
     build_web
     install_files
+    ensure_tls_for_https
 
     if $OPEN_FIREWALL; then
         open_firewall

@@ -61,10 +61,10 @@ virtspawn/
 - **API tokens** — Bearer token authentication for automation and scripting
 - **WebSocket token authentication** — short-lived token-based auth for all console/VNC/SSH WebSocket connections
 - **Session TTL with max session limits** — 24-hour session expiry, max 1000 total sessions, max 10 sessions per user
-- **TLS support** — optional HTTPS via `[tls]` config section with cert/key paths
+- **HTTPS by default** — packaged install enables `[tls]` with self-signed certs (`install.sh` generates `/etc/virtspawn/ssl/`); replace with your CA as needed
 - **Same-origin only** — no CORS (prevents cross-site attacks)
 
-### Web UI (http://localhost:5092)
+### Web UI (https://localhost:5092)
 - **Premium login page** — split-screen layout with animated gradient background, floating orbs, feature showcase cards, glassmorphism form
 - **Command palette** — `Ctrl+K` / `Cmd+K` to search VMs, networks, storage pools, snapshots, navigate pages, and run quick actions with keyboard navigation
 - **Notification bell** — global notification center in navbar with badge count, showing real-time VM state changes, additions, and removals
@@ -232,7 +232,7 @@ No `sudo` needed — the script auto-escalates when required. After deployment, 
 ✓ All verification checks passed
 ```
 
-Open **http://localhost:5092** or run `virtspawn` for the TUI.
+Open **https://localhost:5092** or run `virtspawn` for the TUI.
 
 ### Step-by-Step
 
@@ -459,7 +459,7 @@ RUST_LOG=tower_http=debug virtspawn-daemon          # enable request tracing
 
 ```bash
 virtspawn                                           # defaults
-virtspawn --url http://192.168.1.10:5092            # remote daemon
+virtspawn --url https://192.168.1.10:5092            # remote daemon
 virtspawn --refresh 10                              # 10s refresh interval
 virtspawn --config /path/to/config.toml             # custom config
 ```
@@ -747,98 +747,98 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 
 ```bash
 # List VMs
-curl -s http://localhost:5092/api/v1/vms | jq
+curl -sk https://localhost:5092/api/v1/vms | jq
 
 # Create a VM
-curl -s -X POST http://localhost:5092/api/v1/vms \
+curl -sk -X POST https://localhost:5092/api/v1/vms \
   -H 'Content-Type: application/json' \
   -d '{"name": "test-vm", "vcpus": 2, "memory_mb": 2048, "disk_gb": 20}' | jq
 
 # Start a VM
-curl -s -X POST http://localhost:5092/api/v1/vms/test-vm/start | jq
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/start | jq
 
 # Get VM metrics
-curl -s http://localhost:5092/api/v1/metrics/test-vm | jq
+curl -sk https://localhost:5092/api/v1/metrics/test-vm | jq
 
 # Create a snapshot
-curl -s -X POST http://localhost:5092/api/v1/vms/test-vm/snapshots \
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/snapshots \
   -H 'Content-Type: application/json' \
   -d '{"name": "snap1", "description": "test snapshot"}' | jq
 
 # Clone a VM
-curl -s -X POST http://localhost:5092/api/v1/vms/test-vm/clone \
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/clone \
   -H 'Content-Type: application/json' \
   -d '{"new_name": "test-vm-clone"}' | jq
 
 # Host info
-curl -s http://localhost:5092/api/v1/node | jq
+curl -sk https://localhost:5092/api/v1/node | jq
 
 # Prometheus metrics
-curl -s http://localhost:5092/api/v1/prometheus
+curl -sk https://localhost:5092/api/v1/prometheus
 
 # Trigger a backup (all VMs)
-curl -s -X POST http://localhost:5092/api/v1/backups \
+curl -sk -X POST https://localhost:5092/api/v1/backups \
   -H 'Content-Type: application/json' \
   -d '{"retain": 7}' | jq
 
 # Backup a single VM with disks
-curl -s -X POST http://localhost:5092/api/v1/backups \
+curl -sk -X POST https://localhost:5092/api/v1/backups \
   -H 'Content-Type: application/json' \
   -d '{"vm_name": "test-vm", "with_disks": true}' | jq
 
 # List backups
-curl -s http://localhost:5092/api/v1/backups | jq
+curl -sk https://localhost:5092/api/v1/backups | jq
 
 # Verify backup checksums
-curl -s -X POST http://localhost:5092/api/v1/backups/20260324-020000/verify | jq
+curl -sk -X POST https://localhost:5092/api/v1/backups/20260324-020000/verify | jq
 
 # Download backup as tar.gz
-curl -sO http://localhost:5092/api/v1/backups/20260324-020000/download
+curl -skO https://localhost:5092/api/v1/backups/20260324-020000/download
 
 # Restore from backup
-curl -s -X POST http://localhost:5092/api/v1/backups/restore \
+curl -sk -X POST https://localhost:5092/api/v1/backups/restore \
   -H 'Content-Type: application/json' \
   -d '{"backup_id": "20260324-020000"}' | jq
 
 # Enable scheduled backups
-curl -s -X POST http://localhost:5092/api/v1/backups/schedule \
+curl -sk -X POST https://localhost:5092/api/v1/backups/schedule \
   -H 'Content-Type: application/json' \
   -d '{"enabled": true}' | jq
 
 # Login (PAM authentication)
-curl -s -X POST http://localhost:5092/api/v1/auth/login \
+curl -sk -X POST https://localhost:5092/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username": "admin", "password": "secret"}' -c cookies.txt | jq
 
 # Use API token (Bearer auth)
-curl -s http://localhost:5092/api/v1/vms \
+curl -sk https://localhost:5092/api/v1/vms \
   -H 'Authorization: Bearer your-api-token' | jq
 
 # Live resize vCPUs on running VM
-curl -s -X POST http://localhost:5092/api/v1/vms/test-vm/live/vcpus/4 | jq
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/live/vcpus/4 | jq
 
 # Tag a VM
-curl -s -X POST http://localhost:5092/api/v1/vms/test-vm/tags \
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/tags \
   -H 'Content-Type: application/json' \
   -d '{"tags": ["production", "web"]}' | jq
 
 # USB passthrough
-curl -s -X POST http://localhost:5092/api/v1/vms/test-vm/usb/attach \
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/usb/attach \
   -H 'Content-Type: application/json' \
   -d '{"vendor_id": "0x1234", "product_id": "0x5678"}' | jq
 
 # Create port forwarding rule
-curl -s -X POST http://localhost:5092/api/v1/portforward \
+curl -sk -X POST https://localhost:5092/api/v1/portforward \
   -H 'Content-Type: application/json' \
   -d '{"host_port": 9443, "vm_ip": "192.168.122.10", "vm_port": 8443, "protocol": "tcp"}' | jq
 
 # Create alert rule
-curl -s -X POST http://localhost:5092/api/v1/alert-rules \
+curl -sk -X POST https://localhost:5092/api/v1/alert-rules \
   -H 'Content-Type: application/json' \
   -d '{"metric": "cpu", "threshold": 90, "duration_secs": 300}' | jq
 
 # Generate cloud-init ISO
-curl -s -X POST http://localhost:5092/api/v1/cloud-init \
+curl -sk -X POST https://localhost:5092/api/v1/cloud-init \
   -H 'Content-Type: application/json' \
   -d '{"hostname": "myvm", "user": "admin", "ssh_key": "ssh-rsa AAAA..."}' | jq
 ```
@@ -921,7 +921,7 @@ make web && sudo make install                   # Rebuild and reinstall
 
 ```bash
 virsh vncdisplay <vm-name>                  # Is VNC port assigned?
-curl -s http://localhost:5092/api/v1/vms/console-info/<vm-name> | jq   # Check port
+curl -sk https://localhost:5092/api/v1/vms/console-info/<vm-name> | jq   # Check port
 # VNC only works on running VMs with graphics configured
 ```
 
