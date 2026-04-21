@@ -60,7 +60,6 @@ async fn main() -> anyhow::Result<()> {
     let app = server::create_app(manager);
 
     let bind_addr = config.bind_addr();
-    let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
 
     if config.tls.enabled && !config.tls.cert_path.is_empty() && !config.tls.key_path.is_empty() {
         info!("listening on {bind_addr} (TLS enabled)");
@@ -71,11 +70,13 @@ async fn main() -> anyhow::Result<()> {
             &config.tls.cert_path, &config.tls.key_path
         ).await?;
 
+        // bind_rustls opens its own listener — do not TcpListener::bind first or we get EADDRINUSE.
         axum_server::bind_rustls(bind_addr.parse()?, tls_config)
             .serve(app.into_make_service())
             .await?;
     } else {
         info!("listening on {bind_addr}");
+        let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await?;
