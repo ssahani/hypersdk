@@ -358,9 +358,9 @@ make all                  # Release build + web frontend
 sudo make deploy          # Install + start systemd service
 
 # Access
-Web UI:   http://localhost:8081
+Web UI:   http://localhost:5092
 TUI:      virtspawn
-API:      curl http://localhost:8081/api/vms</pre>
+API:      curl http://localhost:5092/api/vms</pre>
   </div>
 
   <div class="card-grid">
@@ -391,7 +391,7 @@ API:      curl http://localhost:8081/api/vms</pre>
       <ul>
         <li>/etc/virtspawn/config.toml (main config)</li>
         <li>/etc/virtspawn/backup.conf (backup config)</li>
-        <li>Default port: 8081</li>
+        <li>Default port: 5092</li>
         <li>Data dir: /var/lib/virtspawn</li>
         <li>Environment variable overrides</li>
       </ul>

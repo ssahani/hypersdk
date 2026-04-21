@@ -162,7 +162,7 @@ def make_closing_slide():
     text_center(draw, 300, "virtspawn", font_title, WHITE)
     text_center(draw, 400, "Ready for Production", font_subtitle, GREEN)
     text_center(draw, 520, "make && sudo make deploy", font_body, LIGHT)
-    text_center(draw, 600, "Web UI at http://localhost:8081", font_body, ACCENT)
+    text_center(draw, 600, "Web UI at http://localhost:5092", font_body, ACCENT)
     text_center(draw, 680, "TUI: virtspawn", font_body, ACCENT)
     text_center(draw, 800, "Questions?", font_heading, GRAY)
     return img

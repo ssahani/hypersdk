@@ -9,7 +9,7 @@
 #   ./scripts/bulk.sh snapshot-clean # Delete all snapshots named 'auto-*'
 set -eo pipefail
 
-API="${VIRTSPAWN_API:-http://localhost:8081/api/v1}"
+API="${VIRTSPAWN_API:-http://localhost:5092/api/v1}"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
 CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
@@ -34,7 +34,7 @@ usage() {
     echo "  status         Quick status of all VMs"
     echo ""
     echo "Environment:"
-    echo "  VIRTSPAWN_API  API URL (default: http://localhost:8081/api/v1)"
+    echo "  VIRTSPAWN_API  API URL (default: http://localhost:5092/api/v1)"
     exit 1
 }
 

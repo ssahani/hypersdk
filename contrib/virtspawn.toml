@@ -9,7 +9,8 @@ refresh_interval_secs = 5
 
 [daemon]
 host = "0.0.0.0"
-port = 8081
+# Omit `port` to use default 5092 (see DEFAULT_DAEMON_PORT in core)
+port = 5092
 
 [libvirt]
 uri = "qemu:///system"

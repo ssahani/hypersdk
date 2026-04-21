@@ -42,6 +42,9 @@ pub struct GeneralConfig {
     pub refresh_interval_secs: u64,
 }
 
+/// HTTP listen port when `[daemon]` has no `port = …` (matches install template & CLI overrides).
+pub const DEFAULT_DAEMON_PORT: u16 = 5092;
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DaemonConfig {
     #[serde(default = "default_host")]
@@ -65,7 +68,7 @@ fn default_host() -> String {
 }
 
 fn default_port() -> u16 {
-    8081
+    DEFAULT_DAEMON_PORT
 }
 
 fn default_libvirt_uri() -> String {

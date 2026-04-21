@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Maximize, Minimize, Monitor } from 'lucide-react'
 import { getWsToken } from '../api/client'
+import { DEFAULT_DAEMON_PORT } from '../constants'
 
 interface Props {
   vmName: string
@@ -52,7 +53,10 @@ export default function SPICEViewer({ vmName, port = -1 }: Props) {
   }
 
   const wsHost = window.location.hostname
-  const wsPort = window.location.port || (window.location.protocol === 'https:' ? '443' : '80')
+  /** Bare HTTP without `:port` in URL → assume daemon default (same as config `[daemon]` default). */
+  const wsPort =
+    window.location.port ||
+    (window.location.protocol === 'https:' ? '443' : String(DEFAULT_DAEMON_PORT))
   const wsProxyPath = `ws/v1/spice/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}`
   const spiceUrl = `/spice-html5/spice_auto.html?host=${wsHost}&port=${wsPort}&path=${encodeURIComponent(wsProxyPath)}`
 

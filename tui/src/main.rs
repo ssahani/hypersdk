@@ -9,7 +9,7 @@ use virtspawn_core::VirtspawnConfig;
 #[derive(Parser)]
 #[command(name = "virtspawn", about = "virtspawn TUI - libvirt VM manager")]
 struct Cli {
-    /// Daemon URL (e.g. http://127.0.0.1:8081)
+    /// Daemon URL (e.g. http://127.0.0.1:5092)
     #[arg(short, long)]
     url: Option<String>,
 

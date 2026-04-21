@@ -470,18 +470,18 @@ open_firewall() {
     step "Configuring firewall"
 
     if command -v firewall-cmd &>/dev/null && systemctl is-active firewalld &>/dev/null; then
-        firewall-cmd --add-port=8081/tcp --permanent >> "$LOG_FILE" 2>&1 || true
+        firewall-cmd --add-port=5092/tcp --permanent >> "$LOG_FILE" 2>&1 || true
         firewall-cmd --reload >> "$LOG_FILE" 2>&1 || true
-        ok "Opened port 8081/tcp (firewalld)"
+        ok "Opened port 5092/tcp (firewalld)"
     elif command -v ufw &>/dev/null && ufw status | grep -q "Status: active"; then
-        ufw allow 8081/tcp >> "$LOG_FILE" 2>&1 || true
-        ok "Opened port 8081/tcp (ufw)"
+        ufw allow 5092/tcp >> "$LOG_FILE" 2>&1 || true
+        ok "Opened port 5092/tcp (ufw)"
     elif command -v iptables &>/dev/null; then
-        iptables -C INPUT -p tcp --dport 8081 -j ACCEPT 2>/dev/null || \
-        iptables -I INPUT -p tcp --dport 8081 -j ACCEPT 2>/dev/null || true
-        ok "Opened port 8081/tcp (iptables)"
+        iptables -C INPUT -p tcp --dport 5092 -j ACCEPT 2>/dev/null || \
+        iptables -I INPUT -p tcp --dport 5092 -j ACCEPT 2>/dev/null || true
+        ok "Opened port 5092/tcp (iptables)"
     else
-        info "No firewall detected — port 8081 should be accessible"
+        info "No firewall detected — port 5092 should be accessible"
     fi
 }
 
@@ -494,7 +494,7 @@ start_daemon() {
 
     local retries=15
     while [ $retries -gt 0 ]; do
-        if curl -sf http://localhost:8081/api/v1/health > /dev/null 2>&1; then
+        if curl -sf http://localhost:5092/api/v1/health > /dev/null 2>&1; then
             ok "Daemon is running and healthy"
             return
         fi
@@ -518,7 +518,7 @@ run_tests() {
 
     # Check if auth is enabled — if so, API tests are expected to return 401
     local auth_status
-    auth_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8081/api/v1/vms 2>/dev/null) || auth_status="000"
+    auth_status=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:5092/api/v1/vms 2>/dev/null) || auth_status="000"
     local auth_enabled=false
     if [ "$auth_status" = "401" ]; then
         auth_enabled=true
@@ -539,26 +539,26 @@ run_tests() {
         fi
     }
 
-    test_endpoint "Health check"      "http://localhost:8081/api/v1/health"        "healthy"
+    test_endpoint "Health check"      "http://localhost:5092/api/v1/health"        "healthy"
 
     # API endpoint tests (skipped when auth is enabled — they correctly return 401)
     if ! $auth_enabled; then
-        test_endpoint "List VMs"          "http://localhost:8081/api/v1/vms"           "["
-        test_endpoint "Node info"         "http://localhost:8081/api/v1/node"          "hostname"
-        test_endpoint "List networks"     "http://localhost:8081/api/v1/networks"      "["
-        test_endpoint "List storage"      "http://localhost:8081/api/v1/storage/pools" "["
-        test_endpoint "Capabilities"      "http://localhost:8081/api/v1/capabilities"  "host_arch"
-        test_endpoint "List devices"      "http://localhost:8081/api/v1/devices"       "["
-        test_endpoint "List nwfilters"    "http://localhost:8081/api/v1/nwfilters"     "["
-        test_endpoint "List secrets"      "http://localhost:8081/api/v1/secrets"       "["
-        test_endpoint "Metrics endpoint"  "http://localhost:8081/api/v1/metrics"       "["
+        test_endpoint "List VMs"          "http://localhost:5092/api/v1/vms"           "["
+        test_endpoint "Node info"         "http://localhost:5092/api/v1/node"          "hostname"
+        test_endpoint "List networks"     "http://localhost:5092/api/v1/networks"      "["
+        test_endpoint "List storage"      "http://localhost:5092/api/v1/storage/pools" "["
+        test_endpoint "Capabilities"      "http://localhost:5092/api/v1/capabilities"  "host_arch"
+        test_endpoint "List devices"      "http://localhost:5092/api/v1/devices"       "["
+        test_endpoint "List nwfilters"    "http://localhost:5092/api/v1/nwfilters"     "["
+        test_endpoint "List secrets"      "http://localhost:5092/api/v1/secrets"       "["
+        test_endpoint "Metrics endpoint"  "http://localhost:5092/api/v1/metrics"       "["
     else
         info "  API tests skipped (auth enabled — endpoints correctly return 401)"
     fi
 
     # Web UI
     local http_code
-    http_code=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:8081/ 2>/dev/null) || http_code="000"
+    http_code=$(curl -sf -o /dev/null -w "%{http_code}" http://localhost:5092/ 2>/dev/null) || http_code="000"
     if [ "$http_code" = "200" ]; then
         ok "  Web UI serves (HTTP 200)"
         passed=$((passed + 1))
@@ -589,7 +589,7 @@ run_tests() {
         info "  Security tests skipped (auth enabled)"
     else
     local migrate_resp
-    migrate_resp=$(curl -s -X POST http://localhost:8081/api/v1/vms/nonexistent/migrate \
+    migrate_resp=$(curl -s -X POST http://localhost:5092/api/v1/vms/nonexistent/migrate \
         -H 'Content-Type: application/json' \
         -d '{"dest_uri":"http://evil.com","live":false}' 2>/dev/null) || migrate_resp=""
     if echo "$migrate_resp" | grep -qF "Invalid migration URI"; then
@@ -601,7 +601,7 @@ run_tests() {
     fi
 
     local resize_resp
-    resize_resp=$(curl -s -X POST http://localhost:8081/api/v1/storage/pools/default/volumes/x/resize \
+    resize_resp=$(curl -s -X POST http://localhost:5092/api/v1/storage/pools/default/volumes/x/resize \
         -H 'Content-Type: application/json' \
         -d '{"capacity_gb":-1}' 2>/dev/null) || resize_resp=""
     if echo "$resize_resp" | grep -qF "capacity_gb must be"; then
@@ -653,8 +653,8 @@ remote_deploy() {
     echo -e "${GREEN}${BOLD}  Deployed to $remote${NC}"
     echo -e "${GREEN}${BOLD}============================================${NC}"
     echo ""
-    echo -e "  ${CYAN}Web UI:${NC}  http://$remote_ip:8081"
-    echo -e "  ${CYAN}API:${NC}     http://$remote_ip:8081/api/v1/health"
+    echo -e "  ${CYAN}Web UI:${NC}  http://$remote_ip:5092"
+    echo -e "  ${CYAN}API:${NC}     http://$remote_ip:5092/api/v1/health"
     echo ""
 }
 
@@ -686,7 +686,7 @@ uninstall() {
 
 print_summary() {
     local vm_count
-    vm_count=$(curl -sf http://localhost:8081/api/v1/vms 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || vm_count="?"
+    vm_count=$(curl -sf http://localhost:5092/api/v1/vms 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || vm_count="?"
 
     local bind_info="localhost"
     if [ -n "$BIND_HOST" ] && [ "$BIND_HOST" != "127.0.0.1" ]; then
@@ -700,9 +700,9 @@ print_summary() {
     echo -e "${GREEN}${BOLD}  virtspawn installed successfully!${NC}"
     echo -e "${GREEN}${BOLD}============================================${NC}"
     echo ""
-    echo -e "  ${CYAN}Web UI:${NC}    http://$bind_info:8081"
+    echo -e "  ${CYAN}Web UI:${NC}    http://$bind_info:5092"
     echo -e "  ${CYAN}TUI:${NC}       virtspawn"
-    echo -e "  ${CYAN}API:${NC}       http://$bind_info:8081/api/v1/health"
+    echo -e "  ${CYAN}API:${NC}       http://$bind_info:5092/api/v1/health"
     echo -e "  ${CYAN}VMs found:${NC} $vm_count"
     echo ""
     echo -e "  ${YELLOW}Manage:${NC}"
@@ -760,7 +760,7 @@ Install options:
   --bind HOST          Bind daemon to HOST (default: 127.0.0.1)
                        Use 0.0.0.0 to make the web UI accessible from
                        other machines on the network.
-  --open-firewall      Open port 8081 in the active firewall.
+  --open-firewall      Open port 5092 in the active firewall.
                        Supports firewalld, ufw, and iptables.
   --no-start           Build and install but don't start the daemon.
                        Useful when you want to edit the config first.
@@ -822,9 +822,9 @@ Examples:
     sudo ./install.sh --uninstall
 
 After install:
-  Web UI:    http://localhost:8081        (or http://<ip>:8081 with --bind)
+  Web UI:    http://localhost:5092        (or http://<ip>:5092 with --bind)
   TUI:       virtspawn
-  API test:  curl http://localhost:8081/api/v1/health
+  API test:  curl http://localhost:5092/api/v1/health
   Logs:      sudo journalctl -u virtspawn-daemon -f
   Config:    sudo vim /etc/virtspawn/config.toml
   Restart:   sudo systemctl restart virtspawn-daemon

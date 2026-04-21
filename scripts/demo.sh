@@ -3,7 +3,7 @@
 # Usage: ./scripts/demo.sh [API_URL]
 set -eo pipefail
 
-API="${1:-http://localhost:8081/api/v1}"
+API="${1:-http://localhost:5092/api/v1}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -222,7 +222,7 @@ api GET /vms
 echo ""
 echo -e "${GREEN}${BOLD}Demo Complete!${NC}"
 echo ""
-echo -e "  Web UI:  ${CYAN}http://localhost:8081${NC}"
+echo -e "  Web UI:  ${CYAN}http://localhost:5092${NC}"
 echo -e "  TUI:     ${CYAN}virtspawn${NC}"
 echo -e "  API:     ${CYAN}${API}/health${NC}"
 echo ""

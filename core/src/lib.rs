@@ -6,7 +6,7 @@ pub mod state;
 pub mod validate;
 pub mod xml;
 
-pub use config::VirtspawnConfig;
+pub use config::{VirtspawnConfig, DEFAULT_DAEMON_PORT};
 pub use libvirt::LibvirtManager;
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, BackupInfo, BackupRequest, CloneVmRequest,

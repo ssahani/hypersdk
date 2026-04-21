@@ -114,7 +114,7 @@ def slide_title():
     tc(d, 290, "REST API Reference", fh, ACCENT)
     div(d, 370)
     tc(d, 420, "Complete reference for all 40+ API endpoints", fb, GRAY)
-    tc(d, 480, "Base URL: http://localhost:8081/api/v1", fc, CYAN)
+    tc(d, 480, "Base URL: http://localhost:5092/api/v1", fc, CYAN)
     tc(d, 560, "All responses are JSON  |  Errors return {\"error\": \"message\"}", fb, LIGHT)
     pills = [("GET", GREEN), ("POST", ACCENT), ("DELETE", RED)]
     x = W//2 - 150
@@ -159,7 +159,7 @@ def slide_vm_examples():
 
     d.text((80, 110), "List VMs", font=fsh, fill=GREEN)
     code_block(d, 80, 155, 860, [
-        "$ curl -s http://localhost:8081/api/v1/vms",
+        "$ curl -s http://localhost:5092/api/v1/vms",
         "",
         "> Response:",
         '[{"name":"myvm","state":"running",',
@@ -168,7 +168,7 @@ def slide_vm_examples():
 
     d.text((980, 110), "Create VM", font=fsh, fill=ACCENT)
     code_block(d, 980, 155, 860, [
-        "$ curl -X POST http://localhost:8081/api/v1/vms \\",
+        "$ curl -X POST http://localhost:5092/api/v1/vms \\",
         '  -H "Content-Type: application/json" \\',
         '  -d \'{"name":"web-server",',
         '       "vcpus":4, "memory_mb":8192,',
@@ -177,7 +177,7 @@ def slide_vm_examples():
 
     d.text((80, 400), "Get VM Details", font=fsh, fill=CYAN)
     code_block(d, 80, 445, 860, [
-        "$ curl -s localhost:8081/api/v1/vms/myvm",
+        "$ curl -s localhost:5092/api/v1/vms/myvm",
         "",
         "> Response includes:",
         "> name, uuid, state, vcpus, memory_mb,",
@@ -188,25 +188,25 @@ def slide_vm_examples():
     d.text((980, 400), "VM Lifecycle", font=fsh, fill=ORANGE)
     code_block(d, 980, 445, 860, [
         "# Start",
-        "$ curl -X POST localhost:8081/api/v1/vms/myvm/start",
+        "$ curl -X POST localhost:5092/api/v1/vms/myvm/start",
         "",
         "# Graceful shutdown",
-        "$ curl -X POST localhost:8081/api/v1/vms/myvm/shutdown",
+        "$ curl -X POST localhost:5092/api/v1/vms/myvm/shutdown",
         "",
         "# Force stop",
-        "$ curl -X POST localhost:8081/api/v1/vms/myvm/stop",
+        "$ curl -X POST localhost:5092/api/v1/vms/myvm/stop",
     ])
 
     d.text((80, 720), "Clone & Resize", font=fsh, fill=PURPLE)
     code_block(d, 80, 760, 860, [
-        '$ curl -X POST localhost:8081/api/v1/vms/myvm/clone \\',
+        '$ curl -X POST localhost:5092/api/v1/vms/myvm/clone \\',
         '  -d \'{"new_name":"myvm-clone"}\'',
-        '$ curl -X POST localhost:8081/api/v1/vms/myvm/vcpus/8',
+        '$ curl -X POST localhost:5092/api/v1/vms/myvm/vcpus/8',
     ])
 
     d.text((980, 720), "Delete VM", font=fsh, fill=RED)
     code_block(d, 980, 760, 860, [
-        "$ curl -X DELETE localhost:8081/api/v1/vms/myvm",
+        "$ curl -X DELETE localhost:5092/api/v1/vms/myvm",
         "",
         '> {"status":"deleted","name":"myvm"}',
     ])
@@ -381,7 +381,7 @@ def slide_websocket():
     bar(d)
     tc(d, 40, "WebSocket API", fh, WHITE)
 
-    d.text((80, 120), "VM State Watch  ws://host:8081/ws/v1/watch", font=fsh, fill=ACCENT)
+    d.text((80, 120), "VM State Watch  ws://host:5092/ws/v1/watch", font=fsh, fill=ACCENT)
     code_block(d, 80, 170, 860, [
         "# Heartbeat (every 2s)",
         '{"event":"heartbeat","vm_count":5}',
@@ -401,7 +401,7 @@ def slide_websocket():
         ']}',
     ])
 
-    d.text((980, 120), "Serial Console  ws://host:8081/ws/v1/console/{name}", font=fsh, fill=GREEN)
+    d.text((980, 120), "Serial Console  ws://host:5092/ws/v1/console/{name}", font=fsh, fill=GREEN)
     code_block(d, 980, 170, 860, [
         "# Bidirectional text I/O",
         "# Send: keystrokes as text frames",
@@ -409,13 +409,13 @@ def slide_websocket():
         "",
         "# Connection example (JavaScript):",
         'const ws = new WebSocket(',
-        '  "ws://localhost:8081/ws/v1/console/myvm"',
+        '  "ws://localhost:5092/ws/v1/console/myvm"',
         ');',
         'ws.onmessage = (e) => term.write(e.data);',
         'term.onData((d) => ws.send(d));',
     ])
 
-    d.text((80, 680), "VNC Proxy  ws://host:8081/ws/v1/vnc/{name}", font=fsh, fill=ORANGE)
+    d.text((80, 680), "VNC Proxy  ws://host:5092/ws/v1/vnc/{name}", font=fsh, fill=ORANGE)
     code_block(d, 80, 730, 1760, [
         "# Binary WebSocket proxy to VM's VNC port. Used by noVNC in the Web UI.",
         "# Send/receive: binary VNC protocol frames. Connects to qemu VNC on 127.0.0.1:{port}",
@@ -475,7 +475,7 @@ def slide_automation():
     d.text((80, 110), "Bash: Bulk create VMs", font=fsh, fill=GREEN)
     code_block(d, 80, 155, 860, [
         '#!/bin/bash',
-        'API="http://localhost:8081/api/v1"',
+        'API="http://localhost:5092/api/v1"',
         'for i in $(seq 1 5); do',
         '  curl -s -X POST "$API/vms" \\',
         '    -H "Content-Type: application/json" \\',
@@ -494,7 +494,7 @@ def slide_automation():
     code_block(d, 980, 155, 860, [
         'import requests, time',
         '',
-        'API = "http://localhost:8081/api/v1"',
+        'API = "http://localhost:5092/api/v1"',
         '',
         'while True:',
         '    vms = requests.get(f"{API}/vms").json()',
@@ -508,7 +508,7 @@ def slide_automation():
 
     d.text((80, 680), "Snapshot backup script", font=fsh, fill=ORANGE)
     code_block(d, 80, 725, 860, [
-        'API="http://localhost:8081/api/v1"',
+        'API="http://localhost:5092/api/v1"',
         'DATE=$(date +%Y%m%d)',
         'for vm in $(curl -s $API/vms | jq -r ".[].name"); do',
         '  curl -s -X POST "$API/vms/$vm/snapshots" \\',
@@ -519,7 +519,7 @@ def slide_automation():
     d.text((980, 680), "Health check (Nagios/Zabbix)", font=fsh, fill=CYAN)
     code_block(d, 980, 725, 860, [
         '#!/bin/bash',
-        'HEALTH=$(curl -sf localhost:8081/api/v1/health)',
+        'HEALTH=$(curl -sf localhost:5092/api/v1/health)',
         'if [ $? -ne 0 ]; then',
         '  echo "CRITICAL: virtspawn daemon down"',
         '  exit 2',
@@ -552,23 +552,23 @@ def slide_backup_endpoints():
     d.text((80, 650), "Backup Examples", font=fsh, fill=CYAN)
     code_block(d, 80, 700, 860, [
         "# Backup all VMs",
-        '$ curl -X POST localhost:8081/api/v1/backups \\',
+        '$ curl -X POST localhost:5092/api/v1/backups \\',
         '  -d \'{"retain": 7}\'',
         "",
         "# Per-VM with disks",
-        '$ curl -X POST localhost:8081/api/v1/backups \\',
+        '$ curl -X POST localhost:5092/api/v1/backups \\',
         '  -d \'{"vm_name":"myvm","with_disks":true}\'',
     ])
 
     code_block(d, 980, 700, 860, [
         "# Verify checksums",
-        '$ curl -X POST localhost:8081/api/v1/backups/20260324-020000/verify',
+        '$ curl -X POST localhost:5092/api/v1/backups/20260324-020000/verify',
         "",
         "# Download as tar.gz",
-        '$ curl -O localhost:8081/api/v1/backups/20260324-020000/download',
+        '$ curl -O localhost:5092/api/v1/backups/20260324-020000/download',
         "",
         "# Enable scheduled backups",
-        '$ curl -X POST localhost:8081/api/v1/backups/schedule \\',
+        '$ curl -X POST localhost:5092/api/v1/backups/schedule \\',
         '  -d \'{"enabled":true}\'',
     ])
     return img

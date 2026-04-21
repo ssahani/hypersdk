@@ -217,7 +217,7 @@ def slide_install():
     draw.text((100, 780), "Verify it is running:", font=font_subheading, fill=CYAN)
     draw_code_block(draw, 100, 830, 1720, [
         "$ sudo systemctl status virtspawn-daemon",
-        "> Active: active (running)  ...  listening on 0.0.0.0:8081",
+        "> Active: active (running)  ...  listening on 0.0.0.0:5092",
     ])
     return img
 
@@ -233,7 +233,7 @@ def slide_access():
         ("Web UI", ACCENT, [
             "Open in your browser:",
             "",
-            "http://localhost:8081",
+            "http://localhost:5092",
             "",
             "Full dashboard with charts,",
             "VM management, storage,",
@@ -251,8 +251,8 @@ def slide_access():
         ("REST API", ORANGE, [
             "curl from scripts/tools:",
             "",
-            "$ curl localhost:8081/api/v1/vms",
-            "$ curl localhost:8081/api/v1/node",
+            "$ curl localhost:5092/api/v1/vms",
+            "$ curl localhost:5092/api/v1/node",
             "",
             "30+ JSON endpoints for",
             "full automation.",
@@ -283,7 +283,7 @@ def slide_access():
 
     # Bottom note
     text_center(draw, 780, "Remote access: replace localhost with your server IP", font_body, GRAY)
-    text_center(draw, 830, "Default port: 8081  |  Config: /etc/virtspawn/config.toml", font_body, GRAY)
+    text_center(draw, 830, "Default port: 5092  |  Config: /etc/virtspawn/config.toml", font_body, GRAY)
     text_center(draw, 900, "All three interfaces connect to the same daemon", font_body, YELLOW)
     return img
 
@@ -438,7 +438,7 @@ def slide_config():
         "",
         "[daemon]",
         'host = "0.0.0.0"',
-        "port = 8081",
+        "port = 5092",
         "",
         "[libvirt]",
         'uri = "qemu:///system"',
@@ -479,15 +479,15 @@ def slide_troubleshooting():
             "$ sudo usermod -aG libvirt $USER   # then re-login",
             "$ virsh list --all                  # test connection",
         ]),
-        ("Port 8081 already in use", ORANGE, [
-            "$ sudo ss -tlnp | grep 8081        # find what's using it",
+        ("Port 5092 already in use", ORANGE, [
+            "$ sudo ss -tlnp | grep 5092        # find what's using it",
             "# Change port in /etc/virtspawn/config.toml",
             "$ sudo systemctl restart virtspawn-daemon",
         ]),
         ("Web UI not loading", YELLOW, [
             "$ ls /usr/local/share/virtspawn/web/index.html",
             "# If missing, rebuild: make web && sudo make install",
-            "$ curl -s http://localhost:8081/api/v1/health",
+            "$ curl -s http://localhost:5092/api/v1/health",
         ]),
         ("Permission denied errors", PURPLE, [
             "$ sudo systemctl status virtspawn-daemon  # check logs",
@@ -521,9 +521,9 @@ def slide_summary():
         "$ sudo make deploy",
         "",
         "# Access",
-        "> Web UI:   http://localhost:8081",
+        "> Web UI:   http://localhost:5092",
         "> TUI:      virtspawn",
-        "> API:      curl http://localhost:8081/api/v1/health",
+        "> API:      curl http://localhost:5092/api/v1/health",
         "",
         "# Manage",
         "$ sudo make status | start | stop | restart",

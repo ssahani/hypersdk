@@ -1,6 +1,6 @@
 #!/bin/bash
 set -e
-API="http://localhost:8081/api/v1"
+API="http://localhost:5092/api/v1"
 PASS=0; FAIL=0
 
 check() {

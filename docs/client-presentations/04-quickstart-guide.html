@@ -121,7 +121,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
   <h1><span>virt</span>spawn</h1>
   <p style="font-size:1.6em; font-weight:700; margin-bottom:0.3em;">Quick Start Guide</p>
   <p>Get running in 5 minutes. From bare metal to managing virtual machines with a modern web interface.</p>
-  <div class="badge" style="margin-top:2em; font-size:0.85em; opacity:0.7;">Default port: 8081 &bull; Config: /etc/virtspawn/config.toml</div>
+  <div class="badge" style="margin-top:2em; font-size:0.85em; opacity:0.7;">Default port: 5092 &bull; Config: /etc/virtspawn/config.toml</div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -218,7 +218,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <span class="output">&#10003; Building daemon...</span><br>
       <span class="output">&#10003; Building web frontend...</span><br>
       <span class="output">&#10003; 15/15 verification tests passed</span><br>
-      <span class="output">&#10003; virtspawn-daemon.service started on port 8081</span>
+      <span class="output">&#10003; virtspawn-daemon.service started on port 5092</span>
     </div>
   </div>
 
@@ -265,7 +265,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <div class="label">Binary to Deploy</div>
     </div>
     <div class="stat" style="flex:1;">
-      <div class="number" style="font-size:1.8em;">8081</div>
+      <div class="number" style="font-size:1.8em;">5092</div>
       <div class="label">Default Port</div>
     </div>
   </div>
@@ -285,10 +285,10 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     <span class="step-number">1</span>
     <div class="step-content">
       <h4>Open the Web UI</h4>
-      <p>Navigate to <strong>http://localhost:8081</strong> in your browser. The web interface loads instantly -- no additional services needed.</p>
+      <p>Navigate to <strong>http://localhost:5092</strong> in your browser. The web interface loads instantly -- no additional services needed.</p>
       <div class="code" style="margin-top:8px;">
         <span class="comment"># Or from a remote machine</span><br>
-        http://&lt;your-host-ip&gt;:8081
+        http://&lt;your-host-ip&gt;:5092
       </div>
     </div>
   </div>
@@ -312,7 +312,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <p>Click "Create VM" and fill in the basics. virtspawn validates inputs in real time.</p>
       <div class="code" style="margin-top:8px;">
         <span class="comment"># Or via API</span><br>
-        <span class="prompt">$</span> curl -X POST http://localhost:8081/api/v1/vms \<br>
+        <span class="prompt">$</span> curl -X POST http://localhost:5092/api/v1/vms \<br>
         &nbsp;&nbsp;-H <span class="string">"Content-Type: application/json"</span> \<br>
         &nbsp;&nbsp;-d <span class="string">'{"name": "my-first-vm", "vcpus": 2, "memory_mb": 2048, "disk_gb": 20}'</span><br><br>
         <span class="output">{"status": "created", "name": "my-first-vm"}</span>
@@ -423,7 +423,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
         <span class="comment"># Or with a custom config</span><br>
         <span class="prompt">$</span> virtspawn --config /path/to/config.toml<br><br>
         <span class="comment"># Connect to remote daemon</span><br>
-        <span class="prompt">$</span> virtspawn --host 192.168.1.100 --port 8081
+        <span class="prompt">$</span> virtspawn --host 192.168.1.100 --port 5092
       </div>
     </div>
     <div class="card card-dark">
@@ -497,7 +497,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <span class="comment"># Daemon HTTP server</span><br>
       [daemon]<br>
       host = <span class="string">"0.0.0.0"</span><br>
-      port = <span class="string">8081</span><br><br>
+      port = <span class="string">5092</span><br><br>
       <span class="comment"># Libvirt connection</span><br>
       [libvirt]<br>
       uri = <span class="string">"qemu:///system"</span><br><br>
@@ -534,7 +534,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
           <tr><th>Setting</th><th>Default</th></tr>
         </thead>
         <tbody>
-          <tr><td style="color:#94a3b8;">Port</td><td style="color:#e2e8f0;">8081</td></tr>
+          <tr><td style="color:#94a3b8;">Port</td><td style="color:#e2e8f0;">5092</td></tr>
           <tr><td style="color:#94a3b8;">Host bind</td><td style="color:#e2e8f0;">0.0.0.0</td></tr>
           <tr><td style="color:#94a3b8;">Libvirt URI</td><td style="color:#e2e8f0;">qemu:///system</td></tr>
           <tr><td style="color:#94a3b8;">Refresh interval</td><td style="color:#e2e8f0;">5 seconds</td></tr>
@@ -563,9 +563,9 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <p>Explore all 100+ REST endpoints with curl examples. Covers VMs, snapshots, networks, storage, advanced operations, guest agent, migration, and more.</p>
       <div class="code" style="margin-top:10px;">
         <span class="comment"># List all VMs</span><br>
-        <span class="prompt">$</span> curl http://localhost:8081/api/v1/vms<br><br>
+        <span class="prompt">$</span> curl http://localhost:5092/api/v1/vms<br><br>
         <span class="comment"># Get VM metrics</span><br>
-        <span class="prompt">$</span> curl http://localhost:8081/api/v1/vms/my-vm/metrics
+        <span class="prompt">$</span> curl http://localhost:5092/api/v1/vms/my-vm/metrics
       </div>
     </div>
     <div class="card" style="border-left: 4px solid #3b82f6;">
@@ -597,7 +597,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
         <span class="comment"># Prometheus scrape config</span><br>
         - job_name: <span class="string">'virtspawn'</span><br>
         &nbsp;&nbsp;static_configs:<br>
-        &nbsp;&nbsp;- targets: [<span class="string">'localhost:8081'</span>]<br>
+        &nbsp;&nbsp;- targets: [<span class="string">'localhost:5092'</span>]<br>
         &nbsp;&nbsp;metrics_path: <span class="string">'/api/v1/prometheus'</span>
       </div>
     </div>

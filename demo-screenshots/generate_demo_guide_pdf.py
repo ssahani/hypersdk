@@ -114,7 +114,7 @@ def slide_demo_overview():
         "$ sudo ./scripts/demo.sh",
         "",
         "# Or against a remote host:",
-        "$ ./scripts/demo.sh http://server:8081/api/v1",
+        "$ ./scripts/demo.sh http://server:5092/api/v1",
     ])
 
     steps = [
@@ -217,7 +217,7 @@ def slide_status():
         "$ ./scripts/status.sh",
         "",
         "# Remote daemon:",
-        "$ ./scripts/status.sh http://server:8081/api/v1",
+        "$ ./scripts/status.sh http://server:5092/api/v1",
     ])
 
     d.text((640, 140), "Shows:", font=fsh, fill=ACCENT)
@@ -241,7 +241,7 @@ def slide_status():
     code_block(d, 80, 625, 1760, [
         "virtspawn status",
         "",
-        "Daemon: healthy  (http://localhost:8081/api/v1)",
+        "Daemon: healthy  (http://localhost:5092/api/v1)",
         "Host:       myserver.example.com",
         "Hypervisor: QEMU 10.1.4  (libvirt 11.6.0)",
         "Hardware:   14 CPUs, 30 GB RAM",
@@ -406,7 +406,7 @@ def slide_all_scripts():
         ] + [f"  {line}" for line in desc.split(", ")], color)
 
     tc(d, 920, "All scripts use the REST API — work locally or against any remote virtspawn instance", fb, GRAY)
-    tc(d, 960, "Set VIRTSPAWN_API=http://remote:8081/api/v1 for remote operation", fc, CYAN)
+    tc(d, 960, "Set VIRTSPAWN_API=http://remote:5092/api/v1 for remote operation", fc, CYAN)
     return img
 
 def slide_summary():

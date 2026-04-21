@@ -16,7 +16,7 @@
 #   ./scripts/backup.sh --verify <dir>           # Verify backup checksums
 set -eo pipefail
 
-API="${VIRTSPAWN_API:-http://localhost:8081/api/v1}"
+API="${VIRTSPAWN_API:-http://localhost:5092/api/v1}"
 BACKUP_DIR="${VIRTSPAWN_BACKUP_DIR:-$HOME/virtspawn-backups}"
 DATE="${VIRTSPAWN_BACKUP_ID:-$(date +%Y%m%d-%H%M%S)}"
 VM_FILTER=""
@@ -316,7 +316,7 @@ Config:
   --config FILE          Load config from file (default: /etc/virtspawn/backup.conf)
 
 Environment:
-  VIRTSPAWN_API          API URL (default: http://localhost:8081/api/v1)
+  VIRTSPAWN_API          API URL (default: http://localhost:5092/api/v1)
   VIRTSPAWN_BACKUP_DIR   Backup root (default: ~/virtspawn-backups)
 
 Timer setup:

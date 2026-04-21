@@ -20,7 +20,7 @@ refresh_interval_secs = 5
 # Use "0.0.0.0" to listen on all interfaces (default).
 # Use "127.0.0.1" to restrict to localhost only.
 host = "0.0.0.0"
-port = 8081
+port = 5092
 
 [libvirt]
 # Libvirt connection URI.
