@@ -649,8 +649,8 @@ remote_deploy() {
     echo "✅ Deployed to $remote"
     echo "============================================"
     echo ""
-    echo "  🌐 Web UI:  https://$remote_ip:5092"
-    echo "  🔗 API:     https://$remote_ip:5092/api/v1/health"
+    echo "  🌐 Web UI:  http://$remote_ip:5092"
+    echo "  🔗 API:     http://$remote_ip:5092/api/v1/health"
     echo ""
 }
 
@@ -696,9 +696,9 @@ print_summary() {
     echo "✅ virtspawn installed successfully!"
     echo "============================================"
     echo ""
-    echo "  🌐 Web UI:    https://$bind_info:5092"
+    echo "  🌐 Web UI:    http://$bind_info:5092"
     echo "  🖥️  TUI:       virtspawn"
-    echo "  🔗 API:       https://$bind_info:5092/api/v1/health"
+    echo "  🔗 API:       http://$bind_info:5092/api/v1/health"
     echo "  📊 VMs found: $vm_count"
     echo ""
     echo "  📋 Manage:"
@@ -817,7 +817,7 @@ Examples:
     sudo ./install.sh --uninstall
 
 After install:
-  Web UI:    https://localhost:5092       (or https://<ip>:5092 with --bind; http:// if not using TLS)
+  Web UI:    http://localhost:5092   (HTTPS only after [tls] in config or a reverse proxy — same URL scheme in browser)
   TUI:       virtspawn
   API test:  curl http://localhost:5092/api/v1/health
   Logs:      sudo journalctl -u virtspawn-daemon -f

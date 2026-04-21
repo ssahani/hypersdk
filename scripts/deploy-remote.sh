@@ -35,6 +35,7 @@ deploy-remote.sh check [USER@HOST | USER HOST]
 Flow: rsync → ~/.deployment/virtspawn (REMOTE_DIR) → build on server → install → systemd.
 Full install: install.sh enables + restarts the daemon (--no-start skips).
 Quick: make install then daemon-reload + try-restart (only restarts if virtspawn-daemon was active).
+Open the UI at http://HOST:5092 (HTTPS only after [tls] in /etc/virtspawn/config.toml or a reverse proxy).
 
 Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpass.
 
@@ -243,6 +244,6 @@ check_remote "$REMOTE" || true
 
 echo ""
 echo "════════════════════════════════════════"
-echo "✅ done  🌐 https://${HOST}:5092  💚 https://${HOST}:5092/api/v1/health"
+echo "✅ done  🌐 http://${HOST}:5092  💚 http://${HOST}:5092/api/v1/health"
 echo "🔁 ./scripts/deploy-remote.sh ${USER}@${HOST} --quick"
 echo "════════════════════════════════════════"

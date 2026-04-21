@@ -214,7 +214,7 @@ api GET /vms
 echo ""
 echo "✅ Demo complete!"
 echo ""
-echo "  🌐 Web UI:  https://localhost:5092"
+echo "  🌐 Web UI:  http://localhost:5092"
 echo "  🖥️  TUI:     virtspawn"
 echo "  🔗 API:     ${API}/health"
 echo ""
