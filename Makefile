@@ -80,9 +80,9 @@ status: ## Show daemon service status
 deploy: install start ## Install and start (run 'make' first to build)
 	@echo ""
 	@echo "✅ virtspawn deployed and running"
-	@echo "   🌐 Web UI:  http://localhost:5092"
+	@echo "   🌐 Web UI:  https://localhost:5092"
 	@echo "   🖥️  TUI:     virtspawn"
-	@echo "   🔗 API:     http://localhost:5092/api/v1/health"
+	@echo "   🔗 API:     https://localhost:5092/api/v1/health"
 
 run-daemon: build ## Run the daemon (debug)
 	$(CARGO) run -p virtspawn-daemon
@@ -92,4 +92,4 @@ run-tui: build ## Run the TUI (debug)
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
-		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2}'
+		awk 'BEGIN {FS = ":.*?## "}; {printf "  📋 %-13s %s\n", $$1, $$2}'

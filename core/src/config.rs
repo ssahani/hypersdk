@@ -132,20 +132,32 @@ impl Default for LibvirtConfig {
 }
 
 impl VirtspawnConfig {
-    pub fn config_dir() -> PathBuf {
+    /// Installed daemon config (`install.sh`, systemd unit).
+    pub fn system_config_path() -> PathBuf {
+        PathBuf::from("/etc/virtspawn/config.toml")
+    }
+
+    /// Optional per-user overrides (development / non-root).
+    pub fn user_config_dir() -> PathBuf {
         dirs_or_home().join(".virtspawn")
     }
 
+    pub fn user_config_path() -> PathBuf {
+        Self::user_config_dir().join("config.toml")
+    }
+
+    /// Legacy alias for [`Self::user_config_dir`].
+    pub fn config_dir() -> PathBuf {
+        Self::user_config_dir()
+    }
+
+    /// Prefer [`Self::system_config_path`] as the canonical location.
     pub fn config_path() -> PathBuf {
-        Self::config_dir().join("config.toml")
+        Self::system_config_path()
     }
 
     pub fn load() -> Self {
-        // Check paths in order: user config, then system config
-        let paths = [
-            Self::config_path(),
-            PathBuf::from("/etc/virtspawn/config.toml"),
-        ];
+        let paths = [Self::system_config_path(), Self::user_config_path()];
 
         for config_path in &paths {
             if config_path.exists() {
@@ -174,19 +186,38 @@ impl VirtspawnConfig {
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
-        let config_dir = Self::config_dir();
-        fs::create_dir_all(&config_dir)?;
         let content = toml::to_string_pretty(self)?;
-        fs::write(Self::config_path(), content)?;
-        Ok(())
+        let sys = Self::system_config_path();
+        if let Some(parent) = sys.parent() {
+            let _ = fs::create_dir_all(parent);
+            if fs::write(&sys, &content).is_ok() {
+                return Ok(());
+            }
+        }
+        let user = Self::user_config_path();
+        if let Some(parent) = user.parent() {
+            fs::create_dir_all(parent)?;
+            fs::write(user, content)?;
+            return Ok(());
+        }
+        anyhow::bail!("cannot save config (try sudo for /etc/virtspawn)")
     }
 
     pub fn bind_addr(&self) -> String {
         format!("{}:{}", self.daemon.host, self.daemon.port)
     }
 
+    /// Base URL for API clients (TUI, scripts). Uses `https` when TLS certs are configured.
     pub fn daemon_url(&self) -> String {
-        format!("http://{}:{}", self.daemon.host, self.daemon.port)
+        let scheme = if self.tls.enabled
+            && !self.tls.cert_path.is_empty()
+            && !self.tls.key_path.is_empty()
+        {
+            "https"
+        } else {
+            "http"
+        };
+        format!("{}://{}:{}", scheme, self.daemon.host, self.daemon.port)
     }
 }
 
@@ -197,4 +228,28 @@ fn dirs_or_home() -> PathBuf {
             // Fallback: use /var/lib/virtspawn instead of world-writable /tmp
             PathBuf::from("/var/lib/virtspawn")
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn daemon_url_uses_http_without_tls() {
+        let c = VirtspawnConfig::default();
+        assert!(
+            c.daemon_url().starts_with("http://"),
+            "{}",
+            c.daemon_url()
+        );
+    }
+
+    #[test]
+    fn daemon_url_uses_https_when_tls_configured() {
+        let mut c = VirtspawnConfig::default();
+        c.tls.enabled = true;
+        c.tls.cert_path = "/etc/virtspawn/ssl/cert.pem".into();
+        c.tls.key_path = "/etc/virtspawn/ssl/key.pem".into();
+        assert!(c.daemon_url().starts_with("https://"));
+    }
 }

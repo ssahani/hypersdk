@@ -1,8 +1,8 @@
-# virtspawn daemon configuration
-# Installed to /etc/virtspawn/config.toml
+# virtspawn daemon configuration — canonical path: /etc/virtspawn/config.toml
 #
-# User config at ~/.virtspawn/config.toml takes precedence.
-# CLI arguments override all config file values.
+# VirtspawnConfig::load() tries /etc/virtspawn/config.toml first, then ~/.virtspawn/config.toml.
+# systemd: ExecStart passes --config /etc/virtspawn/config.toml so the daemon always uses /etc.
+# CLI (--host / --port / ...) overrides settings from the loaded file.
 
 [general]
 refresh_interval_secs = 5
@@ -20,3 +20,10 @@ backup_dir = "/var/lib/virtspawn/backups"
 # nfs_target = "192.168.1.100:/backups/virtspawn"
 with_disks = false
 retain = 7
+
+# Native HTTPS on the daemon (optional). When unset/disabled, the UI and API use HTTP on [daemon].port.
+# Uncomment and set paths to PEM cert/key to serve TLS directly (VirtspawnConfig::daemon_url uses https://).
+# [tls]
+# enabled = true
+# cert_path = "/etc/virtspawn/ssl/cert.pem"
+# key_path = "/etc/virtspawn/ssl/key.pem"

@@ -49,7 +49,7 @@ export default function SerialConsole({ vmName }: Props) {
     try {
       token = await getWsToken()
     } catch {
-      term.write('\r\n\x1b[31m● Failed to obtain WebSocket token\x1b[0m\r\n')
+      term.write('\r\n❌ Failed to obtain WebSocket token\r\n')
       return
     }
 
@@ -59,14 +59,14 @@ export default function SerialConsole({ vmName }: Props) {
 
     ws.onopen = () => {
       setConnected(true)
-      term.write('\x1b[32m● Connected to serial console\x1b[0m\r\n\r\n')
+      term.write('✅ Connected to serial console\r\n\r\n')
     }
 
     ws.onmessage = (event) => term.write(event.data)
-    ws.onerror = () => term.write('\r\n\x1b[31m● Connection error\x1b[0m\r\n')
+    ws.onerror = () => term.write('\r\n❌ Connection error\r\n')
     ws.onclose = () => {
       setConnected(false)
-      term.write('\r\n\x1b[33m● Disconnected\x1b[0m\r\n')
+      term.write('\r\n⚠️ Disconnected\r\n')
     }
 
     term.onData((data) => {

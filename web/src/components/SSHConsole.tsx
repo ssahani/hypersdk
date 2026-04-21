@@ -49,7 +49,7 @@ export default function SSHConsole({ host }: Props) {
     try {
       token = await getWsToken()
     } catch {
-      term.write('\r\n\x1b[31m● Failed to obtain WebSocket token\x1b[0m\r\n')
+      term.write('\r\n❌ Failed to obtain WebSocket token\r\n')
       return
     }
 
@@ -61,7 +61,7 @@ export default function SSHConsole({ host }: Props) {
 
     ws.onopen = () => {
       setConnected(true)
-      term.write('\x1b[32m● Connected to SSH proxy\x1b[0m\r\n\r\n')
+      term.write('✅ Connected to SSH proxy\r\n\r\n')
     }
 
     ws.onmessage = (event) => {
@@ -71,10 +71,10 @@ export default function SSHConsole({ host }: Props) {
         term.write(event.data)
       }
     }
-    ws.onerror = () => term.write('\r\n\x1b[31m● Connection error\x1b[0m\r\n')
+    ws.onerror = () => term.write('\r\n❌ Connection error\r\n')
     ws.onclose = () => {
       setConnected(false)
-      term.write('\r\n\x1b[33m● Disconnected\x1b[0m\r\n')
+      term.write('\r\n⚠️ Disconnected\r\n')
     }
 
     term.onData((data) => {

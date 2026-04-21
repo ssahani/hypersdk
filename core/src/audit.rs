@@ -2,11 +2,10 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
 
-use crate::config::VirtspawnConfig;
 use crate::state::AuditEvent;
 
 pub fn audit_log_path() -> PathBuf {
-    VirtspawnConfig::config_dir().join("audit.log")
+    PathBuf::from("/var/lib/virtspawn/audit.log")
 }
 
 pub fn write_audit_event(event: &AuditEvent) {

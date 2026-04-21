@@ -5,14 +5,10 @@ set -eo pipefail
 
 API="${1:-http://localhost:5092/api/v1}"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-BLUE='\033[0;34m'; CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
+printf "📊 virtspawn status\n\n"
 
-# Check daemon
-printf "${BOLD}${CYAN}virtspawn status${NC}\n\n"
-
-HEALTH=$(curl -sf "$API/health" 2>/dev/null) || { echo -e "${RED}Daemon not reachable at $API${NC}"; exit 1; }
-echo -e "${GREEN}Daemon: healthy${NC}  ($API)"
+HEALTH=$(curl -sf "$API/health" 2>/dev/null) || { echo "❌ Daemon not reachable at $API"; exit 1; }
+echo "✅ Daemon: healthy  ($API)"
 echo ""
 
 # Node info
@@ -23,9 +19,9 @@ if [ -n "$NODE" ]; then
     CPUS=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['cpu_cores'])" 2>/dev/null)
     MEM=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"memory_mb\"]//1024} GB')" 2>/dev/null)
     LIB=$(echo "$NODE" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['lib_version'])" 2>/dev/null)
-    echo -e "${BOLD}Host:${NC}       $HOST"
-    echo -e "${BOLD}Hypervisor:${NC} $HV  (libvirt $LIB)"
-    echo -e "${BOLD}Hardware:${NC}   $CPUS CPUs, $MEM RAM"
+    echo "🖥️  Host:       $HOST"
+    echo "⚙️  Hypervisor: $HV  (libvirt $LIB)"
+    echo "💾 Hardware:   $CPUS CPUs, $MEM RAM"
     echo ""
 fi
 
@@ -38,17 +34,16 @@ if [ -n "$VMS" ]; then
     VCPUS=$(echo "$VMS" | python3 -c "import json,sys; print(sum(v['vcpus'] for v in json.load(sys.stdin)))" 2>/dev/null)
     MEMORY=$(echo "$VMS" | python3 -c "import json,sys; print(f'{sum(v[\"memory_mb\"] for v in json.load(sys.stdin))/1024:.1f} GB')" 2>/dev/null)
 
-    echo -e "${BOLD}Virtual Machines${NC} ($TOTAL total, ${GREEN}$RUNNING running${NC}, ${RED}$STOPPED stopped${NC})"
-    echo -e "  Allocated: $VCPUS vCPUs, $MEMORY memory"
+    echo "💻 Virtual Machines ($TOTAL total, 🟢 $RUNNING running, 🔴 $STOPPED stopped)"
+    echo "  Allocated: $VCPUS vCPUs, $MEMORY memory"
     echo ""
     echo "$VMS" | python3 -c "
 import json, sys
 vms = json.load(sys.stdin)
 for v in vms:
     state = v['state']
-    color = '\033[0;32m' if state == 'running' else '\033[0;31m' if state == 'shutoff' else '\033[1;33m'
-    dot = '*' if state == 'running' else ' '
-    print(f'  {dot} {v[\"name\"]:40s} {color}{state:12s}\033[0m {v[\"vcpus\"]:>2d} vCPU  {v[\"memory_mb\"]:>5d} MB')
+    dot = '🟢' if state == 'running' else '🔴' if state == 'shutoff' else '🟡'
+    print(f'  {dot} {v[\"name\"]:40s} {state:12s} {v[\"vcpus\"]:>2d} vCPU  {v[\"memory_mb\"]:>5d} MB')
 " 2>/dev/null
     echo ""
 fi
@@ -56,7 +51,7 @@ fi
 # Metrics for running VMs
 METRICS=$(curl -sf "$API/metrics" 2>/dev/null)
 if [ -n "$METRICS" ] && [ "$METRICS" != "[]" ]; then
-    echo -e "${BOLD}Live Metrics${NC}"
+    echo "📈 Live metrics"
     echo "$METRICS" | python3 -c "
 import json, sys
 metrics = json.load(sys.stdin)
@@ -79,13 +74,13 @@ NETS=$(curl -sf "$API/networks" 2>/dev/null)
 if [ -n "$NETS" ]; then
     NET_TOTAL=$(echo "$NETS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
     NET_ACTIVE=$(echo "$NETS" | python3 -c "import json,sys; print(sum(1 for n in json.load(sys.stdin) if n['active']))" 2>/dev/null)
-    echo -e "${BOLD}Networks${NC} ($NET_ACTIVE/$NET_TOTAL active)"
+    echo "🌐 Networks ($NET_ACTIVE/$NET_TOTAL active)"
     echo "$NETS" | python3 -c "
 import json, sys
 for n in json.load(sys.stdin):
-    st = '\033[0;32mactive\033[0m' if n['active'] else '\033[0;31minactive\033[0m'
+    st = '✅ active' if n['active'] else '⛔ inactive'
     auto = 'autostart' if n['autostart'] else ''
-    print(f'  {n[\"name\"]:25s} {st:20s} bridge:{n[\"bridge\"]:12s} {auto}')
+    print(f'  {n[\"name\"]:25s} {st:14s} bridge:{n[\"bridge\"]:12s} {auto}')
 " 2>/dev/null
     echo ""
 fi
@@ -94,16 +89,16 @@ fi
 POOLS=$(curl -sf "$API/storage/pools" 2>/dev/null)
 if [ -n "$POOLS" ]; then
     POOL_TOTAL=$(echo "$POOLS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
-    echo -e "${BOLD}Storage Pools${NC} ($POOL_TOTAL)"
+    echo "💾 Storage pools ($POOL_TOTAL)"
     echo "$POOLS" | python3 -c "
 import json, sys
 for p in json.load(sys.stdin):
-    st = '\033[0;32mrunning\033[0m' if p['state'] == 'running' else '\033[0;31m' + p['state'] + '\033[0m'
+    st = '✅ running' if p['state'] == 'running' else '⛔ ' + p['state']
     pct = (p['allocation_gb'] / p['capacity_gb'] * 100) if p['capacity_gb'] > 0 else 0
     bar_len = 20
     filled = int(pct / 100 * bar_len)
-    bar = '\033[0;32m' + '#' * filled + '\033[0m' + '-' * (bar_len - filled)
-    print(f'  {p[\"name\"]:20s} {st:20s} [{bar}] {pct:5.1f}%  {p[\"allocation_gb\"]:.1f}/{p[\"capacity_gb\"]:.1f} GB')
+    bar = '▓' * filled + '░' * (bar_len - filled)
+    print(f'  {p[\"name\"]:20s} {st:14s} [{bar}] {pct:5.1f}%  {p[\"allocation_gb\"]:.1f}/{p[\"capacity_gb\"]:.1f} GB')
 " 2>/dev/null
     echo ""
 fi
@@ -112,7 +107,7 @@ fi
 SNAPS=$(curl -sf "$API/snapshots" 2>/dev/null)
 if [ -n "$SNAPS" ] && [ "$SNAPS" != "[]" ]; then
     SNAP_COUNT=$(echo "$SNAPS" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null)
-    echo -e "${BOLD}Snapshots${NC} ($SNAP_COUNT)"
+    echo "📸 Snapshots ($SNAP_COUNT)"
     echo "$SNAPS" | python3 -c "
 import json, sys
 for s in json.load(sys.stdin):
@@ -127,6 +122,7 @@ if command -v systemctl &>/dev/null; then
     SVC=$(systemctl is-active virtspawn-daemon 2>/dev/null) || SVC="unknown"
     PID=$(systemctl show virtspawn-daemon --property=MainPID --value 2>/dev/null) || PID=""
     MEM_SVC=$(ps -o rss= -p "$PID" 2>/dev/null | awk '{printf "%.1f MB", $1/1024}') || MEM_SVC=""
-    echo -e "${BOLD}Service${NC}"
-    echo -e "  Status: ${GREEN}$SVC${NC}  PID: $PID  Memory: $MEM_SVC"
+    echo "⚙️  Service"
+    icon="✅" ; [[ "$SVC" != "active" ]] && icon="⛔"
+    echo "  $icon Status: $SVC  PID: $PID  Memory: $MEM_SVC"
 fi

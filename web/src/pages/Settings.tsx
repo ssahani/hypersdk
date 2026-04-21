@@ -164,7 +164,7 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-500">Use tokens with: <code className="bg-slate-800 px-1 rounded">curl -H "Authorization: Bearer vs_xxx..." http://host/api/v1/vms</code></p>
+          <p className="text-xs text-slate-500">Use tokens with: <code className="bg-slate-800 px-1 rounded">curl -H "Authorization: Bearer vs_xxx..." https://host/api/v1/vms</code></p>
         </div>
       )}
 

@@ -11,13 +11,10 @@ set -eo pipefail
 
 API="${VIRTSPAWN_API:-http://localhost:5092/api/v1}"
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'
-CYAN='\033[0;36m'; BOLD='\033[1m'; NC='\033[0m'
-
-info()  { echo -e "${CYAN}[INFO]${NC} $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
-fail()  { echo -e "${RED}[FAIL]${NC} $*"; }
+info()  { echo "ℹ️  $*"; }
+ok()    { echo "✅ $*"; }
+warn()  { echo "⚠️  $*"; }
+fail()  { echo "❌ $*"; }
 
 usage() {
     echo "Usage: $0 <action> [vm1 vm2 ...]"
@@ -78,7 +75,7 @@ do_action() {
         return
     fi
 
-    echo -e "${BOLD}${verb^} VMs${NC}"
+    echo "📋 ${verb^} VMs"
 
     while read -r name; do
         [ -z "$name" ] && continue
@@ -100,7 +97,7 @@ case "$ACTION" in
             info "No stopped VMs to start"
             exit 0
         fi
-        echo -e "${BOLD}Starting VMs${NC}"
+        echo "📋 Starting VMs"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/start" 2>/dev/null)
@@ -118,7 +115,7 @@ case "$ACTION" in
             info "No running VMs to stop"
             exit 0
         fi
-        echo -e "${BOLD}${RED}Force stopping VMs${NC}"
+        echo "⛔ Force stopping VMs"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/stop" 2>/dev/null)
@@ -136,7 +133,7 @@ case "$ACTION" in
             info "No running VMs to shutdown"
             exit 0
         fi
-        echo -e "${BOLD}Shutting down VMs${NC}"
+        echo "📋 Shutting down VMs"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/shutdown" 2>/dev/null)
@@ -154,7 +151,7 @@ case "$ACTION" in
             info "No running VMs to pause"
             exit 0
         fi
-        echo -e "${BOLD}Pausing VMs${NC}"
+        echo "📋 Pausing VMs"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/pause" 2>/dev/null)
@@ -172,7 +169,7 @@ case "$ACTION" in
             info "No paused VMs to resume"
             exit 0
         fi
-        echo -e "${BOLD}Resuming VMs${NC}"
+        echo "📋 Resuming VMs"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/resume" 2>/dev/null)
@@ -190,7 +187,7 @@ case "$ACTION" in
             info "No running VMs to reboot"
             exit 0
         fi
-        echo -e "${BOLD}Rebooting VMs${NC}"
+        echo "📋 Rebooting VMs"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/reboot" 2>/dev/null)
@@ -209,7 +206,7 @@ case "$ACTION" in
             exit 0
         fi
         SNAP_NAME="auto-$DATE"
-        echo -e "${BOLD}Creating snapshots${NC} ($SNAP_NAME)"
+        echo "📋 Creating snapshots ($SNAP_NAME)"
         while read -r name; do
             [ -z "$name" ] && continue
             result=$(curl -s -X POST "$API/vms/$name/snapshots" \
@@ -229,7 +226,7 @@ case "$ACTION" in
             info "No snapshots found"
             exit 0
         fi
-        echo -e "${BOLD}Cleaning auto-* snapshots${NC}"
+        echo "📋 Cleaning auto-* snapshots"
         echo "$SNAPS" | python3 -c "
 import json, sys
 for s in json.load(sys.stdin):
@@ -257,8 +254,8 @@ print(f'Total: {len(vms)}  Running: {len(running)}  Stopped: {len(stopped)}  Oth
 print()
 for v in vms:
     state = v['state']
-    c = '\033[0;32m' if state == 'running' else '\033[0;31m' if state == 'shutoff' else '\033[1;33m'
-    print(f'  {c}{state:12s}\033[0m {v[\"name\"]:40s} {v[\"vcpus\"]:>2d} vCPU  {v[\"memory_mb\"]:>5d} MB')
+    icon = '🟢' if state == 'running' else '🔴' if state == 'shutoff' else '🟡'
+    print(f'  {icon} {state:12s} {v[\"name\"]:40s} {v[\"vcpus\"]:>2d} vCPU  {v[\"memory_mb\"]:>5d} MB')
 " 2>/dev/null
         ;;
 

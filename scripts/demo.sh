@@ -5,26 +5,18 @@ set -eo pipefail
 
 API="${1:-http://localhost:5092/api/v1}"
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
 step_n=0
 step() {
     step_n=$((step_n + 1))
     echo ""
-    echo -e "${CYAN}${BOLD}[$step_n] $*${NC}"
-    echo -e "${CYAN}$(printf '%.0s-' {1..60})${NC}"
+    echo "📌 [$step_n] $*"
+    echo "$(printf '%.0s-' {1..60})"
 }
 
 api() {
     local method="$1" path="$2"
     shift 2
-    echo -e "  ${BLUE}${method}${NC} ${path}"
+    echo "  📤 $method ${path}"
     local result
     if [ "$method" = "GET" ]; then
         result=$(curl -s "${API}${path}")
@@ -40,9 +32,9 @@ api() {
 DEMO_VM="demo-vm-$$"
 
 echo ""
-echo -e "${BOLD}${CYAN}virtspawn API Demo${NC}"
-echo -e "  API: ${API}"
-echo -e "  Demo VM: ${DEMO_VM}"
+echo "🚀 virtspawn API Demo"
+echo "  🔗 API: $API"
+echo "  🖥️  Demo VM: $DEMO_VM"
 echo ""
 
 # ── Health & Node ──────────────────────────────────────────────────────
@@ -110,7 +102,7 @@ api GET /storage/pools
 # ── Advanced: Infrastructure ──────────────────────────────────────────
 
 step "Hypervisor Capabilities"
-echo -e "  ${BLUE}GET${NC} /capabilities"
+echo "  📤 GET /capabilities"
 curl -s "${API}/capabilities" | python3 -c "
 import json,sys
 d=json.load(sys.stdin)
@@ -121,13 +113,13 @@ print(f'  Guest types: {len(d.get(\"guests\",[]))}')
 sleep 1
 
 step "System Info (SMBIOS)"
-echo -e "  ${BLUE}GET${NC} /sysinfo"
+echo "  📤 GET /sysinfo"
 curl -s "${API}/sysinfo" | head -10
 echo "  ... (truncated)"
 sleep 1
 
 step "Node Devices"
-echo -e "  ${BLUE}GET${NC} /devices"
+echo "  📤 GET /devices"
 curl -s "${API}/devices" | python3 -c "
 import json,sys
 devs=json.load(sys.stdin)
@@ -142,7 +134,7 @@ for t,c in sorted(types.items()):
 sleep 1
 
 step "Node Devices (filtered: net only)"
-echo -e "  ${BLUE}GET${NC} /devices?capability=net"
+echo "  📤 GET /devices?capability=net"
 curl -s "${API}/devices?capability=net" | python3 -c "
 import json,sys
 devs=json.load(sys.stdin)
@@ -153,7 +145,7 @@ for d in devs[:5]:
 sleep 1
 
 step "Network Filters"
-echo -e "  ${BLUE}GET${NC} /nwfilters"
+echo "  📤 GET /nwfilters"
 curl -s "${API}/nwfilters" | python3 -c "
 import json,sys
 f=json.load(sys.stdin)
@@ -170,35 +162,35 @@ api GET /secrets
 # ── Security Validation ───────────────────────────────────────────────
 
 step "Security: Migration URI Validation"
-echo -e "  Testing SSRF prevention..."
-echo -e "  ${BLUE}POST${NC} /vms/${DEMO_VM}/migrate with http://evil.com"
+echo "  Testing SSRF prevention..."
+echo "  📤 POST /vms/${DEMO_VM}/migrate with http://evil.com"
 result=$(curl -s -X POST "${API}/vms/${DEMO_VM}/migrate" \
     -H 'Content-Type: application/json' \
     -d '{"dest_uri":"http://evil.com","live":false}')
 if echo "$result" | grep -qF "Invalid migration URI"; then
-    echo -e "  ${GREEN}BLOCKED${NC}: $result"
+    echo "  ✅ BLOCKED: $result"
 else
-    echo -e "  ${RED}NOT BLOCKED${NC}: $result"
+    echo "  ❌ NOT BLOCKED: $result"
 fi
 sleep 1
 
 step "Security: Volume Resize Validation"
-echo -e "  Testing negative capacity prevention..."
-echo -e "  ${BLUE}POST${NC} /storage/pools/default/volumes/x/resize with -1"
+echo "  Testing negative capacity prevention..."
+echo "  📤 POST /storage/pools/default/volumes/x/resize with -1"
 result=$(curl -s -X POST "${API}/storage/pools/default/volumes/x/resize" \
     -H 'Content-Type: application/json' \
     -d '{"capacity_gb":-1}')
 if echo "$result" | grep -qF "capacity_gb must be"; then
-    echo -e "  ${GREEN}BLOCKED${NC}: $result"
+    echo "  ✅ BLOCKED: $result"
 else
-    echo -e "  ${RED}NOT BLOCKED${NC}: $result"
+    echo "  ❌ NOT BLOCKED: $result"
 fi
 sleep 1
 
 # ── Prometheus ─────────────────────────────────────────────────────────
 
 step "Prometheus Metrics"
-echo -e "  ${BLUE}GET${NC} /prometheus"
+echo "  📤 GET /prometheus"
 curl -s "${API}/prometheus" | head -15
 echo "  ... (truncated)"
 sleep 1
@@ -220,9 +212,9 @@ step "Final VM List"
 api GET /vms
 
 echo ""
-echo -e "${GREEN}${BOLD}Demo Complete!${NC}"
+echo "✅ Demo complete!"
 echo ""
-echo -e "  Web UI:  ${CYAN}http://localhost:5092${NC}"
-echo -e "  TUI:     ${CYAN}virtspawn${NC}"
-echo -e "  API:     ${CYAN}${API}/health${NC}"
+echo "  🌐 Web UI:  https://localhost:5092"
+echo "  🖥️  TUI:     virtspawn"
+echo "  🔗 API:     ${API}/health"
 echo ""

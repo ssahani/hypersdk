@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
-# scripts/deploy.sh — one entry: rsync+install, sync-only, quick rebuild, systemd/HTTP check
+# scripts/deploy-remote.sh — rsync sources to remote, compile & install ONLY on remote
+#
+# Nothing is built on your laptop: install.sh runs cargo/npm on the SSH host (--quick uses
+# make release web there). Locals only need rsync + ssh (no Rust/Node locally).
 set -euo pipefail
+
+# Indexed array required before REST+= / "${REST[@]}" under `set -u` (bash 5.x empty-array quirk).
+declare -a REST=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -8,7 +14,8 @@ REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
 SSH_PORT="${SSH_PORT:-22}"
 HEALTH_URL="${HEALTH_URL:-http://127.0.0.1:5092/api/v1/health}"
 STRICT="${STRICT:-0}"
-REMOTE_DIR="${REMOTE_DIR:-~/.virtspawn}"
+# Default matches VM-style layout: rsync here → build on server → install to /usr/local + systemd
+REMOTE_DIR="${REMOTE_DIR:-~/.deployment/virtspawn}"
 
 info() { printf 'ℹ️  %s\n' "$*"; }
 ok()   { printf '✅ %s\n' "$*"; }
@@ -20,18 +27,22 @@ RSYNC_RSH="ssh ${SSH_OPTS[*]}"
 
 usage() {
     cat <<'EOF'
-deploy.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup]
         [--bind ADDR] [--open-firewall] [--no-start] [--deps-only] [extra install.sh args...]
 
-deploy.sh check [USER@HOST | USER HOST]
+deploy-remote.sh check [USER@HOST | USER HOST]
+
+Flow: rsync → ~/.deployment/virtspawn (REMOTE_DIR) → build on server → install → systemd.
+Full install: install.sh enables + restarts the daemon (--no-start skips).
+Quick: make install then daemon-reload + try-restart (only restarts if virtspawn-daemon was active).
 
 Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpass.
 
 Examples:
-  deploy.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
-  deploy.sh sus 185.165.240.5 --quick
-  SYNC_ONLY=1 deploy.sh sus@host
-  deploy.sh check    deploy.sh check sus@host
+  deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
+  deploy-remote.sh sus 185.165.240.5 --quick
+  SYNC_ONLY=1 deploy-remote.sh sus@host
+  deploy-remote.sh check    deploy-remote.sh check sus@host
 
 Env: DEPLOY_HOST DEPLOY_USER SSH_PORT SSHPASS REMOTE_DIR HEALTH_URL STRICT SYNC_ONLY
 EOF
@@ -139,7 +150,6 @@ BIND=""
 OPEN_FW=false
 NO_START=false
 DEPS_ONLY=false
-REST=()
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -176,13 +186,16 @@ elif [[ $# -ge 2 ]]; then
     [[ $# -gt 0 && "${1:-}" != -* ]] && { export SSHPASS="$1"; shift; }
     parse_flags "$@"
 else
-    die "need USER@HOST or USER HOST (deploy.sh --help)"
+    die "need USER@HOST or USER HOST (deploy-remote.sh --help)"
 fi
 
 REMOTE="${USER}@${HOST}"
-INSTALL_ARGS=("${REST[@]}")
+declare -a INSTALL_ARGS=()
+if ((${#REST[@]} > 0)); then
+    INSTALL_ARGS=("${REST[@]}")
+fi
 
-[[ -f "$REPO/Cargo.toml" ]] || die "run from virtspawn repo"
+[[ -f "$REPO/Cargo.toml" ]] || die "run from virtspawn repo root (sources are rsync'd — not built here)"
 [[ -n "${SSHPASS:-}" ]] && ! command -v sshpass &>/dev/null && die "install sshpass for password auth"
 command -v rsync &>/dev/null || die "rsync required"
 
@@ -190,7 +203,7 @@ command -v rsync &>/dev/null || die "rsync required"
 
 ssh_r "$REMOTE" 'hostname' >/dev/null || die "cannot SSH to $REMOTE"
 
-echo "📦 rsync → $REMOTE:$REMOTE_DIR"
+echo "📤 rsync sources → $REMOTE:$REMOTE_DIR (excludes target/node_modules/.git/web/dist)"
 ssh_r "$REMOTE" "mkdir -p $REMOTE_DIR"
 rsync_r \
     --exclude='target/' --exclude='node_modules/' --exclude='.git/' --exclude='web/dist/' \
@@ -208,13 +221,17 @@ $NO_START && OPTS+=" --no-start"
 $DEPS_ONLY && OPTS+=" --deps-only"
 
 REMOTE_INST=""
-for a in "${INSTALL_ARGS[@]}"; do REMOTE_INST+=" $(printf '%q' "$a")"; done
+if ((${#INSTALL_ARGS[@]} > 0)); then
+    for a in "${INSTALL_ARGS[@]}"; do REMOTE_INST+=" $(printf '%q' "$a")"; done
+fi
 
 if $QUICK; then
-    echo "⚡ quick: make release + install + restart"
-    ssh_r "$REMOTE" "sudo bash -lc 'cd $REMOTE_DIR && make release web && make install && systemctl restart virtspawn-daemon'" || die "quick rebuild failed"
+    echo "🔨 [2/3] remote build: make release web + make install (on $HOST)"
+    ssh_r "$REMOTE" "sudo bash -lc 'cd $REMOTE_DIR && make release web && make install'" || die "quick build failed"
+    echo "🔄 [3/3] systemd: daemon-reload + try-restart (reloads unit if virtspawn-daemon was running)"
+    ssh_r "$REMOTE" "sudo bash -lc 'systemctl daemon-reload && systemctl try-restart virtspawn-daemon'" || die "service reload failed"
 else
-    echo "🔧 install.sh"
+    echo "🔨 [2/2] remote: sudo install.sh on $HOST (deps + cargo + npm + install + enable/restart)"
     ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo bash install.sh${OPTS}${REMOTE_INST}" || die "install failed"
 fi
 
@@ -226,6 +243,6 @@ check_remote "$REMOTE" || true
 
 echo ""
 echo "════════════════════════════════════════"
-echo "✅ done  🌐 http://${HOST}:5092  💚 http://${HOST}:5092/api/v1/health"
-echo "🔁 ./scripts/deploy.sh ${USER}@${HOST} --quick"
+echo "✅ done  🌐 https://${HOST}:5092  💚 https://${HOST}:5092/api/v1/health"
+echo "🔁 ./scripts/deploy-remote.sh ${USER}@${HOST} --quick"
 echo "════════════════════════════════════════"

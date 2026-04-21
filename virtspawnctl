@@ -32,26 +32,17 @@
 
 set -euo pipefail
 
-# ── Colors ──────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
 # ── Globals ─────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 API_URL="${VIRTSPAWN_URL:-http://127.0.0.1:5092}"
 API_VERSION="v1"
 
 # ── Helpers ─────────────────────────────────────────────────────────────
-info()  { echo -e "${BLUE}▸${NC} $*"; }
-ok()    { echo -e "${GREEN}✓${NC} $*"; }
-warn()  { echo -e "${YELLOW}▸${NC} $*"; }
-err()   { echo -e "${RED}✗${NC} $*" >&2; }
-step()  { echo -e "\n${BOLD}${CYAN}── $* ──${NC}"; }
+info()  { echo "ℹ️  $*"; }
+ok()    { echo "✅ $*"; }
+warn()  { echo "⚠️  $*"; }
+err()   { echo "❌ $*" >&2; }
+step()  { echo ""; echo "➡️  $*"; }
 need_root() {
     if [[ $EUID -ne 0 ]]; then
         info "Escalating to root..."
@@ -181,7 +172,7 @@ cmd_deps() {
 
     ok "All dependencies installed"
     echo ""
-    info "Next: run ${BOLD}./virtspawnctl build${NC}"
+    info "Next: run ./virtspawnctl build"
 }
 
 # ── build ───────────────────────────────────────────────────────────────
@@ -210,7 +201,7 @@ cmd_build() {
 
     echo ""
     ok "Build complete"
-    info "Next: run ${BOLD}./virtspawnctl install${NC}"
+    info "Next: run ./virtspawnctl install"
 }
 
 # ── test ────────────────────────────────────────────────────────────────
@@ -239,7 +230,7 @@ cmd_install() {
     mkdir -p /var/lib/virtspawn/backups
 
     ok "virtspawn installed"
-    info "Start with: ${BOLD}./virtspawnctl start${NC}"
+    info "Start with: ./virtspawnctl start"
 }
 
 # ── uninstall ───────────────────────────────────────────────────────────
@@ -259,7 +250,7 @@ cmd_uninstall() {
 
     ok "virtspawn uninstalled"
     warn "State data preserved at /var/lib/virtspawn"
-    warn "To remove all data: ${BOLD}sudo rm -rf /var/lib/virtspawn${NC}"
+    warn "To remove all data: sudo rm -rf /var/lib/virtspawn"
 }
 
 # ── deploy ──────────────────────────────────────────────────────────────
@@ -267,7 +258,7 @@ cmd_deploy() {
     need_root
     step "Full Deployment"
     echo ""
-    echo -e "${BOLD}This will:${NC}"
+    echo "📋 This will:"
     echo "  1. Install all system dependencies"
     echo "  2. Build the backend (release mode)"
     echo "  3. Install binaries, configs, and systemd units"
@@ -296,10 +287,10 @@ cmd_deploy() {
 
     step "Deployment Complete"
     echo ""
-    echo -e "  ${BOLD}API:${NC}     ${CYAN}$API_URL${NC}"
-    echo -e "  ${BOLD}TUI:${NC}     ${CYAN}virtspawn${NC}"
-    echo -e "  ${BOLD}Status:${NC}  ${CYAN}./virtspawnctl status${NC}"
-    echo -e "  ${BOLD}Logs:${NC}    ${CYAN}sudo journalctl -u virtspawn-daemon -f${NC}"
+    echo "  🔗 API:     $API_URL"
+    echo "  🖥️  TUI:     virtspawn"
+    echo "  📊 Status:  ./virtspawnctl status"
+    echo "  📜 Logs:    sudo journalctl -u virtspawn-daemon -f"
     echo ""
 }
 
@@ -411,9 +402,9 @@ cmd_verify() {
 
     echo ""
     if [[ $failures -eq 0 ]]; then
-        ok "${GREEN}${BOLD}All verification checks passed${NC}"
+        ok "All verification checks passed"
     else
-        err "${RED}${BOLD}$failures check(s) failed${NC}"
+        err "$failures check(s) failed"
         return 1
     fi
 }
@@ -423,14 +414,16 @@ cmd_health() {
     step "virtspawn Health Check"
     local warnings=0 errors=0
 
-    echo -e "\n${BOLD}Service${NC}"
+    echo ""
+    echo "📦 Service"
     if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
         ok "virtspawn-daemon is running"
     else
         err "virtspawn-daemon is not running"; ((errors++)) || true
     fi
 
-    echo -e "\n${BOLD}API${NC}"
+    echo ""
+    echo "🔗 API"
     local http_code
     http_code=$(curl -s -o /dev/null -w "%{http_code}" "$API_URL/api/$API_VERSION/health" --max-time 5 2>/dev/null) || http_code="000"
     if [[ "$http_code" == "200" ]]; then
@@ -439,7 +432,8 @@ cmd_health() {
         err "API not responding (HTTP $http_code)"; ((errors++)) || true
     fi
 
-    echo -e "\n${BOLD}Libvirt${NC}"
+    echo ""
+    echo "🖥️  Libvirt"
     if virsh uri &>/dev/null; then
         ok "libvirt connected: $(virsh uri 2>/dev/null)"
         local running total
@@ -450,7 +444,8 @@ cmd_health() {
         err "libvirt not accessible"; ((errors++)) || true
     fi
 
-    echo -e "\n${BOLD}Disk Space${NC}"
+    echo ""
+    echo "💾 Disk space"
     local backup_dir="/var/lib/virtspawn/backups"
     if [[ -d "$backup_dir" ]]; then
         local size usage
@@ -465,14 +460,16 @@ cmd_health() {
         fi
     fi
 
-    echo -e "\n${BOLD}Timers${NC}"
+    echo ""
+    echo "⏱️  Timers"
     if systemctl is-active --quiet virtspawn-backup.timer 2>/dev/null; then
         ok "Backup timer active"
     else
         warn "Backup timer not active"; ((warnings++)) || true
     fi
 
-    echo -e "\n${BOLD}System${NC}"
+    echo ""
+    echo "⚙️  System"
     if [[ -e /dev/kvm ]]; then ok "KVM available"; else warn "KVM not available"; ((warnings++)) || true; fi
     local mem_avail mem_total mem_pct
     mem_avail=$(awk '/MemAvailable/ {printf "%.0f", $2/1024}' /proc/meminfo 2>/dev/null || echo "0")
@@ -483,11 +480,11 @@ cmd_health() {
 
     echo ""
     if [[ $errors -gt 0 ]]; then
-        echo -e "${RED}${BOLD}CRITICAL${NC} — $errors error(s), $warnings warning(s)"; return 2
+        echo "❌ CRITICAL — $errors error(s), $warnings warning(s)"; return 2
     elif [[ $warnings -gt 0 ]]; then
-        echo -e "${YELLOW}${BOLD}DEGRADED${NC} — $warnings warning(s)"; return 1
+        echo "⚠️ DEGRADED — $warnings warning(s)"; return 1
     else
-        echo -e "${GREEN}${BOLD}HEALTHY${NC} — all checks passed"
+        echo "✅ HEALTHY — all checks passed"
     fi
 }
 
@@ -519,15 +516,15 @@ cmd_backup() {
         status)
             echo ""
             if systemctl is-active --quiet virtspawn-backup.timer 2>/dev/null; then
-                ok "Backup timer is ${GREEN}active${NC}"
+                ok "Backup timer is active"
             else
-                warn "Backup timer is ${RED}inactive${NC}"
+                warn "Backup timer is inactive"
             fi
             echo ""
             systemctl list-timers virtspawn-backup.timer --no-pager 2>/dev/null || true
             echo ""
             local backup_dir="/var/lib/virtspawn/backups"
-            info "Backup directory: ${BOLD}$backup_dir${NC}"
+            info "Backup directory: $backup_dir"
             if [[ -d "$backup_dir" ]]; then
                 info "Backup count: $(find "$backup_dir" -maxdepth 2 -name "*.xml" 2>/dev/null | wc -l) configs"
                 info "Total size: $(du -sh "$backup_dir" 2>/dev/null | cut -f1)"
@@ -550,8 +547,8 @@ cmd_start() {
     sleep 2
     if systemctl is-active --quiet virtspawn-daemon; then
         ok "virtspawn-daemon is running"
-        info "API: ${BOLD}$API_URL${NC}"
-        info "TUI: ${BOLD}virtspawn${NC}"
+        info "API: $API_URL"
+        info "TUI: virtspawn"
     else
         err "Failed to start. Check: sudo journalctl -u virtspawn-daemon -e"
         exit 1
@@ -578,9 +575,9 @@ cmd_restart() {
 cmd_status() {
     echo ""
     if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
-        ok "virtspawn-daemon is ${GREEN}running${NC}"
+        ok "virtspawn-daemon is running"
     else
-        warn "virtspawn-daemon is ${RED}stopped${NC}"
+        warn "virtspawn-daemon is stopped"
     fi
     echo ""
     systemctl status virtspawn-daemon --no-pager 2>/dev/null || true
@@ -656,7 +653,7 @@ cmd_doctor() {
     if [[ $issues -eq 0 ]]; then
         ok "System is ready"
     else
-        warn "$issues issue(s) found — run ${BOLD}./virtspawnctl deps${NC} to fix"
+        warn "$issues issue(s) found — run ./virtspawnctl deps to fix"
     fi
 }
 
@@ -704,7 +701,7 @@ cmd_demo() {
 
     if ! curl -sf "$API_URL/api/$API_VERSION/health" &>/dev/null; then
         err "virtspawn-daemon is not running at $API_URL"
-        info "Start it with: ${BOLD}./virtspawnctl start${NC}"
+        info "Start it with: ./virtspawnctl start"
         exit 1
     fi
     ok "virtspawn-daemon is running"
@@ -722,47 +719,47 @@ cmd_demo() {
     curl -s "$API_URL/api/$API_VERSION/system/info" | jq '.' 2>/dev/null || echo "(endpoint not available)"
 
     echo ""
-    echo -e "${BOLD}Quick reference:${NC}"
-    echo -e "  API:   ${CYAN}$API_URL/api/$API_VERSION${NC}"
-    echo -e "  TUI:   ${CYAN}virtspawn${NC}"
-    echo -e "  Web:   ${CYAN}$API_URL${NC}"
+    echo "📋 Quick reference:"
+    echo "  🔗 API:   $API_URL/api/$API_VERSION"
+    echo "  🖥️  TUI:   virtspawn"
+    echo "  🌐 Web:   $API_URL"
     echo ""
 }
 
 # ── help ────────────────────────────────────────────────────────────────
 cmd_help() {
     echo ""
-    echo -e "${BOLD}virtspawnctl${NC} — virtspawn management tool"
+    echo "virtspawnctl — virtspawn management tool"
     echo ""
-    echo -e "${BOLD}Usage:${NC} ./virtspawnctl <command> [options]"
+    echo "📋 Usage: ./virtspawnctl <command> [options]"
     echo ""
-    echo -e "${BOLD}Setup:${NC}"
+    echo "📦 Setup:"
     echo "  deps              Install all system dependencies (auto-sudo)"
     echo "  build [--no-web]  Build backend (and web UI unless --no-web)"
     echo "  test              Run the test suite (cargo test)"
     echo "  install           Install virtspawn to the system (auto-sudo)"
     echo "  uninstall         Remove virtspawn from the system (auto-sudo)"
     echo ""
-    echo -e "${BOLD}Lifecycle:${NC}"
+    echo "🔄 Lifecycle:"
     echo "  deploy            Full deployment: deps → build → install → start → verify (auto-sudo)"
     echo "  reinstall         Rebuild + reinstall + verify (auto-sudo)"
     echo "  upgrade           Git pull + reinstall (auto-sudo)"
     echo ""
-    echo -e "${BOLD}Service:${NC}"
+    echo "⚙️  Service:"
     echo "  start             Start the virtspawn-daemon service"
     echo "  stop              Stop the service"
     echo "  restart           Restart the service"
     echo "  status            Show service status"
     echo "  logs              Follow service logs (journalctl)"
     echo ""
-    echo -e "${BOLD}Backup:${NC}"
+    echo "💾 Backup:"
     echo "  backup now        Run VM backup immediately (auto-sudo)"
     echo "  backup enable     Enable daily backup timer (2:00 AM)"
     echo "  backup disable    Disable backup timer"
     echo "  backup status     Show backup timer and storage info"
     echo "  backup logs       Follow backup logs"
     echo ""
-    echo -e "${BOLD}Utilities:${NC}"
+    echo "🛠️  Utilities:"
     echo "  verify            Post-install smoke test (API, VMs, libvirt, backup)"
     echo "  health            Deep health check (service, API, disk, libvirt, timers)"
     echo "  doctor            Check system readiness (deps, tools, services)"
@@ -770,10 +767,10 @@ cmd_help() {
     echo "  demo              Run interactive API demo"
     echo "  help              Show this help"
     echo ""
-    echo -e "${BOLD}Quick start:${NC}"
+    echo "🚀 Quick start:"
     echo "  ./virtspawnctl deploy          # Does everything in one command"
     echo ""
-    echo -e "${BOLD}Environment:${NC}"
+    echo "🌍 Environment:"
     echo "  VIRTSPAWN_URL    API URL (default: http://127.0.0.1:5092)"
     echo ""
 }

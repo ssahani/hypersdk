@@ -14,14 +14,6 @@
 
 set -eo pipefail
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-BOLD='\033[1m'
-
 INSTALL_DIR="/opt/virtspawn"
 LOG_FILE=$(mktemp /tmp/virtspawn-install-XXXXXX.log)
 chmod 600 "$LOG_FILE"
@@ -30,11 +22,11 @@ BIND_HOST=""
 REMOTE_HOST=""
 OPEN_FIREWALL=false
 
-info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
-fail()  { echo -e "${RED}[FAIL]${NC} $*"; exit 1; }
-step()  { echo -e "\n${CYAN}${BOLD}==> $*${NC}"; }
+info()  { echo "ℹ️  $*"; }
+ok()    { echo "✅ $*"; }
+warn()  { echo "⚠️  $*"; }
+fail()  { echo "❌ $*"; exit 1; }
+step()  { echo ""; echo "➡️  $*"; }
 
 log_cmd() {
     "$@" >> "$LOG_FILE" 2>&1
@@ -351,7 +343,7 @@ find_source() {
     fi
 
     # Check common locations
-    for candidate in /root/.virtspawn /opt/virtspawn "$HOME/.virtspawn"; do
+    for candidate in /root/.virtspawn /opt/virtspawn "$HOME/.virtspawn" "$HOME/.deployment/virtspawn"; do
         if [ -f "$candidate/Cargo.toml" ] && [ -f "$candidate/Makefile" ]; then
             INSTALL_DIR="$candidate"
             ok "Found source at $INSTALL_DIR"
@@ -490,7 +482,10 @@ open_firewall() {
 start_daemon() {
     step "Starting virtspawn daemon"
 
-    systemctl enable --now virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to start daemon. Check: journalctl -u virtspawn-daemon"
+    # enable --now does not restart an already-active unit; after a binary upgrade the old
+    # process can still hold :5092 and the new start fails with EADDRINUSE. Always restart.
+    systemctl enable virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to enable virtspawn-daemon. Check: journalctl -u virtspawn-daemon"
+    systemctl restart virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to start daemon. Check: journalctl -u virtspawn-daemon"
 
     local retries=15
     while [ $retries -gt 0 ]; do
@@ -534,7 +529,7 @@ run_tests() {
             ok "  $desc"
             passed=$((passed + 1))
         else
-            echo -e "  ${RED}FAIL${NC} $desc (expected '$expect')"
+            echo "  ❌ FAIL $desc (expected '$expect')"
             failed=$((failed + 1))
         fi
     }
@@ -563,7 +558,7 @@ run_tests() {
         ok "  Web UI serves (HTTP 200)"
         passed=$((passed + 1))
     else
-        echo -e "  ${RED}FAIL${NC} Web UI (HTTP $http_code)"
+        echo "  ❌ FAIL Web UI (HTTP $http_code)"
         failed=$((failed + 1))
     fi
 
@@ -572,7 +567,7 @@ run_tests() {
         ok "  virtspawn-daemon binary"
         passed=$((passed + 1))
     else
-        echo -e "  ${RED}FAIL${NC} virtspawn-daemon binary"
+        echo "  ❌ FAIL virtspawn-daemon binary"
         failed=$((failed + 1))
     fi
 
@@ -580,7 +575,7 @@ run_tests() {
         ok "  virtspawn TUI binary"
         passed=$((passed + 1))
     else
-        echo -e "  ${RED}FAIL${NC} virtspawn TUI binary"
+        echo "  ❌ FAIL virtspawn TUI binary"
         failed=$((failed + 1))
     fi
 
@@ -596,7 +591,7 @@ run_tests() {
         ok "  Migration URI validation"
         passed=$((passed + 1))
     else
-        echo -e "  ${RED}FAIL${NC} Migration URI validation"
+        echo "  ❌ FAIL Migration URI validation"
         failed=$((failed + 1))
     fi
 
@@ -608,13 +603,13 @@ run_tests() {
         ok "  Resize validation"
         passed=$((passed + 1))
     else
-        echo -e "  ${RED}FAIL${NC} Resize validation"
+        echo "  ❌ FAIL Resize validation"
         failed=$((failed + 1))
     fi
     fi  # end auth_enabled check for security tests
 
     echo ""
-    echo -e "${BOLD}Test results: ${GREEN}$passed passed${NC}, ${RED}$failed failed${NC}"
+    echo "📊 Test results: ✅ $passed passed, ❌ $failed failed"
     [ $failed -gt 0 ] && return 1
     return 0
 }
@@ -632,29 +627,30 @@ remote_deploy() {
 
     step "Deploying to $remote"
 
-    info "Copying source to $remote:~/.virtspawn ..."
+    info "Copying source to $remote:~/.deployment/virtspawn (build runs on remote only, not here) ..."
+    ssh "$remote" "mkdir -p ~/.deployment/virtspawn"
     rsync -az --delete \
         --exclude target --exclude node_modules --exclude .git --exclude web/dist \
-        "$source_dir/" "$remote:~/.virtspawn/" || fail "rsync failed"
+        "$source_dir/" "$remote:~/.deployment/virtspawn/" || fail "rsync failed"
     ok "Source copied"
 
-    info "Running install.sh on $remote ..."
+    info "Running install.sh on $remote (cargo/npm build on server) ..."
     local remote_args=""
     [ -n "$BIND_HOST" ] && remote_args="--bind $BIND_HOST"
     $OPEN_FIREWALL && remote_args="$remote_args --open-firewall"
 
-    ssh "$remote" "cd ~/.virtspawn && sudo bash install.sh $remote_args" || fail "Remote install failed"
+    ssh "$remote" "cd ~/.deployment/virtspawn && sudo bash install.sh $remote_args" || fail "Remote install failed"
 
     # Get the remote IP for summary
     local remote_ip
     remote_ip=$(echo "$remote" | sed 's/.*@//')
     echo ""
-    echo -e "${GREEN}${BOLD}============================================${NC}"
-    echo -e "${GREEN}${BOLD}  Deployed to $remote${NC}"
-    echo -e "${GREEN}${BOLD}============================================${NC}"
+    echo "============================================"
+    echo "✅ Deployed to $remote"
+    echo "============================================"
     echo ""
-    echo -e "  ${CYAN}Web UI:${NC}  http://$remote_ip:5092"
-    echo -e "  ${CYAN}API:${NC}     http://$remote_ip:5092/api/v1/health"
+    echo "  🌐 Web UI:  https://$remote_ip:5092"
+    echo "  🔗 API:     https://$remote_ip:5092/api/v1/health"
     echo ""
 }
 
@@ -696,37 +692,36 @@ print_summary() {
     fi
 
     echo ""
-    echo -e "${GREEN}${BOLD}============================================${NC}"
-    echo -e "${GREEN}${BOLD}  virtspawn installed successfully!${NC}"
-    echo -e "${GREEN}${BOLD}============================================${NC}"
+    echo "============================================"
+    echo "✅ virtspawn installed successfully!"
+    echo "============================================"
     echo ""
-    echo -e "  ${CYAN}Web UI:${NC}    http://$bind_info:5092"
-    echo -e "  ${CYAN}TUI:${NC}       virtspawn"
-    echo -e "  ${CYAN}API:${NC}       http://$bind_info:5092/api/v1/health"
-    echo -e "  ${CYAN}VMs found:${NC} $vm_count"
+    echo "  🌐 Web UI:    https://$bind_info:5092"
+    echo "  🖥️  TUI:       virtspawn"
+    echo "  🔗 API:       https://$bind_info:5092/api/v1/health"
+    echo "  📊 VMs found: $vm_count"
     echo ""
-    echo -e "  ${YELLOW}Manage:${NC}"
-    echo -e "    sudo systemctl status  virtspawn-daemon"
-    echo -e "    sudo systemctl restart virtspawn-daemon"
-    echo -e "    sudo journalctl -u virtspawn-daemon -f"
+    echo "  📋 Manage:"
+    echo "    sudo systemctl status  virtspawn-daemon"
+    echo "    sudo systemctl restart virtspawn-daemon"
+    echo "    sudo journalctl -u virtspawn-daemon -f"
     echo ""
-    echo -e "  ${YELLOW}Config:${NC}  /etc/virtspawn/config.toml"
-    echo -e "  ${YELLOW}Source:${NC}  $INSTALL_DIR"
-    echo -e "  ${YELLOW}Log:${NC}     $LOG_FILE"
+    echo "  ⚙️  Config:  /etc/virtspawn/config.toml"
+    echo "  📂 Source:  $INSTALL_DIR"
+    echo "  📜 Log:     $LOG_FILE"
     echo ""
 }
 
 # ── Main ─────────────────────────────────────────────────────────────
 
 main() {
-    echo -e "${BOLD}${CYAN}"
     echo "  _   _  _        _"
     echo " (_) (_)| |_  ___| |_  __ _ __ __ __ _"
     echo " | V || |  _|(_-<| _ \/ _\` |\ V  V /| ' \\"
     echo "  \_/ |_| \__|/__/|  _/\__,_| \_/\_/ |_||_|"
     echo "                  |_|"
-    echo -e "${NC}"
-    echo -e "${BOLD}virtspawn installer${NC} — Modern Libvirt VM Manager"
+    echo ""
+    echo "virtspawn installer — Modern Libvirt VM Manager"
     echo ""
 
     # Parse args
@@ -822,7 +817,7 @@ Examples:
     sudo ./install.sh --uninstall
 
 After install:
-  Web UI:    http://localhost:5092        (or http://<ip>:5092 with --bind)
+  Web UI:    https://localhost:5092       (or https://<ip>:5092 with --bind; http:// if not using TLS)
   TUI:       virtspawn
   API test:  curl http://localhost:5092/api/v1/health
   Logs:      sudo journalctl -u virtspawn-daemon -f

@@ -45,7 +45,7 @@ virtspawn/
 ├── contrib/            Systemd units, default config
 ├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
 ├── examples/           Example user configuration
-├── scripts/            deploy.sh (remote rsync+install), demo, status, backup, bulk
+├── scripts/            deploy-remote.sh (remote rsync+install), demo, status, backup, bulk
 ├── virtspawnctl        Management CLI (deploy, verify, health, backup, upgrade, tls)
 ├── install.sh          Automated installer (Fedora/RHEL/Ubuntu/Debian/openSUSE/Arch)
 └── Makefile            Build, install, deploy, manage targets
@@ -202,7 +202,7 @@ virtspawn/
 - **noVNC serving** — auto-discovers system noVNC installation and serves at `/novnc/`
 - **Connection resilience** — auto-reconnects to libvirt if connection drops
 - **Systemd service** — hardened unit file with security restrictions
-- **Config hierarchy** — user config > system config > defaults > CLI overrides
+- **Config hierarchy** — `/etc/virtspawn/config.toml` (system), optional `~/.virtspawn/config.toml`, defaults, then CLI overrides
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
 - **Security hardened** — migration URI validation (SSRF prevention), ISO/import path canonicalization with symlink resolution, webhook URL validation, email header injection prevention, PTY path validation, integer overflow protection, no CORS (same-origin only), RBAC defaults to ReadOnly for unknown users
 - **Audit logging** — all operations logged with timestamps
@@ -294,8 +294,8 @@ sudo ./install.sh --uninstall              # Remove everything
 ### Remote Deploy
 
 ```bash
-./scripts/deploy.sh user@host --bind 0.0.0.0 --open-firewall   # keys or SSHPASS
-./scripts/deploy.sh check user@host                             # systemd + /health
+./scripts/deploy-remote.sh user@host --bind 0.0.0.0 --open-firewall   # keys or SSHPASS
+./scripts/deploy-remote.sh check user@host                             # systemd + /health
 sudo ./install.sh --remote user@host                          # alternative (install.sh)
 ```
 
@@ -405,12 +405,13 @@ The command palette supports fuzzy search across all pages and VMs, with inline 
 
 ## Configuration
 
-Config files are loaded in order of precedence:
+Config resolution:
 
-1. CLI arguments (highest priority)
-2. `~/.virtspawn/config.toml` (user config)
-3. `/etc/virtspawn/config.toml` (system config)
-4. Built-in defaults
+1. CLI arguments (highest priority — including `virtspawn-daemon --config /path`)
+2. Config file load order when using `VirtspawnConfig::load()` (no `--config`): **`/etc/virtspawn/config.toml`** first, then **`~/.virtspawn/config.toml`** if the system file is missing
+3. Built-in defaults when no file exists
+
+The installer and systemd unit install **`/etc/virtspawn/config.toml`** and start the daemon with **`--config /etc/virtspawn/config.toml`**.
 
 ```toml
 [general]
