@@ -3,18 +3,18 @@ use axum::Router;
 use std::path::PathBuf;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
-use virtspawn_core::LibvirtManager;
+use virtspawn_core::{AuthConfig, LibvirtManager};
 
 use crate::auth::{self, SessionStore};
 use crate::routes;
 
-pub fn create_app(manager: LibvirtManager) -> Router {
+pub fn create_app(manager: LibvirtManager, auth_cfg: AuthConfig) -> Router {
     let web_dir = find_web_dist();
     let session_store = SessionStore::new();
 
     // All routes under /api/v1 — auth routes skip middleware internally
     let api = routes::api_routes()
-        .merge(auth::auth_routes(session_store.clone()))
+        .merge(auth::auth_routes(session_store.clone(), auth_cfg))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,

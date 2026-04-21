@@ -21,6 +21,10 @@ backup_dir = "/var/lib/virtspawn/backups"
 with_disks = false
 retain = 7
 
+# Web UI / session login: PAM service in /etc/pam.d/ (sshd = same rules as SSH password; "login" is TTY-oriented and often blocks root over the web).
+[auth]
+pam_service = "sshd"
+
 # HTTPS is enabled by default (self-signed cert created by install.sh if missing).
 [tls]
 enabled = true

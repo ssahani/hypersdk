@@ -56,8 +56,9 @@ async fn main() -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     info!("Connected to libvirt ({})", config.libvirt.uri);
+    info!("PAM service for web login: /etc/pam.d/{}", config.auth.pam_service);
 
-    let app = server::create_app(manager);
+    let app = server::create_app(manager, config.auth.clone());
 
     let bind_addr = config.bind_addr();
 

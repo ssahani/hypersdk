@@ -424,6 +424,9 @@ port = 5092                  # Bind port
 [libvirt]
 uri = "qemu:///system"       # Libvirt connection URI
 
+[auth]
+pam_service = "sshd"         # /etc/pam.d/<name> — use sshd so web login matches SSH password rules
+
 [tls]
 enabled = true                              # Enable HTTPS
 cert_path = "/etc/virtspawn/cert.pem"       # TLS certificate

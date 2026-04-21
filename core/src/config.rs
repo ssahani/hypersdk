@@ -14,6 +14,9 @@ pub struct VirtspawnConfig {
     pub backup: BackupConfig,
     #[serde(default)]
     pub tls: TlsConfig,
+    /// PAM service name (file in `/etc/pam.d/`) for web UI and API session login.
+    #[serde(default)]
+    pub auth: AuthConfig,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -32,6 +35,27 @@ impl Default for TlsConfig {
             enabled: false,
             cert_path: String::new(),
             key_path: String::new(),
+        }
+    }
+}
+
+/// PAM configuration for `virtspawn-daemon` (web sign-in uses the same password as the selected stack).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthConfig {
+    /// PAM service: which `/etc/pam.d/<name>` to use. `sshd` matches “remote” password rules; `login` is
+    /// for local TTY and can block `root` or fail without a TTY.
+    #[serde(default = "default_pam_service")]
+    pub pam_service: String,
+}
+
+fn default_pam_service() -> String {
+    "sshd".to_string()
+}
+
+impl Default for AuthConfig {
+    fn default() -> Self {
+        Self {
+            pam_service: default_pam_service(),
         }
     }
 }

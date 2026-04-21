@@ -11,7 +11,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tracing::{info, warn};
-use virtspawn_core::LibvirtManager;
+use virtspawn_core::{AuthConfig, LibvirtManager};
 
 /// Session store: token -> (username, created_at)
 #[derive(Clone)]
@@ -273,8 +273,12 @@ struct LoginRequest {
     password: String,
 }
 
+#[derive(Clone)]
+pub struct PamAuth(pub std::sync::Arc<AuthConfig>);
+
 async fn login_handler(
     Extension(store): Extension<SessionStore>,
+    Extension(auth): Extension<PamAuth>,
     Json(req): Json<LoginRequest>,
 ) -> Response {
     if req.username.is_empty() || req.password.is_empty() {
@@ -285,7 +289,7 @@ async fn login_handler(
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid username characters" }))).into_response();
     }
 
-    match pam_authenticate(&req.username, &req.password) {
+    match pam_authenticate(&req.username, &req.password, &auth.0.pam_service) {
         Ok(()) => {
             info!("PAM login successful for user '{}'", req.username);
             let token = store.create_session(&req.username);
@@ -322,9 +326,9 @@ async fn session_handler(
     (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "authenticated": false }))).into_response()
 }
 
-fn pam_authenticate(username: &str, password: &str) -> Result<(), String> {
-    let mut client = pam::Client::with_password("login")
-        .map_err(|e| format!("PAM init failed: {e}"))?;
+fn pam_authenticate(username: &str, password: &str, pam_service: &str) -> Result<(), String> {
+    let mut client = pam::Client::with_password(pam_service)
+        .map_err(|e| format!("PAM init failed ({pam_service}): {e}"))?;
     client.conversation_mut().set_credentials(username, password);
     client.authenticate().map_err(|e| format!("PAM auth failed: {e}"))?;
     // Skip open_session() — pam_loginuid fails under systemd with NoNewPrivileges.
@@ -334,11 +338,12 @@ fn pam_authenticate(username: &str, password: &str) -> Result<(), String> {
 
 /// Auth routes — these use Extension<SessionStore> so they can be merged
 /// into Router<LibvirtManager> without state conflicts.
-pub fn auth_routes(session_store: SessionStore) -> Router<LibvirtManager> {
+pub fn auth_routes(session_store: SessionStore, auth_cfg: AuthConfig) -> Router<LibvirtManager> {
     Router::new()
         .route("/auth/login", post(login_handler))
         .route("/auth/logout", post(logout_handler))
         .route("/auth/session", get(session_handler))
         .route("/ws-token", post(ws_token_handler))
         .layer(Extension(session_store))
+        .layer(Extension(PamAuth(std::sync::Arc::new(auth_cfg))))
 }
