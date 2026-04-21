@@ -216,8 +216,10 @@ export default function LoginPage() {
             </button>
           </form>
 
-          <p className={`text-xs text-center mt-4 ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-            Authenticates against PAM (system login)
+          <p className={`text-xs text-center mt-4 max-w-sm mx-auto leading-relaxed ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+            Uses your Linux account on this machine (same as SSH login). Not a separate virtspawn password — if you only use SSH keys, run{' '}
+            <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>passwd</code>{' '}
+            for that user on the server first.
           </p>
         </div>
       </div>

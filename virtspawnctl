@@ -26,9 +26,10 @@
 #   health          Deep health check (service, API, disk, libvirt, timers)
 #   doctor          Check system readiness
 #   tls             Generate self-signed TLS certificate
-#   password        Show the admin password (if auth enabled)
 #   demo            Run interactive API demo
 #   help            Show this help
+#
+# Web UI sign-in uses PAM (Linux accounts on this host), not a separate virtspawn password.
 
 set -euo pipefail
 
