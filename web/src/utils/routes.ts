@@ -1,6 +1,6 @@
 import React from 'react'
 import {
-  Home, Server, Upload, Network, HardDrive, Camera, Shield, Archive, Globe,
+  Home, Server, Plus, Upload, Network, HardDrive, Camera, Shield, Archive, Globe,
   Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key,
 } from 'lucide-react'
 
@@ -21,6 +21,7 @@ export const navGroups: NavGroup[] = [
     items: [
       { to: '/', icon: React.createElement(Home, { className: 'w-4 h-4' }), label: 'Dashboard' },
       { to: '/vms', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Virtual Machines' },
+      { to: '/create', icon: React.createElement(Plus, { className: 'w-4 h-4' }), label: 'Create VM' },
       { to: '/import', icon: React.createElement(Upload, { className: 'w-4 h-4' }), label: 'Import VM' },
     ],
   },
