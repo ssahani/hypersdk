@@ -531,28 +531,55 @@ open_firewall() {
 
 # ── Start and verify ─────────────────────────────────────────────────
 
+stop_daemon_for_upgrade() {
+    info "Stopping existing virtspawn-daemon (releases TCP :5092 for clean start)..."
+    systemctl stop virtspawn-daemon >> "$LOG_FILE" 2>&1 || true
+    sleep 2
+    # Rare: zombie listener or unrelated process — best-effort clear on Linux.
+    if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q ':5092[[:space:]]'; then
+        warn "Port 5092 still occupied — trying to clear listeners (fuser/ss)"
+        command -v fuser >/dev/null 2>&1 && fuser -k 5092/tcp >> "$LOG_FILE" 2>&1 || true
+        sleep 2
+    fi
+}
+
+wait_for_https_health() {
+    local retries="${1:-15}"
+    local attempt=0
+    while [ "$attempt" -lt "$retries" ]; do
+        if curl -sfk https://localhost:5092/api/v1/health > /dev/null 2>&1; then
+            ok "Daemon is running and healthy"
+            return 0
+        fi
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+    return 1
+}
+
 start_daemon() {
     step "Starting virtspawn daemon"
 
-    # enable --now does not restart an already-active unit; after a binary upgrade the old
-    # process can still hold :5092 and the new start fails with EADDRINUSE. Always restart.
+    stop_daemon_for_upgrade
+
     systemctl enable virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to enable virtspawn-daemon. Check: journalctl -u virtspawn-daemon"
-    systemctl restart virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to start daemon. Check: journalctl -u virtspawn-daemon"
+    systemctl start virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to start daemon. Check: journalctl -u virtspawn-daemon"
 
-    local retries=15
-    while [ $retries -gt 0 ]; do
-        if curl -sfk https://localhost:5092/api/v1/health > /dev/null 2>&1; then
-            ok "Daemon is running and healthy"
-            return
-        fi
-        retries=$((retries - 1))
-        sleep 1
-    done
+    if wait_for_https_health 15; then
+        return 0
+    fi
 
-    # If we get here, show the error
-    warn "Daemon health check timed out. Checking logs..."
-    journalctl -u virtspawn-daemon --no-pager -n 10 2>/dev/null || true
-    fail "Daemon failed to start. Check: journalctl -u virtspawn-daemon"
+    warn "Health check failed — stopping and starting daemon once more (common after TLS/binary upgrade)"
+    stop_daemon_for_upgrade
+    systemctl start virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to restart daemon. Check: journalctl -u virtspawn-daemon"
+
+    if wait_for_https_health 15; then
+        return 0
+    fi
+
+    warn "Daemon health check timed out. Showing recent logs:"
+    journalctl -u virtspawn-daemon --no-pager -n 25 2>/dev/null || true
+    fail "Daemon failed to become healthy at https://localhost:5092/api/v1/health — fix the error above then: sudo systemctl restart virtspawn-daemon"
 }
 
 # ── Verification tests ───────────────────────────────────────────────
