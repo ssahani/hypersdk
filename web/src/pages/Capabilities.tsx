@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { getCapabilities, getSysinfo, CapabilitiesInfo } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import { RefreshCw, Cpu, Info } from 'lucide-react'
+import SysinfoDisplay from '../components/SysinfoDisplay'
 
 export default function CapabilitiesPage() {
   const [capabilities, setCapabilities] = useState<CapabilitiesInfo | null>(null)
@@ -90,10 +91,8 @@ export default function CapabilitiesPage() {
       )}
 
       {tab === 'sysinfo' && (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          <pre className="p-6 text-sm text-slate-300 overflow-x-auto whitespace-pre-wrap font-mono">
-            {sysinfo || 'No system info available.'}
-          </pre>
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 sm:p-6">
+          <SysinfoDisplay xml={sysinfo} />
         </div>
       )}
     </div>

@@ -102,20 +102,20 @@ export default function Navbar() {
 
   return (
     <nav className="bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50 sticky top-0 z-30">
-      <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+      <div className="container mx-auto px-3 sm:px-4">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 min-h-14 py-2 lg:min-h-16 lg:py-0 lg:flex-nowrap lg:justify-between">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group hover:scale-105 transition-transform duration-200">
+          <Link to="/" className="flex items-center gap-2 sm:gap-2.5 group hover:scale-105 transition-transform duration-200 shrink-0 order-1">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 transition-shadow">
               <Zap className="w-4.5 h-4.5 text-white" />
             </div>
-            <span className="text-lg font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
+            <span className="text-base sm:text-lg font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent">
               virtspawn
             </span>
           </Link>
 
           {/* Desktop Nav */}
-          <div className="hidden lg:flex items-center gap-1">
+          <div className="hidden lg:flex items-center gap-1 order-3 lg:order-2 flex-1 min-w-0 justify-center">
             {navGroups[0].items.filter((item) => navItemVisible(item, username)).map((item) => (
               <NavLink key={item.to} item={item} />
             ))}
@@ -124,12 +124,12 @@ export default function Navbar() {
             ))}
           </div>
 
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            <button onClick={toggleTheme} className="p-1.5 hover:bg-slate-700/60 rounded-lg transition text-slate-400 hover:text-white" title={theme === 'dark' ? 'Light mode' : 'Dark mode'} aria-label="Toggle theme">
+          {/* Right toolbar: wrap as a group so Log out stays on-screen */}
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0 ml-auto order-2 lg:order-3 flex-1 justify-end lg:flex-none">
+            <button onClick={toggleTheme} className="p-1.5 hover:bg-slate-700/60 rounded-lg transition text-slate-400 hover:text-white shrink-0" title={theme === 'dark' ? 'Light mode' : 'Dark mode'} aria-label="Toggle theme">
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <div className="relative" ref={bellRef}>
+            <div className="relative shrink-0" ref={bellRef}>
               <button onClick={() => setBellOpen(o => !o)} className="relative p-1.5 hover:bg-slate-700/60 rounded-lg transition text-slate-400 hover:text-white" title="Notifications" aria-label="Notifications">
                 <Bell className="w-4 h-4" />
                 {recentCount > 0 && (
@@ -137,7 +137,7 @@ export default function Navbar() {
                 )}
               </button>
               {bellOpen && (
-                <div className="absolute top-full right-0 mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl py-2 w-80 z-40 animate-fade-in origin-top-right max-h-[400px] overflow-y-auto">
+                <div className="absolute top-full right-0 mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl py-2 w-[min(20rem,calc(100vw-2rem))] z-40 animate-fade-in origin-top-right max-h-[400px] overflow-y-auto">
                   <div className="px-4 py-2 border-b border-slate-700/50 text-[10px] font-bold text-slate-500 uppercase tracking-wider">Recent Activity</div>
                   {events.length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm text-slate-500">No recent events</div>
@@ -159,35 +159,39 @@ export default function Navbar() {
                 </div>
               )}
             </div>
-            <ConnectionStatus />
+            <div className="shrink-0">
+              <ConnectionStatus />
+            </div>
             <Link
               to="/create"
-              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg transition-all duration-200 text-sm font-medium shadow-lg shadow-blue-600/20 hover:shadow-blue-500/30"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg transition-all duration-200 text-sm font-medium shadow-lg shadow-blue-600/20 hover:shadow-blue-500/30 shrink-0 whitespace-nowrap"
             >
-              <Plus className="w-4 h-4" />
-              Create VM
+              <Plus className="w-4 h-4 shrink-0" />
+              <span className="hidden lg:inline">Create VM</span>
+              <span className="lg:hidden">Create</span>
             </Link>
             {isAuthenticated && (
-              <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-                <span className="hidden sm:flex text-xs text-slate-400 items-center gap-1 max-w-[120px] md:max-w-[200px]">
+              <div className="flex items-center gap-1 shrink-0 border-l border-slate-700/60 pl-1.5 sm:pl-2 ml-0.5">
+                <span className="hidden xl:flex text-xs text-slate-400 items-center gap-1 max-w-[140px] 2xl:max-w-[200px]" title={username || undefined}>
                   <User className="w-3 h-3 shrink-0" aria-hidden />
                   <span className="truncate">{username || 'Signed in'}</span>
                 </span>
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className="flex items-center gap-1.5 px-2 py-1.5 sm:px-2.5 rounded-lg transition text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-600/60 hover:border-slate-500"
-                  title="Sign out"
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg transition text-slate-300 hover:bg-slate-700 hover:text-white border border-slate-600/60 hover:border-slate-500 shrink-0"
+                  title={username ? `Sign out (${username})` : 'Sign out'}
                   aria-label="Sign out"
                 >
                   <LogOut className="w-4 h-4 shrink-0 text-slate-400 hover:text-red-400" />
-                  <span className="text-xs font-medium hidden sm:inline">Log out</span>
+                  <span className="text-[11px] sm:text-xs font-medium leading-none">Log out</span>
                 </button>
               </div>
             )}
             <button
-              className="lg:hidden p-2 hover:bg-slate-700/60 rounded-lg transition"
+              className="lg:hidden p-2 hover:bg-slate-700/60 rounded-lg transition shrink-0 -mr-1"
               onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label="Open menu"
             >
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
