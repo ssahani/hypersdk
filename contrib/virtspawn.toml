@@ -20,6 +20,8 @@ create_backend = "libvirt_xml"
 # virt_builder_allowed = true
 # virt_builder_default_ssh_pubkey_path = "/var/lib/virtspawn/provision.pub"
 # virt_builder_update = true
+# Packages installed in every virt-builder VM; add qemu-guest-agent for domifaddr / IP detection.
+# virt_builder_default_packages = ["qemu-guest-agent"]
 # mkosi_allowed = true   # mkosi is the recommended disk image path; install.sh installs from GitHub when absent
 
 [backup]

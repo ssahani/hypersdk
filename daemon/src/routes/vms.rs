@@ -129,6 +129,9 @@ struct DeleteVmQuery {
     undefine_tpm: bool,
     #[serde(default)]
     undefine_keep_tpm: bool,
+    /// Also delete backing disk image files from the host filesystem.
+    #[serde(default)]
+    delete_disks: bool,
 }
 
 async fn delete_vm_handler(
@@ -144,6 +147,7 @@ async fn delete_vm_handler(
         checkpoints_metadata: q.undefine_checkpoints_metadata,
         tpm: q.undefine_tpm,
         keep_tpm: q.undefine_keep_tpm,
+        delete_disks: q.delete_disks,
     };
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || manager.with_conn(|conn| domain::delete_vm_with_options(conn, &name2, &opts)))

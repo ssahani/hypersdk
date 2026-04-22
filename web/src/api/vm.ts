@@ -114,6 +114,8 @@ export interface VmDeleteUndefineOpts {
   undefine_checkpoints_metadata?: boolean
   undefine_tpm?: boolean
   undefine_keep_tpm?: boolean
+  /** Also remove backing disk image files from the host filesystem. */
+  delete_disks?: boolean
 }
 
 function deleteVmQuery(opts?: VmDeleteUndefineOpts): string {
@@ -129,6 +131,7 @@ function deleteVmQuery(opts?: VmDeleteUndefineOpts): string {
   set('undefine_checkpoints_metadata')
   set('undefine_tpm')
   set('undefine_keep_tpm')
+  set('delete_disks')
   const s = p.toString()
   return s ? `?${s}` : ''
 }

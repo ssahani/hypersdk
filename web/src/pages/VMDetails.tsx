@@ -1291,19 +1291,39 @@ export default function VMDetailsPage() {
               confirmDanger
               confirmDisabled={!vm?.name || deleteVmTypeConfirm !== vm.name}
             >
-              <p className="text-sm text-slate-300 mb-2">This will stop <strong>{vm?.name}</strong> if needed, then remove it from libvirt. If you already removed disk or NVRAM files on the host, the server retries so the definition can still be dropped.</p>
-              <p className="text-xs text-slate-500 mb-2">Undefine flags from the Advanced tab apply. Disks are not deleted by this action unless libvirt cleanup flags succeed on files that still exist.</p>
-              <ul className="text-xs text-slate-400 list-disc pl-4 space-y-0.5 mb-3">
-                {deleteUndefine.undefine_managed_save && <li>Remove managed save</li>}
-                {deleteUndefine.undefine_snapshots_metadata && <li>Drop snapshot metadata</li>}
-                {deleteUndefine.undefine_nvram && <li>Delete NVRAM</li>}
-                {deleteUndefine.undefine_keep_nvram && <li>Keep NVRAM</li>}
-                {deleteUndefine.undefine_checkpoints_metadata && <li>Drop checkpoint metadata</li>}
-                {deleteUndefine.undefine_tpm && <li>Delete TPM state</li>}
-                {deleteUndefine.undefine_keep_tpm && <li>Keep TPM</li>}
-                {!Object.values(deleteUndefine).some(Boolean) && <li>None (plain undefine)</li>}
-              </ul>
-              <label htmlFor="dlg-delete-vm-confirm" className="block text-xs text-slate-400 mb-1">Type the VM name <span className="font-mono text-slate-200">{vm?.name}</span> to confirm:</label>
+              <p className="text-sm text-slate-300 mb-3">
+                This will stop <strong>{vm?.name}</strong> if running, then remove the libvirt definition.
+              </p>
+
+              {/* Disk deletion */}
+              <div className={`rounded-lg border p-3 mb-3 ${deleteUndefine.delete_disks ? 'border-red-500/50 bg-red-900/10' : 'border-slate-700/50 bg-slate-800/40'}`}>
+                <label className="flex items-start gap-2.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!deleteUndefine.delete_disks}
+                    onChange={(e) => setDeleteUndefine(o => ({ ...o, delete_disks: e.target.checked }))}
+                    className="mt-0.5 accent-red-500 w-4 h-4 shrink-0"
+                  />
+                  <div>
+                    <span className="text-sm font-medium text-slate-200">Also delete disk image files</span>
+                    <p className="text-xs text-slate-400 mt-0.5">Permanently removes the backing <code>.qcow2</code> / <code>.raw</code> files from the host. Cannot be undone.</p>
+                    {deleteUndefine.delete_disks && vm?.disks && vm.disks.filter(d => d.device === 'disk').length > 0 && (
+                      <ul className="mt-1.5 space-y-0.5">
+                        {vm.disks.filter(d => d.device === 'disk').map(d => (
+                          <li key={d.target} className="flex items-center gap-1.5 text-xs text-red-300 font-mono">
+                            <HardDrive className="w-3 h-3 shrink-0" />
+                            {d.source}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </label>
+              </div>
+
+              <label htmlFor="dlg-delete-vm-confirm" className="block text-xs text-slate-400 mb-1">
+                Type the VM name <span className="font-mono text-slate-200">{vm?.name}</span> to confirm:
+              </label>
               <input
                 id="dlg-delete-vm-confirm"
                 type="text"

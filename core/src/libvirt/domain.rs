@@ -152,6 +152,9 @@ pub struct UndefineOptions {
     pub tpm: bool,
     #[serde(default)]
     pub keep_tpm: bool,
+    /// Delete backing disk image files (only `device='disk'` sources) after undefining.
+    #[serde(default)]
+    pub delete_disks: bool,
 }
 
 impl UndefineOptions {
@@ -193,27 +196,34 @@ impl UndefineOptions {
     }
 }
 
-/// Undefine persistent domain XML. If `undefine_flags` fails (often because NVRAM/TPM/managed-save
-/// files or backing disks were already removed on the host), retry plain `undefine()` so the
-/// domain definition is still dropped.
-fn undefine_persistent(domain: &Domain, name: &str, flags: u32) -> Result<(), LibvirtError> {
-    if flags == 0 {
-        return domain
-            .undefine()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")));
-    }
+/// Undefine persistent domain XML.
+///
+/// Always adds safe auto-cleanup base flags so that VMs with snapshot metadata, managed-save
+/// images, or checkpoint metadata don't silently block deletion. User-supplied flags are OR'd
+/// on top. If `undefine_flags` still fails (e.g. NVRAM file already gone), we retry without
+/// the optional file-removal flags so the domain record is always dropped.
+fn undefine_persistent(domain: &Domain, name: &str, user_flags: u32) -> Result<(), LibvirtError> {
+    // These are always safe: remove snapshot/checkpoint/managed-save metadata on delete.
+    let base: u32 = sys::VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA
+        | sys::VIR_DOMAIN_UNDEFINE_MANAGED_SAVE
+        | sys::VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA;
+    let flags = user_flags | base;
+
     match domain.undefine_flags(flags as sys::virDomainUndefineFlagsValues) {
         Ok(()) => Ok(()),
         Err(e) => {
             let first = format!("{e}");
             warn!(
-                "undefine_flags failed for VM '{name}' (flags={flags}), retrying plain undefine: {first}"
+                "undefine_flags failed for VM '{name}' (flags={flags:#x}), retrying with base flags only: {first}"
             );
+            // Retry with just the safe base flags (drops user NVRAM/TPM file-removal bits
+            // that may fail if those files no longer exist).
             domain
-                .undefine()
+                .undefine_flags(base as sys::virDomainUndefineFlagsValues)
+                .or_else(|_| domain.undefine())
                 .map_err(|e2| {
                     LibvirtError::Operation(format!(
-                        "Failed to delete VM '{name}' (undefine_flags: {first}; plain undefine: {e2})"
+                        "Failed to delete VM '{name}' (first: {first}; retry: {e2})"
                     ))
                 })
         }
@@ -222,6 +232,30 @@ fn undefine_persistent(domain: &Domain, name: &str, flags: u32) -> Result<(), Li
 
 pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     delete_vm_with_options(conn, name, &UndefineOptions::default())
+}
+
+/// Collect file-backed disk paths (`device='disk'`) from domain XML.
+/// CDROMs and non-file sources are intentionally excluded.
+fn collect_disk_paths(xml: &str) -> Vec<String> {
+    let mut paths = Vec::new();
+    for block in xml::split_blocks(xml, "disk") {
+        let device = xml::extract_attr(&block, "disk", "device")
+            .unwrap_or_default();
+        if device != "disk" {
+            continue;
+        }
+        let disk_type = xml::extract_attr(&block, "disk", "type")
+            .unwrap_or_default();
+        if disk_type != "file" {
+            continue;
+        }
+        if let Some(file) = xml::extract_attr(&block, "source", "file") {
+            if !file.is_empty() {
+                paths.push(file);
+            }
+        }
+    }
+    paths
 }
 
 /// Stop (if needed) and undefine a VM, optionally passing `virDomainUndefineFlags` bits.
@@ -234,6 +268,15 @@ pub fn delete_vm_with_options(conn: &Connect, name: &str, opts: &UndefineOptions
         Err(e) => return Err(e),
     };
 
+    // Collect disk paths before we undefine (XML is gone after).
+    let disk_paths: Vec<String> = if opts.delete_disks {
+        domain.get_xml_desc(0)
+            .map(|xml| collect_disk_paths(&xml))
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+
     let info = domain
         .get_info()
         .map_err(|e| LibvirtError::Operation(format!("Failed to get VM '{name}' info: {e}")))?;
@@ -244,8 +287,8 @@ pub fn delete_vm_with_options(conn: &Connect, name: &str, opts: &UndefineOptions
             .destroy()
             .map_err(|e| LibvirtError::Operation(format!("Failed to stop VM '{name}': {e}")))?;
 
-        // Transient domains disappear after destroy; nothing left to undefine.
         if !persistent {
+            delete_disk_files(&disk_paths, name);
             return Ok(());
         }
 
@@ -254,10 +297,29 @@ pub fn delete_vm_with_options(conn: &Connect, name: &str, opts: &UndefineOptions
             Err(LibvirtError::NotFound(_)) => return Ok(()),
             Err(e) => return Err(e),
         };
-        return undefine_persistent(&domain, name, flags);
+        undefine_persistent(&domain, name, flags)?;
+        delete_disk_files(&disk_paths, name);
+        return Ok(());
     }
 
-    undefine_persistent(&domain, name, flags)
+    undefine_persistent(&domain, name, flags)?;
+    delete_disk_files(&disk_paths, name);
+    Ok(())
+}
+
+/// Delete disk image files on the host filesystem, logging but not propagating individual errors.
+fn delete_disk_files(paths: &[String], vm_name: &str) {
+    for path in paths {
+        match std::fs::remove_file(path) {
+            Ok(()) => tracing::info!("Deleted disk image for VM '{vm_name}': {path}"),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                tracing::debug!("Disk image already gone for VM '{vm_name}': {path}");
+            }
+            Err(e) => {
+                tracing::warn!("Could not delete disk image for VM '{vm_name}' at {path}: {e}");
+            }
+        }
+    }
 }
 
 pub fn set_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), LibvirtError> {

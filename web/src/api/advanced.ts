@@ -6,6 +6,7 @@ export interface CapabilitiesInfo {
   host_arch: string
   host_cpu_model: string
   guests: { os_type: string; arch: string; machines: string[] }[]
+  spice_available: boolean
 }
 
 export interface NodeDeviceInfo {

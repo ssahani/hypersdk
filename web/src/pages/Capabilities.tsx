@@ -62,6 +62,12 @@ export default function CapabilitiesPage() {
               <span className="text-slate-400 text-sm">CPU Model</span>
               <span className="text-sm font-medium">{capabilities.host_cpu_model}</span>
             </div>
+            <div className="flex items-center justify-between py-2">
+              <span className="text-slate-400 text-sm">SPICE Graphics</span>
+              <span className={`text-sm font-medium px-2 py-0.5 rounded ${capabilities.spice_available ? 'bg-green-900/50 text-green-400' : 'bg-slate-700/50 text-slate-400'}`}>
+                {capabilities.spice_available ? 'Available' : 'Not available'}
+              </span>
+            </div>
           </div>
 
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">

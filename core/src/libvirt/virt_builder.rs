@@ -136,7 +136,13 @@ pub fn materialize_virt_builder_if_requested(
         args.push("--selinux-relabel".into());
     }
 
-    for pkg in &req.virt_builder_packages {
+    let all_packages: Vec<&str> = cfg
+        .virt_builder_default_packages
+        .iter()
+        .map(|s| s.as_str())
+        .chain(req.virt_builder_packages.iter().map(|s| s.as_str()))
+        .collect();
+    for pkg in &all_packages {
         let p = pkg.trim();
         if !p.is_empty() {
             args.push("--install".into());

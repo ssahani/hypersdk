@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPostVoid } from './client'
+import { apiGet, apiPost, apiPostVoid, apiDelete } from './client'
 import { VmTemplate } from './vm'
 
 const API = '/api/v1'
@@ -28,6 +28,8 @@ export interface AuditEvent {
 // ISO/Disk browser
 export const listIsos = () => apiGet<ImageFile[]>(`${API}/browse/isos`)
 export const listDiskImages = () => apiGet<ImageFile[]>(`${API}/browse/disks`)
+export const deleteDiskImage = (path: string) =>
+  apiDelete(`${API}/browse/disks/delete?path=${encodeURIComponent(path)}`)
 
 /** Names from `virt-builder --list` (empty if tool missing or error). */
 export const listVirtBuilderTemplates = () =>

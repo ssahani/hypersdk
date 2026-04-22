@@ -20,6 +20,8 @@ EnvironmentFile=-/etc/default/virtspawn-daemon
 Environment=RUST_LOG=info
 # install.sh installs mkosi to /usr/local/bin/mkosi; some distros' default root PATH omits it.
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+# ProtectHome=read-only blocks /root/.cache; redirect virt-builder and pip caches to writable dirs.
+Environment=XDG_CACHE_HOME=/var/cache/virtspawn
 
 ExecStart=/usr/local/bin/virtspawn-daemon --config /etc/virtspawn/config.toml
 Restart=on-failure
@@ -40,7 +42,8 @@ TasksMax=256
 # Filesystem protection — relaxed for host networking management
 # (ip, iptables, nmcli need access to /sys, /proc, /run)
 ProtectHome=read-only
-PrivateTmp=true
+# PrivateTmp breaks libguestfs (virt-builder): qemu (uid:107) can't access /tmp/libguestfsXXX/ in the private namespace.
+# PrivateTmp=true
 
 # Network access
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

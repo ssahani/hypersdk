@@ -34,4 +34,6 @@ uri = "qemu:///system"
 # virt_builder_allowed = true
 # virt_builder_default_ssh_pubkey_path = ""
 # virt_builder_update = true
+# Packages installed in every virt-builder VM; add qemu-guest-agent for reliable IP detection via virsh domifaddr.
+# virt_builder_default_packages = ["qemu-guest-agent"]
 # mkosi_allowed = true

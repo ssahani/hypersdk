@@ -1,5 +1,5 @@
-use axum::extract::{Path, State};
-use axum::routing::{get, post};
+use axum::extract::{Path, Query, State};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use virtspawn_core::libvirt::{extras, virt_builder};
@@ -31,6 +31,55 @@ async fn list_disk_images(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let files = extras::list_disk_images();
     Ok(Json(serde_json::json!(files)))
+}
+
+#[derive(Deserialize)]
+struct DeleteImageQuery {
+    path: String,
+}
+
+async fn delete_disk_image(
+    State(_m): State<LibvirtManager>,
+    Query(q): Query<DeleteImageQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let path = q.path.trim().to_string();
+    if path.is_empty() {
+        return Err(AppError::from(LibvirtError::Invalid("path is required".into())));
+    }
+    // Safety: only allow paths under known image directories.
+    let allowed_prefixes = [
+        "/var/lib/libvirt/images/",
+        "/var/lib/virtspawn/images/",
+    ];
+    if !allowed_prefixes.iter().any(|p| path.starts_with(p)) {
+        return Err(AppError::from(LibvirtError::Invalid(
+            format!("Path not in an allowed images directory: {path}")
+        )));
+    }
+    // Reject path traversal.
+    if path.contains("..") {
+        return Err(AppError::from(LibvirtError::Invalid("Path traversal not allowed".into())));
+    }
+    // Only delete known disk image extensions.
+    let ok_ext = path.ends_with(".qcow2") || path.ends_with(".raw")
+        || path.ends_with(".img") || path.ends_with(".vmdk");
+    if !ok_ext {
+        return Err(AppError::from(LibvirtError::Invalid(
+            format!("File extension not allowed for deletion: {path}")
+        )));
+    }
+    match std::fs::remove_file(&path) {
+        Ok(()) => {
+            log_audit("delete-disk-image", &path, "ok");
+            Ok(Json(serde_json::json!({ "status": "deleted", "path": path })))
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            Ok(Json(serde_json::json!({ "status": "not_found", "path": path })))
+        }
+        Err(e) => Err(AppError::from(LibvirtError::Operation(
+            format!("Failed to delete {path}: {e}")
+        ))),
+    }
 }
 
 async fn list_virt_builder_templates(
@@ -340,6 +389,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         // Browser
         .route("/browse/isos", get(list_isos))
         .route("/browse/disks", get(list_disk_images))
+        .route("/browse/disks/delete", delete(delete_disk_image))
         .route("/browse/virt-builder", get(list_virt_builder_templates))
         .route("/browse/virt-builder/notes/{template}", get(virt_builder_notes_handler))
         .route("/browse/mkosi-workspaces", get(list_mkosi_workspaces_handler))

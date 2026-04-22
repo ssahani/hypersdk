@@ -192,10 +192,7 @@ export default function Navbar() {
 
           {/* Desktop Nav — top bar only, no sidebar */}
           <div className="hidden lg:flex items-center gap-1 order-3 lg:order-2 flex-1 min-w-0 justify-center">
-            {navGroups[0].items.filter((item) => navItemVisible(item, username)).map((item) => (
-              <NavLink key={item.to} item={item} steel={steel} />
-            ))}
-            {navGroups.slice(1).map((group) => (
+            {navGroups.map((group) => (
               <DesktopDropdown key={group.label} group={group} username={username} steel={steel} />
             ))}
           </div>

@@ -16,6 +16,36 @@ use crate::config::LibvirtConfig;
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
+/// Auto-detect a mkosi workspace when the user provided no boot source.
+///
+/// Tries these matches in order:
+///  1. Workspace name is an exact prefix of the VM name (e.g. "fedora43" for "fedora43-web")
+///  2. VM name contains the workspace's distro token (e.g. "fedora" → matches "fedora43")
+///
+/// Returns the workspace path string if a match is found.
+pub fn auto_detect_workspace(vm_name: &str) -> Option<String> {
+    let name_lower = vm_name.to_lowercase();
+    let workspaces = crate::libvirt::extras::list_mkosi_workspaces();
+    if workspaces.is_empty() {
+        return None;
+    }
+    // Pass 1: workspace name is a prefix of the VM name.
+    for ws in &workspaces {
+        if name_lower.starts_with(&ws.name.to_lowercase()) {
+            return Some(ws.path.clone());
+        }
+    }
+    // Pass 2: VM name contains the distro token extracted from workspace name
+    // e.g. "fedora43" → distro token "fedora"; "ubuntu2404" → "ubuntu".
+    for ws in &workspaces {
+        let token: String = ws.name.chars().take_while(|c| c.is_alphabetic()).collect();
+        if !token.is_empty() && name_lower.contains(&token.to_lowercase()) {
+            return Some(ws.path.clone());
+        }
+    }
+    None
+}
+
 /// If `req.mkosi_workspace` is set, run `mkosi build` in that directory and materialize the output disk.
 pub fn materialize_mkosi_if_requested(
     conn: &Connect,

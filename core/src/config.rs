@@ -104,6 +104,9 @@ pub struct LibvirtConfig {
     /// Pass `--update` to `virt-builder` (package updates inside the template).
     #[serde(default = "default_true")]
     pub virt_builder_update: bool,
+    /// Packages always installed via `virt-builder --install` for every virt-builder VM (e.g. `["qemu-guest-agent"]`).
+    #[serde(default)]
+    pub virt_builder_default_packages: Vec<String>,
     /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (requires mkosi on host; see install.sh).
     #[serde(default = "default_true")]
     pub mkosi_allowed: bool,
@@ -185,6 +188,7 @@ impl Default for LibvirtConfig {
             virt_builder_allowed: true,
             virt_builder_default_ssh_pubkey_path: String::new(),
             virt_builder_update: true,
+            virt_builder_default_packages: Vec::new(),
             mkosi_allowed: true,
         }
     }

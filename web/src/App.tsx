@@ -39,6 +39,7 @@ const Services = lazy(() => import('./pages/Services'))
 const Logs = lazy(() => import('./pages/Logs'))
 const StoragePoolDetail = lazy(() => import('./pages/StoragePoolDetail'))
 const AdminSessions = lazy(() => import('./pages/AdminSessions'))
+const DiskImages = lazy(() => import('./pages/DiskImages'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -109,6 +110,7 @@ function AuthenticatedApp() {
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />
                 <Route path="/storage/:pool" element={<StoragePoolDetail />} />
+                <Route path="/disk-images" element={<DiskImages />} />
                 <Route path="/snapshots" element={<Snapshots />} />
                 <Route path="/node" element={<NodeInfo />} />
                 <Route path="/events" element={<Events />} />

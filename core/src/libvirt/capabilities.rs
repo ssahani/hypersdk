@@ -10,6 +10,8 @@ pub struct HypervisorCapabilities {
     pub host_cpu_model: String,
     pub guests: Vec<GuestCapability>,
     pub raw_xml: String,
+    /// True when libspice-server.so is present on the host (SPICE graphics available).
+    pub spice_available: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +47,7 @@ pub fn get_capabilities(conn: &Connect) -> Result<HypervisorCapabilities, Libvir
         host_cpu_model,
         guests,
         raw_xml: xml,
+        spice_available: super::create::has_spice(),
     })
 }
 
