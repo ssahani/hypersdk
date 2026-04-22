@@ -702,6 +702,15 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `GET` | `/tokens` | List API tokens |
 | `POST` | `/tokens` | Create API token |
 
+### Host OS users (PAM)
+
+Requires **browser session** (not API tokens). The signed-in UNIX user must be **root** or in **`wheel`**, **`sudo`**, or **`admin`**. The daemon runs `useradd` / `chpasswd` on the host (typically as **root** via systemd).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/system/os-users/capability` | Whether the current session may create local users |
+| `POST` | `/system/os-users` | JSON `{ "username", "password" }` — create local UNIX account |
+
 ### Automation & Monitoring
 
 | Method | Path | Description |

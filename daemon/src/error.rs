@@ -30,6 +30,7 @@ impl IntoResponse for AppError {
         let (status, message) = match &self.0 {
             LibvirtError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             LibvirtError::Invalid(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            LibvirtError::Forbidden(msg) => (StatusCode::FORBIDDEN, msg.clone()),
             LibvirtError::Connection(msg)
             | LibvirtError::Operation(msg)
             | LibvirtError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),

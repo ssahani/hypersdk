@@ -1,6 +1,7 @@
 mod advanced;
 mod automation;
 mod backup;
+mod system;
 mod console;
 mod extras;
 mod health;
@@ -35,6 +36,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(host_network::host_network_routes())
         .merge(extras::extras_routes())
         .merge(automation::automation_routes())
+        .merge(system::system_routes())
 }
 
 pub fn websocket_routes() -> Router<LibvirtManager> {

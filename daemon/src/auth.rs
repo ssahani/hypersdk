@@ -13,6 +13,14 @@ use std::time::Instant;
 use tracing::{info, warn};
 use virtspawn_core::{AuthConfig, LibvirtManager};
 
+/// Authenticated HTTP actor (cookie session or API bearer token).
+#[derive(Clone, Debug)]
+pub struct RequestActor {
+    pub username: String,
+    /// API tokens must not perform sensitive host administration (e.g. OS user creation).
+    pub from_api_token: bool,
+}
+
 /// Session store: token -> (username, created_at)
 #[derive(Clone)]
 pub struct SessionStore {
@@ -157,7 +165,7 @@ fn extract_token(req: &Request<Body>) -> Option<String> {
 /// Skips health check. Applied via route_layer on API/WS routes.
 pub async fn auth_middleware(
     State(store): State<SessionStore>,
-    req: Request<Body>,
+    mut req: Request<Body>,
     next: Next,
 ) -> Response {
     let path = req.uri().path();
@@ -169,7 +177,11 @@ pub async fn auth_middleware(
 
     // Check session cookie
     if let Some(token) = extract_token(&req) {
-        if store.validate_session(&token).is_some() {
+        if let Some(username) = store.validate_session(&token) {
+            req.extensions_mut().insert(RequestActor {
+                username,
+                from_api_token: false,
+            });
             return next.run(req).await;
         }
     }
@@ -177,7 +189,11 @@ pub async fn auth_middleware(
     // Check Authorization header for API tokens (Bearer vs_xxx)
     if let Some(auth_header) = req.headers().get("authorization").and_then(|v| v.to_str().ok()) {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            if virtspawn_core::libvirt::automation::validate_api_token(token).is_some() {
+            if let Some(api) = virtspawn_core::libvirt::automation::validate_api_token(token) {
+                req.extensions_mut().insert(RequestActor {
+                    username: api.username,
+                    from_api_token: true,
+                });
                 return next.run(req).await;
             }
         }

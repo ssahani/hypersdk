@@ -3,6 +3,7 @@ pub mod config;
 pub mod fmt;
 pub mod libvirt;
 pub mod state;
+pub mod system_accounts;
 pub mod validate;
 pub mod xml;
 
@@ -33,6 +34,8 @@ pub enum LibvirtError {
     NotFound(String),
     #[error("Invalid input: {0}")]
     Invalid(String),
+    #[error("Forbidden: {0}")]
+    Forbidden(String),
     #[error("Operation failed: {0}")]
     Operation(String),
     #[error("Internal error: {0}")]

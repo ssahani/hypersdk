@@ -8,6 +8,7 @@ import {
   UserRole, ApiToken, AlertRule, Alert, WebhookConfig, ScheduledAction,
   NotificationChannel, SnapshotSchedule,
 } from '../api/automation'
+import { getOsUserCapability, createOsUser, OsUserCapability } from '../api/system'
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import {
@@ -50,11 +51,16 @@ export default function SettingsPage() {
   const [newSnapInterval, setNewSnapInterval] = useState('24')
   const [newSnapRetain, setNewSnapRetain] = useState('5')
 
+  const [osUserCap, setOsUserCap] = useState<OsUserCapability | null>(null)
+  const [newOsUsername, setNewOsUsername] = useState('')
+  const [newOsPassword, setNewOsPassword] = useState('')
+
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
       listRoles(), listTokens(), listAlertRules(), listAlerts(),
       listWebhooks(), listSchedules(), listVMs(),
       listNotificationChannels(), listSnapshotSchedules(),
+      getOsUserCapability(),
     ])
     if (results[0].status === 'fulfilled') setRoles(results[0].value)
     if (results[1].status === 'fulfilled') setTokens(results[1].value)
@@ -65,6 +71,8 @@ export default function SettingsPage() {
     if (results[6].status === 'fulfilled') setVMs(results[6].value)
     if (results[7].status === 'fulfilled') setNotificationChannels(results[7].value)
     if (results[8].status === 'fulfilled') setSnapshotSchedules(results[8].value)
+    if (results[9].status === 'fulfilled') setOsUserCap(results[9].value)
+    else setOsUserCap(null)
     setLoading(false)
   }, [])
 
@@ -124,6 +132,40 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
+
+          {osUserCap && (
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
+              <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-400" /> Create system user (PAM)</h3>
+              <p className="text-xs text-slate-500">
+                Adds a UNIX account on the virtspawn host (<code className="bg-slate-900/80 px-1 rounded">useradd</code> + password). The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong> (same idea as sudo-capable). Not available when using an API token.
+              </p>
+              {osUserCap.canCreateOsUsers ? (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input value={newOsUsername} onChange={e => setNewOsUsername(e.target.value)} className="input-field flex-1" placeholder="New username" autoComplete="off" />
+                  <input value={newOsPassword} onChange={e => setNewOsPassword(e.target.value)} type="password" className="input-field flex-1" placeholder="Initial password" autoComplete="new-password" />
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!newOsUsername.trim() || !newOsPassword) { toast.error('Username and password required'); return }
+                      try {
+                        await createOsUser(newOsUsername.trim(), newOsPassword)
+                        toast.success(`System user '${newOsUsername.trim()}' created`)
+                        setNewOsUsername('')
+                        setNewOsPassword('')
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : String(e))
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition whitespace-nowrap"
+                  >
+                    Create UNIX user
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs text-amber-400/90">{typeof osUserCap.reason === 'string' ? osUserCap.reason : 'You cannot create system users with the current sign-in method.'}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
 
