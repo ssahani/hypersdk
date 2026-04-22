@@ -15,34 +15,54 @@ export interface VMEvent {
   timestamp: number
 }
 
+/** `live` = VM watch socket open; `connecting` = fetching token or opening socket / backoff; `offline` = repeated token failure (e.g. session gone). */
+export type WsConnection = 'live' | 'connecting' | 'offline'
+
 interface WebSocketContextType {
+  /** True when real-time `/ws/v1/watch` is connected. */
   isConnected: boolean
+  connection: WsConnection
   subscribe: (callback: (msg: WSMessage) => void) => () => void
   events: VMEvent[]
 }
 
 const WebSocketContext = createContext<WebSocketContextType>({
   isConnected: false,
+  connection: 'connecting',
   subscribe: () => () => {},
   events: [],
 })
 
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [isConnected, setIsConnected] = useState(false)
+  const [connection, setConnection] = useState<WsConnection>('connecting')
   const [events, setEvents] = useState<VMEvent[]>([])
   const subscribersRef = useRef<Set<(msg: WSMessage) => void>>(new Set())
   const wsRef = useRef<WebSocket | null>(null)
+  const tokenFailRef = useRef(0)
 
   useEffect(() => {
+    let cancelled = false
     let retryDelay = 1000
     let retryTimer: ReturnType<typeof setTimeout> | null = null
 
     async function connect() {
+      if (cancelled) return
+      setConnection('connecting')
+      setIsConnected(false)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       let token: string
       try {
         token = await getWsToken()
+        tokenFailRef.current = 0
       } catch {
+        tokenFailRef.current += 1
+        if (tokenFailRef.current >= 6) {
+          setConnection('offline')
+        }
+        if (import.meta.env.DEV) {
+          console.warn('virtspawn: ws-token failed; real-time updates unavailable until it succeeds')
+        }
         retryTimer = setTimeout(connect, retryDelay)
         retryDelay = Math.min(retryDelay * 2, 30000)
         return
@@ -51,11 +71,18 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
       wsRef.current = ws
 
       ws.onopen = () => {
+        if (cancelled) return
         setIsConnected(true)
+        setConnection('live')
         retryDelay = 1000
       }
-      ws.onclose = () => {
+      ws.onclose = (ev) => {
+        if (cancelled) return
         setIsConnected(false)
+        setConnection('connecting')
+        if (import.meta.env.DEV) {
+          console.warn('virtspawn: /ws/v1/watch closed', ev.code, ev.reason || '(no reason)')
+        }
         retryTimer = setTimeout(connect, retryDelay)
         retryDelay = Math.min(retryDelay * 2, 30000)
       }
@@ -85,6 +112,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     connect()
     return () => {
+      cancelled = true
       if (retryTimer) clearTimeout(retryTimer)
       wsRef.current?.close()
     }
@@ -96,7 +124,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <WebSocketContext.Provider value={{ isConnected, subscribe, events }}>
+    <WebSocketContext.Provider value={{ isConnected, connection, subscribe, events }}>
       {children}
     </WebSocketContext.Provider>
   )

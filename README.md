@@ -929,6 +929,26 @@ ls /usr/local/share/virtspawn/web/index.html   # Is web UI installed?
 make web && sudo make install                   # Rebuild and reinstall
 ```
 
+### Navbar stuck on "Connecting" or "Offline" (no "Live")
+
+The **Live** badge means the browser has an open WebSocket to **`/ws/v1/watch`**. It needs a successful **`POST /api/v1/ws-token`** (session cookie) then **`wss://<same-host>/ws/v1/watch?token=...`**.
+
+- **Reverse proxy / ingress** must allow WebSocket upgrades on the same host and path prefix as the UI. For **nginx**, pass through `Upgrade` and `Connection`:
+
+```nginx
+location / {
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection $connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_pass https://127.0.0.1:5092;
+}
+# map $http_upgrade $connection_upgrade { default upgrade; '' close; }
+```
+
+- **Corporate proxies** sometimes block WebSockets entirely.
+- If **`ws-token`** returns **401**, refresh after sign-in; the UI will show **Offline** after repeated token failures.
+
 ### VNC console won't connect
 
 ```bash
