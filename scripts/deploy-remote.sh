@@ -238,7 +238,9 @@ fi
 
 if $QUICK; then
     echo "🔨 [2/3] remote build: make release web + make install (on $HOST)"
-    ssh_r "$REMOTE" "sudo bash -lc 'cd $REMOTE_DIR && make release web && make install'" || die "quick build failed"
+    # Build as SSH user (rustup cargo on PATH); only `make install` needs root (install + systemctl).
+    # Do not wrap `make release` in sudo — secure_path often omits cargo.
+    ssh_r "$REMOTE" "cd $REMOTE_DIR && make release web && sudo make install" || die "quick build failed"
     echo "🔄 [3/3] systemd: daemon-reload + try-restart (reloads unit if virtspawn-daemon was running)"
     ssh_r "$REMOTE" "sudo bash -lc 'systemctl daemon-reload && systemctl try-restart virtspawn-daemon'" || die "service reload failed"
 else
