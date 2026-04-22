@@ -23,6 +23,58 @@ fn ensure_uefi_for_mkosi_workspace(req: &mut CreateVmRequest) {
     }
 }
 
+fn is_fedora_mkosi_path(ws: &str) -> bool {
+    let lower = ws.to_ascii_lowercase();
+    Path::new(ws)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .map(|b| b.to_ascii_lowercase().starts_with("fedora"))
+        .unwrap_or(false)
+        || lower.contains("/fedora")
+}
+
+fn fedora_os_variant_from_mkosi_path(ws: &str) -> Option<String> {
+    let base = Path::new(ws).file_name()?.to_str()?.to_ascii_lowercase();
+    if base.starts_with("fedora") {
+        return Some(base.chars().take(32).collect());
+    }
+    let lower = ws.to_ascii_lowercase();
+    let i = lower.rfind("fedora")?;
+    let tail: String = lower[i..]
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric())
+        .collect();
+    if tail.len() >= 6 {
+        Some(tail)
+    } else {
+        None
+    }
+}
+
+/// Fedora Bootable=yes images are happier with 2 vCPU / 2 GiB+; match UI defaults when the request still has serde defaults.
+fn apply_fedora_mkosi_resource_defaults(req: &mut CreateVmRequest) {
+    let ws = req.mkosi_workspace.trim();
+    if ws.is_empty() || !is_fedora_mkosi_path(ws) {
+        return;
+    }
+    if req.vcpus == 1 && req.memory_mb == 1024 {
+        tracing::info!(
+            "mkosi Fedora workspace: applying 2 vCPUs / 2048 MiB RAM / min 20 GiB disk hint (was API defaults 1/1024/10)"
+        );
+        req.vcpus = 2;
+        req.memory_mb = 2048;
+        if req.disk_gb < 20 {
+            req.disk_gb = 20;
+        }
+    }
+    let ov = req.os_variant.trim();
+    if ov.is_empty() || ov.eq_ignore_ascii_case("generic") {
+        if let Some(v) = fedora_os_variant_from_mkosi_path(ws) {
+            req.os_variant = v;
+        }
+    }
+}
+
 /// Define a new VM using either native libvirt XML or external `virt-install` (see `[libvirt] create_backend`).
 pub fn create_vm(
     conn: &Connect,
@@ -54,6 +106,7 @@ pub fn create_vm(
 
     // Bootable=yes mkosi recipes ship GPT + systemd-boot; SeaBIOS cannot boot them.
     ensure_uefi_for_mkosi_workspace(&mut req);
+    apply_fedora_mkosi_resource_defaults(&mut req);
 
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg)?;

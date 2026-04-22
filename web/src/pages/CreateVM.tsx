@@ -153,6 +153,33 @@ function getDistroMeta(name: string): DistroMeta {
 
 type DiskMode = 'new' | 'existing' | 'virt_builder' | 'mkosi'
 
+/** Fedora mkosi workspaces (bundled e.g. fedora43, or any path whose last segment starts with fedora). */
+function isFedoraMkosiPath(path: string): boolean {
+  const seg = (path.split('/').pop() || path).toLowerCase()
+  return seg.startsWith('fedora') || /\/fedora/i.test(path)
+}
+
+/** Defaults used successfully for Fedora Bootable=yes / systemd-boot images (UEFI + headroom). */
+const FEDORA_MKOSI_DEFAULTS: Pick<CreateVmRequest, 'vcpus' | 'memory_mb' | 'disk_gb' | 'firmware'> = {
+  vcpus: 2,
+  memory_mb: 2048,
+  disk_gb: 20,
+  firmware: 'uefi',
+}
+
+function fedoraMkosiOsVariant(path: string): string {
+  const seg = (path.split('/').pop() || path).toLowerCase()
+  const m = seg.match(/^fedora(\d+)/)
+  if (m) return `fedora${m[1]}`
+  const m2 = path.toLowerCase().match(/fedora(\d+)/)
+  return m2 ? `fedora${m2[1]}` : 'fedora43'
+}
+
+function mkosiPathDefaults(path: string): Partial<CreateVmRequest> {
+  if (!isFedoraMkosiPath(path.trim())) return {}
+  return { ...FEDORA_MKOSI_DEFAULTS, os_variant: fedoraMkosiOsVariant(path.trim()) }
+}
+
 /** Common `virt-install --os-variant` ids (alphanumeric + dot/underscore/hyphen per server validation). */
 const OS_VARIANT_PRESETS: { value: string; label: string }[] = [
   { value: 'generic', label: 'generic — any Linux' },
@@ -163,6 +190,7 @@ const OS_VARIANT_PRESETS: { value: string; label: string }[] = [
   { value: 'fedora40', label: 'Fedora 40' },
   { value: 'fedora41', label: 'Fedora 41' },
   { value: 'fedora42', label: 'Fedora 42' },
+  { value: 'fedora43', label: 'Fedora 43' },
   { value: 'ubuntu22.04', label: 'Ubuntu 22.04 LTS' },
   { value: 'ubuntu24.04', label: 'Ubuntu 24.04 LTS' },
   { value: 'opensuse15.6', label: 'openSUSE Leap 15.6' },
@@ -628,7 +656,13 @@ export default function CreateVMPage() {
                           <button
                             key={ws.path}
                             type="button"
-                            onClick={() => setForm({ ...form, mkosi_workspace: ws.path, mkosi_image: '' })}
+                            onClick={() =>
+                              setForm((f) => ({
+                                ...f,
+                                mkosi_workspace: ws.path,
+                                mkosi_image: '',
+                                ...mkosiPathDefaults(ws.path),
+                              }))}
                             className={`relative flex items-center gap-3 px-3 py-3 rounded-xl border text-left transition-all duration-150 ${meta.cardBg} ${
                               selected
                                 ? `${meta.borderSelected} ring-1 ${meta.ringSelected} shadow-lg`
@@ -659,7 +693,10 @@ export default function CreateVMPage() {
                   id="mkosi-ws"
                   type="text"
                   value={form.mkosi_workspace || ''}
-                  onChange={(e) => setForm({ ...form, mkosi_workspace: e.target.value, mkosi_image: '' })}
+                  onChange={(e) => {
+                    const p = e.target.value
+                    setForm({ ...form, mkosi_workspace: p, mkosi_image: '', ...mkosiPathDefaults(p) })
+                  }}
                   className="input-field font-mono text-sm"
                   placeholder="/var/lib/virtspawn/mkosi-defs/my-guest"
                 />

@@ -47,6 +47,9 @@ Examples:
   deploy-remote.sh check    deploy-remote.sh check sus@host
 
 Env: DEPLOY_HOST DEPLOY_USER SSH_PORT SSHPASS REMOTE_DIR HEALTH_URL STRICT SYNC_ONLY
+
+After each rsync, the script runs sudo chown on the deploy tree so interrupted
+sudo builds cannot leave root-owned target/ (cargo EACCES on --quick).
 EOF
     exit 0
 }
@@ -219,6 +222,10 @@ ssh_r "$REMOTE" "mkdir -p $REMOTE_DIR"
 rsync_r \
     --exclude='target/' --exclude='node_modules/' --exclude='.git/' --exclude='web/dist/' \
     "$REPO/" "$REMOTE:$REMOTE_DIR/" || die "rsync failed"
+
+# If a previous run left root-owned files under the tree (e.g. interrupted sudo), cargo fails with EACCES.
+info "ensure $REMOTE_DIR is owned by the SSH user (idempotent)"
+ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo chown -R \"\$(id -un):\$(id -gn)\" ." || warn "chown deploy tree failed (non-fatal if you are not sudo-capable)"
 
 if [[ "${SYNC_ONLY:-0}" == 1 ]] || $SKIP_INSTALL; then
     ok "sync-only done"
