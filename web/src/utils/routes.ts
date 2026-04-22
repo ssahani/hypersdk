@@ -1,13 +1,15 @@
 import React from 'react'
 import {
   Home, Server, Plus, Upload, Network, HardDrive, Camera, Shield, Archive, Globe,
-  Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key,
+  Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key, Users,
 } from 'lucide-react'
 
 export interface NavItem {
   to: string
   icon: React.ReactNode
   label: string
+  /** If true, only show in nav when signed in as UNIX `root`. */
+  requiresRoot?: boolean
 }
 
 export interface NavGroup {
@@ -48,6 +50,7 @@ export const navGroups: NavGroup[] = [
       { to: '/logs', icon: React.createElement(ScrollText, { className: 'w-4 h-4' }), label: 'System Logs' },
       { to: '/audit', icon: React.createElement(FileText, { className: 'w-4 h-4' }), label: 'Audit Log' },
       { to: '/api-docs', icon: React.createElement(FileText, { className: 'w-4 h-4' }), label: 'API Docs' },
+      { to: '/admin/sessions', icon: React.createElement(Users, { className: 'w-4 h-4' }), label: 'Web sessions', requiresRoot: true },
       { to: '/settings', icon: React.createElement(Shield, { className: 'w-4 h-4' }), label: 'Settings' },
     ],
   },
@@ -74,5 +77,6 @@ export const routeLabels: Record<string, string> = {
   '/services': 'Services',
   '/logs': 'System Logs',
   '/settings': 'Settings',
+  '/admin/sessions': 'Web sessions',
   '/console': 'Console',
 }

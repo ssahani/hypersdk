@@ -38,6 +38,7 @@ const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Services = lazy(() => import('./pages/Services'))
 const Logs = lazy(() => import('./pages/Logs'))
 const StoragePoolDetail = lazy(() => import('./pages/StoragePoolDetail'))
+const AdminSessions = lazy(() => import('./pages/AdminSessions'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -116,6 +117,7 @@ function AuthenticatedApp() {
                 <Route path="/services" element={<Services />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin/sessions" element={<AdminSessions />} />
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </Suspense>

@@ -690,8 +690,17 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 |--------|------|-------------|
 | `POST` | `/api/v1/auth/login` | Login with PAM credentials |
 | `POST` | `/api/v1/auth/logout` | Logout and clear session |
-| `GET` | `/api/v1/auth/session` | Get current session info |
+| `GET` | `/api/v1/auth/session` | Get current session info (`username`, `session_id` for admin revoke) |
 | `POST` | `/api/v1/ws-token` | Get short-lived WebSocket authentication token |
+
+### Web sessions (root only, browser login)
+
+Lists in-memory cookie sessions for this daemon process. **API bearer tokens are not listed.** Revoking a session removes its cookie token (user must sign in again).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/sessions` | List sessions (`sessions`, `total_sessions`, `users_logged_in`, `sessions_per_username`) |
+| `DELETE` | `/admin/sessions/{session_id}` | Revoke session by opaque `session_id` from the list or from `GET /auth/session` |
 
 ### RBAC & Tokens
 

@@ -4,6 +4,9 @@ import { login as apiLogin, logout as apiLogout, getSession } from '../api/auth'
 interface AuthContextType {
   isAuthenticated: boolean
   username: string
+  /** UNIX username is `root` (session administration). */
+  isRoot: boolean
+  sessionId: string
   loading: boolean
   login: (username: string, password: string) => Promise<void>
   logout: () => Promise<void>
@@ -12,6 +15,8 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
   username: '',
+  isRoot: false,
+  sessionId: '',
   loading: true,
   login: async () => {},
   logout: async () => {},
@@ -20,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [username, setUsername] = useState('')
+  const [sessionId, setSessionId] = useState('')
   const [loading, setLoading] = useState(true)
 
   // Check existing session on mount
@@ -28,27 +34,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .then((session) => {
         setIsAuthenticated(session.authenticated)
         setUsername(session.username || '')
+        setSessionId(typeof session.session_id === 'string' ? session.session_id : '')
       })
       .catch(() => {
         setIsAuthenticated(false)
+        setSessionId('')
       })
       .finally(() => setLoading(false))
   }, [])
 
   const login = useCallback(async (user: string, pass: string) => {
-    const result = await apiLogin(user, pass)
-    setIsAuthenticated(true)
-    setUsername(result.username)
+    await apiLogin(user, pass)
+    const session = await getSession()
+    setIsAuthenticated(session.authenticated)
+    setUsername(session.username || user)
+    setSessionId(typeof session.session_id === 'string' ? session.session_id : '')
   }, [])
 
   const logout = useCallback(async () => {
     await apiLogout()
     setIsAuthenticated(false)
     setUsername('')
+    setSessionId('')
   }, [])
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, username, loading, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, username, isRoot: username === 'root', sessionId, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

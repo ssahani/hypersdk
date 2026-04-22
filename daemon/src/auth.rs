@@ -3,15 +3,18 @@ use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
 use rand::Rng;
 use serde::Deserialize;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tracing::{info, warn};
-use virtspawn_core::{AuthConfig, LibvirtManager};
+use virtspawn_core::{AuthConfig, LibvirtError, LibvirtManager};
+
+use crate::error::AppError;
 
 /// Authenticated HTTP actor (cookie session or API bearer token).
 #[derive(Clone, Debug)]
@@ -31,6 +34,18 @@ pub struct SessionStore {
 struct SessionData {
     username: String,
     created_at: Instant,
+    /// Opaque id for admin revoke (never the secret cookie token).
+    public_id: String,
+}
+
+/// Row for `GET /admin/sessions` (root only).
+#[derive(Serialize)]
+pub struct SessionListEntry {
+    pub session_id: String,
+    pub username: String,
+    pub age_secs: u64,
+    pub expires_in_secs: u64,
+    pub is_current: bool,
 }
 
 const SESSION_TTL_SECS: u64 = 86400; // 24 hours
@@ -54,6 +69,8 @@ impl SessionStore {
         let mut rng = rand::thread_rng();
         let token_bytes: [u8; 32] = rng.gen();
         let token = hex::encode(token_bytes);
+        let public_id_bytes: [u8; 16] = rng.gen();
+        let public_id = hex::encode(public_id_bytes);
 
         let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
 
@@ -92,6 +109,7 @@ impl SessionStore {
             SessionData {
                 username: username.to_string(),
                 created_at: Instant::now(),
+                public_id,
             },
         );
         token
@@ -109,7 +127,54 @@ impl SessionStore {
         None
     }
 
-    fn remove_session(&self, token: &str) {
+    /// Public id for the given session cookie token, if still valid.
+    pub fn session_public_id(&self, token: &str) -> Option<String> {
+        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        sessions.get(token).and_then(|data| {
+            if data.created_at.elapsed().as_secs() < SESSION_TTL_SECS {
+                Some(data.public_id.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    /// All non-expired browser sessions (in-memory).
+    pub fn list_browser_sessions(&self, current_public_id: Option<&str>) -> Vec<SessionListEntry> {
+        let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        sessions.retain(|_, data| data.created_at.elapsed().as_secs() < SESSION_TTL_SECS);
+        let mut out: Vec<SessionListEntry> = sessions
+            .iter()
+            .map(|(_, data)| {
+                let age = data.created_at.elapsed().as_secs();
+                SessionListEntry {
+                    session_id: data.public_id.clone(),
+                    username: data.username.clone(),
+                    age_secs: age,
+                    expires_in_secs: SESSION_TTL_SECS.saturating_sub(age),
+                    is_current: current_public_id == Some(data.public_id.as_str()),
+                }
+            })
+            .collect();
+        out.sort_by(|a, b| a.age_secs.cmp(&b.age_secs));
+        out
+    }
+
+    /// Revoke a session by its public id. Returns false if not found.
+    pub fn revoke_session_by_public_id(&self, public_id: &str) -> bool {
+        let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        let token = sessions
+            .iter()
+            .find(|(_, d)| d.public_id == public_id)
+            .map(|(t, _)| t.clone());
+        if let Some(t) = token {
+            sessions.remove(&t);
+            return true;
+        }
+        false
+    }
+
+    pub fn remove_session(&self, token: &str) {
         let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         sessions.remove(token);
     }
@@ -336,10 +401,74 @@ async fn session_handler(
 ) -> Response {
     if let Some(token) = extract_token(&req) {
         if let Some(username) = store.validate_session(&token) {
-            return (StatusCode::OK, Json(serde_json::json!({ "authenticated": true, "username": username }))).into_response();
+            let session_id = store.session_public_id(&token);
+            return (
+                StatusCode::OK,
+                Json(serde_json::json!({
+                    "authenticated": true,
+                    "username": username,
+                    "session_id": session_id,
+                })),
+            )
+                .into_response();
         }
     }
     (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "authenticated": false }))).into_response()
+}
+
+fn require_root_session(actor: &RequestActor) -> Result<(), LibvirtError> {
+    if actor.from_api_token {
+        return Err(LibvirtError::Forbidden(
+            "Session administration requires a browser login as root".into(),
+        ));
+    }
+    if actor.username != "root" {
+        return Err(LibvirtError::Forbidden(
+            "Only the root user may list or revoke web sessions".into(),
+        ));
+    }
+    Ok(())
+}
+
+async fn admin_list_sessions(
+    Extension(store): Extension<SessionStore>,
+    Extension(actor): Extension<RequestActor>,
+    req: Request<Body>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_root_session(&actor)?;
+    let current_public_id = extract_token(&req).and_then(|t| store.session_public_id(&t));
+    let list = store.list_browser_sessions(current_public_id.as_deref());
+    let total_sessions = list.len();
+    let by_user: std::collections::HashMap<String, usize> = list.iter().fold(
+        std::collections::HashMap::new(),
+        |mut acc, s| {
+            *acc.entry(s.username.clone()).or_insert(0) += 1;
+            acc
+        },
+    );
+    Ok(Json(serde_json::json!({
+        "sessions": list,
+        "total_sessions": total_sessions,
+        "users_logged_in": by_user.len(),
+        "sessions_per_username": by_user,
+    })))
+}
+
+async fn admin_revoke_session(
+    Extension(store): Extension<SessionStore>,
+    Extension(actor): Extension<RequestActor>,
+    axum::extract::Path(session_id): axum::extract::Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_root_session(&actor)?;
+    if session_id.chars().count() != 32 || !session_id.chars().all(|c| c.is_ascii_hexdigit()) {
+        return Err(LibvirtError::Invalid("Invalid session_id".into()).into());
+    }
+    if store.revoke_session_by_public_id(&session_id) {
+        info!("Session {} revoked by root", session_id);
+        Ok(Json(serde_json::json!({ "status": "revoked", "session_id": session_id })))
+    } else {
+        Err(LibvirtError::NotFound("Session not found or already expired".into()).into())
+    }
 }
 
 fn pam_authenticate(username: &str, password: &str, pam_service: &str) -> Result<(), String> {
@@ -360,6 +489,8 @@ pub fn auth_routes(session_store: SessionStore, auth_cfg: AuthConfig) -> Router<
         .route("/auth/logout", post(logout_handler))
         .route("/auth/session", get(session_handler))
         .route("/ws-token", post(ws_token_handler))
+        .route("/admin/sessions", get(admin_list_sessions))
+        .route("/admin/sessions/{session_id}", delete(admin_revoke_session))
         .layer(Extension(session_store))
         .layer(Extension(PamAuth(std::sync::Arc::new(auth_cfg))))
 }

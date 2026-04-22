@@ -8,6 +8,10 @@ import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
 import { timeAgo } from '../utils/time'
 import { navGroups, NavItem, NavGroup } from '../utils/routes'
 
+function navItemVisible(item: NavItem, username: string) {
+  return !item.requiresRoot || username === 'root'
+}
+
 function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   const location = useLocation()
   const isActive = location.pathname === item.to
@@ -28,11 +32,12 @@ function NavLink({ item, onClick }: { item: NavItem; onClick?: () => void }) {
   )
 }
 
-function DesktopDropdown({ group }: { group: NavGroup }) {
+function DesktopDropdown({ group, username }: { group: NavGroup; username: string }) {
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
-  const hasActive = group.items.some((i) => i.to === location.pathname)
+  const items = group.items.filter((i) => navItemVisible(i, username))
+  const hasActive = items.some((i) => i.to === location.pathname)
 
   const handleEnter = () => {
     if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
@@ -56,7 +61,7 @@ function DesktopDropdown({ group }: { group: NavGroup }) {
       </button>
       {open && (
         <div className="absolute top-full left-0 mt-1 bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 rounded-xl shadow-2xl py-2 min-w-[180px] z-40 animate-fade-in origin-top">
-          {group.items.map((item) => (
+          {items.map((item) => (
             <Link
               key={item.to}
               to={item.to}
@@ -111,11 +116,11 @@ export default function Navbar() {
 
           {/* Desktop Nav */}
           <div className="hidden lg:flex items-center gap-1">
-            {navGroups[0].items.map((item) => (
+            {navGroups[0].items.filter((item) => navItemVisible(item, username)).map((item) => (
               <NavLink key={item.to} item={item} />
             ))}
             {navGroups.slice(1).map((group) => (
-              <DesktopDropdown key={group.label} group={group} />
+              <DesktopDropdown key={group.label} group={group} username={username} />
             ))}
           </div>
 
@@ -198,7 +203,7 @@ export default function Navbar() {
               <div key={group.label}>
                 <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 mb-1.5">{group.label}</div>
                 <div className="space-y-0.5">
-                  {group.items.map((item) => (
+                  {group.items.filter((item) => navItemVisible(item, username)).map((item) => (
                     <NavLink key={item.to} item={item} onClick={() => setMobileOpen(false)} />
                   ))}
                 </div>

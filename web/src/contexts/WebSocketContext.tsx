@@ -48,6 +48,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
 
     async function connect() {
       if (cancelled) return
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
+      }
       setConnection('connecting')
       setIsConnected(false)
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'

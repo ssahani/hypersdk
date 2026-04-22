@@ -3,6 +3,8 @@ const API = '/api/v1'
 export interface AuthSession {
   authenticated: boolean
   username?: string
+  /** Opaque id for this browser tab session (root-only admin UI). */
+  session_id?: string | null
 }
 
 export async function login(username: string, password: string): Promise<{ status: string; username: string }> {
