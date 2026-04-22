@@ -76,12 +76,32 @@
         "required": ["name"],
         "properties": {
           "name": { "type": "string" },
-          "vcpus": { "type": "integer", "default": 2 },
-          "memory_mb": { "type": "integer", "default": 2048 },
-          "disk_gb": { "type": "integer", "default": 20 },
-          "os_variant": { "type": "string" },
-          "iso_path": { "type": "string" },
-          "network": { "type": "string", "default": "default" }
+          "vcpus": { "type": "integer", "default": 1 },
+          "memory_mb": { "type": "integer", "default": 1024 },
+          "disk_gb": { "type": "integer", "default": 10 },
+          "os_variant": { "type": "string", "default": "generic" },
+          "iso": { "type": "string" },
+          "existing_disk": { "type": "string" },
+          "firmware": { "type": "string", "enum": ["bios", "uefi"], "default": "bios" },
+          "graphics_listen": { "type": "string", "description": "Graphics listen IP (127.0.0.1 or 0.0.0.0)", "default": "127.0.0.1" },
+          "graphics_type": { "type": "string", "enum": ["vnc", "spice"], "default": "vnc" },
+          "cloud_init_iso": { "type": "string", "description": "Optional second CD-ROM (cloud-init seed); install ISO uses `iso`" },
+          "network": { "type": "string", "default": "default" },
+          "saved_template": { "type": "string", "description": "Saved template name under /var/lib/virtspawn/templates/" },
+          "template_disk_mode": { "type": "string", "enum": ["backing", "copy"], "default": "backing" },
+          "create_backend": { "type": "string", "description": "Omit or empty for server default; libvirt_xml or virt_install to override." },
+          "virt_builder_os": { "type": "string", "description": "If set, run virt-builder with this template name (virt-builder --list) to build the root disk; no golden image. Incompatible with golden saved_template, existing_disk, and install iso." },
+          "virt_builder_hostname": { "type": "string", "description": "Guest hostname for virt-builder (optional; derived from VM name if empty)." },
+          "virt_builder_ssh_pubkey": { "type": "string", "description": "Single-line OpenSSH public key for root SSH inject (optional if root password file or server default pubkey path is set)." },
+          "virt_builder_root_password_file": { "type": "string", "description": "Absolute path on the daemon host to a small file (≤4KiB) with guest root password; virt-builder uses --root-password file:… (not password: on argv)." },
+          "virt_builder_packages": { "type": "array", "items": { "type": "string" }, "description": "virt-builder --install (each element one package)." },
+          "virt_builder_firstboot_commands": { "type": "array", "items": { "type": "string" }, "description": "virt-builder --firstboot-command entries." },
+          "virt_builder_selinux_relabel": { "type": "boolean", "default": false, "description": "Pass --selinux-relabel to virt-builder." },
+          "virt_builder_post_customize_install": { "type": "array", "items": { "type": "string" }, "description": "After build: virt-customize --install for each." },
+          "virt_builder_post_customize_run": { "type": "array", "items": { "type": "string" }, "description": "After build: virt-customize --run-command for each." },
+          "virt_builder_sysprep": { "type": "boolean", "default": false, "description": "After customize: virt-sysprep -a (seal for cloning)." },
+          "mkosi_workspace": { "type": "string", "description": "Absolute path to directory containing mkosi.conf; run `mkosi build` and use newest .raw/.qcow2 artifact as root disk. Mutually exclusive with virt_builder_os." },
+          "mkosi_image": { "type": "string", "description": "For multi-image mkosi workspaces (image trees): select a specific image via `mkosi --image <name>`. Leave empty to build the workspace normally." }
         }
       },
       "VmMetrics": {
@@ -947,6 +967,79 @@
         "summary": "List available disk images on host",
         "tags": ["Extras"],
         "responses": { "200": { "description": "Disk image list" } }
+      }
+    },
+    "/browse/mkosi-workspaces": {
+      "get": {
+        "summary": "List mkosi workspaces discovered on the hypervisor",
+        "description": "Scans /var/lib/virtspawn/mkosi-defs/ and related directories for subdirectories containing mkosi.conf. Also returns sub-images for image-tree workspaces.",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "List of mkosi workspaces",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": { "type": "string" },
+                      "name": { "type": "string" },
+                      "images": { "type": "array", "items": { "type": "string" } }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browse/virt-builder": {
+      "get": {
+        "summary": "List virt-builder OS template names (virt-builder --list)",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Template index",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "templates": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browse/virt-builder/notes/{template}": {
+      "get": {
+        "summary": "virt-builder --notes for a template (caveats / guidance)",
+        "tags": ["Extras"],
+        "parameters": [
+          { "name": "template", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Template name e.g. ubuntu-22.04" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Notes text",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "template": { "type": "string" },
+                    "notes": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/host/usb": {

@@ -59,6 +59,34 @@ export interface CreateVmRequest {
   os_variant?: string
   existing_disk?: string
   firmware?: string
+  /** Libvirt VNC listen IP (default 127.0.0.1). Use 0.0.0.0 for all interfaces (hyper2kvm-style). */
+  graphics_listen?: string
+  /** `vnc` (noVNC) or `spice` (spice-html5). */
+  graphics_type?: string
+  /** Second CD-ROM: cloud-init / seed ISO (install ISO stays in `iso`). */
+  cloud_init_iso?: string
+  /** Saved template key under `/var/lib/virtspawn/templates/` (server merges + optional golden disk). */
+  saved_template?: string
+  /** With saved template + `base_image`: `backing` (default) or `copy`. */
+  template_disk_mode?: string
+  /** `libvirt_xml` | `virt_install` | omit for server default from config. */
+  create_backend?: string
+  /** `virt-builder` template name (output of `virt-builder --list`); builds root disk without a golden image. */
+  virt_builder_os?: string
+  virt_builder_hostname?: string
+  virt_builder_ssh_pubkey?: string
+  /** Absolute path on the **host** to a small file (≤4KiB) with the guest root password; passed as `virt-builder --root-password file:…`. */
+  virt_builder_root_password_file?: string
+  virt_builder_packages?: string[]
+  virt_builder_firstboot_commands?: string[]
+  virt_builder_selinux_relabel?: boolean
+  virt_builder_post_customize_install?: string[]
+  virt_builder_post_customize_run?: string[]
+  virt_builder_sysprep?: boolean
+  /** Absolute directory with `mkosi.conf`; runs `mkosi build`. Mutually exclusive with `virt_builder_os`. */
+  mkosi_workspace?: string
+  /** For multi-image mkosi workspaces (image trees): selects one image via `--image <name>`. */
+  mkosi_image?: string
 }
 
 export interface VmTemplate {
@@ -68,13 +96,89 @@ export interface VmTemplate {
   memory_mb: number
   disk_gb: number
   os_variant: string
+  /** Present on saved templates: golden qcow2 for backing-file clones. */
+  base_image?: string | null
+  template_disk_mode?: string
 }
 
 export const listVMs = () => apiGet<VmInfo[]>(`${API}/vms`)
 export const getVM = (name: string) => apiGet<VmDetails>(`${API}/vms/${encodeURIComponent(name)}`)
 export const getVMXml = (name: string) => apiGet<string>(`${API}/vms/${encodeURIComponent(name)}/xml`)
 export const createVM = (req: CreateVmRequest) => apiPost<unknown>(`${API}/vms`, req)
-export const deleteVM = (name: string) => apiDelete(`${API}/vms/${encodeURIComponent(name)}`)
+/** Optional `virDomainUndefineFlags` query params for `DELETE /vms/{name}`. */
+export interface VmDeleteUndefineOpts {
+  undefine_managed_save?: boolean
+  undefine_snapshots_metadata?: boolean
+  undefine_nvram?: boolean
+  undefine_keep_nvram?: boolean
+  undefine_checkpoints_metadata?: boolean
+  undefine_tpm?: boolean
+  undefine_keep_tpm?: boolean
+}
+
+function deleteVmQuery(opts?: VmDeleteUndefineOpts): string {
+  if (!opts) return ''
+  const p = new URLSearchParams()
+  const set = (k: keyof VmDeleteUndefineOpts) => {
+    if (opts![k]) p.set(k, 'true')
+  }
+  set('undefine_managed_save')
+  set('undefine_snapshots_metadata')
+  set('undefine_nvram')
+  set('undefine_keep_nvram')
+  set('undefine_checkpoints_metadata')
+  set('undefine_tpm')
+  set('undefine_keep_tpm')
+  const s = p.toString()
+  return s ? `?${s}` : ''
+}
+
+export const deleteVM = (name: string, undefine?: VmDeleteUndefineOpts) =>
+  apiDelete(`${API}/vms/${encodeURIComponent(name)}${deleteVmQuery(undefine)}`)
+
+export interface BlockJobInfo {
+  job_type: number
+  bandwidth: number
+  cur: number
+  end: number
+}
+
+export const getBlockJobInfo = (name: string, disk: string, bandwidthBytes = false) =>
+  apiGet<{ name: string; job: BlockJobInfo | null }>(
+    `${API}/vms/${encodeURIComponent(name)}/block/job?disk=${encodeURIComponent(disk)}${bandwidthBytes ? '&bandwidth_bytes=true' : ''}`
+  )
+
+export const blockCommit = (
+  name: string,
+  body: {
+    disk: string
+    base?: string | null
+    top?: string | null
+    bandwidth?: number
+    shallow?: boolean
+    delete?: boolean
+    active?: boolean
+    relative?: boolean
+    bandwidth_bytes?: boolean
+  }
+) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/block/commit`, body)
+
+export const blockPull = (name: string, body: { disk: string; bandwidth?: number; bandwidth_bytes?: boolean }) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/block/pull`, body)
+
+export const blockJobAbort = (name: string, body: { disk: string; async?: boolean; pivot?: boolean }) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/block/job/abort`, body)
+
+export const setMemTune = (name: string, body: MemTuneInfo) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/memtune`, body)
+
+export const setSchedulerTune = (
+  name: string,
+  body: { cpu_shares?: number; vcpu_period?: number; vcpu_quota?: number }
+) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/scheduler`, body)
+
+export const pinVcpu = (name: string, vcpu: number, cpus: boolean[]) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/vcpu/${vcpu}/pin`, { cpus })
 export const startVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/start`)
 export const stopVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/stop`)
 export const shutdownVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/shutdown`)

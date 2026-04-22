@@ -3,7 +3,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::{
-    boot, capabilities, cdrom, guest_agent, migrate, node_device, nwfilter,
+    boot, capabilities, cdrom, guest_agent, hostdev_pci, migrate, node_device, nwfilter,
     save_restore, secret, storage,
 };
 use virtspawn_core::{LibvirtError, LibvirtManager};
@@ -321,6 +321,114 @@ async fn delete_secret_handler(
     Ok(Json(serde_json::json!({ "status": "deleted", "uuid": uuid })))
 }
 
+#[derive(serde::Deserialize)]
+struct DefineSecretRequest {
+    xml: String,
+    #[serde(default)]
+    value_base64: Option<String>,
+    #[serde(default)]
+    validate_xml: bool,
+    #[serde(default)]
+    set_value_flags: u32,
+}
+
+async fn define_secret_handler(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<DefineSecretRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    use base64::Engine;
+    let value_bytes: Option<Vec<u8>> = if let Some(b64) = &req.value_base64 {
+        Some(
+            base64::engine::general_purpose::STANDARD
+                .decode(b64.trim())
+                .map_err(|e| LibvirtError::Invalid(format!("value_base64: {e}")))?,
+        )
+    } else {
+        None
+    };
+    let xml = req.xml.clone();
+    let validate = req.validate_xml;
+    let svf = req.set_value_flags;
+    let uuid = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| {
+            secret::define_secret_with_value(
+                conn,
+                &xml,
+                value_bytes.as_deref(),
+                validate,
+                svf,
+            )
+        })
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "defined", "uuid": uuid })))
+}
+
+#[derive(serde::Deserialize)]
+struct PciHostdevBody {
+    pci: String,
+}
+
+async fn attach_pci_hostdev_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<PciHostdevBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let pci = req.pci.clone();
+    let pci_for_task = pci.clone();
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| hostdev_pci::attach_pci_hostdev(conn, &name2, &pci_for_task))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "pci_attached", "name": name, "pci": pci })))
+}
+
+async fn detach_pci_hostdev_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<PciHostdevBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let pci = req.pci.clone();
+    let pci_for_task = pci.clone();
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| hostdev_pci::detach_pci_hostdev(conn, &name2, &pci_for_task))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "pci_detached", "name": name, "pci": pci })))
+}
+
+async fn detach_nodedev_handler(
+    State(manager): State<LibvirtManager>,
+    Path(devname): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let dev = devname.clone();
+    tokio::task::spawn_blocking(move || manager.with_conn(|conn| node_device::detach_node_device(conn, &dev)))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+        ?;
+    Ok(Json(serde_json::json!({ "status": "nodedev_detached", "name": devname })))
+}
+
+async fn reattach_nodedev_handler(
+    State(manager): State<LibvirtManager>,
+    Path(devname): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let dev = devname.clone();
+    tokio::task::spawn_blocking(move || manager.with_conn(|conn| node_device::reattach_node_device(conn, &dev)))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+        ?;
+    Ok(Json(serde_json::json!({ "status": "nodedev_reattached", "name": devname })))
+}
+
 // ── Storage Pool Create/Delete ──────────────────────────────────────
 
 #[derive(serde::Deserialize)]
@@ -468,8 +576,13 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route("/nwfilters/{name}", get(get_nwfilter_handler))
         .route("/nwfilters/{name}", delete(delete_nwfilter_handler))
         // Secrets
-        .route("/secrets", get(list_secrets_handler))
+        .route("/secrets", get(list_secrets_handler).post(define_secret_handler))
         .route("/secrets/{uuid}", delete(delete_secret_handler))
+        // PCI hostdev + node device detach (VFIO prep)
+        .route("/vms/{name}/hostdev/pci/attach", post(attach_pci_hostdev_handler))
+        .route("/vms/{name}/hostdev/pci/detach", post(detach_pci_hostdev_handler))
+        .route("/host/nodedev/{name}/detach", post(detach_nodedev_handler))
+        .route("/host/nodedev/{name}/reattach", post(reattach_nodedev_handler))
         // Storage pool management
         .route("/storage/pools", post(create_pool_handler))
         .route("/storage/pools/{name}", delete(delete_pool_handler))

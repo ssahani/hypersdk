@@ -1,5 +1,7 @@
+use tracing::warn;
 use virt::connect::Connect;
 use virt::domain::Domain;
+use virt::sys;
 
 use crate::state::{DiskInfo, InterfaceInfo, VmDetails, VmInfo};
 use crate::xml;
@@ -133,30 +135,129 @@ pub fn resume_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     domain_action(conn, name, "resume", |d| d.resume().map(|_| ()))
 }
 
+/// Optional `virDomainUndefineFlags` bits when removing a persistent domain definition.
+#[derive(Debug, Clone, Default, serde::Serialize, serde::Deserialize)]
+pub struct UndefineOptions {
+    #[serde(default)]
+    pub managed_save: bool,
+    #[serde(default)]
+    pub snapshots_metadata: bool,
+    #[serde(default)]
+    pub nvram: bool,
+    #[serde(default)]
+    pub keep_nvram: bool,
+    #[serde(default)]
+    pub checkpoints_metadata: bool,
+    #[serde(default)]
+    pub tpm: bool,
+    #[serde(default)]
+    pub keep_tpm: bool,
+}
+
+impl UndefineOptions {
+    /// Build libvirt undefine flags; returns error on contradictory options.
+    pub fn to_libvirt_flags(&self) -> Result<sys::virDomainUndefineFlagsValues, LibvirtError> {
+        if self.nvram && self.keep_nvram {
+            return Err(LibvirtError::Invalid(
+                "undefine: nvram and keep_nvram are mutually exclusive".into(),
+            ));
+        }
+        if self.tpm && self.keep_tpm {
+            return Err(LibvirtError::Invalid(
+                "undefine: tpm and keep_tpm are mutually exclusive".into(),
+            ));
+        }
+        let mut f: u32 = 0;
+        if self.managed_save {
+            f |= sys::VIR_DOMAIN_UNDEFINE_MANAGED_SAVE;
+        }
+        if self.snapshots_metadata {
+            f |= sys::VIR_DOMAIN_UNDEFINE_SNAPSHOTS_METADATA;
+        }
+        if self.nvram {
+            f |= sys::VIR_DOMAIN_UNDEFINE_NVRAM;
+        }
+        if self.keep_nvram {
+            f |= sys::VIR_DOMAIN_UNDEFINE_KEEP_NVRAM;
+        }
+        if self.checkpoints_metadata {
+            f |= sys::VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA;
+        }
+        if self.tpm {
+            f |= sys::VIR_DOMAIN_UNDEFINE_TPM;
+        }
+        if self.keep_tpm {
+            f |= sys::VIR_DOMAIN_UNDEFINE_KEEP_TPM;
+        }
+        Ok(f as sys::virDomainUndefineFlagsValues)
+    }
+}
+
+/// Undefine persistent domain XML. If `undefine_flags` fails (often because NVRAM/TPM/managed-save
+/// files or backing disks were already removed on the host), retry plain `undefine()` so the
+/// domain definition is still dropped.
+fn undefine_persistent(domain: &Domain, name: &str, flags: u32) -> Result<(), LibvirtError> {
+    if flags == 0 {
+        return domain
+            .undefine()
+            .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")));
+    }
+    match domain.undefine_flags(flags as sys::virDomainUndefineFlagsValues) {
+        Ok(()) => Ok(()),
+        Err(e) => {
+            let first = format!("{e}");
+            warn!(
+                "undefine_flags failed for VM '{name}' (flags={flags}), retrying plain undefine: {first}"
+            );
+            domain
+                .undefine()
+                .map_err(|e2| {
+                    LibvirtError::Operation(format!(
+                        "Failed to delete VM '{name}' (undefine_flags: {first}; plain undefine: {e2})"
+                    ))
+                })
+        }
+    }
+}
+
 pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let domain = lookup_domain(conn, name)?;
+    delete_vm_with_options(conn, name, &UndefineOptions::default())
+}
+
+/// Stop (if needed) and undefine a VM, optionally passing `virDomainUndefineFlags` bits.
+pub fn delete_vm_with_options(conn: &Connect, name: &str, opts: &UndefineOptions) -> Result<(), LibvirtError> {
+    let flags_u = opts.to_libvirt_flags()?;
+    let flags: u32 = flags_u as u32;
+    let domain = match lookup_domain(conn, name) {
+        Ok(d) => d,
+        Err(LibvirtError::NotFound(_)) => return Ok(()),
+        Err(e) => return Err(e),
+    };
 
     let info = domain
         .get_info()
         .map_err(|e| LibvirtError::Operation(format!("Failed to get VM '{name}' info: {e}")))?;
+    let persistent = domain.is_persistent().unwrap_or(true);
 
     if info.state == VIR_DOMAIN_RUNNING || info.state == VIR_DOMAIN_PAUSED {
         domain
             .destroy()
             .map_err(|e| LibvirtError::Operation(format!("Failed to stop VM '{name}': {e}")))?;
 
-        // Re-lookup the domain after destroy to get a fresh handle
-        let domain = lookup_domain(conn, name)?;
-        domain
-            .undefine()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
-    } else {
-        domain
-            .undefine()
-            .map_err(|e| LibvirtError::Operation(format!("Failed to delete VM '{name}': {e}")))?;
+        // Transient domains disappear after destroy; nothing left to undefine.
+        if !persistent {
+            return Ok(());
+        }
+
+        let domain = match lookup_domain(conn, name) {
+            Ok(d) => d,
+            Err(LibvirtError::NotFound(_)) => return Ok(()),
+            Err(e) => return Err(e),
+        };
+        return undefine_persistent(&domain, name, flags);
     }
 
-    Ok(())
+    undefine_persistent(&domain, name, flags)
 }
 
 pub fn set_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), LibvirtError> {
@@ -238,4 +339,19 @@ fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
         });
     }
     disks
+}
+
+#[cfg(test)]
+mod tests {
+    use super::UndefineOptions;
+
+    #[test]
+    fn undefine_options_rejects_nvram_conflict() {
+        let o = UndefineOptions {
+            nvram: true,
+            keep_nvram: true,
+            ..Default::default()
+        };
+        assert!(o.to_libvirt_flags().is_err());
+    }
 }

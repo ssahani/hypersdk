@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router'
 import { listVMs, startVM, stopVM, shutdownVM, pauseVM, resumeVM, deleteVM, VmInfo } from '../api/vm'
 import { getStateBadgeClasses } from '../utils/vm'
@@ -24,6 +24,7 @@ export default function VMList() {
   const [pinnedRefresh, setPinnedRefresh] = useState(0)
   const toast = useToastContext()
   const { subscribe } = useWebSocketContext()
+  const lastLoadErrorToastAt = useRef(0)
 
   const load = useCallback(async () => {
     try {
@@ -38,7 +39,11 @@ export default function VMList() {
       // Load all unique tag names
       try { const counts = await getAllTags(); setAllTagNames(Object.keys(counts).sort()) } catch { /* optional */ }
     } catch (e: unknown) {
-      toast.error(`Failed to load VMs: ${e instanceof Error ? e.message : e}`)
+      const now = Date.now()
+      if (now - lastLoadErrorToastAt.current > 12_000) {
+        lastLoadErrorToastAt.current = now
+        toast.error(`Failed to load VMs: ${e instanceof Error ? e.message : e}`)
+      }
     } finally {
       setLoading(false)
     }
@@ -300,8 +305,9 @@ export default function VMList() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete VM"
-        message={`This will permanently delete VM '${deleteTarget}' and stop it if running.`}
+        message={`This will stop '${deleteTarget}' if it is running, then remove its libvirt definition. If you already deleted disk files on the host, the server still drops the VM record. Disks under libvirt storage are not removed unless you use separate storage tools.`}
         confirmLabel="Delete"
+        typeToMatch={deleteTarget ?? ''}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />
@@ -309,8 +315,10 @@ export default function VMList() {
       <ConfirmDialog
         open={batchDeleteConfirm}
         title="Delete VMs"
-        message={`This will permanently delete ${selectedVMs.size} VMs. Running VMs will be stopped first.`}
+        message={`This will permanently delete ${selectedVMs.size} VMs (stop if running, then undefine). Type DELETE to confirm. Missing backend disk files are tolerated when cleaning up definitions.`}
         confirmLabel="Delete All"
+        typeToMatch="DELETE"
+        typeToMatchLabel="Type DELETE (all caps) to confirm bulk delete:"
         onConfirm={handleBatchDelete}
         onCancel={() => setBatchDeleteConfirm(false)}
       />

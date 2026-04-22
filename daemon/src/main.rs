@@ -2,6 +2,7 @@ mod auth;
 mod error;
 mod routes;
 mod server;
+mod systemd;
 
 use clap::Parser;
 use tokio::signal;
@@ -31,6 +32,13 @@ struct Cli {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+
+    // Same idea as h2kweb: ensure under-/run paths exist for locks / future workflow use.
+    for dir in ["/run/virtspawn", "/run/virtspawn/workflow"] {
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            tracing::warn!("cannot create {dir}: {e}");
+        }
+    }
 
     let cli = Cli::parse();
 
@@ -72,12 +80,16 @@ async fn main() -> anyhow::Result<()> {
         ).await?;
 
         // bind_rustls opens its own listener — do not TcpListener::bind first or we get EADDRINUSE.
+        systemd::notify_ready();
+        systemd::spawn_watchdog_pinger();
         axum_server::bind_rustls(bind_addr.parse()?, tls_config)
             .serve(app.into_make_service())
             .await?;
     } else {
         info!("listening on {bind_addr}");
         let listener = tokio::net::TcpListener::bind(&bind_addr).await?;
+        systemd::notify_ready();
+        systemd::spawn_watchdog_pinger();
         axum::serve(listener, app)
             .with_graceful_shutdown(shutdown_signal())
             .await?;

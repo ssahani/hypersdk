@@ -2,7 +2,7 @@ use axum::extract::{Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use virtspawn_core::libvirt::extras;
+use virtspawn_core::libvirt::{extras, virt_builder};
 use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
@@ -31,6 +31,33 @@ async fn list_disk_images(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let files = extras::list_disk_images();
     Ok(Json(serde_json::json!(files)))
+}
+
+async fn list_virt_builder_templates(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let templates = tokio::task::spawn_blocking(virt_builder::list_builder_templates)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!({ "templates": templates })))
+}
+
+async fn list_mkosi_workspaces_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let workspaces = extras::list_mkosi_workspaces();
+    Ok(Json(serde_json::json!(workspaces)))
+}
+
+async fn virt_builder_notes_handler(
+    State(_m): State<LibvirtManager>,
+    Path(template): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let t = template.clone();
+    let notes = tokio::task::spawn_blocking(move || virt_builder::template_notes(&t))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!({ "template": template, "notes": notes })))
 }
 
 // ── USB Passthrough ────────────────────────────────────────────────
@@ -313,6 +340,9 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         // Browser
         .route("/browse/isos", get(list_isos))
         .route("/browse/disks", get(list_disk_images))
+        .route("/browse/virt-builder", get(list_virt_builder_templates))
+        .route("/browse/virt-builder/notes/{template}", get(virt_builder_notes_handler))
+        .route("/browse/mkosi-workspaces", get(list_mkosi_workspaces_handler))
         // USB
         .route("/host/usb", get(list_usb))
         .route("/vms/{name}/usb/attach", post(attach_usb_handler))

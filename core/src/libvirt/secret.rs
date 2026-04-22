@@ -1,6 +1,8 @@
 use virt::connect::Connect;
 use virt::secret::Secret;
 
+use virt::sys;
+
 use crate::LibvirtError;
 
 use serde::{Deserialize, Serialize};
@@ -47,4 +49,31 @@ pub fn delete_secret(conn: &Connect, uuid: &str) -> Result<(), LibvirtError> {
     secret
         .undefine()
         .map_err(LibvirtError::map_op("Failed to delete secret"))
+}
+
+/// Define a secret from `xml` (`virSecretDefineXML`), optionally set its value (`virSecretSetValue`).
+/// Returns the secret UUID string.
+pub fn define_secret_with_value(
+    conn: &Connect,
+    xml: &str,
+    value: Option<&[u8]>,
+    define_validate: bool,
+    set_value_flags: u32,
+) -> Result<String, LibvirtError> {
+    let define_flags: u32 = if define_validate {
+        sys::VIR_SECRET_DEFINE_VALIDATE as u32
+    } else {
+        0
+    };
+    let secret = Secret::define_xml(conn, xml, define_flags)
+        .map_err(|e| LibvirtError::Operation(format!("virSecretDefineXML: {e}")))?;
+    let uuid = secret
+        .get_uuid_string()
+        .map_err(|e| LibvirtError::Operation(format!("secret uuid: {e}")))?;
+    if let Some(v) = value {
+        secret
+            .set_value(v, set_value_flags)
+            .map_err(|e| LibvirtError::Operation(format!("virSecretSetValue: {e}")))?;
+    }
+    Ok(uuid)
 }

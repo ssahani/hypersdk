@@ -29,6 +29,25 @@ export interface AuditEvent {
 export const listIsos = () => apiGet<ImageFile[]>(`${API}/browse/isos`)
 export const listDiskImages = () => apiGet<ImageFile[]>(`${API}/browse/disks`)
 
+/** Names from `virt-builder --list` (empty if tool missing or error). */
+export const listVirtBuilderTemplates = () =>
+  apiGet<{ templates: string[] }>(`${API}/browse/virt-builder`)
+
+export const getVirtBuilderNotes = (template: string) =>
+  apiGet<{ template: string; notes: string }>(
+    `${API}/browse/virt-builder/notes/${encodeURIComponent(template)}`
+  )
+
+/** mkosi workspace directories discovered under /var/lib/virtspawn/mkosi-defs/ etc. */
+export interface MkosiWorkspace {
+  path: string
+  name: string
+  /** Sub-images in an mkosi image tree (subdirs containing mkosi.conf). */
+  images: string[]
+}
+
+export const listMkosiWorkspaces = () => apiGet<MkosiWorkspace[]>(`${API}/browse/mkosi-workspaces`)
+
 // USB
 export const listUsbDevices = () => apiGet<UsbDevice[]>(`${API}/host/usb`)
 export const attachUsb = (vm: string, vendor_id: string, product_id: string) =>

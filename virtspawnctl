@@ -60,6 +60,43 @@ detect_distro() {
     fi
 }
 
+# pam-sys (bindgen) needs libclang at compile time
+export_libclang_path() {
+    if [[ -n "${LIBCLANG_PATH:-}" && -d "$LIBCLANG_PATH" ]]; then
+        export LIBCLANG_PATH
+        return 0
+    fi
+
+    local llvm_cfg libdir candidate
+    llvm_cfg="$(command -v llvm-config 2>/dev/null || true)"
+    if [[ -n "$llvm_cfg" ]]; then
+        libdir="$("$llvm_cfg" --libdir 2>/dev/null || true)"
+        if [[ -n "$libdir" && -d "$libdir" ]]; then
+            if [[ -e "$libdir/libclang.so" || -e "$libdir/libclang.so.1" ]]; then
+                export LIBCLANG_PATH="$libdir"
+                return 0
+            fi
+        fi
+    fi
+
+    for candidate in /usr/lib/llvm/*/lib /usr/lib64/llvm/*/lib; do
+        [[ -d "$candidate" ]] || continue
+        if [[ -e "$candidate/libclang.so" || -e "$candidate/libclang.so.1" ]]; then
+            export LIBCLANG_PATH="$candidate"
+            return 0
+        fi
+    done
+
+    for candidate in /usr/lib /usr/lib64; do
+        if [[ -e "$candidate/libclang.so" || -e "$candidate/libclang.so.1" ]]; then
+            export LIBCLANG_PATH="$candidate"
+            return 0
+        fi
+    done
+
+    return 0
+}
+
 # ── deps: Install system dependencies ───────────────────────────────────
 cmd_deps() {
     need_root
@@ -83,6 +120,7 @@ cmd_deps() {
             dnf install -y \
                 gcc gcc-c++ make git pkg-config \
                 openssl-devel systemd-devel \
+                pam-devel clang-libs clang-devel \
                 || { err "Failed to install build deps"; exit 1; }
 
             info "Utilities..."
@@ -108,6 +146,7 @@ cmd_deps() {
             apt-get install -y \
                 gcc g++ make git pkg-config \
                 libssl-dev libsystemd-dev \
+                libpam0g-dev libclang-dev clang llvm-dev \
                 || { err "Failed to install build deps"; exit 1; }
 
             info "Utilities..."
@@ -185,6 +224,7 @@ cmd_build() {
 
     info "Building backend (Rust)..."
     cd "$SCRIPT_DIR"
+    export_libclang_path
     cargo build --workspace --release 2>&1
     ok "Backend built: virtspawn-daemon, virtspawn (TUI)"
 
@@ -209,6 +249,7 @@ cmd_build() {
 cmd_test() {
     step "Running test suite"
     cd "$SCRIPT_DIR"
+    export_libclang_path
     cargo test --workspace 2>&1
     ok "All tests passed"
 }

@@ -4,6 +4,7 @@ import { ArrowLeft, Terminal as TerminalIcon, Monitor } from 'lucide-react'
 import { apiGet } from '../api/client'
 import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
+import SPICEViewer from '../components/SPICEViewer'
 
 interface ConsoleInfo {
   name: string
@@ -15,7 +16,7 @@ interface ConsoleInfo {
 
 export default function ConsolePage() {
   const { name } = useParams<{ name: string }>()
-  const [mode, setMode] = useState<'serial' | 'vnc'>('serial')
+  const [mode, setMode] = useState<'serial' | 'vnc' | 'spice'>('serial')
   const [consoleInfo, setConsoleInfo] = useState<ConsoleInfo | null>(null)
 
   useEffect(() => {
@@ -23,9 +24,10 @@ export default function ConsolePage() {
     apiGet<ConsoleInfo>(`/api/v1/vms/console-info/${encodeURIComponent(name)}`)
       .then((info) => {
         setConsoleInfo(info)
-        // Auto-select VNC if available, otherwise serial
         if (info.console_type === 'vnc' && info.port > 0) {
           setMode('vnc')
+        } else if (info.console_type === 'spice' && info.port > 0) {
+          setMode('spice')
         } else {
           setMode('serial')
         }
@@ -36,6 +38,7 @@ export default function ConsolePage() {
   if (!name) return null
 
   const vncPort = consoleInfo?.console_type === 'vnc' ? (consoleInfo?.port ?? -1) : -1
+  const spicePort = consoleInfo?.console_type === 'spice' ? (consoleInfo?.port ?? -1) : -1
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -47,23 +50,39 @@ export default function ConsolePage() {
           <h1 className="text-2xl font-bold">Console: {name}</h1>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           {consoleInfo && consoleInfo.port > 0 && (
             <span className="text-xs text-slate-500 mr-2">
               {consoleInfo.console_type.toUpperCase()} port {consoleInfo.port}
             </span>
           )}
 
+          {vncPort > 0 && (
+            <button
+              type="button"
+              onClick={() => setMode('vnc')}
+              className={`flex items-center gap-2 px-4 py-2 rounded transition ${
+                mode === 'vnc' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              <Monitor className="w-4 h-4" />
+              VNC
+            </button>
+          )}
+          {spicePort > 0 && (
+            <button
+              type="button"
+              onClick={() => setMode('spice')}
+              className={`flex items-center gap-2 px-4 py-2 rounded transition ${
+                mode === 'spice' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              <Monitor className="w-4 h-4" />
+              SPICE
+            </button>
+          )}
           <button
-            onClick={() => setMode('vnc')}
-            className={`flex items-center gap-2 px-4 py-2 rounded transition ${
-              mode === 'vnc' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            <Monitor className="w-4 h-4" />
-            VNC
-          </button>
-          <button
+            type="button"
             onClick={() => setMode('serial')}
             className={`flex items-center gap-2 px-4 py-2 rounded transition ${
               mode === 'serial' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
@@ -78,6 +97,8 @@ export default function ConsolePage() {
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         {mode === 'vnc' ? (
           <VNCViewer vmName={name} port={vncPort} />
+        ) : mode === 'spice' ? (
+          <SPICEViewer vmName={name} port={spicePort} />
         ) : (
           <SerialConsole vmName={name} />
         )}

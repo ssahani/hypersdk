@@ -204,17 +204,83 @@ pub struct CreateVmRequest {
     /// Firmware type: "bios" (default) or "uefi"
     #[serde(default = "default_firmware")]
     pub firmware: String,
+    /// Libvirt VNC `listen=` address (IP only). Default `127.0.0.1`; use `0.0.0.0` to match hyper2kvm-style remote display (still reach via virtspawn's WS proxy / TLS front).
+    #[serde(default = "default_graphics_listen")]
+    pub graphics_listen: String,
+    /// `vnc` (default, noVNC) or `spice` (spice-html5 + WS proxy).
+    #[serde(default = "default_graphics_type")]
+    pub graphics_type: String,
+    /// Optional cloud-init / seed ISO (second CD-ROM, hyper2kvm-style). Install/boot ISO stays in `iso`.
+    #[serde(default)]
+    pub cloud_init_iso: String,
+    /// Saved template name under `/var/lib/virtspawn/templates/{name}.json` (server applies sizing + optional `base_image`).
+    #[serde(default)]
+    pub saved_template: String,
+    /// When using a template with `base_image`: `backing` (default) or `copy`.
+    #[serde(default = "default_template_disk_mode")]
+    pub template_disk_mode: String,
+    /// Per-request create engine: `""` (use server default), `libvirt_xml`, or `virt_install`.
+    #[serde(default)]
+    pub create_backend: String,
+    /// If set (and no golden/existing root disk), run `virt-builder` to build the root qcow2 from the libguestfs index (e.g. `ubuntu-22.04`).
+    #[serde(default)]
+    pub virt_builder_os: String,
+    /// Guest hostname for `virt-builder` (optional; defaults from VM name with `_` → `-`).
+    #[serde(default)]
+    pub virt_builder_hostname: String,
+    /// Single-line OpenSSH public key for `--ssh-inject root:file:…` (optional if root password file or server default pubkey path is set).
+    #[serde(default)]
+    pub virt_builder_ssh_pubkey: String,
+    /// Host-local file with guest root password (single line); passed as `--root-password file:…` (never on argv).
+    #[serde(default)]
+    pub virt_builder_root_password_file: String,
+    /// Extra packages for `virt-builder --install` (each string is one package name).
+    #[serde(default)]
+    pub virt_builder_packages: Vec<String>,
+    /// `virt-builder --firstboot-command` entries (guest runs at first boot).
+    #[serde(default)]
+    pub virt_builder_firstboot_commands: Vec<String>,
+    /// Pass `--selinux-relabel` to `virt-builder`.
+    #[serde(default)]
+    pub virt_builder_selinux_relabel: bool,
+    /// After build: `virt-customize --install` for each entry.
+    #[serde(default)]
+    pub virt_builder_post_customize_install: Vec<String>,
+    /// After build: `virt-customize --run-command` for each entry (guest must be off).
+    #[serde(default)]
+    pub virt_builder_post_customize_run: Vec<String>,
+    /// After customize: run `virt-sysprep -a` (seal for cloning; see libguestfs virt-sysprep).
+    #[serde(default)]
+    pub virt_builder_sysprep: bool,
+    /// Absolute path to a directory containing `mkosi.conf`; run `mkosi build` there and use the newest `.raw`/`.qcow2` artifact as the VM root disk. Mutually exclusive with `virt_builder_os`.
+    #[serde(default)]
+    pub mkosi_workspace: String,
+    /// For multi-image mkosi workspaces (image trees): pass `--image <name>` to select a specific image.
+    #[serde(default)]
+    pub mkosi_image: String,
+}
+
+fn default_graphics_listen() -> String {
+    "127.0.0.1".to_string()
+}
+
+fn default_graphics_type() -> String {
+    "vnc".to_string()
+}
+
+fn default_template_disk_mode() -> String {
+    "backing".to_string()
 }
 
 fn default_firmware() -> String {
     "bios".to_string()
 }
 
-fn default_vcpus() -> u32 { 2 }
-fn default_memory() -> u64 { 2048 }
-fn default_disk_gb() -> u64 { 20 }
+fn default_vcpus() -> u32 { 1 }
+fn default_memory() -> u64 { 1024 }
+fn default_disk_gb() -> u64 { 10 }
 fn default_network() -> String { "default".to_string() }
-fn default_os_variant() -> String { "linux2022".to_string() }
+fn default_os_variant() -> String { "generic".to_string() }
 
 impl Default for CreateVmRequest {
     fn default() -> Self {
@@ -228,6 +294,24 @@ impl Default for CreateVmRequest {
             os_variant: default_os_variant(),
             existing_disk: String::new(),
             firmware: default_firmware(),
+            graphics_listen: default_graphics_listen(),
+            graphics_type: default_graphics_type(),
+            cloud_init_iso: String::new(),
+            saved_template: String::new(),
+            template_disk_mode: default_template_disk_mode(),
+            create_backend: String::new(),
+            virt_builder_os: String::new(),
+            virt_builder_hostname: String::new(),
+            virt_builder_ssh_pubkey: String::new(),
+            virt_builder_root_password_file: String::new(),
+            virt_builder_packages: Vec::new(),
+            virt_builder_firstboot_commands: Vec::new(),
+            virt_builder_selinux_relabel: false,
+            virt_builder_post_customize_install: Vec::new(),
+            virt_builder_post_customize_run: Vec::new(),
+            virt_builder_sysprep: false,
+            mkosi_workspace: String::new(),
+            mkosi_image: String::new(),
         }
     }
 }
@@ -312,6 +396,12 @@ pub struct VmTemplate {
     pub memory_mb: u64,
     pub disk_gb: u64,
     pub os_variant: String,
+    /// Golden image for fast clones: absolute path to a qcow2 (set when saving a template from a VM).
+    #[serde(default)]
+    pub base_image: Option<String>,
+    /// When `base_image` is set: `backing` (default, `qemu-img create -b`) or `copy` (`qemu-img convert`).
+    #[serde(default)]
+    pub template_disk_mode: String,
 }
 
 impl VmTemplate {
@@ -324,6 +414,8 @@ impl VmTemplate {
                 memory_mb: 1024,
                 disk_gb: 10,
                 os_variant: "linux2022".to_string(),
+                base_image: None,
+                template_disk_mode: String::new(),
             },
             VmTemplate {
                 name: "linux-medium".to_string(),
@@ -332,6 +424,8 @@ impl VmTemplate {
                 memory_mb: 4096,
                 disk_gb: 40,
                 os_variant: "linux2022".to_string(),
+                base_image: None,
+                template_disk_mode: String::new(),
             },
             VmTemplate {
                 name: "linux-large".to_string(),
@@ -340,6 +434,8 @@ impl VmTemplate {
                 memory_mb: 8192,
                 disk_gb: 80,
                 os_variant: "linux2022".to_string(),
+                base_image: None,
+                template_disk_mode: String::new(),
             },
             VmTemplate {
                 name: "windows".to_string(),
@@ -348,6 +444,8 @@ impl VmTemplate {
                 memory_mb: 8192,
                 disk_gb: 60,
                 os_variant: "win11".to_string(),
+                base_image: None,
+                template_disk_mode: String::new(),
             },
             VmTemplate {
                 name: "minimal".to_string(),
@@ -356,6 +454,8 @@ impl VmTemplate {
                 memory_mb: 512,
                 disk_gb: 5,
                 os_variant: "linux2022".to_string(),
+                base_image: None,
+                template_disk_mode: String::new(),
             },
         ]
     }
@@ -435,19 +535,19 @@ impl CreateVmForm {
                 },
                 FormField {
                     label: "vCPUs".to_string(),
-                    value: "2".to_string(),
+                    value: "1".to_string(),
                     field_type: FormFieldType::Number,
                     validation_error: None,
                 },
                 FormField {
                     label: "Memory (MB)".to_string(),
-                    value: "2048".to_string(),
+                    value: "1024".to_string(),
                     field_type: FormFieldType::Number,
                     validation_error: None,
                 },
                 FormField {
                     label: "Disk (GB)".to_string(),
-                    value: "20".to_string(),
+                    value: "10".to_string(),
                     field_type: FormFieldType::Number,
                     validation_error: None,
                 },
@@ -527,9 +627,9 @@ impl CreateVmForm {
     pub fn to_create_request(&self) -> CreateVmRequest {
         CreateVmRequest {
             name: self.fields[FIELD_NAME].value.clone(),
-            vcpus: self.fields[FIELD_VCPUS].value.parse().unwrap_or(2),
-            memory_mb: self.fields[FIELD_MEMORY].value.parse().unwrap_or(2048),
-            disk_gb: self.fields[FIELD_DISK].value.parse().unwrap_or(20),
+            vcpus: self.fields[FIELD_VCPUS].value.parse().unwrap_or(1),
+            memory_mb: self.fields[FIELD_MEMORY].value.parse().unwrap_or(1024),
+            disk_gb: self.fields[FIELD_DISK].value.parse().unwrap_or(10),
             network: self.fields[FIELD_NETWORK].value.clone(),
             ..Default::default()
         }

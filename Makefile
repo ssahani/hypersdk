@@ -43,16 +43,31 @@ web: ## Build web frontend
 web-clean: ## Remove web build artifacts
 	rm -rf web/dist web/node_modules
 
-install: ## Install binaries, web UI, config, and systemd unit
+install: ## Install binaries, web UI, config, systemd unit, and mkosi workspace defs
 	@test -f target/release/virtspawn-daemon || { echo "Run 'make' or 'make release' first"; exit 1; }
 	install -Dm755 target/release/virtspawn-daemon $(DESTDIR)$(BINDIR)/virtspawn-daemon
 	install -Dm755 target/release/virtspawn-tui $(DESTDIR)$(BINDIR)/virtspawn
 	install -Dm644 contrib/virtspawn.toml $(DESTDIR)$(SYSCONFDIR)/virtspawn/config.toml
 	install -Dm644 contrib/virtspawn-daemon.service $(DESTDIR)$(UNITDIR)/virtspawn-daemon.service
+	@test -f $(DESTDIR)/etc/default/virtspawn-daemon || install -Dm644 contrib/virtspawn-daemon.default $(DESTDIR)/etc/default/virtspawn-daemon
 	@if [ -d web/dist ]; then \
 		mkdir -p $(DESTDIR)$(DATADIR)/virtspawn/web; \
 		cp -r web/dist/* $(DESTDIR)$(DATADIR)/virtspawn/web/; \
 		echo "Installed web UI to $(DESTDIR)$(DATADIR)/virtspawn/web"; \
+	fi
+	@if [ -d contrib/mkosi-defs ]; then \
+		for ws in contrib/mkosi-defs/*/; do \
+			[ -f "$${ws}mkosi.conf" ] || continue; \
+			name=$$(basename "$$ws"); \
+			dst=$(DESTDIR)/var/lib/virtspawn/mkosi-defs/$$name; \
+			if [ ! -d "$$dst" ]; then \
+				mkdir -p "$$dst"; \
+				cp -r "$${ws}." "$$dst/"; \
+				echo "Installed mkosi workspace: $$name"; \
+			else \
+				echo "mkosi workspace already exists, skipping: $$name"; \
+			fi; \
+		done; \
 	fi
 	systemctl daemon-reload 2>/dev/null || true
 

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import { Link } from 'react-router'
 import {
   listRoles, setRole, listTokens, createToken, deleteToken,
   listAlertRules, saveAlertRules, listAlerts, acknowledgeAlert,
@@ -103,6 +104,10 @@ export default function SettingsPage() {
         <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="w-6 h-6 text-blue-400" /> Settings</h1>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
+      <p className="text-xs text-slate-500">
+        Libvirt secrets (Ceph, iSCSI, TLS, …) are managed on the{' '}
+        <Link to="/secrets" className="text-blue-400 hover:text-blue-300 underline">Secrets</Link> page (define XML + optional base64 value).
+      </p>
 
       <div className="flex gap-1 border-b border-slate-700/50 overflow-x-auto">
         {tabs.map(t => (

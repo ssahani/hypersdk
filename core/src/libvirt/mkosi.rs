@@ -1,0 +1,260 @@
+//! Optional [mkosi](https://github.com/systemd/mkosi) integration: build a disk image from a workspace
+//! containing `mkosi.conf`, then attach it as the VM root volume (alternative to virt-builder / golden images).
+//!
+//! Ephemeral `--workspace-directory` under `/var/tmp` avoids mkosi errors when the default
+//! `~/.cache/mkosi` would sit inside `BuildSources=` (e.g. sources under `$HOME`).
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::process::Command;
+use std::time::SystemTime;
+
+use rand::Rng;
+use virt::connect::Connect;
+
+use crate::config::LibvirtConfig;
+use crate::state::CreateVmRequest;
+use crate::LibvirtError;
+
+/// If `req.mkosi_workspace` is set, run `mkosi build` in that directory and materialize the output disk.
+pub fn materialize_mkosi_if_requested(
+    conn: &Connect,
+    req: &mut CreateVmRequest,
+    cfg: &LibvirtConfig,
+) -> Result<(), LibvirtError> {
+    let ws = req.mkosi_workspace.trim();
+    if ws.is_empty() {
+        return Ok(());
+    }
+
+    if !cfg.mkosi_allowed {
+        return Err(LibvirtError::Invalid(
+            "mkosi builds are disabled on this server ([libvirt] mkosi_allowed = false)".into(),
+        ));
+    }
+
+    crate::validate::validate_mkosi_workspace(ws)?;
+
+    if !req.existing_disk.trim().is_empty() {
+        return Err(LibvirtError::Invalid(
+            "mkosi_workspace cannot be used when a root disk is already set (existing_disk or golden template)"
+                .into(),
+        ));
+    }
+
+    if !req.virt_builder_os.trim().is_empty() {
+        return Err(LibvirtError::Invalid(
+            "mkosi_workspace cannot be combined with virt_builder_os".into(),
+        ));
+    }
+
+    if !req.iso.trim().is_empty() {
+        return Err(LibvirtError::Invalid(
+            "mkosi produces a full root disk; omit install ISO (`iso`)".into(),
+        ));
+    }
+
+    let workspace = Path::new(ws)
+        .canonicalize()
+        .map_err(|e| LibvirtError::Invalid(format!("mkosi_workspace: {e}")))?;
+
+    let dest = super::create::find_disk_path(conn, &req.name)?;
+    if Path::new(&dest).exists() {
+        return Err(LibvirtError::Operation(format!(
+            "Refusing to overwrite existing disk: {dest}"
+        )));
+    }
+
+    let ws_str = workspace.to_str().ok_or_else(|| {
+        LibvirtError::Invalid("mkosi_workspace path is not valid UTF-8".into())
+    })?;
+
+    let staging = alloc_mkosi_ephemeral_workspace(&req.name)?;
+    let staging_str = staging.to_str().ok_or_else(|| {
+        LibvirtError::Internal("mkosi staging path is not valid UTF-8".into())
+    })?;
+
+    // Direct all output into the staging tree so we know exactly where to find the
+    // artifact and it is cleaned up with staging rather than accumulating in the workspace.
+    let output_dir = staging.join("output");
+    fs::create_dir(&output_dir).map_err(|e| {
+        LibvirtError::Operation(format!("mkosi: cannot create output dir: {e}"))
+    })?;
+    let output_dir_str = output_dir.to_str().ok_or_else(|| {
+        LibvirtError::Internal("mkosi output dir path is not valid UTF-8".into())
+    })?;
+
+    let mkosi_bin = resolve_mkosi_executable();
+    let image_name = req.mkosi_image.trim().to_string();
+
+    tracing::info!(
+        "mkosi build --directory {} --workspace-directory {} --output-dir {}{}",
+        ws_str, staging_str, output_dir_str,
+        if image_name.is_empty() { String::new() } else { format!(" --image {image_name}") },
+    );
+
+    let mut cmd = Command::new(&mkosi_bin);
+    cmd.args(["--directory", ws_str, "--workspace-directory", staging_str, "--output-dir", output_dir_str]);
+    if !image_name.is_empty() {
+        cmd.args(["--image", &image_name]);
+    }
+    cmd.arg("build");
+
+    let out = cmd
+        .output()
+        .map_err(|e| {
+            LibvirtError::Operation(format!(
+                "Failed to run mkosi at {} (install.sh symlinks to /usr/local/bin/mkosi; v16+): {e}",
+                mkosi_bin.display()
+            ))
+        })?;
+
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        tracing::warn!(
+            path = %staging.display(),
+            "mkosi build failed; ephemeral workspace left for inspection (delete manually or set VIRTSPAWN_MKOSI_KEEP_WORKSPACE)"
+        );
+        return Err(LibvirtError::Operation(format!(
+            "mkosi build failed: {stderr}{stdout}"
+        )));
+    }
+
+    let artifact = find_mkosi_disk_artifact(&output_dir)?;
+    materialize_artifact_to_dest(&artifact, Path::new(&dest))?;
+
+    let keep_staging = std::env::var_os("VIRTSPAWN_MKOSI_KEEP_WORKSPACE").is_some();
+    if !keep_staging {
+        if let Err(e) = fs::remove_dir_all(&staging) {
+            tracing::debug!(path = %staging.display(), "mkosi staging cleanup: {e}");
+        }
+    }
+
+    req.existing_disk = dest;
+    Ok(())
+}
+
+/// Prefer the install.sh symlink so systemd units without `/usr/local/bin` on `PATH` still work.
+fn resolve_mkosi_executable() -> PathBuf {
+    for p in ["/usr/local/bin/mkosi", "/usr/bin/mkosi"] {
+        let pb = Path::new(p);
+        if pb.is_file() {
+            return pb.to_path_buf();
+        }
+    }
+    PathBuf::from("mkosi")
+}
+
+/// Scratch directory for mkosi's workspace (must not live under typical `BuildSources=` trees).
+fn alloc_mkosi_ephemeral_workspace(vm_name: &str) -> Result<PathBuf, LibvirtError> {
+    let safe: String = vm_name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .take(48)
+        .collect();
+    let safe = if safe.is_empty() {
+        "vm".to_string()
+    } else {
+        safe
+    };
+    let base: PathBuf = std::env::var_os("VIRTSPAWN_MKOSI_WORKSPACE_DIR")
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
+        .unwrap_or_else(|| PathBuf::from("/var/tmp/virtspawn-mkosi-ws"));
+    fs::create_dir_all(&base).map_err(|e| {
+        LibvirtError::Operation(format!(
+            "mkosi: cannot create workspace base {}: {e}",
+            base.display()
+        ))
+    })?;
+    let id: u32 = rand::thread_rng().gen();
+    let dir = base.join(format!("{safe}-{id:08x}"));
+    fs::create_dir(&dir).map_err(|e| {
+        LibvirtError::Operation(format!(
+            "mkosi: cannot create ephemeral workspace {}: {e}",
+            dir.display()
+        ))
+    })?;
+    Ok(dir)
+}
+
+/// Find the newest `.raw` or `.qcow2` artifact in the given directory.
+/// We always pass `--output-dir` pointing here so the search is flat and deterministic.
+fn find_mkosi_disk_artifact(output_dir: &Path) -> Result<PathBuf, LibvirtError> {
+    let mut candidates: Vec<(SystemTime, PathBuf)> = Vec::new();
+    collect_disk_images(output_dir, &mut candidates);
+
+    candidates.sort_by(|a, b| a.0.cmp(&b.0));
+    candidates
+        .into_iter()
+        .next_back()
+        .map(|(_, p)| p)
+        .ok_or_else(|| {
+            LibvirtError::Operation(format!(
+                "mkosi build produced no .raw/.qcow2 in {}",
+                output_dir.display()
+            ))
+        })
+}
+
+fn collect_disk_images(dir: &Path, out: &mut Vec<(SystemTime, PathBuf)>) {
+    let Ok(rd) = fs::read_dir(dir) else {
+        return;
+    };
+    for ent in rd.flatten() {
+        let path = ent.path();
+        let Ok(meta) = ent.metadata() else {
+            continue;
+        };
+        if !meta.is_file() {
+            continue;
+        }
+        let ext = path.extension().and_then(|s| s.to_str()).unwrap_or("");
+        if ext != "raw" && ext != "qcow2" {
+            continue;
+        }
+        let mt = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+        out.push((mt, path));
+    }
+}
+
+fn materialize_artifact_to_dest(artifact: &Path, dest: &Path) -> Result<(), LibvirtError> {
+    let ext = artifact
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+
+    if ext == "qcow2" {
+        fs::copy(artifact, dest).map_err(|e| {
+            LibvirtError::Operation(format!("Failed to copy mkosi qcow2 to {}: {e}", dest.display()))
+        })?;
+        return Ok(());
+    }
+
+    // .raw → qcow2 for libvirt path convention
+    let out = Command::new("qemu-img")
+        .args([
+            "convert",
+            "-O",
+            "qcow2",
+            artifact.to_str().ok_or_else(|| {
+                LibvirtError::Invalid("mkosi artifact path is not valid UTF-8".into())
+            })?,
+            dest.to_str().ok_or_else(|| {
+                LibvirtError::Invalid("destination disk path is not valid UTF-8".into())
+            })?,
+        ])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("qemu-img convert: {e}")))?;
+
+    if !out.status.success() {
+        let _ = fs::remove_file(dest);
+        return Err(LibvirtError::Operation(format!(
+            "qemu-img convert (mkosi raw → qcow2) failed: {}",
+            String::from_utf8_lossy(&out.stderr)
+        )));
+    }
+
+    Ok(())
+}

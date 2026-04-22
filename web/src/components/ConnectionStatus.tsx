@@ -28,19 +28,19 @@ export default function ConnectionStatus() {
         <>
           <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
           <Wifi className="w-3 h-3 shrink-0" aria-hidden />
-          <span className="whitespace-nowrap">Live</span>
+          <span className="whitespace-nowrap max-[520px]:sr-only">Live</span>
         </>
       ) : isConnecting ? (
         <>
           <Loader2 className="w-3 h-3 shrink-0 animate-spin" aria-hidden />
           <Wifi className="w-3 h-3 shrink-0 opacity-60" aria-hidden />
-          <span className="whitespace-nowrap">Connecting</span>
+          <span className="whitespace-nowrap max-[520px]:sr-only">Connecting</span>
         </>
       ) : (
         <>
           <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
           <WifiOff className="w-3 h-3 shrink-0" aria-hidden />
-          <span className="whitespace-nowrap">Offline</span>
+          <span className="whitespace-nowrap max-[520px]:sr-only">Offline</span>
         </>
       )}
     </div>

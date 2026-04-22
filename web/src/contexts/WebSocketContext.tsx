@@ -99,6 +99,11 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
             setEvents(prev => [...newEvents, ...prev].slice(0, 50))
           }
           const msg = data as WSMessage
+          // Daemon sends JSON every 2s (`heartbeat` or `changes`). Only notify subscribers on `changes`
+          // so list pages do not refetch /api/v1/vms every heartbeat (wasteful; floods errors if API is down).
+          if ((data as { event?: string }).event !== 'changes') {
+            return
+          }
           subscribersRef.current.forEach((cb) => {
             try {
               cb(msg)

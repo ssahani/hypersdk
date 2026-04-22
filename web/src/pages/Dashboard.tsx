@@ -16,6 +16,10 @@ import { useToastContext } from '../contexts/ToastContext'
 
 interface MetricsPoint { time: string; memory: number }
 
+/** HyperSDK-style responsive grid: auto-fit columns from min card width (see hypersdk Dashboard stats). */
+const METRIC_GRID =
+  'grid max-md:grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(15.625rem,1fr))] gap-4 md:gap-5 xl:gap-6'
+
 export default function Dashboard() {
   const [vms, setVMs] = useState<VmInfo[]>([])
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
@@ -89,16 +93,16 @@ export default function Dashboard() {
   if (loading) return <DashboardSkeleton />
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in min-w-0">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between min-w-0">
+        <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-sm text-slate-400 mt-0.5">
+          <p className="text-sm text-slate-400 mt-0.5 break-words">
             {node ? `${node.hostname} — ${node.hypervisor} ${node.hypervisor_version}` : 'Loading host info...'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button onClick={() => setShowRebootConfirm(true)} className="flex items-center gap-1.5 px-3 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/30 rounded-lg text-sm font-medium text-yellow-400 transition-all" title="Reboot host">
             <RotateCcw className="w-4 h-4" /> Reboot
           </button>
@@ -111,8 +115,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stat Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stat Cards — auto-fit minmax like HyperSDK system overview grid */}
+      <div className={METRIC_GRID}>
         <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Virtual Machines" value={vms.length} badge={<span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">{running} running</span>} />
         <StatCard gradient="stat-card-purple" icon={<Cpu className="w-6 h-6" />} iconColor="text-purple-400" title="Total vCPUs" value={totalVcpus} badge={node ? <span className="text-xs text-slate-500">{node.cpu_cores}c / {node.cpu_threads}t host</span> : undefined} />
         <StatCard gradient="stat-card-orange" icon={<HardDrive className="w-6 h-6" />} iconColor="text-orange-400" title="Allocated Memory" value={`${totalMemGB} GB`} badge={node ? <span className="text-xs text-slate-500">{(node.memory_mb / 1024).toFixed(0)} GB host</span> : undefined} />
@@ -121,16 +125,16 @@ export default function Dashboard() {
 
       {/* Host Resource Usage */}
       {hostStats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <ResourceBar icon={<Gauge className="w-4 h-4 text-blue-400" />} label="Host CPU" value={hostStats.cpu_percent} extra={`Load: ${hostStats.load_1.toFixed(1)}`} />
-          <ResourceBar icon={<HardDrive className="w-4 h-4 text-emerald-400" />} label="Host Memory" value={hostStats.memory_percent} extra={`${(hostStats.memory_used_mb / 1024).toFixed(1)} / ${(hostStats.memory_total_mb / 1024).toFixed(1)} GB`} />
-          <ResourceBar icon={<Database className="w-4 h-4 text-orange-400" />} label="Host Disk" value={hostStats.disk_percent} extra={`${hostStats.disk_used_gb.toFixed(0)} / ${hostStats.disk_total_gb.toFixed(0)} GB`} />
+        <div className={METRIC_GRID}>
+          <ResourceBar icon={<Gauge className="w-4 h-4 text-blue-400 shrink-0" />} label="Host CPU" value={hostStats.cpu_percent} extra={`Load: ${hostStats.load_1.toFixed(1)}`} />
+          <ResourceBar icon={<HardDrive className="w-4 h-4 text-emerald-400 shrink-0" />} label="Host Memory" value={hostStats.memory_percent} extra={`${(hostStats.memory_used_mb / 1024).toFixed(1)} / ${(hostStats.memory_total_mb / 1024).toFixed(1)} GB`} />
+          <ResourceBar icon={<Database className="w-4 h-4 text-orange-400 shrink-0" />} label="Host Disk" value={hostStats.disk_percent} extra={`${hostStats.disk_used_gb.toFixed(0)} / ${hostStats.disk_total_gb.toFixed(0)} GB`} />
           <MiniStat icon={<Clock className="w-4 h-4 text-purple-400" />} label="Uptime" value={formatUptime(hostStats.uptime_secs)} extra={`${hostStats.processes} procs`} />
         </div>
       )}
 
       {/* Secondary stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={METRIC_GRID}>
         <MiniStat icon={<Database className="w-4 h-4 text-cyan-400" />} label="Storage Pools" value={`${activePools}/${pools.length}`} />
         <MiniStat icon={<Camera className="w-4 h-4 text-yellow-400" />} label="Running" value={running} extra={stopped > 0 ? `${stopped} stopped` : undefined} />
         <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
@@ -153,54 +157,28 @@ export default function Dashboard() {
         )
       })()}
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 gap-6">
+      {/* Charts — isolate stacking so tooltips stay below sticky navbar */}
+      <div className="grid grid-cols-1 gap-6 min-w-0 relative z-0">
         <ChartCard title="Memory Usage" icon={<HardDrive className="w-4 h-4 text-emerald-400" />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].memory}%` : '-'}>
-          <ResponsiveContainer width="100%" height={220}>
-            <AreaChart data={metricsHistory}>
-              <defs>
-                <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-              <XAxis dataKey="time" stroke="#475569" fontSize={11} tickLine={false} />
-              <YAxis stroke="#475569" fontSize={11} domain={[0, 100]} tickLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.75rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} labelStyle={{ color: '#94a3b8' }} />
-              <Area type="monotone" dataKey="memory" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#memGrad)" />
-            </AreaChart>
-          </ResponsiveContainer>
+          <div className="h-[220px] w-full min-w-0 isolate">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={metricsHistory}>
+                <defs>
+                  <linearGradient id="memGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                <XAxis dataKey="time" stroke="#475569" fontSize={11} tickLine={false} />
+                <YAxis stroke="#475569" fontSize={11} domain={[0, 100]} tickLine={false} />
+                <Tooltip contentStyle={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '0.75rem', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }} labelStyle={{ color: '#94a3b8' }} />
+                <Area type="monotone" dataKey="memory" stroke="#10b981" strokeWidth={2} fillOpacity={1} fill="url(#memGrad)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </ChartCard>
       </div>
-
-      {/* Shutdown Confirmation */}
-      {showShutdownConfirm && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowShutdownConfirm(false)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Shutdown</h3>
-            <p className="text-sm text-slate-400 mb-6">Are you sure you want to shut down this host? All running VMs will be stopped and the system will power off.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowShutdownConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
-              <button onClick={handleHostShutdown} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition">Shut Down</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reboot Confirmation */}
-      {showRebootConfirm && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowRebootConfirm(false)}>
-          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
-            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Reboot</h3>
-            <p className="text-sm text-slate-400 mb-6">Are you sure you want to reboot this host? All running VMs will be stopped and the system will restart.</p>
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setShowRebootConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
-              <button onClick={handleHostReboot} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-sm font-medium transition">Reboot</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* VM List */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
@@ -230,7 +208,7 @@ export default function Dashboard() {
                     <div className="text-xs text-slate-500 mt-0.5">{vm.vcpus} vCPU · {vm.memory_mb} MB</div>
                   </div>
                 </Link>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   {vm.state === 'running' && (
                     <>
                       <Link to={`/vms/${vm.name}/console`} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
@@ -267,21 +245,49 @@ export default function Dashboard() {
           </div>
           <div className="divide-y divide-slate-700/30 max-h-64 overflow-y-auto">
             {events.map((ev, i) => (
-              <div key={i} className="px-6 py-2.5 flex items-center justify-between text-sm">
-                <div className="flex items-center gap-2">
-                  {ev.event === 'state_change' && <ArrowRight className="w-3.5 h-3.5 text-blue-400" />}
-                  {ev.event === 'vm_added' && <Plus className="w-3.5 h-3.5 text-green-400" />}
-                  {ev.event === 'vm_removed' && <Trash2 className="w-3.5 h-3.5 text-red-400" />}
-                  <span className="text-white font-medium">{ev.name}</span>
+              <div key={i} className="px-6 py-2.5 flex items-center justify-between text-sm gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  {ev.event === 'state_change' && <ArrowRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+                  {ev.event === 'vm_added' && <Plus className="w-3.5 h-3.5 text-green-400 shrink-0" />}
+                  {ev.event === 'vm_removed' && <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+                  <span className="text-white font-medium truncate">{ev.name}</span>
                   {ev.event === 'state_change' && (
-                    <span className="text-slate-400">{ev.old_state} → {ev.new_state}</span>
+                    <span className="text-slate-400 shrink-0">{ev.old_state} → {ev.new_state}</span>
                   )}
-                  {ev.event === 'vm_added' && <span className="text-green-400">created</span>}
-                  {ev.event === 'vm_removed' && <span className="text-red-400">removed</span>}
+                  {ev.event === 'vm_added' && <span className="text-green-400 shrink-0">created</span>}
+                  {ev.event === 'vm_removed' && <span className="text-red-400 shrink-0">removed</span>}
                 </div>
-                <span className="text-xs text-slate-500">{timeAgo(ev.timestamp)}</span>
+                <span className="text-xs text-slate-500 shrink-0">{timeAgo(ev.timestamp)}</span>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Shutdown Confirmation */}
+      {showShutdownConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowShutdownConfirm(false)}>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Shutdown</h3>
+            <p className="text-sm text-slate-400 mb-6">Are you sure you want to shut down this host? All running VMs will be stopped and the system will power off.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowShutdownConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
+              <button onClick={handleHostShutdown} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition">Shut Down</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reboot Confirmation */}
+      {showRebootConfirm && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center animate-fade-in" onClick={() => setShowRebootConfirm(false)}>
+          <div className="bg-slate-800 border border-slate-700 rounded-xl p-6 max-w-md mx-4 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-white mb-2">Confirm Host Reboot</h3>
+            <p className="text-sm text-slate-400 mb-6">Are you sure you want to reboot this host? All running VMs will be stopped and the system will restart.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setShowRebootConfirm(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Cancel</button>
+              <button onClick={handleHostReboot} className="px-4 py-2 bg-yellow-600 hover:bg-yellow-500 rounded-lg text-sm font-medium transition">Reboot</button>
+            </div>
           </div>
         </div>
       )}
@@ -291,8 +297,8 @@ export default function Dashboard() {
 
 function StatCard({ gradient, icon, iconColor, title, value, badge }: { gradient: string; icon: React.ReactNode; iconColor: string; title: string; value: string | number; badge?: React.ReactNode }) {
   return (
-    <div className={`${gradient} rounded-xl p-5 border border-slate-700/30 shadow-lg hover:border-slate-600/50 transition-all duration-300`}>
-      <div className="flex items-start justify-between">
+    <div className={`${gradient} rounded-xl p-5 border border-slate-700/30 shadow-lg hover:border-slate-600/50 transition-all duration-300 min-w-0`}>
+      <div className="flex items-start justify-between gap-2 min-w-0">
         <div className={iconColor}>{icon}</div>
         {badge}
       </div>
@@ -307,11 +313,11 @@ function StatCard({ gradient, icon, iconColor, title, value, badge }: { gradient
 function ResourceBar({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: number; extra?: string }) {
   const color = value > 90 ? 'bg-red-500' : value > 70 ? 'bg-yellow-500' : 'bg-blue-500'
   return (
-    <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30">
-      <div className="flex items-center gap-2 mb-1.5">
+    <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30 min-w-0">
+      <div className="flex items-center gap-2 mb-1.5 min-w-0">
         {icon}
-        <span className="text-xs text-slate-500 flex-1">{label}</span>
-        <span className="text-xs font-semibold text-white">{value.toFixed(1)}%</span>
+        <span className="text-xs text-slate-500 flex-1 min-w-0 truncate">{label}</span>
+        <span className="text-xs font-semibold text-white shrink-0 tabular-nums">{value.toFixed(1)}%</span>
       </div>
       <div className="w-full bg-slate-700 rounded-full h-1.5">
         <div className={`${color} h-1.5 rounded-full transition-all`} style={{ width: `${Math.min(value, 100)}%` }} />
@@ -331,7 +337,7 @@ function formatUptime(secs: number): string {
 
 function MiniStat({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: string | number; extra?: string }) {
   return (
-    <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30 flex items-center gap-3">
+    <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30 flex items-center gap-3 min-w-0">
       {icon}
       <div className="flex-1 min-w-0">
         <div className="text-xs text-slate-500">{label}</div>
@@ -358,12 +364,10 @@ function DashboardSkeleton() {
   return (
     <div className="space-y-6">
       <div className="h-8 w-48 skeleton" />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={METRIC_GRID}>
         {[...Array(4)].map((_, i) => <div key={i} className="h-28 skeleton" />)}
       </div>
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {[...Array(2)].map((_, i) => <div key={i} className="h-72 skeleton" />)}
-      </div>
+      <div className="h-72 skeleton" />
       <div className="h-64 skeleton" />
     </div>
   )

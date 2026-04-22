@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{Path, State};
+use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
@@ -30,10 +31,18 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
     loop {
         tick.tick().await;
 
-        let current = match manager.with_conn(domain::list_vms) {
-            Ok(vms) => vms,
-            Err(e) => {
+        // Never call libvirt from the async runtime thread: list_vms can block for a long time
+        // (e.g. while another thread holds the connection mutex during destroy/undefine). Blocking
+        // the executor starves HTTP/WebSocket work and can look like a daemon "crash".
+        let manager2 = manager.clone();
+        let current = match tokio::task::spawn_blocking(move || manager2.with_conn(domain::list_vms)).await {
+            Ok(Ok(vms)) => vms,
+            Ok(Err(e)) => {
                 warn!("Failed to list VMs for watch: {}", e);
+                Vec::new()
+            }
+            Err(e) => {
+                warn!("Watch list_vms task join error: {}", e);
                 Vec::new()
             }
         };
@@ -243,41 +252,30 @@ async fn vnc_handler(
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let port = manager
-        .with_conn(|conn| {
-            let xml = domain::get_vm_xml(conn, &name)?;
-            // CRITICAL: Only match VNC graphics, not SPICE. The noVNC client in the web UI
-            // speaks VNC protocol only. Connecting to a SPICE port with VNC protocol will fail
-            // silently. Do NOT remove this type check or fall back to SPICE ports.
-            let mut port = 0u16;
-            for block in virtspawn_core::xml::split_blocks(&xml, "graphics") {
-                let gtype = virtspawn_core::xml::extract_attr(&block, "graphics", "type")
-                    .unwrap_or_default();
-                if gtype == "vnc" {
-                    port = virtspawn_core::xml::extract_attr(&block, "graphics", "port")
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(0);
-                    break;
-                }
-            }
-            Ok(port)
-        })
-        .unwrap_or(0);
+    // hyper2kvm-style: use `virsh vncdisplay` when domain XML still has autoport (-1).
+    let resolved = manager.with_conn(|conn| virtspawn_core::libvirt::vnc::resolve_vnc_tcp(conn, &name));
 
-    ws.on_upgrade(move |socket| handle_vnc_proxy(socket, name, port))
+    let (host, port) = match resolved {
+        Ok((h, p)) if p > 0 => (h, p),
+        Ok(_) => {
+            return (StatusCode::NOT_FOUND, "No VNC display for this VM").into_response();
+        }
+        Err(e) => {
+            warn!("VNC resolve failed for VM '{}': {}", name, e);
+            return (StatusCode::NOT_FOUND, "No VNC display for this VM").into_response();
+        }
+    };
+
+    ws.on_upgrade(move |socket| handle_vnc_proxy(socket, name, host, port))
 }
 
-async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
-    if port == 0 {
-        info!("VNC: no port for VM '{}'", name);
-        let (mut sink, _) = socket.split();
-        let _ = sink.close().await;
-        return;
-    }
+async fn handle_vnc_proxy(socket: WebSocket, name: String, host: String, port: u16) {
+    info!(
+        "VNC WebSocket proxy connecting to {}:{} for VM '{}'",
+        host, port, name
+    );
 
-    info!("VNC WebSocket proxy connecting to 127.0.0.1:{} for VM '{}'", port, name);
-
-    let tcp = match tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
+    let tcp = match tokio::net::TcpStream::connect(format!("{}:{}", host, port)).await {
         Ok(s) => s,
         Err(e) => {
             warn!("Failed to connect to VNC port {}: {}", port, e);
@@ -287,7 +285,7 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, port: u16) {
         }
     };
 
-    info!("VNC TCP connected to port {} for VM '{}'", port, name);
+    info!("VNC TCP connected to {}:{} for VM '{}'", host, port, name);
 
     let (mut tcp_read, mut tcp_write) = tcp.into_split();
     let (mut ws_sink, mut ws_stream) = socket.split();

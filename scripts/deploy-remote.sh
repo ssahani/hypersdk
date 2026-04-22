@@ -33,7 +33,7 @@ deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup
 deploy-remote.sh check [USER@HOST | USER HOST]
 
 Flow: rsync → ~/.deployment/virtspawn (REMOTE_DIR) → build on server → install → systemd.
-Full install: install.sh enables + restarts the daemon (--no-start skips).
+Full install: install.sh enables + restarts the daemon (--no-start skips). install.sh also ensures mkosi (v16+): distro package if recent, else pipx from GitHub, else optional git clone (VIRTSPAWN_MKOSI_FROM_CLONE=1), else /opt/mkosi-venv; host build tools (bubblewrap, dosfstools, …) best-effort. Default disk workflow in the Create VM UI.
 Quick: make install then daemon-reload + try-restart (only restarts if virtspawn-daemon was active).
 Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; replace with your CA for browsers).
 
@@ -42,6 +42,7 @@ Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpas
 Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 185.165.240.5 --quick
+  (Order is always USER then HOST — not HOST USER.)
   SYNC_ONLY=1 deploy-remote.sh sus@host
   deploy-remote.sh check    deploy-remote.sh check sus@host
 
@@ -183,7 +184,16 @@ if [[ $# -ge 1 && "$1" == *@* ]]; then
     REMOTE="$1"; USER="${1%%@*}"; HOST="${1#*@}"; shift
     parse_flags "$@"
 elif [[ $# -ge 2 ]]; then
-    USER="$1"; HOST="$2"; shift 2
+    # Common mistake: HOST USER (e.g. IP first). We only auto-fix when $1 looks like IPv4 and $2 does not.
+    if [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] && [[ ! "$2" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
+        warn "first token looks like an IPv4 address — expected USER HOST, not HOST USER. Using «$2» @ «$1»."
+        USER="$2"
+        HOST="$1"
+    else
+        USER="$1"
+        HOST="$2"
+    fi
+    shift 2
     [[ $# -gt 0 && "${1:-}" != -* ]] && { export SSHPASS="$1"; shift; }
     parse_flags "$@"
 else

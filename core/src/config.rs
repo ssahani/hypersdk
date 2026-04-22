@@ -77,10 +77,40 @@ pub struct DaemonConfig {
     pub port: u16,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+/// How new VMs are created when the API client does not override `create_backend` on the request.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum VmCreateBackend {
+    /// Native virtspawn domain XML + `qemu-img` (default).
+    #[default]
+    LibvirtXml,
+    /// Shell out to `virt-install` (hyper2kvm-style).
+    VirtInstall,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LibvirtConfig {
     #[serde(default = "default_libvirt_uri")]
     pub uri: String,
+    /// Default VM create engine; clients may send `create_backend` per request.
+    #[serde(default)]
+    pub create_backend: VmCreateBackend,
+    /// Allow `CreateVmRequest.virt_builder_os` to shell out to `virt-builder` (requires guestfs tools on host).
+    #[serde(default = "default_true")]
+    pub virt_builder_allowed: bool,
+    /// If set and the client does not send `virt_builder_ssh_pubkey`, used for `--ssh-inject root:file:…`.
+    #[serde(default)]
+    pub virt_builder_default_ssh_pubkey_path: String,
+    /// Pass `--update` to `virt-builder` (package updates inside the template).
+    #[serde(default = "default_true")]
+    pub virt_builder_update: bool,
+    /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (requires mkosi on host; see install.sh).
+    #[serde(default = "default_true")]
+    pub mkosi_allowed: bool,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 fn default_refresh_interval() -> u64 {
@@ -151,6 +181,11 @@ impl Default for LibvirtConfig {
     fn default() -> Self {
         Self {
             uri: default_libvirt_uri(),
+            create_backend: VmCreateBackend::default(),
+            virt_builder_allowed: true,
+            virt_builder_default_ssh_pubkey_path: String::new(),
+            virt_builder_update: true,
+            mkosi_allowed: true,
         }
     }
 }

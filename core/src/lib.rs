@@ -7,7 +7,7 @@ pub mod system_accounts;
 pub mod validate;
 pub mod xml;
 
-pub use config::{AuthConfig, VirtspawnConfig, DEFAULT_DAEMON_PORT};
+pub use config::{AuthConfig, VirtspawnConfig, VmCreateBackend, DEFAULT_DAEMON_PORT};
 pub use libvirt::LibvirtManager;
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, BackupInfo, BackupRequest, CloneVmRequest,

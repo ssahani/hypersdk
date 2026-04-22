@@ -1,4 +1,5 @@
 pub mod automation;
+pub mod block_jobs;
 pub mod boot;
 pub mod capabilities;
 pub mod cdrom;
@@ -9,9 +10,11 @@ pub mod device;
 pub mod extras;
 pub mod domain;
 pub mod guest_agent;
+pub mod hostdev_pci;
 pub mod host_network;
 pub mod metrics;
 pub mod migrate;
+pub mod mkosi;
 pub mod network;
 pub mod node;
 pub mod node_device;
@@ -21,5 +24,9 @@ pub mod save_restore;
 pub mod secret;
 pub mod snapshot;
 pub mod storage;
+pub mod template_apply;
+pub mod virt_builder;
+pub mod virt_install;
+pub mod vnc;
 
 pub use connection::LibvirtManager;

@@ -6,8 +6,14 @@ import {
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune,
+  deleteVM, getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
+  setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
+  VmDeleteUndefineOpts, BlockJobInfo,
 } from '../api/vm'
+import {
+  attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
+} from '../api/advanced'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
@@ -22,13 +28,14 @@ import {
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, Archive, Copy, Pencil, ArrowRightLeft, Download,
   Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb, Layers,
-  ChevronUp, ChevronDown, X, Tag, Monitor, Shield,
+  ChevronUp, ChevronDown, X, Tag, Monitor, Shield, Sliders,
 } from 'lucide-react'
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
 
-type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml' | 'logs'
+type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml' | 'logs' | 'advanced'
 type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
+  | 'delete-vm' | 'scheduler-tune' | 'memtune' | 'pin-vcpu' | 'block-commit'
 
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
@@ -59,7 +66,7 @@ export default function VMDetailsPage() {
   const [snapName, setSnapName] = useState('')
   const [snapDesc, setSnapDesc] = useState('')
   const [editVcpus, setEditVcpus] = useState(1)
-  const [editMemory, setEditMemory] = useState(2048)
+  const [editMemory, setEditMemory] = useState(1024)
   const [balloonMb, setBalloonMb] = useState(0)
   const [bootDevices, setBootDevices] = useState<string[]>([])
   const [attachSource, setAttachSource] = useState('')
@@ -84,6 +91,26 @@ export default function VMDetailsPage() {
   const [logsLines, setLogsLines] = useState(500)
   const [cpuTune, setCpuTune] = useState<CpuTuneInfo | null>(null)
   const [memTune, setMemTune] = useState<MemTuneInfo | null>(null)
+
+  const [deleteUndefine, setDeleteUndefine] = useState<VmDeleteUndefineOpts>({})
+  const [deleteVmTypeConfirm, setDeleteVmTypeConfirm] = useState('')
+  const [blockDisk, setBlockDisk] = useState('')
+  const [blockJob, setBlockJob] = useState<BlockJobInfo | null | undefined>(undefined)
+  const [blockBase, setBlockBase] = useState('')
+  const [blockTop, setBlockTop] = useState('')
+  const [blockShallow, setBlockShallow] = useState(true)
+  const [blockDelete, setBlockDelete] = useState(true)
+  const [blockActive, setBlockActive] = useState(false)
+  const [pciBdf, setPciBdf] = useState('')
+  const [nodedevName, setNodedevName] = useState('')
+  const [schedShares, setSchedShares] = useState('')
+  const [schedPeriod, setSchedPeriod] = useState('')
+  const [schedQuota, setSchedQuota] = useState('')
+  const [memHardKb, setMemHardKb] = useState('')
+  const [memSoftKb, setMemSoftKb] = useState('')
+  const [memSwapKb, setMemSwapKb] = useState('')
+  const [pinVcpuN, setPinVcpuN] = useState(0)
+  const [pinMap, setPinMap] = useState<boolean[]>(() => Array.from({ length: 64 }, () => false))
 
   // Confirmation dialog state for destructive actions
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
@@ -168,6 +195,13 @@ export default function VMDetailsPage() {
     }
   }, [tab, name, logsLines])
 
+  useEffect(() => {
+    if (tab === 'advanced' && vm?.disks?.length && !blockDisk) {
+      const t = vm.disks.find((d) => d.device === 'disk')?.target
+      if (t) setBlockDisk(t)
+    }
+  }, [tab, vm, blockDisk])
+
   const action = async (fn: (n: string) => Promise<void>, label: string) => {
     if (!name) return
     try { await fn(name); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`) }
@@ -182,6 +216,30 @@ export default function VMDetailsPage() {
       if (d === 'clone') setCloneName(`${vm.name}-clone`)
       if (d === 'rename') setNewName(vm.name)
       if (d === 'save-template') setTemplateName(`${vm.name}-template`)
+      if (d === 'scheduler-tune') {
+        setSchedShares(cpuTune?.shares != null ? String(cpuTune.shares) : '')
+        setSchedPeriod(cpuTune?.period != null ? String(cpuTune.period) : '')
+        setSchedQuota(cpuTune?.quota != null ? String(cpuTune.quota) : '')
+      }
+      if (d === 'memtune') {
+        setMemHardKb(memTune?.hard_limit_kb != null ? String(memTune.hard_limit_kb) : '')
+        setMemSoftKb(memTune?.soft_limit_kb != null ? String(memTune.soft_limit_kb) : '')
+        setMemSwapKb(memTune?.swap_hard_limit_kb != null ? String(memTune.swap_hard_limit_kb) : '')
+      }
+      if (d === 'pin-vcpu') {
+        setPinVcpuN(0)
+        setPinMap(Array.from({ length: 64 }, () => false))
+      }
+      if (d === 'delete-vm') {
+        setDeleteUndefine({})
+        setDeleteVmTypeConfirm('')
+      }
+      if (d === 'block-commit') {
+        const first = vm.disks.find((x) => x.device === 'disk')?.target || ''
+        setBlockDisk((prev) => prev || first)
+        setBlockBase('')
+        setBlockTop('')
+      }
     }
     setDialog(d)
   }
@@ -319,6 +377,126 @@ export default function VMDetailsPage() {
     }
   }
 
+  const handleDeleteVm = async () => {
+    if (!name) return
+    try {
+      await deleteVM(name, deleteUndefine)
+      toast.success('VM deleted')
+      setDialog(null)
+      navigate('/vms')
+    } catch (e: unknown) {
+      toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleSchedulerSave = async () => {
+    if (!name) return
+    try {
+      const body: { cpu_shares?: number; vcpu_period?: number; vcpu_quota?: number } = {}
+      if (schedShares.trim() !== '') body.cpu_shares = parseInt(schedShares, 10)
+      if (schedPeriod.trim() !== '') body.vcpu_period = parseInt(schedPeriod, 10)
+      if (schedQuota.trim() !== '') body.vcpu_quota = parseInt(schedQuota, 10)
+      if (Object.keys(body).length === 0) {
+        toast.warning('Enter at least one value')
+        return
+      }
+      await setSchedulerTune(name, body)
+      toast.success('Scheduler updated')
+      setDialog(null)
+      load()
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleMemtuneSave = async () => {
+    if (!name) return
+    try {
+      const body: MemTuneInfo = {}
+      if (memHardKb.trim() !== '') body.hard_limit_kb = parseInt(memHardKb, 10)
+      if (memSoftKb.trim() !== '') body.soft_limit_kb = parseInt(memSoftKb, 10)
+      if (memSwapKb.trim() !== '') body.swap_hard_limit_kb = parseInt(memSwapKb, 10)
+      if (Object.keys(body).length === 0) {
+        toast.warning('Enter at least one limit (KiB)')
+        return
+      }
+      await applyMemTuneApi(name, body)
+      toast.success('Memory tuning updated')
+      setDialog(null)
+      load()
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handlePinSave = async () => {
+    if (!name) return
+    try {
+      await pinVcpu(name, pinVcpuN, pinMap)
+      toast.success(`vCPU ${pinVcpuN} pinning updated`)
+      setDialog(null)
+      load()
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleBlockJobRefresh = async () => {
+    if (!name || !blockDisk.trim()) {
+      toast.warning('Select a disk target (e.g. vda)')
+      return
+    }
+    try {
+      const r = await getBlockJobInfo(name, blockDisk.trim(), true)
+      setBlockJob(r.job ?? null)
+      toast.success(r.job ? 'Active block job' : 'No block job on this disk')
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleBlockCommit = async () => {
+    if (!name || !blockDisk.trim()) return
+    try {
+      await blockCommit(name, {
+        disk: blockDisk.trim(),
+        base: blockBase.trim() || null,
+        top: blockTop.trim() || null,
+        bandwidth: 0,
+        shallow: blockShallow,
+        delete: blockDelete,
+        active: blockActive,
+        relative: false,
+        bandwidth_bytes: true,
+      })
+      toast.success('Block commit started')
+      setDialog(null)
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleBlockPull = async () => {
+    if (!name || !blockDisk.trim()) return
+    try {
+      await blockPull(name, { disk: blockDisk.trim(), bandwidth: 0, bandwidth_bytes: true })
+      toast.success('Block pull started')
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleBlockAbort = async (asyncAbort: boolean, pivot: boolean) => {
+    if (!name || !blockDisk.trim()) return
+    try {
+      await blockJobAbort(name, { disk: blockDisk.trim(), async: asyncAbort, pivot })
+      toast.success('Block job abort requested')
+      setBlockJob(undefined)
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
   const downloadXml = () => {
     if (!vmXml || !vm) return
     const blob = new Blob([vmXml], { type: 'text/xml' })
@@ -367,6 +545,7 @@ export default function VMDetailsPage() {
     { key: 'devices', label: 'Devices', icon: <Monitor className="w-4 h-4" /> },
     { key: 'xml', label: 'XML', icon: <Code className="w-4 h-4" /> },
     { key: 'logs', label: 'Logs', icon: <Terminal className="w-4 h-4" /> },
+    { key: 'advanced', label: 'Advanced', icon: <Sliders className="w-4 h-4" /> },
   ]
 
   return (
@@ -423,6 +602,7 @@ export default function VMDetailsPage() {
         <button onClick={() => openDialog('migrate')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><ArrowRightLeft className="w-3 h-3 inline -mt-0.5" /> Migrate</button>
         <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); toast.info('Backup started in background'); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup triggered successfully for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
         <button onClick={() => openDialog('save-template')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
+        <button type="button" onClick={() => setTab('advanced')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Sliders className="w-3 h-3 inline -mt-0.5" /> Advanced</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
       </div>
 
@@ -780,6 +960,104 @@ export default function VMDetailsPage() {
         </div>
       )}
 
+      {/* ── Advanced (libvirt) ───────────────────────────────────── */}
+
+      {tab === 'advanced' && (
+        <div className="space-y-6">
+          <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-4 text-sm text-amber-200/90">
+            These actions map directly to libvirt (<code className="text-amber-100/80">virsh blockcommit</code>, <code className="text-amber-100/80">undefine --nvram</code>, etc.). Wrong options can destroy data or make a VM unbootable. Prefer shutoff VMs for delete and PCI attach unless you know the guest is safe.
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Trash2 className="w-5 h-5 text-red-400" /> Delete VM</h3>
+            <p className="text-xs text-slate-400">Optional <code className="text-slate-300">undefine</code> flags (query params on DELETE). Typically use with VM shut off.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_managed_save} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_managed_save: e.target.checked }))} />
+                <span>Remove managed save image</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_snapshots_metadata} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_snapshots_metadata: e.target.checked }))} />
+                <span>Drop snapshot metadata only</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_nvram} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_nvram: e.target.checked }))} />
+                <span>Delete UEFI NVRAM file</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_keep_nvram} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_keep_nvram: e.target.checked }))} />
+                <span>Keep NVRAM (exclusive with delete NVRAM)</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_checkpoints_metadata} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_checkpoints_metadata: e.target.checked }))} />
+                <span>Remove checkpoint metadata</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_tpm} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_tpm: e.target.checked }))} />
+                <span>Delete TPM state</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+                <input type="checkbox" className="rounded border-slate-600" checked={!!deleteUndefine.undefine_keep_tpm} onChange={(e) => setDeleteUndefine((p) => ({ ...p, undefine_keep_tpm: e.target.checked }))} />
+                <span>Keep TPM (exclusive with delete TPM)</span>
+              </label>
+            </div>
+            <button type="button" onClick={() => openDialog('delete-vm')} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition">Delete this VM…</button>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+            <h3 className="text-lg font-semibold">CPU / memory tuning</h3>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => openDialog('scheduler-tune')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Edit scheduler (shares / vCPU bandwidth)</button>
+              <button type="button" onClick={() => openDialog('memtune')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Edit memtune (KiB)</button>
+              <button type="button" onClick={() => openDialog('pin-vcpu')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Pin vCPU to host CPUs</button>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+            <h3 className="text-lg font-semibold">Block jobs (snapshots / backing chain)</h3>
+            <div className="flex flex-wrap gap-3 items-end">
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Disk target</label>
+                <select value={blockDisk} onChange={(e) => setBlockDisk(e.target.value)} className="input-field min-w-[120px]">
+                  <option value="">Select…</option>
+                  {vm.disks.filter((d) => d.device === 'disk').map((d) => (
+                    <option key={d.target} value={d.target}>{d.target}</option>
+                  ))}
+                </select>
+              </div>
+              <button type="button" onClick={handleBlockJobRefresh} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Refresh job status</button>
+              <button type="button" onClick={() => openDialog('block-commit')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition">Block commit…</button>
+              <button type="button" onClick={handleBlockPull} className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm transition">Block pull</button>
+              <button type="button" onClick={() => handleBlockAbort(false, false)} className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm transition">Abort job</button>
+              <button type="button" onClick={() => handleBlockAbort(true, true)} className="px-3 py-2 bg-orange-700 hover:bg-orange-600 rounded-lg text-sm transition">Abort (async + pivot)</button>
+            </div>
+            {blockJob !== undefined && (
+              <pre className="text-xs font-mono bg-slate-900/80 p-3 rounded border border-slate-700 overflow-x-auto">{blockJob === null ? 'No active block job on this disk.' : JSON.stringify(blockJob, null, 2)}</pre>
+            )}
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+            <h3 className="text-lg font-semibold">PCI passthrough (VFIO)</h3>
+            <p className="text-xs text-slate-400">BDF like <code className="text-slate-300">0000:03:00.0</code>. Detach the node device from the host first when required.</p>
+            <div className="flex flex-wrap gap-2 items-end">
+              <input value={pciBdf} onChange={(e) => setPciBdf(e.target.value)} placeholder="0000:03:00.0" className="input-field flex-1 min-w-[200px]" />
+              <button type="button" onClick={async () => { if (!name || !pciBdf.trim()) return; try { await attachPciHostdev(name, pciBdf.trim()); toast.success('PCI attach requested'); load(); setVmXml('') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition">Attach</button>
+              <button type="button" onClick={async () => { if (!name || !pciBdf.trim()) return; try { await detachPciHostdev(name, pciBdf.trim()); toast.success('PCI detach requested'); load(); setVmXml('') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm transition">Detach</button>
+            </div>
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+            <h3 className="text-lg font-semibold">Host node device</h3>
+            <p className="text-xs text-slate-400">Name from <strong className="text-slate-300">Devices</strong> page or <code className="text-slate-300">pci_0000_03_00_0</code> style libvirt id.</p>
+            <div className="flex flex-wrap gap-2 items-end">
+              <input value={nodedevName} onChange={(e) => setNodedevName(e.target.value)} placeholder="pci_0000_03_00_0" className="input-field flex-1 min-w-[220px]" />
+              <button type="button" onClick={async () => { if (!nodedevName.trim()) return; try { await detachNodeDevice(nodedevName.trim()); toast.success('Node device detached') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-orange-700 hover:bg-orange-600 rounded-lg text-sm transition">Detach from host</button>
+              <button type="button" onClick={async () => { if (!nodedevName.trim()) return; try { await reattachNodeDevice(nodedevName.trim()); toast.success('Node device reattached') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm transition">Reattach to host</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── XML Tab ──────────────────────────────────────────────── */}
 
       {tab === 'xml' && (
@@ -830,7 +1108,7 @@ export default function VMDetailsPage() {
           {dialog === 'memory' && (
             <DialogBox title="Set Memory" icon={<MemoryStick className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleSetMemory} confirmLabel="Apply">
               <label htmlFor="dlg-mem" className="block text-sm text-slate-400 mb-1">Memory (MB, 64 - 1048576)</label>
-              <input id="dlg-mem" type="number" min={64} max={1048576} autoFocus value={editMemory} onChange={(e) => setEditMemory(parseInt(e.target.value) || 2048)} className="input-field" />
+              <input id="dlg-mem" type="number" min={64} max={1048576} autoFocus value={editMemory} onChange={(e) => setEditMemory(parseInt(e.target.value) || 1024)} className="input-field" />
               <p className="text-xs text-slate-500 mt-2">Sets the maximum memory allocation. Takes effect on next reboot.</p>
             </DialogBox>
           )}
@@ -1002,6 +1280,95 @@ export default function VMDetailsPage() {
               <p className="text-xs text-slate-500 mt-2">Saves the VM configuration as a reusable template. Disk images are not included.</p>
             </DialogBox>
           )}
+
+          {dialog === 'delete-vm' && (
+            <DialogBox
+              title="Delete VM permanently"
+              icon={<Trash2 className="w-5 h-5 text-red-400" />}
+              onClose={() => setDialog(null)}
+              onConfirm={handleDeleteVm}
+              confirmLabel="Delete"
+              confirmDanger
+              confirmDisabled={!vm?.name || deleteVmTypeConfirm !== vm.name}
+            >
+              <p className="text-sm text-slate-300 mb-2">This will stop <strong>{vm?.name}</strong> if needed, then remove it from libvirt. If you already removed disk or NVRAM files on the host, the server retries so the definition can still be dropped.</p>
+              <p className="text-xs text-slate-500 mb-2">Undefine flags from the Advanced tab apply. Disks are not deleted by this action unless libvirt cleanup flags succeed on files that still exist.</p>
+              <ul className="text-xs text-slate-400 list-disc pl-4 space-y-0.5 mb-3">
+                {deleteUndefine.undefine_managed_save && <li>Remove managed save</li>}
+                {deleteUndefine.undefine_snapshots_metadata && <li>Drop snapshot metadata</li>}
+                {deleteUndefine.undefine_nvram && <li>Delete NVRAM</li>}
+                {deleteUndefine.undefine_keep_nvram && <li>Keep NVRAM</li>}
+                {deleteUndefine.undefine_checkpoints_metadata && <li>Drop checkpoint metadata</li>}
+                {deleteUndefine.undefine_tpm && <li>Delete TPM state</li>}
+                {deleteUndefine.undefine_keep_tpm && <li>Keep TPM</li>}
+                {!Object.values(deleteUndefine).some(Boolean) && <li>None (plain undefine)</li>}
+              </ul>
+              <label htmlFor="dlg-delete-vm-confirm" className="block text-xs text-slate-400 mb-1">Type the VM name <span className="font-mono text-slate-200">{vm?.name}</span> to confirm:</label>
+              <input
+                id="dlg-delete-vm-confirm"
+                type="text"
+                autoComplete="off"
+                spellCheck={false}
+                value={deleteVmTypeConfirm}
+                onChange={(e) => setDeleteVmTypeConfirm(e.target.value)}
+                className="input-field font-mono text-sm"
+                placeholder={vm?.name}
+              />
+            </DialogBox>
+          )}
+
+          {dialog === 'scheduler-tune' && (
+            <DialogBox title="Scheduler tuning" icon={<Cpu className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleSchedulerSave} confirmLabel="Apply">
+              <p className="text-xs text-slate-500 mb-3">Only filled fields are sent; others stay unchanged in libvirt.</p>
+              <label className="block text-sm text-slate-400 mb-1">cpu_shares</label>
+              <input className="input-field mb-2" value={schedShares} onChange={(e) => setSchedShares(e.target.value)} placeholder="e.g. 1024" />
+              <label className="block text-sm text-slate-400 mb-1">vcpu_period (µs)</label>
+              <input className="input-field mb-2" value={schedPeriod} onChange={(e) => setSchedPeriod(e.target.value)} />
+              <label className="block text-sm text-slate-400 mb-1">vcpu_quota (µs)</label>
+              <input className="input-field" value={schedQuota} onChange={(e) => setSchedQuota(e.target.value)} />
+            </DialogBox>
+          )}
+
+          {dialog === 'memtune' && (
+            <DialogBox title="Memory tuning (KiB)" icon={<MemoryStick className="w-5 h-5 text-purple-400" />} onClose={() => setDialog(null)} onConfirm={handleMemtuneSave} confirmLabel="Apply">
+              <p className="text-xs text-slate-500 mb-3">Values are KiB (same unit as libvirt memtune XML). Leave blank to leave unchanged.</p>
+              <label className="block text-sm text-slate-400 mb-1">hard_limit_kb</label>
+              <input className="input-field mb-2" value={memHardKb} onChange={(e) => setMemHardKb(e.target.value)} />
+              <label className="block text-sm text-slate-400 mb-1">soft_limit_kb</label>
+              <input className="input-field mb-2" value={memSoftKb} onChange={(e) => setMemSoftKb(e.target.value)} />
+              <label className="block text-sm text-slate-400 mb-1">swap_hard_limit_kb</label>
+              <input className="input-field" value={memSwapKb} onChange={(e) => setMemSwapKb(e.target.value)} />
+            </DialogBox>
+          )}
+
+          {dialog === 'pin-vcpu' && (
+            <DialogBox title="Pin vCPU to host CPUs" icon={<Cpu className="w-5 h-5 text-cyan-400" />} onClose={() => setDialog(null)} onConfirm={handlePinSave} confirmLabel="Apply pin">
+              <label className="block text-sm text-slate-400 mb-1">vCPU index</label>
+              <input type="number" min={0} max={Math.max(0, (vm?.vcpus ?? 1) - 1)} className="input-field mb-3" value={pinVcpuN} onChange={(e) => setPinVcpuN(parseInt(e.target.value, 10) || 0)} />
+              <p className="text-xs text-slate-500 mb-2">Host CPUs 0–63 (first 64 logical CPUs).</p>
+              <div className="max-h-40 overflow-y-auto border border-slate-700 rounded p-2 grid grid-cols-8 gap-1">
+                {pinMap.map((on, i) => (
+                  <label key={i} className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer">
+                    <input type="checkbox" checked={on} onChange={(e) => setPinMap((m) => { const n = [...m]; n[i] = e.target.checked; return n })} />
+                    {i}
+                  </label>
+                ))}
+              </div>
+            </DialogBox>
+          )}
+
+          {dialog === 'block-commit' && (
+            <DialogBox title="Block commit" icon={<HardDrive className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleBlockCommit} confirmLabel="Start commit">
+              <p className="text-xs text-slate-500 mb-2">Disk: <code className="text-slate-300">{blockDisk || '—'}</code></p>
+              <label className="block text-sm text-slate-400 mb-1">Base (optional)</label>
+              <input className="input-field mb-2" value={blockBase} onChange={(e) => setBlockBase(e.target.value)} placeholder="backing file name or leave empty" />
+              <label className="block text-sm text-slate-400 mb-1">Top (optional)</label>
+              <input className="input-field mb-2" value={blockTop} onChange={(e) => setBlockTop(e.target.value)} />
+              <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={blockShallow} onChange={(e) => setBlockShallow(e.target.checked)} /> Shallow</label>
+              <label className="flex items-center gap-2 text-sm text-slate-300 mb-1"><input type="checkbox" checked={blockDelete} onChange={(e) => setBlockDelete(e.target.checked)} /> Delete merged images</label>
+              <label className="flex items-center gap-2 text-sm text-slate-300"><input type="checkbox" checked={blockActive} onChange={(e) => setBlockActive(e.target.checked)} /> Active commit</label>
+            </DialogBox>
+          )}
         </DialogOverlay>
       )}
 
@@ -1097,19 +1464,29 @@ function DialogOverlay({ children, onClose }: { children: React.ReactNode; onClo
   )
 }
 
-function DialogBox({ title, icon, onClose, onConfirm, confirmLabel, children }: {
-  title: string; icon: React.ReactNode; onClose: () => void; onConfirm: () => void; confirmLabel: string; children: React.ReactNode
+function DialogBox({ title, icon, onClose, onConfirm, confirmLabel, children, confirmDisabled, confirmDanger }: {
+  title: string
+  icon: React.ReactNode
+  onClose: () => void
+  onConfirm: () => void
+  confirmLabel: string
+  children: React.ReactNode
+  confirmDisabled?: boolean
+  confirmDanger?: boolean
 }) {
+  const confirmClass = confirmDanger
+    ? 'bg-red-600 hover:bg-red-500 disabled:opacity-40 disabled:cursor-not-allowed'
+    : 'bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:cursor-not-allowed'
   return (
     <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={(e) => e.stopPropagation()}>
       <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
         <span className="text-lg font-semibold flex items-center gap-2">{icon} {title}</span>
-        <button onClick={onClose} className="p-1 hover:bg-slate-700 rounded transition" aria-label="Close"><X className="w-4 h-4 text-slate-400" /></button>
+        <button type="button" onClick={onClose} className="p-1 hover:bg-slate-700 rounded transition" aria-label="Close"><X className="w-4 h-4 text-slate-400" /></button>
       </div>
       <div className="p-5 space-y-1">{children}</div>
       <div className="flex justify-end gap-3 px-5 pb-5">
-        <button onClick={onClose} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-        <button onClick={onConfirm} className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition">{confirmLabel}</button>
+        <button type="button" onClick={onClose} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+        <button type="button" onClick={onConfirm} disabled={confirmDisabled} className={`px-4 py-2 rounded-lg text-sm text-white font-medium transition ${confirmClass}`}>{confirmLabel}</button>
       </div>
     </div>
   )

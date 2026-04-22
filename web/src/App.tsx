@@ -3,7 +3,7 @@ import { Suspense, lazy, useState, useCallback, useMemo } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
-import { ThemeProvider } from './contexts/ThemeContext'
+import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import Navbar from './components/Navbar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
@@ -69,6 +69,7 @@ function GlobalShortcuts() {
 
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
+  const { theme } = useTheme()
 
   if (loading) {
     return (
@@ -82,14 +83,21 @@ function AuthenticatedApp() {
     return <LoginPage />
   }
 
+  const shellClass =
+    theme === 'steel'
+      ? 'dashboard-steel min-h-screen flex flex-col text-[#d7dde5]'
+      : theme === 'light'
+        ? 'min-h-screen text-slate-900'
+        : 'min-h-screen bg-slate-950 text-slate-100'
+
   return (
     <WebSocketProvider>
       <BrowserRouter>
-        <div className="min-h-screen bg-slate-950 text-slate-100">
+        <div className={shellClass}>
           <Navbar />
           <CommandPalette />
           <GlobalShortcuts />
-          <main className="container mx-auto px-4 py-8">
+          <main className={`app-shell flex-1 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
             <Breadcrumb />
             <Suspense fallback={<PageSkeleton />}>
               <Routes>

@@ -1,0 +1,4 @@
+# Optional environment for virtspawn-daemon (see systemd EnvironmentFile).
+# Installed as /etc/default/virtspawn-daemon when not present.
+#
+# RUST_LOG=info

@@ -52,3 +52,21 @@ pub fn get_node_device_xml(conn: &Connect, name: &str) -> Result<String, Libvirt
     dev.get_xml_desc(0)
         .map_err(LibvirtError::map_op("Failed to get device XML"))
 }
+
+/// `virNodeDeviceDettach` — required before some PCI passthrough / VFIO workflows.
+pub fn detach_node_device(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let dev = virt::nodedev::NodeDevice::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("Device '{}' not found: {}", name, e)))?;
+    dev.detach()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to detach node device '{name}': {e}")))?;
+    Ok(())
+}
+
+/// `virNodeDeviceReAttach` — return device to host drivers after `detach_node_device`.
+pub fn reattach_node_device(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let dev = virt::nodedev::NodeDevice::lookup_by_name(conn, name)
+        .map_err(|e| LibvirtError::NotFound(format!("Device '{}' not found: {}", name, e)))?;
+    dev.reattach()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to reattach node device '{name}': {e}")))?;
+    Ok(())
+}

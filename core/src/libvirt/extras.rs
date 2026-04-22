@@ -89,6 +89,57 @@ fn scan_dir_recursive(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile
     }
 }
 
+// ── mkosi Workspace Browser ───────────────────────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MkosiWorkspace {
+    pub path: String,
+    pub name: String,
+    /// Images declared in this workspace (subdirectories each containing `mkosi.conf`, for image trees).
+    pub images: Vec<String>,
+}
+
+/// Scan standard base directories for mkosi workspaces (subdirs containing `mkosi.conf`).
+pub fn list_mkosi_workspaces() -> Vec<MkosiWorkspace> {
+    let bases = [
+        "/var/lib/virtspawn/mkosi-defs",
+        "/var/lib/virtspawn/mkosi",
+        "/etc/virtspawn/mkosi-defs",
+    ];
+    let mut out = Vec::new();
+    for base in &bases {
+        let Ok(entries) = std::fs::read_dir(base) else { continue };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() { continue; }
+            if !path.join("mkosi.conf").is_file() { continue; }
+            let name = path.file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_default();
+            // Collect sub-images: subdirs that also contain mkosi.conf (image trees).
+            let mut images: Vec<String> = Vec::new();
+            if let Ok(sub) = std::fs::read_dir(&path) {
+                for se in sub.flatten() {
+                    let sp = se.path();
+                    if sp.is_dir() && sp.join("mkosi.conf").is_file() {
+                        if let Some(n) = sp.file_name() {
+                            images.push(n.to_string_lossy().to_string());
+                        }
+                    }
+                }
+            }
+            images.sort();
+            out.push(MkosiWorkspace {
+                path: path.to_string_lossy().to_string(),
+                name,
+                images,
+            });
+        }
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
 // ── USB Passthrough ────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -503,6 +554,11 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
     crate::validate::validate_name(template_name)?;
     let domain = lookup_domain(conn, vm_name)?;
     let info = domain.get_info().map_err(LibvirtError::map_op("Failed to get VM info"))?;
+    let xml = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("Failed to get domain XML"))?;
+    let base_image = super::template_apply::primary_disk_path_from_xml(&xml)
+        .and_then(|p| p.to_str().map(|s| s.to_string()));
 
     let template = serde_json::json!({
         "name": template_name,
@@ -510,7 +566,9 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
         "vcpus": info.nr_virt_cpu,
         "memory_mb": info.memory / 1024,
         "disk_gb": 20,
-        "os_variant": "linux2022",
+        "os_variant": "generic",
+        "base_image": base_image,
+        "template_disk_mode": "backing",
     });
 
     let templates_dir = "/var/lib/virtspawn/templates";

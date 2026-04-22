@@ -1,6 +1,6 @@
 import { useState, FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { useTheme } from '../contexts/ThemeContext'
+import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { Lock, User, AlertCircle, Server, Network, Activity, Zap } from 'lucide-react'
 
 const features = [
@@ -30,7 +30,7 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const { login } = useAuth()
-  const { theme } = useTheme()
+  const { theme, setTheme } = useTheme()
   const isLight = theme === 'light'
 
   const handleSubmit = async (e: FormEvent) => {
@@ -51,7 +51,21 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex relative">
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-2">
+        <label htmlFor="login-theme" className="sr-only">Theme</label>
+        <select
+          id="login-theme"
+          aria-label="Theme"
+          value={theme}
+          onChange={(e) => setTheme(e.target.value as AppTheme)}
+          className="text-xs rounded-lg border border-slate-600/80 bg-slate-900/90 text-slate-200 px-2 py-1.5 backdrop-blur-sm"
+        >
+          <option value="dark">Dark</option>
+          <option value="steel">Steel</option>
+          <option value="light">Light</option>
+        </select>
+      </div>
       {/* Left Panel — Feature Showcase (desktop only) */}
       <div className={`hidden lg:flex lg:w-[60%] relative overflow-hidden flex-col items-center justify-center px-12 ${
         isLight

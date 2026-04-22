@@ -6,8 +6,8 @@ use std::process::{Command, Stdio};
 
 use crate::LibvirtError;
 
-/// Supplementary groups that conventionally grant sudo on common distros.
-const PRIVILEGED_SUPP_GROUPS: &[&str] = &["wheel", "sudo", "admin"];
+/// Groups that conventionally grant `sudo` on common distros (membership checked via NSS).
+const PRIVILEGED_GROUPS: &[&str] = &["wheel", "sudo", "admin"];
 
 /// Standard UNIX group for `qemu:///system` socket/policy on Fedora/RHEL/Debian derivatives.
 pub const LIBVIRT_UNIX_GROUP: &str = "libvirt";
@@ -42,34 +42,87 @@ fn validate_login_username(name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
-/// Return supplementary group names for `username` via `id -Gn` (empty on failure).
-pub fn unix_supplementary_group_names(username: &str) -> Result<Vec<String>, LibvirtError> {
-    validate_login_username(username)?;
-    let out = Command::new("id")
-        .args(["-Gn", username])
-        .output()
-        .map_err(|e| LibvirtError::Operation(format!("id: {e}")))?;
+/// One line from `getent <db> <key>` (trimmed), if exit success.
+fn getent_line(db: &str, key: &str) -> Option<String> {
+    let out = Command::new("getent").args([db, key]).output().ok()?;
     if !out.status.success() {
-        return Err(LibvirtError::Operation(format!(
-            "Cannot resolve groups for user '{}'",
-            username
-        )));
+        return None;
     }
-    let s = String::from_utf8_lossy(&out.stdout);
-    Ok(s.split_whitespace().map(|g| g.to_string()).collect())
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
 }
 
-/// True if `username` may administer host accounts: root, or member of wheel / sudo / admin.
+/// Primary group name for `username` via `getent passwd` + `getent group <gid>`.
+fn passwd_primary_group_name(username: &str) -> Option<String> {
+    let line = getent_line("passwd", username)?;
+    let gid = line.split(':').nth(3)?;
+    let gline = getent_line("group", gid)?;
+    gline.split(':').next().map(|s| s.to_string())
+}
+
+/// Parse `groups(1)` output: `user : g1 g2` or `user: g1 g2`.
+fn parse_groups_output(line: &str) -> Vec<String> {
+    let tail = if let Some(i) = line.find(':') {
+        &line[i + 1..]
+    } else {
+        line
+    };
+    tail.split_whitespace().map(|s| s.to_string()).collect()
+}
+
+/// All group names for `username` (primary + supplementary), best-effort via `groups(1)` and passwd.
+fn unix_all_group_names(username: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    if let Some(pg) = passwd_primary_group_name(username) {
+        names.push(pg);
+    }
+    if let Ok(out) = Command::new("groups").arg(username).output() {
+        if out.status.success() {
+            let line = String::from_utf8_lossy(&out.stdout);
+            names.extend(parse_groups_output(&line));
+        }
+    }
+    names.sort();
+    names.dedup();
+    names
+}
+
+/// True if `username` is listed in `getent group <group>` member field.
+fn user_in_group_getent(username: &str, group: &str) -> bool {
+    let Some(line) = getent_line("group", group) else {
+        return false;
+    };
+    let members = line.split(':').nth(3).unwrap_or("");
+    members
+        .split(',')
+        .any(|m| m.trim() == username)
+}
+
+/// True if `username` may administer host accounts: root, or in wheel / sudo / admin (any NSS path).
+///
+/// Uses `groups(1)` + primary GID from `getent passwd` (GNU `id -Gn` is **supplementary-only** and
+/// missed users whose primary group is `sudo`/`wheel`). Also checks `getent group` membership lines.
 pub fn unix_user_may_use_sudo(username: &str) -> bool {
     if username == "root" {
         return true;
     }
-    match unix_supplementary_group_names(username) {
-        Ok(groups) => groups
-            .iter()
-            .any(|g| PRIVILEGED_SUPP_GROUPS.contains(&g.as_str())),
-        Err(_) => false,
+    if validate_login_username(username).is_err() {
+        return false;
     }
+    let groups = unix_all_group_names(username);
+    if groups
+        .iter()
+        .any(|g| PRIVILEGED_GROUPS.contains(&g.as_str()))
+    {
+        return true;
+    }
+    PRIVILEGED_GROUPS
+        .iter()
+        .any(|g| user_in_group_getent(username, g))
 }
 
 /// Result of [`create_local_user`].
@@ -190,5 +243,18 @@ mod tests {
     #[test]
     fn validate_login_username_accepts_alma() {
         assert!(validate_login_username("alma-user_1").is_ok());
+    }
+
+    #[test]
+    fn parse_groups_output_debianish() {
+        let g = parse_groups_output("sus : sus sudo\n");
+        assert!(g.contains(&"sudo".to_string()));
+        assert!(g.contains(&"sus".to_string()));
+    }
+
+    #[test]
+    fn parse_groups_output_rhel_no_space_after_colon() {
+        let g = parse_groups_output("sus: sus wheel\n");
+        assert!(g.contains(&"wheel".to_string()));
     }
 }

@@ -6,11 +6,36 @@ Requires=libvirtd.service
 Wants=network-online.target
 
 [Service]
+# Match hyper2kvm h2kweb-style layout: runtime/state/log dirs, journal, resource caps.
+# Use `Type=notify` + `WatchdogSec=` when you want watchdog pings (daemon sends READY=1
+# after bind and WATCHDOG=1 from WATCHDOG_USEC).
 Type=simple
+# Type=notify
+# WatchdogSec=2min
+
+User=root
+Group=root
+
+EnvironmentFile=-/etc/default/virtspawn-daemon
+Environment=RUST_LOG=info
+# install.sh installs mkosi to /usr/local/bin/mkosi; some distros' default root PATH omits it.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 ExecStart=/usr/local/bin/virtspawn-daemon --config /etc/virtspawn/config.toml
 Restart=on-failure
-RestartSec=5
-Environment=RUST_LOG=info
+RestartSec=10
+TimeoutStopSec=30
+
+RuntimeDirectory=virtspawn
+StateDirectory=virtspawn
+LogsDirectory=virtspawn
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=virtspawn-daemon
+
+MemoryMax=2G
+TasksMax=256
 
 # Filesystem protection — relaxed for host networking management
 # (ip, iptables, nmcli need access to /sys, /proc, /run)

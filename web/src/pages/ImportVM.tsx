@@ -11,8 +11,8 @@ import { useEffect } from 'react'
 export default function ImportVMPage() {
   const [source, setSource] = useState('')
   const [vmName, setVmName] = useState('')
-  const [vcpus, setVcpus] = useState(2)
-  const [memoryMb, setMemoryMb] = useState(2048)
+  const [vcpus, setVcpus] = useState(1)
+  const [memoryMb, setMemoryMb] = useState(1024)
   const [network, setNetwork] = useState('default')
   const [firmware, setFirmware] = useState('bios')
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
@@ -123,11 +123,11 @@ export default function ImportVMPage() {
           <div className="grid grid-cols-3 gap-4">
             <div>
               <label htmlFor="cfg-vcpus" className="block text-sm text-slate-400 mb-1">vCPUs</label>
-              <input id="cfg-vcpus" type="number" min={1} max={256} value={vcpus} onChange={e => setVcpus(parseInt(e.target.value) || 2)} className="input-field" />
+              <input id="cfg-vcpus" type="number" min={1} max={256} value={vcpus} onChange={e => setVcpus(parseInt(e.target.value) || 1)} className="input-field" />
             </div>
             <div>
               <label htmlFor="cfg-memory" className="block text-sm text-slate-400 mb-1">Memory (MB)</label>
-              <input id="cfg-memory" type="number" min={64} value={memoryMb} onChange={e => setMemoryMb(parseInt(e.target.value) || 2048)} className="input-field" />
+              <input id="cfg-memory" type="number" min={64} value={memoryMb} onChange={e => setMemoryMb(parseInt(e.target.value) || 1024)} className="input-field" />
             </div>
             <div>
               <label htmlFor="cfg-firmware" className="block text-sm text-slate-400 mb-1">Firmware</label>

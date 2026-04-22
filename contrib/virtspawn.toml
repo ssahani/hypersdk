@@ -14,6 +14,13 @@ port = 5092
 
 [libvirt]
 uri = "qemu:///system"
+# VM create API default: "libvirt_xml" (native) or "virt_install" (hyper2kvm-style). Clients can override per request with `create_backend`.
+create_backend = "libvirt_xml"
+# Optional `virt-builder` integration (no golden image per OS): see CreateVmRequest `virt_builder_*` in API docs.
+# virt_builder_allowed = true
+# virt_builder_default_ssh_pubkey_path = "/var/lib/virtspawn/provision.pub"
+# virt_builder_update = true
+# mkosi_allowed = true   # mkosi is the recommended disk image path; install.sh installs from GitHub when absent
 
 [backup]
 backup_dir = "/var/lib/virtspawn/backups"

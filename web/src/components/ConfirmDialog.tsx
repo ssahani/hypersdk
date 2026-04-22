@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { AlertTriangle, X } from 'lucide-react'
 
 interface Props {
@@ -8,14 +9,37 @@ interface Props {
   variant?: 'danger' | 'warning'
   onConfirm: () => void
   onCancel: () => void
+  /** When set, the confirm button stays disabled until the user types this exact string. */
+  typeToMatch?: string
+  /** Label above the confirmation input (default explains typing the phrase). */
+  typeToMatchLabel?: string
 }
 
-export default function ConfirmDialog({ open, title, message, confirmLabel = 'Confirm', variant = 'danger', onConfirm, onCancel }: Props) {
+export default function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+  variant = 'danger',
+  onConfirm,
+  onCancel,
+  typeToMatch,
+  typeToMatchLabel,
+}: Props) {
+  const [typed, setTyped] = useState('')
+
+  useEffect(() => {
+    if (open) setTyped('')
+  }, [open, typeToMatch])
+
   if (!open) return null
 
   const btnColor = variant === 'danger'
     ? 'bg-red-600 hover:bg-red-500 shadow-lg shadow-red-600/20'
     : 'bg-yellow-600 hover:bg-yellow-500 shadow-lg shadow-yellow-600/20'
+
+  const needsMatch = Boolean(typeToMatch && typeToMatch.length > 0)
+  const matchOk = !needsMatch || typed === typeToMatch
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" onClick={onCancel}>
@@ -31,10 +55,37 @@ export default function ConfirmDialog({ open, title, message, confirmLabel = 'Co
             <X className="w-4 h-4" />
           </button>
         </div>
-        <div className="p-5 text-slate-300 text-sm leading-relaxed">{message}</div>
+        <div className="p-5 text-slate-300 text-sm leading-relaxed space-y-3">
+          <div>{message}</div>
+          {needsMatch && (
+            <div>
+              <label className="block text-xs text-slate-400 mb-1.5" htmlFor="confirm-type-match">
+                {typeToMatchLabel ?? 'Type the confirmation phrase exactly (case-sensitive):'}
+              </label>
+              <input
+                id="confirm-type-match"
+                type="text"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-900 border border-slate-600 rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:border-red-500"
+                placeholder={typeToMatch}
+              />
+            </div>
+          )}
+        </div>
         <div className="flex justify-end gap-3 px-5 pb-5">
-          <button onClick={onCancel} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-          <button onClick={onConfirm} className={`px-4 py-2 ${btnColor} rounded-lg text-sm text-white font-medium transition`}>{confirmLabel}</button>
+          <button type="button" onClick={onCancel} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={!matchOk}
+            className={`px-4 py-2 rounded-lg text-sm text-white font-medium transition ${btnColor} disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none`}
+          >
+            {confirmLabel}
+          </button>
         </div>
       </div>
     </div>

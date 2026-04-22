@@ -14,6 +14,7 @@
 
 set -eo pipefail
 
+INSTALLER_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="/opt/virtspawn"
 LOG_FILE=$(mktemp /tmp/virtspawn-install-XXXXXX.log)
 chmod 600 "$LOG_FILE"
@@ -158,9 +159,10 @@ install_deps_fedora() {
     step "Installing system dependencies ($OS_NAME)"
     log_cmd $PKG_MANAGER makecache -q || true
 
+    # clang-devel: libclang for pam-sys (bindgen). clang-libs alone is not enough to build.
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
-        pam-devel clang-libs
+        pam-devel clang-libs clang-devel
         openssl git curl)
 
     info "Installing: ${packages[*]}"
@@ -176,6 +178,14 @@ install_deps_rhel() {
     $PKG_MANAGER config-manager --set-enabled crb 2>/dev/null || \
     $PKG_MANAGER config-manager --set-enabled powertools 2>/dev/null || true
 
+    # EPEL is required for distribution-gpg-keys (mkosi needs it to verify guest packages)
+    if ! rpm -q epel-release &>/dev/null; then
+        info "Installing EPEL (required for distribution-gpg-keys / mkosi)"
+        log_cmd $PKG_MANAGER install -y epel-release || fail "Failed to install EPEL. Check $LOG_FILE"
+        log_cmd $PKG_MANAGER makecache -q || true
+        ok "EPEL enabled"
+    fi
+
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
@@ -190,9 +200,10 @@ install_deps_debian() {
     step "Installing system dependencies ($OS_NAME)"
     log_cmd $PKG_MANAGER update -qq
 
+    # llvm-dev: llvm-config; libclang-dev + clang: libclang.so for pam-sys bindgen
     local packages=(gcc g++ make pkg-config
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
-        libpam0g-dev libclang-dev
+        libpam0g-dev libclang-dev clang llvm-dev
         openssl git curl)
 
     info "Installing: ${packages[*]}"
@@ -204,8 +215,10 @@ install_deps_suse() {
     step "Installing system dependencies ($OS_NAME)"
     log_cmd $PKG_MANAGER refresh || true
 
+    # pam-devel + clang for pam-sys bindgen (libclang)
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon qemu-kvm
+        pam-devel clang-devel
         openssl git curl)
 
     info "Installing: ${packages[*]}"
@@ -217,8 +230,10 @@ install_deps_arch() {
     step "Installing system dependencies ($OS_NAME)"
     log_cmd pacman -Sy --noconfirm || true
 
+    # clang: libclang for pam-sys; linux-pam: headers for pam
     local packages=(gcc make pkg-config
         libvirt qemu-full virt-install dnsmasq
+        linux-pam clang
         openssl git curl)
 
     info "Installing: ${packages[*]}"
@@ -236,6 +251,268 @@ install_deps() {
     esac
 
     ensure_node_18
+    ensure_mkosi
+}
+
+# Host tools required for mkosi image builds.
+install_mkosi_host_tools() {
+    case "$OS_FAMILY" in
+        debian)
+            DEBIAN_FRONTEND=noninteractive log_cmd apt install -y \
+                bubblewrap dosfstools e2fsprogs zstd tar xz-utils squashfs-tools git \
+                || warn "Some mkosi host tools failed to install — builds may fail"
+            ;;
+        fedora|rhel)
+            # distribution-gpg-keys: GPG keys for Fedora/RHEL/Debian etc. — required by mkosi
+            #   to verify packages when building guest images on an RPM host.
+            # erofs-utils: needed by mkosi for EROFS images (optional but silences warnings).
+            # On RHEL/AlmaLinux distribution-gpg-keys lives in EPEL (install_deps_rhel enables it first).
+            log_cmd $PKG_MANAGER install -y \
+                bubblewrap dosfstools e2fsprogs zstd tar xz git \
+                || fail "Failed to install mkosi host tools. Check $LOG_FILE"
+            log_cmd $PKG_MANAGER install -y distribution-gpg-keys \
+                || fail "Failed to install distribution-gpg-keys (mkosi cannot verify guest packages without it). Check $LOG_FILE"
+            log_cmd $PKG_MANAGER install -y erofs-utils 2>/dev/null || true
+            ;;
+        suse)
+            log_cmd $PKG_MANAGER install -y bubblewrap dosfstools e2fsprogs zstd tar xz git \
+                || warn "Some mkosi host tools failed to install — builds may fail"
+            ;;
+        arch)
+            log_cmd pacman -S --noconfirm --needed bubblewrap dosfstools e2fsprogs zstd tar xz git \
+                || warn "Some mkosi host tools failed to install — builds may fail"
+            ;;
+    esac
+}
+
+# First integer in `mkosi --version` (major); empty if unknown.
+mkosi_major_version() {
+    mkosi --version 2>/dev/null | head -1 | grep -oE '[0-9]+' | head -1
+}
+
+# True if mkosi on PATH and reports major >= 16 (upstream recommends v16+).
+mkosi_acceptable() {
+    command -v mkosi >/dev/null 2>&1 || return 1
+    local maj
+    maj=$(mkosi_major_version)
+    if [ -z "$maj" ]; then
+        return 0
+    fi
+    [ "$maj" -ge 16 ] 2>/dev/null
+}
+
+# Install real mkosi at libexec and a /usr/local/bin wrapper that adds
+# --workspace-directory under /var/tmp when missing (avoids ~/.cache/mkosi
+# under BuildSources= e.g. /home/user).
+install_mkosi_wrapper() {
+    local real="$1"
+    [ -x "$real" ] || return 1
+    install -d /usr/local/libexec/virtspawn
+    ln -sf "$real" /usr/local/libexec/virtspawn/mkosi-real
+    local wrap_src="${INSTALLER_ROOT}/scripts/mkosi-wrapper.sh"
+    if [ -f "$wrap_src" ]; then
+        install -Dm755 "$wrap_src" /usr/local/bin/mkosi
+        info "mkosi: /usr/local/bin/mkosi is a workspace wrapper → $real"
+        return 0
+    fi
+    warn "scripts/mkosi-wrapper.sh missing in installer tree — symlinking /usr/local/bin/mkosi directly"
+    ln -sf "$real" /usr/local/bin/mkosi
+    return 0
+}
+
+# Older installs symlinked venv/pipx/clone straight into /usr/local/bin/mkosi;
+# replace with the wrapper once so manual `mkosi` runs get a safe workspace.
+migrate_mkosi_to_wrapper_if_needed() {
+    if [ -f /usr/local/bin/mkosi ] && grep -q 'virtspawn — mkosi CLI wrapper' /usr/local/bin/mkosi 2>/dev/null; then
+        return 0
+    fi
+    [ -e /usr/local/bin/mkosi ] || return 0
+    local resolved
+    resolved=$(readlink -f /usr/local/bin/mkosi 2>/dev/null || true)
+    [ -n "$resolved" ] || return 0
+    local p
+    for p in /opt/mkosi-venv/bin/mkosi /opt/mkosi/bin/mkosi /root/.local/bin/mkosi "${HOME}/.local/bin/mkosi"; do
+        if [ -x "$p" ] && [ "$resolved" = "$(readlink -f "$p" 2>/dev/null)" ]; then
+            install_mkosi_wrapper "$p"
+            return 0
+        fi
+    done
+    return 0
+}
+
+try_install_mkosi_distro_package() {
+    case "$OS_FAMILY" in
+        fedora|rhel) log_cmd $PKG_MANAGER install -y mkosi 2>/dev/null || true ;;
+        debian)      DEBIAN_FRONTEND=noninteractive log_cmd apt install -y mkosi 2>/dev/null || true ;;
+        arch)        log_cmd pacman -S --noconfirm --needed mkosi 2>/dev/null || true ;;
+        suse)        log_cmd $PKG_MANAGER install -y mkosi 2>/dev/null || true ;;
+    esac
+}
+
+try_install_mkosi_pipx() {
+    command -v pipx >/dev/null 2>&1 || return 1
+    info "Trying pipx install mkosi from GitHub (isolated env; upstream-recommended)…"
+    # Root deploy: pipx defaults to ~/.local/bin — we symlink into /usr/local/bin for systemd PATH.
+    if log_cmd pipx install "git+https://github.com/systemd/mkosi.git"; then
+        local p
+        for p in "${HOME}/.local/bin/mkosi" "/root/.local/bin/mkosi"; do
+            if [ -x "$p" ]; then
+                install_mkosi_wrapper "$p" || ln -sf "$p" /usr/local/bin/mkosi 2>/dev/null || true
+                return 0
+            fi
+        done
+    fi
+    return 1
+}
+
+try_install_mkosi_git_clone() {
+    [ "${VIRTSPAWN_MKOSI_FROM_CLONE:-0}" = 1 ] || return 1
+    local dir="${VIRTSPAWN_MKOSI_CLONE_DIR:-/opt/mkosi}"
+    step "Installing mkosi from git clone → $dir (VIRTSPAWN_MKOSI_FROM_CLONE=1)"
+    if [ -x "$dir/bin/mkosi" ]; then
+        :
+    elif [ -d "$dir/.git" ]; then
+        log_cmd git -C "$dir" pull --ff-only || return 1
+    else
+        log_cmd mkdir -p "$(dirname "$dir")" 2>/dev/null || true
+        log_cmd git clone --depth 1 https://github.com/systemd/mkosi.git "$dir" || return 1
+    fi
+    if [ -x "$dir/bin/mkosi" ]; then
+        install_mkosi_wrapper "$dir/bin/mkosi" || ln -sf "$dir/bin/mkosi" /usr/local/bin/mkosi 2>/dev/null || true
+        return 0
+    fi
+    return 1
+}
+
+try_install_mkosi_venv() {
+    command -v python3 >/dev/null 2>&1 || return 1
+
+    if ! python3 -c "import venv" >/dev/null 2>&1; then
+        info "python venv module missing — trying distro python3-venv…"
+        case "$OS_FAMILY" in
+            debian)
+                DEBIAN_FRONTEND=noninteractive log_cmd apt install -y python3-venv python3-pip || true
+                ;;
+            fedora|rhel)
+                log_cmd $PKG_MANAGER install -y python3-pip python3-virtualenv 2>/dev/null || true
+                ;;
+            suse)
+                log_cmd $PKG_MANAGER install -y python3-pip python3-virtualenv 2>/dev/null || true
+                ;;
+            arch)
+                log_cmd pacman -S --noconfirm --needed python-pip 2>/dev/null || true
+                ;;
+        esac
+    fi
+    python3 -c "import venv" >/dev/null 2>&1 || return 1
+
+    local venv="/opt/mkosi-venv"
+    if [ ! -x "$venv/bin/mkosi" ]; then
+        log_cmd python3 -m venv "$venv" || return 1
+        log_cmd "$venv/bin/pip" install -U pip setuptools wheel || true
+        log_cmd "$venv/bin/pip" install "git+https://github.com/systemd/mkosi.git" || {
+            rm -rf "$venv" 2>/dev/null || true
+            return 1
+        }
+    fi
+    install_mkosi_wrapper "$venv/bin/mkosi" || ln -sf "$venv/bin/mkosi" /usr/local/bin/mkosi 2>/dev/null || true
+    return 0
+}
+
+log_mkosi_upstream_hints() {
+    cat >>"$LOG_FILE" <<'MKS'
+
+──────── mkosi (systemd/mkosi) — manual install options ────────
+Upstream: https://github.com/systemd/mkosi  (v16+ recommended; verify: mkosi --version)
+
+Method 1 — run from a local clone:
+  git clone https://github.com/systemd/mkosi /opt/mkosi
+  /opt/mkosi/bin/mkosi --workspace-directory /var/tmp/mkosi-ws --version
+  # Re-run virtspawn install.sh (or copy scripts/mkosi-wrapper.sh) to put a safe /usr/local/bin/mkosi on PATH.
+
+Method 2 — pipx (isolated; good for interactive admin users):
+  pipx install git+https://github.com/systemd/mkosi.git
+  # ensure ~/.local/bin on PATH; virtspawn re-runs install.sh to add the workspace wrapper under /usr/local/bin
+
+Method 3 — Python venv (what virtspawn falls back to):
+  python3 -m venv /opt/mkosi-venv
+  /opt/mkosi-venv/bin/pip install "git+https://github.com/systemd/mkosi.git"
+  # re-run virtspawn install.sh --deps-only to install the mkosi workspace wrapper
+
+Method 4 — zipapp (portable single file):
+  git clone https://github.com/systemd/mkosi && cd mkosi && tools/generate-zipapp.sh
+  install builddir/mkosi to a directory on PATH
+
+Host tools (typical distro images): bubblewrap, dosfstools, e2fsprogs, zstd, tar, xz;
+  plus the guest distro’s package manager (dnf/apt/pacman/…) on the build host.
+
+Alma/RHEL/Rocky 9: EPEL "dnf install mkosi" is often mkosi 12 — too old for current recipes; prefer this script or pipx from GitHub.
+If mkosi complains systemd-repart needs 254+ but the host has 252, add ToolsTree=yes under [Build] in mkosi.conf (mkosi(1) TOOLS TREES).
+
+If mkosi errors that the workspace cannot live under BuildSources=, either pass
+  --workspace-directory /var/tmp/mkosi-ws (any dir outside sources), or set
+  MKOSI_WORKSPACE_DIRECTORY or VIRTSPAWN_MKOSI_WORKSPACE_DIR (see scripts/mkosi-wrapper.sh).
+
+virtspawn env overrides for this script:
+  VIRTSPAWN_MKOSI_FROM_CLONE=1     — git clone to /opt/mkosi (or VIRTSPAWN_MKOSI_CLONE_DIR=…)
+  VIRTSPAWN_MKOSI_CLONE_DIR=/path — clone destination
+
+virtspawn-daemon (mkosi build) env overrides:
+  VIRTSPAWN_MKOSI_WORKSPACE_DIR=/path — parent for ephemeral mkosi --workspace-directory (default: /var/tmp/virtspawn-mkosi-ws)
+  VIRTSPAWN_MKOSI_KEEP_WORKSPACE=1 — after a successful build, do not delete the ephemeral workspace tree
+
+Interactive /usr/local/bin/mkosi (wrapper from this installer):
+  VIRTSPAWN_MKOSI_WORKSPACE_DIR=/path — parent for default workspace (default: /var/tmp/mkosi-workspace; per-user subdir)
+  MKOSI_WORKSPACE_DIRECTORY=/abs/dir — force a single workspace directory
+────────────────────────────────────────────────────────────────
+MKS
+}
+
+# mkosi — default disk image workflow (systemd/mkosi). install_deps always runs this; used when API field `mkosi_workspace` is set.
+ensure_mkosi() {
+    info "Image tooling: mkosi (recommended) — ensuring mkosi v16+ on PATH (distro → pipx → git clone → venv)"
+
+    # Prefer upstream install in /usr/local/bin over an older distro /usr/bin/mkosi.
+    export PATH="/usr/local/bin:$PATH"
+    install -d /usr/local/bin 2>/dev/null || true
+
+    install_mkosi_host_tools
+    migrate_mkosi_to_wrapper_if_needed
+
+    if mkosi_acceptable; then
+        ok "mkosi: $(mkosi --version 2>/dev/null | head -1) (meets v16+ or version unparsable)"
+        return 0
+    fi
+
+    if command -v mkosi >/dev/null 2>&1; then
+        warn "mkosi on PATH is older than v16 or unknown — installing upstream to /usr/local/bin"
+    fi
+
+    step "Installing mkosi (try distro package, then pipx, then optional clone, then /opt/mkosi-venv)"
+
+    try_install_mkosi_distro_package
+    if mkosi_acceptable; then
+        ok "mkosi from distro: $(mkosi --version 2>/dev/null | head -1)"
+        return 0
+    fi
+
+    if try_install_mkosi_pipx && mkosi_acceptable; then
+        ok "mkosi via pipx: $(mkosi --version 2>/dev/null | head -1)"
+        return 0
+    fi
+
+    if try_install_mkosi_git_clone && mkosi_acceptable; then
+        ok "mkosi from git clone: $(mkosi --version 2>/dev/null | head -1)"
+        return 0
+    fi
+
+    if try_install_mkosi_venv && mkosi_acceptable; then
+        ok "mkosi via /opt/mkosi-venv: $(mkosi --version 2>/dev/null | head -1)"
+        return 0
+    fi
+
+    log_mkosi_upstream_hints
+    warn "mkosi could not be installed automatically — see $LOG_FILE for manual options (Methods 1–4)."
 }
 
 # ── Enable libvirt ────────────────────────────────────────────────────
@@ -355,12 +632,60 @@ find_source() {
     fail "Source not found. Clone the repo first or run install.sh from within it."
 }
 
+# pam-sys uses bindgen and needs libclang at compile time
+export_libclang_path() {
+    if [ -n "${LIBCLANG_PATH:-}" ] && [ -d "$LIBCLANG_PATH" ]; then
+        info "Using LIBCLANG_PATH=$LIBCLANG_PATH"
+        export LIBCLANG_PATH
+        return 0
+    fi
+
+    local llvm_cfg libdir
+    llvm_cfg="$(command -v llvm-config 2>/dev/null || true)"
+    if [ -n "$llvm_cfg" ]; then
+        libdir="$("$llvm_cfg" --libdir 2>/dev/null || true)"
+        if [ -n "$libdir" ] && [ -d "$libdir" ]; then
+            if [ -e "$libdir/libclang.so" ] || [ -e "$libdir/libclang.so.1" ]; then
+                export LIBCLANG_PATH="$libdir"
+                info "Set LIBCLANG_PATH=$LIBCLANG_PATH (llvm-config)"
+                return 0
+            fi
+        fi
+    fi
+
+    local candidate
+    for candidate in /usr/lib/llvm/*/lib /usr/lib64/llvm/*/lib; do
+        [ -d "$candidate" ] || continue
+        if [ -e "$candidate/libclang.so" ] || [ -e "$candidate/libclang.so.1" ]; then
+            export LIBCLANG_PATH="$candidate"
+            info "Set LIBCLANG_PATH=$LIBCLANG_PATH (versioned LLVM tree)"
+            return 0
+        fi
+    done
+
+    for candidate in /usr/lib /usr/lib64; do
+        if [ -e "$candidate/libclang.so" ] || [ -e "$candidate/libclang.so.1" ]; then
+            export LIBCLANG_PATH="$candidate"
+            info "Set LIBCLANG_PATH=$LIBCLANG_PATH (system lib)"
+            return 0
+        fi
+    done
+
+    warn "Could not auto-detect libclang; pam-sys may fail. Install clang-devel (RPM) or libclang-dev (Debian), or set LIBCLANG_PATH."
+    return 0
+}
+
 build_rust() {
     step "Building Rust binaries (release mode)"
     info "This may take 2-5 minutes on first build..."
 
     cd "$INSTALL_DIR"
-    log_cmd cargo build --workspace --release || fail "Rust build failed. Check $LOG_FILE"
+    export_libclang_path
+    if ! log_cmd cargo build --workspace --release; then
+        echo "⚠️  Last 60 lines of $LOG_FILE:" >&2
+        tail -60 "$LOG_FILE" >&2 || true
+        fail "Rust build failed. Full log: $LOG_FILE"
+    fi
 
     ok "Built: target/release/virtspawn-daemon ($(du -h target/release/virtspawn-daemon | cut -f1))"
     ok "Built: target/release/virtspawn-tui ($(du -h target/release/virtspawn-tui | cut -f1))"
@@ -385,6 +710,38 @@ build_web() {
     log_cmd npx vite build || log_cmd npm run build || fail "npm build failed. Check $LOG_FILE"
 
     ok "Web UI built: $(find dist/assets -name '*.js' 2>/dev/null | wc -l) assets"
+}
+
+# ── mkosi workspace definitions ──────────────────────────────────────
+
+# Copy bundled workspace definitions to /var/lib/virtspawn/mkosi-defs/.
+# Existing workspace dirs are preserved (user customisations respected).
+install_mkosi_workspace_defs() {
+    local src="${INSTALLER_ROOT}/contrib/mkosi-defs"
+    local dst="/var/lib/virtspawn/mkosi-defs"
+
+    if [ ! -d "$src" ]; then
+        warn "contrib/mkosi-defs/ not found in installer tree — skipping workspace install"
+        return 0
+    fi
+
+    install -d "$dst"
+
+    local copied=0
+    for ws_src in "$src"/*/; do
+        [ -f "${ws_src}mkosi.conf" ] || continue
+        local name
+        name="$(basename "$ws_src")"
+        local ws_dst="$dst/$name"
+        if [ -d "$ws_dst" ]; then
+            info "mkosi workspace '$name' already exists — not overwriting"
+        else
+            cp -r "$ws_src" "$ws_dst"
+            copied=$((copied + 1))
+        fi
+    done
+
+    ok "mkosi workspace definitions -> $dst ($copied new)"
 }
 
 # ── Install ──────────────────────────────────────────────────────────
@@ -415,6 +772,12 @@ install_files() {
     if [ -n "$BIND_HOST" ]; then
         sed -i "s/^host = .*/host = \"$BIND_HOST\"/" /etc/virtspawn/config.toml
         ok "Configured daemon to bind to $BIND_HOST"
+    fi
+
+    # Optional env overrides (hyper2kvm-style /etc/default)
+    if [ ! -f /etc/default/virtspawn-daemon ]; then
+        install -Dm644 contrib/virtspawn-daemon.default /etc/default/virtspawn-daemon
+        ok "Defaults -> /etc/default/virtspawn-daemon"
     fi
 
     # Systemd units
@@ -454,6 +817,9 @@ install_files() {
         install -Dm755 virtspawnctl /usr/local/bin/virtspawnctl
         ok "virtspawnctl -> /usr/local/bin/"
     fi
+
+    # mkosi workspace definitions (shipped in repo, installed once)
+    install_mkosi_workspace_defs
 }
 
 # ── TLS (HTTPS on :5092) ─────────────────────────────────────────────
@@ -746,6 +1112,11 @@ uninstall() {
     rm -f /usr/local/bin/virtspawn-daemon
     rm -f /usr/local/bin/virtspawn
     rm -f /usr/local/bin/virtspawnctl
+    rm -f /usr/local/libexec/virtspawn/mkosi-real
+    if [ -f /usr/local/bin/mkosi ] && grep -q 'virtspawn — mkosi CLI wrapper' /usr/local/bin/mkosi 2>/dev/null; then
+        rm -f /usr/local/bin/mkosi
+    fi
+    rmdir /usr/local/libexec/virtspawn 2>/dev/null || true
     rm -f /usr/lib/systemd/system/virtspawn-daemon.service
     rm -f /usr/lib/systemd/system/virtspawn-backup.service
     rm -f /usr/lib/systemd/system/virtspawn-backup.timer
@@ -867,6 +1238,7 @@ What gets installed:
   /usr/local/share/virtspawn/web/    Web UI (React frontend)
   /usr/local/share/virtspawn/scripts/  Backup, demo, status scripts
   /etc/virtspawn/config.toml         Daemon configuration
+  /etc/default/virtspawn-daemon      Optional env overrides (RUST_LOG, etc.; hyper2kvm-style)
   /etc/virtspawn/backup.conf         Backup configuration
   /var/lib/virtspawn/backups/        Backup storage directory
   /usr/lib/systemd/system/virtspawn-daemon.service

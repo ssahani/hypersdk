@@ -4,6 +4,8 @@ use axum::routing::get;
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::domain;
+use virtspawn_core::libvirt::vnc;
+use virtspawn_core::xml::{extract_attr, split_blocks};
 use virtspawn_core::{LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
@@ -23,8 +25,13 @@ async fn get_console_info(
     Path(name): Path<String>,
 ) -> Result<Json<ConsoleInfo>, AppError> {
     let name2 = name.clone();
-    let xml = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::get_vm_xml(conn, &name2))
+    let manager2 = manager.clone();
+    let (xml, vnc_resolved) = tokio::task::spawn_blocking(move || {
+        manager2.with_conn(|conn| {
+            let xml = domain::get_vm_xml(conn, &name2)?;
+            let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
+            Ok((xml, vnc))
+        })
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
@@ -35,13 +42,12 @@ async fn get_console_info(
     let mut port: i32 = -1;
     let mut ws_port: i32 = -1;
 
-    for block in virtspawn_core::xml::split_blocks(&xml, "graphics") {
-        let gtype = virtspawn_core::xml::extract_attr(&block, "graphics", "type")
-            .unwrap_or_default();
-        let gport = virtspawn_core::xml::extract_attr(&block, "graphics", "port")
+    for block in split_blocks(&xml, "graphics") {
+        let gtype = extract_attr(&block, "graphics", "type").unwrap_or_default();
+        let gport = extract_attr(&block, "graphics", "port")
             .and_then(|s| s.parse().ok())
             .unwrap_or(-1);
-        let gwsport = virtspawn_core::xml::extract_attr(&block, "graphics", "websocket")
+        let gwsport = extract_attr(&block, "graphics", "websocket")
             .and_then(|s| s.parse().ok())
             .unwrap_or(-1);
 
@@ -60,14 +66,21 @@ async fn get_console_info(
         }
     }
 
-    // Extract hostname from Host header, fallback to 127.0.0.1
-    // Validate hostname contains only safe characters to prevent header injection
-    let listen_host = headers.get("host")
+    // hyper2kvm-style: real TCP port/host from XML or `virsh vncdisplay` (fixes autoport -1).
+    let mut listen_host = headers
+        .get("host")
         .and_then(|v| v.to_str().ok())
         .and_then(|h| h.split(':').next())
         .filter(|h| h.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-'))
         .unwrap_or("127.0.0.1")
         .to_string();
+
+    if console_type == "vnc" {
+        if let Some((h, p)) = vnc_resolved {
+            listen_host = h;
+            port = i32::from(p);
+        }
+    }
 
     Ok(Json(ConsoleInfo {
         name,

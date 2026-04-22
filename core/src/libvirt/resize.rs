@@ -1,5 +1,8 @@
 use virt::connect::Connect;
+use virt::domain::{MemoryParameters, SchedulerInfo};
+use virt::sys::virDomainModificationImpact;
 
+use super::device::get_domain_flags_pub;
 use super::domain::lookup_domain;
 use crate::{LibvirtError, xml};
 
@@ -17,7 +20,7 @@ pub struct VcpuPin {
     pub cpuset: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Default)]
+#[derive(Clone, serde::Serialize, serde::Deserialize, Default)]
 pub struct MemTuneInfo {
     pub hard_limit_kb: Option<u64>,
     pub soft_limit_kb: Option<u64>,
@@ -78,12 +81,71 @@ pub fn set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), Libv
 
 pub fn pin_vcpu(conn: &Connect, name: &str, vcpu: u32, cpus: &[bool]) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let cpumap: Vec<u8> = cpus.chunks(8).map(|chunk| {
-        chunk.iter().enumerate().fold(0u8, |acc, (i, &set)| if set { acc | (1 << i) } else { acc })
-    }).collect();
+    let cpumap: Vec<u8> = cpus
+        .chunks(8)
+        .map(|chunk| {
+            chunk
+                .iter()
+                .enumerate()
+                .fold(0u8, |acc, (i, &set)| if set { acc | (1 << i) } else { acc })
+        })
+        .collect();
+    let flags = get_domain_flags_pub(&domain);
     domain
-        .pin_vcpu(vcpu, &cpumap)
+        .pin_vcpu_flags(vcpu, &cpumap, flags)
         .map_err(|e| LibvirtError::Operation(format!("Failed to pin vCPU {vcpu} for '{name}': {e}")))?;
+    Ok(())
+}
+
+const AFFECT_LIVE_AND_CONFIG: virDomainModificationImpact =
+    virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG;
+
+/// Apply memtune limits (KiB). Unspecified fields keep their current libvirt values.
+pub fn set_memtune_kb(conn: &Connect, name: &str, req: &MemTuneInfo) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let mut p: MemoryParameters = domain
+        .get_memory_parameters(AFFECT_LIVE_AND_CONFIG as u32)
+        .map_err(|e| LibvirtError::Operation(format!("get_memory_parameters: {e}")))?;
+    if let Some(v) = req.hard_limit_kb {
+        p.hard_limit = Some(v);
+    }
+    if let Some(v) = req.soft_limit_kb {
+        p.soft_limit = Some(v);
+    }
+    if let Some(v) = req.swap_hard_limit_kb {
+        p.swap_hard_limit = Some(v);
+    }
+    domain
+        .set_memory_parameters(p, AFFECT_LIVE_AND_CONFIG as u32)
+        .map_err(|e| LibvirtError::Operation(format!("set_memory_parameters: {e}")))?;
+    Ok(())
+}
+
+/// Update fair-scheduler fields (`cpu_shares`, `vcpu` bandwidth `period`/`quota`) on live + persistent config.
+/// Unspecified fields keep their current values.
+pub fn set_cpu_scheduler_partial(
+    conn: &Connect,
+    name: &str,
+    cpu_shares: Option<u64>,
+    vcpu_period: Option<u64>,
+    vcpu_quota: Option<i64>,
+) -> Result<(), LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let mut s: SchedulerInfo = domain
+        .get_scheduler_parameters_flags(AFFECT_LIVE_AND_CONFIG)
+        .map_err(|e| LibvirtError::Operation(format!("get_scheduler_parameters_flags: {e}")))?;
+    if let Some(v) = cpu_shares {
+        s.cpu_shares = Some(v);
+    }
+    if let Some(v) = vcpu_period {
+        s.vcpu_bw.period = Some(v);
+    }
+    if let Some(v) = vcpu_quota {
+        s.vcpu_bw.quota = Some(v);
+    }
+    domain
+        .set_scheduler_parameters_flags(&s, AFFECT_LIVE_AND_CONFIG)
+        .map_err(|e| LibvirtError::Operation(format!("set_scheduler_parameters_flags: {e}")))?;
     Ok(())
 }
 
