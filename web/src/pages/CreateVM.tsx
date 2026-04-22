@@ -178,7 +178,7 @@ export default function CreateVMPage() {
     disk_gb: 10,
     network: 'default',
     os_variant: 'generic',
-    firmware: 'bios',
+    firmware: 'uefi',
     graphics_type: 'vnc',
     template_disk_mode: 'backing',
     saved_template: '',
@@ -457,10 +457,13 @@ export default function CreateVMPage() {
           </div>
           <div>
             <label htmlFor="vm-firmware" className="block text-sm text-slate-400 mb-1">Firmware</label>
-            <select id="vm-firmware" value={form.firmware || 'bios'} onChange={(e) => setForm({ ...form, firmware: e.target.value })} className="input-field">
+            <select id="vm-firmware" value={form.firmware || 'uefi'} onChange={(e) => setForm({ ...form, firmware: e.target.value })} className="input-field">
               <option value="bios">BIOS</option>
               <option value="uefi">UEFI</option>
             </select>
+            {diskMode === 'mkosi' && (
+              <p className="text-xs text-slate-500 mt-1">Bootable mkosi images (e.g. Fedora in <code className="text-slate-500">contrib/mkosi-defs</code>) use GPT + systemd-boot and need UEFI. BIOS shows only SeaBIOS with no disk boot.</p>
+            )}
           </div>
         </div>
 

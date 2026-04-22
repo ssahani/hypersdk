@@ -9,6 +9,20 @@ use crate::config::{LibvirtConfig, VmCreateBackend};
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
+/// [`CreateVmRequest::mkosi_workspace`] set means a Bootable=yes style image (EFI/GPT); BIOS would hang at SeaBIOS.
+fn ensure_uefi_for_mkosi_workspace(req: &mut CreateVmRequest) {
+    if req.mkosi_workspace.trim().is_empty() {
+        return;
+    }
+    let fw = req.firmware.trim();
+    if fw.is_empty() || fw.eq_ignore_ascii_case("bios") {
+        tracing::info!(
+            "mkosi_workspace set: using firmware=uefi (mkosi bootable disks use systemd-boot/EFI, not legacy BIOS)"
+        );
+        req.firmware = "uefi".into();
+    }
+}
+
 /// Define a new VM using either native libvirt XML or external `virt-install` (see `[libvirt] create_backend`).
 pub fn create_vm(
     conn: &Connect,
@@ -37,6 +51,9 @@ pub fn create_vm(
             req.mkosi_workspace = ws;
         }
     }
+
+    // Bootable=yes mkosi recipes ship GPT + systemd-boot; SeaBIOS cannot boot them.
+    ensure_uefi_for_mkosi_workspace(&mut req);
 
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg)?;
