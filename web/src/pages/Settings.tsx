@@ -54,6 +54,7 @@ export default function SettingsPage() {
   const [osUserCap, setOsUserCap] = useState<OsUserCapability | null>(null)
   const [newOsUsername, setNewOsUsername] = useState('')
   const [newOsPassword, setNewOsPassword] = useState('')
+  const [addOsUserToLibvirt, setAddOsUserToLibvirt] = useState(true)
 
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -77,6 +78,12 @@ export default function SettingsPage() {
   }, [])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (osUserCap?.libvirtGroupAvailable === false) {
+      setAddOsUserToLibvirt(false)
+    }
+  }, [osUserCap?.libvirtGroupAvailable])
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'roles', label: 'Users & Roles', icon: <Users className="w-4 h-4" /> },
@@ -137,29 +144,45 @@ export default function SettingsPage() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-400" /> Create system user (PAM)</h3>
               <p className="text-xs text-slate-500">
-                Adds a UNIX account on the virtspawn host (<code className="bg-slate-900/80 px-1 rounded">useradd</code> + password). The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong> (same idea as sudo-capable). Not available when using an API token.
+                Adds a UNIX account on the virtspawn host (<code className="bg-slate-900/80 px-1 rounded">useradd</code> + password). Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded">newgrp libvirt</code>). The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
               </p>
+              {osUserCap.libvirtGroupAvailable === false && (
+                <p className="text-xs text-amber-400/90">Host has no <code className="bg-slate-900/80 px-1 rounded">libvirt</code> UNIX group — install libvirt or create the group before enabling libvirt access for new users.</p>
+              )}
               {osUserCap.canCreateOsUsers ? (
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <input value={newOsUsername} onChange={e => setNewOsUsername(e.target.value)} className="input-field flex-1" placeholder="New username" autoComplete="off" />
-                  <input value={newOsPassword} onChange={e => setNewOsPassword(e.target.value)} type="password" className="input-field flex-1" placeholder="Initial password" autoComplete="new-password" />
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      if (!newOsUsername.trim() || !newOsPassword) { toast.error('Username and password required'); return }
-                      try {
-                        await createOsUser(newOsUsername.trim(), newOsPassword)
-                        toast.success(`System user '${newOsUsername.trim()}' created`)
-                        setNewOsUsername('')
-                        setNewOsPassword('')
-                      } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : String(e))
-                      }
-                    }}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition whitespace-nowrap"
-                  >
-                    Create UNIX user
-                  </button>
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="rounded border-slate-600"
+                      checked={addOsUserToLibvirt}
+                      disabled={osUserCap.libvirtGroupAvailable === false}
+                      onChange={e => setAddOsUserToLibvirt(e.target.checked)}
+                    />
+                    Add to <code className="text-xs bg-slate-900/80 px-1 rounded">{osUserCap.libvirtGroupName ?? 'libvirt'}</code> group (libvirt / qemu system URI)
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input value={newOsUsername} onChange={e => setNewOsUsername(e.target.value)} className="input-field flex-1" placeholder="New username" autoComplete="off" />
+                    <input value={newOsPassword} onChange={e => setNewOsPassword(e.target.value)} type="password" className="input-field flex-1" placeholder="Initial password" autoComplete="new-password" />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!newOsUsername.trim() || !newOsPassword) { toast.error('Username and password required'); return }
+                        try {
+                          const r = await createOsUser(newOsUsername.trim(), newOsPassword, addOsUserToLibvirt)
+                          const extra = r.libvirt_group_attached ? ' (added to libvirt group)' : ''
+                          toast.success(`System user '${newOsUsername.trim()}' created${extra}`)
+                          setNewOsUsername('')
+                          setNewOsPassword('')
+                        } catch (e: unknown) {
+                          toast.error(e instanceof Error ? e.message : String(e))
+                        }
+                      }}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition whitespace-nowrap"
+                    >
+                      Create UNIX user
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <p className="text-xs text-amber-400/90">{typeof osUserCap.reason === 'string' ? osUserCap.reason : 'You cannot create system users with the current sign-in method.'}</p>

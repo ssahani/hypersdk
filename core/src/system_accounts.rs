@@ -9,6 +9,18 @@ use crate::LibvirtError;
 /// Supplementary groups that conventionally grant sudo on common distros.
 const PRIVILEGED_SUPP_GROUPS: &[&str] = &["wheel", "sudo", "admin"];
 
+/// Standard UNIX group for `qemu:///system` socket/policy on Fedora/RHEL/Debian derivatives.
+pub const LIBVIRT_UNIX_GROUP: &str = "libvirt";
+
+/// Whether `getent group libvirt` succeeds (group exists on host).
+pub fn libvirt_unix_group_exists() -> bool {
+    Command::new("getent")
+        .args(["group", LIBVIRT_UNIX_GROUP])
+        .status()
+        .map(|s| s.success())
+        .unwrap_or(false)
+}
+
 /// Same character rules as web login (`daemon/src/auth.rs` login_handler).
 fn validate_login_username(name: &str) -> Result<(), LibvirtError> {
     if name.is_empty() {
@@ -60,9 +72,20 @@ pub fn unix_user_may_use_sudo(username: &str) -> bool {
     }
 }
 
-/// Create a new local user with home directory and `/bin/bash`, then set password via `chpasswd`.
-/// `actor` is only used for logging at the call site; this function does not check policy.
-pub fn create_local_user(new_username: &str, password: &str) -> Result<(), LibvirtError> {
+/// Result of [`create_local_user`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalUserCreateOutcome {
+    /// User was added to the host `libvirt` supplementary group (`usermod -aG libvirt`).
+    pub libvirt_group_attached: bool,
+}
+
+/// Create a new local user with home directory and `/bin/bash`, set password via `chpasswd`,
+/// and optionally append the user to the `libvirt` group for `qemu:///system` access.
+pub fn create_local_user(
+    new_username: &str,
+    password: &str,
+    add_to_libvirt_group: bool,
+) -> Result<LocalUserCreateOutcome, LibvirtError> {
     validate_login_username(new_username)?;
     if new_username.eq_ignore_ascii_case("root") {
         return Err(LibvirtError::Invalid("Cannot create root".into()));
@@ -77,6 +100,13 @@ pub fn create_local_user(new_username: &str, password: &str) -> Result<(), Libvi
         return Err(LibvirtError::Invalid(
             "Password cannot contain ':', newline, or NUL".into(),
         ));
+    }
+
+    if add_to_libvirt_group && !libvirt_unix_group_exists() {
+        return Err(LibvirtError::Invalid(format!(
+            "UNIX group '{}' is not defined on this host (install libvirt / libvirt-daemon)",
+            LIBVIRT_UNIX_GROUP
+        )));
     }
 
     let exists = Command::new("id")
@@ -98,6 +128,23 @@ pub fn create_local_user(new_username: &str, password: &str) -> Result<(), Libvi
         return Err(LibvirtError::Operation(
             "useradd failed (see journal for details)".into(),
         ));
+    }
+
+    let mut libvirt_attached = false;
+    if add_to_libvirt_group {
+        let um = Command::new("usermod")
+            .args(["-aG", LIBVIRT_UNIX_GROUP, "--", new_username])
+            .output()
+            .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
+        if !um.status.success() {
+            let err = String::from_utf8_lossy(&um.stderr);
+            return Err(LibvirtError::Operation(format!(
+                "usermod -aG {} failed: {}",
+                LIBVIRT_UNIX_GROUP,
+                err.trim()
+            )));
+        }
+        libvirt_attached = true;
     }
 
     let mut child = Command::new("chpasswd")
@@ -126,7 +173,9 @@ pub fn create_local_user(new_username: &str, password: &str) -> Result<(), Libvi
         )));
     }
 
-    Ok(())
+    Ok(LocalUserCreateOutcome {
+        libvirt_group_attached: libvirt_attached,
+    })
 }
 
 #[cfg(test)]

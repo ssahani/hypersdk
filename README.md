@@ -708,8 +708,8 @@ Requires **browser session** (not API tokens). The signed-in UNIX user must be *
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `GET` | `/system/os-users/capability` | Whether the current session may create local users |
-| `POST` | `/system/os-users` | JSON `{ "username", "password" }` — create local UNIX account |
+| `GET` | `/system/os-users/capability` | Whether the session may create users; includes **`libvirtGroupAvailable`** / **`libvirtGroupName`** for the host `libvirt` group |
+| `POST` | `/system/os-users` | JSON `{ "username", "password", "add_to_libvirt_group"?: true }` — create local UNIX account; default adds user to **`libvirt`** (`usermod -aG`) for `qemu:///system` |
 
 ### Automation & Monitoring
 
