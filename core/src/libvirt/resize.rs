@@ -100,11 +100,22 @@ pub fn pin_vcpu(conn: &Connect, name: &str, vcpu: u32, cpus: &[bool]) -> Result<
 const AFFECT_LIVE_AND_CONFIG: virDomainModificationImpact =
     virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG;
 
+/// libvirt forbids OR-ing LIVE and CONFIG for [`Domain::get_memory_parameters`] /
+/// [`Domain::set_memory_parameters`] on many hypervisors — use one flag based on domain state.
+fn memtune_affect_flag(state: u32) -> u32 {
+    match state {
+        // Live guest: tune the running domain (same as qemu docs for memory tuning).
+        1 | 2 | 3 | 7 => virt::sys::VIR_DOMAIN_AFFECT_LIVE as u32, // running, blocked, paused, pmsuspended
+        _ => virt::sys::VIR_DOMAIN_AFFECT_CONFIG as u32,
+    }
+}
+
 /// Apply memtune limits (KiB). Unspecified fields keep their current libvirt values.
 pub fn set_memtune_kb(conn: &Connect, name: &str, req: &MemTuneInfo) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
+    let affect = memtune_affect_flag(domain.get_info().map_err(LibvirtError::map_op("get_info"))?.state);
     let mut p: MemoryParameters = domain
-        .get_memory_parameters(AFFECT_LIVE_AND_CONFIG as u32)
+        .get_memory_parameters(affect)
         .map_err(|e| LibvirtError::Operation(format!("get_memory_parameters: {e}")))?;
     if let Some(v) = req.hard_limit_kb {
         p.hard_limit = Some(v);
@@ -116,7 +127,7 @@ pub fn set_memtune_kb(conn: &Connect, name: &str, req: &MemTuneInfo) -> Result<(
         p.swap_hard_limit = Some(v);
     }
     domain
-        .set_memory_parameters(p, AFFECT_LIVE_AND_CONFIG as u32)
+        .set_memory_parameters(p, affect)
         .map_err(|e| LibvirtError::Operation(format!("set_memory_parameters: {e}")))?;
     Ok(())
 }
