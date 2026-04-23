@@ -1,19 +1,29 @@
+use axum::extract::Extension;
 use axum::middleware;
 use axum::Router;
 use std::path::PathBuf;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
-use virtspawn_core::{AuthConfig, LibvirtManager};
+use virtspawn_core::{LibvirtManager, VirtspawnConfig};
 
 use crate::auth::{self, SessionStore};
 use crate::routes;
+use crate::terminal::{self, TerminalSessionStore};
 
-pub fn create_app(manager: LibvirtManager, auth_cfg: AuthConfig) -> Router {
+pub fn create_app(manager: LibvirtManager, config: VirtspawnConfig) -> Router {
     let web_dir = find_web_dist();
     let session_store = SessionStore::new();
+    let terminal_store = TerminalSessionStore::new();
+    let ssh_terminal_cfg = config.ssh_terminal.clone();
+    let auth_cfg = config.auth.clone();
+
+    let terminal_api = terminal::http_routes()
+        .layer(Extension(terminal_store.clone()))
+        .layer(Extension(ssh_terminal_cfg.clone()));
 
     // All routes under /api/v1 — auth routes skip middleware internally
     let api = routes::api_routes()
+        .merge(terminal_api)
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
@@ -28,6 +38,8 @@ pub fn create_app(manager: LibvirtManager, auth_cfg: AuthConfig) -> Router {
             session_store.clone(),
             auth::ws_auth_middleware,
         ))
+        .layer(Extension(terminal_store))
+        .layer(Extension(ssh_terminal_cfg))
         .with_state(manager);
 
     let mut router = Router::new()

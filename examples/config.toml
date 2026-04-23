@@ -15,6 +15,16 @@
 # Range: 1-60 recommended.
 refresh_interval_secs = 5
 
+[guacamole]
+# Optional Apache Guacamole encrypted JSON auth — same 32 hex chars as Docker JSON_SECRET_KEY.
+# GET /api/v1/vms/{name}/guacamole-auth returns guac_data (+ optional token if fetch_token).
+# enabled = false
+# json_secret_hex = ""
+# base_url = "http://127.0.0.1:8080/guacamole"
+# public_vnc_host = ""
+# fetch_token = true
+# json_username = "virtspawn"
+
 [daemon]
 # Address and port the daemon binds to.
 # Use "0.0.0.0" to listen on all interfaces (default).
@@ -30,10 +40,20 @@ port = 5092
 #   "qemu+ssh://user@host/system" — remote host over SSH
 #   "qemu+tcp://host/system"      — remote host over TCP
 uri = "qemu:///system"
-# Optional: allow API field `virt_builder_os` to run `virt-builder` (install guestfs-tools on the host).
-# virt_builder_allowed = true
+# Disk images: mkosi is the supported workflow (`mkosi_workspace` API field). Default: mkosi on, virt-builder off.
+# mkosi_allowed = true
+# Legacy libguestfs virt-builder (only if you set virt_builder_allowed = true; install guestfs-tools).
+# virt_builder_allowed = false
 # virt_builder_default_ssh_pubkey_path = ""
 # virt_builder_update = true
-# Packages installed in every virt-builder VM; add qemu-guest-agent for reliable IP detection via virsh domifaddr.
 # virt_builder_default_packages = ["qemu-guest-agent"]
-# mkosi_allowed = true
+
+# Browser SSH terminal (xterm.js): short-lived session ids, PTY + system `ssh`.
+# [ssh_terminal]
+# session_ttl_secs = 120
+# allow_adhoc_hosts = true
+# legacy_plain_host_websocket = false
+# [[ssh_terminal.targets]]
+# id = "lab-db"
+# host = "192.168.122.50"
+# ssh_user = "root"

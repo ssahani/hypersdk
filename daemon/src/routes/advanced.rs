@@ -3,8 +3,8 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use virtspawn_core::libvirt::{
-    boot, capabilities, cdrom, guest_agent, hostdev_pci, migrate, node_device, nwfilter,
-    save_restore, secret, storage,
+    boot, capabilities, cdrom, domain_job, emulator, guest_agent, host_cpu, hostdev_pci,
+    migrate, node_device, numa_tune, nwfilter, save_restore, secret, storage,
 };
 use virtspawn_core::{LibvirtError, LibvirtManager};
 
@@ -162,6 +162,8 @@ struct MigrateRequest {
     dest_uri: String,
     #[serde(default)]
     live: bool,
+    #[serde(default)]
+    parameters: Option<migrate::MigrateParametersApi>,
 }
 
 async fn migrate_handler(
@@ -171,13 +173,176 @@ async fn migrate_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let dest_uri = req.dest_uri.clone();
+    let destination = dest_uri.clone();
+    let live = req.live;
+    let params = req.parameters.clone();
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| migrate::migrate_vm_uri(conn, &name2, &dest_uri, req.live))
+        manager.with_conn(|conn| migrate::migrate_vm_uri(conn, &name2, &dest_uri, live, params.as_ref()))
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
     ?;
-    Ok(Json(serde_json::json!({ "status": "migrated", "name": name, "destination": req.dest_uri })))
+    Ok(Json(serde_json::json!({ "status": "migrated", "name": name, "destination": destination })))
+}
+
+async fn migrate_get_max_speed_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let mib = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| migrate::migrate_get_max_speed(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!({ "name": name, "mib_per_sec": mib? })))
+}
+
+#[derive(serde::Deserialize)]
+struct MigrateBandwidthBody {
+    mib_per_sec: u64,
+}
+
+async fn migrate_set_max_speed_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<MigrateBandwidthBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let mib = req.mib_per_sec;
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| migrate::migrate_set_max_speed(conn, &name2, mib))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "mib_per_sec": mib })))
+}
+
+#[derive(serde::Deserialize)]
+struct MigrateDowntimeBody {
+    downtime_ns: u64,
+}
+
+async fn migrate_set_max_downtime_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<MigrateDowntimeBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let ns = req.downtime_ns;
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| migrate::migrate_set_max_downtime(conn, &name2, ns))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "downtime_ns": ns })))
+}
+
+async fn get_numa_tune_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| numa_tune::get_numa_tune(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
+}
+
+async fn set_numa_tune_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<numa_tune::SetNumaTuneRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let body = req;
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| numa_tune::set_numa_tune(conn, &name2, &body))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
+}
+
+#[derive(serde::Deserialize)]
+struct EmulatorPinBody {
+    cpus: Vec<bool>,
+}
+
+async fn pin_emulator_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<EmulatorPinBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let cpus = req.cpus.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| emulator::pin_emulator(conn, &name2, &cpus))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    ?;
+    Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
+}
+
+#[derive(serde::Deserialize)]
+struct CpuCompareBody {
+    cpu_xml: String,
+    #[serde(default)]
+    flags: u32,
+}
+
+async fn compare_cpu_handler(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<CpuCompareBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let xml = req.cpu_xml.clone();
+    let flags = req.flags;
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| host_cpu::compare_cpu(conn, &xml, flags))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(serde_json::json!(result?)))
+}
+
+async fn job_info_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| domain_job::job_info(conn, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(result?))
+}
+
+#[derive(serde::Deserialize)]
+struct JobStatsQuery {
+    #[serde(default)]
+    flags: u32,
+}
+
+async fn job_stats_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Query(query): Query<JobStatsQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let flags = query.flags;
+    let result = tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| domain_job::job_stats_u32(conn, &name2, flags))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    Ok(Json(result?))
 }
 
 // ── Capabilities ────────────────────────────────────────────────────
@@ -561,8 +726,18 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         // Boot
         .route("/vms/{name}/boot", get(get_boot_config_handler))
         .route("/vms/{name}/boot", post(set_boot_order_handler))
-        // Migration
+        // Migration + tuning
         .route("/vms/{name}/migrate", post(migrate_handler))
+        .route(
+            "/vms/{name}/migrate/max-bandwidth",
+            get(migrate_get_max_speed_handler).post(migrate_set_max_speed_handler),
+        )
+        .route("/vms/{name}/migrate/max-downtime", post(migrate_set_max_downtime_handler))
+        .route("/vms/{name}/numa", get(get_numa_tune_handler).post(set_numa_tune_handler))
+        .route("/vms/{name}/emulator/pin", post(pin_emulator_handler))
+        .route("/vms/{name}/job", get(job_info_handler))
+        .route("/vms/{name}/job/stats", get(job_stats_handler))
+        .route("/cpu/compare", post(compare_cpu_handler))
         // Memory balloon
         .route("/vms/{name}/balloon/{mb}", post(set_memory_balloon_handler))
         // Capabilities

@@ -123,6 +123,7 @@ function AuthenticatedApp() {
                 <Route path="/audit" element={<AuditLog />} />
                 <Route path="/import" element={<ImportVM />} />
                 <Route path="/ssh/:host" element={<SSHPage />} />
+                <Route path="/ssh" element={<SSHPage />} />
                 <Route path="/api-docs" element={<ApiDocs />} />
                 <Route path="/services" element={<Services />} />
                 <Route path="/logs" element={<Logs />} />

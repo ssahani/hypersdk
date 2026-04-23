@@ -3,7 +3,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use virtspawn_core::libvirt::{extras, virt_builder};
-use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager};
+use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
 
 use crate::error::AppError;
 
@@ -85,6 +85,11 @@ async fn delete_disk_image(
 async fn list_virt_builder_templates(
     State(_m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "virt-builder is disabled ([libvirt] virt_builder_allowed = false); use mkosi_workspace / mkosi build".into(),
+        )));
+    }
     let templates = tokio::task::spawn_blocking(virt_builder::list_builder_templates)
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
@@ -102,6 +107,11 @@ async fn virt_builder_notes_handler(
     State(_m): State<LibvirtManager>,
     Path(template): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "virt-builder is disabled ([libvirt] virt_builder_allowed = false); use mkosi_workspace / mkosi build".into(),
+        )));
+    }
     let t = template.clone();
     let notes = tokio::task::spawn_blocking(move || virt_builder::template_notes(&t))
         .await

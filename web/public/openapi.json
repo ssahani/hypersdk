@@ -71,6 +71,18 @@
           "model": { "type": "string" }
         }
       },
+      "GuacamoleAuthResponse": {
+        "type": "object",
+        "description": "Encrypted JSON blob for Apache Guacamole /api/tokens (requires [guacamole] in daemon config)",
+        "properties": {
+          "vm": { "type": "string" },
+          "protocol": { "type": "string", "example": "vnc" },
+          "target_host": { "type": "string" },
+          "target_port": { "type": "integer" },
+          "guac_data": { "type": "string", "description": "POST as form field data to Guacamole /api/tokens" },
+          "token": { "type": "string", "description": "Optional Guacamole auth token when fetch_token succeeds" }
+        }
+      },
       "CreateVmRequest": {
         "type": "object",
         "required": ["name"],
@@ -90,7 +102,7 @@
           "saved_template": { "type": "string", "description": "Saved template name under /var/lib/virtspawn/templates/" },
           "template_disk_mode": { "type": "string", "enum": ["backing", "copy"], "default": "backing" },
           "create_backend": { "type": "string", "description": "Omit or empty for server default; libvirt_xml or virt_install to override." },
-          "virt_builder_os": { "type": "string", "description": "If set, run virt-builder with this template name (virt-builder --list) to build the root disk; no golden image. Incompatible with golden saved_template, existing_disk, and install iso." },
+          "virt_builder_os": { "type": "string", "description": "Legacy libguestfs virt-builder template (virt-builder --list). Disabled by default on the server ([libvirt] virt_builder_allowed). Prefer mkosi_workspace for new deployments." },
           "virt_builder_hostname": { "type": "string", "description": "Guest hostname for virt-builder (optional; derived from VM name if empty)." },
           "virt_builder_ssh_pubkey": { "type": "string", "description": "Single-line OpenSSH public key for root SSH inject (optional if root password file or server default pubkey path is set)." },
           "virt_builder_root_password_file": { "type": "string", "description": "Absolute path on the daemon host to a small file (≤4KiB) with guest root password; virt-builder uses --root-password file:… (not password: on argv)." },
@@ -100,7 +112,7 @@
           "virt_builder_post_customize_install": { "type": "array", "items": { "type": "string" }, "description": "After build: virt-customize --install for each." },
           "virt_builder_post_customize_run": { "type": "array", "items": { "type": "string" }, "description": "After build: virt-customize --run-command for each." },
           "virt_builder_sysprep": { "type": "boolean", "default": false, "description": "After customize: virt-sysprep -a (seal for cloning)." },
-          "mkosi_workspace": { "type": "string", "description": "Absolute path to directory containing mkosi.conf; run `mkosi build` and use newest .raw/.qcow2 artifact as root disk. Mutually exclusive with virt_builder_os." },
+          "mkosi_workspace": { "type": "string", "description": "Preferred: absolute path to directory containing mkosi.conf; run `mkosi build` and use newest .raw/.qcow2 artifact as root disk. Mutually exclusive with virt_builder_os." },
           "mkosi_image": { "type": "string", "description": "For multi-image mkosi workspaces (image trees): select a specific image via `mkosi --image <name>`. Leave empty to build the workspace normally." }
         }
       },
@@ -264,6 +276,20 @@
         "tags": ["VMs"],
         "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "XML string" } }
+      }
+    },
+    "/vms/{name}/guacamole-auth": {
+      "get": {
+        "summary": "Guacamole encrypted JSON auth (optional)",
+        "description": "Returns VNC target + signed/encrypted `guac_data` for Apache Guacamole JSON auth. Disabled unless [guacamole] enabled=true and json_secret_hex set.",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Encrypted payload",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuacamoleAuthResponse" } } }
+          }
+        }
       }
     },
     "/vms/{name}/start": {

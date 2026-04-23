@@ -34,6 +34,8 @@ Manage virtual machines, networks, storage, snapshots, host networking, and auto
   └──────────────┘  └──────┘  └──────────────┘
 ```
 
+Virtspawn provides **built-in** noVNC/SPICE (and serial/SSH) consoles over the daemon; libvirt remains the source of truth for VMs. If you prefer a separate HTML5 gateway (e.g. **RDP for Windows**, or Apache’s connection model), see [docs/guacamole-integration.md](docs/guacamole-integration.md)—Guacamole sits in front of guest RDP/VNC/SSH and does **not** replace libvirt or virtspawn lifecycle APIs.
+
 ### Workspace Layout
 
 ```
@@ -44,6 +46,8 @@ virtspawn/
 ├── web/                Web frontend (React 19 + TypeScript + Tailwind + Recharts + xterm.js)
 ├── contrib/            Systemd units, default config
 ├── demo-screenshots/   Screenshots, presentation PDFs, and PDF generators
+├── docs/               Optional integration notes (e.g. Apache Guacamole)
+├── guac-bridge/        Apache Guacamole JSON-auth library + optional standalone `libvirt-guac-bridge` binary (daemon integrates `GET …/guacamole-auth`)
 ├── examples/           Example user configuration
 ├── scripts/            deploy-remote.sh (remote rsync+install), demo, status, backup, bulk
 ├── virtspawnctl        Management CLI (deploy, verify, health, backup, upgrade, tls)
@@ -80,7 +84,7 @@ virtspawn/
 - **VNC Console** — in-browser VM display via noVNC RFB client (dynamically loaded from server)
 - **SPICE Console** — in-browser SPICE display via spice-html5
 - **Serial Console** — xterm.js terminal connected directly to VM's serial PTY via async I/O
-- **SSH Console** — browser-based SSH access via spawned ssh process with PTY WebSocket
+- **SSH Console** — browser-based SSH: authenticated `POST /api/v1/terminal/sessions` yields a short-lived `session_id`; xterm.js talks to `/ws/v1/terminal/{session_id}` with JSON resize/input and binary PTY output; daemon runs the system `ssh` inside `portable-pty` (OpenSSH config, keys, and `StrictHostKeyChecking=accept-new`)
 - **Host Networking** — visual network topology (SVG graph), port forwarding, bridge management, per-VM firewall rules, DHCP lease viewer
 - **Networks** — list, start/stop, toggle autostart, delete
 - **Storage** — pool cards with capacity bars and autostart toggle, volume browser with create/resize/clone/delete
@@ -128,7 +132,11 @@ virtspawn/
 - **VM tags/labels** — tag VMs with filtering support
 - **Save as template** — save a VM configuration as a reusable template
 - **Snapshots with descriptions** — create, delete, revert snapshots with optional descriptions
-- **Migrate** — live or offline migration to remote hosts
+- **Migrate** — live or offline P2P migration to a validated `qemu://` / `qemu+ssh://` (etc.) URI; optional JSON **`parameters`** maps to libvirt **`MigrateParameters`** (bandwidth, compression, **`migrate_disks`**, destination XML, and other `migrate_to_uri3` fields)
+- **Migration tuning** — read or set migration **max bandwidth** (MiB/s) and **max downtime** (nanoseconds) on the domain while tuning live migration
+- **NUMA memory tuning** — get or set per-domain NUMA parameters (**`node_set`**, **`mode`**) where the hypervisor supports it
+- **Emulator CPU affinity** — pin QEMU emulator threads to host logical CPUs via a boolean CPU map
+- **Domain job telemetry** — JSON **job info** and **job stats** for long-running domain operations (for example live migration progress)
 - **Console access** — VNC, SPICE, serial, and SSH in browser; also virt-viewer and virsh console
 
 ### Live Metrics & Monitoring
@@ -204,7 +212,7 @@ virtspawn/
 - **Systemd service** — hardened unit file with security restrictions
 - **Config hierarchy** — `/etc/virtspawn/config.toml` (system), optional `~/.virtspawn/config.toml`, defaults, then CLI overrides
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
-- **Security hardened** — migration URI validation (SSRF prevention), ISO/import path canonicalization with symlink resolution, webhook URL validation, email header injection prevention, PTY path validation, integer overflow protection, no CORS (same-origin only), RBAC defaults to ReadOnly for unknown users
+- **Security hardened** — migration URI validation (SSRF prevention), ISO/import path canonicalization with symlink resolution, webhook URL validation, email header injection prevention, PTY path validation, integer overflow protection, no CORS (same-origin only), RBAC defaults to ReadOnly for unknown users; browser SSH uses server-issued **terminal sessions** (no raw host in the WebSocket URL), rejects API tokens for session creation, optional **named targets** in `[ssh_terminal].targets`, and disables legacy `/ws/v1/ssh/{host}` unless explicitly enabled
 - **Audit logging** — all operations logged with timestamps
 - **Graceful shutdown** — daemon handles SIGTERM/SIGINT cleanly
 - **Distro support** — installer supports Fedora, RHEL, Ubuntu, Debian, openSUSE, Arch Linux
@@ -341,7 +349,7 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 | Create VM | `/create` | Template selector + form with validation, UEFI, cloud-init |
 | Import VM | `/import` | Convert and import VMDK/VDI/VHD disk images |
 | Console | `/vms/{name}/console` | Auto-detect VNC/Serial, in-browser display via noVNC or xterm.js |
-| SSH Console | `/ssh/:host` | Browser-based SSH via spawned ssh process with PTY |
+| SSH Console | `/ssh`, `/ssh/:host` | Opens session API then PTY-backed `ssh` over `/ws/v1/terminal/{session_id}`; query form `/ssh?host=…&user=…` |
 | Host Networking | `/host-networking` | SVG network topology, port forwarding, bridges, firewall |
 | Networks | `/networks` | Start/stop, autostart toggle, DHCP leases, delete |
 | Storage | `/storage` | Pool cards with create/delete, volume browser with resize/clone |
@@ -378,9 +386,9 @@ Browser → spice-html5 → WebSocket (/ws/v1/spice/{name}) → daemon TCP proxy
 Browser → xterm.js → WebSocket (/ws/v1/console/{name}) → async PTY I/O → VM PTY (/dev/pts/X)
 ```
 
-**SSH** — browser-based SSH access:
+**SSH** — browser-based SSH access (session id in the WebSocket path, not the target host):
 ```
-Browser → xterm.js → WebSocket (/ws/v1/ssh/{host}) → spawned ssh process → remote host
+Browser → xterm.js → POST /api/v1/terminal/sessions → WebSocket (/ws/v1/terminal/{session_id}?token=…) → PTY + system ssh user@host
 ```
 
 > **Note:** New VMs created through virtspawn use VNC by default. The console page auto-detects the graphics type and selects VNC or SPICE accordingly. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
@@ -569,7 +577,15 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `GET` | `/vms/{name}/managed-save/status` | Check if saved |
 | `GET` | `/vms/{name}/boot` | Boot config (devices, firmware, UEFI) |
 | `POST` | `/vms/{name}/boot` | Set boot order (`{"devices": ["hd", "cdrom"]}`) |
-| `POST` | `/vms/{name}/migrate` | Migrate (`{"dest_uri": "...", "live": true}`) |
+| `POST` | `/vms/{name}/migrate` | Migrate (`{"dest_uri": "qemu+ssh://...", "live": true, "parameters": {...}?}`) — optional **`parameters`** matches libvirt migration tuning (e.g. **`bandwidth`**, **`compression`**, **`migrate_disks`**, **`parallel_connections`**) |
+| `GET` | `/vms/{name}/migrate/max-bandwidth` | Current migration max speed (MiB/s) |
+| `POST` | `/vms/{name}/migrate/max-bandwidth` | Set migration max speed (`{"mib_per_sec": 500}`) |
+| `POST` | `/vms/{name}/migrate/max-downtime` | Set live migration max downtime (`{"downtime_ns": 30000000000}`) |
+| `GET` | `/vms/{name}/numa` | NUMA memory parameters (`node_set`, `mode`) |
+| `POST` | `/vms/{name}/numa` | Set NUMA parameters (partial body merged with current; **`node_set`** / **`mode`** optional) |
+| `POST` | `/vms/{name}/emulator/pin` | Pin emulator threads (`{"cpus": [true, false, ...]}` — one entry per host logical CPU, `true` = allowed) |
+| `GET` | `/vms/{name}/job` | Domain job summary (JSON; same shape as stats where populated) |
+| `GET` | `/vms/{name}/job/stats` | Domain job stats (`?flags=0` — libvirt **`virDomainGetJobStatsFlags`**) |
 | `POST` | `/vms/{name}/balloon/{mb}` | Live memory balloon |
 | `POST` | `/vms/{name}/disk/resize/{target}` | Resize attached disk |
 | `POST` | `/vms/{name}/nic/attach` | Attach network interface |
@@ -642,6 +658,7 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/capabilities` | Hypervisor capabilities (arch, CPU, guest types) |
+| `POST` | `/cpu/compare` | Compare guest **CPU XML** to this host (`{"cpu_xml": "<cpu>...</cpu>", "flags": 0}`) — returns **`code`** and **`label`** (`identical`, `superset`, `incompatible`, `unknown`); **`flags`** are **`virConnectCompareCPUFlags`** (often `0`) |
 | `GET` | `/sysinfo` | SMBIOS system info XML |
 | `GET` | `/devices` | List all node devices (`?capability=pci\|net\|usb`) |
 | `GET` | `/devices/{name}` | Device XML |
@@ -692,6 +709,8 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `POST` | `/api/v1/auth/logout` | Logout and clear session |
 | `GET` | `/api/v1/auth/session` | Get current session info (`username`, `session_id` for admin revoke) |
 | `POST` | `/api/v1/ws-token` | Get short-lived WebSocket authentication token |
+| `GET` | `/terminal/targets` | List configured SSH terminal targets (`id`, `host`, `default_ssh_user`) |
+| `POST` | `/terminal/sessions` | Create one-time SSH terminal session (`target_id` **or** ad-hoc `host` + `ssh_user`); returns `session_id` for `/ws/v1/terminal/{session_id}` (browser sessions only — API tokens rejected) |
 
 ### Web sessions (root only, browser login)
 
@@ -753,7 +772,8 @@ Requires **browser session** (not API tokens). The signed-in UNIX user must be *
 | `/ws/v1/console/{name}` | Serial console (PTY bridge) |
 | `/ws/v1/vnc/{name}` | VNC display proxy |
 | `/ws/v1/spice/{name}` | SPICE display proxy |
-| `/ws/v1/ssh/{host}` | SSH terminal proxy |
+| `/ws/v1/terminal/{session_id}` | Browser SSH after `POST /api/v1/terminal/sessions` — JSON `input` / `resize` / `ping`; binary frames carry raw PTY output; server runs OpenSSH in a PTY (`portable-pty`). Requires `?token=` from `POST /api/v1/ws-token`. |
+| `/ws/v1/ssh/{host}` | **Legacy** raw WebSocket ↔ stdin/stdout SSH (disabled by default; set `ssh_terminal.legacy_plain_host_websocket = true` to enable) |
 
 ### Other
 
@@ -847,6 +867,42 @@ curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/tags \
 curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/usb/attach \
   -H 'Content-Type: application/json' \
   -d '{"vendor_id": "0x1234", "product_id": "0x5678"}' | jq
+
+# Live migration with optional libvirt MigrateParameters (e.g. bandwidth MiB/s, disk list)
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/migrate \
+  -H 'Content-Type: application/json' \
+  -d '{"dest_uri": "qemu+ssh://user@remote/system", "live": true, "parameters": {"bandwidth": 500}}' | jq
+
+# Migration max bandwidth (MiB/s)
+curl -sk https://localhost:5092/api/v1/vms/test-vm/migrate/max-bandwidth | jq
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/migrate/max-bandwidth \
+  -H 'Content-Type: application/json' \
+  -d '{"mib_per_sec": 800}' | jq
+
+# Live migration max downtime (nanoseconds)
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/migrate/max-downtime \
+  -H 'Content-Type: application/json' \
+  -d '{"downtime_ns": 15000000000}' | jq
+
+# NUMA tuning (partial update merges with current domain state)
+curl -sk https://localhost:5092/api/v1/vms/test-vm/numa | jq
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/numa \
+  -H 'Content-Type: application/json' \
+  -d '{"mode": 1}' | jq
+
+# Emulator thread pinning (bools index host logical CPUs)
+curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/emulator/pin \
+  -H 'Content-Type: application/json' \
+  -d '{"cpus": [true, true, false, false]}' | jq
+
+# Job info / stats (e.g. during migration)
+curl -sk https://localhost:5092/api/v1/vms/test-vm/job | jq
+curl -sk 'https://localhost:5092/api/v1/vms/test-vm/job/stats?flags=0' | jq
+
+# Compare a guest CPU definition to this host
+curl -sk -X POST https://localhost:5092/api/v1/cpu/compare \
+  -H 'Content-Type: application/json' \
+  -d '{"cpu_xml": "<cpu mode=\"host-passthrough\"/>", "flags": 0}' | jq
 
 # Create port forwarding rule
 curl -sk -X POST https://localhost:5092/api/v1/portforward \
@@ -1000,6 +1056,7 @@ sudo usermod -aG libvirt $USER && newgrp libvirt
 |-----------|------------|
 | Language | [Rust](https://www.rust-lang.org/) |
 | Daemon | [Axum](https://github.com/tokio-rs/axum) + [Tokio](https://tokio.rs) |
+| PTY (browser SSH) | [portable-pty](https://docs.rs/portable-pty) + system OpenSSH client |
 | Terminal UI | [Ratatui](https://ratatui.rs) |
 | Web UI | [React 19](https://react.dev) + [TypeScript](https://www.typescriptlang.org/) + [Tailwind CSS 4](https://tailwindcss.com) |
 | Charts | [Recharts](https://recharts.org) |
@@ -1068,7 +1125,7 @@ journalctl -u virtspawn-backup.service                # View logs
 sudo ./scripts/demo.sh                      # 30-step API demo (creates/tests/deletes a VM)
 ```
 
-Exercises all 30+ API endpoints including VM lifecycle, snapshots, networks, storage, capabilities, devices, network filters, Prometheus metrics, and security validation tests.
+Exercises a broad set of REST API endpoints including VM lifecycle, snapshots, networks, storage, capabilities, devices, network filters, Prometheus metrics, and security validation tests.
 
 ---
 
@@ -1080,7 +1137,7 @@ PDF documentation is available in `demo-screenshots/`:
 |----------|-------------|
 | [virtspawn-demo.pdf](demo-screenshots/virtspawn-demo.pdf) | Client presentation — features, architecture, 10 live screenshots, security |
 | [virtspawn-quickstart.pdf](demo-screenshots/virtspawn-quickstart.pdf) | Quick Start Guide — prerequisites, build, install, access, TUI shortcuts, config, troubleshooting |
-| [virtspawn-api-reference.pdf](demo-screenshots/virtspawn-api-reference.pdf) | Complete API reference — all 30+ endpoints, curl examples, response formats, automation scripts |
+| [virtspawn-api-reference.pdf](demo-screenshots/virtspawn-api-reference.pdf) | Complete API reference — REST endpoints, curl examples, response formats, automation scripts |
 | [virtspawn-security-architecture.pdf](demo-screenshots/virtspawn-security-architecture.pdf) | Security & Architecture — system diagram, input validation, SSRF prevention, comparison table |
 | [virtspawn-demo-scripts-guide.pdf](demo-screenshots/virtspawn-demo-scripts-guide.pdf) | Demo & Scripts Guide — 30-step demo walkthrough, status/backup/bulk scripts reference |
 

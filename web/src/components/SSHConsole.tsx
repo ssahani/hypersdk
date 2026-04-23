@@ -3,13 +3,17 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { RefreshCw, Trash2, Maximize, Minimize } from 'lucide-react'
-import { getWsToken } from '../api/client'
+import { apiPost, getWsToken } from '../api/client'
+
+const API = '/api/v1'
 
 interface Props {
   host: string
+  /** SSH login (default root). */
+  sshUser?: string
 }
 
-export default function SSHConsole({ host }: Props) {
+export default function SSHConsole({ host, sshUser = 'root' }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -20,7 +24,6 @@ export default function SSHConsole({ host }: Props) {
   const connect = useCallback(async () => {
     if (!terminalRef.current) return
 
-    // Dispose previous
     xtermRef.current?.dispose()
     wsRef.current?.close()
 
@@ -53,38 +56,78 @@ export default function SSHConsole({ host }: Props) {
       return
     }
 
+    let sessionId: string
+    try {
+      const body = await apiPost<{ session_id: string; expires_in_secs: number }>(
+        `${API}/terminal/sessions`,
+        { host: host.trim(), ssh_user: sshUser.trim() || 'root' },
+      )
+      sessionId = body.session_id
+    } catch (e) {
+      term.write(`\r\n❌ Could not create SSH session: ${e instanceof Error ? e.message : String(e)}\r\n`)
+      return
+    }
+
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const encodedHost = encodeURIComponent(host)
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/ssh/${encodedHost}?token=${encodeURIComponent(token)}`)
+    const ws = new WebSocket(
+      `${protocol}//${window.location.host}/ws/v1/terminal/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(token)}`,
+    )
     ws.binaryType = 'arraybuffer'
     wsRef.current = ws
 
+    const sendResize = () => {
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }))
+      }
+    }
+
     ws.onopen = () => {
       setConnected(true)
-      term.write('✅ Connected to SSH proxy\r\n\r\n')
+      sendResize()
+      term.write('\r\n✅ Connected (PTY + ssh)\r\n\r\n')
     }
 
     ws.onmessage = (event) => {
       if (event.data instanceof ArrayBuffer) {
         term.write(new Uint8Array(event.data))
-      } else {
-        term.write(event.data)
+        return
+      }
+      if (typeof event.data === 'string') {
+        try {
+          const msg = JSON.parse(event.data) as { type?: string; message?: string; code?: number }
+          if (msg.type === 'error') term.writeln(`\r\n\x1b[31m[error]\x1b[0m ${msg.message ?? ''}`)
+          if (msg.type === 'exit') term.writeln(`\r\n\x1b[33m[session ended]\x1b[0m exit ${msg.code ?? ''}`)
+          if (msg.type === 'pong') {
+            /* keep-alive */
+          }
+        } catch {
+          /* ignore non-JSON text */
+        }
       }
     }
-    ws.onerror = () => term.write('\r\n❌ Connection error\r\n')
+    ws.onerror = () => term.write('\r\n❌ WebSocket error\r\n')
     ws.onclose = () => {
       setConnected(false)
       term.write('\r\n⚠️ Disconnected\r\n')
     }
 
     term.onData((data) => {
-      if (ws.readyState === WebSocket.OPEN) ws.send(data)
+      if (ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify({ type: 'input', data }))
+      }
     })
-  }, [host])
+  }, [host, sshUser])
 
   useEffect(() => {
     connect()
-    const handleResize = () => fitRef.current?.fit()
+    const handleResize = () => {
+      fitRef.current?.fit()
+      const t = xtermRef.current
+      const w = wsRef.current
+      if (t && w && w.readyState === WebSocket.OPEN) {
+        w.send(JSON.stringify({ type: 'resize', cols: t.cols, rows: t.rows }))
+      }
+    }
     window.addEventListener('resize', handleResize)
     return () => {
       window.removeEventListener('resize', handleResize)
@@ -101,7 +144,9 @@ export default function SSHConsole({ host }: Props) {
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg">
         <div className="flex items-center gap-3">
           <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-sm text-slate-300">SSH Proxy — {host}</span>
+          <span className="text-sm text-slate-300">
+            SSH — {sshUser}@{host}
+          </span>
         </div>
         <div className="flex items-center gap-1">
           <button onClick={clear} className="p-1.5 hover:bg-slate-700 rounded transition" title="Clear"><Trash2 className="w-4 h-4 text-slate-400" /></button>

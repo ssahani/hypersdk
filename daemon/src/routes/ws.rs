@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
@@ -11,7 +11,9 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
 use virtspawn_core::libvirt::domain;
-use virtspawn_core::LibvirtManager;
+use virtspawn_core::{LibvirtManager, SshTerminalConfig};
+
+use crate::terminal::{run_ssh_terminal, TerminalSessionStore};
 
 // ── VM state watch WebSocket ────────────────────────────────────────
 
@@ -429,13 +431,45 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
     info!("SPICE WebSocket proxy closed for VM '{}' port {}", name, port);
 }
 
-// ── SSH WebSocket proxy ─────────────────────────────────────────────
+// ── SSH WebSocket proxy (legacy raw I/O) ───────────────────────────
 
 async fn ssh_handler(
     ws: WebSocketUpgrade,
     Path(host): Path<String>,
+    Extension(cfg): Extension<SshTerminalConfig>,
 ) -> impl IntoResponse {
+    if !cfg.legacy_plain_host_websocket {
+        return (
+            StatusCode::NOT_FOUND,
+            "Legacy SSH WebSocket disabled. Use POST /api/v1/terminal/sessions then wss://…/ws/v1/terminal/{session_id}?token=…",
+        )
+            .into_response();
+    }
     ws.on_upgrade(move |socket| handle_ssh_proxy(socket, host))
+}
+
+// ── SSH terminal (session id + JSON control, PTY + ssh) ─────────────
+
+async fn invalid_terminal_session(socket: WebSocket) {
+    let (mut tx, _) = socket.split();
+    let _ = tx
+        .send(Message::Text(
+            r#"{"type":"error","message":"invalid or expired session"}"#.into(),
+        ))
+        .await;
+}
+
+async fn terminal_ws_handler(
+    ws: WebSocketUpgrade,
+    Path(session_id): Path<String>,
+    Extension(store): Extension<TerminalSessionStore>,
+    Extension(cfg): Extension<SshTerminalConfig>,
+) -> impl IntoResponse {
+    let ttl = std::time::Duration::from_secs(cfg.session_ttl_secs.clamp(30, 3600));
+    match store.take(&session_id, ttl) {
+        Some(session) => ws.on_upgrade(move |socket| run_ssh_terminal(socket, session)),
+        None => ws.on_upgrade(invalid_terminal_session),
+    }
 }
 
 async fn handle_ssh_proxy(socket: WebSocket, host: String) {
@@ -561,5 +595,6 @@ pub fn ws_routes() -> Router<LibvirtManager> {
         .route("/console/{name}", get(console_handler))
         .route("/vnc/{name}", get(vnc_handler))
         .route("/spice/{name}", get(spice_handler))
+        .route("/terminal/{session_id}", get(terminal_ws_handler))
         .route("/ssh/{host}", get(ssh_handler))
 }

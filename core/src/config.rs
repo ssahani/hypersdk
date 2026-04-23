@@ -17,6 +17,55 @@ pub struct VirtspawnConfig {
     /// PAM service name (file in `/etc/pam.d/`) for web UI and API session login.
     #[serde(default)]
     pub auth: AuthConfig,
+    /// Optional Apache Guacamole encrypted JSON auth (`GET .../guacamole-auth` on the daemon).
+    #[serde(default)]
+    pub guacamole: GuacamoleConfig,
+    /// Browser SSH terminal: short-lived sessions, optional host allowlist (`targets`), PTY + system `ssh`.
+    #[serde(default)]
+    pub ssh_terminal: SshTerminalConfig,
+}
+
+/// Apache Guacamole integration: signed/encrypted JSON for `/api/tokens` (see project `docs/guacamole-integration.md`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuacamoleConfig {
+    /// When true and `json_secret_hex` is set, `GET /api/v1/vms/{name}/guacamole-auth` returns encrypted `guac_data`.
+    #[serde(default)]
+    pub enabled: bool,
+    /// 32 hex digits (16-byte key); must match Guacamole `JSON_SECRET_KEY`.
+    #[serde(default)]
+    pub json_secret_hex: String,
+    #[serde(default = "default_guacamole_base_url")]
+    pub base_url: String,
+    /// When libvirt reports VNC on loopback, rewrite hostname for `guacd` (e.g. hypervisor LAN IP).
+    #[serde(default)]
+    pub public_vnc_host: String,
+    /// POST encrypted blob to Guacamole `/api/tokens` and include `token` in the JSON response when successful.
+    #[serde(default = "default_true")]
+    pub fetch_token: bool,
+    /// `username` field inside the cleartext JSON auth document sent to Guacamole.
+    #[serde(default = "default_guacamole_json_username")]
+    pub json_username: String,
+}
+
+fn default_guacamole_base_url() -> String {
+    "http://127.0.0.1:8080/guacamole".to_string()
+}
+
+fn default_guacamole_json_username() -> String {
+    "virtspawn".to_string()
+}
+
+impl Default for GuacamoleConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            json_secret_hex: String::new(),
+            base_url: default_guacamole_base_url(),
+            public_vnc_host: String::new(),
+            fetch_token: true,
+            json_username: default_guacamole_json_username(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -60,6 +109,49 @@ impl Default for AuthConfig {
     }
 }
 
+/// Named SSH destinations for the browser terminal (`POST /api/v1/terminal/sessions` with `target_id`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SshTerminalTarget {
+    /// Opaque id (e.g. `lab-db`); never put raw IPs in the WebSocket URL — resolve via session API.
+    pub id: String,
+    /// Hostname or IP passed to `ssh user@host`.
+    pub host: String,
+    /// Default SSH login when the client omits `ssh_user` (empty = client must send `ssh_user`).
+    #[serde(default)]
+    pub ssh_user: String,
+}
+
+fn default_ssh_terminal_session_ttl() -> u64 {
+    120
+}
+
+/// Controls `POST /api/v1/terminal/sessions` and `/ws/v1/terminal/{session_id}` (PTY + OpenSSH client).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SshTerminalConfig {
+    /// How long a created session id remains valid (seconds). Clamped to 30–3600 when used.
+    #[serde(default = "default_ssh_terminal_session_ttl")]
+    pub session_ttl_secs: u64,
+    /// When no `target_id` is sent, allow `host` in the JSON body (still validated; browser never passes host in the WS path).
+    #[serde(default = "default_true")]
+    pub allow_adhoc_hosts: bool,
+    /// Legacy `/ws/v1/ssh/{host}` WebSocket (raw keystrokes, no session). Prefer session flow; keep off in production.
+    #[serde(default)]
+    pub legacy_plain_host_websocket: bool,
+    #[serde(default)]
+    pub targets: Vec<SshTerminalTarget>,
+}
+
+impl Default for SshTerminalConfig {
+    fn default() -> Self {
+        Self {
+            session_ttl_secs: default_ssh_terminal_session_ttl(),
+            allow_adhoc_hosts: true,
+            legacy_plain_host_websocket: false,
+            targets: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GeneralConfig {
     #[serde(default = "default_refresh_interval")]
@@ -95,8 +187,8 @@ pub struct LibvirtConfig {
     /// Default VM create engine; clients may send `create_backend` per request.
     #[serde(default)]
     pub create_backend: VmCreateBackend,
-    /// Allow `CreateVmRequest.virt_builder_os` to shell out to `virt-builder` (requires guestfs tools on host).
-    #[serde(default = "default_true")]
+    /// Legacy libguestfs `virt-builder` integration (optional API fields). **Default: disabled** — prefer [`mkosi_allowed`](Self::mkosi_allowed) / `mkosi_workspace`. Set `virt_builder_allowed = true` only if you need virt-builder.
+    #[serde(default = "default_false")]
     pub virt_builder_allowed: bool,
     /// If set and the client does not send `virt_builder_ssh_pubkey`, used for `--ssh-inject root:file:…`.
     #[serde(default)]
@@ -107,9 +199,13 @@ pub struct LibvirtConfig {
     /// Packages always installed via `virt-builder --install` for every virt-builder VM (e.g. `["qemu-guest-agent"]`).
     #[serde(default)]
     pub virt_builder_default_packages: Vec<String>,
-    /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (requires mkosi on host; see install.sh).
+    /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (recommended disk images; requires mkosi on host; see install.sh).
     #[serde(default = "default_true")]
     pub mkosi_allowed: bool,
+}
+
+fn default_false() -> bool {
+    false
 }
 
 fn default_true() -> bool {
@@ -185,7 +281,7 @@ impl Default for LibvirtConfig {
         Self {
             uri: default_libvirt_uri(),
             create_backend: VmCreateBackend::default(),
-            virt_builder_allowed: true,
+            virt_builder_allowed: false,
             virt_builder_default_ssh_pubkey_path: String::new(),
             virt_builder_update: true,
             virt_builder_default_packages: Vec::new(),

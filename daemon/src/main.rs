@@ -3,6 +3,7 @@ mod error;
 mod routes;
 mod server;
 mod systemd;
+mod terminal;
 
 use clap::Parser;
 use tokio::signal;
@@ -29,9 +30,16 @@ struct Cli {
     config: Option<String>,
 }
 
+fn init_rustls_crypto_provider() -> anyhow::Result<()> {
+    rustls::crypto::ring::default_provider()
+        .install_default()
+        .map_err(|e| anyhow::anyhow!("rustls CryptoProvider::install_default: {e:?}"))
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+    init_rustls_crypto_provider()?;
 
     // Same idea as h2kweb: ensure under-/run paths exist for locks / future workflow use.
     for dir in ["/run/virtspawn", "/run/virtspawn/workflow"] {
@@ -66,17 +74,22 @@ async fn main() -> anyhow::Result<()> {
     info!("Connected to libvirt ({})", config.libvirt.uri);
     info!("PAM service for web login: /etc/pam.d/{}", config.auth.pam_service);
 
-    let app = server::create_app(manager, config.auth.clone());
-
     let bind_addr = config.bind_addr();
+    let tls_enabled = config.tls.enabled
+        && !config.tls.cert_path.is_empty()
+        && !config.tls.key_path.is_empty();
+    let tls_cert_path = config.tls.cert_path.clone();
+    let tls_key_path = config.tls.key_path.clone();
 
-    if config.tls.enabled && !config.tls.cert_path.is_empty() && !config.tls.key_path.is_empty() {
+    let app = server::create_app(manager, config);
+
+    if tls_enabled {
         info!("listening on {bind_addr} (TLS enabled)");
-        info!("  cert: {}", config.tls.cert_path);
-        info!("  key:  {}", config.tls.key_path);
+        info!("  cert: {}", tls_cert_path);
+        info!("  key:  {}", tls_key_path);
 
         let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
-            &config.tls.cert_path, &config.tls.key_path
+            &tls_cert_path, &tls_key_path,
         ).await?;
 
         // bind_rustls opens its own listener — do not TcpListener::bind first or we get EADDRINUSE.

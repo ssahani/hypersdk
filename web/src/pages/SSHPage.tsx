@@ -1,12 +1,26 @@
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useSearchParams } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import SSHConsole from '../components/SSHConsole'
 
 export default function SSHPage() {
-  const { host } = useParams<{ host: string }>()
+  const { host: pathHost } = useParams<{ host?: string }>()
+  const [searchParams] = useSearchParams()
+  const hostFromQuery = searchParams.get('host') ?? ''
+  const userFromQuery = searchParams.get('user') ?? 'root'
 
-  if (!host) {
-    return <div className="text-center text-slate-500 py-12">No host specified</div>
+  const raw = pathHost ?? hostFromQuery
+  const host = raw ? decodeURIComponent(raw) : ''
+
+  if (!host.trim()) {
+    return (
+      <div className="space-y-4 animate-fade-in text-center text-slate-500 py-12">
+        <p>No host specified.</p>
+        <p className="text-sm">
+          Use <code className="text-slate-400">/ssh?host=192.168.122.10&amp;user=root</code> or open SSH from a VM details page.
+        </p>
+        <Link to="/vms" className="text-blue-400 hover:underline">Back to VMs</Link>
+      </div>
+    )
   }
 
   return (
@@ -15,9 +29,9 @@ export default function SSHPage() {
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Back">
           <ArrowLeft className="w-5 h-5" />
         </Link>
-        <h1 className="text-xl font-bold">SSH — {host}</h1>
+        <h1 className="text-xl font-bold">SSH — {userFromQuery}@{host}</h1>
       </div>
-      <SSHConsole host={host} />
+      <SSHConsole host={host} sshUser={userFromQuery} />
     </div>
   )
 }

@@ -71,7 +71,7 @@ export interface CreateVmRequest {
   template_disk_mode?: string
   /** `libvirt_xml` | `virt_install` | omit for server default from config. */
   create_backend?: string
-  /** `virt-builder` template name (output of `virt-builder --list`); builds root disk without a golden image. */
+  /** Legacy: libguestfs `virt-builder` template name. Server default is **disabled** (`[libvirt] virt_builder_allowed`); prefer `mkosi_workspace`. */
   virt_builder_os?: string
   virt_builder_hostname?: string
   virt_builder_ssh_pubkey?: string
@@ -83,7 +83,7 @@ export interface CreateVmRequest {
   virt_builder_post_customize_install?: string[]
   virt_builder_post_customize_run?: string[]
   virt_builder_sysprep?: boolean
-  /** Absolute directory with `mkosi.conf`; runs `mkosi build`. Mutually exclusive with `virt_builder_os`. */
+  /** Preferred: absolute directory with `mkosi.conf`; runs `mkosi build`. Mutually exclusive with `virt_builder_os`. */
   mkosi_workspace?: string
   /** For multi-image mkosi workspaces (image trees): selects one image via `--image <name>`. */
   mkosi_image?: string
@@ -138,6 +138,20 @@ function deleteVmQuery(opts?: VmDeleteUndefineOpts): string {
 
 export const deleteVM = (name: string, undefine?: VmDeleteUndefineOpts) =>
   apiDelete(`${API}/vms/${encodeURIComponent(name)}${deleteVmQuery(undefine)}`)
+
+/** Response from `GET /api/v1/vms/{name}/guacamole-auth` when `[guacamole]` is enabled on the daemon. */
+export interface GuacamoleAuthResponse {
+  vm: string
+  protocol: string
+  target_host: string
+  target_port: number
+  guac_data: string
+  token?: string
+}
+
+/** Optional Apache Guacamole encrypted JSON auth; requires server config `[guacamole]`. */
+export const getGuacamoleAuth = (name: string) =>
+  apiGet<GuacamoleAuthResponse>(`${API}/vms/${encodeURIComponent(name)}/guacamole-auth`)
 
 export interface BlockJobInfo {
   job_type: number

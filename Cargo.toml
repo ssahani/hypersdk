@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "daemon", "tui", "rvb"]
+members = ["core", "daemon", "tui", "rvb", "guac-bridge"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -28,3 +28,4 @@ base64 = "0.22"
 tower = "0.5"
 http = "1"
 axum-server = { version = "0.7", features = ["tls-rustls"] }
+portable-pty = "0.9"

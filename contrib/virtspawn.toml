@@ -12,17 +12,26 @@ host = "0.0.0.0"
 # Omit `port` to use default 5092 (see DEFAULT_DAEMON_PORT in core)
 port = 5092
 
+# Optional Guacamole encrypted JSON auth — GET /api/v1/vms/{name}/guacamole-auth (same secret as Docker JSON_SECRET_KEY).
+# [guacamole]
+# enabled = true
+# json_secret_hex = ""
+# base_url = "http://127.0.0.1:8080/guacamole"
+# public_vnc_host = ""
+# fetch_token = true
+# json_username = "virtspawn"
+
 [libvirt]
 uri = "qemu:///system"
 # VM create API default: "libvirt_xml" (native) or "virt_install" (hyper2kvm-style). Clients can override per request with `create_backend`.
 create_backend = "libvirt_xml"
-# Optional `virt-builder` integration (no golden image per OS): see CreateVmRequest `virt_builder_*` in API docs.
-# virt_builder_allowed = true
+# Disk images: mkosi (`mkosi_workspace`) is default and recommended; install.sh installs mkosi when absent.
+# mkosi_allowed = true
+# Legacy virt-builder API (`virt_builder_*`): off by default — set virt_builder_allowed = true only if needed (guestfs-tools).
+# virt_builder_allowed = false
 # virt_builder_default_ssh_pubkey_path = "/var/lib/virtspawn/provision.pub"
 # virt_builder_update = true
-# Packages installed in every virt-builder VM; add qemu-guest-agent for domifaddr / IP detection.
 # virt_builder_default_packages = ["qemu-guest-agent"]
-# mkosi_allowed = true   # mkosi is the recommended disk image path; install.sh installs from GitHub when absent
 
 [backup]
 backup_dir = "/var/lib/virtspawn/backups"

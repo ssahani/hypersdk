@@ -1,5 +1,5 @@
 use virt::connect::Connect;
-use virt::domain::{MemoryParameters, SchedulerInfo};
+use virt::domain::{Domain, MemoryParameters, SchedulerInfo};
 use virt::sys::virDomainModificationImpact;
 
 use super::device::get_domain_flags_pub;
@@ -110,10 +110,16 @@ fn memtune_affect_flag(state: u32) -> u32 {
     }
 }
 
+/// Single LIVE vs CONFIG flag for getters/setters that reject `LIVE | CONFIG` together.
+pub fn domain_affect_flag(domain: &Domain) -> u32 {
+    let state = domain.get_info().map(|i| i.state).unwrap_or(5);
+    memtune_affect_flag(state)
+}
+
 /// Apply memtune limits (KiB). Unspecified fields keep their current libvirt values.
 pub fn set_memtune_kb(conn: &Connect, name: &str, req: &MemTuneInfo) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let affect = memtune_affect_flag(domain.get_info().map_err(LibvirtError::map_op("get_info"))?.state);
+    let affect = domain_affect_flag(&domain);
     let mut p: MemoryParameters = domain
         .get_memory_parameters(affect)
         .map_err(|e| LibvirtError::Operation(format!("get_memory_parameters: {e}")))?;

@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 virtspawn-core = { path = "../core" }
+libvirt-guac-bridge = { path = "../guac-bridge" }
 axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
@@ -26,3 +27,6 @@ http = { workspace = true }
 chrono = { workspace = true }
 axum-server = { workspace = true }
 sd-notify = "0.4"
+# rustls 0.23 requires an explicit process default CryptoProvider when deps enable multiple backends.
+rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
+portable-pty = { workspace = true }

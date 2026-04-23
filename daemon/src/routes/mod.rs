@@ -4,6 +4,7 @@ mod backup;
 mod system;
 mod console;
 mod extras;
+mod guacamole;
 mod health;
 mod host_network;
 mod metrics;
@@ -31,6 +32,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(templates::template_routes())
         .merge(prometheus::prometheus_routes())
         .merge(console::console_routes())
+        .merge(guacamole::guacamole_routes())
         .merge(advanced::advanced_routes())
         .merge(backup::backup_routes())
         .merge(host_network::host_network_routes())

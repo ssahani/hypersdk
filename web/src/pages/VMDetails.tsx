@@ -84,6 +84,7 @@ export default function VMDetailsPage() {
   const [pciDevices, setPciDevices] = useState<PciDevice[]>([])
   const [iommuGroups, setIommuGroups] = useState<IommuGroup[]>([])
   const [sshIp, setSshIp] = useState('')
+  const [sshUser, setSshUser] = useState('root')
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [snapDiskOnly, setSnapDiskOnly] = useState(false)
@@ -1429,7 +1430,9 @@ export default function VMDetailsPage() {
             <div className="p-5 space-y-3">
               <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Host IP Address</label>
               <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field"
-                onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` }} />
+                onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) window.location.href = `/ssh?host=${encodeURIComponent(sshIp.trim())}&user=${encodeURIComponent(sshUser.trim() || 'root')}` }} />
+              <label htmlFor="dlg-ssh-user" className="block text-sm text-slate-400 mb-1 mt-3">SSH user</label>
+              <input id="dlg-ssh-user" type="text" value={sshUser} onChange={(e) => setSshUser(e.target.value)} placeholder="root" className="input-field" />
               {guestIps.length > 0 && (
                 <div>
                   <span className="text-xs text-slate-500">Detected IPs:</span>
@@ -1440,11 +1443,11 @@ export default function VMDetailsPage() {
                   </div>
                 </div>
               )}
-              <p className="text-xs text-slate-500">Opens browser SSH terminal to port 22 on the specified host.</p>
+              <p className="text-xs text-slate-500">Creates a short-lived server session, then opens a PTY-backed SSH terminal (port 22). The browser never passes the host in the WebSocket URL.</p>
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button type="button" onClick={() => setSshDialogOpen(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button type="button" onClick={() => { if (sshIp.trim()) window.location.href = `/ssh/${encodeURIComponent(sshIp.trim())}` }} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Connect</button>
+              <button type="button" onClick={() => { if (sshIp.trim()) window.location.href = `/ssh?host=${encodeURIComponent(sshIp.trim())}&user=${encodeURIComponent(sshUser.trim() || 'root')}` }} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Connect</button>
             </div>
           </div>
         </div>
