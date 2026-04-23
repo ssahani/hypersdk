@@ -34,6 +34,7 @@ const AuditLog = lazy(() => import('./pages/AuditLog'))
 const SettingsPage = lazy(() => import('./pages/Settings'))
 const ImportVM = lazy(() => import('./pages/ImportVM'))
 const SSHPage = lazy(() => import('./pages/SSHPage'))
+const HostSSHPage = lazy(() => import('./pages/HostSSHPage'))
 const ApiDocs = lazy(() => import('./pages/ApiDocs'))
 const Services = lazy(() => import('./pages/Services'))
 const Logs = lazy(() => import('./pages/Logs'))
@@ -120,6 +121,7 @@ function AuthenticatedApp() {
                 <Route path="/secrets" element={<Secrets />} />
                 <Route path="/backups" element={<Backups />} />
                 <Route path="/host-networking" element={<HostNetworking />} />
+                <Route path="/host-ssh" element={<HostSSHPage />} />
                 <Route path="/audit" element={<AuditLog />} />
                 <Route path="/import" element={<ImportVM />} />
                 <Route path="/ssh/:host" element={<SSHPage />} />

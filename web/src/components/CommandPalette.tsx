@@ -106,6 +106,7 @@ export default function CommandPalette() {
   // Quick actions
   items.push(
     { id: 'qa-create', icon: <Plus className="w-4 h-4" />, label: 'Create VM', action: () => go('/create'), category: 'Quick Actions' },
+    { id: 'qa-host-ssh', icon: <Terminal className="w-4 h-4" />, label: 'Host SSH (hypervisor)', action: () => go('/host-ssh'), category: 'Quick Actions' },
     { id: 'qa-snap', icon: <Camera className="w-4 h-4" />, label: 'Snapshots', action: () => go('/snapshots'), category: 'Quick Actions' },
   )
 

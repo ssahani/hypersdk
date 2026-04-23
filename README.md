@@ -86,6 +86,7 @@ virtspawn/
 - **Serial Console** — xterm.js terminal connected directly to VM's serial PTY via async I/O
 - **SSH Console** — browser-based SSH: authenticated `POST /api/v1/terminal/sessions` yields a short-lived `session_id`; xterm.js talks to `/ws/v1/terminal/{session_id}` with JSON resize/input and binary PTY output; daemon runs the system `ssh` inside `portable-pty` (OpenSSH config, keys, and `StrictHostKeyChecking=accept-new`)
 - **Host Networking** — visual network topology (SVG graph), port forwarding, bridge management, per-VM firewall rules, DHCP lease viewer
+- **Host SSH** — Infrastructure menu opens `/host-ssh`: SSH session to the hypervisor using the browser hostname (no manual IP); VM details SSH still opens a guest shell with guest IP auto-filled when agent/DHCP lists an address
 - **Networks** — list, start/stop, toggle autostart, delete
 - **Storage** — pool cards with capacity bars and autostart toggle, volume browser with create/resize/clone/delete
 - **Snapshots** — list all across VMs, revert, delete; disk-only snapshot option for faster snapshots without memory state
@@ -351,6 +352,7 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 | Console | `/vms/{name}/console` | Auto-detect VNC/Serial, in-browser display via noVNC or xterm.js |
 | SSH Console | `/ssh`, `/ssh/:host` | Opens session API then PTY-backed `ssh` over `/ws/v1/terminal/{session_id}`; query form `/ssh?host=…&user=…` |
 | Host Networking | `/host-networking` | SVG network topology, port forwarding, bridges, firewall |
+| Host SSH | `/host-ssh` | SSH to the hypervisor host (browser hostname → session + PTY `ssh`); enter SSH user only |
 | Networks | `/networks` | Start/stop, autostart toggle, DHCP leases, delete |
 | Storage | `/storage` | Pool cards with create/delete, volume browser with resize/clone |
 | Snapshots | `/snapshots` | List all, revert, delete |

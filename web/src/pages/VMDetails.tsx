@@ -574,7 +574,20 @@ export default function VMDetailsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Link to={`/vms/${vm.name}/console`} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
-          <button onClick={() => setSshDialogOpen(true)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> SSH</button>
+          <button
+            type="button"
+            onClick={() => {
+              setSshIp((prev) => {
+                const t = prev.trim()
+                if (t) return t
+                return guestIps[0]?.address ?? ''
+              })
+              setSshDialogOpen(true)
+            }}
+            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"
+          >
+            <Terminal className="w-4 h-4" /> SSH
+          </button>
           {vm.state === 'shutoff' && <button onClick={() => action(startVM, 'Start')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition flex items-center gap-1"><Play className="w-4 h-4" /> Start</button>}
           {vm.state === 'running' && (
             <>
@@ -1428,7 +1441,7 @@ export default function VMDetailsPage() {
               <button onClick={() => setSshDialogOpen(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-3">
-              <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Host IP Address</label>
+              <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Guest IP (filled automatically when known; edit if needed)</label>
               <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field"
                 onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) window.location.href = `/ssh?host=${encodeURIComponent(sshIp.trim())}&user=${encodeURIComponent(sshUser.trim() || 'root')}` }} />
               <label htmlFor="dlg-ssh-user" className="block text-sm text-slate-400 mb-1 mt-3">SSH user</label>
