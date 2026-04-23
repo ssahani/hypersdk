@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router'
 import { createVM, getTemplates, VmTemplate, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
@@ -180,9 +180,25 @@ function mkosiPathDefaults(path: string): Partial<CreateVmRequest> {
   return { ...FEDORA_MKOSI_DEFAULTS, os_variant: fedoraMkosiOsVariant(path.trim()) }
 }
 
+/** Guest OS variants that default to SPICE+QXL (`graphics_type` → server XML in core `create.rs`). */
+function isWindowsOsVariant(os: string | undefined): boolean {
+  if (!os?.trim()) return false
+  const v = os.trim().toLowerCase()
+  return v.startsWith('win') || /\bwindows\b/.test(v)
+}
+
 /** Common `virt-install --os-variant` ids (alphanumeric + dot/underscore/hyphen per server validation). */
 const OS_VARIANT_PRESETS: { value: string; label: string }[] = [
   { value: 'generic', label: 'generic — any Linux' },
+  { value: 'win11', label: 'Windows 11' },
+  { value: 'win10', label: 'Windows 10' },
+  { value: 'win2k25', label: 'Windows Server 2025 (win2k25)' },
+  { value: 'win2k22', label: 'Windows Server 2022' },
+  { value: 'win2k19', label: 'Windows Server 2019' },
+  { value: 'win2k16', label: 'Windows Server 2016' },
+  { value: 'win8.1', label: 'Windows 8.1' },
+  { value: 'win8', label: 'Windows 8' },
+  { value: 'win7', label: 'Windows 7' },
   { value: 'almalinux9', label: 'AlmaLinux 9' },
   { value: 'centosstream9', label: 'CentOS Stream 9' },
   { value: 'debian12', label: 'Debian 12 (bookworm)' },
@@ -251,6 +267,21 @@ export default function CreateVMPage() {
     listVirtBuilderTemplates().then((r) => setVbTemplates(r.templates || [])).catch(() => setVbTemplates([]))
     listMkosiWorkspaces().then(setMkosiWorkspaces).catch(() => setMkosiWorkspaces([]))
   }, [])
+
+  const hadWindowsOsRef = useRef(false)
+
+  useEffect(() => {
+    const win = isWindowsOsVariant(form.os_variant)
+    const wasWin = hadWindowsOsRef.current
+    setForm((prev) => {
+      let graphics_type = prev.graphics_type || 'vnc'
+      if (win) graphics_type = 'spice'
+      else if (wasWin && !win) graphics_type = 'vnc'
+      if (prev.graphics_type === graphics_type) return prev
+      return { ...prev, graphics_type }
+    })
+    hadWindowsOsRef.current = win
+  }, [form.os_variant])
 
   const applyTemplate = (tmpl: VmTemplate, opts: { saved: boolean }) => {
     if ((diskMode === 'virt_builder' || diskMode === 'mkosi') && tmpl.base_image) {
@@ -527,7 +558,7 @@ export default function CreateVMPage() {
                   className="input-field font-mono text-sm"
                   value={form.os_variant}
                   onChange={(e) => setForm({ ...form, os_variant: e.target.value })}
-                  placeholder="e.g. archlinux"
+                  placeholder="e.g. archlinux, win11"
                   spellCheck={false}
                 />
               </div>
@@ -905,7 +936,7 @@ export default function CreateVMPage() {
             </select>
           </div>
           <div>
-            <label htmlFor="vm-vnc-listen" className="block text-sm text-slate-400 mb-1">Graphics listen (IP)</label>
+            <label htmlFor="vm-vnc-listen" className="block text-sm text-slate-400 mb-1">Graphics listen (VNC / SPICE)</label>
             <input
               id="vm-vnc-listen"
               type="text"
@@ -916,7 +947,14 @@ export default function CreateVMPage() {
             />
           </div>
         </div>
-        <p className="text-xs text-slate-500 -mt-2">Default listen 127.0.0.1. Use 0.0.0.0 for all interfaces; access still goes through the daemon WebSocket proxy.</p>
+        <p className="text-xs text-slate-500 -mt-2">
+          Default listen 127.0.0.1. Use 0.0.0.0 for all interfaces; access still goes through the daemon WebSocket proxy.
+          {isWindowsOsVariant(form.os_variant ?? '') && (
+            <span className="block mt-1 text-slate-400">
+              Windows guests default to <strong className="font-medium text-slate-300">SPICE</strong> — the daemon generates QXL video for smoother remote desktop than VNC; install VirtIO/SPICE guest drivers after install.
+            </span>
+          )}
+        </p>
 
         {/* ISO selection with browser */}
         <div>
