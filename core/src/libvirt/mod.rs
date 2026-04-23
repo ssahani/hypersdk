@@ -15,6 +15,7 @@ pub mod guest_agent;
 pub mod host_cpu;
 pub mod hostdev_pci;
 pub mod host_network;
+pub mod host_sysctl;
 pub mod metrics;
 pub mod migrate;
 pub mod mkosi;

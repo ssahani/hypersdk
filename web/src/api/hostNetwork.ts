@@ -55,8 +55,25 @@ export interface CreateFirewallRuleRequest {
   description?: string
 }
 
+export interface SysctlTuningRow {
+  key: string
+  recommended: string
+  current: string | null
+  current_error: string | null
+}
+
+export interface SysctlTuningResponse {
+  dropin_path: string
+  recommended_conf: string
+  rows: SysctlTuningRow[]
+  notes: string[]
+}
+
 // Host interfaces
 export const listHostInterfaces = () => apiGet<HostInterface[]>(`${API}/host/interfaces`)
+
+/** Recommended sysctl drop-in + current runtime values (hypervisor / high-concurrency tuning). */
+export const getSysctlTuning = () => apiGet<SysctlTuningResponse>(`${API}/host/sysctl-tuning`)
 
 // Bridges
 export const createBridge = (req: CreateBridgeRequest) => apiPost<unknown>(`${API}/host/bridges`, req)

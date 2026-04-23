@@ -17,6 +17,7 @@ import {
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
+import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useToastContext } from '../contexts/ToastContext'
@@ -527,6 +528,27 @@ export default function VMDetailsPage() {
     try { await setAutostart(name, !vm.autostart); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
+  /** Open SSH dialog: guest IP from agent first, else last-saved IP; SSH user from last successful connect (defaults to root). */
+  const openVmSshDialog = useCallback(() => {
+    if (!name) return
+    const prefs = loadVmSshPrefs(name)
+    const fromGuest = guestIps[0]?.address?.trim()
+    const ip = fromGuest || prefs?.host?.trim() || ''
+    const user = prefs?.user?.trim() || 'root'
+    setSshIp(ip)
+    setSshUser(user)
+    setSshDialogOpen(true)
+  }, [name, guestIps])
+
+  const navigateVmSshSession = useCallback(() => {
+    if (!name) return
+    const h = sshIp.trim()
+    const u = sshUser.trim() || 'root'
+    if (!h) return
+    saveVmSshPrefs(name, { host: h, user: u })
+    window.location.href = `/ssh?host=${encodeURIComponent(h)}&user=${encodeURIComponent(u)}`
+  }, [name, sshIp, sshUser])
+
   const moveBootDevice = (index: number, dir: -1 | 1) => {
     const newDevices = [...bootDevices]
     const target = index + dir
@@ -574,18 +596,7 @@ export default function VMDetailsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Link to={`/vms/${vm.name}/console`} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
-          <button
-            type="button"
-            onClick={() => {
-              setSshIp((prev) => {
-                const t = prev.trim()
-                if (t) return t
-                return guestIps[0]?.address ?? ''
-              })
-              setSshDialogOpen(true)
-            }}
-            className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"
-          >
+          <button type="button" onClick={openVmSshDialog} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1">
             <Terminal className="w-4 h-4" /> SSH
           </button>
           {vm.state === 'shutoff' && <button onClick={() => action(startVM, 'Start')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition flex items-center gap-1"><Play className="w-4 h-4" /> Start</button>}
@@ -1441,11 +1452,11 @@ export default function VMDetailsPage() {
               <button onClick={() => setSshDialogOpen(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-3">
-              <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Guest IP (filled automatically when known; edit if needed)</label>
+              <label htmlFor="dlg-ssh-ip" className="block text-sm text-slate-400 mb-1">Guest IP (guest agent first, then last address you used for this VM; edit if needed)</label>
               <input id="dlg-ssh-ip" type="text" autoFocus value={sshIp} onChange={(e) => setSshIp(e.target.value)} placeholder="192.168.122.100" className="input-field"
-                onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) window.location.href = `/ssh?host=${encodeURIComponent(sshIp.trim())}&user=${encodeURIComponent(sshUser.trim() || 'root')}` }} />
-              <label htmlFor="dlg-ssh-user" className="block text-sm text-slate-400 mb-1 mt-3">SSH user</label>
-              <input id="dlg-ssh-user" type="text" value={sshUser} onChange={(e) => setSshUser(e.target.value)} placeholder="root" className="input-field" />
+                onKeyDown={(e) => { if (e.key === 'Enter' && sshIp.trim()) navigateVmSshSession() }} />
+              <label htmlFor="dlg-ssh-user" className="block text-sm text-slate-400 mb-1 mt-3">SSH user (defaults to root; remembers last successful login for this VM in this browser)</label>
+              <input id="dlg-ssh-user" type="text" value={sshUser} onChange={(e) => setSshUser(e.target.value)} placeholder="root" className="input-field" autoComplete="username" />
               {guestIps.length > 0 && (
                 <div>
                   <span className="text-xs text-slate-500">Detected IPs:</span>
@@ -1460,7 +1471,7 @@ export default function VMDetailsPage() {
             </div>
             <div className="flex justify-end gap-3 px-5 pb-5">
               <button type="button" onClick={() => setSshDialogOpen(false)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
-              <button type="button" onClick={() => { if (sshIp.trim()) window.location.href = `/ssh?host=${encodeURIComponent(sshIp.trim())}&user=${encodeURIComponent(sshUser.trim() || 'root')}` }} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Connect</button>
+              <button type="button" onClick={() => { if (sshIp.trim()) navigateVmSshSession() }} className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-lg text-sm text-white font-medium transition">Connect</button>
             </div>
           </div>
         </div>

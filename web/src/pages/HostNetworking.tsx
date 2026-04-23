@@ -5,15 +5,16 @@ import {
   listHostInterfaces, listPortForwards, listFirewallRules,
   createBridge, deleteBridge, createPortForward, deletePortForward,
   createFirewallRule, deleteFirewallRule,
-  HostInterface, PortForwardRule, FirewallRule,
+  getSysctlTuning,
+  HostInterface, PortForwardRule, FirewallRule, SysctlTuningResponse, SysctlTuningRow,
 } from '../api/hostNetwork'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   Network, Globe, Shield, Router, Plus, Trash2, RefreshCw,
-  ArrowRight, Monitor, Server, Wifi, Cable, X,
+  ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check,
 } from 'lucide-react'
 
-type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall'
+type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'sysctl'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
 
 interface TopologyNode {
@@ -53,6 +54,22 @@ export default function HostNetworkingPage() {
   const [fwAction, setFwAction] = useState('accept')
   const [fwDesc, setFwDesc] = useState('')
 
+  const [sysctlData, setSysctlData] = useState<SysctlTuningResponse | null>(null)
+  const [sysctlLoading, setSysctlLoading] = useState(false)
+  const [sysctlCopied, setSysctlCopied] = useState(false)
+
+  const loadSysctlTuning = useCallback(async () => {
+    setSysctlLoading(true)
+    try {
+      const data = await getSysctlTuning()
+      setSysctlData(data)
+    } catch (e: unknown) {
+      toast.error(`Sysctl tuning: ${e instanceof Error ? e.message : e}`)
+    } finally {
+      setSysctlLoading(false)
+    }
+  }, [toast])
+
   const load = useCallback(async () => {
     try {
       const [v, n, h, pf, fw] = await Promise.allSettled([
@@ -79,6 +96,12 @@ export default function HostNetworkingPage() {
   }, [toast])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (tab !== 'sysctl') return
+    if (sysctlData) return
+    void loadSysctlTuning()
+  }, [tab, sysctlData, loadSysctlTuning])
 
   // ── Topology data ──────────────────────────────────────────────
 
@@ -184,7 +207,24 @@ export default function HostNetworkingPage() {
     { key: 'portforward', label: `Port Forwarding (${portForwards.length})`, icon: <ArrowRight className="w-4 h-4" /> },
     { key: 'bridges', label: `Bridges`, icon: <Router className="w-4 h-4" /> },
     { key: 'firewall', label: `Firewall (${firewallRules.length})`, icon: <Shield className="w-4 h-4" /> },
+    { key: 'sysctl', label: 'Host sysctl', icon: <Sliders className="w-4 h-4" /> },
   ]
+
+  const normSysctlVal = (s: string) => s.trim().replace(/\s+/g, ' ')
+  const sysctlMatches = (row: SysctlTuningRow) =>
+    row.current != null && normSysctlVal(row.current) === normSysctlVal(row.recommended)
+
+  const copySysctlConf = async () => {
+    if (!sysctlData) return
+    try {
+      await navigator.clipboard.writeText(sysctlData.recommended_conf)
+      setSysctlCopied(true)
+      toast.success('Recommended sysctl.conf snippet copied')
+      setTimeout(() => setSysctlCopied(false), 2000)
+    } catch {
+      toast.error('Clipboard not available')
+    }
+  }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
@@ -369,6 +409,73 @@ export default function HostNetworkingPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Host sysctl (recommended drop-in + live values) ─── */}
+      {tab === 'sysctl' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-400 max-w-3xl">
+              Optional reference <code className="text-slate-300">sysctl</code> values for high concurrency; your host may already differ in ways that suit you better.
+              If you apply the snippet, do it on a staging host first; install under <code className="text-slate-300">{sysctlData?.dropin_path ?? '/etc/sysctl.d/99-virtspawn-host-net.conf'}</code>, then run{' '}
+              <code className="text-slate-300">sudo sysctl --system</code>.
+            </p>
+            <div className="flex gap-2 shrink-0">
+              <button type="button" onClick={() => void loadSysctlTuning()} disabled={sysctlLoading} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1 disabled:opacity-50">
+                <RefreshCw className={`w-4 h-4 ${sysctlLoading ? 'animate-spin' : ''}`} /> Refresh values
+              </button>
+              <button type="button" onClick={() => void copySysctlConf()} disabled={!sysctlData} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition flex items-center gap-1 disabled:opacity-50">
+                {sysctlCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />} Copy drop-in text
+              </button>
+            </div>
+          </div>
+
+          {sysctlData && (
+            <ul className="text-xs text-amber-200/90 space-y-1 list-disc list-inside bg-amber-950/20 border border-amber-900/40 rounded-lg px-4 py-3">
+              {sysctlData.notes.map((n, i) => <li key={i}>{n}</li>)}
+            </ul>
+          )}
+
+          {sysctlLoading && !sysctlData && (
+            <div className="flex items-center justify-center py-16 text-slate-500 text-sm">Reading sysctl values…</div>
+          )}
+
+          {sysctlData && (
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden overflow-x-auto">
+              <table className="w-full min-w-[640px]">
+                <thead>
+                  <tr className="border-b border-slate-700/50 text-left text-xs text-slate-500">
+                    <th className="px-4 py-3">Parameter</th>
+                    <th className="px-4 py-3">Recommended</th>
+                    <th className="px-4 py-3">Current (runtime)</th>
+                    <th className="px-4 py-3 w-24">Match</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/30 text-sm font-mono">
+                  {sysctlData.rows.map(row => (
+                    <tr key={row.key} className="table-row-hover">
+                      <td className="px-4 py-2 text-slate-300 whitespace-nowrap">{row.key}</td>
+                      <td className="px-4 py-2 text-cyan-400/90 break-all">{row.recommended}</td>
+                      <td className="px-4 py-2 break-all">
+                        {row.current_error
+                          ? <span className="text-red-400/90" title={row.current_error}>—</span>
+                          : <span className={sysctlMatches(row) ? 'text-green-400/90' : 'text-slate-400'}>{row.current}</span>}
+                      </td>
+                      <td className="px-4 py-2 text-slate-500">{row.current_error ? '—' : sysctlMatches(row) ? 'yes' : 'no'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {sysctlData && (
+            <details className="bg-slate-900/40 rounded-xl border border-slate-700/40">
+              <summary className="px-4 py-3 text-sm text-slate-400 cursor-pointer hover:text-slate-200">Full drop-in file text</summary>
+              <pre className="px-4 pb-4 text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap border-t border-slate-700/30 pt-3 max-h-96 overflow-y-auto">{sysctlData.recommended_conf}</pre>
+            </details>
+          )}
         </div>
       )}
 

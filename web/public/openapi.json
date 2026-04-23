@@ -1103,6 +1103,13 @@
         "responses": { "200": { "description": "Interface list" } }
       }
     },
+    "/host/sysctl-tuning": {
+      "get": {
+        "summary": "Recommended host sysctl drop-in and current runtime values (KVM / high concurrency)",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "dropin_path, recommended_conf, rows[], notes[]" } }
+      }
+    },
     "/host/bridges": {
       "post": {
         "summary": "Create a network bridge",

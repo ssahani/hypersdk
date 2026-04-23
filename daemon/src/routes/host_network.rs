@@ -2,7 +2,7 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use virtspawn_core::libvirt::host_network;
+use virtspawn_core::libvirt::{host_network, host_sysctl};
 use virtspawn_core::LibvirtManager;
 
 use crate::error::AppError;
@@ -24,6 +24,10 @@ async fn get_network_backends(
         "network_backend": net_backend,
         "firewall_backend": fw_backend,
     })))
+}
+
+async fn get_sysctl_tuning(State(_manager): State<LibvirtManager>) -> Json<host_sysctl::SysctlTuningResponse> {
+    Json(host_sysctl::sysctl_tuning_report())
 }
 
 // ── Bridges ────────────────────────────────────────────────────────
@@ -109,6 +113,7 @@ pub fn host_network_routes() -> Router<LibvirtManager> {
         // Host interfaces + detected backends
         .route("/host/interfaces", get(list_interfaces))
         .route("/host/backends", get(get_network_backends))
+        .route("/host/sysctl-tuning", get(get_sysctl_tuning))
         // Bridges
         .route("/host/bridges", post(create_bridge_handler))
         .route("/host/bridges/{name}", delete(delete_bridge_handler))
