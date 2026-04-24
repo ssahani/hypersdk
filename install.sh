@@ -785,6 +785,7 @@ install_files() {
     # Create required directories BEFORE installing systemd units
     # /var/lib/machina MUST exist or systemd ReadWritePaths causes NAMESPACE failure
     mkdir -p /var/lib/machina/backups
+    mkdir -p /var/lib/machina/packer-builds
 
     # Binaries
     install -Dm755 target/release/machina-daemon /usr/local/bin/machina-daemon

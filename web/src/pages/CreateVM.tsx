@@ -1,19 +1,25 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { startPackerGoldenBuildJob, streamJobLogs } from '../api/jobs'
 import { createVMWithProgress, CreateVmRequest, VmTemplate } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listIsos, listSavedTemplates, ImageFile } from '../api/extras'
 import { listPools, listVolumes, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
+import { BuildStepTimeline } from '../components/BuildStepTimeline'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { useToastContext } from '../contexts/ToastContext'
 import {
-  IMAGE_BUILDER_OTHER_LINUX_BUILD_GROUPS,
-  IMAGE_BUILDER_PLATFORMS_AND_VERSIONS_LINUX,
-  IMAGE_BUILDER_QEMU_RAW_LINUX_EXAMPLES,
-  IMAGE_BUILDER_REPO_URL,
   MACHINA_PACKER_SCRIPT_GUESTS,
+  PACKER_SCRIPT_REPO,
+  PACKER_SCRIPT_SYSTEM,
 } from '../data/packerGuests'
+import {
+  computeGoldenForgeTimeline,
+  computeVmCreateTimeline,
+  GOLDEN_FORGE_TIMELINE_LABELS,
+  VM_CREATE_TIMELINE_LABELS,
+} from '../utils/buildProgress'
 import {
   ArrowLeft,
   Boxes,
@@ -27,11 +33,9 @@ import {
   Link2,
   Monitor,
   Network,
+  Terminal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
-
-const PACKER_SCRIPT_SYSTEM = '/usr/local/share/machina/packer/build-linux-image.sh'
-const PACKER_SCRIPT_REPO = 'contrib/packer/build-linux-image.sh'
 
 type InstallSource = 'iso' | 'url' | 'pxe' | 'download'
 type StorageMode = 'new' | 'volume'
@@ -42,6 +46,7 @@ export default function CreateVMPage() {
   const navigate = useNavigate()
   const toast = useToastContext()
   const logEndRef = useRef<HTMLDivElement>(null)
+  const packerLogEndRef = useRef<HTMLDivElement>(null)
 
   const [installSource, setInstallSource] = useState<InstallSource>('iso')
   const [vmName, setVmName] = useState('')
@@ -84,6 +89,24 @@ export default function CreateVMPage() {
   const [goldenOverlayGb, setGoldenOverlayGb] = useState(40)
   const [backingBrowseOpen, setBackingBrowseOpen] = useState(false)
 
+  const [packerGuestId, setPackerGuestId] = useState(MACHINA_PACKER_SCRIPT_GUESTS[0]?.id ?? '')
+  const [packerRunning, setPackerRunning] = useState(false)
+  const [packerLog, setPackerLog] = useState<string[]>([])
+  const [createProgressOk, setCreateProgressOk] = useState(false)
+  const [createProgressFailed, setCreateProgressFailed] = useState(false)
+  const [packerProgressOk, setPackerProgressOk] = useState(false)
+  const [packerProgressFailed, setPackerProgressFailed] = useState(false)
+
+  const vmCreateTimeline = useMemo(
+    () => computeVmCreateTimeline(createLog, submitting, createProgressOk, createProgressFailed),
+    [createLog, submitting, createProgressOk, createProgressFailed],
+  )
+
+  const goldenForgeTimeline = useMemo(
+    () => computeGoldenForgeTimeline(packerLog, packerRunning, packerProgressOk, packerProgressFailed),
+    [packerLog, packerRunning, packerProgressOk, packerProgressFailed],
+  )
+
   const loadVolumes = useCallback(async (pool: string) => {
     if (!pool) {
       setVolumes([])
@@ -120,6 +143,10 @@ export default function CreateVMPage() {
   }, [createLog])
 
   useEffect(() => {
+    if (packerLog.length) packerLogEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [packerLog])
+
+  useEffect(() => {
     if (pageFlow !== 'golden') return
     listSavedTemplates()
       .then((t) => {
@@ -137,7 +164,59 @@ export default function CreateVMPage() {
     setInstallSource(src)
     if (src !== 'iso') setIso('')
     if (src !== 'url') setVirtInstallLocation('')
-    if (src !== 'download') setVirtInstallInstallOs('')
+    if (src === 'download') {
+      const first = MACHINA_PACKER_SCRIPT_GUESTS[0]
+      if (first) {
+        setVirtInstallInstallOs(first.virtInstallDownloadOs)
+        setOsVariant(first.osVariantHint)
+      }
+    } else {
+      setVirtInstallInstallOs('')
+    }
+  }
+
+  const runPackerGoldenBuild = async () => {
+    const gid = packerGuestId.trim()
+    if (!gid) {
+      toast.warning('Choose a golden image profile')
+      return
+    }
+    setPackerProgressOk(false)
+    setPackerProgressFailed(false)
+    setPackerRunning(true)
+    setPackerLog([`[machina] Starting Packer build for “${gid}”…`])
+    try {
+      const { id } = await startPackerGoldenBuildJob({ guest: gid })
+      setPackerLog((prev) => [...prev, `[machina] Job ${id} — live output:`])
+      await streamJobLogs(id, {
+        onLogChunk: (chunk) => {
+          const lines = chunk.split('\n').filter((l) => l.length > 0)
+          if (lines.length) setPackerLog((prev) => [...prev, ...lines])
+        },
+        onComplete: (data) => {
+          try {
+            const j = JSON.parse(data) as { path?: string; status?: string }
+            if (j?.path) {
+              setPackerLog((prev) => [...prev, `[machina] Artifact: ${j.path}`])
+            }
+          } catch {
+            /* ignore */
+          }
+          setPackerProgressOk(true)
+          toast.success('Golden image build finished — see Jobs for the qcow2 path')
+          setPackerRunning(false)
+        },
+        onError: (msg) => {
+          setPackerProgressFailed(true)
+          toast.error(msg)
+          setPackerRunning(false)
+        },
+      })
+    } catch (e: unknown) {
+      setPackerProgressFailed(true)
+      toast.error(e instanceof Error ? e.message : String(e))
+      setPackerRunning(false)
+    }
   }
 
   const handleCreate = async () => {
@@ -163,7 +242,7 @@ export default function CreateVMPage() {
       return
     }
     if (installSource === 'download' && !virtInstallInstallOs.trim()) {
-      toast.warning('Enter the OS identifier for automatic download (e.g. fedora40, win2k22)')
+      toast.warning('Choose an OS for automatic download')
       return
     }
 
@@ -202,12 +281,16 @@ export default function CreateVMPage() {
     }
 
     setSubmitting(true)
+    setCreateProgressOk(false)
+    setCreateProgressFailed(false)
     setCreateLog([])
     try {
       await createVMWithProgress(req, (line) => setCreateLog((prev) => [...prev, line]))
+      setCreateProgressOk(true)
       toast.success(`VM '${name}' created — open Console to finish install (same idea as Cockpit Machines).`)
       navigate('/vms')
     } catch (e: unknown) {
+      setCreateProgressFailed(true)
       toast.error(`Create failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setSubmitting(false)
@@ -262,12 +345,16 @@ export default function CreateVMPage() {
     }
 
     setSubmitting(true)
+    setCreateProgressOk(false)
+    setCreateProgressFailed(false)
     setCreateLog([])
     try {
       await createVMWithProgress(req, (line) => setCreateLog((prev) => [...prev, line]))
+      setCreateProgressOk(true)
       toast.success(`VM '${name}' created from golden image — start it from the VM list.`)
       navigate('/vms')
     } catch (e: unknown) {
+      setCreateProgressFailed(true)
       toast.error(`Create failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setSubmitting(false)
@@ -314,6 +401,8 @@ export default function CreateVMPage() {
             onClick={() => {
               setPageFlow('install')
               setCreateLog([])
+              setCreateProgressOk(false)
+              setCreateProgressFailed(false)
             }}
             icon={<Disc className="w-5 h-5" />}
             title="Install from media"
@@ -326,6 +415,8 @@ export default function CreateVMPage() {
             onClick={() => {
               setPageFlow('golden')
               setCreateLog([])
+              setCreateProgressOk(false)
+              setCreateProgressFailed(false)
             }}
             icon={<Layers className="w-5 h-5" />}
             title="Clone from golden image"
@@ -441,17 +532,29 @@ export default function CreateVMPage() {
 
         {installSource === 'download' && (
           <div className="space-y-3 pt-2 border-t border-slate-700/50">
-            <label htmlFor="os-id" className="block text-sm text-slate-400 mb-1">
-              OS identifier (libosinfo short-id) *
+            <label htmlFor="os-preset" className="block text-sm text-slate-400 mb-1">
+              OS for automatic download *
             </label>
-            <input
-              id="os-id"
-              type="text"
+            <p className="text-xs text-slate-500 mb-2">
+              Pick a profile — values match <code className="text-slate-400">virt-install --install os=…</code> on your libvirt/osinfo-db (no free typing).
+            </p>
+            <select
+              id="os-preset"
               value={virtInstallInstallOs}
-              onChange={(e) => setVirtInstallInstallOs(e.target.value)}
-              className="input-field font-mono text-sm"
-              placeholder="e.g. fedora40, ubuntu24.04, win2k22"
-            />
+              onChange={(e) => {
+                const v = e.target.value
+                setVirtInstallInstallOs(v)
+                const g = MACHINA_PACKER_SCRIPT_GUESTS.find((x) => x.virtInstallDownloadOs === v)
+                if (g) setOsVariant(g.osVariantHint)
+              }}
+              className="input-field max-w-xl"
+            >
+              {MACHINA_PACKER_SCRIPT_GUESTS.map((g) => (
+                <option key={g.id} value={g.virtInstallDownloadOs}>
+                  {g.label} — {g.virtInstallDownloadOs}
+                </option>
+              ))}
+            </select>
           </div>
         )}
 
@@ -527,19 +630,28 @@ export default function CreateVMPage() {
               <option value="uefi">UEFI</option>
             </select>
           </div>
-          <div>
-            <label htmlFor="osv" className="block text-sm text-slate-400 mb-1">
-              Operating system (optional)
-            </label>
-            <input
-              id="osv"
-              type="text"
-              value={osVariant}
-              onChange={(e) => setOsVariant(e.target.value)}
-              className="input-field"
-              placeholder="libosinfo id — empty = generic"
-            />
-          </div>
+          {installSource === 'download' ? (
+            <div>
+              <label className="block text-sm text-slate-400 mb-1">
+                <code className="text-slate-300">--os-variant</code> (from your OS pick)
+              </label>
+              <p className="text-sm font-mono text-slate-200 bg-slate-900/60 border border-slate-700 rounded-lg px-3 py-2">{osVariant || 'generic'}</p>
+            </div>
+          ) : (
+            <div>
+              <label htmlFor="osv" className="block text-sm text-slate-400 mb-1">
+                Operating system (optional)
+              </label>
+              <input
+                id="osv"
+                type="text"
+                value={osVariant}
+                onChange={(e) => setOsVariant(e.target.value)}
+                className="input-field"
+                placeholder="libosinfo id — empty = generic"
+              />
+            </div>
+          )}
         </div>
       </div>
 
@@ -968,7 +1080,14 @@ export default function CreateVMPage() {
 
       {(submitting || createLog.length > 0) && (
         <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">
-          <h4 className="text-xs font-semibold text-slate-300">virt-install</h4>
+          <h4 className="text-xs font-semibold text-slate-300">Guest install (virt-install / mkosi)</h4>
+          <BuildStepTimeline
+            steps={VM_CREATE_TIMELINE_LABELS}
+            activeIndex={vmCreateTimeline.activeIndex}
+            allComplete={vmCreateTimeline.allComplete}
+            failed={vmCreateTimeline.failed}
+            variant="amber"
+          />
           <pre className="max-h-56 overflow-y-auto rounded bg-black/50 border border-slate-800 p-2 text-[11px] font-mono text-slate-200 whitespace-pre-wrap break-all">
             {createLog.length ? createLog.join('\n') : <span className="text-slate-500">Starting…</span>}
           </pre>
@@ -976,72 +1095,79 @@ export default function CreateVMPage() {
         </div>
       )}
 
-      {/* Packer */}
-      <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
-        <h2 className="text-lg font-semibold text-white">Or: unattended image (Packer)</h2>
-        <p className="text-sm text-slate-400">
-          Build a qcow2 on the host, then import. Script on a host install: <code className="text-slate-300">{PACKER_SCRIPT_SYSTEM}</code> — in-repo:{' '}
-          <code className="text-slate-300">{PACKER_SCRIPT_REPO}</code>. Example:{' '}
-          <code className="text-slate-300">sudo {PACKER_SCRIPT_REPO} ubuntu2404</code>
+      {/* Golden Forge — local Packer qcow2 (job + live logs, same pattern as disk builds) */}
+      <div className="bg-slate-800/50 rounded-xl p-6 border border-violet-800/40 space-y-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+              <Terminal className="w-5 h-5 text-violet-400" aria-hidden />
+              Golden Forge
+            </h2>
+            <p className="text-sm text-slate-400 max-w-3xl mt-1">
+              Build a reusable qcow2 on this host with the bundled script, stream logs here and under{' '}
+              <Link to="/jobs" className="text-violet-300 hover:underline">
+                Jobs
+              </Link>
+              . Default login is usually <code className="text-slate-300">packer</code> or <code className="text-slate-300">root</code> with password <code className="text-slate-300">password</code> until you change it.
+            </p>
+          </div>
+        </div>
+        <p className="text-xs text-slate-500">
+          Installed: <code className="text-slate-400">{PACKER_SCRIPT_SYSTEM}</code> · from repo: <code className="text-slate-400">{PACKER_SCRIPT_REPO}</code>
         </p>
-        <p className="text-sm text-slate-400">
-          Linux platform names below are aligned with{' '}
-          <a href={IMAGE_BUILDER_REPO_URL} className="text-cyan-400 hover:underline" target="_blank" rel="noreferrer">
-            kubernetes-sigs/image-builder
-          </a>{' '}
-          (<code className="text-slate-300">images/capi/Makefile</code>: <code className="text-slate-300">PLATFORMS_AND_VERSIONS</code>,{' '}
-          <code className="text-slate-300">QEMU_BUILD_NAMES</code>, <code className="text-slate-300">RAW_BUILD_NAMES</code>, …). The machina script is a small QEMU/KVM subset; upstream builds Photon, Flatcar, RHEL, cloud images, and more.
-        </p>
-        <div className="overflow-x-auto rounded-lg border border-slate-700/60">
-          <table className="min-w-[640px] w-full text-left text-sm text-slate-300">
-            <thead className="bg-slate-900/80 text-xs uppercase tracking-wide text-slate-400">
-              <tr>
-                <th className="px-3 py-2 font-medium">Script arg</th>
-                <th className="px-3 py-2 font-medium">Guest</th>
-                <th className="px-3 py-2 font-medium">SSH login</th>
-                <th className="px-3 py-2 font-medium">
-                  <code className="text-slate-400">--os-variant</code> hint
-                </th>
-                <th className="px-3 py-2 font-medium">image-builder ids</th>
-              </tr>
-            </thead>
-            <tbody>
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="min-w-[12rem]">
+            <label htmlFor="packer-guest" className="block text-sm text-slate-400 mb-1">
+              Profile
+            </label>
+            <select
+              id="packer-guest"
+              value={packerGuestId}
+              onChange={(e) => setPackerGuestId(e.target.value)}
+              className="input-field w-full max-w-md"
+              disabled={packerRunning}
+            >
               {MACHINA_PACKER_SCRIPT_GUESTS.map((g) => (
-                <tr key={g.id} className="border-t border-slate-700/50 odd:bg-slate-950/30">
-                  <td className="px-3 py-2 font-mono text-cyan-300/90">{g.id}</td>
-                  <td className="px-3 py-2">
-                    {g.label}
-                    {g.notes ? <span className="block text-xs text-slate-500 mt-0.5">{g.notes}</span> : null}
-                  </td>
-                  <td className="px-3 py-2 font-mono text-slate-200">
-                    {g.defaultLoginUser} / <span className="text-slate-400">password</span>
-                  </td>
-                  <td className="px-3 py-2 font-mono text-slate-200">{g.osVariantHint}</td>
-                  <td className="px-3 py-2 text-xs text-slate-400 max-w-[280px]">
-                    {g.imageBuilderTargets.length ? g.imageBuilderTargets.join(', ') : '—'}
-                  </td>
-                </tr>
+                <option key={g.id} value={g.id}>
+                  {g.label} ({g.id})
+                </option>
               ))}
-            </tbody>
-          </table>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => void runPackerGoldenBuild()}
+            disabled={packerRunning}
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-medium bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white"
+          >
+            <Terminal className="w-4 h-4" />
+            {packerRunning ? 'Building…' : 'Build golden qcow2'}
+          </button>
+          <Link
+            to="/jobs"
+            className="inline-flex items-center px-4 py-2.5 rounded-lg text-sm border border-slate-600 text-slate-200 hover:bg-slate-800"
+          >
+            Open Jobs
+          </Link>
         </div>
-        <div className="rounded-lg border border-slate-700/50 bg-slate-950/40 p-3 space-y-2 text-xs text-slate-400">
-          <p>
-            <span className="text-slate-300">Makefile</span> <code className="text-slate-500">PLATFORMS_AND_VERSIONS</code> (Linux):{' '}
-            <span className="font-mono text-slate-300 break-all">{IMAGE_BUILDER_PLATFORMS_AND_VERSIONS_LINUX.join(', ')}</span>
-          </p>
-          <p>
-            <span className="text-slate-300">QEMU / RAW</span> (examples): <span className="font-mono text-slate-300 break-all">{IMAGE_BUILDER_QEMU_RAW_LINUX_EXAMPLES}</span>
-          </p>
-          <p className="break-words">{IMAGE_BUILDER_OTHER_LINUX_BUILD_GROUPS}</p>
-        </div>
+        {(packerRunning || packerLog.length > 0) && (
+          <div className="rounded-lg border border-slate-700/60 bg-black/40 p-3 space-y-2">
+            <h4 className="text-xs font-semibold text-violet-200">Packer / QEMU build output</h4>
+            <BuildStepTimeline
+              steps={GOLDEN_FORGE_TIMELINE_LABELS}
+              activeIndex={goldenForgeTimeline.activeIndex}
+              allComplete={goldenForgeTimeline.allComplete}
+              failed={goldenForgeTimeline.failed}
+              variant="violet"
+            />
+            <pre className="max-h-72 overflow-y-auto rounded bg-black/60 border border-slate-800 p-2 text-[11px] font-mono text-slate-100 whitespace-pre-wrap break-all">
+              {packerLog.length ? packerLog.join('\n') : <span className="text-slate-500">Starting…</span>}
+            </pre>
+            <div ref={packerLogEndRef} />
+          </div>
+        )}
         <p className="text-sm text-slate-400">
-          Windows + VirtIO: <code className="text-slate-300">contrib/packer/windows-qemu/</code> (<code className="text-slate-300">HOWTO.txt</code>) — image-builder:{' '}
-          <code className="text-slate-300">windows-2019</code>, <code className="text-slate-300">windows-2022</code>, EFI variants, Azure/GCE/OCI targets, etc.
-        </p>
-        <p className="text-sm text-slate-400">
-          Reuse the qcow2 for many VMs: copy it to a stable path, then either use <span className="text-slate-300">Clone from golden image</span> above (direct backing or saved template), or add{' '}
-          <code className="text-slate-300">/var/lib/machina/templates/&lt;name&gt;.json</code> with a <code className="text-slate-300">base_image</code> field.
+          Then use <span className="text-slate-200">Clone from golden image</span> above, <Link to="/import" className="text-violet-300 hover:underline">Import disk</Link>, or a saved template with <code className="text-slate-300">base_image</code>.
         </p>
       </div>
 

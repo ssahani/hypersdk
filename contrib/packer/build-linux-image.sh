@@ -400,7 +400,10 @@ ${PROVISIONER_BLOCK}
 PKR
 }
 
-install_deps
+# When machina-daemon triggers a build, skip package installs (host must already have packer/qemu deps).
+if [ "${MACHINA_SKIP_PACKER_INSTALL_DEPS:-}" != "1" ]; then
+  install_deps
+fi
 make_files
 
 PACKER_BIN="$(hashicorp_packer_bin)" || {

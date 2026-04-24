@@ -1,8 +1,20 @@
-import { useCallback, useEffect, useState } from 'react'
-import { HardDrive, RefreshCw, Trash2 } from 'lucide-react'
-import { listDiskImages, deleteDiskImage, ImageFile } from '../api/extras'
-import { useToastContext } from '../contexts/ToastContext'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
+import { ClipboardList, FolderOpen, HardDrive, RefreshCw, Trash2 } from 'lucide-react'
+import {
+  deleteDiskImage,
+  getVirtImageOutputRoots,
+  ImageFile,
+  listDiskImages,
+  listVirtBuilderTemplates,
+  VirtBuilderListResponse,
+} from '../api/extras'
+import { startVirtImageBuildJob, streamJobLogs } from '../api/jobs'
+import { BrowseHostPathModal } from '../components/BrowseHostPathModal'
+import { BuildStepTimeline } from '../components/BuildStepTimeline'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { useToastContext } from '../contexts/ToastContext'
+import { computeVirtImageBuildTimeline, VIRT_IMAGE_TIMELINE_LABELS } from '../utils/buildProgress'
 
 function formatBytes(b: number): string {
   if (b === 0) return '0 B'
@@ -11,20 +23,45 @@ function formatBytes(b: number): string {
   return `${(b / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
 }
 
+function suggestQcow2Path(parentDir: string, templateName: string): string {
+  const base = parentDir.replace(/\/+$/, '')
+  const safe = templateName.replace(/[^a-zA-Z0-9._-]+/g, '-').slice(0, 48)
+  return `${base}/machina-vb-${safe}-${Date.now().toString(36)}.qcow2`
+}
+
 export default function DiskImagesPage() {
   const [images, setImages] = useState<ImageFile[]>([])
   const [scanDirectories, setScanDirectories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmPath, setConfirmPath] = useState<string | null>(null)
+  const [vbCatalog, setVbCatalog] = useState<VirtBuilderListResponse | null>(null)
+  const [outputRoots, setOutputRoots] = useState<{ allowed_prefixes: string[]; effective_tmpdir: string } | null>(
+    null,
+  )
+
+  const [vbOs, setVbOs] = useState('')
+  const [vbOutput, setVbOutput] = useState('')
+  const [vbBuilding, setVbBuilding] = useState(false)
+  const [vbLog, setVbLog] = useState<string[]>([])
+  const [vbOk, setVbOk] = useState(false)
+  const [vbFailed, setVbFailed] = useState(false)
+  const [outBrowseOpen, setOutBrowseOpen] = useState(false)
+
   const toast = useToastContext()
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await listDiskImages()
+      const [r, vb, roots] = await Promise.all([
+        listDiskImages(),
+        listVirtBuilderTemplates().catch(() => null),
+        getVirtImageOutputRoots().catch(() => null),
+      ])
       setImages(r.files)
       setScanDirectories(r.scan_directories)
+      setVbCatalog(vb)
+      setOutputRoots(roots)
     } catch (e: unknown) {
       toast.error(`Failed to load disk images: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -32,7 +69,80 @@ export default function DiskImagesPage() {
     }
   }, [toast])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    void load()
+  }, [load])
+
+  useEffect(() => {
+    if (!vbCatalog) return
+    setVbOs((prev) => {
+      if (prev) return prev
+      const first = vbCatalog.items[0]?.name ?? vbCatalog.templates[0]
+      return first ?? ''
+    })
+  }, [vbCatalog])
+
+  const templateOptions = useMemo(() => {
+    if (!vbCatalog) return []
+    const fromItems = vbCatalog.items.map((i) => i.name)
+    if (fromItems.length) return [...fromItems].sort((a, b) => a.localeCompare(b))
+    return [...vbCatalog.templates].sort((a, b) => a.localeCompare(b))
+  }, [vbCatalog])
+
+  const vbAllowed = Boolean(vbCatalog && vbCatalog.virt_builder_allowed !== false)
+  const vbReady = Boolean(vbCatalog && vbAllowed && vbCatalog.virt_builder_installed !== false && templateOptions.length)
+
+  const vibTimeline = useMemo(() => {
+    if (!vbBuilding && vbLog.length === 0) return null
+    const status = vbBuilding ? 'running' : vbOk ? 'completed' : vbFailed ? 'failed' : 'running'
+    return computeVirtImageBuildTimeline(vbLog, status)
+  }, [vbBuilding, vbLog, vbOk, vbFailed])
+
+  const runVirtImageBuild = async () => {
+    const os = vbOs.trim()
+    const output = vbOutput.trim()
+    if (!os) {
+      toast.warning('Choose a virt-builder template (OS)')
+      return
+    }
+    if (!output.startsWith('/')) {
+      toast.warning('Output path must be an absolute path on the hypervisor')
+      return
+    }
+    if (!output.toLowerCase().endsWith('.qcow2')) {
+      toast.warning('Output should be a new .qcow2 path (file must not exist yet)')
+      return
+    }
+    setVbOk(false)
+    setVbFailed(false)
+    setVbBuilding(true)
+    setVbLog([`[machina] Starting virt-image-build job for template “${os}”…`])
+    try {
+      const { id } = await startVirtImageBuildJob({ os, output })
+      setVbLog((prev) => [...prev, `[machina] Job ${id} — live output (also under Jobs):`])
+      await streamJobLogs(id, {
+        onLogChunk: (chunk) => {
+          const lines = chunk.split('\n').filter((l) => l.length > 0)
+          if (lines.length) setVbLog((prev) => [...prev, ...lines])
+        },
+        onComplete: () => {
+          setVbOk(true)
+          setVbBuilding(false)
+          toast.success('Disk image build finished — refresh the list or open Jobs for the path.')
+          void load()
+        },
+        onError: (msg) => {
+          setVbFailed(true)
+          setVbBuilding(false)
+          toast.error(msg)
+        },
+      })
+    } catch (e: unknown) {
+      setVbFailed(true)
+      setVbBuilding(false)
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   const handleDelete = async () => {
     if (!confirmPath) return
@@ -41,7 +151,7 @@ export default function DiskImagesPage() {
     try {
       await deleteDiskImage(confirmPath)
       toast.success(`Deleted ${confirmPath.split('/').pop()}`)
-      setImages(prev => prev.filter(i => i.path !== confirmPath))
+      setImages((prev) => prev.filter((i) => i.path !== confirmPath))
     } catch (e: unknown) {
       toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -60,11 +170,12 @@ export default function DiskImagesPage() {
           </h1>
           {!loading && (
             <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
-              {images.length} image{images.length !== 1 ? 's' : ''} · {formatBytes(totalBytes)} total — ISOs, qcow2, and templates visible on this hypervisor host (pools + defaults).
+              {images.length} image{images.length !== 1 ? 's' : ''} · {formatBytes(totalBytes)} total — ISOs, qcow2, and
+              templates visible on this hypervisor host (pools + defaults).
             </p>
           )}
         </div>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh">
+        <button onClick={() => void load()} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh">
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
         </button>
       </div>
@@ -77,9 +188,143 @@ export default function DiskImagesPage() {
           </p>
           <p className="text-amber-200/90 border-t border-amber-900/30 pt-2 mt-2">
             <strong className="text-amber-100/90">mkosi temp:</strong> failed image builds may leave large folders under{' '}
-            <code className="text-amber-100/80">/var/tmp/machina-mkosi-ws/</code>.
-            Remove stale ones when you no longer need logs to free disk space (successful builds clean up unless <code className="text-amber-100/80">MACHINA_MKOSI_KEEP_WORKSPACE</code> is set).
+            <code className="text-amber-100/80">/var/tmp/machina-mkosi-ws/</code>. Remove stale ones when you no longer
+            need logs to free host space (successful builds clean up unless{' '}
+            <code className="text-amber-100/80">MACHINA_MKOSI_KEEP_WORKSPACE</code> is set).
           </p>
+        </div>
+      )}
+
+      {!loading && (
+        <div className="rounded-xl border border-cyan-800/40 bg-slate-800/50 p-6 space-y-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-cyan-400" aria-hidden />
+                Build disk (virt-image-build)
+              </h2>
+              <p className="text-sm text-slate-400 max-w-3xl mt-1">
+                Runs <code className="text-slate-300">virt-builder</code> on the daemon host as a background job — same
+                log stream as <Link to="/jobs" className="text-cyan-300 hover:underline">Jobs</Link> and the step
+                timeline used on Create VM.
+              </p>
+            </div>
+            <Link
+              to="/jobs"
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800"
+            >
+              <ClipboardList className="w-4 h-4" />
+              Open Jobs
+            </Link>
+          </div>
+
+          {!vbCatalog ? (
+            <p className="text-sm text-slate-400">
+              Could not load virt-builder catalog (daemon unreachable or browse API error).
+            </p>
+          ) : (
+            <>
+          {!vbAllowed ? (
+            <p className="text-sm text-amber-200/90">
+              virt-builder is disabled in daemon config (<code className="text-slate-300">virt_builder_allowed</code>).
+            </p>
+          ) : vbCatalog.virt_builder_installed === false ? (
+            <p className="text-sm text-amber-200/90">
+              <code className="text-slate-300">virt-builder</code> is not available on this host (install libguestfs
+              tools).
+            </p>
+          ) : vbCatalog.catalog_error ? (
+            <p className="text-sm text-rose-300/90">Catalog: {vbCatalog.catalog_error}</p>
+          ) : templateOptions.length === 0 ? (
+            <p className="text-sm text-slate-400">No virt-builder templates returned from the host.</p>
+          ) : (
+            <>
+              {outputRoots?.allowed_prefixes?.length ? (
+                <p className="text-xs text-slate-500">
+                  Allowed output prefixes:{' '}
+                  <span className="font-mono text-slate-400 break-all">{outputRoots.allowed_prefixes.join(', ')}</span>
+                  {outputRoots.effective_tmpdir ? (
+                    <>
+                      {' '}
+                      · TMPDIR: <span className="font-mono text-slate-400">{outputRoots.effective_tmpdir}</span>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label htmlFor="vb-os" className="block text-sm text-slate-400 mb-1">
+                    Template (OS)
+                  </label>
+                  <select
+                    id="vb-os"
+                    value={vbOs}
+                    onChange={(e) => setVbOs(e.target.value)}
+                    disabled={vbBuilding}
+                    className="input-field w-full"
+                  >
+                    {templateOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="vb-out" className="block text-sm text-slate-400 mb-1">
+                    New qcow2 path (absolute, must not exist)
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      id="vb-out"
+                      type="text"
+                      value={vbOutput}
+                      onChange={(e) => setVbOutput(e.target.value)}
+                      disabled={vbBuilding}
+                      className="input-field flex-1 font-mono text-sm"
+                      placeholder="/var/lib/libvirt/images/my-new-disk.qcow2"
+                    />
+                    <button
+                      type="button"
+                      disabled={vbBuilding}
+                      onClick={() => setOutBrowseOpen(true)}
+                      className="shrink-0 inline-flex items-center gap-1.5 rounded-lg border border-slate-600 px-3 py-2 text-sm text-slate-200 hover:bg-slate-800 disabled:opacity-50"
+                      title="Pick a folder, then we fill a suggested filename"
+                    >
+                      <FolderOpen className="w-4 h-4" />
+                      Folder
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={!vbReady || vbBuilding}
+                onClick={() => void runVirtImageBuild()}
+                className="inline-flex items-center rounded-lg bg-cyan-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+              >
+                {vbBuilding ? 'Building…' : 'Start disk build job'}
+              </button>
+            </>
+          )}
+
+          {(vbBuilding || vbLog.length > 0) && vibTimeline && (
+            <div className="space-y-2 rounded-lg border border-slate-700/60 bg-slate-950/40 p-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-cyan-200/90">Build progress</h3>
+              <BuildStepTimeline
+                steps={VIRT_IMAGE_TIMELINE_LABELS}
+                activeIndex={vibTimeline.activeIndex}
+                allComplete={vibTimeline.allComplete}
+                failed={vibTimeline.failed}
+                variant="slate"
+              />
+              <pre className="max-h-64 overflow-y-auto rounded border border-slate-800 bg-black/50 p-2 font-mono text-[11px] text-slate-200 whitespace-pre-wrap break-all">
+                {vbLog.join('\n')}
+              </pre>
+            </div>
+          )}
+            </>
+          )}
         </div>
       )}
 
@@ -133,9 +378,11 @@ export default function DiskImagesPage() {
                       className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 text-xs font-medium transition disabled:opacity-40"
                       title="Delete image file"
                     >
-                      {deleting === img.path
-                        ? <span className="animate-spin inline-block w-3 h-3 border border-red-400 border-t-transparent rounded-full" />
-                        : <Trash2 className="w-3.5 h-3.5" />}
+                      {deleting === img.path ? (
+                        <span className="animate-spin inline-block w-3 h-3 border border-red-400 border-t-transparent rounded-full" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
                       Delete
                     </button>
                   </td>
@@ -145,6 +392,17 @@ export default function DiskImagesPage() {
           </table>
         </div>
       )}
+
+      <BrowseHostPathModal
+        open={outBrowseOpen}
+        onClose={() => setOutBrowseOpen(false)}
+        title="Choose output folder on hypervisor"
+        pickDirectory
+        canSelectFile={() => false}
+        onSelectPath={(dir) => {
+          setVbOutput(suggestQcow2Path(dir, vbOs.trim() || 'disk'))
+        }}
+      />
 
       <ConfirmDialog
         open={!!confirmPath}

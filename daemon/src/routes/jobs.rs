@@ -1,5 +1,11 @@
 use std::convert::Infallible;
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::{Path, PathBuf};
+use std::process::{Command, Stdio};
+use std::sync::mpsc;
 use std::sync::Arc;
+use std::thread;
 use std::time::Duration;
 
 use axum::extract::{Extension, Path, State};
@@ -7,6 +13,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
+use serde::Deserialize;
 use serde_json::{json, Value};
 use uuid::Uuid;
 use virt_image_build::BuildDiskRequest;
@@ -117,6 +124,154 @@ async fn post_virt_image_build_job(
     })))
 }
 
+const PACKER_GOLDEN_SCRIPT: &str = "/usr/local/share/machina/packer/build-linux-image.sh";
+const PACKER_GOLDEN_ROOT: &str = "/var/lib/machina/packer-builds";
+
+fn packer_guest_allowed(g: &str) -> bool {
+    matches!(
+        g,
+        "fedora43"
+            | "ubuntu2204"
+            | "ubuntu2404"
+            | "ubuntu2504"
+            | "ubuntu2510"
+            | "ubuntu2604"
+            | "debian12"
+            | "debian13"
+            | "almalinux9"
+            | "rocky9"
+            | "centos9stream"
+            | "oraclelinux9"
+    )
+}
+
+#[derive(Debug, Deserialize)]
+struct PackerGoldenBuildBody {
+    guest: String,
+}
+
+async fn post_packer_golden_build_job(
+    Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
+    Json(body): Json<PackerGoldenBuildBody>,
+) -> Result<Json<Value>, AppError> {
+    let guest = body.guest.trim().to_string();
+    if guest.is_empty() {
+        return Err(AppError::from(LibvirtError::Invalid("guest is required".into())));
+    }
+    if !packer_guest_allowed(&guest) {
+        return Err(AppError::from(LibvirtError::Invalid(format!(
+            "unknown packer guest id: {guest}"
+        ))));
+    }
+    if !Path::new(PACKER_GOLDEN_SCRIPT).is_file() {
+        return Err(AppError::from(LibvirtError::Invalid(format!(
+            "packer script not found: {PACKER_GOLDEN_SCRIPT}"
+        ))));
+    }
+
+    let id = jobs.start_packer_golden_build(&guest);
+    let jobs_bg = jobs.clone();
+    let guest_bg = guest.clone();
+
+    std::thread::spawn(move || {
+        let root = PathBuf::from(PACKER_GOLDEN_ROOT).join(id.to_string());
+        if let Err(e) = fs::create_dir_all(&root) {
+            jobs_bg.fail(id, &format!("create work dir: {e}"));
+            return;
+        }
+
+        let mut child = match Command::new("bash")
+            .arg(PACKER_GOLDEN_SCRIPT)
+            .arg(&guest_bg)
+            .arg("work")
+            .current_dir(&root)
+            .env("MACHINA_SKIP_PACKER_INSTALL_DEPS", "1")
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+        {
+            Ok(c) => c,
+            Err(e) => {
+                jobs_bg.fail(id, &format!("spawn packer script: {e}"));
+                return;
+            }
+        };
+
+        let stdout = match child.stdout.take() {
+            Some(s) => s,
+            None => {
+                jobs_bg.fail(id, "no stdout from packer child");
+                return;
+            }
+        };
+        let stderr = match child.stderr.take() {
+            Some(s) => s,
+            None => {
+                jobs_bg.fail(id, "no stderr from packer child");
+                return;
+            }
+        };
+
+        let (tx, rx) = mpsc::channel::<String>();
+        let tx_out = tx.clone();
+        let h_out = thread::spawn(move || {
+            for line in BufReader::new(stdout).lines().map_while(Result::ok) {
+                let _ = tx_out.send(line);
+            }
+        });
+        let tx_err = tx.clone();
+        let h_err = thread::spawn(move || {
+            for line in BufReader::new(stderr).lines().map_while(Result::ok) {
+                let _ = tx_err.send(line);
+            }
+        });
+        drop(tx);
+        for line in rx {
+            jobs_bg.append_log(id, &line);
+        }
+        let _ = h_out.join();
+        let _ = h_err.join();
+
+        let status = match child.wait() {
+            Ok(s) => s,
+            Err(e) => {
+                jobs_bg.fail(id, &format!("wait packer: {e}"));
+                return;
+            }
+        };
+
+        if !status.success() {
+            jobs_bg.fail(
+                id,
+                &format!("packer build exited with status {}", status),
+            );
+            return;
+        }
+
+        let artifact = root
+            .join("work")
+            .join(format!("output-{}", guest_bg))
+            .join(format!("{}.qcow2", guest_bg));
+        if artifact.is_file() {
+            jobs_bg.complete_packer_golden(id, &artifact.to_string_lossy());
+        } else {
+            jobs_bg.fail(
+                id,
+                &format!(
+                    "build finished but qcow2 not found at {}",
+                    artifact.display()
+                ),
+            );
+        }
+    });
+
+    Ok(Json(json!({
+        "id": id.to_string(),
+        "status": "started",
+        "message": "Subscribe to GET /jobs/{id}/stream for live logs or poll GET /jobs/{id}",
+    })))
+}
+
 async fn job_stream_handler(
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Path(id): Path<String>,
@@ -204,6 +359,7 @@ pub fn job_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/jobs", get(list_jobs))
         .route("/jobs/virt-image-build", post(post_virt_image_build_job))
+        .route("/jobs/packer-golden-build", post(post_packer_golden_build_job))
         .route("/jobs/{id}/stream", get(job_stream_handler))
         .route("/jobs/{id}", get(get_job_handler))
 }

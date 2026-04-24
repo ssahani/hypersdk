@@ -1,0 +1,107 @@
+import type { ReactNode } from 'react'
+import { Check, Loader2 } from 'lucide-react'
+
+type Variant = 'slate' | 'amber' | 'violet'
+
+const variantRing: Record<Variant, string> = {
+  slate: 'ring-cyan-500/50 text-cyan-300 border-cyan-500/40',
+  amber: 'ring-amber-500/50 text-amber-200 border-amber-500/40',
+  violet: 'ring-violet-500/50 text-violet-200 border-violet-500/40',
+}
+
+const variantDone: Record<Variant, string> = {
+  slate: 'bg-emerald-600/90 border-transparent text-white',
+  amber: 'bg-emerald-600/90 border-transparent text-white',
+  violet: 'bg-emerald-600/90 border-transparent text-white',
+}
+
+const variantLineDone: Record<Variant, string> = {
+  slate: 'bg-emerald-500/70',
+  amber: 'bg-emerald-500/70',
+  violet: 'bg-emerald-500/70',
+}
+
+export interface BuildStepTimelineProps {
+  steps: readonly string[]
+  /** Step currently in progress when not allComplete and not failed */
+  activeIndex: number
+  allComplete?: boolean
+  failed?: boolean
+  variant?: Variant
+  className?: string
+}
+
+/**
+ * Horizontal milestone strip (HyperSDK-style: numbered steps, check when done, spinner on current).
+ */
+export function BuildStepTimeline({
+  steps,
+  activeIndex,
+  allComplete = false,
+  failed = false,
+  variant = 'slate',
+  className = '',
+}: BuildStepTimelineProps) {
+  const v = variant
+  const nodes: ReactNode[] = []
+  for (let i = 0; i < steps.length; i++) {
+    const label = steps[i]
+    const done = allComplete || (!failed && i < activeIndex) || (failed && i < activeIndex)
+    const current = !allComplete && !failed && i === activeIndex
+    const errHere = failed && i === activeIndex
+    const lineDone = allComplete || i < activeIndex || (failed && i < activeIndex)
+
+    nodes.push(
+      <div key={`step-${i}`} className="flex min-w-0 max-w-[28%] flex-1 flex-col items-center px-0.5 sm:max-w-none" role="listitem">
+        <div
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-semibold transition-colors ${
+            done
+              ? variantDone[v]
+              : errHere
+                ? 'border-rose-500/70 bg-rose-950/80 text-rose-200'
+                : current
+                  ? `border-slate-600 bg-slate-800 ${variantRing[v]} ring-2`
+                  : 'border-slate-600 bg-slate-900/80 text-slate-500'
+          }`}
+          aria-current={current ? 'step' : undefined}
+        >
+          {done ? (
+            <Check className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+          ) : current ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : errHere ? (
+            <span aria-hidden>!</span>
+          ) : (
+            <span>{i + 1}</span>
+          )}
+        </div>
+        <span
+          className={`mt-1.5 text-center text-[10px] font-medium leading-snug sm:text-[11px] ${
+            done || current ? 'text-slate-200' : errHere ? 'text-rose-200/90' : 'text-slate-500'
+          }`}
+        >
+          {label}
+        </span>
+      </div>,
+    )
+    if (i < steps.length - 1) {
+      nodes.push(
+        <div
+          key={`line-${i}`}
+          className={`mt-4 hidden h-0.5 min-w-[4px] flex-1 sm:block ${lineDone ? variantLineDone[v] : 'bg-slate-700/80'}`}
+          aria-hidden
+        />,
+      )
+    }
+  }
+
+  return (
+    <div
+      className={`rounded-lg border border-slate-700/50 bg-slate-950/50 px-2 py-3 sm:px-3 ${className}`}
+      role="list"
+      aria-label="Build progress"
+    >
+      <div className="flex w-full items-start justify-between gap-0">{nodes}</div>
+    </div>
+  )
+}

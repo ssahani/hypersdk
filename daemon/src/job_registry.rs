@@ -14,6 +14,7 @@ const MAX_JOBS: usize = 250;
 pub enum JobKind {
     VirtImageBuild,
     VmCreate,
+    PackerGoldenBuild,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -133,6 +134,35 @@ impl JobRegistry {
         id
     }
 
+    pub fn start_packer_golden_build(&self, guest: &str) -> Uuid {
+        let id = Uuid::new_v4();
+        let ts = Self::now();
+        let inner = JobInner {
+            summary: JobSummary {
+                id: id.to_string(),
+                kind: JobKind::PackerGoldenBuild,
+                title: format!("Golden Forge: {guest}"),
+                status: JobStatus::Running,
+                vm_name: None,
+                target_path: None,
+                error: None,
+                created_unix: ts,
+                updated_unix: ts,
+            },
+            logs: Vec::new(),
+        };
+        let mut g = self.inner.lock().expect("job registry");
+        g.insert(id, inner);
+        let mut o = self.order.lock().expect("job order");
+        o.push_front(id);
+        while o.len() > MAX_JOBS {
+            if let Some(old) = o.pop_back() {
+                g.remove(&old);
+            }
+        }
+        id
+    }
+
     pub fn append_log(&self, id: Uuid, line: &str) {
         let mut g = self.inner.lock().expect("job registry");
         let Some(j) = g.get_mut(&id) else {
@@ -153,6 +183,17 @@ impl JobRegistry {
         };
         j.summary.status = JobStatus::Completed;
         j.summary.target_path = Some(path.to_string());
+        j.summary.error = None;
+        j.summary.updated_unix = Self::now();
+    }
+
+    pub fn complete_packer_golden(&self, id: Uuid, qcow2_path: &str) {
+        let mut g = self.inner.lock().expect("job registry");
+        let Some(j) = g.get_mut(&id) else {
+            return;
+        };
+        j.summary.status = JobStatus::Completed;
+        j.summary.target_path = Some(qcow2_path.to_string());
         j.summary.error = None;
         j.summary.updated_unix = Self::now();
     }

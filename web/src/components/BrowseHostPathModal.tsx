@@ -24,6 +24,11 @@ export type BrowseHostPathModalProps = {
   title: string
   canSelectFile: (fileName: string) => boolean
   onSelectPath: (absolutePath: string) => void
+  /**
+   * When true, each directory row offers **Use folder** (returns that directory path) in addition to opening it.
+   * Use for choosing a parent directory for a new output file.
+   */
+  pickDirectory?: boolean
 }
 
 /**
@@ -37,6 +42,7 @@ export function BrowseHostPathModal({
   title,
   canSelectFile,
   onSelectPath,
+  pickDirectory = false,
 }: BrowseHostPathModalProps) {
   const titleId = useId()
   const [loading, setLoading] = useState(false)
@@ -128,14 +134,37 @@ export function BrowseHostPathModal({
               className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-slate-800/80 border border-transparent hover:border-slate-700/60"
             >
               {entry.is_directory ? (
-                <button
-                  type="button"
-                  className="flex-1 min-w-0 text-left text-sm text-slate-200 flex items-center gap-2"
-                  onClick={() => void load(entry.path)}
-                >
-                  <FolderOpen className="w-4 h-4 shrink-0 text-amber-400/90" aria-hidden />
-                  <span className="truncate">{entry.name}</span>
-                </button>
+                pickDirectory ? (
+                  <div className="flex flex-1 min-w-0 items-center gap-2">
+                    <button
+                      type="button"
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-slate-200"
+                      onClick={() => void load(entry.path)}
+                    >
+                      <FolderOpen className="w-4 h-4 shrink-0 text-amber-400/90" aria-hidden />
+                      <span className="truncate">{entry.name}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="shrink-0 text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white"
+                      onClick={() => {
+                        onSelectPath(entry.path)
+                        onClose()
+                      }}
+                    >
+                      Use folder
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    className="flex-1 min-w-0 text-left text-sm text-slate-200 flex items-center gap-2"
+                    onClick={() => void load(entry.path)}
+                  >
+                    <FolderOpen className="w-4 h-4 shrink-0 text-amber-400/90" aria-hidden />
+                    <span className="truncate">{entry.name}</span>
+                  </button>
+                )
               ) : (
                 <>
                   <span className="flex-1 min-w-0 text-sm text-slate-300 truncate" title={entry.path}>

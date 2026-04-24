@@ -2,7 +2,7 @@ import { VirtImageBuildRequest } from './extras'
 
 const API = '/api/v1'
 
-export type JobKind = 'virt_image_build' | 'vm_create'
+export type JobKind = 'virt_image_build' | 'vm_create' | 'packer_golden_build'
 export type JobStatus = 'running' | 'completed' | 'failed'
 
 export interface JobSummary {
@@ -36,6 +36,32 @@ export const getJob = (id: string) =>
   apiGetJobs<JobDetail>(`${API}/jobs/${encodeURIComponent(id)}`)
 
 /** Start async virt-image-build; poll `getJob` or open `streamJobLogs`. */
+export interface PackerGoldenBuildRequest {
+  guest: string
+}
+
+/** Start Packer golden qcow2 build on the daemon host; stream logs via `streamJobLogs` / Jobs UI. */
+export const startPackerGoldenBuildJob = (body: PackerGoldenBuildRequest) =>
+  fetch(`${API}/jobs/packer-golden-build`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(async (res) => {
+    const text = await res.text()
+    if (!res.ok) {
+      let msg = text
+      try {
+        const j = JSON.parse(text) as { error?: string }
+        if (j?.error) msg = j.error
+      } catch {
+        /* keep */
+      }
+      throw new Error(msg || res.statusText)
+    }
+    return JSON.parse(text) as { id: string; status: string; message?: string }
+  })
+
 export const startVirtImageBuildJob = (body: VirtImageBuildRequest) =>
   fetch(`${API}/jobs/virt-image-build`, {
     method: 'POST',

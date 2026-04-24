@@ -1,7 +1,16 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link, useParams } from 'react-router'
 import { Activity, ChevronLeft, RefreshCw } from 'lucide-react'
+import { BuildStepTimeline } from '../components/BuildStepTimeline'
 import { getJob, listJobs, JobDetail, JobSummary } from '../api/jobs'
+import {
+  computePackerJobTimeline,
+  computeVirtImageBuildTimeline,
+  computeVmCreateJobTimeline,
+  GOLDEN_FORGE_TIMELINE_LABELS,
+  VIRT_IMAGE_TIMELINE_LABELS,
+  VM_CREATE_TIMELINE_LABELS,
+} from '../utils/buildProgress'
 import { useToastContext } from '../contexts/ToastContext'
 
 function statusBadge(status: string) {
@@ -18,6 +27,29 @@ export default function JobsPage() {
   const [loading, setLoading] = useState(true)
 
   const selectedId = jobId || null
+
+  const jobTimeline = useMemo(() => {
+    if (!detail) return null
+    if (detail.kind === 'packer_golden_build') {
+      return {
+        steps: GOLDEN_FORGE_TIMELINE_LABELS,
+        variant: 'violet' as const,
+        ...computePackerJobTimeline(detail.logs, detail.status),
+      }
+    }
+    if (detail.kind === 'vm_create') {
+      return {
+        steps: VM_CREATE_TIMELINE_LABELS,
+        variant: 'amber' as const,
+        ...computeVmCreateJobTimeline(detail.logs, detail.status),
+      }
+    }
+    return {
+      steps: VIRT_IMAGE_TIMELINE_LABELS,
+      variant: 'slate' as const,
+      ...computeVirtImageBuildTimeline(detail.logs, detail.status),
+    }
+  }, [detail])
 
   const refreshList = useCallback(() => {
     return listJobs()
@@ -79,7 +111,8 @@ export default function JobsPage() {
           Refresh
         </button>
         <p className="text-sm text-slate-400 w-full md:w-auto">
-          Monitor <strong className="text-slate-300">virt-image-build</strong> and{' '}
+          Monitor <strong className="text-slate-300">virt-image-build</strong>,{' '}
+          <strong className="text-slate-300">Golden Forge</strong> (Packer qcow2), and{' '}
           <strong className="text-slate-300">Create VM</strong> progress after you navigate away. Logs update automatically while a job is running.
         </p>
       </div>
@@ -90,7 +123,9 @@ export default function JobsPage() {
           {loading && jobs.length === 0 ? (
             <p className="text-slate-500 text-sm">Loading…</p>
           ) : jobs.length === 0 ? (
-            <p className="text-slate-500 text-sm">No jobs yet. Start a disk build from Create VM or create a VM with streaming logs.</p>
+            <p className="text-slate-500 text-sm">
+              No jobs yet. Start a disk build from <Link to="/disk-images" className="text-amber-200/90 hover:underline">Disk Images</Link>, Golden Forge from Create VM, or create a VM with streaming logs.
+            </p>
           ) : (
             <ul className="space-y-2 max-h-[32rem] overflow-y-auto divide-y divide-slate-800/80">
               {jobs.map((j) => (
@@ -139,6 +174,16 @@ export default function JobsPage() {
               <p className="text-sm text-slate-300 mb-2">{detail.title}</p>
               {detail.error ? (
                 <p className="text-sm text-rose-300 mb-2">{detail.error}</p>
+              ) : null}
+              {jobTimeline ? (
+                <BuildStepTimeline
+                  className="mb-3"
+                  steps={jobTimeline.steps}
+                  activeIndex={jobTimeline.activeIndex}
+                  allComplete={jobTimeline.allComplete}
+                  failed={jobTimeline.failed}
+                  variant={jobTimeline.variant}
+                />
               ) : null}
               <div className="flex-1 min-h-0 flex flex-col">
                 <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Log</h3>

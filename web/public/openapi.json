@@ -404,7 +404,18 @@
       },
       "JobKind": {
         "type": "string",
-        "enum": ["virt_image_build", "vm_create"]
+        "enum": ["virt_image_build", "vm_create", "packer_golden_build"]
+      },
+      "PackerGoldenBuildRequest": {
+        "type": "object",
+        "required": ["guest"],
+        "properties": {
+          "guest": {
+            "type": "string",
+            "description": "Script profile id for build-linux-image.sh (e.g. ubuntu2404, fedora43)",
+            "example": "ubuntu2404"
+          }
+        }
       },
       "JobStatus": {
         "type": "string",
@@ -441,7 +452,7 @@
   "paths": {
     "/jobs": {
       "get": {
-        "summary": "List recent background jobs (virt-image-build, VM create with logs)",
+        "summary": "List recent background jobs (virt-image-build, Golden Forge / Packer, VM create with logs)",
         "tags": ["Jobs"],
         "responses": {
           "200": {
@@ -464,6 +475,38 @@
           "content": {
             "application/json": {
               "schema": { "$ref": "#/components/schemas/VirtImageBuildRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "status": { "type": "string", "example": "started" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/packer-golden-build": {
+      "post": {
+        "summary": "Start Golden Forge (local Packer/QEMU golden qcow2) asynchronously",
+        "description": "Runs `bash /usr/local/share/machina/packer/build-linux-image.sh <guest> work` under `/var/lib/machina/packer-builds/<job-id>`. Requires the script installed (e.g. via install.sh). Returns job id; use GET /jobs/{id} or GET /jobs/{id}/stream for logs.",
+        "tags": ["Jobs"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/PackerGoldenBuildRequest" }
             }
           }
         },
