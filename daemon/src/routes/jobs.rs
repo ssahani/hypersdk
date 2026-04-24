@@ -6,7 +6,7 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
-use serde_json::json;
+use serde_json::{json, Value};
 use uuid::Uuid;
 use virt_image_build::BuildDiskRequest;
 use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
@@ -72,15 +72,12 @@ async fn post_virt_image_build_job(
         .await;
 
         match res {
-            Ok(Ok(Ok(()))) => {
+            Ok(Ok(())) => {
                 log_audit("virt-image-build", &out_path, "ok");
                 jobs_bg.complete_virt_image(id, &out_path);
             }
-            Ok(Ok(Err(e))) => {
-                jobs_bg.fail(id, &e.to_string());
-            }
             Ok(Err(e)) => {
-                jobs_bg.fail(id, &format!("Task failed: {e}"));
+                jobs_bg.fail(id, &e.to_string());
             }
             Err(e) => {
                 jobs_bg.fail(id, &format!("Task failed: {e}"));
@@ -105,15 +102,16 @@ async fn job_stream_handler(
     }
 
     let jobs2 = jobs.clone();
+    let job_uid = uid;
     let stream = stream::unfold(
         (
             tokio::time::interval(Duration::from_millis(420)),
             0usize,
             false,
         ),
-        |(mut interval, mut offset, mut terminal_sent)| {
+        move |(mut interval, mut offset, mut terminal_sent)| {
             let jobs = jobs2.clone();
-            let uid = uid;
+            let uid = job_uid;
             async move {
                 if terminal_sent {
                     return None;
