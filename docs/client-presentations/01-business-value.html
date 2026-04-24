@@ -357,6 +357,10 @@ sudo ./install.sh
 make all                  # Release build + web frontend
 sudo make deploy          # Install + start systemd service
 
+# Remote hypervisor: rsync sources + build on server (see scripts/deploy-remote.sh)
+# ./scripts/deploy-remote.sh USER@HOST --bind 0.0.0.0
+# ./scripts/deploy-remote.sh USER@HOST --remote-check   # compile smoke after rsync
+
 # Access
 Web UI:   http://localhost:5092
 TUI:      machina
