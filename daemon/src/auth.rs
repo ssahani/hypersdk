@@ -263,7 +263,7 @@ pub async fn auth_middleware(
         }
     }
 
-    // Check Authorization header for API tokens (Bearer vs_xxx)
+    // Check Authorization header for API tokens (Bearer mach_…; legacy vs_… still valid if stored)
     if let Some(auth_header) = req.headers().get("authorization").and_then(|v| v.to_str().ok()) {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
             if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {

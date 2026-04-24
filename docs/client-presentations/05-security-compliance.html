@@ -129,7 +129,7 @@
     </div>
     <div class="card">
       <h3>API Tokens</h3>
-      <p>Machine-to-machine authentication via <code>vs_</code>-prefixed tokens generated from 32 cryptographically random bytes. Tokens can be scoped and revoked independently of user sessions.</p>
+      <p>Machine-to-machine authentication via <code>mach_</code>-prefixed tokens (32 random bytes as hex; legacy <code>vs_</code> tokens remain valid until rotated). Tokens can be scoped and revoked independently of user sessions.</p>
     </div>
   </div>
 
@@ -154,7 +154,7 @@
     <div class="diagram-row" style="margin-top:28px">
       <div class="diagram-box">Automation Client</div>
       <div class="diagram-arrow">&rarr;</div>
-      <div class="diagram-box">Authorization: Bearer vs_...</div>
+      <div class="diagram-box">Authorization: Bearer mach_...</div>
       <div class="diagram-arrow">&rarr;</div>
       <div class="diagram-box">Token Lookup</div>
     </div>

@@ -33,7 +33,7 @@ BASE="${1:-https://localhost:5092}"
 VSUSER="${2:-sus}"
 VSPASS="${3:-${VSPASS:-}}"
 VM_NAME="vs-api-test-$$"
-COOKIE=$(mktemp /tmp/vs_test_XXXXXX.txt)
+COOKIE=$(mktemp /tmp/machina_api_test_XXXXXX.txt)
 CURL="curl -sk"
 PASS=0; FAIL=0
 

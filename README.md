@@ -853,9 +853,9 @@ curl -sk -X POST https://localhost:5092/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"username": "admin", "password": "secret"}' -c cookies.txt | jq
 
-# Use API token (Bearer auth)
+# Use API token (Bearer auth; new tokens use `mach_` + hex, legacy installs may still have `vs_` + hex until rotated)
 curl -sk https://localhost:5092/api/v1/vms \
-  -H 'Authorization: Bearer your-api-token' | jq
+  -H 'Authorization: Bearer mach_<hex-from-settings>' | jq
 
 # Live resize vCPUs on running VM
 curl -sk -X POST https://localhost:5092/api/v1/vms/test-vm/live/vcpus/4 | jq

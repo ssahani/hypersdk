@@ -119,7 +119,7 @@ pub fn create_api_token(name: &str, username: &str, role: Role) -> Result<ApiTok
         use rand::Rng;
         let mut rng = rand::thread_rng();
         let bytes: [u8; 32] = rng.gen();
-        let token = format!("vs_{}", hex::encode(bytes));
+        let token = format!("mach_{}", hex::encode(bytes));
 
         let api_token = ApiToken {
             name: name.to_string(),

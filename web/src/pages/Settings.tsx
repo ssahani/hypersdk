@@ -247,7 +247,7 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-500">Use tokens with: <code className="bg-slate-800 px-1 rounded">curl -k -H "Authorization: Bearer vs_xxx..." https://host:5092/api/v1/vms</code></p>
+          <p className="text-xs text-slate-500">Use tokens with: <code className="bg-slate-800 px-1 rounded">curl -k -H "Authorization: Bearer mach_xxx..." https://host:5092/api/v1/vms</code> (older installs may still have <code className="bg-slate-800 px-1 rounded">vs_</code> tokens until rotated)</p>
         </div>
       )}
 

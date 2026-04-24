@@ -1210,11 +1210,14 @@ print_summary() {
 # ── Main ─────────────────────────────────────────────────────────────
 
 main() {
-    echo "  _   _  _        _"
-    echo " (_) (_)| |_  ___| |_  __ _ __ __ __ _"
-    echo " | V || |  _|(_-<| _ \/ _\` |\ V  V /| ' \\"
-    echo "  \_/ |_| \__|/__/|  _/\__,_| \_/\_/ |_||_|"
-    echo "                  |_|"
+    # ASCII banner (figlet -f small machina)
+    cat <<'MACHINA_BANNER'
+                _    _
+  _ __  __ _ __| |_ (_)_ _  __ _
+ | '  \/ _` / _| ' \| | ' \/ _` |
+ |_|_|_\__,_\__|_||_|_|_||_\__,_|
+
+MACHINA_BANNER
     echo ""
     echo "machina installer — Linux hypervisor host manager"
     echo ""
