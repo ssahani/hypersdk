@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::convert::Infallible;
 use std::time::Duration;
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
@@ -15,11 +15,13 @@ use virtspawn_core::libvirt::domain::UndefineOptions;
 use virtspawn_core::libvirt::resize::{CpuTuneInfo, MemTuneInfo};
 use virtspawn_core::{
     audit, kubevirt_bundle_from_libvirt_vm, AttachDiskRequest, AuditEvent, CloneVmRequest,
-    CreateVmRequest, KubeVirtBundle, LibvirtError, LibvirtManager, RenameVmRequest, VirtspawnConfig,
-    VmCreateBackend, VmDetails, VmInfo,
+    CreateVmRequest, KubeVirtBundle, KubeVirtConfig, LibvirtError, LibvirtManager, RenameVmRequest,
+    VirtspawnConfig, VmCreateBackend, VmDetails, VmInfo,
 };
 
 use crate::error::{ok_json, AppError, Xml};
+use crate::job_registry::JobRegistry;
+use crate::kubevirt_exec;
 
 /// Bounded queue between host log producers and the SSE bridge (backpressure; avoids unbounded RAM).
 const CREATE_LOG_STD_CAP: usize = 65_536;
@@ -87,13 +89,18 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Deserialize)]
-struct KubeVirtBundleQuery {
+#[derive(Debug, Deserialize)]
+struct KubeVirtBundleParams {
+    #[serde(default)]
     namespace: Option<String>,
     /// Kubernetes VM metadata.name (defaults from libvirt name).
+    #[serde(default)]
     k8s_vm_name: Option<String>,
+    #[serde(default)]
     datavolume_name: Option<String>,
+    #[serde(default)]
     storage_gi: Option<u32>,
+    #[serde(default)]
     storage_class: Option<String>,
     /// When false, omit virtio-win `containerDisk` CDROM.
     #[serde(default = "default_true")]
@@ -103,7 +110,7 @@ struct KubeVirtBundleQuery {
 async fn kubevirt_bundle_handler(
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
-    Query(q): Query<KubeVirtBundleQuery>,
+    Query(q): Query<KubeVirtBundleParams>,
 ) -> Result<Json<KubeVirtBundle>, AppError> {
     let cfg = VirtspawnConfig::load();
     let mgr = manager.clone();
@@ -125,6 +132,121 @@ async fn kubevirt_bundle_handler(
     )?;
     log_audit("kubevirt-bundle", &name, "ok");
     Ok(Json(bundle))
+}
+
+fn kubevirt_bundle_for_deploy(
+    manager: &LibvirtManager,
+    libvirt_name: &str,
+    kv: &KubeVirtConfig,
+    p: &KubeVirtBundleParams,
+) -> Result<KubeVirtBundle, AppError> {
+    let details = manager.with_conn(|c| domain::get_vm_details(c, libvirt_name))?;
+    Ok(kubevirt_bundle_from_libvirt_vm(
+        &details,
+        libvirt_name,
+        kv,
+        p.namespace.as_deref(),
+        p.k8s_vm_name.as_deref(),
+        p.datavolume_name.as_deref(),
+        p.storage_gi,
+        p.storage_class.as_deref(),
+        p.include_virtio_cdrom,
+    )?)
+}
+
+async fn kubevirt_apply_handler(
+    Path(name): Path<String>,
+    State(manager): State<LibvirtManager>,
+    Json(params): Json<KubeVirtBundleParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = VirtspawnConfig::load();
+    let kv = cfg.kubevirt.clone();
+    let kv_for_block = kv.clone();
+    let mgr = manager.clone();
+    let n = name.clone();
+    let bundle = tokio::task::spawn_blocking(move || kubevirt_bundle_for_deploy(&mgr, &n, &kv_for_block, &params))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let tmp = std::env::temp_dir().join(format!(
+        "virtspawn-kubevirt-{}-{}.yaml",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::write(&tmp, &bundle.yaml).map_err(|e| {
+        AppError::from(LibvirtError::Operation(format!("Failed to write temp kubevirt yaml: {e}")))
+    })?;
+    let path = tmp.clone();
+    let (code, stdout, stderr) = kubevirt_exec::kubectl_apply_yaml(&kv, &path)
+        .await
+        .map_err(AppError::from)?;
+    let _ = std::fs::remove_file(&tmp);
+    let audit = if code == 0 { "ok" } else { "error" };
+    log_audit("kubevirt-apply", &name, audit);
+    Ok(Json(serde_json::json!({
+        "exit_code": code,
+        "stdout": stdout,
+        "stderr": stderr,
+    })))
+}
+
+async fn kubevirt_upload_handler(
+    Path(name): Path<String>,
+    State(manager): State<LibvirtManager>,
+    Json(params): Json<KubeVirtBundleParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = VirtspawnConfig::load();
+    let kv = cfg.kubevirt.clone();
+    let kv_for_block = kv.clone();
+    let mgr = manager.clone();
+    let n = name.clone();
+    let bundle = tokio::task::spawn_blocking(move || kubevirt_bundle_for_deploy(&mgr, &n, &kv_for_block, &params))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let img = bundle.libvirt_root_disk.clone();
+    let (code, stdout, stderr) = kubevirt_exec::virtctl_image_upload_disk(
+        &kv,
+        &bundle.datavolume_name,
+        bundle.upload_size_gi,
+        &img,
+        &bundle.namespace,
+    )
+    .await
+    .map_err(AppError::from)?;
+    let audit = if code == 0 { "ok" } else { "error" };
+    log_audit("kubevirt-upload", &name, audit);
+    Ok(Json(serde_json::json!({
+        "exit_code": code,
+        "stdout": stdout,
+        "stderr": stderr,
+    })))
+}
+
+async fn kubevirt_start_handler(
+    Path(name): Path<String>,
+    State(manager): State<LibvirtManager>,
+    Json(params): Json<KubeVirtBundleParams>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = VirtspawnConfig::load();
+    let kv = cfg.kubevirt.clone();
+    let kv_for_block = kv.clone();
+    let mgr = manager.clone();
+    let n = name.clone();
+    let bundle = tokio::task::spawn_blocking(move || kubevirt_bundle_for_deploy(&mgr, &n, &kv_for_block, &params))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let (code, stdout, stderr) = kubevirt_exec::virtctl_start_vm(&kv, &bundle.virtual_machine_name, &bundle.namespace)
+        .await
+        .map_err(AppError::from)?;
+    let audit = if code == 0 { "ok" } else { "error" };
+    log_audit("kubevirt-start", &name, audit);
+    Ok(Json(serde_json::json!({
+        "exit_code": code,
+        "stdout": stdout,
+        "stderr": stderr,
+    })))
 }
 
 async fn start_vm(State(manager): State<LibvirtManager>, Path(name): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
@@ -507,6 +629,7 @@ async fn create_vm_handler(
 /// or `event: error` with a plain-text message.
 async fn create_vm_stream_handler(
     State(manager): State<LibvirtManager>,
+    Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Json(req): Json<CreateVmRequest>,
 ) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>> + Send>, AppError> {
     validate_create_vm_payload(&req)?;
@@ -524,8 +647,11 @@ async fn create_vm_stream_handler(
     let (tok_tx, tok_rx) = tokio::sync::mpsc::channel::<String>(CREATE_LOG_SSE_CAP);
     let (std_tx, std_rx) = std::sync::mpsc::sync_channel::<String>(CREATE_LOG_STD_CAP);
 
+    let job_id = jobs.start_vm_create(&name);
+    let jobs_bridge = jobs.clone();
     let _bridge = std::thread::spawn(move || {
         while let Ok(line) = std_rx.recv() {
+            jobs_bridge.append_log(job_id, &line);
             if tok_tx.blocking_send(line).is_err() {
                 break;
             }
@@ -547,9 +673,11 @@ async fn create_vm_stream_handler(
     });
 
     let name_done = name.clone();
+    let jobs_tail = jobs.clone();
     let tail = stream::once(async move {
         match handle.await {
             Ok(Ok(())) => {
+                jobs_tail.complete_vm_create(job_id, &name_done);
                 log_audit("create", &name_done, "ok");
                 let payload =
                     serde_json::json!({ "status": "created", "name": name_done }).to_string();
@@ -557,6 +685,7 @@ async fn create_vm_stream_handler(
             }
             Ok(Err(e)) => {
                 let msg = e.to_string();
+                jobs_tail.fail(job_id, &msg);
                 log_audit(
                     "create",
                     &name_done,
@@ -566,6 +695,7 @@ async fn create_vm_stream_handler(
             }
             Err(e) => {
                 let msg = format!("create task failed: {e}");
+                jobs_tail.fail(job_id, &msg);
                 log_audit(
                     "create",
                     &name_done,
@@ -576,8 +706,16 @@ async fn create_vm_stream_handler(
         }
     });
 
-    let stream = ReceiverStream::new(tok_rx)
-        .map(|line| Ok(Event::default().data(line)))
+    let job_id_str = job_id.to_string();
+    let job_head = stream::once(async move {
+        let payload = serde_json::json!({ "id": job_id_str }).to_string();
+        Ok::<Event, Infallible>(Event::default().event("job").data(payload))
+    });
+
+    let stream = job_head
+        .chain(
+            ReceiverStream::new(tok_rx).map(|line| Ok(Event::default().data(line))),
+        )
         .chain(tail);
 
     Ok(
@@ -809,6 +947,9 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}", delete(delete_vm_handler))
         .route("/vms/{name}/xml", get(get_vm_xml))
         .route("/vms/{name}/kubevirt-bundle", get(kubevirt_bundle_handler))
+        .route("/vms/{name}/kubevirt/apply", post(kubevirt_apply_handler))
+        .route("/vms/{name}/kubevirt/upload", post(kubevirt_upload_handler))
+        .route("/vms/{name}/kubevirt/start", post(kubevirt_start_handler))
         .route("/vms/{name}/start", post(start_vm))
         .route("/vms/{name}/stop", post(stop_vm))
         .route("/vms/{name}/shutdown", post(shutdown_vm))

@@ -116,6 +116,7 @@ impl App {
                     self.state.view_mode = ViewMode::Table;
                     self.state.xml_content.clear();
                     self.state.log_content.clear();
+                    self.state.content_overlay_caption.clear();
                     self.state.scroll_offset = 0;
                 }
                 return;
@@ -985,7 +986,12 @@ impl App {
 
     fn show_xml_result(&mut self, result: anyhow::Result<String>, kind: &str) {
         match result {
-            Ok(xml) => { self.state.xml_content = xml; self.state.scroll_offset = 0; self.state.view_mode = ViewMode::Xml; }
+            Ok(xml) => {
+                self.state.content_overlay_caption.clear();
+                self.state.xml_content = xml;
+                self.state.scroll_offset = 0;
+                self.state.view_mode = ViewMode::Xml;
+            }
             Err(e) => self.state.status_message = format!("Error fetching {kind} XML: {e}"),
         }
     }
@@ -1083,6 +1089,7 @@ impl App {
             for path in &log_paths { content.push_str(&format!("  {path}\n")); }
         }
 
+        self.state.content_overlay_caption.clear();
         self.state.log_content = content;
         self.state.scroll_offset = 0;
         self.state.view_mode = ViewMode::Logs;
@@ -1121,6 +1128,51 @@ impl App {
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
         }
+    }
+
+    async fn run_browse_command(&mut self, path: &str) {
+        match self.client.browse_directory(path).await {
+            Ok(resp) => {
+                let mut s = String::new();
+                s.push_str(&format!("Directory: {}\n\n", resp.path));
+                if let Some(p) = &resp.parent {
+                    s.push_str(&format!("Parent: {p}\n"));
+                }
+                s.push_str("Roots: ");
+                s.push_str(&resp.roots.join(", "));
+                s.push_str("\n\n");
+                for e in &resp.entries {
+                    if e.is_directory {
+                        s.push_str(&format!("[dir] {}\n    {}\n", e.name, e.path));
+                    } else {
+                        s.push_str(&format!(
+                            "[file] {} ({} bytes)\n    {}\n",
+                            e.name, e.size_bytes, e.path
+                        ));
+                    }
+                }
+                self.state.log_content = s;
+                self.state.content_overlay_caption = " Browse (j/k:scroll  Esc:close) ".to_string();
+                self.state.scroll_offset = 0;
+                self.state.view_mode = ViewMode::Logs;
+                self.state.add_audit_event("browse-dir", &resp.path, "OK");
+            }
+            Err(e) => self.state.status_message = format!("browse: {e}"),
+        }
+    }
+
+    fn show_cluster_cmd_output(&mut self, title: &str, vm: &str, v: serde_json::Value, audit_action: &str) {
+        let code = v["exit_code"].as_i64().unwrap_or(-1);
+        let stdout = v["stdout"].as_str().unwrap_or("");
+        let stderr = v["stderr"].as_str().unwrap_or("");
+        self.state.log_content = format!(
+            "{title} (libvirt VM `{vm}`)\nexit_code: {code}\n\n--- stdout ---\n{stdout}\n\n--- stderr ---\n{stderr}"
+        );
+        self.state.content_overlay_caption = format!(" {title} (j/k:scroll  Esc:close) ");
+        self.state.scroll_offset = 0;
+        self.state.view_mode = ViewMode::Logs;
+        let res = if code == 0 { "OK" } else { "ERROR" };
+        self.state.add_audit_event(audit_action, vm, res);
     }
 
     async fn execute_command(&mut self, cmd: &str) {
@@ -1231,7 +1283,58 @@ impl App {
                 self.report_cmd_result(r, &format!("Deleted backup '{backup_id}'"), "delete-backup", backup_id, false).await;
                 if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
             }
+            ["kubevirt-bundle", vm] => {
+                match self.client.get_kubevirt_bundle_yaml(vm).await {
+                    Ok(yaml) => {
+                        self.state.xml_content = yaml;
+                        self.state.content_overlay_caption =
+                            format!(" KubeVirt YAML — {vm} (j/k:scroll  Esc:close) ");
+                        self.state.scroll_offset = 0;
+                        self.state.view_mode = ViewMode::Xml;
+                        self.state.add_audit_event("kubevirt-bundle", vm, "OK");
+                    }
+                    Err(e) => self.state.status_message = format!("kubevirt-bundle: {e}"),
+                }
+            }
+            ["kubevirt-apply", vm] => {
+                match self
+                    .client
+                    .kubevirt_cluster_exec(vm, "apply", &serde_json::json!({}))
+                    .await
+                {
+                    Ok(v) => self.show_cluster_cmd_output("kubectl apply", vm, v, "kubevirt-apply"),
+                    Err(e) => self.state.status_message = format!("kubevirt-apply: {e}"),
+                }
+            }
+            ["kubevirt-upload", vm] => {
+                match self
+                    .client
+                    .kubevirt_cluster_exec(vm, "upload", &serde_json::json!({}))
+                    .await
+                {
+                    Ok(v) => self.show_cluster_cmd_output("virtctl image-upload", vm, v, "kubevirt-upload"),
+                    Err(e) => self.state.status_message = format!("kubevirt-upload: {e}"),
+                }
+            }
+            ["kubevirt-start", vm] => {
+                match self
+                    .client
+                    .kubevirt_cluster_exec(vm, "start", &serde_json::json!({}))
+                    .await
+                {
+                    Ok(v) => self.show_cluster_cmd_output("virtctl start", vm, v, "kubevirt-start"),
+                    Err(e) => self.state.status_message = format!("kubevirt-start: {e}"),
+                }
+            }
             ["q"] | ["quit"] => self.should_quit = true,
+            _ if parts.first() == Some(&"browse") => {
+                let path = if parts.len() <= 1 {
+                    String::new()
+                } else {
+                    parts[1..].join(" ")
+                };
+                self.run_browse_command(&path).await;
+            }
             _ => self.state.status_message = format!("Unknown command: {cmd}"),
         }
     }

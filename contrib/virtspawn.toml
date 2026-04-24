@@ -23,9 +23,9 @@ port = 5092
 
 [libvirt]
 uri = "qemu:///system"
-# VM create API default: "libvirt_xml" (native) or "virt_install" (hyper2kvm-style). Clients can override per request with `create_backend`.
-create_backend = "libvirt_xml"
-# Disk images: mkosi (`mkosi_workspace`) is default and recommended; install.sh installs mkosi when absent.
+# VM create API default: "virt_install" (hyper2kvm-style) or "libvirt_xml" (native). Clients can override per request with `create_backend`.
+create_backend = "virt_install"
+# Optional: mkosi image builds (`mkosi_workspace` API field). install.sh can install mkosi when absent.
 # mkosi_allowed = true
 # Legacy virt-builder API (`virt_builder_*`): off by default — set virt_builder_allowed = true only if needed (guestfs-tools).
 # virt_builder_allowed = false

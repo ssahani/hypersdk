@@ -87,6 +87,25 @@ export interface CreateVmRequest {
   mkosi_workspace?: string
   /** For multi-image mkosi workspaces (image trees): selects one image via `--image <name>`. */
   mkosi_image?: string
+  /** `virt-install --print-xml=1` + define; halted shell (no install media). Requires virt_install backend. */
+  virt_install_define_only?: boolean
+  /** Network / kickstart tree: `virt-install --location …`. */
+  virt_install_location?: string
+  /** `virt-install --pxe` (extra NIC; network from `virt_install_pxe_network` or `network`). */
+  virt_install_pxe?: boolean
+  /** Libvirt network for the PXE interface (defaults to main `network`). */
+  virt_install_pxe_network?: string
+  /** `virt-install --install os=…` (libosinfo short id). */
+  virt_install_install_os?: string
+  /** `virt-install --extra-args`. */
+  virt_install_extra_args?: string
+  /** With `root_disk_storage_volume`: `virt-install --disk vol=pool/vol`. */
+  root_disk_storage_pool?: string
+  root_disk_storage_volume?: string
+  /** `virt-install --check path_in_use=off`. */
+  virt_install_path_in_use_check_off?: boolean
+  /** New overlay root disk with `backing_store=` + `--import`. */
+  virt_install_disk_backing_store?: string
 }
 
 export interface VmTemplate {
@@ -112,8 +131,19 @@ export interface KubeVirtBundle {
   namespace: string
   virtual_machine_name: string
   datavolume_name: string
+  /** PVC/DataVolume upload size (Gi) for virtctl and manifests. */
+  upload_size_gi: number
+  /** True when `[kubevirt] exec_enabled` — daemon may run kubectl/virtctl for this VM. */
+  cluster_exec_enabled: boolean
   yaml: string
   virtctl_image_upload_example: string
+}
+
+/** JSON from `POST .../kubevirt/{apply,upload,start}` when the command finished (check `exit_code`). */
+export interface KubeVirtClusterExecResult {
+  exit_code: number
+  stdout: string
+  stderr: string
 }
 
 export type KubeVirtBundleQuery = {
@@ -139,6 +169,30 @@ export function getKubeVirtBundle(name: string, q?: KubeVirtBundleQuery) {
     `${API}/vms/${encodeURIComponent(name)}/kubevirt-bundle${qs ? `?${qs}` : ''}`,
   )
 }
+
+/** POST body for kubevirt apply/upload/start — same fields as `KubeVirtBundleQuery` (all optional). */
+export type KubeVirtBundleBody = KubeVirtBundleQuery
+
+export function postKubeVirtApply(name: string, body: KubeVirtBundleBody = {}) {
+  return apiPost<KubeVirtClusterExecResult>(
+    `${API}/vms/${encodeURIComponent(name)}/kubevirt/apply`,
+    body,
+  )
+}
+
+export function postKubeVirtUpload(name: string, body: KubeVirtBundleBody = {}) {
+  return apiPost<KubeVirtClusterExecResult>(
+    `${API}/vms/${encodeURIComponent(name)}/kubevirt/upload`,
+    body,
+  )
+}
+
+export function postKubeVirtStart(name: string, body: KubeVirtBundleBody = {}) {
+  return apiPost<KubeVirtClusterExecResult>(
+    `${API}/vms/${encodeURIComponent(name)}/kubevirt/start`,
+    body,
+  )
+}
 export const createVM = (req: CreateVmRequest) => apiPost<unknown>(`${API}/vms`, req)
 
 export interface CreateVmStreamResult {
@@ -149,7 +203,8 @@ export interface CreateVmStreamResult {
 /** Create VM with live log lines (mkosi / virt-builder / virt-install / qemu-img) via SSE (`POST /vms/stream`). */
 export async function createVMWithProgress(
   req: CreateVmRequest,
-  onLogLine: (line: string) => void
+  onLogLine: (line: string) => void,
+  onJobRegistered?: (job: { id: string }) => void,
 ): Promise<CreateVmStreamResult> {
   const res = await fetch(`${API}/vms/stream`, {
     method: 'POST',
@@ -196,6 +251,15 @@ export async function createVMWithProgress(
       }
       if (ev === 'error') {
         throw new Error(data || 'Create failed')
+      }
+      if (ev === 'job') {
+        try {
+          const j = JSON.parse(data) as { id?: string }
+          if (j?.id) onJobRegistered?.({ id: j.id })
+        } catch {
+          /* ignore */
+        }
+        continue
       }
       if (data && data !== 'keepalive') onLogLine(data)
     }

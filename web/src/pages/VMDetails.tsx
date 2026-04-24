@@ -6,6 +6,7 @@ import {
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
+  postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   deleteVM, getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
@@ -83,6 +84,8 @@ export default function VMDetailsPage() {
   const [kubevirtDoneUpload, setKubevirtDoneUpload] = useState(false)
   const [kubevirtDoneApply, setKubevirtDoneApply] = useState(false)
   const [kubevirtDoneStart, setKubevirtDoneStart] = useState(false)
+  const [kubevirtExecBusy, setKubevirtExecBusy] = useState<'apply' | 'upload' | 'start' | null>(null)
+  const [kubevirtExecLast, setKubevirtExecLast] = useState<KubeVirtClusterExecResult | null>(null)
   const [resizeTarget, setResizeTarget] = useState('')
   const [resizeGb, setResizeGb] = useState(20)
   const [nicNetwork, setNicNetwork] = useState('default')
@@ -261,6 +264,32 @@ export default function VMDetailsPage() {
     setDialog(d)
   }
 
+  const runKubevirtClusterStep = async (kind: 'apply' | 'upload' | 'start') => {
+    if (!name) return
+    setKubevirtExecBusy(kind)
+    setKubevirtExecLast(null)
+    try {
+      const fn =
+        kind === 'apply'
+          ? postKubeVirtApply
+          : kind === 'upload'
+            ? postKubeVirtUpload
+            : postKubeVirtStart
+      const r = await fn(name, {})
+      setKubevirtExecLast(r)
+      if (r.exit_code !== 0) {
+        const hint = r.stderr?.trim() || r.stdout?.trim() || ''
+        toast.error(`${kind}: exit ${r.exit_code}${hint ? ` — ${hint.slice(0, 200)}` : ''}`)
+      } else {
+        toast.success(`${kind === 'apply' ? 'kubectl apply' : kind === 'upload' ? 'virtctl image-upload' : 'virtctl start'} finished (exit 0)`)
+      }
+    } catch (e: unknown) {
+      toast.error(`${kind}: ${e instanceof Error ? e.message : e}`)
+    } finally {
+      setKubevirtExecBusy(null)
+    }
+  }
+
   const loadKubevirtExport = async () => {
     if (!name) return
     setKubevirtLoading(true)
@@ -268,6 +297,7 @@ export default function VMDetailsPage() {
     setKubevirtDoneUpload(false)
     setKubevirtDoneApply(false)
     setKubevirtDoneStart(false)
+    setKubevirtExecLast(null)
     try {
       const b = await getKubeVirtBundle(name)
       setKubevirtBundle(b)
@@ -1646,6 +1676,57 @@ export default function VMDetailsPage() {
                   </span>
                 </label>
               </div>
+              {kubevirtBundle.cluster_exec_enabled && (
+                <div className="rounded-lg border border-violet-800/40 bg-violet-950/20 p-3 space-y-2">
+                  <div className="text-xs font-medium text-violet-300 uppercase tracking-wide">Run on daemon host</div>
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <code className="text-slate-300">[kubevirt] exec_enabled = true</code> — uses this machine&apos;s kubeconfig (set{' '}
+                    <code className="text-slate-300">kubeconfig_path</code> in virtspawn config if needed).{' '}
+                    <strong className="text-slate-300">virtctl image-upload</strong> may run for a long time; the browser request blocks until it finishes.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={kubevirtExecBusy !== null}
+                      className="text-xs px-2 py-1 rounded bg-violet-900/80 hover:bg-violet-800 disabled:opacity-50 text-violet-100"
+                      onClick={() => { void runKubevirtClusterStep('upload') }}
+                    >
+                      {kubevirtExecBusy === 'upload' ? 'Upload…' : 'virtctl image-upload'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={kubevirtExecBusy !== null}
+                      className="text-xs px-2 py-1 rounded bg-violet-900/80 hover:bg-violet-800 disabled:opacity-50 text-violet-100"
+                      onClick={() => { void runKubevirtClusterStep('apply') }}
+                    >
+                      {kubevirtExecBusy === 'apply' ? 'Apply…' : 'kubectl apply'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={kubevirtExecBusy !== null}
+                      className="text-xs px-2 py-1 rounded bg-violet-900/80 hover:bg-violet-800 disabled:opacity-50 text-violet-100"
+                      onClick={() => { void runKubevirtClusterStep('start') }}
+                    >
+                      {kubevirtExecBusy === 'start' ? 'Start…' : 'virtctl start'}
+                    </button>
+                  </div>
+                  {kubevirtExecLast && (
+                    <div>
+                      <span className="text-xs text-slate-500 block mb-1">
+                        Last command: exit {kubevirtExecLast.exit_code}
+                      </span>
+                      <pre className="text-[10px] leading-snug font-mono text-slate-200 bg-black/40 border border-slate-800 rounded-lg p-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-all">
+                        {kubevirtExecLast.stderr?.trim()
+                          ? `stderr:\n${kubevirtExecLast.stderr}\n\n`
+                          : ''}
+                        {kubevirtExecLast.stdout?.trim()
+                          ? `stdout:\n${kubevirtExecLast.stdout}`
+                          : (!kubevirtExecLast.stderr?.trim() ? '(no output)' : '')}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"

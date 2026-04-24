@@ -41,6 +41,7 @@ const Logs = lazy(() => import('./pages/Logs'))
 const StoragePoolDetail = lazy(() => import('./pages/StoragePoolDetail'))
 const AdminSessions = lazy(() => import('./pages/AdminSessions'))
 const DiskImages = lazy(() => import('./pages/DiskImages'))
+const Jobs = lazy(() => import('./pages/Jobs'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -53,6 +54,7 @@ function GlobalShortcuts() {
     { sequence: ['g', 's'] as [string, string], handler: () => navigate('/storage') },
     { sequence: ['g', 'c'] as [string, string], handler: () => navigate('/create') },
     { sequence: ['g', 'e'] as [string, string], handler: () => navigate('/events') },
+    { sequence: ['g', 'j'] as [string, string], handler: () => navigate('/jobs') },
     { sequence: ['g', 'b'] as [string, string], handler: () => navigate('/backups') },
   ], [navigate])
 
@@ -108,6 +110,8 @@ function AuthenticatedApp() {
                 <Route path="/vms/:name" element={<VMDetails />} />
                 <Route path="/vms/:name/console" element={<Console />} />
                 <Route path="/create" element={<CreateVM />} />
+                <Route path="/jobs/:jobId" element={<Jobs />} />
+                <Route path="/jobs" element={<Jobs />} />
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />
                 <Route path="/storage/:pool" element={<StoragePoolDetail />} />

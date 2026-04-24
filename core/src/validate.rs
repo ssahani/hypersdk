@@ -297,6 +297,128 @@ pub fn validate_create_vm_disk_image_builders(req: &CreateVmRequest) -> Result<(
             ));
         }
     }
+    validate_create_vm_virt_install_extensions(req)?;
+    Ok(())
+}
+
+/// Mutual exclusion and basic sanity for Cockpit-style `virt-install` request fields.
+pub fn validate_create_vm_virt_install_extensions(req: &CreateVmRequest) -> Result<(), LibvirtError> {
+    let pool = req.root_disk_storage_pool.trim();
+    let vol = req.root_disk_storage_volume.trim();
+    if pool.is_empty() != vol.is_empty() {
+        return Err(LibvirtError::Invalid(
+            "Set both root_disk_storage_pool and root_disk_storage_volume, or neither".into(),
+        ));
+    }
+    if !pool.is_empty() {
+        validate_virt_install_field(pool, "root_disk_storage_pool")?;
+        validate_virt_install_field(vol, "root_disk_storage_volume")?;
+    }
+    let pxe_net = req.virt_install_pxe_network.trim();
+    if !pxe_net.is_empty() {
+        validate_virt_install_field(pxe_net, "virt_install_pxe_network")?;
+    }
+    let loc = req.virt_install_location.trim();
+    if !loc.is_empty() {
+        if loc.len() > 4096 || loc.contains('\n') || loc.contains('\r') {
+            return Err(LibvirtError::Invalid(
+                "virt_install_location: invalid or too long".into(),
+            ));
+        }
+    }
+    let ios = req.virt_install_install_os.trim();
+    if !ios.is_empty() {
+        validate_virt_install_field(ios, "virt_install_install_os")?;
+    }
+    let extra = req.virt_install_extra_args.trim();
+    if !extra.is_empty() && (extra.len() > 8192 || extra.contains('\n') || extra.contains('\r')) {
+        return Err(LibvirtError::Invalid(
+            "virt_install_extra_args: invalid or too long".into(),
+        ));
+    }
+    let backing = req.virt_install_disk_backing_store.trim();
+    if !backing.is_empty() {
+        let p = std::path::Path::new(backing);
+        if !p.is_absolute() || !p.is_file() {
+            return Err(LibvirtError::Invalid(
+                "virt_install_disk_backing_store must be an absolute path to an existing file".into(),
+            ));
+        }
+    }
+
+    if req.virt_install_define_only {
+        if !req.mkosi_workspace.trim().is_empty() || !req.virt_builder_os.trim().is_empty() {
+            return Err(LibvirtError::Invalid(
+                "virt_install_define_only cannot be combined with mkosi_workspace or virt_builder_os"
+                    .into(),
+            ));
+        }
+        if !req.iso.trim().is_empty()
+            || !loc.is_empty()
+            || req.virt_install_pxe
+            || !ios.is_empty()
+            || !backing.is_empty()
+            || !req.cloud_init_iso.trim().is_empty()
+        {
+            return Err(LibvirtError::Invalid(
+                "virt_install_define_only cannot be combined with install media (iso, virt_install_location, PXE, virt_install_install_os, backing import, cloud_init_iso)".into(),
+            ));
+        }
+    }
+
+    if req.virt_install_pxe {
+        if !req.iso.trim().is_empty() || !loc.is_empty() || !ios.is_empty() {
+            return Err(LibvirtError::Invalid(
+                "virt_install_pxe cannot be combined with iso, virt_install_location, or virt_install_install_os"
+                    .into(),
+            ));
+        }
+    }
+
+    if !loc.is_empty() && !req.iso.trim().is_empty() {
+        return Err(LibvirtError::Invalid(
+            "Use either iso (CDROM) or virt_install_location (--location), not both".into(),
+        ));
+    }
+
+    if !ios.is_empty()
+        && (!req.iso.trim().is_empty() || !loc.is_empty() || req.virt_install_pxe)
+    {
+        return Err(LibvirtError::Invalid(
+            "virt_install_install_os cannot be combined with iso, virt_install_location, or PXE".into(),
+        ));
+    }
+
+    if !pool.is_empty() {
+        if !req.existing_disk.trim().is_empty() || !backing.is_empty() {
+            return Err(LibvirtError::Invalid(
+                "root_disk_storage_pool/volume cannot be combined with existing_disk or virt_install_disk_backing_store".into(),
+            ));
+        }
+    }
+    if !backing.is_empty() && !req.existing_disk.trim().is_empty() {
+        return Err(LibvirtError::Invalid(
+            "Use either existing_disk or virt_install_disk_backing_store, not both".into(),
+        ));
+    }
+    if !backing.is_empty() && req.virt_install_define_only {
+        return Err(LibvirtError::Invalid(
+            "virt_install_disk_backing_store cannot be used with virt_install_define_only".into(),
+        ));
+    }
+
+    Ok(())
+}
+
+fn validate_virt_install_field(s: &str, label: &str) -> Result<(), LibvirtError> {
+    if s.is_empty() {
+        return Ok(());
+    }
+    if !s.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-') {
+        return Err(LibvirtError::Invalid(format!(
+            "{label} may only contain letters, digits, dot, underscore, hyphen"
+        )));
+    }
     Ok(())
 }
 
@@ -458,6 +580,29 @@ mod tests {
     fn test_validate_virt_builder_password_file_rejects_relative() {
         assert!(validate_virt_builder_password_file("relative").is_err());
         assert!(validate_virt_builder_password_file("").is_err());
+    }
+
+    #[test]
+    fn test_validate_virt_install_extensions_pool_pair() {
+        let mut req = CreateVmRequest {
+            name: "a".into(),
+            root_disk_storage_pool: "p".into(),
+            ..Default::default()
+        };
+        assert!(validate_create_vm_virt_install_extensions(&req).is_err());
+        req.root_disk_storage_volume = "v".into();
+        assert!(validate_create_vm_virt_install_extensions(&req).is_ok());
+    }
+
+    #[test]
+    fn test_validate_virt_install_define_only_rejects_iso() {
+        let req = CreateVmRequest {
+            name: "a".into(),
+            virt_install_define_only: true,
+            iso: "/x.iso".into(),
+            ..Default::default()
+        };
+        assert!(validate_create_vm_virt_install_extensions(&req).is_err());
     }
 
     #[test]

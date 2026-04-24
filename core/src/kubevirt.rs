@@ -16,6 +16,10 @@ pub struct KubeVirtBundle {
     pub namespace: String,
     pub virtual_machine_name: String,
     pub datavolume_name: String,
+    /// PVC/DataVolume upload size (Gi) used in manifests and virtctl.
+    pub upload_size_gi: u32,
+    /// When true, daemon may run `kubectl` / `virtctl` for this VM (`[kubevirt] exec_enabled`).
+    pub cluster_exec_enabled: bool,
     /// CDI DataVolume + KubeVirt VirtualMachine, `---` separated.
     pub yaml: String,
     /// Example `virtctl image-upload` after you copy the qcow2 off the hypervisor (or from this path).
@@ -199,12 +203,14 @@ pub fn kubevirt_bundle_from_libvirt_vm(
 
     let yaml = format!("{}\n---\n{}", dv.trim_end(), vm.trim_end());
 
+    let timeout_m = cfg.upload_timeout_minutes.max(1);
     let virtctl_image_upload_example = format!(
-        "virtctl image-upload dv {dv_name} --size={storage_gi}Gi --image-path='{root_path}' -n {ns} --insecure --upload-image-timeout=60m",
+        "virtctl image-upload dv {dv_name} --size={storage_gi}Gi --image-path='{root_path}' -n {ns} --insecure --upload-image-timeout={timeout_m}m",
         dv_name = dv_name,
         storage_gi = storage_gi,
         root_path = root_path,
-        ns = ns
+        ns = ns,
+        timeout_m = timeout_m
     );
 
     Ok(KubeVirtBundle {
@@ -213,6 +219,8 @@ pub fn kubevirt_bundle_from_libvirt_vm(
         namespace: ns.to_string(),
         virtual_machine_name: vm_k8s,
         datavolume_name: dv_name,
+        upload_size_gi: storage_gi,
+        cluster_exec_enabled: cfg.exec_enabled,
         yaml,
         virtctl_image_upload_example,
     })

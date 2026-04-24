@@ -5,6 +5,9 @@ edition = "2021"
 
 [dependencies]
 virtspawn-core = { path = "../core" }
+virt-image-build = { path = "../virt-image-build" }
+uuid = { workspace = true }
+virt = { workspace = true }
 libvirt-guac-bridge = { path = "../guac-bridge" }
 axum = { workspace = true }
 tokio = { workspace = true }

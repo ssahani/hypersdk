@@ -1,14 +1,30 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useNavigate, Link } from 'react-router'
 import { createVMWithProgress, getTemplates, VmTemplate, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
-import { listIsos, listDiskImages, ImageFile, generateCloudInit, listSavedTemplates, listVirtBuilderTemplates, getVirtBuilderNotes, listMkosiWorkspaces, MkosiWorkspace } from '../api/extras'
+import { listIsos, listDiskImages, ImageFile, generateCloudInit, listSavedTemplates, listVirtBuilderTemplates, VirtBuilderTemplateRow, getVirtBuilderNotes, listMkosiWorkspaces, MkosiWorkspace } from '../api/extras'
+import { startVirtImageBuildJob, streamJobLogs } from '../api/jobs'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Server, Layers, HardDrive, Cloud, Disc, Boxes, FileText, Check, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Server, Layers, HardDrive, Cloud, Disc, Boxes, FileText, Check, FolderOpen, ChevronLeft, ChevronRight, RefreshCw, Hammer } from 'lucide-react'
 
 function linesToList(s: string): string[] {
   return s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
+}
+
+/** Enough virt-install context to create without a classic install ISO (Cockpit-style options). */
+function hasVirtInstallBootOrShell(f: CreateVmRequest): boolean {
+  const pool = f.root_disk_storage_pool?.trim()
+  const vol = f.root_disk_storage_volume?.trim()
+  return Boolean(
+    f.iso?.trim()
+    || f.virt_install_define_only
+    || f.virt_install_location?.trim()
+    || f.virt_install_pxe
+    || f.virt_install_install_os?.trim()
+    || f.virt_install_disk_backing_store?.trim()
+    || (pool && vol)
+  )
 }
 
 // ── Distro logo SVGs ──────────────────────────────────────────────────────────
@@ -154,6 +170,73 @@ function getDistroMeta(name: string): DistroMeta {
 
 type DiskMode = 'new' | 'existing' | 'virt_builder' | 'mkosi'
 
+type CreateUiMode = 'wizard' | 'classic'
+
+const WIZARD_STEP_LABELS = [
+  'Basics',
+  'CPU, RAM & OS',
+  'Storage',
+  'Network & install',
+  'Review',
+] as const
+
+const WIZARD_LAST = WIZARD_STEP_LABELS.length - 1
+
+function diskModeLabel(m: DiskMode): string {
+  switch (m) {
+    case 'new':
+      return 'New disk (virt-install)'
+    case 'existing':
+      return 'Existing disk image'
+    case 'mkosi':
+      return 'mkosi workspace'
+    case 'virt_builder':
+      return 'virt-builder'
+  }
+}
+
+function validateWizardStep(
+  step: number,
+  ctx: { form: CreateVmRequest; diskMode: DiskMode; goldenSaved: boolean },
+): string | null {
+  const { form, diskMode, goldenSaved } = ctx
+  switch (step) {
+    case 0:
+      if (!form.name.trim()) return 'VM name is required.'
+      return null
+    case 1:
+      return null
+    case 2:
+      if (diskMode === 'existing' && !form.existing_disk?.trim()) {
+        return 'Choose or enter an existing disk image path.'
+      }
+      if (diskMode === 'virt_builder') {
+        if (!form.virt_builder_os?.trim()) return 'Enter a virt-builder OS template (e.g. ubuntu-22.04).'
+        if (goldenSaved) return 'Clear the golden saved template or switch away from virt-builder.'
+      }
+      if (diskMode === 'mkosi') {
+        if (!form.mkosi_workspace?.trim()) {
+          return 'Enter the mkosi workspace directory (absolute path with mkosi.conf).'
+        }
+        if (goldenSaved) return 'Clear the golden saved template or switch away from mkosi.'
+      }
+      return null
+    case 3: {
+      if (diskMode === 'new' && form.create_backend === 'virt_install' && !hasVirtInstallBootOrShell(form)) {
+        return 'Set an install ISO or use Advanced virt-install / Native libvirt XML.'
+      }
+      const pPool = form.root_disk_storage_pool?.trim()
+      const pVol = form.root_disk_storage_volume?.trim()
+      if ((pPool && !pVol) || (!pPool && pVol)) {
+        return 'Set both root disk pool and volume name, or leave both empty.'
+      }
+      return null
+    }
+    default:
+      return null
+  }
+}
+
 /** Fedora mkosi workspaces (bundled e.g. fedora43, or any path whose last segment starts with fedora). */
 function isFedoraMkosiPath(path: string): boolean {
   const seg = (path.split('/').pop() || path).toLowerCase()
@@ -227,7 +310,7 @@ export default function CreateVMPage() {
     graphics_type: 'vnc',
     template_disk_mode: 'backing',
     saved_template: '',
-    create_backend: '',
+    create_backend: 'virt_install',
     virt_builder_os: '',
     virt_builder_hostname: '',
     virt_builder_ssh_pubkey: '',
@@ -236,15 +319,39 @@ export default function CreateVMPage() {
     virt_builder_sysprep: false,
     mkosi_workspace: '',
     mkosi_image: '',
+    virt_install_define_only: false,
+    virt_install_location: '',
+    virt_install_pxe: false,
+    virt_install_pxe_network: '',
+    virt_install_install_os: '',
+    virt_install_extra_args: '',
+    root_disk_storage_pool: '',
+    root_disk_storage_volume: '',
+    virt_install_path_in_use_check_off: false,
+    virt_install_disk_backing_store: '',
   })
-  const [diskMode, setDiskMode] = useState<DiskMode>('mkosi')
+  const [diskMode, setDiskMode] = useState<DiskMode>('new')
   const [mkosiWorkspaces, setMkosiWorkspaces] = useState<MkosiWorkspace[]>([])
-  const [vbTemplates, setVbTemplates] = useState<string[]>([])
+  const [vbItems, setVbItems] = useState<VirtBuilderTemplateRow[]>([])
+  const [vbCatalogFilter, setVbCatalogFilter] = useState('')
+  const [vbCatalogMeta, setVbCatalogMeta] = useState<{ cached?: boolean; cacheAgeSecs?: number }>({})
   const [vbPkgLines, setVbPkgLines] = useState('')
   const [vbFirstbootLines, setVbFirstbootLines] = useState('')
   const [vbPostInstLines, setVbPostInstLines] = useState('')
   const [vbPostRunLines, setVbPostRunLines] = useState('')
   const [vbNotesText, setVbNotesText] = useState<string | null>(null)
+  /** Optional pre-build via POST /browse/virt-image-build (same template list as above). */
+  const [vibOutputPath, setVibOutputPath] = useState('')
+  const [vibSizeStr, setVibSizeStr] = useState('20G')
+  const [vibFormatStr, setVibFormatStr] = useState('qcow2')
+  const [vibHostnameOverride, setVibHostnameOverride] = useState('')
+  const [vibRootPwInline, setVibRootPwInline] = useState('')
+  const [vibFirstbootHostPath, setVibFirstbootHostPath] = useState('')
+  const [vibUpdate, setVibUpdate] = useState(false)
+  const [vibBuilding, setVibBuilding] = useState(false)
+  const [vibJobId, setVibJobId] = useState<string | null>(null)
+  const [vibJobLogs, setVibJobLogs] = useState<string[]>([])
+  const [vmCreateJobId, setVmCreateJobId] = useState<string | null>(null)
   const [templates, setTemplates] = useState<VmTemplate[]>([])
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
@@ -256,7 +363,10 @@ export default function CreateVMPage() {
   const [submitting, setSubmitting] = useState(false)
   const [createLog, setCreateLog] = useState<string[]>([])
   const logEndRef = useRef<HTMLDivElement>(null)
+  const isoPathRef = useRef<HTMLInputElement>(null)
   const [showCloudInit, setShowCloudInit] = useState(false)
+  const [createUiMode, setCreateUiMode] = useState<CreateUiMode>('classic')
+  const [wizardStep, setWizardStep] = useState(0)
   const [ciUser, setCiUser] = useState('')
   const [ciPass, setCiPass] = useState('')
   const [ciSshKey, setCiSshKey] = useState('')
@@ -268,12 +378,80 @@ export default function CreateVMPage() {
   }, [createLog])
 
   useEffect(() => {
+    if (createUiMode !== 'wizard') return
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [wizardStep])
+
+  useEffect(() => {
+    if (!vibJobId) {
+      setVibJobLogs([])
+      return
+    }
+    const ac = new AbortController()
+    let cancelled = false
+    setVibJobLogs([])
+    setVibBuilding(true)
+    ;(async () => {
+      try {
+        await streamJobLogs(vibJobId, {
+          signal: ac.signal,
+          onLogChunk: (chunk) => {
+            if (cancelled) return
+            const lines = chunk.split('\n').map((l) => l.trimEnd()).filter((l) => l.length > 0)
+            if (lines.length) setVibJobLogs((p) => [...p, ...lines])
+          },
+          onComplete: (data) => {
+            if (cancelled) return
+            let path: string | undefined
+            try {
+              const j = JSON.parse(data) as { path?: string }
+              path = j.path
+            } catch {
+              /* ignore */
+            }
+            toast.success(path ? `Disk image built: ${path}` : 'Disk image build completed')
+            setVibRootPwInline('')
+            listDiskImages()
+              .then((r) => setDiskFiles(r.files))
+              .catch(() => {})
+            if (path) {
+              setDiskMode('existing')
+              setForm((f) => ({ ...f, existing_disk: path! }))
+            }
+          },
+          onError: (msg) => {
+            if (!cancelled) toast.error(msg || 'virt-image-build failed')
+          },
+        })
+      } catch (e: unknown) {
+        if (!cancelled && (e as Error)?.name !== 'AbortError') {
+          toast.error(e instanceof Error ? e.message : String(e))
+        }
+      } finally {
+        if (!cancelled) setVibBuilding(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+      ac.abort()
+    }
+  }, [vibJobId, toast])
+
+  useEffect(() => {
     getTemplates().then(setTemplates).catch(() => {})
     listSavedTemplates().then(setSavedTemplates).catch(() => {})
     listNetworks().then(setNetworks).catch(() => {})
     listIsos().then((r) => setIsoFiles(r.files)).catch(() => {})
     listDiskImages().then((r) => setDiskFiles(r.files)).catch(() => {})
-    listVirtBuilderTemplates().then((r) => setVbTemplates(r.templates || [])).catch(() => setVbTemplates([]))
+    listVirtBuilderTemplates()
+      .then((r) => {
+        setVbCatalogMeta({ cached: r.cached, cacheAgeSecs: r.cache_age_secs ?? undefined })
+        setVbItems(r.items?.length ? r.items : (r.templates || []).map((name) => ({ name })))
+      })
+      .catch(() => {
+        setVbItems([])
+        setVbCatalogMeta({})
+      })
     listMkosiWorkspaces().then(setMkosiWorkspaces).catch(() => setMkosiWorkspaces([]))
   }, [])
 
@@ -311,9 +489,57 @@ export default function CreateVMPage() {
 
   const goldenSaved = savedTemplates.find((t) => t.name === form.saved_template && t.base_image)
 
+  const vbFiltered = useMemo(() => {
+    const q = vbCatalogFilter.trim().toLowerCase()
+    if (!q) return vbItems
+    return vbItems.filter((i) => {
+      if (i.name.toLowerCase().includes(q)) return true
+      if ((i.summary ?? '').toLowerCase().includes(q)) return true
+      if ((i.arch ?? '').toLowerCase().includes(q)) return true
+      return false
+    })
+  }, [vbItems, vbCatalogFilter])
+
+  const refreshVirtBuilderCatalog = () => {
+    listVirtBuilderTemplates({ refresh: true })
+      .then((r) => {
+        setVbCatalogMeta({ cached: r.cached, cacheAgeSecs: r.cache_age_secs ?? undefined })
+        setVbItems(r.items?.length ? r.items : (r.templates || []).map((name) => ({ name })))
+        toast.info('virt-builder catalog refreshed')
+      })
+      .catch((e: unknown) => {
+        toast.error(e instanceof Error ? e.message : String(e))
+      })
+  }
+
+  const stepVisible = (step: number) =>
+    createUiMode === 'classic' || wizardStep === step
+
+  const goWizardNext = () => {
+    const err = validateWizardStep(wizardStep, { form, diskMode, goldenSaved: !!goldenSaved })
+    if (err) {
+      toast.warning(err)
+      return
+    }
+    setWizardStep((s) => Math.min(WIZARD_LAST, s + 1))
+  }
+
+  const goWizardBack = () => setWizardStep((s) => Math.max(0, s - 1))
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (createUiMode === 'wizard' && wizardStep !== WIZARD_LAST) return
     if (!form.name.trim()) { toast.warning('Name is required'); return }
+    if (diskMode === 'new' && form.create_backend === 'virt_install' && !hasVirtInstallBootOrShell(form)) {
+      toast.warning('Set an install ISO (absolute path), or use Advanced virt-install (define-only halted VM, --location, PXE, --install os=…, backing image, or pool/volume root disk). Or switch Create engine to Native libvirt XML for an empty disk.')
+      return
+    }
+    const pPool = form.root_disk_storage_pool?.trim()
+    const pVol = form.root_disk_storage_volume?.trim()
+    if ((pPool && !pVol) || (!pPool && pVol)) {
+      toast.warning('Set both root disk pool and volume name, or leave both empty.')
+      return
+    }
     if (diskMode === 'existing' && !form.existing_disk?.trim()) { toast.warning('Existing disk path is required'); return }
     if (diskMode === 'virt_builder') {
       if (!form.virt_builder_os?.trim()) { toast.warning('virt-builder OS name is required (e.g. ubuntu-22.04)'); return }
@@ -328,6 +554,7 @@ export default function CreateVMPage() {
     }
     setSubmitting(true)
     setCreateLog([])
+    setVmCreateJobId(null)
     try {
       // Generate cloud-init ISO if configured
       let cloudInitIso: string | undefined
@@ -416,9 +643,60 @@ export default function CreateVMPage() {
         const mi = req.mkosi_image?.trim()
         if (!mi) { delete req.mkosi_image }
       }
-      await createVMWithProgress(req, (line) => {
-        setCreateLog((prev) => [...prev, line])
-      })
+      const backendEff = (req.create_backend ?? 'virt_install').trim()
+      if (diskMode === 'virt_builder' || diskMode === 'mkosi' || backendEff === 'libvirt_xml') {
+        delete req.virt_install_define_only
+        delete req.virt_install_location
+        delete req.virt_install_pxe
+        delete req.virt_install_pxe_network
+        delete req.virt_install_install_os
+        delete req.virt_install_extra_args
+        delete req.root_disk_storage_pool
+        delete req.root_disk_storage_volume
+        delete req.virt_install_path_in_use_check_off
+        delete req.virt_install_disk_backing_store
+      } else {
+        if (!req.virt_install_define_only) delete req.virt_install_define_only
+        if (!req.virt_install_pxe) delete req.virt_install_pxe
+        if (!req.virt_install_path_in_use_check_off) delete req.virt_install_path_in_use_check_off
+        const li = req.virt_install_location?.trim()
+        if (li) req.virt_install_location = li
+        else delete req.virt_install_location
+        const pn = req.virt_install_pxe_network?.trim()
+        if (pn) req.virt_install_pxe_network = pn
+        else delete req.virt_install_pxe_network
+        const ios = req.virt_install_install_os?.trim()
+        if (ios) req.virt_install_install_os = ios
+        else delete req.virt_install_install_os
+        const ex = req.virt_install_extra_args?.trim()
+        if (ex) req.virt_install_extra_args = ex
+        else delete req.virt_install_extra_args
+        const rp = req.root_disk_storage_pool?.trim()
+        const rv = req.root_disk_storage_volume?.trim()
+        if (rp && rv) {
+          req.root_disk_storage_pool = rp
+          req.root_disk_storage_volume = rv
+        } else {
+          delete req.root_disk_storage_pool
+          delete req.root_disk_storage_volume
+        }
+        const bs = req.virt_install_disk_backing_store?.trim()
+        if (bs) req.virt_install_disk_backing_store = bs
+        else delete req.virt_install_disk_backing_store
+      }
+      await createVMWithProgress(
+        req,
+        (line) => {
+          setCreateLog((prev) => [...prev, line])
+        },
+        (job) => {
+          setVmCreateJobId(job.id)
+          toast.info(
+            `Create VM job ${job.id.slice(0, 8)}… — open Jobs to follow if you leave this page.`,
+            7000,
+          )
+        },
+      )
       toast.success(`Created VM '${form.name}'`)
       navigate('/vms')
     } catch (e: unknown) {
@@ -429,14 +707,14 @@ export default function CreateVMPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+    <div className={`mx-auto space-y-6 animate-fade-in ${createUiMode === 'wizard' ? 'max-w-3xl' : 'max-w-2xl'}`}>
       <div className="flex items-center gap-4">
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
         <h1 className="text-2xl font-bold">Create Virtual Machine</h1>
       </div>
 
-      {/* Templates */}
-      {(templates.length > 0 || savedTemplates.length > 0) && (
+      {/* Templates (wizard: Basics step only) */}
+      {(createUiMode === 'classic' || wizardStep === 0) && (templates.length > 0 || savedTemplates.length > 0) && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
           <h3 className="text-lg font-semibold flex items-center gap-2 mb-4"><Layers className="w-5 h-5 text-blue-500" /> Templates</h3>
           {templates.length > 0 && (
@@ -495,8 +773,50 @@ export default function CreateVMPage() {
 
       {/* Form */}
       <form onSubmit={handleSubmit} className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
-        <h3 className="text-lg font-semibold flex items-center gap-2"><Server className="w-5 h-5 text-green-500" /> Configuration</h3>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <h3 className="text-lg font-semibold flex items-center gap-2"><Server className="w-5 h-5 text-green-500" /> Configuration</h3>
+          <div className="flex flex-col items-stretch sm:items-end gap-2 shrink-0">
+            <span className="text-[10px] uppercase tracking-wide text-slate-500 hidden sm:block text-right">Layout</span>
+            <div className="inline-flex rounded-lg border border-slate-600 p-0.5 bg-slate-900/60 self-start sm:self-end">
+              <button
+                type="button"
+                onClick={() => { setCreateUiMode('wizard'); setWizardStep(0) }}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${createUiMode === 'wizard' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                Wizard
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCreateUiMode('classic'); setWizardStep(0) }}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium transition ${createUiMode === 'classic' ? 'bg-blue-600 text-white shadow' : 'text-slate-400 hover:text-white'}`}
+              >
+                Single page
+              </button>
+            </div>
+          </div>
+        </div>
+        {createUiMode === 'wizard' && (
+          <nav className="flex flex-wrap gap-1.5" aria-label="Create VM wizard steps">
+            {WIZARD_STEP_LABELS.map((label, i) => (
+              <span
+                key={label}
+                className={`rounded-full px-2.5 py-0.5 text-[11px] font-medium border transition ${
+                  i === wizardStep
+                    ? 'bg-blue-600/90 text-white border-blue-500/80'
+                    : i < wizardStep
+                      ? 'bg-slate-600/80 text-slate-100 border-slate-500/50'
+                      : 'bg-slate-900/60 text-slate-500 border-slate-700/60'
+                }`}
+                aria-current={i === wizardStep ? 'step' : undefined}
+              >
+                {i + 1}. {label}
+              </span>
+            ))}
+          </nav>
+        )}
 
+        {stepVisible(0) && (
+        <>
         <div>
           <label htmlFor="create-backend" className="block text-sm text-slate-400 mb-1">Create engine</label>
           <select
@@ -505,7 +825,7 @@ export default function CreateVMPage() {
             value={form.create_backend || ''}
             onChange={(e) => setForm({ ...form, create_backend: e.target.value })}
           >
-            <option value="">Server default (see virtspawn config)</option>
+            <option value="">Server default (virt_install unless config says otherwise)</option>
             <option value="libvirt_xml">Native libvirt XML (virtspawn)</option>
             <option value="virt_install">virt-install (hyper2kvm-style)</option>
           </select>
@@ -516,7 +836,11 @@ export default function CreateVMPage() {
           <label htmlFor="vm-name" className="block text-sm text-slate-400 mb-1">VM Name *</label>
           <input id="vm-name" type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="input-field" placeholder="my-vm" />
         </div>
+        </>
+        )}
 
+        {stepVisible(1) && (
+        <>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div>
             <label htmlFor="vm-vcpus" className="block text-sm text-slate-400 mb-1">vCPUs</label>
@@ -596,36 +920,62 @@ export default function CreateVMPage() {
             )}
           </p>
         </div>
+        </>
+        )}
 
+        {stepVisible(2) && (
+        <>
         {/* Disk Section */}
         <div className="space-y-3">
           <div className="flex items-center gap-2">
             <HardDrive className="w-4 h-4 text-slate-400" />
             <span className="text-sm font-medium text-slate-300">Storage</span>
           </div>
-          <p className="text-xs text-slate-500 -mt-1">Default: <strong className="text-slate-400 font-medium">mkosi</strong> — <code className="text-slate-500">install.sh</code> / deploy installs upstream systemd/mkosi (v16+) to <code className="text-slate-500">/usr/local/bin</code> when needed. On Alma/RHEL/Rocky 9, <code className="text-slate-500">dnf install mkosi</code> from EPEL is often <strong className="text-slate-400">mkosi 12</strong>; prefer install.sh/pipx for current recipes.</p>
+          <p className="text-xs text-slate-500 -mt-1">Default: <strong className="text-slate-400 font-medium">New disk + virt-install</strong> — set an install ISO, or open <strong className="text-slate-400">Advanced virt-install</strong> below for define-only, kickstart <code className="text-slate-400">--location</code>, PXE, <code className="text-slate-400">--install os=…</code>, backing qcow2, or a pool volume root disk. <strong className="text-slate-400">Native libvirt XML</strong> is for empty disks without those options. <strong className="text-slate-400">mkosi</strong> builds pre-baked images; <code className="text-slate-500">install.sh</code> can install upstream mkosi (v16+) to <code className="text-slate-500">/usr/local/bin</code> when needed.</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => {
-                setForm((f) => ({ ...f, virt_builder_os: '', mkosi_workspace: '', virt_builder_hostname: '', virt_builder_ssh_pubkey: '', virt_builder_root_password_file: '', virt_builder_selinux_relabel: false, virt_builder_sysprep: false }))
+                setForm((f) => ({
+                  ...f,
+                  create_backend: 'virt_install',
+                  virt_builder_os: '',
+                  mkosi_workspace: '',
+                  mkosi_image: '',
+                  virt_builder_hostname: '',
+                  virt_builder_ssh_pubkey: '',
+                  virt_builder_root_password_file: '',
+                  virt_builder_selinux_relabel: false,
+                  virt_builder_sysprep: false,
+                }))
                 setVbPkgLines(''); setVbFirstbootLines(''); setVbPostInstLines(''); setVbPostRunLines(''); setVbNotesText(null)
                 setDiskMode('new')
               }}
-              className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'new' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
+              className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'new' ? 'bg-blue-600 text-white ring-1 ring-blue-400/50' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
             >
-              New Disk
+              New disk (virt-install)
             </button>
             <button
               type="button"
               onClick={() => {
-                setForm((f) => ({ ...f, virt_builder_os: '', mkosi_workspace: '', virt_builder_hostname: '', virt_builder_ssh_pubkey: '', virt_builder_root_password_file: '', virt_builder_selinux_relabel: false, virt_builder_sysprep: false }))
+                setForm((f) => ({
+                  ...f,
+                  create_backend: 'virt_install',
+                  virt_builder_os: '',
+                  mkosi_workspace: '',
+                  mkosi_image: '',
+                  virt_builder_hostname: '',
+                  virt_builder_ssh_pubkey: '',
+                  virt_builder_root_password_file: '',
+                  virt_builder_selinux_relabel: false,
+                  virt_builder_sysprep: false,
+                }))
                 setVbPkgLines(''); setVbFirstbootLines(''); setVbPostInstLines(''); setVbPostRunLines(''); setVbNotesText(null)
                 setDiskMode('existing')
               }}
               className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'existing' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
             >
-              Existing Disk Image
+              Existing disk
             </button>
             <button
               type="button"
@@ -637,6 +987,7 @@ export default function CreateVMPage() {
                 }
                 setForm((f) => ({
                   ...f,
+                  create_backend: 'virt_install',
                   virt_builder_os: '',
                   virt_builder_hostname: '',
                   virt_builder_ssh_pubkey: '',
@@ -650,7 +1001,7 @@ export default function CreateVMPage() {
 
               className={`px-3 py-1.5 rounded text-xs transition ${diskMode === 'mkosi' ? 'bg-blue-600 text-white ring-1 ring-blue-400/50' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
             >
-              mkosi workspace (default)
+              mkosi workspace (optional)
             </button>
             <button
               type="button"
@@ -660,13 +1011,58 @@ export default function CreateVMPage() {
                   setSelectedTemplate('')
                   toast.info('Cleared golden saved template for virt-builder.')
                 }
-                setForm((f) => ({ ...f, mkosi_workspace: '', mkosi_image: '', virt_builder_hostname: '', virt_builder_ssh_pubkey: '', virt_builder_root_password_file: '', virt_builder_selinux_relabel: false, virt_builder_sysprep: false }))
+                setForm((f) => ({
+                  ...f,
+                  create_backend: 'virt_install',
+                  mkosi_workspace: '',
+                  mkosi_image: '',
+                  virt_builder_hostname: '',
+                  virt_builder_ssh_pubkey: '',
+                  virt_builder_root_password_file: '',
+                  virt_builder_selinux_relabel: false,
+                  virt_builder_sysprep: false,
+                }))
                 setVbPkgLines(''); setVbFirstbootLines(''); setVbPostInstLines(''); setVbPostRunLines(''); setVbNotesText(null)
                 setDiskMode('virt_builder')
               }}
               className={`px-3 py-1.5 rounded text-xs transition flex items-center gap-1 ${diskMode === 'virt_builder' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'}`}
             >
               <Boxes className="w-3.5 h-3.5" /> virt-builder
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (goldenSaved) {
+                  setForm((f) => ({ ...f, saved_template: '', template_disk_mode: 'backing' }))
+                  setSelectedTemplate('')
+                  toast.info('Cleared golden saved template for ISO install.')
+                }
+                setForm((f) => ({
+                  ...f,
+                  create_backend: 'virt_install',
+                  mkosi_workspace: '',
+                  mkosi_image: '',
+                  virt_builder_os: '',
+                  virt_builder_hostname: '',
+                  virt_builder_ssh_pubkey: '',
+                  virt_builder_root_password_file: '',
+                  virt_builder_selinux_relabel: false,
+                  virt_builder_sysprep: false,
+                  existing_disk: '',
+                  disk_gb: f.disk_gb >= 8 ? f.disk_gb : 20,
+                }))
+                setVbPkgLines('')
+                setVbFirstbootLines('')
+                setVbPostInstLines('')
+                setVbPostRunLines('')
+                setVbNotesText(null)
+                setDiskMode('new')
+                queueMicrotask(() => isoPathRef.current?.focus())
+              }}
+              className="px-3 py-1.5 rounded text-xs transition flex items-center gap-1 bg-emerald-900/60 text-emerald-100 border border-emerald-700/50 hover:bg-emerald-800/60"
+              title="New qcow2 from virt-install + install ISO (clears mkosi / virt-builder fields)"
+            >
+              <Disc className="w-3.5 h-3.5" /> Install from ISO
             </button>
           </div>
           {goldenSaved ? (
@@ -794,26 +1190,82 @@ export default function CreateVMPage() {
           ) : diskMode === 'virt_builder' ? (
             <div className="space-y-3 rounded-lg border border-slate-600/50 bg-slate-900/40 p-4">
               <p className="text-xs text-slate-400">
-                Builds a bootable qcow2 from the libguestfs template index on the host (<code className="text-slate-300">virt-builder --list</code>). Requires <code className="text-slate-300">virt-builder</code> installed and network for first-time template cache. No golden image per OS.
+                Builds a bootable qcow2 from the libguestfs index on the host. The daemon runs{' '}
+                <code className="text-slate-300">virt-builder --list --list-format json</code> (falls back to plain <code className="text-slate-300">--list</code>).
+                The template list is <strong className="text-slate-300">cached for about 5 minutes</strong> per daemon process — use <strong className="text-slate-300">Refresh</strong> to pull a fresh index after installing templates.
               </p>
+              <div className="space-y-2">
+                <div className="flex flex-col sm:flex-row gap-2 sm:items-end">
+                  <div className="flex-1 min-w-0">
+                    <label htmlFor="vb-cat-filter" className="block text-sm text-slate-400 mb-1">Search templates</label>
+                    <input
+                      id="vb-cat-filter"
+                      type="search"
+                      value={vbCatalogFilter}
+                      onChange={(e) => setVbCatalogFilter(e.target.value)}
+                      className="input-field"
+                      placeholder="Name, arch, or description…"
+                      autoComplete="off"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={refreshVirtBuilderCatalog}
+                    className="shrink-0 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-800/80 text-xs text-slate-200 hover:bg-slate-700 transition"
+                    title="Bypass cache and re-run virt-builder --list --list-format json"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" aria-hidden />
+                    Refresh catalog
+                  </button>
+                </div>
+                {vbCatalogMeta.cached && vbCatalogMeta.cacheAgeSecs !== undefined ? (
+                  <p className="text-[10px] text-slate-500">
+                    Last catalog fetch was served from server cache ({vbCatalogMeta.cacheAgeSecs}s ago).
+                  </p>
+                ) : null}
+                <div className="max-h-52 overflow-y-auto rounded-lg border border-slate-600/60 bg-slate-950/50 divide-y divide-slate-800/80">
+                  {vbFiltered.length === 0 ? (
+                    <p className="text-xs text-slate-500 p-3">No templates match this filter. Clear search or refresh the catalog.</p>
+                  ) : (
+                    vbFiltered.map((row) => (
+                      <button
+                        key={row.name}
+                        type="button"
+                        onClick={() => {
+                          setForm((f) => ({ ...f, virt_builder_os: row.name }))
+                          setVbNotesText(null)
+                        }}
+                        className={`w-full text-left px-3 py-2.5 text-sm transition hover:bg-slate-800/90 ${
+                          (form.virt_builder_os || '') === row.name ? 'bg-blue-600/20 border-l-2 border-l-blue-500 pl-[10px]' : ''
+                        }`}
+                      >
+                        <div className="font-mono text-slate-100">{row.name}</div>
+                        {row.summary ? (
+                          <div className="text-[11px] text-slate-400 line-clamp-2 mt-0.5">{row.summary}</div>
+                        ) : null}
+                        {[row.arch, row.size].filter(Boolean).length > 0 ? (
+                          <div className="text-[10px] text-slate-500 mt-0.5 font-mono">
+                            {[row.arch, row.size].filter(Boolean).join(' · ')}
+                          </div>
+                        ) : null}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
               <div className="flex flex-wrap items-end gap-2">
                 <div className="flex-1 min-w-[12rem]">
-                  <label htmlFor="vb-os" className="block text-sm text-slate-400 mb-1">OS template *</label>
+                  <label htmlFor="vb-os" className="block text-sm text-slate-400 mb-1">Selected OS template id *</label>
                   <input
                     id="vb-os"
-                    list="vb-os-datalist"
                     type="text"
                     value={form.virt_builder_os || ''}
                     onChange={(e) => { setForm({ ...form, virt_builder_os: e.target.value }); setVbNotesText(null) }}
-                    className="input-field"
-                    placeholder="ubuntu-22.04"
+                    className="input-field font-mono text-sm"
+                    placeholder="Pick from the list above or type a custom id"
                     autoComplete="off"
+                    spellCheck={false}
                   />
-                  <datalist id="vb-os-datalist">
-                    {vbTemplates.map((t) => (
-                      <option key={t} value={t} />
-                    ))}
-                  </datalist>
                 </div>
                 <button
                   type="button"
@@ -902,6 +1354,151 @@ export default function CreateVMPage() {
               <p className="text-xs text-slate-500">
                 Provide an SSH key and/or root password <strong>file</strong>, or configure <code className="text-slate-400">[libvirt] virt_builder_default_ssh_pubkey_path</code> on the server.
               </p>
+              <div className="mt-4 pt-4 border-t border-slate-600/50 space-y-3">
+                <p className="text-xs text-slate-400">
+                  <Hammer className="w-3.5 h-3.5 inline-block mr-1 align-text-bottom text-amber-400/90" aria-hidden />
+                  <strong className="text-slate-300">Pre-build a disk</strong> with the same <code className="text-slate-500">virt-builder</code> flow as the CLI crate <code className="text-slate-500">virt-image-build</code>: the daemon runs an async <strong className="text-slate-300">job</strong> with live <code className="text-slate-500">virt-builder</code> stdout/stderr below, and you can open <strong className="text-slate-300">Jobs</strong> anytime to keep watching. When it finishes, switch to <strong className="text-slate-300">Existing disk</strong> and the new path is selected automatically.
+                </p>
+                <div>
+                  <label htmlFor="vib-out" className="block text-sm text-slate-400 mb-1">Output path on server *</label>
+                  <input
+                    id="vib-out"
+                    type="text"
+                    value={vibOutputPath}
+                    onChange={(e) => setVibOutputPath(e.target.value)}
+                    className="input-field font-mono text-sm"
+                    placeholder="/var/lib/libvirt/images/my-guest.qcow2"
+                    autoComplete="off"
+                    spellCheck={false}
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">Absolute path; must not exist. Parent directory must be under a libvirt pool or default images path.</p>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <label htmlFor="vib-size" className="block text-sm text-slate-400 mb-1">Size</label>
+                    <input id="vib-size" type="text" value={vibSizeStr} onChange={(e) => setVibSizeStr(e.target.value)} className="input-field font-mono text-sm" placeholder="20G" />
+                  </div>
+                  <div>
+                    <label htmlFor="vib-fmt" className="block text-sm text-slate-400 mb-1">Format</label>
+                    <input id="vib-fmt" type="text" value={vibFormatStr} onChange={(e) => setVibFormatStr(e.target.value)} className="input-field font-mono text-sm" placeholder="qcow2" />
+                  </div>
+                  <div>
+                    <label htmlFor="vib-hn" className="block text-sm text-slate-400 mb-1">Hostname override</label>
+                    <input
+                      id="vib-hn"
+                      type="text"
+                      value={vibHostnameOverride}
+                      onChange={(e) => setVibHostnameOverride(e.target.value)}
+                      className="input-field font-mono text-sm"
+                      placeholder="Uses guest hostname field if empty"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="vib-pw-inline" className="block text-sm text-slate-400 mb-1">Root password (optional, one-time over HTTPS)</label>
+                  <input
+                    id="vib-pw-inline"
+                    type="password"
+                    value={vibRootPwInline}
+                    onChange={(e) => setVibRootPwInline(e.target.value)}
+                    className="input-field font-mono text-sm"
+                    placeholder="Prefer root password file above when possible"
+                    autoComplete="new-password"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="vib-fb-path" className="block text-sm text-slate-400 mb-1">First-boot script on server (optional)</label>
+                  <input
+                    id="vib-fb-path"
+                    type="text"
+                    value={vibFirstbootHostPath}
+                    onChange={(e) => setVibFirstbootHostPath(e.target.value)}
+                    className="input-field font-mono text-sm"
+                    placeholder="/path/on/hypervisor/firstboot.sh"
+                    spellCheck={false}
+                  />
+                </div>
+                <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                  <input type="checkbox" checked={vibUpdate} onChange={(e) => setVibUpdate(e.target.checked)} className="rounded border-slate-600" />
+                  <code className="text-xs text-slate-500">virt-builder --update</code> (full OS update during build)
+                </label>
+                <button
+                  type="button"
+                  disabled={vibBuilding}
+                  onClick={async () => {
+                    const os = form.virt_builder_os?.trim()
+                    const out = vibOutputPath.trim()
+                    if (!os) {
+                      toast.warning('Select or enter a virt-builder OS template first')
+                      return
+                    }
+                    if (!out) {
+                      toast.warning('Enter an absolute output path on the server')
+                      return
+                    }
+                    const pk = form.virt_builder_ssh_pubkey?.trim()
+                    const pwf = form.virt_builder_root_password_file?.trim()
+                    const pwi = vibRootPwInline.trim()
+                    if (!pk && !pwf && !pwi) {
+                      toast.warning('Provide root password file, one-time root password, or SSH public key above')
+                      return
+                    }
+                    const hn = (vibHostnameOverride.trim() || form.virt_builder_hostname?.trim() || 'virtbuilder-guest.local').trim()
+                    setVibJobId(null)
+                    setVibJobLogs([])
+                    try {
+                      const started = await startVirtImageBuildJob({
+                        os,
+                        output: out,
+                        size: vibSizeStr.trim() || undefined,
+                        format: vibFormatStr.trim() || undefined,
+                        hostname: hn,
+                        install: linesToList(vbPkgLines).join(','),
+                        run_command: linesToList(vbFirstbootLines),
+                        firstboot_script: vibFirstbootHostPath.trim() || undefined,
+                        root_password_file: pwf || undefined,
+                        root_password_inline: pwi || undefined,
+                        ssh_pubkey_inline: pk || undefined,
+                        update: vibUpdate,
+                        selinux_relabel: !!form.virt_builder_selinux_relabel,
+                      })
+                      setVibJobId(started.id)
+                      toast.info(`Build started — job ${started.id.slice(0, 8)}…`, 5000)
+                    } catch (e: unknown) {
+                      toast.error(e instanceof Error ? e.message : String(e))
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-700/90 hover:bg-amber-600 text-white text-sm font-medium disabled:opacity-50 disabled:pointer-events-none transition"
+                >
+                  {vibBuilding ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" aria-hidden />
+                      Building…
+                    </>
+                  ) : (
+                    <>
+                      <Hammer className="w-4 h-4" aria-hidden />
+                      Build disk on server
+                    </>
+                  )}
+                </button>
+                {vibJobId ? (
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-400">
+                      Job <span className="font-mono text-slate-300">{vibJobId}</span> —{' '}
+                      <Link to={`/jobs/${encodeURIComponent(vibJobId)}`} className="text-amber-300/90 hover:underline">
+                        Open in Jobs
+                      </Link>{' '}
+                      to keep watching if you leave this page.
+                    </p>
+                    {vibJobLogs.length > 0 ? (
+                      <pre className="text-[10px] font-mono text-slate-400 bg-slate-950/70 border border-slate-800 rounded-lg p-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words">
+                        {vibJobLogs.join('\n')}
+                      </pre>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : diskMode === 'new' ? (
             <div>
@@ -943,7 +1540,11 @@ export default function CreateVMPage() {
             </div>
           )}
         </div>
+        </>
+        )}
 
+        {stepVisible(3) && (
+        <>
         {/* Network */}
         <div>
           <label htmlFor="vm-network" className="block text-sm text-slate-400 mb-1">Network</label>
@@ -1000,7 +1601,7 @@ export default function CreateVMPage() {
           ) : (
             <div className="space-y-2">
               {isoFiles.length > 0 ? (
-                <select id="vm-iso" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field">
+                <select id="vm-iso-scan" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field">
                   <option value="">No ISO (from scan)</option>
                   {isoFiles.map((f) => (
                     <option key={f.path} value={f.path}>
@@ -1011,6 +1612,7 @@ export default function CreateVMPage() {
               ) : null}
               <div className="flex gap-2">
                 <input
+                  ref={isoPathRef}
                   id="vm-iso"
                   type="text"
                   value={form.iso || ''}
@@ -1034,6 +1636,64 @@ export default function CreateVMPage() {
             </div>
           )}
         </div>
+
+        {diskMode !== 'virt_builder' && diskMode !== 'mkosi' && form.create_backend !== 'libvirt_xml' && (
+          <details className="rounded-lg border border-slate-700/50 bg-slate-900/30 px-4 py-3">
+            <summary className="cursor-pointer text-sm font-medium text-slate-200 flex items-center gap-2 list-none [&::-webkit-details-marker]:hidden">
+              <FileText className="w-4 h-4 text-amber-400 shrink-0" aria-hidden />
+              Advanced virt-install (PXE, kickstart tree, define-only, …)
+            </summary>
+            <p className="text-xs text-slate-500 mt-2 mb-3">
+              Same primitives as <a href="https://github.com/cockpit-project/cockpit-machines" className="text-blue-400 hover:underline" target="_blank" rel="noreferrer">Cockpit Machines</a> (via <code className="text-slate-400">virt-install</code>); combine carefully — the API rejects conflicting combinations.
+            </p>
+            <div className="space-y-3 text-sm">
+              <label className="flex items-start gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!form.virt_install_define_only} onChange={(e) => setForm({ ...form, virt_install_define_only: e.target.checked })} className="rounded border-slate-600 mt-0.5" />
+                <span>
+                  <strong className="text-slate-300">Define only</strong> — <code className="text-xs text-slate-400">--print-xml</code> then define a halted VM (no ISO, location, PXE, backing import, or cloud-init ISO).
+                </span>
+              </label>
+              <div>
+                <label htmlFor="vi-loc" className="block text-xs text-slate-400 mb-1">Install URL / tree (<code className="text-slate-500">--location</code>)</label>
+                <input id="vi-loc" type="text" value={form.virt_install_location || ''} onChange={(e) => setForm({ ...form, virt_install_location: e.target.value })} className="input-field font-mono text-xs" placeholder="https://… or nfs:host:/export or /srv/install-tree" spellCheck={false} />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!form.virt_install_pxe} onChange={(e) => setForm({ ...form, virt_install_pxe: e.target.checked })} className="rounded border-slate-600" />
+                <span><strong className="text-slate-300">PXE boot</strong> — adds <code className="text-xs text-slate-400">--pxe</code> and a second NIC</span>
+              </label>
+              <div>
+                <label htmlFor="vi-pxenet" className="block text-xs text-slate-400 mb-1">PXE network name (defaults to main Network)</label>
+                <input id="vi-pxenet" type="text" value={form.virt_install_pxe_network || ''} onChange={(e) => setForm({ ...form, virt_install_pxe_network: e.target.value })} className="input-field font-mono text-xs" placeholder="default" spellCheck={false} />
+              </div>
+              <div>
+                <label htmlFor="vi-instalos" className="block text-xs text-slate-400 mb-1"><code className="text-slate-500">--install os=</code> (libosinfo id)</label>
+                <input id="vi-instalos" type="text" value={form.virt_install_install_os || ''} onChange={(e) => setForm({ ...form, virt_install_install_os: e.target.value })} className="input-field font-mono text-xs" placeholder="fedora40" spellCheck={false} />
+              </div>
+              <div>
+                <label htmlFor="vi-extra" className="block text-xs text-slate-400 mb-1"><code className="text-slate-500">--extra-args</code></label>
+                <input id="vi-extra" type="text" value={form.virt_install_extra_args || ''} onChange={(e) => setForm({ ...form, virt_install_extra_args: e.target.value })} className="input-field font-mono text-xs" placeholder="inst.ks=…" spellCheck={false} />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <label htmlFor="vi-pool" className="block text-xs text-slate-400 mb-1">Root disk pool</label>
+                  <input id="vi-pool" type="text" value={form.root_disk_storage_pool || ''} onChange={(e) => setForm({ ...form, root_disk_storage_pool: e.target.value })} className="input-field font-mono text-xs" placeholder="default" spellCheck={false} />
+                </div>
+                <div>
+                  <label htmlFor="vi-vol" className="block text-xs text-slate-400 mb-1">Volume name</label>
+                  <input id="vi-vol" type="text" value={form.root_disk_storage_volume || ''} onChange={(e) => setForm({ ...form, root_disk_storage_volume: e.target.value })} className="input-field font-mono text-xs" placeholder="myvm.qcow2" spellCheck={false} />
+                </div>
+              </div>
+              <div>
+                <label htmlFor="vi-back" className="block text-xs text-slate-400 mb-1">Backing image for new overlay (<code className="text-slate-500">backing_store=</code> + import)</label>
+                <input id="vi-back" type="text" value={form.virt_install_disk_backing_store || ''} onChange={(e) => setForm({ ...form, virt_install_disk_backing_store: e.target.value })} className="input-field font-mono text-xs" placeholder="/var/lib/libvirt/images/Fedora-Cloud-Base.qcow2" spellCheck={false} />
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={!!form.virt_install_path_in_use_check_off} onChange={(e) => setForm({ ...form, virt_install_path_in_use_check_off: e.target.checked })} className="rounded border-slate-600" />
+                <span><code className="text-xs text-slate-400">--check path_in_use=off</code></span>
+              </label>
+            </div>
+          </details>
+        )}
 
         {/* Cloud-init */}
         <div className="border-t border-slate-700/50 pt-4">
@@ -1060,14 +1720,91 @@ export default function CreateVMPage() {
             </div>
           )}
         </div>
+        </>
+        )}
 
-        {(submitting || createLog.length > 0) && (
+        {createUiMode === 'wizard' && wizardStep === WIZARD_LAST && (
+        <div className="rounded-lg border border-emerald-800/40 bg-emerald-950/20 p-4 space-y-3">
+          <h4 className="text-sm font-semibold text-emerald-100 flex items-center gap-2">
+            <Check className="w-4 h-4 text-emerald-400 shrink-0" aria-hidden />
+            Review &amp; create
+          </h4>
+          <p className="text-xs text-slate-500">Confirm settings. Use <strong className="text-slate-400">Back</strong> to change an earlier step.</p>
+          <dl className="grid grid-cols-1 sm:grid-cols-[minmax(8rem,auto)_1fr] gap-x-4 gap-y-2 text-sm border-t border-slate-700/40 pt-3">
+            <dt className="text-slate-500">VM name</dt>
+            <dd className="font-mono text-slate-100 break-all">{form.name.trim() || '—'}</dd>
+            <dt className="text-slate-500">Create engine</dt>
+            <dd className="text-slate-200">{form.create_backend?.trim() || 'Server default (virt_install)'}</dd>
+            <dt className="text-slate-500">vCPU / RAM</dt>
+            <dd className="text-slate-200">{form.vcpus} vCPU · {form.memory_mb} MiB</dd>
+            <dt className="text-slate-500">Firmware / OS hint</dt>
+            <dd className="text-slate-200">{(form.firmware || 'uefi').toUpperCase()} · <span className="font-mono text-xs">{(form.os_variant || 'generic').trim() || 'generic'}</span></dd>
+            <dt className="text-slate-500">Storage</dt>
+            <dd className="text-slate-200">
+              {diskModeLabel(diskMode)}
+              {diskMode === 'new' && !goldenSaved && (
+                <span className="block text-xs text-slate-400 mt-0.5">{form.disk_gb} GiB new disk</span>
+              )}
+              {diskMode === 'existing' && form.existing_disk?.trim() && (
+                <span className="block font-mono text-xs text-slate-400 mt-0.5 break-all">{form.existing_disk}</span>
+              )}
+              {diskMode === 'mkosi' && form.mkosi_workspace?.trim() && (
+                <span className="block font-mono text-xs text-slate-400 mt-0.5 break-all">{form.mkosi_workspace}{form.mkosi_image?.trim() ? ` (image: ${form.mkosi_image})` : ''}</span>
+              )}
+              {diskMode === 'virt_builder' && form.virt_builder_os?.trim() && (
+                <span className="block font-mono text-xs text-slate-400 mt-0.5">{form.virt_builder_os}</span>
+              )}
+            </dd>
+            {form.saved_template?.trim() ? (
+              <>
+                <dt className="text-slate-500">Saved template</dt>
+                <dd className="font-mono text-xs text-slate-200 break-all">{form.saved_template}</dd>
+              </>
+            ) : null}
+            <dt className="text-slate-500">Network</dt>
+            <dd className="font-mono text-xs text-slate-200">{form.network || 'default'}</dd>
+            <dt className="text-slate-500">Display</dt>
+            <dd className="text-slate-200">{(form.graphics_type || 'vnc').toUpperCase()}{form.graphics_listen?.trim() && form.graphics_listen !== '127.0.0.1' ? ` · listen ${form.graphics_listen}` : ''}</dd>
+            <dt className="text-slate-500">Install / boot</dt>
+            <dd className="text-slate-200 text-xs">
+              {form.iso?.trim() ? <span className="font-mono break-all block">ISO: {form.iso}</span> : null}
+              {form.virt_install_define_only ? <span className="block text-amber-200/90">Define-only (halted, no install media)</span> : null}
+              {form.virt_install_location?.trim() ? <span className="block font-mono break-all">location: {form.virt_install_location}</span> : null}
+              {form.virt_install_pxe ? <span className="block">PXE boot</span> : null}
+              {form.virt_install_install_os?.trim() ? <span className="block font-mono">install os={form.virt_install_install_os}</span> : null}
+              {form.virt_install_disk_backing_store?.trim() ? <span className="block font-mono break-all">backing: {form.virt_install_disk_backing_store}</span> : null}
+              {(form.root_disk_storage_pool?.trim() && form.root_disk_storage_volume?.trim()) ? (
+                <span className="block font-mono">vol {form.root_disk_storage_pool}/{form.root_disk_storage_volume}</span>
+              ) : null}
+              {!form.iso?.trim() && !form.virt_install_define_only && !form.virt_install_location?.trim() && !form.virt_install_pxe && !form.virt_install_install_os?.trim() && !form.virt_install_disk_backing_store?.trim() && !(form.root_disk_storage_pool?.trim() && form.root_disk_storage_volume?.trim()) && diskMode === 'new' && form.create_backend === 'libvirt_xml' ? (
+                <span className="text-slate-400">Native XML — empty / installer path per engine</span>
+              ) : null}
+              {diskMode === 'new' && form.create_backend === 'virt_install' && hasVirtInstallBootOrShell(form) && !form.iso?.trim() ? (
+                <span className="block text-slate-400">Advanced virt-install / volume / backing (no classic ISO path)</span>
+              ) : null}
+            </dd>
+            <dt className="text-slate-500">Cloud-init</dt>
+            <dd className="text-slate-200 text-xs">{showCloudInit && (ciUser || ciSshKey) ? `Seed ISO will be generated (${ciUser || 'user TBD'})` : 'Off'}</dd>
+          </dl>
+        </div>
+        )}
+
+        {(createUiMode === 'classic' || wizardStep === WIZARD_LAST) && (submitting || createLog.length > 0) && (
           <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4 space-y-2">
             <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
               <Server className="w-4 h-4 text-blue-400" />
               Create progress
             </h3>
             <p className="text-xs text-slate-500">Live output from mkosi, virt-builder, virt-install, and qemu-img on the hypervisor (same request as Create VM).</p>
+            {vmCreateJobId ? (
+              <p className="text-xs text-slate-400">
+                Track this run in{' '}
+                <Link to={`/jobs/${encodeURIComponent(vmCreateJobId)}`} className="text-amber-300/90 hover:underline font-mono">
+                  Jobs
+                </Link>{' '}
+                <span className="font-mono text-slate-500">({vmCreateJobId.slice(0, 8)}…)</span>
+              </p>
+            ) : null}
             <pre className="max-h-72 overflow-y-auto rounded-lg bg-black/50 border border-slate-800 p-3 text-[11px] leading-snug font-mono text-slate-200 whitespace-pre-wrap break-all">
               {createLog.length ? createLog.join('\n') : <span className="text-slate-500">Starting…</span>}
             </pre>
@@ -1075,12 +1812,56 @@ export default function CreateVMPage() {
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
-          <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Cancel</Link>
-          <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm transition">
-            {submitting ? 'Creating...' : 'Create VM'}
-          </button>
-        </div>
+        {createUiMode === 'classic' ? (
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
+            <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Cancel</Link>
+            <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm transition">
+              {submitting ? 'Creating...' : 'Create VM'}
+            </button>
+          </div>
+        ) : wizardStep < WIZARD_LAST ? (
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center pt-4 border-t border-slate-700/50">
+            <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition text-center sm:text-left">Cancel</Link>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={goWizardBack}
+                disabled={wizardStep === 0 || submitting}
+                className="inline-flex items-center gap-1 px-4 py-2 rounded text-sm border border-slate-600 bg-slate-800/80 text-slate-200 hover:bg-slate-700 disabled:opacity-40 disabled:pointer-events-none transition"
+              >
+                <ChevronLeft className="w-4 h-4 shrink-0" aria-hidden />
+                Back
+              </button>
+              <button
+                type="button"
+                onClick={goWizardNext}
+                disabled={submitting}
+                className="inline-flex items-center gap-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm transition"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 shrink-0" aria-hidden />
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between sm:items-center pt-4 border-t border-slate-700/50">
+            <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition text-center sm:text-left">Cancel</Link>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                onClick={goWizardBack}
+                disabled={submitting}
+                className="inline-flex items-center gap-1 px-4 py-2 rounded text-sm border border-slate-600 bg-slate-800/80 text-slate-200 hover:bg-slate-700 disabled:opacity-50 transition"
+              >
+                <ChevronLeft className="w-4 h-4 shrink-0" aria-hidden />
+                Back
+              </button>
+              <button type="submit" disabled={submitting} className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded text-sm transition font-medium">
+                {submitting ? 'Creating...' : 'Create VM'}
+              </button>
+            </div>
+          </div>
+        )}
       </form>
 
       <BrowseHostPathModal

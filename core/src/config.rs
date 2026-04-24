@@ -28,7 +28,7 @@ pub struct VirtspawnConfig {
     pub kubevirt: KubeVirtConfig,
 }
 
-/// Tuning for generated KubeVirt + CDI YAML ([`crate::kubevirt`]).
+/// Tuning for generated KubeVirt + CDI YAML ([`crate::kubevirt`]) and optional `kubectl` / `virtctl` execution.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KubeVirtConfig {
     /// Namespace in generated manifests when the client does not override `?namespace=`.
@@ -46,6 +46,19 @@ pub struct KubeVirtConfig {
     /// `spec.template.spec.domain.machine.type` (e.g. q35).
     #[serde(default = "default_kubevirt_machine_type")]
     pub machine_type: String,
+    /// When true, `POST /api/v1/vms/{name}/kubevirt/apply|upload|start` may run `kubectl` / `virtctl` on the daemon host.
+    #[serde(default)]
+    pub exec_enabled: bool,
+    #[serde(default = "default_kubevirt_kubectl")]
+    pub kubectl_binary: String,
+    #[serde(default = "default_kubevirt_virtctl")]
+    pub virtctl_binary: String,
+    /// If set, exported as `KUBECONFIG` for cluster commands.
+    #[serde(default)]
+    pub kubeconfig_path: String,
+    /// Passed to `virtctl image-upload --upload-image-timeout=…m`.
+    #[serde(default = "default_kubevirt_upload_timeout_mins")]
+    pub upload_timeout_minutes: u64,
 }
 
 fn default_kubevirt_namespace() -> String {
@@ -64,6 +77,18 @@ fn default_kubevirt_machine_type() -> String {
     "q35".to_string()
 }
 
+fn default_kubevirt_kubectl() -> String {
+    "kubectl".to_string()
+}
+
+fn default_kubevirt_virtctl() -> String {
+    "virtctl".to_string()
+}
+
+fn default_kubevirt_upload_timeout_mins() -> u64 {
+    120
+}
+
 impl Default for KubeVirtConfig {
     fn default() -> Self {
         Self {
@@ -72,6 +97,11 @@ impl Default for KubeVirtConfig {
             datavolume_padding_gi: default_kubevirt_datavolume_padding_gi(),
             virtio_container_disk_image: default_kubevirt_virtio_container_disk_image(),
             machine_type: default_kubevirt_machine_type(),
+            exec_enabled: false,
+            kubectl_binary: default_kubevirt_kubectl(),
+            virtctl_binary: default_kubevirt_virtctl(),
+            kubeconfig_path: String::new(),
+            upload_timeout_minutes: default_kubevirt_upload_timeout_mins(),
         }
     }
 }
@@ -224,10 +254,10 @@ pub struct DaemonConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VmCreateBackend {
-    /// Native virtspawn domain XML + `qemu-img` (default).
-    #[default]
+    /// Native virtspawn domain XML + `qemu-img`.
     LibvirtXml,
-    /// Shell out to `virt-install` (hyper2kvm-style).
+    /// Shell out to `virt-install` (hyper2kvm-style). Default when the client omits `create_backend`.
+    #[default]
     VirtInstall,
 }
 
@@ -235,7 +265,7 @@ pub enum VmCreateBackend {
 pub struct LibvirtConfig {
     #[serde(default = "default_libvirt_uri")]
     pub uri: String,
-    /// Default VM create engine; clients may send `create_backend` per request.
+    /// Default VM create engine when the client omits `create_backend` (normally [`VmCreateBackend::VirtInstall`]).
     #[serde(default)]
     pub create_backend: VmCreateBackend,
     /// Legacy libguestfs `virt-builder` integration (optional API fields). **Default: disabled** — prefer [`mkosi_allowed`](Self::mkosi_allowed) / `mkosi_workspace`. Set `virt_builder_allowed = true` only if you need virt-builder.
@@ -250,7 +280,7 @@ pub struct LibvirtConfig {
     /// Packages always installed via `virt-builder --install` for every virt-builder VM (e.g. `["qemu-guest-agent"]`).
     #[serde(default)]
     pub virt_builder_default_packages: Vec<String>,
-    /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (recommended disk images; requires mkosi on host; see install.sh).
+    /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (optional image builds; requires mkosi on host; see install.sh).
     #[serde(default = "default_true")]
     pub mkosi_allowed: bool,
 }

@@ -76,7 +76,7 @@ fn apply_fedora_mkosi_resource_defaults(req: &mut CreateVmRequest) {
     }
 }
 
-/// Define a new VM using either native libvirt XML or external `virt-install` (see `[libvirt] create_backend`).
+/// Define a new VM using either native libvirt XML or external `virt-install` (see `[libvirt] create_backend`; default is usually `virt_install`).
 pub fn create_vm(
     conn: &Connect,
     req: &CreateVmRequest,
@@ -94,8 +94,12 @@ pub fn create_vm(
     let has_boot_source = !req.existing_disk.trim().is_empty()
         || !req.iso.trim().is_empty()
         || !req.virt_builder_os.trim().is_empty()
-        || !req.mkosi_workspace.trim().is_empty();
-    if !has_boot_source && libvirt_cfg.mkosi_allowed {
+        || !req.mkosi_workspace.trim().is_empty()
+        || !req.virt_install_location.trim().is_empty()
+        || req.virt_install_pxe
+        || !req.virt_install_install_os.trim().is_empty()
+        || !req.virt_install_disk_backing_store.trim().is_empty();
+    if !has_boot_source && libvirt_cfg.mkosi_allowed && !req.virt_install_define_only {
         if let Some(ws) = super::mkosi::auto_detect_workspace(&req.name) {
             tracing::info!(
                 "Auto-detected mkosi workspace '{}' for VM '{}'",
@@ -120,9 +124,15 @@ pub fn create_vm(
     match backend {
         VmCreateBackend::VirtInstall => {
             subprocess::log_line(log, "virtspawn", "Defining VM with virt-install…");
-            super::virt_install::create_vm_virt_install(&req, libvirt_uri, log)
+            super::virt_install::create_vm_virt_install(conn, &req, libvirt_uri, log)
         }
         VmCreateBackend::LibvirtXml => {
+            if super::virt_install::create_request_uses_virt_install_extensions(&req) {
+                return Err(LibvirtError::Invalid(
+                    "This request uses virt-install-only fields (virt_install_define_only, virt_install_location, virt_install_pxe, root_disk_storage_pool/volume, virt_install_disk_backing_store). Set create_backend to \"virt_install\" or omit it when the server default is virt_install."
+                        .into(),
+                ));
+            }
             subprocess::log_line(log, "virtspawn", "Defining VM with libvirt XML…");
             create_vm_libvirt_xml(conn, &req, log)
         }

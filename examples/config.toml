@@ -40,7 +40,9 @@ port = 5092
 #   "qemu+ssh://user@host/system" — remote host over SSH
 #   "qemu+tcp://host/system"      — remote host over TCP
 uri = "qemu:///system"
-# Disk images: mkosi is the supported workflow (`mkosi_workspace` API field). Default: mkosi on, virt-builder off.
+# VM create engine when the client omits `create_backend`: virt_install (default) or libvirt_xml.
+# create_backend = "virt_install"
+# Optional image builds via mkosi (`mkosi_workspace` API field). virt-builder stays off unless enabled.
 # mkosi_allowed = true
 # Legacy libguestfs virt-builder (only if you set virt_builder_allowed = true; install guestfs-tools).
 # virt_builder_allowed = false
@@ -59,9 +61,15 @@ uri = "qemu:///system"
 # ssh_user = "root"
 
 # KubeVirt manifest defaults for GET /api/v1/vms/{name}/kubevirt-bundle (libvirt qcow2 → CDI + VM YAML).
+# Optional: allow the daemon to run kubectl / virtctl on this host (same kubeconfig as your admin workstation).
 # [kubevirt]
 # default_namespace = "default"
 # default_storage_class = "local-path"
 # datavolume_padding_gi = 5
 # virtio_container_disk_image = "quay.io/kubevirt/virtio-container-disk:latest"
 # machine_type = "q35"
+# exec_enabled = false
+# kubectl_binary = "kubectl"
+# virtctl_binary = "virtctl"
+# kubeconfig_path = "/root/.kube/config"
+# upload_timeout_minutes = 120

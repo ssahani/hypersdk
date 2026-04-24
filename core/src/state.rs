@@ -258,6 +258,36 @@ pub struct CreateVmRequest {
     /// For multi-image mkosi workspaces (image trees): pass `--image <name>` to select a specific image.
     #[serde(default)]
     pub mkosi_image: String,
+    // ── virt-install extensions (Cockpit-machines-style; require `create_backend` / default `virt_install`) ──
+    /// Run `virt-install --print-xml=1` and define the domain without install media (halted shell; install later).
+    #[serde(default)]
+    pub virt_install_define_only: bool,
+    /// Network install tree: `virt-install --location <url-or-path>` (kickstart / OS tree).
+    #[serde(default)]
+    pub virt_install_location: String,
+    /// `virt-install --pxe --network network=<virt_install_pxe_network>`.
+    #[serde(default)]
+    pub virt_install_pxe: bool,
+    /// Libvirt network name for PXE (defaults to `network` when empty).
+    #[serde(default)]
+    pub virt_install_pxe_network: String,
+    /// `virt-install --install os=<libosinfo-id>` (boxed / downloaded media).
+    #[serde(default)]
+    pub virt_install_install_os: String,
+    /// `virt-install --extra-args` (kernel / installer args; pairs with `--location` or `--cdrom`).
+    #[serde(default)]
+    pub virt_install_extra_args: String,
+    /// Root disk from a storage pool volume: `virt-install --disk vol=<pool>/<name>,bus=virtio`.
+    #[serde(default)]
+    pub root_disk_storage_pool: String,
+    #[serde(default)]
+    pub root_disk_storage_volume: String,
+    /// `virt-install --check path_in_use=off` (busy images / pool volumes).
+    #[serde(default)]
+    pub virt_install_path_in_use_check_off: bool,
+    /// New overlay disk with `backing_store=` (cloud / golden image on host); implies `--import`.
+    #[serde(default)]
+    pub virt_install_disk_backing_store: String,
 }
 
 fn default_graphics_listen() -> String {
@@ -312,6 +342,16 @@ impl Default for CreateVmRequest {
             virt_builder_sysprep: false,
             mkosi_workspace: String::new(),
             mkosi_image: String::new(),
+            virt_install_define_only: false,
+            virt_install_location: String::new(),
+            virt_install_pxe: false,
+            virt_install_pxe_network: String::new(),
+            virt_install_install_os: String::new(),
+            virt_install_extra_args: String::new(),
+            root_disk_storage_pool: String::new(),
+            root_disk_storage_volume: String::new(),
+            virt_install_path_in_use_check_off: false,
+            virt_install_disk_backing_store: String::new(),
         }
     }
 }
@@ -817,6 +857,8 @@ pub struct AppState {
     pub vm_metrics: Vec<VmMetrics>,
     pub audit_events: VecDeque<AuditEvent>,
     pub xml_content: String,
+    /// When non-empty, replaces the default title on XML / log full-screen overlays (e.g. KubeVirt YAML).
+    pub content_overlay_caption: String,
     pub scroll_offset: u16,
     pub dashboard: DashboardStats,
     pub backups: Vec<BackupInfo>,

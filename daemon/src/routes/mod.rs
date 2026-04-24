@@ -7,6 +7,7 @@ mod extras;
 mod guacamole;
 mod health;
 mod host_network;
+mod jobs;
 mod metrics;
 mod networks;
 mod node;
@@ -22,6 +23,7 @@ use virtspawn_core::LibvirtManager;
 
 pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()
+        .merge(jobs::job_routes())
         .merge(vms::vm_routes())
         .merge(snapshots::snapshot_routes())
         .merge(networks::network_routes())

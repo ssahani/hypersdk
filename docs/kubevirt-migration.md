@@ -1,0 +1,39 @@
+# KubeVirt migration (libvirt → CDI + VirtualMachine)
+
+virtspawn can emit a **CDI upload DataVolume** plus a **KubeVirt VirtualMachine** manifest from an existing libvirt domain, similar in spirit to [hyper2kvm](https://github.com/ssahani/hyper2kvm): root disk as a DataVolume, virtio disks in the guest, and a **virtio-win CDROM** expressed as a `containerDisk` (cluster-pullable image) instead of attaching `virtio-win.iso` on the hypervisor.
+
+## API
+
+- `GET /api/v1/vms/{name}/kubevirt-bundle` — JSON with `yaml`, `virtctl_image_upload_example`, `libvirt_root_disk`, Kubernetes names, `upload_size_gi`, and `cluster_exec_enabled`.
+- Optional cluster execution on the **daemon host** (same machine as libvirt), gated by config:
+  - `POST /api/v1/vms/{name}/kubevirt/apply` — `kubectl apply -f` the generated YAML.
+  - `POST /api/v1/vms/{name}/kubevirt/upload` — `virtctl image-upload` from `libvirt_root_disk` into the upload DataVolume (can run a long time; the HTTP request waits until `virtctl` exits).
+  - `POST /api/v1/vms/{name}/kubevirt/start` — `virtctl start` for the generated VM.
+
+POST bodies accept the same optional overrides as the GET query (`namespace`, `k8s_vm_name`, `datavolume_name`, `storage_gi`, `storage_class`, `include_virtio_cdrom`). Responses are `{ "exit_code", "stdout", "stderr" }`; **always check `exit_code`** — non-zero still returns HTTP 200 so the UI can show logs.
+
+## Configuration (`[kubevirt]`)
+
+See `examples/config.toml`. Important keys:
+
+| Key | Role |
+|-----|------|
+| `exec_enabled` | Must be `true` for POST `kubevirt/*` to run `kubectl` / `virtctl`. |
+| `kubectl_binary` / `virtctl_binary` | Defaults `kubectl` / `virtctl` on `PATH`. |
+| `kubeconfig_path` | If set, exported as `KUBECONFIG` for those commands. |
+| `upload_timeout_minutes` | Passed to `virtctl image-upload --upload-image-timeout=…m`. |
+| `default_namespace`, `default_storage_class`, `datavolume_padding_gi`, `virtio_container_disk_image`, `machine_type` | Affect generated YAML and sizing. |
+
+## UI and TUI
+
+- **Web**: VM details → **KubeVirt YAML** opens the bundle; when `cluster_exec_enabled` is true, buttons run apply / upload / start on the daemon.
+- **TUI** (`:` command mode): `:browse` / `:browse /path`, `:kubevirt-bundle <vm>`, `:kubevirt-apply <vm>`, `:kubevirt-upload <vm>`, `:kubevirt-start <vm>`.
+
+## Typical workflow
+
+1. Ensure the cluster has CDI and KubeVirt; pick namespace and storage class in config or query/body overrides.
+2. `virtctl image-upload` (or POST upload) so the libvirt root image fills the upload DataVolume.
+3. `kubectl apply` the YAML (or POST apply) — DataVolume + VirtualMachine.
+4. `virtctl start` (or POST start) when you want the guest running on Kubernetes.
+
+The generated VM uses `runStrategy: Halted` until you start it.

@@ -1282,8 +1282,13 @@ fn render_log_view(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
+    let log_title = if state.content_overlay_caption.is_empty() {
+        " Logs (j/k:scroll  Esc:close) "
+    } else {
+        &state.content_overlay_caption
+    };
     let paragraph = Paragraph::new(lines)
-        .block(themed_block(" Logs (j/k:scroll  Esc:close) "))
+        .block(themed_block(log_title))
         .scroll((state.scroll_offset, 0));
     frame.render_widget(paragraph, area);
 }
@@ -1302,8 +1307,13 @@ fn render_xml_view(frame: &mut Frame, area: Rect, state: &AppState) {
         })
         .collect();
 
+    let xml_title = if state.content_overlay_caption.is_empty() {
+        " XML (j/k:scroll  Esc:close) "
+    } else {
+        &state.content_overlay_caption
+    };
     let paragraph = Paragraph::new(lines)
-        .block(themed_block(" XML (j/k:scroll  Esc:close) "))
+        .block(themed_block(xml_title))
         .scroll((state.scroll_offset, 0));
     frame.render_widget(paragraph, area);
 }
@@ -1544,6 +1554,12 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
         help_line(":create  :clone <s> <n>  :snap <vm> <n>"),
         help_line(":template <tmpl> <n>  :rename <old> <new>"),
         help_line(":resize <n> vcpus|memory <v>"),
+        Line::from(""),
+        help_section("Browse / KubeVirt (daemon API)"),
+        help_line(":browse  :browse /path/on/hypervisor"),
+        help_line(":kubevirt-bundle <vm>  YAML in scroll view"),
+        help_line(":kubevirt-apply <vm>  :kubevirt-upload <vm>  :kubevirt-start <vm>"),
+        help_line("(upload/start need [kubevirt] exec_enabled=true + kubeconfig on daemon host)"),
         Line::from(""),
         Line::from(Span::styled(
             "j/k:scroll  any other key:close",

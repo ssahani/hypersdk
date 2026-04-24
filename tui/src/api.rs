@@ -1,4 +1,5 @@
 use anyhow::Result;
+use virtspawn_core::libvirt::extras::BrowseDirResponse;
 use virtspawn_core::{
     BackupInfo, BackupRequest, CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest,
     CreateVmRequest, NetworkInfo, NodeInfo, RenameVmRequest, RestoreRequest, SnapshotInfo,
@@ -282,5 +283,56 @@ impl DaemonClient {
 
     pub async fn delete_backup(&self, id: &str) -> Result<()> {
         self.delete_action(&format!("/api/v1/backups/{id}")).await
+    }
+
+    // ── Host browse / KubeVirt ─────────────────────────────────────────
+
+    pub async fn browse_directory(&self, path: &str) -> Result<BrowseDirResponse> {
+        let url = format!("{}/api/v1/browse/dir", self.base_url);
+        let req = if path.trim().is_empty() {
+            self.client.get(&url)
+        } else {
+            self.client.get(&url).query(&[("path", path)])
+        };
+        let resp = req.send().await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("[{status}] {body}");
+        }
+        Ok(resp.json().await?)
+    }
+
+    pub async fn get_kubevirt_bundle_yaml(&self, vm: &str) -> Result<String> {
+        let v: serde_json::Value = self
+            .get_json(&format!("/api/v1/vms/{vm}/kubevirt-bundle"))
+            .await?;
+        v.get("yaml")
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string())
+            .ok_or_else(|| anyhow::anyhow!("kubevirt-bundle response missing yaml"))
+    }
+
+    /// `op`: `apply` | `upload` | `start` — POST body is JSON overrides (same keys as kubevirt-bundle query).
+    pub async fn kubevirt_cluster_exec(
+        &self,
+        vm: &str,
+        op: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let path = match op {
+            "apply" => "apply",
+            "upload" => "upload",
+            "start" => "start",
+            _ => anyhow::bail!("unknown kubevirt op '{op}' (expected apply, upload, start)"),
+        };
+        let url = format!("{}/api/v1/vms/{}/kubevirt/{}", self.base_url, vm, path);
+        let resp = self.client.post(&url).json(body).send().await?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            anyhow::bail!("[{status}] {text}");
+        }
+        serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("invalid JSON from daemon: {e}; body: {text}"))
     }
 }

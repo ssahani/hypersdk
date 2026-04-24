@@ -1,0 +1,111 @@
+import { VirtImageBuildRequest } from './extras'
+
+const API = '/api/v1'
+
+export type JobKind = 'virt_image_build' | 'vm_create'
+export type JobStatus = 'running' | 'completed' | 'failed'
+
+export interface JobSummary {
+  id: string
+  kind: JobKind
+  title: string
+  status: JobStatus
+  vm_name?: string | null
+  target_path?: string | null
+  error?: string | null
+  created_unix: number
+  updated_unix: number
+}
+
+export interface JobDetail extends JobSummary {
+  logs: string[]
+}
+
+export const listJobs = () => apiGetJobs<JobSummary[]>(`${API}/jobs`)
+
+async function apiGetJobs<T>(url: string): Promise<T> {
+  const res = await fetch(url, { credentials: 'same-origin' })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || res.statusText)
+  }
+  return res.json() as Promise<T>
+}
+
+export const getJob = (id: string) =>
+  apiGetJobs<JobDetail>(`${API}/jobs/${encodeURIComponent(id)}`)
+
+/** Start async virt-image-build; poll `getJob` or open `streamJobLogs`. */
+export const startVirtImageBuildJob = (body: VirtImageBuildRequest) =>
+  fetch(`${API}/jobs/virt-image-build`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  }).then(async (res) => {
+    const text = await res.text()
+    if (!res.ok) {
+      let msg = text
+      try {
+        const j = JSON.parse(text) as { error?: string }
+        if (j?.error) msg = j.error
+      } catch {
+        /* keep */
+      }
+      throw new Error(msg || res.statusText)
+    }
+    return JSON.parse(text) as { id: string; status: string; message?: string }
+  })
+
+/** Subscribe to GET /jobs/:id/stream (SSE). Chunks may contain multiple lines joined with \\n. */
+export async function streamJobLogs(
+  jobId: string,
+  opts: {
+    signal?: AbortSignal
+    onLogChunk?: (chunk: string) => void
+    onComplete?: (data: string) => void
+    onError?: (message: string) => void
+  },
+): Promise<void> {
+  const res = await fetch(`${API}/jobs/${encodeURIComponent(jobId)}/stream`, {
+    method: 'GET',
+    credentials: 'same-origin',
+    headers: { Accept: 'text/event-stream' },
+    signal: opts.signal,
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(text || res.statusText)
+  }
+  if (!res.body) throw new Error('No response body')
+  const reader = res.body.getReader()
+  const dec = new TextDecoder()
+  let buf = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+    for (;;) {
+      const idx = buf.indexOf('\n\n')
+      if (idx < 0) break
+      const block = buf.slice(0, idx)
+      buf = buf.slice(idx + 2)
+      let ev = 'message'
+      const dataLines: string[] = []
+      for (const ln of block.split('\n')) {
+        if (ln.startsWith('event:')) ev = ln.slice(6).trim()
+        else if (ln.startsWith('data:')) dataLines.push(ln.slice(5).trimStart())
+      }
+      const data = dataLines.join('\n')
+      if (ev === 'complete') {
+        opts.onComplete?.(data)
+        return
+      }
+      if (ev === 'error') {
+        opts.onError?.(data || 'Job failed')
+        return
+      }
+      if (data && data !== 'keepalive') opts.onLogChunk?.(data)
+    }
+  }
+}

@@ -1,11 +1,15 @@
 //! Optional libguestfs integration: `virt-builder` disk images, optional `virt-customize` / `virt-sysprep`.
 //! Root passwords are passed only as `--root-password file:…` (never `password:` on the process argv).
+//!
+//! Template discovery prefers `virt-builder --list --list-format json` (see libguestfs docs); falls back to plain `--list`.
 
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use rand::Rng;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use virt::connect::Connect;
 
 use crate::config::LibvirtConfig;
@@ -310,8 +314,29 @@ impl Drop for TempSshKeyFile {
     }
 }
 
-/// Run `virt-builder --list` (one template name per line, best-effort parse).
-pub fn list_builder_templates() -> Result<Vec<String>, LibvirtError> {
+/// One row from `virt-builder --list --list-format json` (best-effort fields).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VirtBuilderTemplateInfo {
+    pub name: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub arch: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub size: Option<String>,
+}
+
+/// Parsed template index for APIs / UIs.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VirtBuilderIndex {
+    /// `version` field from virt-builder JSON, or `0` when parsed from plain `--list`.
+    pub format_version: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_uri: Option<String>,
+    pub items: Vec<VirtBuilderTemplateInfo>,
+}
+
+fn list_builder_templates_text() -> Result<Vec<String>, LibvirtError> {
     let out = Command::new("virt-builder")
         .arg("--list")
         .output()
@@ -341,4 +366,178 @@ pub fn list_builder_templates() -> Result<Vec<String>, LibvirtError> {
     v.sort();
     v.dedup();
     Ok(v)
+}
+
+fn push_template_from_json_value(items: &mut Vec<VirtBuilderTemplateInfo>, entry: &Value) {
+    match entry {
+        Value::String(name) => {
+            let name = name.trim();
+            if !name.is_empty() {
+                items.push(VirtBuilderTemplateInfo {
+                    name: name.to_string(),
+                    summary: None,
+                    arch: None,
+                    size: None,
+                });
+            }
+        }
+        Value::Object(map) => {
+            let name = map
+                .get("name")
+                .or_else(|| map.get("os-version"))
+                .or_else(|| map.get("os"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .trim();
+            if name.is_empty() {
+                return;
+            }
+            let summary = map
+                .get("full_version")
+                .or_else(|| map.get("full-version"))
+                .or_else(|| map.get("notes"))
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from);
+            let arch = map
+                .get("arch")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from);
+            let size = map
+                .get("size")
+                .and_then(|v| v.as_str())
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from);
+            items.push(VirtBuilderTemplateInfo {
+                name: name.to_string(),
+                summary,
+                arch,
+                size,
+            });
+        }
+        _ => {}
+    }
+}
+
+fn index_from_json_value(value: &Value) -> VirtBuilderIndex {
+    let version = value.get("version").and_then(|v| v.as_u64()).unwrap_or(0);
+    let mut items = Vec::new();
+    let mut source_uri = None;
+
+    if let Some(arr) = value.get("templates").and_then(|a| a.as_array()) {
+        for entry in arr {
+            push_template_from_json_value(&mut items, entry);
+        }
+    }
+
+    if let Some(sources) = value.get("sources").and_then(|s| s.as_array()) {
+        for src in sources {
+            if source_uri.is_none() {
+                source_uri = src
+                    .get("uri")
+                    .or_else(|| src.get("URL"))
+                    .and_then(|u| u.as_str())
+                    .map(String::from);
+            }
+            if let Some(arr) = src.get("templates").and_then(|a| a.as_array()) {
+                for entry in arr {
+                    push_template_from_json_value(&mut items, entry);
+                }
+            }
+        }
+    }
+
+    items.sort_by(|a, b| a.name.cmp(&b.name));
+    items.dedup_by(|a, b| a.name == b.name);
+
+    VirtBuilderIndex {
+        format_version: version,
+        source_uri,
+        items,
+    }
+}
+
+/// `virt-builder --list --list-format json` when available, else plain `--list` as name-only rows.
+pub fn list_builder_index() -> Result<VirtBuilderIndex, LibvirtError> {
+    let json_out = Command::new("virt-builder")
+        .args(["--list", "--list-format", "json"])
+        .output()
+        .map_err(|e| {
+            LibvirtError::Operation(format!(
+                "Failed to run virt-builder --list --list-format json: {e}"
+            ))
+        })?;
+
+    if json_out.status.success() {
+        if let Ok(v) = serde_json::from_slice::<Value>(&json_out.stdout) {
+            let idx = index_from_json_value(&v);
+            if !idx.items.is_empty() {
+                return Ok(idx);
+            }
+        }
+    }
+
+    let names = list_builder_templates_text()?;
+    Ok(VirtBuilderIndex {
+        format_version: 0,
+        source_uri: None,
+        items: names
+            .into_iter()
+            .map(|name| VirtBuilderTemplateInfo {
+                name,
+                summary: None,
+                arch: None,
+                size: None,
+            })
+            .collect(),
+    })
+}
+
+/// Template names only (backward compatible).
+pub fn list_builder_templates() -> Result<Vec<String>, LibvirtError> {
+    Ok(list_builder_index()?
+        .items
+        .into_iter()
+        .map(|i| i.name)
+        .collect())
+}
+
+#[cfg(test)]
+mod index_tests {
+    use super::*;
+
+    #[test]
+    fn parse_json_templates_strings() {
+        let v: Value = serde_json::from_str(r#"{"version":1,"templates":["debian-12","fedora-40"]}"#).unwrap();
+        let idx = index_from_json_value(&v);
+        assert_eq!(idx.format_version, 1);
+        assert_eq!(idx.items.len(), 2);
+        assert_eq!(idx.items[0].name, "debian-12");
+    }
+
+    #[test]
+    fn parse_json_sources_objects() {
+        let raw = r#"{
+            "version": 2,
+            "sources": [
+                {
+                    "uri": "https://example.invalid/index",
+                    "templates": [
+                        {"name": "ubuntu-22.04", "arch": "x86_64", "full_version": "Ubuntu 22.04 LTS", "size": "3G"}
+                    ]
+                }
+            ]
+        }"#;
+        let v: Value = serde_json::from_str(raw).unwrap();
+        let idx = index_from_json_value(&v);
+        assert_eq!(idx.format_version, 2);
+        assert_eq!(idx.source_uri.as_deref(), Some("https://example.invalid/index"));
+        let u = idx.items.iter().find(|i| i.name == "ubuntu-22.04").unwrap();
+        assert_eq!(u.arch.as_deref(), Some("x86_64"));
+        assert!(u.summary.as_ref().unwrap().contains("Ubuntu"));
+    }
 }

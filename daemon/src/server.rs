@@ -7,6 +7,7 @@ use tower_http::trace::TraceLayer;
 use virtspawn_core::{LibvirtManager, VirtspawnConfig};
 
 use crate::auth::{self, SessionStore};
+use crate::job_registry::JobRegistry;
 use crate::routes;
 use crate::terminal::{self, TerminalSessionStore};
 
@@ -21,10 +22,13 @@ pub fn create_app(manager: LibvirtManager, config: VirtspawnConfig) -> Router {
         .layer(Extension(terminal_store.clone()))
         .layer(Extension(ssh_terminal_cfg.clone()));
 
+    let job_registry = std::sync::Arc::new(JobRegistry::new());
+
     // All routes under /api/v1 — auth routes skip middleware internally
     let api = routes::api_routes()
         .merge(terminal_api)
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
+        .layer(Extension(job_registry))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,

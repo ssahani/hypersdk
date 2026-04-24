@@ -1,0 +1,155 @@
+import { useEffect, useState, useCallback } from 'react'
+import { Link, useParams } from 'react-router'
+import { Activity, ChevronLeft, RefreshCw } from 'lucide-react'
+import { getJob, listJobs, JobDetail, JobSummary } from '../api/jobs'
+import { useToastContext } from '../contexts/ToastContext'
+
+function statusBadge(status: string) {
+  if (status === 'running') return 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+  if (status === 'completed') return 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
+  return 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+}
+
+export default function JobsPage() {
+  const { jobId } = useParams<{ jobId?: string }>()
+  const toast = useToastContext()
+  const [jobs, setJobs] = useState<JobSummary[]>([])
+  const [detail, setDetail] = useState<JobDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const selectedId = jobId || null
+
+  const refreshList = useCallback(() => {
+    return listJobs()
+      .then(setJobs)
+      .catch((e: unknown) => {
+        toast.error(e instanceof Error ? e.message : String(e))
+      })
+  }, [toast])
+
+  const refreshDetail = useCallback(() => {
+    if (!selectedId) {
+      setDetail(null)
+      return
+    }
+    getJob(selectedId)
+      .then(setDetail)
+      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+  }, [selectedId, toast])
+
+  useEffect(() => {
+    setLoading(true)
+    void refreshList().finally(() => setLoading(false))
+  }, [refreshList])
+
+  useEffect(() => {
+    const t = window.setInterval(refreshList, 5000)
+    return () => window.clearInterval(t)
+  }, [refreshList])
+
+  useEffect(() => {
+    refreshDetail()
+  }, [refreshDetail])
+
+  useEffect(() => {
+    if (!selectedId || !detail || detail.status !== 'running') return
+    const t = window.setInterval(refreshDetail, 1200)
+    return () => window.clearInterval(t)
+  }, [selectedId, detail?.status, refreshDetail])
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6 animate-fade-in px-4">
+      <div className="flex items-center gap-4 flex-wrap">
+        <Link to="/" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Dashboard">
+          <ChevronLeft className="w-5 h-5" />
+        </Link>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Activity className="w-7 h-7 text-amber-400" aria-hidden />
+          Jobs
+        </h1>
+        <button
+          type="button"
+          onClick={() => {
+            refreshList()
+            refreshDetail()
+          }}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+        >
+          <RefreshCw className="w-4 h-4" aria-hidden />
+          Refresh
+        </button>
+        <p className="text-sm text-slate-400 w-full md:w-auto">
+          Monitor <strong className="text-slate-300">virt-image-build</strong> and{' '}
+          <strong className="text-slate-300">Create VM</strong> progress after you navigate away. Logs update automatically while a job is running.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
+          <h2 className="text-lg font-semibold text-slate-200 mb-3">Recent jobs</h2>
+          {loading && jobs.length === 0 ? (
+            <p className="text-slate-500 text-sm">Loading…</p>
+          ) : jobs.length === 0 ? (
+            <p className="text-slate-500 text-sm">No jobs yet. Start a disk build from Create VM or create a VM with streaming logs.</p>
+          ) : (
+            <ul className="space-y-2 max-h-[32rem] overflow-y-auto divide-y divide-slate-800/80">
+              {jobs.map((j) => (
+                <li key={j.id} className="pt-2 first:pt-0">
+                  <Link
+                    to={`/jobs/${encodeURIComponent(j.id)}`}
+                    className={`block rounded-lg px-3 py-2 transition hover:bg-slate-800/80 ${
+                      selectedId === j.id ? 'bg-slate-800 ring-1 ring-amber-500/40' : ''
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-xs text-slate-500 truncate">{j.id}</span>
+                      <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded ${statusBadge(j.status)}`}>
+                        {j.status}
+                      </span>
+                    </div>
+                    <div className="text-sm text-slate-200 mt-1">{j.title}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">
+                      {j.kind.replace(/_/g, ' ')}
+                      {j.vm_name ? ` · VM ${j.vm_name}` : ''}
+                      {j.target_path ? ` · ${j.target_path}` : ''}
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 flex flex-col min-h-[20rem]">
+          {!selectedId ? (
+            <p className="text-slate-500 text-sm">Select a job from the list to view logs.</p>
+          ) : !detail ? (
+            <p className="text-slate-500 text-sm">Loading job…</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-start justify-between gap-2 mb-3">
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-200">Job detail</h2>
+                  <p className="font-mono text-xs text-slate-500 break-all mt-1">{detail.id}</p>
+                </div>
+                <span className={`text-[10px] uppercase tracking-wide px-2 py-1 rounded ${statusBadge(detail.status)}`}>
+                  {detail.status}
+                </span>
+              </div>
+              <p className="text-sm text-slate-300 mb-2">{detail.title}</p>
+              {detail.error ? (
+                <p className="text-sm text-rose-300 mb-2">{detail.error}</p>
+              ) : null}
+              <div className="flex-1 min-h-0 flex flex-col">
+                <h3 className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">Log</h3>
+                <pre className="flex-1 text-[11px] leading-relaxed font-mono text-slate-300 bg-slate-950/80 border border-slate-800 rounded-lg p-3 overflow-auto max-h-[50vh] whitespace-pre-wrap break-words">
+                  {detail.logs.length ? detail.logs.join('\n') : '(no log lines yet)'}
+                </pre>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

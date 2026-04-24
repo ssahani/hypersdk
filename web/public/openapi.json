@@ -56,15 +56,38 @@
       },
       "KubeVirtBundle": {
         "type": "object",
-        "required": ["libvirt_vm", "libvirt_root_disk", "namespace", "virtual_machine_name", "datavolume_name", "yaml", "virtctl_image_upload_example"],
+        "required": ["libvirt_vm", "libvirt_root_disk", "namespace", "virtual_machine_name", "datavolume_name", "upload_size_gi", "cluster_exec_enabled", "yaml", "virtctl_image_upload_example"],
         "properties": {
           "libvirt_vm": { "type": "string" },
           "libvirt_root_disk": { "type": "string" },
           "namespace": { "type": "string" },
           "virtual_machine_name": { "type": "string" },
           "datavolume_name": { "type": "string" },
+          "upload_size_gi": { "type": "integer", "description": "DataVolume PVC size (Gi) for upload and manifests" },
+          "cluster_exec_enabled": { "type": "boolean", "description": "True when [kubevirt] exec_enabled — POST kubevirt/* may run kubectl/virtctl on the daemon host" },
           "yaml": { "type": "string", "description": "CDI DataVolume + kubevirt.io VirtualMachine, --- separated" },
           "virtctl_image_upload_example": { "type": "string" }
+        }
+      },
+      "KubeVirtBundleRequest": {
+        "type": "object",
+        "description": "Optional overrides for bundle generation (same fields as GET kubevirt-bundle query).",
+        "properties": {
+          "namespace": { "type": "string" },
+          "k8s_vm_name": { "type": "string" },
+          "datavolume_name": { "type": "string" },
+          "storage_gi": { "type": "integer" },
+          "storage_class": { "type": "string" },
+          "include_virtio_cdrom": { "type": "boolean", "default": true }
+        }
+      },
+      "KubeVirtClusterExecResult": {
+        "type": "object",
+        "required": ["exit_code", "stdout", "stderr"],
+        "properties": {
+          "exit_code": { "type": "integer" },
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" }
         }
       },
       "DiskInfo": {
@@ -82,6 +105,29 @@
           "mac_address": { "type": "string" },
           "source": { "type": "string" },
           "model": { "type": "string" }
+        }
+      },
+      "VirtImageBuildRequest": {
+        "type": "object",
+        "required": ["os", "output"],
+        "description": "Build a disk with virt-builder on the daemon (virt-image-build). Requires [libvirt] virt_builder_allowed. Output parent must be under libvirt pool targets or default image dirs; file must not exist.",
+        "properties": {
+          "os": { "type": "string", "description": "virt-builder OS template id" },
+          "output": { "type": "string", "description": "Absolute path for the new image" },
+          "size": { "type": "string", "default": "20G" },
+          "format": { "type": "string", "default": "qcow2" },
+          "hostname": { "type": "string", "default": "virtbuilder-guest.local" },
+          "install": { "type": "string", "description": "Comma-separated package names for repeated --install" },
+          "run_command": { "type": "array", "items": { "type": "string" } },
+          "copy_in": { "type": "array", "items": { "type": "string" } },
+          "firstboot_script": { "type": "string", "nullable": true, "description": "Host path to script copied into guest firstboot" },
+          "root_password_file": { "type": "string", "nullable": true },
+          "root_password_inline": { "type": "string", "nullable": true },
+          "ssh_pubkey_file": { "type": "string", "nullable": true },
+          "ssh_pubkey_inline": { "type": "string", "nullable": true },
+          "update": { "type": "boolean", "default": false },
+          "selinux_relabel": { "type": "boolean", "default": false },
+          "extra_virt_builder_args": { "type": "array", "items": { "type": "string" } }
         }
       },
       "GuacamoleAuthResponse": {
@@ -114,7 +160,7 @@
           "network": { "type": "string", "default": "default" },
           "saved_template": { "type": "string", "description": "Saved template name under /var/lib/virtspawn/templates/" },
           "template_disk_mode": { "type": "string", "enum": ["backing", "copy"], "default": "backing" },
-          "create_backend": { "type": "string", "description": "Omit or empty for server default; libvirt_xml or virt_install to override." },
+          "create_backend": { "type": "string", "description": "Omit or empty for server default (virt_install unless configured otherwise); libvirt_xml or virt_install to override." },
           "virt_builder_os": { "type": "string", "description": "Legacy libguestfs virt-builder template (virt-builder --list). Disabled by default on the server ([libvirt] virt_builder_allowed). Prefer mkosi_workspace for new deployments." },
           "virt_builder_hostname": { "type": "string", "description": "Guest hostname for virt-builder (optional; derived from VM name if empty)." },
           "virt_builder_ssh_pubkey": { "type": "string", "description": "Single-line OpenSSH public key for root SSH inject (optional if root password file or server default pubkey path is set)." },
@@ -126,7 +172,17 @@
           "virt_builder_post_customize_run": { "type": "array", "items": { "type": "string" }, "description": "After build: virt-customize --run-command for each." },
           "virt_builder_sysprep": { "type": "boolean", "default": false, "description": "After customize: virt-sysprep -a (seal for cloning)." },
           "mkosi_workspace": { "type": "string", "description": "Preferred: absolute path to directory containing mkosi.conf; run `mkosi build` and use newest .raw/.qcow2 artifact as root disk. Mutually exclusive with virt_builder_os." },
-          "mkosi_image": { "type": "string", "description": "For multi-image mkosi workspaces (image trees): select a specific image via `mkosi --image <name>`. Leave empty to build the workspace normally." }
+          "mkosi_image": { "type": "string", "description": "For multi-image mkosi workspaces (image trees): select a specific image via `mkosi --image <name>`. Leave empty to build the workspace normally." },
+          "virt_install_define_only": { "type": "boolean", "default": false, "description": "virt-install --print-xml=1 then virDomainDefineXML: define a halted VM without install media (Cockpit-style create without starting)." },
+          "virt_install_location": { "type": "string", "description": "virt-install --location (HTTP(S) tree, NFS, or directory) for network kickstart / OS install." },
+          "virt_install_pxe": { "type": "boolean", "default": false, "description": "virt-install --pxe with an extra --network for PXE boot." },
+          "virt_install_pxe_network": { "type": "string", "description": "Libvirt network name for the PXE interface (defaults to `network` when empty)." },
+          "virt_install_install_os": { "type": "string", "description": "virt-install --install os=<libosinfo-id> (boxed / downloaded media)." },
+          "virt_install_extra_args": { "type": "string", "description": "virt-install --extra-args (kernel/installer args)." },
+          "root_disk_storage_pool": { "type": "string", "description": "With root_disk_storage_volume: virt-install --disk vol=pool/vol,bus=virtio." },
+          "root_disk_storage_volume": { "type": "string", "description": "Storage volume name in root_disk_storage_pool." },
+          "virt_install_path_in_use_check_off": { "type": "boolean", "default": false, "description": "virt-install --check path_in_use=off (busy images / volumes)." },
+          "virt_install_disk_backing_store": { "type": "string", "description": "Absolute path to backing qcow2/raw for a new overlay disk; virt-install uses size=disk_gb,format=qcow2,backing_store=… and --import." }
         }
       },
       "VmMetrics": {
@@ -238,10 +294,130 @@
         "properties": {
           "status": { "type": "string" }
         }
+      },
+      "JobKind": {
+        "type": "string",
+        "enum": ["virt_image_build", "vm_create"]
+      },
+      "JobStatus": {
+        "type": "string",
+        "enum": ["running", "completed", "failed"]
+      },
+      "JobSummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "kind": { "$ref": "#/components/schemas/JobKind" },
+          "title": { "type": "string" },
+          "status": { "$ref": "#/components/schemas/JobStatus" },
+          "vm_name": { "type": "string", "nullable": true },
+          "target_path": { "type": "string", "nullable": true },
+          "error": { "type": "string", "nullable": true },
+          "created_unix": { "type": "integer", "format": "int64" },
+          "updated_unix": { "type": "integer", "format": "int64" }
+        }
+      },
+      "JobDetail": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/components/schemas/JobSummary" },
+          {
+            "type": "object",
+            "properties": {
+              "logs": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        ]
       }
     }
   },
   "paths": {
+    "/jobs": {
+      "get": {
+        "summary": "List recent background jobs (virt-image-build, VM create with logs)",
+        "tags": ["Jobs"],
+        "responses": {
+          "200": {
+            "description": "Newest-first job summaries (in-memory; cleared on daemon restart)",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/JobSummary" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/virt-image-build": {
+      "post": {
+        "summary": "Start virt-image-build asynchronously (returns job id; use GET /jobs/{id} or stream)",
+        "tags": ["Jobs"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VirtImageBuildRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Job accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": { "type": "string", "format": "uuid" },
+                    "status": { "type": "string", "example": "started" },
+                    "message": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "summary": "Job detail with captured log lines",
+        "tags": ["Jobs"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Job detail",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/JobDetail" }
+              }
+            }
+          },
+          "404": { "description": "Unknown job id" }
+        }
+      }
+    },
+    "/jobs/{id}/stream": {
+      "get": {
+        "summary": "SSE: log chunks (data events), then complete or error",
+        "tags": ["Jobs"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "text/event-stream",
+            "content": {
+              "text/event-stream": {
+                "schema": { "type": "string" }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health check",
@@ -272,7 +448,7 @@
     "/vms/stream": {
       "post": {
         "summary": "Create VM with live SSE logs (mkosi / virt-builder / virt-install / qemu-img)",
-        "description": "Long-running HTTP response. Put reverse proxies in front with a generous read/send timeout (e.g. hours) or mkosi builds may be cut off.",
+        "description": "Long-running HTTP response. Put reverse proxies in front with a generous read/send timeout (e.g. hours) or mkosi builds may be cut off. The first event is `event: job` with JSON `{\"id\":\"<uuid>\"}` so clients can open GET /jobs/{id} while the stream continues.",
         "tags": ["VMs"],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateVmRequest" } } } },
         "responses": {
@@ -327,6 +503,69 @@
               }
             }
           }
+        }
+      }
+    },
+    "/vms/{name}/kubevirt/apply": {
+      "post": {
+        "summary": "kubectl apply generated KubeVirt YAML (optional)",
+        "description": "Writes the same YAML as GET kubevirt-bundle to a temp file and runs kubectl apply -f. Requires [kubevirt] exec_enabled = true and kubectl on the daemon host. Body: optional KubeVirtBundleRequest overrides.",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/KubeVirtBundleRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "kubectl finished (check exit_code)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/KubeVirtClusterExecResult" } } }
+          },
+          "403": { "description": "exec_enabled is false" }
+        }
+      }
+    },
+    "/vms/{name}/kubevirt/upload": {
+      "post": {
+        "summary": "virtctl image-upload for root disk → DataVolume",
+        "description": "Runs virtctl image-upload against the libvirt root disk path from domain XML. Long-running. Requires exec_enabled and CDI upload DV already applied (or compatible cluster state).",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/KubeVirtBundleRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "virtctl finished (check exit_code)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/KubeVirtClusterExecResult" } } }
+          },
+          "403": { "description": "exec_enabled is false" }
+        }
+      }
+    },
+    "/vms/{name}/kubevirt/start": {
+      "post": {
+        "summary": "virtctl start for generated KubeVirt VM",
+        "description": "Runs virtctl start for virtual_machine_name in namespace from the bundle. Requires exec_enabled.",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/KubeVirtBundleRequest" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "virtctl finished (check exit_code)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/KubeVirtClusterExecResult" } } }
+          },
+          "403": { "description": "exec_enabled is false" }
         }
       }
     },
@@ -1177,17 +1416,72 @@
     },
     "/browse/virt-builder": {
       "get": {
-        "summary": "List virt-builder OS template names (virt-builder --list)",
+        "summary": "List virt-builder OS templates (virt-builder --list --list-format json, cached)",
         "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean", "default": false },
+            "description": "When true, bypass the daemon in-memory cache and re-run virt-builder --list."
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Template index",
+            "description": "Template index with optional metadata from JSON list",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "templates": { "type": "array", "items": { "type": "string" } }
+                    "format_version": { "type": "integer", "description": "virt-builder JSON version field (0 if plain --list fallback)" },
+                    "source_uri": { "type": "string", "nullable": true },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": { "type": "string" },
+                          "summary": { "type": "string", "nullable": true },
+                          "arch": { "type": "string", "nullable": true },
+                          "size": { "type": "string", "nullable": true }
+                        }
+                      }
+                    },
+                    "templates": { "type": "array", "items": { "type": "string" }, "description": "Template names only (backward compatible)" },
+                    "cached": { "type": "boolean", "description": "True when response came from short-TTL daemon cache" },
+                    "cache_age_secs": { "type": "integer", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browse/virt-image-build": {
+      "post": {
+        "summary": "Build a VM disk image with virt-builder (virt-image-build)",
+        "tags": ["Extras"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VirtImageBuildRequest" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Build finished",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "ok" },
+                    "path": { "type": "string" }
                   }
                 }
               }

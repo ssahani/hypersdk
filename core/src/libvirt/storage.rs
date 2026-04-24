@@ -77,6 +77,43 @@ pub fn disk_image_delete_allowed_prefixes(conn: &Connect) -> Result<Vec<String>,
         .collect())
 }
 
+/// Ensures `output`'s parent directory exists and lies under [`disk_image_delete_allowed_prefixes`]
+/// (same policy as disk image browse / delete).
+pub fn assert_new_disk_output_parent_allowed(conn: &Connect, output: &str) -> Result<(), LibvirtError> {
+    let out = output.trim();
+    if out.is_empty() {
+        return Err(LibvirtError::Invalid("output path is empty".into()));
+    }
+    let pb = Path::new(out);
+    if !pb.is_absolute() {
+        return Err(LibvirtError::Invalid("output must be an absolute path".into()));
+    }
+    if out.contains("/../") || out.ends_with("/..") || out.starts_with("../") {
+        return Err(LibvirtError::Invalid("output path must not contain '..'".into()));
+    }
+    let parent = pb
+        .parent()
+        .filter(|x| !x.as_os_str().is_empty())
+        .ok_or_else(|| LibvirtError::Invalid("output has no parent directory".into()))?;
+    let parent_canon = parent.canonicalize().map_err(|e| {
+        LibvirtError::Invalid(format!(
+            "output parent directory does not exist or is inaccessible: {e}"
+        ))
+    })?;
+    let mut parent_s = parent_canon.to_string_lossy().to_string();
+    if !parent_s.ends_with('/') {
+        parent_s.push('/');
+    }
+    let prefixes = disk_image_delete_allowed_prefixes(conn)?;
+    if !prefixes.iter().any(|pref| parent_s.starts_with(pref)) {
+        return Err(LibvirtError::Invalid(format!(
+            "output directory must be under libvirt storage pool targets or default image dirs (parent {})",
+            parent_s.trim_end_matches('/')
+        )));
+    }
+    Ok(())
+}
+
 /// Directory for new VM root disks: prefers pool `default`, then any path containing `images`, else first pool path.
 pub fn primary_vm_disk_base_dir(conn: &Connect) -> Option<String> {
     let pools = conn.list_all_storage_pools(0).ok()?;

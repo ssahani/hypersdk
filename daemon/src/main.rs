@@ -1,6 +1,9 @@
 mod auth;
 mod error;
+mod job_registry;
+mod kubevirt_exec;
 mod routes;
+mod virt_image_validate;
 mod server;
 mod systemd;
 mod terminal;

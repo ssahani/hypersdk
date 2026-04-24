@@ -2,10 +2,22 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use virtspawn_core::libvirt::{extras, storage, virt_builder};
 use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
 
 use crate::error::AppError;
+
+/// Short-lived cache for `virt-builder --list --list-format json` (avoid hammering the tool on every UI poll).
+const VIRT_BUILDER_LIST_CACHE_TTL: Duration = Duration::from_secs(300);
+
+struct VirtBuilderIndexCache {
+    fetched_at: Instant,
+    index: virt_builder::VirtBuilderIndex,
+}
+
+static VIRT_BUILDER_INDEX_CACHE: Mutex<Option<VirtBuilderIndexCache>> = Mutex::new(None);
 
 fn log_audit(action: &str, target: &str, result: &str) {
     let event = AuditEvent {
@@ -103,7 +115,31 @@ async fn delete_disk_image(
     }
 }
 
+#[derive(Debug, Deserialize)]
+struct VirtBuilderListQuery {
+    /// When true, bypass the in-memory cache and re-run `virt-builder --list --list-format json`.
+    #[serde(default)]
+    refresh: bool,
+}
+
+fn json_virt_builder_list(
+    index: &virt_builder::VirtBuilderIndex,
+    cached: bool,
+    cache_age_secs: Option<u64>,
+) -> serde_json::Value {
+    let names: Vec<String> = index.items.iter().map(|i| i.name.clone()).collect();
+    serde_json::json!({
+        "format_version": index.format_version,
+        "source_uri": index.source_uri,
+        "items": index.items,
+        "templates": names,
+        "cached": cached,
+        "cache_age_secs": cache_age_secs,
+    })
+}
+
 async fn list_virt_builder_templates(
+    Query(q): Query<VirtBuilderListQuery>,
     State(_m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
@@ -111,10 +147,65 @@ async fn list_virt_builder_templates(
             "virt-builder is disabled ([libvirt] virt_builder_allowed = false); use mkosi_workspace / mkosi build".into(),
         )));
     }
-    let templates = tokio::task::spawn_blocking(virt_builder::list_builder_templates)
+
+    if !q.refresh {
+        if let Ok(guard) = VIRT_BUILDER_INDEX_CACHE.lock() {
+            if let Some(ref c) = *guard {
+                let age = c.fetched_at.elapsed();
+                if age < VIRT_BUILDER_LIST_CACHE_TTL {
+                    return Ok(Json(json_virt_builder_list(
+                        &c.index,
+                        true,
+                        Some(age.as_secs()),
+                    )));
+                }
+            }
+        }
+    }
+
+    let index = tokio::task::spawn_blocking(virt_builder::list_builder_index)
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    Ok(Json(serde_json::json!({ "templates": templates })))
+
+    if let Ok(mut g) = VIRT_BUILDER_INDEX_CACHE.lock() {
+        *g = Some(VirtBuilderIndexCache {
+            fetched_at: Instant::now(),
+            index: index.clone(),
+        });
+    }
+
+    Ok(Json(json_virt_builder_list(&index, false, None)))
+}
+
+async fn virt_image_build_handler(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<virt_image_build::BuildDiskRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)".into(),
+        )));
+    }
+
+    let out_path = req.output.trim().to_string();
+    if out_path.is_empty() {
+        return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
+    }
+
+    let mgr = manager.clone();
+
+    tokio::task::spawn_blocking(move || {
+        mgr.with_conn(|conn| {
+            crate::virt_image_validate::validate_virt_image_build(conn, &req)?;
+            virt_image_build::build_disk_image(&req)
+                .map_err(|e| LibvirtError::Operation(e.to_string()))
+        })
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+
+    log_audit("virt-image-build", &out_path, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok", "path": out_path })))
 }
 
 async fn list_mkosi_workspaces_handler(
@@ -451,6 +542,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))
         .route("/browse/virt-builder", get(list_virt_builder_templates))
+        .route("/browse/virt-image-build", post(virt_image_build_handler))
         .route("/browse/virt-builder/notes/{template}", get(virt_builder_notes_handler))
         .route("/browse/mkosi-workspaces", get(list_mkosi_workspaces_handler))
         // USB

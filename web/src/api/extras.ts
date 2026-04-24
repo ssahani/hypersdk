@@ -54,9 +54,51 @@ export const listDiskImages = () => apiGet<BrowseFilesResponse>(`${API}/browse/d
 export const deleteDiskImage = (path: string) =>
   apiDelete(`${API}/browse/disks/delete?path=${encodeURIComponent(path)}`)
 
-/** Names from `virt-builder --list` (empty if tool missing or error). */
-export const listVirtBuilderTemplates = () =>
-  apiGet<{ templates: string[] }>(`${API}/browse/virt-builder`)
+export interface VirtBuilderTemplateRow {
+  name: string
+  summary?: string | null
+  arch?: string | null
+  size?: string | null
+}
+
+/** Response from `virt-builder --list --list-format json` (with plain-list fallback). Cached ~5 minutes on the daemon unless `refresh`. */
+export interface VirtBuilderListResponse {
+  format_version: number
+  items: VirtBuilderTemplateRow[]
+  templates: string[]
+  cached?: boolean
+  cache_age_secs?: number | null
+  source_uri?: string | null
+}
+
+export const listVirtBuilderTemplates = (opts?: { refresh?: boolean }) => {
+  const q = opts?.refresh ? '?refresh=true' : ''
+  return apiGet<VirtBuilderListResponse>(`${API}/browse/virt-builder${q}`)
+}
+
+/** Request body for POST /browse/virt-image-build (daemon runs `virt-image-build` / `virt-builder` on the host). */
+export interface VirtImageBuildRequest {
+  os: string
+  /** Absolute path; file must not exist; parent under allowed image dirs. */
+  output: string
+  size?: string
+  format?: string
+  hostname?: string
+  install?: string
+  run_command?: string[]
+  copy_in?: string[]
+  firstboot_script?: string | null
+  root_password_file?: string | null
+  root_password_inline?: string | null
+  ssh_pubkey_file?: string | null
+  ssh_pubkey_inline?: string | null
+  update?: boolean
+  selinux_relabel?: boolean
+  extra_virt_builder_args?: string[]
+}
+
+export const buildVirtImageDisk = (body: VirtImageBuildRequest) =>
+  apiPost<{ status: string; path: string }>(`${API}/browse/virt-image-build`, body)
 
 export const getVirtBuilderNotes = (template: string) =>
   apiGet<{ template: string; notes: string }>(

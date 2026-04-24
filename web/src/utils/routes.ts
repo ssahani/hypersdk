@@ -2,6 +2,7 @@ import React from 'react'
 import {
   Home, Server, Plus, Upload, Network, HardDrive, Camera, Shield, Archive, Globe,
   Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key, Users, Database, Terminal,
+  ClipboardList,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -44,6 +45,7 @@ export const navGroups: NavGroup[] = [
   {
     label: 'Monitoring',
     items: [
+      { to: '/jobs', icon: React.createElement(ClipboardList, { className: 'w-4 h-4' }), label: 'Jobs' },
       { to: '/node', icon: React.createElement(Cpu, { className: 'w-4 h-4' }), label: 'Host Info' },
       { to: '/events', icon: React.createElement(Activity, { className: 'w-4 h-4' }), label: 'Live Metrics' },
       { to: '/capabilities', icon: React.createElement(MonitorCog, { className: 'w-4 h-4' }), label: 'Capabilities' },
@@ -67,6 +69,7 @@ export const routeLabels: Record<string, string> = {
   '/snapshots': 'Snapshots',
   '/node': 'Host Info',
   '/events': 'Live Metrics',
+  '/jobs': 'Jobs',
   '/capabilities': 'Capabilities',
   '/devices': 'Node Devices',
   '/nwfilters': 'Network Filters',
