@@ -101,7 +101,7 @@ def slide_title():
     text_center(draw, 220, "machina", font_title, WHITE)
     text_center(draw, 310, "Quick Start Guide", font_heading, ACCENT)
     draw_divider(draw, 390)
-    text_center(draw, 440, "How to build, install, run, and access your VM manager", font_body, GRAY)
+    text_center(draw, 440, "How to build, install, run, and operate your hypervisor control plane", font_body, GRAY)
     text_center(draw, 540, "Prerequisites: Fedora/RHEL/Ubuntu with libvirt + QEMU", font_body, LIGHT)
     text_center(draw, 590, "Rust toolchain (rustup) + Node.js 18+", font_body, LIGHT)
     text_center(draw, 700, "Estimated setup time: 5 minutes", font_subheading, GREEN)
@@ -529,7 +529,7 @@ def slide_summary():
         "$ sudo make status | start | stop | restart",
     ])
 
-    text_center(draw, 830, "machina  --  Modern Libvirt VM Manager", font_subheading, ACCENT)
+    text_center(draw, 830, "machina  —  Linux hypervisor host manager (libvirt/KVM, optional KubeVirt)", font_subheading, ACCENT)
     text_center(draw, 890, "Built with Rust + React  |  Secure  |  Fast  |  Production-Ready", font_body, GRAY)
     text_center(draw, 950, "https://github.com/ssahani/machina", font_small, ACCENT)
     return img

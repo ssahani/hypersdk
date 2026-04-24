@@ -14,7 +14,7 @@ use tracing::info;
 use machina_core::{LibvirtManager, MachinaConfig};
 
 #[derive(Parser)]
-#[command(name = "machina-daemon", about = "machina libvirt management daemon")]
+#[command(name = "machina-daemon", about = "machina-daemon — HTTP/WebSocket control plane for Linux hypervisor hosts (libvirt/QEMU/KVM)")]
 struct Cli {
     /// Host to bind to
     #[arg(long)]

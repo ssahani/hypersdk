@@ -99,7 +99,10 @@ export default function ApiDocs() {
     <div className="space-y-6 animate-fade-in">
       <div>
         <h1 className="text-2xl font-bold">{spec.info.title}</h1>
-        <p className="text-sm text-slate-400 mt-1">Version {spec.info.version} {spec.info.description ? `- ${spec.info.description}` : ''}</p>
+        <p className="text-sm text-slate-500 mt-1">Version {spec.info.version}</p>
+        {spec.info.description && (
+          <p className="text-sm text-slate-400 mt-2 max-w-4xl leading-relaxed">{spec.info.description}</p>
+        )}
       </div>
 
       <div className="relative">

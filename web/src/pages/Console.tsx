@@ -141,7 +141,7 @@ export default function ConsolePage() {
             <Download className="w-4 h-4" aria-hidden />
             Virt-Viewer .vv
           </a>
-          <span className="text-xs text-slate-500">Keys/screenshot use libvirt on a running guest.</span>
+          <span className="text-xs text-slate-500">Send keys / screenshot use the libvirt API on a running guest.</span>
         </div>
       )}
 

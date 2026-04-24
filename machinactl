@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# machinactl — Install, manage, and demo the machina VM management platform
+# machinactl — Install, manage, and demo machina (Linux hypervisor host control plane)
 #
 # Usage: machinactl <command> [options]
 #

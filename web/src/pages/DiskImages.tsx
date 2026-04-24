@@ -59,8 +59,8 @@ export default function DiskImagesPage() {
             <HardDrive className="w-6 h-6" /> Disk Images
           </h1>
           {!loading && (
-            <p className="text-sm text-slate-400 mt-0.5">
-              {images.length} image{images.length !== 1 ? 's' : ''} · {formatBytes(totalBytes)} total
+            <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
+              {images.length} image{images.length !== 1 ? 's' : ''} · {formatBytes(totalBytes)} total — ISOs, qcow2, and templates visible on this hypervisor host (pools + defaults).
             </p>
           )}
         </div>
@@ -72,7 +72,7 @@ export default function DiskImagesPage() {
       {!loading && scanDirectories.length > 0 && (
         <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 space-y-2">
           <p>
-            Scanned directories (from libvirt storage pools plus defaults):{' '}
+            Scanned directories (libvirt storage pools plus host defaults):{' '}
             <span className="text-slate-300 font-mono break-all">{scanDirectories.join(', ')}</span>
           </p>
           <p className="text-amber-200/90 border-t border-amber-900/30 pt-2 mt-2">
@@ -93,7 +93,7 @@ export default function DiskImagesPage() {
           {scanDirectories.length > 0 ? (
             <p className="text-xs font-mono text-slate-400 break-all">{scanDirectories.join(', ')}</p>
           ) : (
-            <p className="text-xs">(Connect to the daemon to discover libvirt pool paths.)</p>
+            <p className="text-xs">Connect to the daemon to discover pool paths on this hypervisor host.</p>
           )}
         </div>
       ) : (

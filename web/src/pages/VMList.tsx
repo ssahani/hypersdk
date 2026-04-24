@@ -120,9 +120,12 @@ export default function VMList() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Virtual Machines</h1>
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold">Virtual machines</h1>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">QEMU/KVM guests on this hypervisor host (libvirt). Use VM details for optional KubeVirt bundle / cluster actions when configured.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
           <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
           <ChoiceCardGrid className="max-w-[220px] sm:max-w-[240px] [&_button]:min-h-0">
@@ -182,7 +185,7 @@ export default function VMList() {
         <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
       ) : filtered.length === 0 ? (
         <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 p-12 text-center text-slate-500">
-          {search ? 'No VMs match your search.' : 'No VMs found. Create one to get started.'}
+          {search ? 'No VMs match your search.' : 'No guests on this host yet. Create a VM or import a disk to define one in libvirt.'}
         </div>
       ) : viewMode === 'table' ? (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">

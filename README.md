@@ -1,8 +1,8 @@
 # Machina
 
-**A modern libvirt VM management suite** — Rust daemon with REST/WebSocket API, a web UI with VNC/SPICE/Serial/SSH console, and a keyboard-driven terminal UI.
+**Linux hypervisor host management** for **bare-metal worker nodes** you use as compute: VMs, networks, storage, snapshots, host networking, and day-two operations from one control plane. Virtualization is **libvirt** with QEMU/KVM. For **Kubernetes**-style VM platforms (for example **KubeVirt**), machina offers optional workflow support—YAML bundles and `kubectl` / `virtctl` helpers—so libvirt-managed guests fit cluster migration and operations. See [docs/kubevirt-migration.md](docs/kubevirt-migration.md).
 
-Manage virtual machines, networks, storage, snapshots, host networking, and automation from your browser or terminal. PAM authentication with RBAC, full console access (VNC, SPICE, Serial, SSH), live metrics, Prometheus integration, alerts, webhooks, scheduled actions, and more — all through a single daemon.
+A **Rust daemon** exposes REST and WebSocket APIs; a **web UI** delivers VNC, SPICE, serial, and SSH consoles; a **terminal UI** covers keyboard-first workflows. PAM authentication with RBAC, live metrics, Prometheus, alerts, webhooks, scheduled actions, and more run through that single daemon.
 
 ---
 

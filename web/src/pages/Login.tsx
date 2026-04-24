@@ -1,26 +1,32 @@
 import { useState, FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
-import { Lock, User, AlertCircle, Server, Network, Activity, Zap, Moon, Cloud, Sun } from 'lucide-react'
+import { Lock, User, AlertCircle, Server, Network, Activity, Zap, Moon, Cloud, Sun, Boxes } from 'lucide-react'
 
 const features = [
   {
     icon: <Server className="w-5 h-5 text-white" />,
     gradient: 'bg-gradient-to-br from-blue-500 to-blue-700',
-    title: 'VM Lifecycle Management',
-    description: 'Create, start, stop, snapshot, and migrate virtual machines with full console access.',
+    title: 'Guests & lifecycle',
+    description: 'Create, start, stop, snapshot, and migrate libvirt-backed QEMU/KVM guests with full console access.',
   },
   {
     icon: <Network className="w-5 h-5 text-white" />,
     gradient: 'bg-gradient-to-br from-emerald-500 to-emerald-700',
-    title: 'Network & Storage',
-    description: 'Visual network topology, port forwarding, storage pools, and firewall rules.',
+    title: 'Host networking & storage',
+    description: 'Visual topology, port forwarding, storage pools, and firewall rules on this hypervisor node.',
   },
   {
     icon: <Activity className="w-5 h-5 text-white" />,
     gradient: 'bg-gradient-to-br from-purple-500 to-purple-700',
-    title: 'Monitoring & Automation',
+    title: 'Monitoring & automation',
     description: 'Live metrics, alerts, webhooks, scheduled actions, and Prometheus integration.',
+  },
+  {
+    icon: <Boxes className="w-5 h-5 text-white" />,
+    gradient: 'bg-gradient-to-br from-orange-500 to-rose-700',
+    title: 'Kubernetes path (optional)',
+    description: 'When enabled, KubeVirt YAML bundles, virtctl image upload, and kubectl apply from VM details.',
   },
 ]
 
@@ -119,7 +125,7 @@ export default function LoginPage() {
 
           {/* Tagline */}
           <p className={`text-lg max-w-md ${isLight ? 'text-slate-600' : 'text-slate-400'}`}>
-            Modern libvirt VM management. Web UI, console access, and automation in one daemon.
+            Hypervisor host control for bare-metal workers: libvirt and QEMU/KVM, with optional Kubernetes (KubeVirt) helpers. Web UI, consoles, automation — one daemon.
           </p>
 
           {/* Divider */}
@@ -173,13 +179,13 @@ export default function LoginPage() {
             <h1 className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
               isLight ? 'from-slate-800 to-slate-600' : 'from-white to-slate-300'
             }`}>Machina</h1>
-            <p className={`text-sm mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Sign in with your system account</p>
+            <p className={`text-sm mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Hypervisor host · sign in with your system account</p>
           </div>
 
           {/* Desktop heading */}
           <div className="hidden lg:block mb-6">
             <h2 className={`text-xl font-bold ${isLight ? 'text-slate-800' : 'text-white'}`}>Sign in</h2>
-            <p className={`text-sm mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Access your virtual infrastructure</p>
+            <p className={`text-sm mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Access this bare-metal / worker host (libvirt + QEMU/KVM)</p>
           </div>
 
           <form

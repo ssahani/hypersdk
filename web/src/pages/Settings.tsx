@@ -102,7 +102,10 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="w-6 h-6 text-blue-400" /> Settings</h1>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="w-6 h-6 text-blue-400" /> Settings</h1>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">RBAC, tokens, alerts, and schedules for the hypervisor control plane on this host.</p>
+        </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
       <p className="text-xs text-slate-500">

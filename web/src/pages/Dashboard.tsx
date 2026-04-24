@@ -16,7 +16,7 @@ import { useToastContext } from '../contexts/ToastContext'
 
 interface MetricsPoint { time: string; memory: number }
 
-/** HyperSDK-style responsive grid: auto-fit columns from min card width (see hypersdk Dashboard stats). */
+/** Responsive metric grid: auto-fit columns from a minimum card width. */
 const METRIC_GRID =
   'grid max-md:grid-cols-1 md:grid-cols-[repeat(auto-fit,minmax(15.625rem,1fr))] gap-4 md:gap-5 xl:gap-6'
 
@@ -99,7 +99,9 @@ export default function Dashboard() {
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
           <p className="text-sm text-slate-400 mt-0.5 break-words">
-            {node ? `${node.hostname} — ${node.hypervisor} ${node.hypervisor_version}` : 'Loading host info...'}
+            {node
+              ? `${node.hostname} — ${node.hypervisor} ${node.hypervisor_version} · hypervisor host (QEMU/KVM + libvirt)`
+              : 'Loading host info...'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
@@ -115,9 +117,9 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Stat Cards — auto-fit minmax like HyperSDK system overview grid */}
+      {/* Stat cards — auto-fit minmax grid */}
       <div className={METRIC_GRID}>
-        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Virtual Machines" value={vms.length} badge={<span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">{running} running</span>} />
+        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Guests" value={vms.length} badge={<span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">{running} running</span>} />
         <StatCard gradient="stat-card-purple" icon={<Cpu className="w-6 h-6" />} iconColor="text-purple-400" title="Total vCPUs" value={totalVcpus} badge={node ? <span className="text-xs text-slate-500">{node.cpu_cores}c / {node.cpu_threads}t host</span> : undefined} />
         <StatCard gradient="stat-card-orange" icon={<HardDrive className="w-6 h-6" />} iconColor="text-orange-400" title="Allocated Memory" value={`${totalMemGB} GB`} badge={node ? <span className="text-xs text-slate-500">{(node.memory_mb / 1024).toFixed(0)} GB host</span> : undefined} />
         <StatCard gradient="stat-card-green" icon={<Network className="w-6 h-6" />} iconColor="text-emerald-400" title="Networks" value={networks.length} badge={<span className="text-xs text-slate-500">{activeNets} active</span>} />
@@ -138,7 +140,7 @@ export default function Dashboard() {
         <MiniStat icon={<Database className="w-4 h-4 text-cyan-400" />} label="Storage Pools" value={`${activePools}/${pools.length}`} />
         <MiniStat icon={<Camera className="w-4 h-4 text-yellow-400" />} label="Running" value={running} extra={stopped > 0 ? `${stopped} stopped` : undefined} />
         <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
-        <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="Libvirt" value={node ? `v${node.lib_version}` : '-'} />
+        <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
 
       {/* Recently Viewed */}
@@ -183,7 +185,7 @@ export default function Dashboard() {
       {/* VM List */}
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Virtual Machines</h2>
+          <h2 className="text-lg font-semibold text-white">Guests (libvirt domains)</h2>
           <Link to="/vms" className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition font-medium">
             View all <ArrowRight className="w-3.5 h-3.5" />
           </Link>
@@ -192,8 +194,8 @@ export default function Dashboard() {
           {vms.length === 0 ? (
             <div className="px-6 py-12 text-center">
               <Server className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-              <p className="text-slate-400 font-medium">No virtual machines</p>
-              <p className="text-sm text-slate-500 mt-1">Create your first VM to get started</p>
+              <p className="text-slate-400 font-medium">No guests on this host yet</p>
+              <p className="text-sm text-slate-500 mt-1 max-w-sm mx-auto">Define a QEMU/KVM guest in libvirt, or create one here. Optional KubeVirt flows live under each VM&apos;s details.</p>
               <Link to="/create" className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm font-medium transition">
                 <Server className="w-4 h-4" /> Create VM
               </Link>

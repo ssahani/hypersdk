@@ -1,5 +1,5 @@
 #!/bin/bash
-# machina — Automated installer for modern libvirt VM manager
+# machina — Automated installer for the Linux hypervisor control plane
 #
 # Supports: Fedora, RHEL/CentOS/AlmaLinux/Rocky, Ubuntu/Debian,
 #           openSUSE/SLES, Arch/Manjaro, and compatible distros.
@@ -1216,7 +1216,7 @@ main() {
     echo "  \_/ |_| \__|/__/|  _/\__,_| \_/\_/ |_||_|"
     echo "                  |_|"
     echo ""
-    echo "machina installer — Modern Libvirt VM Manager"
+    echo "machina installer — Linux hypervisor host manager"
     echo ""
 
     # Parse args
@@ -1240,8 +1240,9 @@ main() {
                 cat <<'HELPEOF'
 Usage: install.sh [OPTIONS]
 
-  Automated installer for machina — a modern libvirt VM manager with
-  Web UI, REST API, TUI, backup system, and monitoring.
+  Automated installer for machina — Linux hypervisor host management
+  with Web UI, REST API, TUI, backups, monitoring, and optional KubeVirt
+  helpers when you configure them.
 
   Detects the Linux distribution, installs all dependencies (libvirt,
   QEMU/KVM, Rust, Node.js 20), builds from source, deploys binaries

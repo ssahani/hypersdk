@@ -108,9 +108,9 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
      ════════════════════════════════════════════════════════════════════ -->
 <div class="cover">
   <div class="badge">HyperSDK Engineering</div>
-  <h1><span>virt</span>spawn</h1>
+  <h1>ma<span>china</span></h1>
   <p style="font-size:1.6em; font-weight:700; margin-bottom:0.3em;">Technical Architecture Deep Dive</p>
-  <p>A comprehensive look at the system design, technology stack, security model, and deployment architecture behind machina.</p>
+  <p>A comprehensive look at the system design, technology stack, security model, and deployment architecture behind machina — Linux hypervisor hosts on libvirt/QEMU/KVM, with optional KubeVirt integration.</p>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -151,6 +151,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     <h4>Backend Layer</h4>
     <div class="components">
       <div class="comp">libvirt API (QEMU/KVM)</div>
+      <div class="comp">KubeVirt helpers (optional)</div>
       <div class="comp">Host Commands</div>
       <div class="comp">iptables / nftables</div>
       <div class="comp">Storage (qcow2, raw, LVM)</div>
@@ -185,7 +186,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
 <div class="page page-light">
   <span class="section-label">Stack</span>
   <h2>Technology <span>Stack</span></h2>
-  <p class="subtitle">Production-grade open-source technologies, zero runtime dependencies beyond libvirt</p>
+  <p class="subtitle">Production-grade open-source technologies; QEMU/KVM and libvirt at the data plane, optional KubeVirt/kubectl integration when enabled</p>
 
   <table>
     <thead>

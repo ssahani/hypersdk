@@ -7,7 +7,7 @@ use clap::Parser;
 use machina_core::MachinaConfig;
 
 #[derive(Parser)]
-#[command(name = "machina", about = "machina TUI - libvirt VM manager")]
+#[command(name = "machina", about = "machina TUI — terminal client for Linux hypervisor hosts (libvirt/QEMU/KVM)")]
 struct Cli {
     /// Daemon URL (default from config uses https when [tls] is enabled; packaged install enables TLS)
     #[arg(short, long)]

@@ -234,7 +234,7 @@ export default function HostNetworkingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="w-6 h-6 text-blue-400" /> Host Networking</h1>
-          <p className="text-sm text-slate-400 mt-0.5">{hostIfaces.length} interfaces, {networks.length} libvirt networks</p>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{hostIfaces.length} physical interfaces, {networks.length} libvirt-defined networks — bridges, NAT, DHCP, and port forwards on this worker host.</p>
         </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>

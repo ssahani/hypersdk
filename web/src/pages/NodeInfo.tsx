@@ -146,7 +146,7 @@ export default function NodeInfoPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Server className="w-6 h-6 text-blue-400" /> Host overview</h1>
-          <p className="text-sm text-slate-400 mt-0.5">{node.hostname} — usage, mounts, and top processes (read-only)</p>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{node.hostname} — hypervisor worker: usage, mounts, top processes, and libvirt health (read-only)</p>
         </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
@@ -155,7 +155,7 @@ export default function NodeInfoPage() {
       {health && (
         <div className={`flex items-center gap-3 p-4 rounded-xl border ${health.libvirt ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
           {health.libvirt ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-red-400" />}
-          <span className="text-sm">Libvirt: <strong className={health.libvirt ? 'text-green-400' : 'text-red-400'}>{health.status}</strong></span>
+          <span className="text-sm">Virtualization (libvirt): <strong className={health.libvirt ? 'text-green-400' : 'text-red-400'}>{health.status}</strong></span>
           <span className="text-xs text-slate-500 ml-auto">{node.hypervisor} {node.hypervisor_version} / libvirt {node.lib_version}</span>
         </div>
       )}

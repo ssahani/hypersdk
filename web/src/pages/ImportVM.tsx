@@ -81,7 +81,10 @@ export default function ImportVMPage() {
     <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Upload className="w-6 h-6 text-cyan-400" /> Import Virtual Machine</h1>
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Upload className="w-6 h-6 text-cyan-400" /> Import guest VM</h1>
+          <p className="text-sm text-slate-400 mt-1 max-w-2xl">Bring a disk image onto this hypervisor host and define a libvirt domain—useful for bare-metal lab or worker pools before optional KubeVirt migration.</p>
+        </div>
       </div>
 
       <div>

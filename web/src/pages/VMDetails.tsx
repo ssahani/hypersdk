@@ -2097,6 +2097,11 @@ export default function VMDetailsPage() {
               </button>
             </div>
             <div className="p-4 overflow-y-auto space-y-3 text-sm text-slate-300">
+              <p className="text-sm text-slate-300 leading-relaxed">
+                Move this QEMU/KVM guest from the bare-metal libvirt host into a Kubernetes cluster: CDI upload DataVolume plus KubeVirt{' '}
+                <code className="text-slate-200">VirtualMachine</code> YAML. When <code className="text-slate-200">[kubevirt] exec_enabled</code> is true, the buttons below run{' '}
+                <code className="text-slate-200">virtctl</code>/<code className="text-slate-200">kubectl</code> on the daemon host.
+              </p>
               <p className="text-xs text-slate-400">
                 Libvirt root disk <code className="text-slate-200">{kubevirtBundle.libvirt_root_disk}</code> → DataVolume{' '}
                 <code className="text-slate-200">{kubevirtBundle.datavolume_name}</code> / VM{' '}

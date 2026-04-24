@@ -58,11 +58,11 @@ def make_title_slide():
         draw.rectangle([0, i, W, i+1], fill=ACCENT)
     # Logo area
     text_center(draw, 280, "machina", font_title, WHITE)
-    text_center(draw, 380, "Modern Libvirt Virtual Machine Manager", font_subtitle, GRAY)
+    text_center(draw, 380, "Linux Hypervisor Host Manager", font_subtitle, GRAY)
     # Feature pills
     features = [
         ("Web UI", ACCENT), ("REST API", GREEN), ("Terminal TUI", ORANGE),
-        ("Real-time Metrics", ACCENT), ("30+ libvirt Features", GREEN),
+        ("Real-time Metrics", ACCENT), ("Optional KubeVirt workflows", GREEN),
     ]
     total_w = sum(draw.textbbox((0,0), f[0], font=font_body)[2] - draw.textbbox((0,0), f[0], font=font_body)[0] + 40 for f in features) + 20 * (len(features)-1)
     x = (W - total_w) // 2

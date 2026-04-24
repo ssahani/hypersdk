@@ -38,9 +38,12 @@ export default function CapabilitiesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Cpu className="w-6 h-6" /> Capabilities</h1>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Cpu className="w-6 h-6" /> Capabilities</h1>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">libvirt-reported guest architectures and host features for this QEMU/KVM worker.</p>
+        </div>
+        <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition shrink-0" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
 
       <div>

@@ -295,11 +295,11 @@ export default function CreateVMPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Boxes className="w-6 h-6 text-cyan-400" />
-            Create new virtual machine
+            Create new guest VM
           </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Same <code className="text-slate-400">virt-install</code> flow as{' '}
-            <span className="text-slate-400">Cockpit Machines</span>: install from media, or clone many identical guests from a Packer golden qcow2.
+          <p className="text-sm text-slate-500 mt-1 max-w-2xl">
+            Define a QEMU/KVM guest on this hypervisor host via libvirt—the same <code className="text-slate-400">virt-install</code> style as{' '}
+            <span className="text-slate-400">Cockpit Machines</span>: install from media, or clone many identical workers from a Packer golden qcow2. Optional KubeVirt YAML and cluster actions are on the VM&apos;s details page when enabled.
           </p>
         </div>
       </div>
@@ -317,7 +317,7 @@ export default function CreateVMPage() {
             }}
             icon={<Disc className="w-5 h-5" />}
             title="Install from media"
-            description="Fresh install with ISO, URL, PXE, or downloaded OS — same idea as Cockpit Machines."
+            description="Fresh guest on this host: ISO, URL, PXE, or downloaded OS — same idea as Cockpit Machines."
           />
           <ChoiceCard
             largeIcon
@@ -329,7 +329,7 @@ export default function CreateVMPage() {
             }}
             icon={<Layers className="w-5 h-5" />}
             title="Clone from golden image"
-            description="Many identical guests from a Packer qcow2 — saved template or thin overlay on a golden disk."
+            description="Many identical worker guests from a Packer qcow2 — saved template or thin overlay on a golden disk."
           />
         </ChoiceCardGrid>
       </div>
@@ -702,7 +702,7 @@ export default function CreateVMPage() {
         disabled={submitting}
         className="w-full sm:w-auto px-8 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm font-medium transition"
       >
-        {submitting ? 'Creating…' : 'Create and install virtual machine'}
+        {submitting ? 'Creating…' : 'Create and install guest'}
       </button>
         </>
       )}

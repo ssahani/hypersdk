@@ -3,7 +3,7 @@
   "info": {
     "title": "Machina API",
     "version": "1.0.0",
-    "description": "REST API for managing libvirt virtual machines, networks, storage, and more."
+    "description": "REST API for Linux hypervisor hosts: QEMU/KVM domains via libvirt, networks, storage, host networking, backups, metrics, and optional KubeVirt bundle/apply workflows when configured."
   },
   "servers": [
     { "url": "/api/v1", "description": "Default API base" }

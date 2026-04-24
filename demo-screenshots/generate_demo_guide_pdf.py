@@ -436,7 +436,7 @@ def slide_summary():
         "$ ./scripts/bulk.sh shutdown",
     ])
 
-    tc(d, 870, "machina  --  Modern Libvirt VM Manager", fsh, ACCENT)
+    tc(d, 870, "machina  —  Linux hypervisor host manager (libvirt/KVM, optional KubeVirt)", fsh, ACCENT)
     tc(d, 920, "https://github.com/ssahani/machina", fs, ACCENT)
     return img
 

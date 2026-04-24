@@ -166,6 +166,7 @@ export default function Navbar() {
           {/* Logo */}
           <Link
             to="/"
+            title="Linux hypervisor host manager — QEMU/KVM + libvirt, optional KubeVirt"
             className={`flex items-center gap-2 sm:gap-2.5 group hover:scale-[1.02] transition-transform duration-200 shrink-0 order-1 ${
               steel ? 'nav-steel-brand' : ''
             }`}

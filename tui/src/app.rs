@@ -1097,7 +1097,7 @@ impl App {
         let stdout = v["stdout"].as_str().unwrap_or("");
         let stderr = v["stderr"].as_str().unwrap_or("");
         self.state.log_content = format!(
-            "{title} (libvirt VM `{vm}`)\nexit_code: {code}\n\n--- stdout ---\n{stdout}\n\n--- stderr ---\n{stderr}"
+            "{title} (VM `{vm}`)\nexit_code: {code}\n\n--- stdout ---\n{stdout}\n\n--- stderr ---\n{stderr}"
         );
         self.state.content_overlay_caption = format!(" {title} (j/k:scroll  Esc:close) ");
         self.state.scroll_offset = 0;
