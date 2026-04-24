@@ -56,6 +56,7 @@ async fn post_virt_image_build_job(
     let id = jobs.start_virt_image_build(req.os.trim(), req.output.trim());
     let mgr = manager.clone();
     let jobs_bg = jobs.clone();
+    let jobs_for_blocking = jobs_bg.clone();
     let req_bg = req.clone();
     let out_path = req.output.trim().to_string();
 
@@ -64,7 +65,7 @@ async fn post_virt_image_build_job(
             mgr.with_conn(|conn| {
                 crate::virt_image_validate::validate_virt_image_build(conn, &req_bg)?;
                 virt_image_build::build_disk_image_with_logs(&req_bg, |line| {
-                    jobs_bg.append_log(id, line);
+                    jobs_for_blocking.append_log(id, line);
                 })
                 .map_err(|e| LibvirtError::Operation(e.to_string()))
             })
