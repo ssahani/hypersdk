@@ -8,9 +8,10 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::thread;
+use std::time::{Duration, Instant};
 
 /// Build request (JSON-serializable for the virtspawn daemon).
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +54,9 @@ pub struct BuildDiskRequest {
     /// Extra argv forwarded to `virt-builder` (advanced).
     #[serde(default)]
     pub extra_virt_builder_args: Vec<String>,
+    /// Kill `virt-builder` after this many seconds (`0` = wait until completion).
+    #[serde(default)]
+    pub timeout_secs: u64,
 }
 
 fn default_size() -> String {
@@ -84,6 +88,7 @@ impl Default for BuildDiskRequest {
             update: false,
             selinux_relabel: false,
             extra_virt_builder_args: Vec::new(),
+            timeout_secs: 0,
         }
     }
 }
@@ -309,9 +314,47 @@ fn pump_virt_builder_stream<R: Read + Send + 'static>(
     }
 }
 
-fn run_virt_builder_child(mut cmd: Command, out_path: &Path, log: &mut dyn FnMut(&str)) -> Result<()> {
+fn wait_child_interrupt_streams(
+    mut child: Child,
+    out_path: &Path,
+    timeout: Option<Duration>,
+) -> Result<()> {
+    let limit = timeout.filter(|d| !d.is_zero());
+    let deadline = limit.map(|d| Instant::now() + d);
+    loop {
+        if let Some(status) = child.try_wait().context("virt-builder try_wait")? {
+            if !status.success() {
+                let _ = fs::remove_file(out_path);
+                bail!("virt-builder failed: {status:?}");
+            }
+            return Ok(());
+        }
+        if let (Some(end), Some(lim)) = (deadline, limit) {
+            if Instant::now() >= end {
+                let _ = child.kill();
+                let _ = child.wait();
+                let _ = fs::remove_file(out_path);
+                bail!("virt-builder exceeded time limit of {:?}", lim);
+            }
+        }
+        thread::sleep(Duration::from_millis(200));
+    }
+}
+
+fn run_virt_builder_child(
+    mut cmd: Command,
+    out_path: &Path,
+    timeout: Option<Duration>,
+    log: &mut dyn FnMut(&str),
+) -> Result<()> {
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
     log("[virt-image-build] starting virt-builder (streaming stdout/stderr)");
+    if let Some(t) = timeout.filter(|d| !d.is_zero()) {
+        log(&format!(
+            "[virt-image-build] wall-clock limit: {}s",
+            t.as_secs()
+        ));
+    }
     let mut child = cmd.spawn().context("failed to spawn virt-builder")?;
     let stdout = child.stdout.take().context("virt-builder stdout")?;
     let stderr = child.stderr.take().context("virt-builder stderr")?;
@@ -329,11 +372,7 @@ fn run_virt_builder_child(mut cmd: Command, out_path: &Path, log: &mut dyn FnMut
     let _ = h_out.join();
     let _ = h_err.join();
 
-    let st = child.wait().context("virt-builder wait")?;
-    if !st.success() {
-        let _ = fs::remove_file(out_path);
-        bail!("virt-builder failed: {st:?}");
-    }
+    wait_child_interrupt_streams(child, out_path, timeout)?;
     log("[virt-image-build] virt-builder finished successfully");
     Ok(())
 }
@@ -430,7 +469,12 @@ pub fn build_disk_image_with_logs(req: &BuildDiskRequest, mut log: impl FnMut(&s
 
     cmd.args(&req.extra_virt_builder_args);
 
-    run_virt_builder_child(cmd, &out_path, &mut log)
+    let timeout = if req.timeout_secs > 0 {
+        Some(Duration::from_secs(req.timeout_secs))
+    } else {
+        None
+    };
+    run_virt_builder_child(cmd, &out_path, timeout, &mut log)
 }
 
 /// Run `virt-builder` with the given request (blocking).

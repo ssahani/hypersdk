@@ -1,5 +1,5 @@
 //! In-memory registry for long-running tasks (virt-image-build, VM create with logs).
-//! Survives navigation away from the Create VM page; cleared on daemon restart.
+//! Survives navigation away from the web UI while jobs run; cleared on daemon restart.
 
 use serde::Serialize;
 use std::collections::{HashMap, VecDeque};

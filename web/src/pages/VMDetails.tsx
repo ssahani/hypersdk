@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, useRef } from 'react'
+import { useCallback, useEffect, useState, useRef, useMemo, Fragment } from 'react'
 import { useParams, Link, useNavigate } from 'react-router'
 import {
   getVM, getVMMetrics, getVMXml, startVM, stopVM, shutdownVM, rebootVM, pauseVM, resumeVM,
@@ -7,10 +7,12 @@ import {
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
-  deleteVM, getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
+  getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
   VmDeleteUndefineOpts, BlockJobInfo,
+  tuneVmDisk, tuneVmNic, setVmFirmware, attachVmTpm, detachVmTpm,
+  attachVmWatchdog, attachVmSound, attachVmSerial, setVmVideoModel,
 } from '../api/vm'
 import {
   attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
@@ -20,6 +22,8 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
+import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
+import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
@@ -36,9 +40,52 @@ import {
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
 
+function SnapshotTableRows({
+  nodes,
+  depth,
+  onRevert,
+  onDelete,
+}: {
+  nodes: SnapshotTreeNode[]
+  depth: number
+  onRevert: (n: string) => void
+  onDelete: (n: string) => void
+}) {
+  return (
+    <>
+      {nodes.map(({ snap, children }) => (
+        <Fragment key={snap.name}>
+          <tr className="table-row-hover">
+            <td className="px-6 py-3 text-sm text-slate-500" style={{ paddingLeft: `${1.5 + depth * 1}rem` }}>
+              {snap.parent ? <span className="text-slate-600 mr-1">↳</span> : null}
+              <span className="font-medium text-slate-200">{snap.name}</span>
+              {snap.description ? <span className="text-xs text-slate-500 ml-2">{snap.description}</span> : null}
+            </td>
+            <td className="px-6 py-3 text-sm text-slate-400">{snap.state}</td>
+            <td className="px-6 py-3 text-sm text-slate-400">{snap.creation_time ? new Date(snap.creation_time * 1000).toLocaleString() : '-'}</td>
+            <td className="px-6 py-3">{snap.is_current && <span className="text-green-400 text-xs font-medium">Current</span>}</td>
+            <td className="px-6 py-3 text-right">
+              <div className="flex items-center justify-end gap-1">
+                <button type="button" onClick={() => onRevert(snap.name)} className="p-1 hover:bg-blue-600/20 rounded transition" title="Revert" aria-label={`Revert ${snap.name}`}>
+                  <RotateCw className="w-4 h-4 text-blue-400" />
+                </button>
+                <button type="button" onClick={() => onDelete(snap.name)} className="p-1 hover:bg-red-600/20 rounded transition" title="Delete" aria-label={`Delete ${snap.name}`}>
+                  <Trash2 className="w-4 h-4 text-red-400" />
+                </button>
+              </div>
+            </td>
+          </tr>
+          <SnapshotTableRows nodes={children} depth={depth + 1} onRevert={onRevert} onDelete={onDelete} />
+        </Fragment>
+      ))}
+    </>
+  )
+}
+
 type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml' | 'logs' | 'advanced'
 type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
   | 'delete-vm' | 'scheduler-tune' | 'memtune' | 'pin-vcpu' | 'block-commit'
+  | 'disk-tune' | 'nic-tune' | 'firmware' | 'watchdog' | 'sound' | 'serial' | 'video'
 
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
@@ -66,6 +113,10 @@ export default function VMDetailsPage() {
   const [newName, setNewName] = useState('')
   const [migrateUri, setMigrateUri] = useState('')
   const [migrateLive, setMigrateLive] = useState(true)
+  const [migrateBandwidth, setMigrateBandwidth] = useState('')
+  const [migrateUnsafe, setMigrateUnsafe] = useState(false)
+  const [migratePostcopy, setMigratePostcopy] = useState(false)
+  const [migrateTunnelled, setMigrateTunnelled] = useState(false)
   const [snapName, setSnapName] = useState('')
   const [snapDesc, setSnapDesc] = useState('')
   const [editVcpus, setEditVcpus] = useState(1)
@@ -75,6 +126,11 @@ export default function VMDetailsPage() {
   const [attachSource, setAttachSource] = useState('')
   const [attachTarget, setAttachTarget] = useState('vdb')
   const [attachDriver, setAttachDriver] = useState('qcow2')
+  const [attachBus, setAttachBus] = useState('virtio')
+  const [attachCache, setAttachCache] = useState('')
+  const [attachDiscard, setAttachDiscard] = useState('')
+  const [attachReadonly, setAttachReadonly] = useState(false)
+  const [attachShareable, setAttachShareable] = useState(false)
   const [cdromBrowseOpen, setCdromBrowseOpen] = useState(false)
   const [attachDiskBrowseOpen, setAttachDiskBrowseOpen] = useState(false)
   const [kubevirtOpen, setKubevirtOpen] = useState(false)
@@ -131,6 +187,24 @@ export default function VMDetailsPage() {
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
   const [detachNicMac, setDetachNicMac] = useState<string | null>(null)
   const [deleteSnapName, setDeleteSnapName] = useState<string | null>(null)
+
+  const [tuneDiskTarget, setTuneDiskTarget] = useState('')
+  const [tuneBus, setTuneBus] = useState('')
+  const [tuneCache, setTuneCache] = useState('')
+  const [tuneDiscard, setTuneDiscard] = useState('')
+  const [tuneRo, setTuneRo] = useState('')
+  const [tuneShare, setTuneShare] = useState('')
+  const [tuneMac, setTuneMac] = useState('')
+  const [tuneNicModel, setTuneNicModel] = useState('virtio')
+  const [tuneNicNet, setTuneNicNet] = useState('')
+  const [fwChoice, setFwChoice] = useState<'bios' | 'uefi'>('uefi')
+  const [wdModel, setWdModel] = useState('i6300esb')
+  const [wdAction, setWdAction] = useState('reset')
+  const [sndModel, setSndModel] = useState('ich6')
+  const [serPort, setSerPort] = useState(1)
+  const [vidModel, setVidModel] = useState('qxl')
+
+  const snapshotRoots = useMemo(() => snapshotForest(snapshots), [snapshots])
 
   const load = useCallback(async () => {
     if (!name) return
@@ -324,7 +398,19 @@ export default function VMDetailsPage() {
   const handleMigrate = async () => {
     if (!name || !migrateUri.trim()) return
     toast.info('Starting migration...')
-    try { await migrateVM(name, migrateUri.trim(), migrateLive); toast.success('Migration completed'); setDialog(null) } catch (e: unknown) { toast.error(`Migration failed: ${e instanceof Error ? e.message : e}`) }
+    try {
+      const bw = migrateBandwidth.trim() === '' ? NaN : parseInt(migrateBandwidth, 10)
+      await migrateVM(name, migrateUri.trim(), migrateLive, {
+        unsafe_migrate: migrateUnsafe,
+        postcopy: migratePostcopy,
+        tunnelled: migrateTunnelled,
+        parameters: !Number.isNaN(bw) && bw > 0 ? { bandwidth: bw } : undefined,
+      })
+      toast.success('Migration completed')
+      setDialog(null)
+    } catch (e: unknown) {
+      toast.error(`Migration failed: ${e instanceof Error ? e.message : e}`)
+    }
   }
 
   const handleSetVcpus = async () => {
@@ -389,9 +475,129 @@ export default function VMDetailsPage() {
     if (!name || !attachSource.trim()) return
     try {
       const { apiPostVoid } = await import('../api/client')
-      await apiPostVoid(`/api/v1/vms/${encodeURIComponent(name)}/disk/attach`, { source: attachSource.trim(), target: attachTarget, driver: attachDriver })
+      const body: Record<string, unknown> = {
+        source: attachSource.trim(),
+        target: attachTarget,
+        driver: attachDriver,
+        bus: attachBus,
+      }
+      if (attachCache.trim()) body.cache = attachCache.trim()
+      if (attachDiscard.trim()) body.discard = attachDiscard.trim()
+      if (attachReadonly) body.readonly = true
+      if (attachShareable) body.shareable = true
+      await apiPostVoid(`/api/v1/vms/${encodeURIComponent(name)}/disk/attach`, body)
       toast.success('Disk attached'); setDialog(null); setAttachSource(''); load(); setVmXml('')
     } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
+  }
+
+  const handleDiskTune = async () => {
+    if (!name || !tuneDiskTarget) return
+    try {
+      const body: {
+        target: string
+        bus?: string
+        cache?: string
+        discard?: string
+        readonly?: boolean
+        shareable?: boolean
+      } = { target: tuneDiskTarget }
+      if (tuneBus.trim()) body.bus = tuneBus.trim()
+      if (tuneCache.trim()) body.cache = tuneCache.trim()
+      if (tuneDiscard.trim()) body.discard = tuneDiscard.trim()
+      if (tuneRo === 'true') body.readonly = true
+      if (tuneRo === 'false') body.readonly = false
+      if (tuneShare === 'true') body.shareable = true
+      if (tuneShare === 'false') body.shareable = false
+      await tuneVmDisk(name, body)
+      toast.success('Disk updated')
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`Disk tune failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleNicTune = async () => {
+    if (!name || !tuneMac.trim()) return
+    try {
+      await tuneVmNic(name, {
+        mac_address: tuneMac.trim(),
+        ...(tuneNicModel.trim() ? { model: tuneNicModel.trim() } : {}),
+        ...(tuneNicNet.trim() ? { network: tuneNicNet.trim() } : {}),
+      })
+      toast.success('NIC updated')
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`NIC tune failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleFirmwareSet = async () => {
+    if (!name) return
+    try {
+      await setVmFirmware(name, fwChoice === 'uefi')
+      toast.success(`Firmware set to ${fwChoice.toUpperCase()} (may require reboot / guest support)`)
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`Firmware: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleWatchdogAttach = async () => {
+    if (!name) return
+    try {
+      await attachVmWatchdog(name, wdModel, wdAction)
+      toast.success('Watchdog attached')
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleSoundAttach = async () => {
+    if (!name) return
+    try {
+      await attachVmSound(name, sndModel)
+      toast.success('Sound card attached')
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleSerialAttach = async () => {
+    if (!name) return
+    try {
+      await attachVmSerial(name, serPort)
+      toast.success(`Serial port ${serPort} attached`)
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleVideoSet = async () => {
+    if (!name) return
+    try {
+      await setVmVideoModel(name, vidModel)
+      toast.success('Video model updated')
+      setDialog(null)
+      load()
+      setVmXml('')
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
   }
 
   const handleDetachDisk = async (targetDev: string) => {
@@ -444,9 +650,18 @@ export default function VMDetailsPage() {
 
   const handleDeleteVm = async () => {
     if (!name) return
+    let nvramRetried = false
     try {
-      await deleteVM(name, deleteUndefine)
-      toast.success('VM deleted')
+      await deleteVmWithNvramRetry(name, deleteUndefine, (merged) => {
+        nvramRetried = true
+        setDeleteUndefine(merged)
+        toast.info('Retrying delete with UEFI NVRAM removal (same as virsh undefine --nvram)…')
+      })
+      toast.success(
+        nvramRetried
+          ? 'VM deleted (UEFI NVRAM removed as required by libvirt)'
+          : 'VM deleted',
+      )
       setDialog(null)
       navigate('/vms')
     } catch (e: unknown) {
@@ -726,9 +941,22 @@ export default function VMDetailsPage() {
 
           {bootConfig && (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <h3 className="text-lg font-semibold">Boot Configuration</h3>
-                <button onClick={() => openDialog('boot-order')} className="text-xs text-blue-400 hover:text-blue-300 transition">Edit</button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => openDialog('boot-order')} className="text-xs text-blue-400 hover:text-blue-300 transition">Edit boot</button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const f = bootConfig.firmware.toLowerCase()
+                      setFwChoice(f.includes('efi') || f.includes('ovmf') || f.includes('uefi') ? 'uefi' : 'bios')
+                      openDialog('firmware')
+                    }}
+                    className="text-xs text-amber-400 hover:text-amber-300 transition"
+                  >
+                    Firmware…
+                  </button>
+                </div>
               </div>
               <InfoRow label="Boot Devices" value={bootConfig.boot_devices.join(', ') || 'None'} />
               <InfoRow label="Firmware" value={bootConfig.firmware} />
@@ -879,16 +1107,37 @@ export default function VMDetailsPage() {
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full">
-              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Target</th><th className="px-6 py-3">Device</th><th className="px-6 py-3">Driver</th><th className="px-6 py-3">Source</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+              <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Target</th><th className="px-6 py-3">Bus</th><th className="px-6 py-3">Cache</th><th className="px-6 py-3">Device</th><th className="px-6 py-3">Driver</th><th className="px-6 py-3">Source</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {vm.disks.map((d, i) => (
                   <tr key={i} className="table-row-hover">
                     <td className="px-6 py-3 font-mono text-sm">{d.target}</td>
+                    <td className="px-6 py-3 text-sm text-slate-400">{d.bus || '—'}</td>
+                    <td className="px-6 py-3 text-sm text-slate-400">{d.cache || '—'}</td>
                     <td className="px-6 py-3 text-sm">{d.device}</td>
                     <td className="px-6 py-3 text-sm">{d.driver}</td>
                     <td className="px-6 py-3 text-sm text-slate-400 truncate max-w-xs">{d.source}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        {d.device === 'disk' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTuneDiskTarget(d.target)
+                              setTuneBus(d.bus || '')
+                              setTuneCache(d.cache || '')
+                              setTuneDiscard('')
+                              setTuneRo(d.readonly === true ? 'true' : d.readonly === false ? 'false' : '')
+                              setTuneShare(d.shareable === true ? 'true' : d.shareable === false ? 'false' : '')
+                              openDialog('disk-tune')
+                            }}
+                            className="p-1 hover:bg-amber-600/20 rounded transition"
+                            title="Tune disk"
+                            aria-label={`Tune ${d.target}`}
+                          >
+                            <Sliders className="w-4 h-4 text-amber-400" />
+                          </button>
+                        )}
                         {d.device === 'disk' && <button onClick={() => { setResizeTarget(d.target); setResizeGb(20); setDialog('resize-disk') }} className="p-1 hover:bg-blue-600/20 rounded transition" title="Resize disk" aria-label={`Resize ${d.target}`}>
                           <HardDrive className="w-4 h-4 text-blue-400" />
                         </button>}
@@ -899,7 +1148,7 @@ export default function VMDetailsPage() {
                     </td>
                   </tr>
                 ))}
-                {vm.disks.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No disks attached</td></tr>}
+                {vm.disks.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">No disks attached</td></tr>}
               </tbody>
             </table>
           </div>
@@ -923,9 +1172,25 @@ export default function VMDetailsPage() {
                     <td className="px-6 py-3 text-sm">{iface.source}</td>
                     <td className="px-6 py-3 text-sm">{iface.model}</td>
                     <td className="px-6 py-3 text-right">
-                      <button onClick={() => setDetachNicMac(iface.mac_address)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach NIC" aria-label={`Detach ${iface.mac_address}`}>
-                        <Trash2 className="w-4 h-4 text-red-400" />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setTuneMac(iface.mac_address)
+                            setTuneNicModel(iface.model)
+                            setTuneNicNet(iface.source)
+                            openDialog('nic-tune')
+                          }}
+                          className="p-1 hover:bg-amber-600/20 rounded transition"
+                          title="Tune NIC"
+                          aria-label={`Tune ${iface.mac_address}`}
+                        >
+                          <Sliders className="w-4 h-4 text-amber-400" />
+                        </button>
+                        <button onClick={() => setDetachNicMac(iface.mac_address)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach NIC" aria-label={`Detach ${iface.mac_address}`}>
+                          <Trash2 className="w-4 h-4 text-red-400" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -948,26 +1213,14 @@ export default function VMDetailsPage() {
               <div className="p-8 text-center text-slate-500">No snapshots. Create one to save the current VM state.</div>
             ) : (
               <table className="w-full">
-                <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">State</th><th className="px-6 py-3">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
+                <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Snapshot</th><th className="px-6 py-3">State</th><th className="px-6 py-3">Created</th><th className="px-6 py-3">Current</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
                 <tbody className="divide-y divide-slate-700/30">
-                  {snapshots.map((s) => (
-                    <tr key={s.name} className="table-row-hover">
-                      <td className="px-6 py-3 font-medium">{s.name}{s.description && <span className="text-xs text-slate-500 ml-2">{s.description}</span>}</td>
-                      <td className="px-6 py-3 text-sm text-slate-400">{s.state}</td>
-                      <td className="px-6 py-3 text-sm text-slate-400">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
-                      <td className="px-6 py-3">{s.is_current && <span className="text-green-400 text-xs font-medium">Current</span>}</td>
-                      <td className="px-6 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <button onClick={() => handleRevertSnapshot(s.name)} className="p-1 hover:bg-blue-600/20 rounded transition" title="Revert to this snapshot" aria-label={`Revert to ${s.name}`}>
-                            <RotateCw className="w-4 h-4 text-blue-400" />
-                          </button>
-                          <button onClick={() => setDeleteSnapName(s.name)} className="p-1 hover:bg-red-600/20 rounded transition" title="Delete snapshot" aria-label={`Delete ${s.name}`}>
-                            <Trash2 className="w-4 h-4 text-red-400" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  <SnapshotTableRows
+                    nodes={snapshotRoots}
+                    depth={0}
+                    onRevert={handleRevertSnapshot}
+                    onDelete={(n) => setDeleteSnapName(n)}
+                  />
                 </tbody>
               </table>
             )}
@@ -979,6 +1232,37 @@ export default function VMDetailsPage() {
 
       {tab === 'devices' && (
         <div className="space-y-6">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
+            <h3 className="text-lg font-semibold text-slate-200">Virtual hardware</h3>
+            <p className="text-xs text-slate-500">TPM, watchdog, sound, extra serial, and video — shut off the guest when libvirt requires a static config change.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
+                onClick={() => {
+                  if (!name) return
+                  void attachVmTpm(name).then(() => { toast.success('TPM 2.0 attached'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                }}
+              >
+                Add TPM 2.0
+              </button>
+              <button
+                type="button"
+                className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
+                onClick={() => {
+                  if (!name) return
+                  void detachVmTpm(name).then(() => { toast.success('TPM removed'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                }}
+              >
+                Remove TPM
+              </button>
+              <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('watchdog')}>Watchdog…</button>
+              <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('sound')}>Sound…</button>
+              <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('serial')}>Extra serial…</button>
+              <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('video')}>Video model…</button>
+            </div>
+          </div>
+
           {/* USB Devices */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -1099,6 +1383,10 @@ export default function VMDetailsPage() {
                 <span>Keep TPM (exclusive with delete TPM)</span>
               </label>
             </div>
+            <p className="text-xs text-amber-200/80">
+              UEFI: if libvirt returns “cannot undefine domain with nvram”, enable <strong>Delete UEFI NVRAM file</strong> (same as{' '}
+              <code className="text-amber-100/80">virsh undefine --nvram</code>). On delete failure the UI may enable this checkbox once so you can confirm again—uncheck if you need to keep NVRAM.
+            </p>
             <button type="button" onClick={() => openDialog('delete-vm')} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition">Delete this VM…</button>
           </div>
 
@@ -1243,6 +1531,22 @@ export default function VMDetailsPage() {
                 <input id="dlg-live" type="checkbox" checked={migrateLive} onChange={(e) => setMigrateLive(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
                 <label htmlFor="dlg-live" className="text-sm text-slate-300">Live migration (minimal downtime)</label>
               </div>
+              <label htmlFor="dlg-mig-bw" className="block text-sm text-slate-400 mb-1 mt-3">Bandwidth limit (MiB/s, optional)</label>
+              <input id="dlg-mig-bw" type="number" min={1} className="input-field" value={migrateBandwidth} onChange={(e) => setMigrateBandwidth(e.target.value)} placeholder="e.g. 200" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-3 text-sm text-slate-300">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={migrateUnsafe} onChange={(e) => setMigrateUnsafe(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                  Unsafe migration
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={migratePostcopy} onChange={(e) => setMigratePostcopy(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                  Post-copy
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" checked={migrateTunnelled} onChange={(e) => setMigrateTunnelled(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                  Tunnelled
+                </label>
+              </div>
               <p className="text-xs text-slate-500 mt-2">Allowed URI schemes: qemu://, qemu+ssh://, qemu+tcp://, qemu+tls://, qemu+unix://</p>
             </DialogBox>
           )}
@@ -1382,6 +1686,171 @@ export default function VMDetailsPage() {
                   </select>
                 </div>
               </div>
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                <div>
+                  <label htmlFor="dlg-disk-bus" className="block text-sm text-slate-400 mb-1">Bus</label>
+                  <select id="dlg-disk-bus" value={attachBus} onChange={(e) => setAttachBus(e.target.value)} className="input-field">
+                    <option value="virtio">virtio</option>
+                    <option value="sata">sata</option>
+                    <option value="scsi">scsi</option>
+                    <option value="ide">ide</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="dlg-disk-cache" className="block text-sm text-slate-400 mb-1">Cache (optional)</label>
+                  <select id="dlg-disk-cache" value={attachCache} onChange={(e) => setAttachCache(e.target.value)} className="input-field">
+                    <option value="">default</option>
+                    <option value="none">none</option>
+                    <option value="writethrough">writethrough</option>
+                    <option value="writeback">writeback</option>
+                  </select>
+                </div>
+                <div>
+                  <label htmlFor="dlg-disk-discard" className="block text-sm text-slate-400 mb-1">Discard (optional)</label>
+                  <select id="dlg-disk-discard" value={attachDiscard} onChange={(e) => setAttachDiscard(e.target.value)} className="input-field">
+                    <option value="">—</option>
+                    <option value="unmap">unmap</option>
+                    <option value="ignore">ignore</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-2 justify-center">
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={attachReadonly} onChange={(e) => setAttachReadonly(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                    Read-only
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input type="checkbox" checked={attachShareable} onChange={(e) => setAttachShareable(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                    Shareable
+                  </label>
+                </div>
+              </div>
+            </DialogBox>
+          )}
+
+          {dialog === 'disk-tune' && (
+            <DialogBox title={`Tune disk ${tuneDiskTarget}`} icon={<Sliders className="w-5 h-5 text-amber-400" />} onClose={() => setDialog(null)} onConfirm={handleDiskTune} confirmLabel="Apply">
+              <p className="text-xs text-slate-500 mb-2">Leave fields empty to skip. Readonly/shareable: choose “no change”, on, or off.</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Bus</label>
+                  <select value={tuneBus} onChange={(e) => setTuneBus(e.target.value)} className="input-field">
+                    <option value="">no change</option>
+                    <option value="virtio">virtio</option>
+                    <option value="sata">sata</option>
+                    <option value="scsi">scsi</option>
+                    <option value="ide">ide</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Cache</label>
+                  <select value={tuneCache} onChange={(e) => setTuneCache(e.target.value)} className="input-field">
+                    <option value="">no change</option>
+                    <option value="none">none</option>
+                    <option value="writethrough">writethrough</option>
+                    <option value="writeback">writeback</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Discard</label>
+                  <select value={tuneDiscard} onChange={(e) => setTuneDiscard(e.target.value)} className="input-field">
+                    <option value="">no change</option>
+                    <option value="unmap">unmap</option>
+                    <option value="ignore">ignore</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Read-only</label>
+                  <select value={tuneRo} onChange={(e) => setTuneRo(e.target.value)} className="input-field">
+                    <option value="">no change</option>
+                    <option value="true">yes</option>
+                    <option value="false">no</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-slate-400 mb-1">Shareable</label>
+                  <select value={tuneShare} onChange={(e) => setTuneShare(e.target.value)} className="input-field">
+                    <option value="">no change</option>
+                    <option value="true">yes</option>
+                    <option value="false">no</option>
+                  </select>
+                </div>
+              </div>
+            </DialogBox>
+          )}
+
+          {dialog === 'nic-tune' && (
+            <DialogBox title="Tune network interface" icon={<Sliders className="w-5 h-5 text-amber-400" />} onClose={() => setDialog(null)} onConfirm={handleNicTune} confirmLabel="Apply">
+              <p className="text-xs text-slate-500 mb-2 font-mono">{tuneMac}</p>
+              <label className="block text-sm text-slate-400 mb-1">Model</label>
+              <select value={tuneNicModel} onChange={(e) => setTuneNicModel(e.target.value)} className="input-field">
+                <option value="virtio">virtio</option>
+                <option value="e1000">e1000</option>
+                <option value="e1000e">e1000e</option>
+                <option value="rtl8139">rtl8139</option>
+                <option value="vmxnet3">vmxnet3</option>
+              </select>
+              <label className="block text-sm text-slate-400 mb-1 mt-3">Libvirt network name</label>
+              <input type="text" value={tuneNicNet} onChange={(e) => setTuneNicNet(e.target.value)} className="input-field" placeholder="default" />
+            </DialogBox>
+          )}
+
+          {dialog === 'firmware' && (
+            <DialogBox title="Guest firmware" icon={<Settings className="w-5 h-5 text-orange-400" />} onClose={() => setDialog(null)} onConfirm={handleFirmwareSet} confirmLabel="Apply">
+              <p className="text-xs text-amber-200/80 mb-2">Changing firmware can make a guest unbootable if disk layout/OS does not match. Prefer shutoff VMs.</p>
+              <select value={fwChoice} onChange={(e) => setFwChoice(e.target.value as 'bios' | 'uefi')} className="input-field">
+                <option value="bios">BIOS (SeaBIOS)</option>
+                <option value="uefi">UEFI (OVMF)</option>
+              </select>
+            </DialogBox>
+          )}
+
+          {dialog === 'watchdog' && (
+            <DialogBox title="Attach watchdog" icon={<Settings className="w-5 h-5 text-red-400" />} onClose={() => setDialog(null)} onConfirm={handleWatchdogAttach} confirmLabel="Attach">
+              <label className="block text-sm text-slate-400 mb-1">Model</label>
+              <select value={wdModel} onChange={(e) => setWdModel(e.target.value)} className="input-field">
+                <option value="i6300esb">i6300esb</option>
+                <option value="ib700">ib700</option>
+                <option value="diag288">diag288</option>
+              </select>
+              <label className="block text-sm text-slate-400 mb-1 mt-3">Action</label>
+              <select value={wdAction} onChange={(e) => setWdAction(e.target.value)} className="input-field">
+                <option value="reset">reset</option>
+                <option value="shutdown">shutdown</option>
+                <option value="poweroff">poweroff</option>
+                <option value="pause">pause</option>
+                <option value="none">none</option>
+                <option value="dump">dump</option>
+              </select>
+            </DialogBox>
+          )}
+
+          {dialog === 'sound' && (
+            <DialogBox title="Attach sound" icon={<Settings className="w-5 h-5 text-cyan-400" />} onClose={() => setDialog(null)} onConfirm={handleSoundAttach} confirmLabel="Attach">
+              <select value={sndModel} onChange={(e) => setSndModel(e.target.value)} className="input-field">
+                <option value="ich6">ich6 (Intel HD Audio)</option>
+                <option value="ich9">ich9</option>
+                <option value="ac97">ac97</option>
+              </select>
+            </DialogBox>
+          )}
+
+          {dialog === 'serial' && (
+            <DialogBox title="Extra serial + console" icon={<Terminal className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleSerialAttach} confirmLabel="Attach">
+              <label className="block text-sm text-slate-400 mb-1">Guest serial port index</label>
+              <input type="number" min={1} max={32} value={serPort} onChange={(e) => setSerPort(parseInt(e.target.value, 10) || 1)} className="input-field" />
+              <p className="text-xs text-slate-500 mt-2">Adds PTY serial and matching console (e.g. 1 → ttyS1).</p>
+            </DialogBox>
+          )}
+
+          {dialog === 'video' && (
+            <DialogBox title="Video model" icon={<Monitor className="w-5 h-5 text-purple-400" />} onClose={() => setDialog(null)} onConfirm={handleVideoSet} confirmLabel="Apply">
+              <select value={vidModel} onChange={(e) => setVidModel(e.target.value)} className="input-field">
+                <option value="qxl">qxl (SPICE)</option>
+                <option value="virtio">virtio</option>
+                <option value="vga">vga</option>
+                <option value="bochs">bochs</option>
+                <option value="cirrus">cirrus</option>
+              </select>
             </DialogBox>
           )}
 
@@ -1623,7 +2092,7 @@ export default function VMDetailsPage() {
                 <code className="text-slate-200">{kubevirtBundle.datavolume_name}</code> / VM{' '}
                 <code className="text-slate-200">{kubevirtBundle.virtual_machine_name}</code> in namespace{' '}
                 <code className="text-slate-200">{kubevirtBundle.namespace}</code>. The VM includes a virtio-win CDROM via{' '}
-                <code className="text-slate-200">containerDisk</code> (same role as hyper2kvm attaching <code className="text-slate-200">virtio-win.iso</code> on libvirt). Override image in{' '}
+                <code className="text-slate-200">containerDisk</code> (cluster pulls the image instead of attaching <code className="text-slate-200">virtio-win.iso</code> from the hypervisor). Override image in{' '}
                 <code className="text-slate-200">[kubevirt] virtio_container_disk_image</code> in virtspawn config.
               </p>
               <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">

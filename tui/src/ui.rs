@@ -7,8 +7,8 @@ use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap}
 use ratatui::Frame;
 
 use virtspawn_core::{
-    AppState, Focus, FormFieldType, InputMode, NotifyLevel, ObjectTab, ResourceView,
-    SidebarCategory, SidebarItem, ViewMode,
+    AppState, Focus, InputMode, NotifyLevel, ObjectTab, ResourceView, SidebarCategory, SidebarItem,
+    ViewMode,
 };
 
 // ── GuestKit Theme Colors ───────────────────────────────────────────────
@@ -78,10 +78,6 @@ pub fn render(frame: &mut Frame, state: &AppState) {
 
     if state.confirm_dialog.is_some() && state.input_mode == InputMode::Confirmation {
         render_confirmation_dialog(frame, frame.area(), state);
-    }
-
-    if state.create_vm_form.is_some() && state.input_mode == InputMode::CreateVmDialog {
-        render_create_vm_dialog(frame, frame.area(), state);
     }
 
     if let Some((ref msg, ref when, ref level)) = state.notification {
@@ -1430,69 +1426,6 @@ fn render_confirmation_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
     }
 }
 
-// ── Create VM dialog ────────────────────────────────────────────────────
-
-fn render_create_vm_dialog(frame: &mut Frame, area: Rect, state: &AppState) {
-    if let Some(ref form) = state.create_vm_form {
-        let dialog_area = centered_rect(55, 65, area);
-        frame.render_widget(Clear, dialog_area);
-
-        let mut lines = vec![Line::from("")];
-
-        for (i, field) in form.fields.iter().enumerate() {
-            let is_focused = i == form.focused_field;
-            let label_style = if is_focused {
-                ORANGE_BOLD
-            } else {
-                DARK_ORANGE_STYLE
-            };
-
-            let value_str = if field.field_type == FormFieldType::TemplateSelect {
-                if is_focused {
-                    format!("\u{25c0} {} \u{25b6}", field.value)
-                } else {
-                    field.value.clone()
-                }
-            } else if is_focused {
-                format!("{}_", field.value)
-            } else {
-                field.value.clone()
-            };
-
-            let value_style = if is_focused {
-                TEXT_STYLE.add_modifier(Modifier::UNDERLINED)
-            } else {
-                DIM_STYLE
-            };
-
-            let mut spans = vec![
-                Span::styled(format!("  {:>12}: ", field.label), label_style),
-                Span::styled(value_str, value_style),
-            ];
-
-            if let Some(ref err) = field.validation_error {
-                spans.push(Span::styled(format!("  \u{2717} {err}"), Style::new().fg(ERROR_COLOR)));
-            }
-
-            lines.push(Line::from(spans));
-            lines.push(Line::from(""));
-        }
-
-        lines.push(Line::from(vec![
-            Span::styled("  Tab", ORANGE_BOLD),
-            Span::styled(":next  ", DARK_ORANGE_STYLE),
-            Span::styled("\u{2190}\u{2192}", ORANGE_BOLD),
-            Span::styled(":template  ", DARK_ORANGE_STYLE),
-            Span::styled("Enter", ORANGE_BOLD),
-            Span::styled(":create  ", DARK_ORANGE_STYLE),
-            Span::styled("Esc", ORANGE_BOLD),
-            Span::styled(":cancel", DARK_ORANGE_STYLE),
-        ]));
-
-        frame.render_widget(Paragraph::new(lines).block(dialog_block(" Create VM ", ORANGE_BOLD)), dialog_area);
-    }
-}
-
 // ── Help overlay ────────────────────────────────────────────────────────
 
 fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
@@ -1519,7 +1452,7 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
         help_line("s  Start    x  Stop (force)    H  Shutdown (graceful)"),
         help_line("b  Reboot   p  Pause           u  Resume"),
         help_line("d  Delete   o  Clone hint      t  Toggle autostart"),
-        help_line("n  New VM (dialog)    y  XML view"),
+        help_line("n  Packer hint (new images)    y  XML view"),
         help_line("l  View logs  v  Virt-viewer  V  noVNC  c  Console"),
         Line::from(""),
         help_section("Multi-select (VMs)"),
@@ -1624,7 +1557,6 @@ fn render_bottom_bar(frame: &mut Frame, area: Rect, state: &AppState) {
             Span::styled("_", LABEL_STYLE),
         ]),
         InputMode::Confirmation => Line::from(Span::styled("", Style::new().fg(ERROR_COLOR))),
-        InputMode::CreateVmDialog => Line::from(Span::styled("", TEXT_STYLE)),
         InputMode::Normal => build_context_help_line(state),
     };
     frame.render_widget(Paragraph::new(line), area);

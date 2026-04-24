@@ -1,0 +1,10 @@
+AlmaLinux / RHEL-class host: dnf install qemu-kvm qemu-img libvirt virt-install edk2-ovmf wget curl unzip && systemctl enable --now libvirtd
+
+1) wget -O virtio-win.iso https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/latest-virtio/virtio-win.iso
+2) cp /path/to/your-windows.iso WinServer.iso
+3) packer init . && packer build windows.pkr.hcl
+4) Output: output-windows/windows.qcow2
+
+Build uses IDE for the install disk then VirtIO drivers from the second CDROM; boot the image with virtio (if=virtio) after build.
+
+Administrator / Password123! (see Autounattend.xml)

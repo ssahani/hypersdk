@@ -2,6 +2,8 @@ use axum::extract::Extension;
 use axum::middleware;
 use axum::Router;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tokio::sync::Semaphore;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
 use virtspawn_core::{LibvirtManager, VirtspawnConfig};
@@ -23,12 +25,16 @@ pub fn create_app(manager: LibvirtManager, config: VirtspawnConfig) -> Router {
         .layer(Extension(ssh_terminal_cfg.clone()));
 
     let job_registry = std::sync::Arc::new(JobRegistry::new());
+    let vib_build_slots = Arc::new(Semaphore::new(
+        config.libvirt.virt_image_build_max_concurrent.max(1),
+    ));
 
     // All routes under /api/v1 — auth routes skip middleware internally
     let api = routes::api_routes()
         .merge(terminal_api)
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
         .layer(Extension(job_registry))
+        .layer(Extension(vib_build_slots))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,

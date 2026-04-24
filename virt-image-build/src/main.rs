@@ -102,6 +102,7 @@ fn main() -> Result<()> {
         update: cli.update,
         selinux_relabel: cli.selinux_relabel,
         extra_virt_builder_args: cli.extra,
+        timeout_secs: 0,
     };
 
     eprintln!(

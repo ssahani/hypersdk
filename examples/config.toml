@@ -49,6 +49,10 @@ uri = "qemu:///system"
 # virt_builder_default_ssh_pubkey_path = ""
 # virt_builder_update = true
 # virt_builder_default_packages = ["qemu-guest-agent"]
+# virt_image_build_max_concurrent = 2
+# virt_image_build_timeout_secs = 0
+# virt_image_build_min_free_parent_bytes = 536870912
+# virt_image_build_min_free_tmp_bytes = 268435456
 
 # Browser SSH terminal (xterm.js): short-lived session ids, PTY + system `ssh`.
 # [ssh_terminal]

@@ -2,6 +2,8 @@
 
 use virt::connect::Connect;
 use virt_image_build::BuildDiskRequest;
+use virtspawn_core::build_precheck;
+use virtspawn_core::config::VirtspawnConfig;
 use virtspawn_core::libvirt::storage;
 use virtspawn_core::validate::{
     validate_virt_builder_hostname, validate_virt_builder_os, validate_virt_builder_password_file,
@@ -77,6 +79,22 @@ pub fn validate_virt_image_build(conn: &Connect, req: &BuildDiskRequest) -> Resu
         return Err(LibvirtError::Invalid("output is required".into()));
     }
     storage::assert_new_disk_output_parent_allowed(conn, out_path)?;
+    let cfg = VirtspawnConfig::load();
+    let pb = std::path::Path::new(out_path);
+    let parent = pb
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .ok_or_else(|| LibvirtError::Invalid("output has no parent directory".into()))?;
+    let parent_canon = parent.canonicalize().map_err(|e| {
+        LibvirtError::Invalid(format!(
+            "output parent directory does not exist or is inaccessible: {e}"
+        ))
+    })?;
+    build_precheck::precheck_virt_builder_host_env(
+        &parent_canon,
+        cfg.libvirt.virt_image_build_min_free_parent_bytes,
+        cfg.libvirt.virt_image_build_min_free_tmp_bytes,
+    )?;
     validate_virt_builder_os(req.os.trim())?;
     validate_virt_builder_hostname(req.hostname.trim())?;
 

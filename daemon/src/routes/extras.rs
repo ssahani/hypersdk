@@ -1,13 +1,20 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
+use tokio::sync::Semaphore;
+use virtspawn_core::build_precheck;
+use virtspawn_core::host_platform;
 use virtspawn_core::libvirt::{extras, storage, virt_builder};
 use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
 
+use crate::auth::{require_browser_session_for_host_insight, RequestActor};
 use crate::error::AppError;
+
+/// Caps concurrent blocking host probes (`package-updates`, `net-rates`) that can stall the default pool.
+static HOST_HEAVY_PROBE_SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(2));
 
 /// Short-lived cache for `virt-builder --list --list-format json` (avoid hammering the tool on every UI poll).
 const VIRT_BUILDER_LIST_CACHE_TTL: Duration = Duration::from_secs(300);
@@ -122,13 +129,25 @@ struct VirtBuilderListQuery {
     refresh: bool,
 }
 
-fn json_virt_builder_list(
+struct VirtBuilderCatalogMeta {
+    allowed: bool,
+    installed: bool,
+    version: Option<String>,
+    catalog_error: Option<String>,
+}
+
+fn virt_builder_catalog_json(
     index: &virt_builder::VirtBuilderIndex,
     cached: bool,
     cache_age_secs: Option<u64>,
+    meta: VirtBuilderCatalogMeta,
 ) -> serde_json::Value {
     let names: Vec<String> = index.items.iter().map(|i| i.name.clone()).collect();
     serde_json::json!({
+        "virt_builder_allowed": meta.allowed,
+        "virt_builder_installed": meta.installed,
+        "virt_builder_version": meta.version,
+        "catalog_error": meta.catalog_error,
         "format_version": index.format_version,
         "source_uri": index.source_uri,
         "items": index.items,
@@ -138,13 +157,64 @@ fn json_virt_builder_list(
     })
 }
 
+fn empty_virt_builder_index() -> virt_builder::VirtBuilderIndex {
+    virt_builder::VirtBuilderIndex {
+        format_version: 0,
+        source_uri: None,
+        items: Vec::new(),
+    }
+}
+
 async fn list_virt_builder_templates(
     Query(q): Query<VirtBuilderListQuery>,
     State(_m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
-        return Err(AppError::from(LibvirtError::Invalid(
-            "virt-builder is disabled ([libvirt] virt_builder_allowed = false); use mkosi_workspace / mkosi build".into(),
+    let cfg = VirtspawnConfig::load();
+    let allowed = cfg.libvirt.virt_builder_allowed;
+
+    let (installed, version) = tokio::task::spawn_blocking(|| {
+        let ins = virt_builder::virt_builder_installed();
+        let ver = if ins {
+            virt_builder::virt_builder_version_line().ok()
+        } else {
+            None
+        };
+        (ins, ver)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+
+    if !allowed {
+        return Ok(Json(virt_builder_catalog_json(
+            &empty_virt_builder_index(),
+            false,
+            None,
+            VirtBuilderCatalogMeta {
+                allowed: false,
+                installed,
+                version,
+                catalog_error: Some(
+                    "virt-builder is disabled ([libvirt] virt_builder_allowed = false); use mkosi_workspace / mkosi build."
+                        .into(),
+                ),
+            },
+        )));
+    }
+
+    if !installed {
+        return Ok(Json(virt_builder_catalog_json(
+            &empty_virt_builder_index(),
+            false,
+            None,
+            VirtBuilderCatalogMeta {
+                allowed: true,
+                installed: false,
+                version: None,
+                catalog_error: Some(
+                    "virt-builder is not installed on this host (install libguestfs-tools or guestfs-tools)."
+                        .into(),
+                ),
+            },
         )));
     }
 
@@ -153,33 +223,127 @@ async fn list_virt_builder_templates(
             if let Some(ref c) = *guard {
                 let age = c.fetched_at.elapsed();
                 if age < VIRT_BUILDER_LIST_CACHE_TTL {
-                    return Ok(Json(json_virt_builder_list(
+                    return Ok(Json(virt_builder_catalog_json(
                         &c.index,
                         true,
                         Some(age.as_secs()),
+                        VirtBuilderCatalogMeta {
+                            allowed: true,
+                            installed: true,
+                            version: version.clone(),
+                            catalog_error: None,
+                        },
                     )));
                 }
             }
         }
     }
 
-    let index = tokio::task::spawn_blocking(virt_builder::list_builder_index)
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    match tokio::task::spawn_blocking(virt_builder::list_builder_index).await {
+        Ok(Ok(index)) => {
+            if let Ok(mut g) = VIRT_BUILDER_INDEX_CACHE.lock() {
+                *g = Some(VirtBuilderIndexCache {
+                    fetched_at: Instant::now(),
+                    index: index.clone(),
+                });
+            }
+            Ok(Json(virt_builder_catalog_json(
+                &index,
+                false,
+                None,
+                VirtBuilderCatalogMeta {
+                    allowed: true,
+                    installed: true,
+                    version,
+                    catalog_error: None,
+                },
+            )))
+        }
+        Ok(Err(e)) => {
+            let msg = e.to_string();
+            Ok(Json(virt_builder_catalog_json(
+                &empty_virt_builder_index(),
+                false,
+                None,
+                VirtBuilderCatalogMeta {
+                    allowed: true,
+                    installed: true,
+                    version,
+                    catalog_error: Some(msg),
+                },
+            )))
+        }
+        Err(e) => Err(AppError::from(LibvirtError::Internal(format!("Task failed: {e}")))),
+    }
+}
 
-    if let Ok(mut g) = VIRT_BUILDER_INDEX_CACHE.lock() {
-        *g = Some(VirtBuilderIndexCache {
-            fetched_at: Instant::now(),
-            index: index.clone(),
-        });
+async fn virt_builder_probe_template_handler(
+    State(_m): State<LibvirtManager>,
+    Path(template): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = VirtspawnConfig::load();
+    if !cfg.libvirt.virt_builder_allowed {
+        return Ok(Json(serde_json::json!({
+            "virt_builder_allowed": false,
+            "name_valid": false,
+            "in_cached_catalog": false,
+            "hint": "Enable [libvirt] virt_builder_allowed = true on the daemon.",
+        })));
+    }
+    let t = template.trim().to_string();
+    if let Err(e) = virtspawn_core::validate::validate_virt_builder_os(&t) {
+        return Ok(Json(serde_json::json!({
+            "virt_builder_allowed": true,
+            "name_valid": false,
+            "in_cached_catalog": false,
+            "hint": e.to_string(),
+        })));
     }
 
-    Ok(Json(json_virt_builder_list(&index, false, None)))
+    let in_cached = tokio::task::spawn_blocking(move || {
+        if let Ok(guard) = VIRT_BUILDER_INDEX_CACHE.lock() {
+            if let Some(ref c) = *guard {
+                return c.index.items.iter().any(|i| i.name == t);
+            }
+        }
+        false
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+
+    let hint = if in_cached {
+        serde_json::Value::Null
+    } else {
+        serde_json::json!("Name format is valid but this id is not in the server catalog cache; refresh the virt-builder catalog on Disk images or check spelling.")
+    };
+
+    Ok(Json(serde_json::json!({
+        "virt_builder_allowed": true,
+        "name_valid": true,
+        "in_cached_catalog": in_cached,
+        "hint": hint,
+    })))
+}
+
+async fn list_virt_image_output_roots(
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let mgr = manager.clone();
+    let prefixes = tokio::task::spawn_blocking(move || {
+        mgr.with_conn(storage::disk_image_delete_allowed_prefixes)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let tmpdir = build_precheck::effective_tmpdir();
+    Ok(Json(serde_json::json!({
+        "allowed_prefixes": prefixes,
+        "effective_tmpdir": tmpdir.to_string_lossy(),
+    })))
 }
 
 async fn virt_image_build_handler(
     State(manager): State<LibvirtManager>,
-    Json(req): Json<virt_image_build::BuildDiskRequest>,
+    Json(mut req): Json<virt_image_build::BuildDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
@@ -192,9 +356,14 @@ async fn virt_image_build_handler(
         return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
     }
 
+    let timeout_secs = VirtspawnConfig::load().libvirt.virt_image_build_timeout_secs;
+    if req.timeout_secs == 0 && timeout_secs > 0 {
+        req.timeout_secs = timeout_secs;
+    }
+
     let mgr = manager.clone();
 
-    tokio::task::spawn_blocking(move || {
+    let block = tokio::task::spawn_blocking(move || {
         mgr.with_conn(|conn| {
             crate::virt_image_validate::validate_virt_image_build(conn, &req)?;
             virt_image_build::build_disk_image(&req)
@@ -202,10 +371,19 @@ async fn virt_image_build_handler(
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
 
-    log_audit("virt-image-build", &out_path, "ok");
-    Ok(Json(serde_json::json!({ "status": "ok", "path": out_path })))
+    match block {
+        Ok(()) => {
+            log_audit("virt-image-build", &out_path, "ok");
+            Ok(Json(serde_json::json!({ "status": "ok", "path": out_path })))
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            log_audit("virt-image-build", &out_path, &format!("error: {msg}"));
+            Err(AppError::from(e))
+        }
+    }
 }
 
 async fn list_mkosi_workspaces_handler(
@@ -387,6 +565,123 @@ async fn get_host_stats(
     Ok(Json(serde_json::json!(stats)))
 }
 
+async fn get_host_filesystems(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let rows = tokio::task::spawn_blocking(extras::list_host_filesystems)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(rows)))
+}
+
+#[derive(Deserialize)]
+struct HostProcessesQuery {
+    /// Max rows to return (1–100, default 20).
+    #[serde(default)]
+    limit: Option<u32>,
+}
+
+async fn get_host_processes(
+    State(_m): State<LibvirtManager>,
+    Query(q): Query<HostProcessesQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let limit = q.limit.unwrap_or(20);
+    let rows = tokio::task::spawn_blocking(move || extras::list_host_top_processes(limit))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(rows)))
+}
+
+#[derive(Deserialize)]
+struct HostListLimitQuery {
+    /// 1–500; defaults differ per handler.
+    #[serde(default)]
+    limit: Option<u32>,
+}
+
+async fn get_host_package_updates(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let _permit = HOST_HEAVY_PROBE_SEM.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal("host probe concurrency limiter closed".into()))
+    })?;
+    let res = tokio::task::spawn_blocking(host_platform::check_package_updates)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(res)))
+}
+
+async fn get_host_net_counters(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let rows = tokio::task::spawn_blocking(host_platform::list_net_dev_counters)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(rows)))
+}
+
+#[derive(Deserialize)]
+struct NetRatesQuery {
+    /// Milliseconds between two `/proc/net/dev` reads (50–5000, default 1000).
+    #[serde(default)]
+    interval_ms: Option<u64>,
+}
+
+async fn get_host_net_rates(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<NetRatesQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let _permit = HOST_HEAVY_PROBE_SEM.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal("host probe concurrency limiter closed".into()))
+    })?;
+    let ms = q.interval_ms.unwrap_or(1000).clamp(50, 5000);
+    let res = tokio::task::spawn_blocking(move || host_platform::list_net_dev_rates(ms))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(res)))
+}
+
+async fn get_host_passwd_users(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<HostListLimitQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let lim = q.limit.unwrap_or(150).clamp(1, 500) as usize;
+    let rows = tokio::task::spawn_blocking(move || host_platform::list_passwd_entries(lim))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(rows)))
+}
+
+async fn get_host_groups(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<HostListLimitQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let lim = q.limit.unwrap_or(150).clamp(1, 500) as usize;
+    let rows = tokio::task::spawn_blocking(move || host_platform::list_group_entries(lim))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(rows)))
+}
+
+async fn get_host_security_summary(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let s = tokio::task::spawn_blocking(host_platform::host_security_summary)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(s)))
+}
+
 // ── Save VM as Template ────────────────────────────────────────────
 
 #[derive(Deserialize)]
@@ -541,7 +836,12 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/browse/dir", get(browse_directory_handler))
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))
+        .route("/browse/virt-image-output-roots", get(list_virt_image_output_roots))
         .route("/browse/virt-builder", get(list_virt_builder_templates))
+        .route(
+            "/browse/virt-builder/probe/{template}",
+            get(virt_builder_probe_template_handler),
+        )
         .route("/browse/virt-image-build", post(virt_image_build_handler))
         .route("/browse/virt-builder/notes/{template}", get(virt_builder_notes_handler))
         .route("/browse/mkosi-workspaces", get(list_mkosi_workspaces_handler))
@@ -566,6 +866,14 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/host/iommu-groups", get(list_iommu_groups_handler))
         // Host stats + DHCP
         .route("/host/stats", get(get_host_stats))
+        .route("/host/filesystems", get(get_host_filesystems))
+        .route("/host/processes", get(get_host_processes))
+        .route("/host/package-updates", get(get_host_package_updates))
+        .route("/host/net-counters", get(get_host_net_counters))
+        .route("/host/net-rates", get(get_host_net_rates))
+        .route("/host/passwd-users", get(get_host_passwd_users))
+        .route("/host/groups", get(get_host_groups))
+        .route("/host/security-summary", get(get_host_security_summary))
         .route("/dhcp-leases", get(list_dhcp_leases))
         // Save as template
         .route("/vms/{name}/save-template", post(save_template_handler))

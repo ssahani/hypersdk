@@ -1,5 +1,20 @@
 const defaultOpts: RequestInit = { credentials: 'same-origin' }
 
+/** Prefer daemon JSON `{ error, error_code? }` for thrown message text. */
+function formatHttpErrorBody(status: number, statusText: string, text: string): string {
+  const raw = text.trim()
+  if (!raw) return `HTTP ${status}: ${statusText}`
+  try {
+    const j = JSON.parse(raw) as { error?: string; error_code?: string }
+    if (typeof j.error === 'string' && j.error.length > 0) {
+      return j.error_code ? `${j.error} (${j.error_code})` : j.error
+    }
+  } catch {
+    /* not JSON */
+  }
+  return raw
+}
+
 /** fetch() throws TypeError / "NetworkError" when DNS fails, CORS blocks, TLS errors, or daemon is down. */
 async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
   try {
@@ -24,13 +39,23 @@ export async function apiGet<T>(url: string): Promise<T> {
   const res = await fetchApi(url, defaultOpts)
   if (!res.ok) {
     const body = await res.text().catch(() => '')
-    throw new Error(body || `HTTP ${res.status}: ${res.statusText}`)
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, body))
   }
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
     return res.json()
   }
   return await res.text() as T
+}
+
+/** GET binary (screenshots, downloads). */
+export async function apiGetBlob(url: string): Promise<Blob> {
+  const res = await fetchApi(url, defaultOpts)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, body))
+  }
+  return res.blob()
 }
 
 export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
@@ -42,7 +67,7 @@ export async function apiPost<T>(url: string, body?: unknown): Promise<T> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, text))
   }
   const contentType = res.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -60,7 +85,7 @@ export async function apiPostVoid(url: string, body?: unknown): Promise<void> {
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, text))
   }
 }
 
@@ -68,7 +93,7 @@ export async function apiDelete(url: string): Promise<void> {
   const res = await fetchApi(url, { ...defaultOpts, method: 'DELETE' })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
-    throw new Error(text || `HTTP ${res.status}: ${res.statusText}`)
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, text))
   }
 }
 

@@ -63,6 +63,14 @@ export interface VirtBuilderTemplateRow {
 
 /** Response from `virt-builder --list --list-format json` (with plain-list fallback). Cached ~5 minutes on the daemon unless `refresh`. */
 export interface VirtBuilderListResponse {
+  /** When false, virt-builder APIs are disabled in daemon config. */
+  virt_builder_allowed?: boolean
+  /** Whether `virt-builder --version` succeeds on the host. */
+  virt_builder_installed?: boolean
+  /** First line of `virt-builder --version` (diagnostics). */
+  virt_builder_version?: string | null
+  /** Populated when the catalog could not be loaded (or feature is off / binary missing). */
+  catalog_error?: string | null
   format_version: number
   items: VirtBuilderTemplateRow[]
   templates: string[]
@@ -71,10 +79,23 @@ export interface VirtBuilderListResponse {
   source_uri?: string | null
 }
 
+/** Allowed absolute path prefixes for virt-image-build / new qcow2 output (pool targets + defaults). */
+export const getVirtImageOutputRoots = () =>
+  apiGet<{ allowed_prefixes: string[]; effective_tmpdir: string }>(`${API}/browse/virt-image-output-roots`)
+
 export const listVirtBuilderTemplates = (opts?: { refresh?: boolean }) => {
   const q = opts?.refresh ? '?refresh=true' : ''
   return apiGet<VirtBuilderListResponse>(`${API}/browse/virt-builder${q}`)
 }
+
+/** Lightweight check: name format + optional presence in server catalog cache. */
+export const probeVirtBuilderTemplate = (template: string) =>
+  apiGet<{
+    virt_builder_allowed: boolean
+    name_valid: boolean
+    in_cached_catalog: boolean
+    hint?: string | null
+  }>(`${API}/browse/virt-builder/probe/${encodeURIComponent(template.trim())}`)
 
 /** Request body for POST /browse/virt-image-build (daemon runs `virt-image-build` / `virt-builder` on the host). */
 export interface VirtImageBuildRequest {
@@ -171,6 +192,105 @@ export interface HostStats {
   processes: number
 }
 export const getHostStats = () => apiGet<HostStats>(`${API}/host/stats`)
+
+/** Per-mount usage from `df` (Linux hypervisor). */
+export interface HostFilesystem {
+  source: string
+  fstype: string
+  mount_point: string
+  size_bytes: number
+  used_bytes: number
+  avail_bytes: number
+  use_percent: number
+}
+
+export const getHostFilesystems = () => apiGet<HostFilesystem[]>(`${API}/host/filesystems`)
+
+/** Top processes by resident memory (Linux `ps`). */
+export interface HostProcess {
+  pid: number
+  user: string
+  cpu_percent: number
+  rss_kb: number
+  command: string
+  /** Full argv from `/proc/pid/cmdline` when present (Linux). */
+  args?: string
+}
+
+export const getHostTopProcesses = (limit = 20) =>
+  apiGet<HostProcess[]>(`${API}/host/processes?limit=${encodeURIComponent(String(limit))}`)
+
+/** Distro-specific read-only update probe (apt/dnf/yum/pacman/zypper). */
+export interface PackageUpdateCheck {
+  backend: string
+  probed: boolean
+  pending_count: number | null
+  summary: string | null
+  hint: string | null
+  error: string | null
+}
+
+export const getHostPackageUpdates = () => apiGet<PackageUpdateCheck>(`${API}/host/package-updates`)
+
+export interface NetDevCounter {
+  iface: string
+  rx_bytes: number
+  rx_packets: number
+  tx_bytes: number
+  tx_packets: number
+}
+
+export const getHostNetCounters = () => apiGet<NetDevCounter[]>(`${API}/host/net-counters`)
+
+export interface NetDevRate {
+  iface: string
+  rx_bytes_per_sec: number
+  tx_bytes_per_sec: number
+  rx_packets_per_sec: number
+  tx_packets_per_sec: number
+}
+
+export interface NetDevRatesResponse {
+  sample_interval_ms: number
+  interfaces: NetDevRate[]
+}
+
+/** Two `/proc/net/dev` samples; blocks ~interval_ms on the server. */
+export const getHostNetRates = (intervalMs = 1000) =>
+  apiGet<NetDevRatesResponse>(
+    `${API}/host/net-rates?interval_ms=${encodeURIComponent(String(Math.min(5000, Math.max(50, intervalMs))))}`,
+  )
+
+export interface PasswdEntry {
+  username: string
+  uid: number
+  gid: number
+  gecos: string
+  home: string
+  shell: string
+  system_account: boolean
+}
+
+export const getHostPasswdUsers = (limit = 150) =>
+  apiGet<PasswdEntry[]>(`${API}/host/passwd-users?limit=${encodeURIComponent(String(limit))}`)
+
+export interface GroupEntry {
+  name: string
+  gid: number
+  members: string[]
+}
+
+export const getHostGroups = (limit = 150) =>
+  apiGet<GroupEntry[]>(`${API}/host/groups?limit=${encodeURIComponent(String(limit))}`)
+
+export interface HostSecuritySummary {
+  network_backend: string
+  firewall_backend: string
+  ufw_status_line: string | null
+  firewalld_default_zone: string | null
+}
+
+export const getHostSecuritySummary = () => apiGet<HostSecuritySummary>(`${API}/host/security-summary`)
 
 // Save as template
 export const saveVmAsTemplate = (vm: string, templateName: string) =>

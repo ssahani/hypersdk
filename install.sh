@@ -164,7 +164,7 @@ install_deps_fedora() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
-        openssl git curl)
+        openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
     log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -190,7 +190,7 @@ install_deps_rhel() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
-        openssl git curl)
+        openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
     log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -205,7 +205,7 @@ install_deps_debian() {
     local packages=(gcc g++ make pkg-config
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev clang llvm-dev
-        openssl git curl)
+        openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
     DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -220,7 +220,7 @@ install_deps_suse() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon qemu-kvm
         pam-devel clang-devel
-        openssl git curl)
+        openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
     log_cmd $PKG_MANAGER install -y "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -235,7 +235,7 @@ install_deps_arch() {
     local packages=(gcc make pkg-config
         libvirt qemu-full virt-install dnsmasq
         linux-pam clang
-        openssl git curl)
+        openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
     log_cmd pacman -S --noconfirm --needed "${packages[@]}" || fail "Package installation failed. Check $LOG_FILE"
@@ -253,6 +253,36 @@ install_deps() {
 
     ensure_node_18
     ensure_mkosi
+    ensure_packer
+}
+
+# HashiCorp Packer (for contrib/packer/build-linux-image.sh). Override version: PACKER_VERSION=1.11.2 sudo ./install.sh
+ensure_packer() {
+    # Prefer explicit paths: PATH may put /usr/sbin/packer (cracklib-packer) before HashiCorp's /usr/bin/packer on RHEL-like hosts.
+    if [ -x /usr/local/bin/packer ]; then
+        info "HashiCorp Packer: /usr/local/bin/packer ($(CHECKPOINT_DISABLE=1 /usr/local/bin/packer version 2>/dev/null | head -n1 || echo ok))"
+        return 0
+    fi
+    if [ -x /usr/bin/packer ]; then
+        info "HashiCorp Packer: /usr/bin/packer ($(CHECKPOINT_DISABLE=1 /usr/bin/packer version 2>/dev/null | head -n1 || echo ok))"
+        return 0
+    fi
+    step "Installing HashiCorp Packer from upstream releases"
+    local ver="${PACKER_VERSION:-1.11.2}"
+    local arch machine
+    machine=$(uname -m)
+    case "$machine" in
+        x86_64) arch=amd64 ;;
+        aarch64|arm64) arch=arm64 ;;
+        *) warn "Unknown uname -m=$machine — using amd64 zip"; arch=amd64 ;;
+    esac
+    local zipf="/tmp/packer-${ver}-linux-${arch}.zip"
+    curl -fsSL -o "$zipf" "https://releases.hashicorp.com/packer/${ver}/packer_${ver}_linux_${arch}.zip" \
+        || fail "Failed to download Packer ${ver} for linux_${arch}"
+    unzip -o "$zipf" -d /tmp
+    install -Dm755 /tmp/packer /usr/local/bin/packer
+    rm -f "$zipf" /tmp/packer
+    ok "Packer ${ver} -> /usr/local/bin/packer"
 }
 
 # Host tools required for mkosi image builds.
@@ -800,6 +830,17 @@ install_files() {
     done
     ok "Scripts -> /usr/local/share/virtspawn/scripts/"
 
+    mkdir -p /usr/local/share/virtspawn/packer
+    if [ -f contrib/packer/build-linux-image.sh ]; then
+        install -Dm755 contrib/packer/build-linux-image.sh /usr/local/share/virtspawn/packer/build-linux-image.sh
+        ok "Packer Linux image script -> /usr/local/share/virtspawn/packer/build-linux-image.sh"
+    fi
+    if [ -d contrib/packer/windows-qemu ]; then
+        rm -rf /usr/local/share/virtspawn/packer/windows-qemu
+        cp -a contrib/packer/windows-qemu /usr/local/share/virtspawn/packer/
+        ok "Packer Windows+VirtIO example -> /usr/local/share/virtspawn/packer/windows-qemu/"
+    fi
+
     # Backup config
     if [ -f contrib/backup.conf ] && [ ! -f /etc/virtspawn/backup.conf ]; then
         install -Dm644 contrib/backup.conf /etc/virtspawn/backup.conf
@@ -1161,6 +1202,8 @@ print_summary() {
     echo "  ⚙️  Config:  /etc/virtspawn/config.toml"
     echo "  📂 Source:  $INSTALL_DIR"
     echo "  📜 Log:     $LOG_FILE"
+    echo "  🏗️  Packer:  /usr/local/share/virtspawn/packer/build-linux-image.sh"
+    echo "  🪟  Win+VirtIO: /usr/local/share/virtspawn/packer/windows-qemu/ (see HOWTO.txt)"
     echo ""
 }
 

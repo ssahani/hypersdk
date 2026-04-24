@@ -24,6 +24,18 @@ pub struct RequestActor {
     pub from_api_token: bool,
 }
 
+/// Host insight that reads passwd-like data, runs package managers, or sleeps on `/proc/net/dev`.
+/// API tokens are rejected so automation credentials cannot scrape the hypervisor.
+pub fn require_browser_session_for_host_insight(actor: &RequestActor) -> Result<(), LibvirtError> {
+    if actor.from_api_token {
+        Err(LibvirtError::Forbidden(
+            "This endpoint requires a browser session (cookie), not an API token.".into(),
+        ))
+    } else {
+        Ok(())
+    }
+}
+
 /// Session store: token -> (username, created_at)
 #[derive(Clone)]
 pub struct SessionStore {
@@ -266,7 +278,7 @@ pub async fn auth_middleware(
 
     (
         StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({ "error": "Authentication required" })),
+        Json(serde_json::json!({ "error": "Authentication required", "error_code": "unauthorized" })),
     )
         .into_response()
 }
@@ -312,7 +324,7 @@ pub async fn ws_token_handler(
             (StatusCode::OK, Json(serde_json::json!({ "token": token }))).into_response()
         }
         None => {
-            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Authentication required" }))).into_response()
+            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Authentication required", "error_code": "unauthorized" }))).into_response()
         }
     }
 }
@@ -341,7 +353,7 @@ pub async fn ws_auth_middleware(
 
     (
         StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({ "error": "Valid WebSocket token required" })),
+        Json(serde_json::json!({ "error": "Valid WebSocket token required", "error_code": "unauthorized" })),
     )
         .into_response()
 }
@@ -363,11 +375,11 @@ async fn login_handler(
     Json(req): Json<LoginRequest>,
 ) -> Response {
     if req.username.is_empty() || req.password.is_empty() {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Username and password required" }))).into_response();
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Username and password required", "error_code": "invalid_request" }))).into_response();
     }
 
     if !req.username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
-        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid username characters" }))).into_response();
+        return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid username characters", "error_code": "invalid_request" }))).into_response();
     }
 
     match pam_authenticate(&req.username, &req.password, &auth.0.pam_service) {
@@ -379,7 +391,7 @@ async fn login_handler(
         }
         Err(e) => {
             warn!("PAM login failed for user '{}': {}", req.username, e);
-            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Invalid username or password" }))).into_response()
+            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Invalid username or password", "error_code": "unauthorized" }))).into_response()
         }
     }
 }

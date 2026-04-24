@@ -15,6 +15,7 @@ mod prometheus;
 mod snapshots;
 mod storage;
 mod templates;
+mod vm_guest;
 mod vms;
 mod ws;
 
@@ -25,6 +26,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()
         .merge(jobs::job_routes())
         .merge(vms::vm_routes())
+        .merge(vm_guest::vm_guest_routes())
         .merge(snapshots::snapshot_routes())
         .merge(networks::network_routes())
         .merge(storage::storage_routes())

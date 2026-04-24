@@ -683,6 +683,227 @@ pub fn get_host_stats() -> HostStats {
     }
 }
 
+// ── Host filesystems & processes (Cockpit-style overview) ─────────
+
+/// One mounted filesystem row from `df` (block-backed mounts only; virtual fs types skipped).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostFilesystem {
+    pub source: String,
+    pub fstype: String,
+    pub mount_point: String,
+    pub size_bytes: u64,
+    pub used_bytes: u64,
+    pub avail_bytes: u64,
+    pub use_percent: f64,
+}
+
+/// One process row sorted by RSS (resident memory).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HostProcess {
+    pub pid: u32,
+    pub user: String,
+    pub cpu_percent: f64,
+    pub rss_kb: u64,
+    /// Short kernel thread / process name from `ps` (`comm`).
+    pub command: String,
+    /// Full command line from `/proc/pid/cmdline` when readable (Linux).
+    #[serde(default)]
+    pub args: String,
+}
+
+#[cfg(target_os = "linux")]
+const SKIP_HOST_FS_TYPES: &[&str] = &[
+    "proc",
+    "sysfs",
+    "devtmpfs",
+    "tmpfs",
+    "cgroup",
+    "cgroup2",
+    "configfs",
+    "tracefs",
+    "securityfs",
+    "bpf",
+    "pstore",
+    "mqueue",
+    "hugetlbfs",
+    "fusectl",
+    "autofs",
+    "binfmt_misc",
+    "debugfs",
+];
+
+/// Per-mount disk usage (GNU `df -B1 -T`). Non-Linux returns an empty list.
+pub fn list_host_filesystems() -> Result<Vec<HostFilesystem>, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(Vec::new())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        list_host_filesystems_linux()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn list_host_filesystems_linux() -> Result<Vec<HostFilesystem>, LibvirtError> {
+    let output = Command::new("df")
+        .args(["-B1", "-T"])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("df failed: {e}")))?;
+    if !output.status.success() {
+        return Err(LibvirtError::Operation(format!(
+            "df failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    parse_df_bt_output(&String::from_utf8_lossy(&output.stdout))
+}
+
+#[cfg(target_os = "linux")]
+fn parse_df_bt_output(stdout: &str) -> Result<Vec<HostFilesystem>, LibvirtError> {
+    let lines: Vec<&str> = stdout.lines().collect();
+    if lines.len() < 2 {
+        return Ok(Vec::new());
+    }
+    let mut out = Vec::new();
+    for line in lines.iter().skip(1) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 7 {
+            continue;
+        }
+        let fstype = parts[1];
+        if SKIP_HOST_FS_TYPES.contains(&fstype) {
+            continue;
+        }
+        let size_b: u64 = parts[2].parse().unwrap_or(0);
+        let used_b: u64 = parts[3].parse().unwrap_or(0);
+        let avail_b: u64 = parts[4].parse().unwrap_or(0);
+        let pcent = parts[5]
+            .trim_end_matches('%')
+            .parse::<f64>()
+            .unwrap_or(0.0);
+        let mount_point = parts[6..].join(" ");
+        if mount_point.is_empty() {
+            continue;
+        }
+        out.push(HostFilesystem {
+            source: parts[0].to_string(),
+            fstype: fstype.to_string(),
+            mount_point,
+            size_bytes: size_b,
+            used_bytes: used_b,
+            avail_bytes: avail_b,
+            use_percent: pcent.min(100.0),
+        });
+    }
+    Ok(out)
+}
+
+/// Top processes by resident memory (`ps` from procps). Non-Linux returns an empty list.
+pub fn list_host_top_processes(limit: u32) -> Result<Vec<HostProcess>, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = limit;
+        Ok(Vec::new())
+    }
+    #[cfg(target_os = "linux")]
+    {
+        list_host_top_processes_linux(limit)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_proc_cmdline(pid: u32) -> String {
+    let path = format!("/proc/{pid}/cmdline");
+    std::fs::read(&path)
+        .map(|b| {
+            let s = String::from_utf8_lossy(&b).replace('\0', " ").trim().to_string();
+            if s.len() > 280 {
+                format!("{}...", &s[..277])
+            } else {
+                s
+            }
+        })
+        .unwrap_or_default()
+}
+
+#[cfg(target_os = "linux")]
+fn list_host_top_processes_linux(limit: u32) -> Result<Vec<HostProcess>, LibvirtError> {
+    let lim = limit.clamp(1, 100) as usize;
+    let output = Command::new("ps")
+        .args([
+            "-eo",
+            "pid=,user=,pcpu=,rss=,comm=",
+            "--sort=-rss",
+            "--no-headers",
+        ])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("ps failed: {e}")))?;
+    if !output.status.success() {
+        return Err(LibvirtError::Operation(format!(
+            "ps failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut rows = Vec::new();
+    for line in text.lines() {
+        if rows.len() >= lim {
+            break;
+        }
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let Some(pid_s) = parts.next() else { continue };
+        let Some(user) = parts.next() else { continue };
+        let Some(pcpu_s) = parts.next() else { continue };
+        let Some(rss_s) = parts.next() else { continue };
+        let comm = parts.collect::<Vec<_>>().join(" ");
+        let pid: u32 = pid_s.parse().unwrap_or(0);
+        if pid == 0 {
+            continue;
+        }
+        let cpu_percent: f64 = pcpu_s.parse().unwrap_or(0.0);
+        let rss_kb: u64 = rss_s.parse().unwrap_or(0);
+        let mut command = if comm.is_empty() { "?".to_string() } else { comm };
+        if command.len() > 64 {
+            command.truncate(61);
+            command.push_str("...");
+        }
+        let args = read_proc_cmdline(pid);
+        rows.push(HostProcess {
+            pid,
+            user: user.to_string(),
+            cpu_percent,
+            rss_kb,
+            command,
+            args,
+        });
+    }
+    Ok(rows)
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod host_overview_tests {
+    use super::*;
+
+    #[test]
+    fn parse_df_bt_skips_devtmpfs() {
+        let s = "Filesystem     Type     1B-blocks         Used    Available Use% Mounted on\n\
+/dev/vda2      ext4  499499491328 123456789012  354000000000  26% /\n\
+devtmpfs       devtmpfs   4047020032            0   4047020032   0% /dev\n\
+/dev/vda1      ext4      993624064    198123008    745000960  22% /boot\n";
+        let v = parse_df_bt_output(s).unwrap();
+        assert_eq!(v.len(), 2);
+        assert_eq!(v[0].mount_point, "/");
+        assert_eq!(v[0].fstype, "ext4");
+        assert!((v[0].use_percent - 26.0).abs() < 0.01);
+        assert_eq!(v[1].mount_point, "/boot");
+    }
+}
+
 fn parse_cpu_percent() -> f64 {
     // Read /proc/stat for cpu line
     let stat = std::fs::read_to_string("/proc/stat").unwrap_or_default();
@@ -845,19 +1066,6 @@ pub fn list_dhcp_leases(conn: &Connect) -> Result<Vec<DhcpLease>, LibvirtError> 
         }
     }
     Ok(leases)
-}
-
-fn format_lease_expiry(epoch: i64) -> String {
-    if epoch <= 0 { return "static".to_string(); }
-    let now = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() as i64)
-        .unwrap_or(0);
-    let remaining = epoch - now;
-    if remaining <= 0 { return "expired".to_string(); }
-    let hours = remaining / 3600;
-    let mins = (remaining % 3600) / 60;
-    format!("{hours}h {mins}m")
 }
 
 // ── IOMMU Groups ─────────────────────────────────────────────────

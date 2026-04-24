@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPostVoid, apiDelete } from './client'
+import { apiGet, apiGetBlob, apiPost, apiPostVoid, apiDelete } from './client'
 
 const API = '/api/v1'
 
@@ -34,6 +34,10 @@ export interface DiskInfo {
   source: string
   driver: string
   target: string
+  bus?: string
+  cache?: string
+  readonly?: boolean
+  shareable?: boolean
 }
 
 export interface VmMetrics {
@@ -59,7 +63,7 @@ export interface CreateVmRequest {
   os_variant?: string
   existing_disk?: string
   firmware?: string
-  /** Libvirt VNC listen IP (default 127.0.0.1). Use 0.0.0.0 for all interfaces (hyper2kvm-style). */
+  /** Libvirt VNC listen IP (default 127.0.0.1). Use 0.0.0.0 for all interfaces (remote display; still use virtspawn’s console proxy where applicable). */
   graphics_listen?: string
   /** `vnc` (noVNC) or `spice` (spice-html5). */
   graphics_type?: string
@@ -124,7 +128,7 @@ export const listVMs = () => apiGet<VmInfo[]>(`${API}/vms`)
 export const getVM = (name: string) => apiGet<VmDetails>(`${API}/vms/${encodeURIComponent(name)}`)
 export const getVMXml = (name: string) => apiGet<string>(`${API}/vms/${encodeURIComponent(name)}/xml`)
 
-/** CDI DataVolume (upload) + KubeVirt VM YAML; virtio-win CDROM via containerDisk (hyper2kvm-style post-migrate drivers). */
+/** CDI DataVolume (upload) + KubeVirt VM YAML; virtio-win CDROM via containerDisk (post-migrate driver disk pattern). */
 export interface KubeVirtBundle {
   libvirt_vm: string
   libvirt_root_disk: string
@@ -403,7 +407,72 @@ export const managedSaveRemove = (name: string) => apiDelete(`${API}/vms/${encod
 export const hasManagedSave = (name: string) => apiGet<ManagedSaveStatus>(`${API}/vms/${encodeURIComponent(name)}/managed-save/status`)
 export const getBootConfig = (name: string) => apiGet<BootConfig>(`${API}/vms/${encodeURIComponent(name)}/boot`)
 export const setBootOrder = (name: string, devices: string[]) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/boot`, { devices })
-export const migrateVM = (name: string, destUri: string, live: boolean) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/migrate`, { dest_uri: destUri, live })
+export interface MigrateOptions {
+  parameters?: { bandwidth?: number; bandwidth_postcopy?: number; parallel_connections?: number }
+  extra_flags?: number
+  unsafe_migrate?: boolean
+  postcopy?: boolean
+  undefine_source?: boolean
+  tunnelled?: boolean
+  paused?: boolean
+}
+
+export const migrateVM = (name: string, destUri: string, live: boolean, opts?: MigrateOptions) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/migrate`, {
+    dest_uri: destUri,
+    live,
+    ...opts,
+  })
+
+export type GuestKeyPreset = 'ctrl_alt_del' | 'esc' | 'alt_tab'
+
+export const sendGuestKey = (name: string, body: { preset?: GuestKeyPreset; keycodes?: number[]; holdtime_ms?: number }) =>
+  apiPost(`${API}/vms/${encodeURIComponent(name)}/guest/send-key`, body)
+
+export const getGuestScreenshotBlob = (name: string, screen = 0) =>
+  apiGetBlob(`${API}/vms/${encodeURIComponent(name)}/guest/screenshot?screen=${screen}`)
+
+export const setVmFirmware = (name: string, uefi: boolean) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/firmware`, { uefi })
+
+export const attachVmTpm = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/tpm`)
+export const detachVmTpm = (name: string) => apiDelete(`${API}/vms/${encodeURIComponent(name)}/devices/tpm`)
+
+export const attachVmWatchdog = (name: string, model: string, action: string) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/watchdog`, { model, action })
+
+export const attachVmSound = (name: string, model: string) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/sound`, { model })
+
+export const attachVmSerial = (name: string, port: number) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/serial`, { port })
+
+export const setVmVideoModel = (name: string, model: string) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/video-model`, { model })
+
+export interface DiskTuneBody {
+  target: string
+  bus?: string
+  cache?: string
+  discard?: string
+  readonly?: boolean
+  shareable?: boolean
+}
+
+export const tuneVmDisk = (name: string, body: DiskTuneBody) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/disk/tune`, body)
+
+export interface NicTuneBody {
+  mac_address: string
+  model?: string
+  network?: string
+}
+
+export const tuneVmNic = (name: string, body: NicTuneBody) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/tune`, body)
+
+export const virtViewerVvUrl = (name: string) =>
+  `${API}/vms/${encodeURIComponent(name)}/virt-viewer.vv`
 export const setMemoryBalloon = (name: string, mb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/balloon/${mb}`)
 export const resizeDisk = (name: string, target: string, sizeGb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/disk/resize/${encodeURIComponent(target)}`, { size_gb: sizeGb })
 export const attachInterface = (name: string, network: string, model: string = 'virtio') => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/attach`, { network, model })

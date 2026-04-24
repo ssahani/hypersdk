@@ -1,4 +1,5 @@
 use std::convert::Infallible;
+use std::sync::Arc;
 use std::time::Duration;
 
 use axum::extract::{Extension, Path, State};
@@ -9,6 +10,7 @@ use futures_util::stream;
 use serde_json::{json, Value};
 use uuid::Uuid;
 use virt_image_build::BuildDiskRequest;
+use tokio::sync::Semaphore;
 use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
 
 use crate::error::AppError;
@@ -42,7 +44,8 @@ async fn get_job_handler(
 async fn post_virt_image_build_job(
     State(manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
-    Json(req): Json<BuildDiskRequest>,
+    Extension(vib_slots): Extension<Arc<Semaphore>>,
+    Json(mut req): Json<BuildDiskRequest>,
 ) -> Result<Json<Value>, AppError> {
     if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
@@ -53,15 +56,32 @@ async fn post_virt_image_build_job(
         return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
     }
 
+    let timeout_secs = VirtspawnConfig::load().libvirt.virt_image_build_timeout_secs;
+    if req.timeout_secs == 0 && timeout_secs > 0 {
+        req.timeout_secs = timeout_secs;
+    }
+
     let id = jobs.start_virt_image_build(req.os.trim(), req.output.trim());
     let mgr = manager.clone();
     let jobs_bg = jobs.clone();
     let jobs_for_blocking = jobs_bg.clone();
     let req_bg = req.clone();
     let out_path = req.output.trim().to_string();
+    let sem = vib_slots.clone();
 
     tokio::spawn(async move {
+        let permit = match sem.acquire_owned().await {
+            Ok(p) => p,
+            Err(_) => {
+                let msg = "virt-image-build concurrency limiter closed";
+                log_audit("virt-image-build", &out_path, &format!("error: {msg}"));
+                jobs_bg.fail(id, msg);
+                return;
+            }
+        };
+
         let res = tokio::task::spawn_blocking(move || {
+            let _permit = permit;
             mgr.with_conn(|conn| {
                 crate::virt_image_validate::validate_virt_image_build(conn, &req_bg)?;
                 virt_image_build::build_disk_image_with_logs(&req_bg, |line| {
@@ -78,10 +98,14 @@ async fn post_virt_image_build_job(
                 jobs_bg.complete_virt_image(id, &out_path);
             }
             Ok(Err(e)) => {
-                jobs_bg.fail(id, &e.to_string());
+                let msg = e.to_string();
+                log_audit("virt-image-build", &out_path, &format!("error: {msg}"));
+                jobs_bg.fail(id, &msg);
             }
             Err(e) => {
-                jobs_bg.fail(id, &format!("Task failed: {e}"));
+                let msg = format!("Task failed: {e}");
+                log_audit("virt-image-build", &out_path, &format!("error: {msg}"));
+                jobs_bg.fail(id, &msg);
             }
         }
     });

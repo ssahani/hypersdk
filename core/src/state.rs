@@ -40,6 +40,14 @@ pub struct DiskInfo {
     pub source: String,
     pub driver: String,
     pub target: String,
+    #[serde(default)]
+    pub bus: String,
+    #[serde(default)]
+    pub cache: String,
+    #[serde(default)]
+    pub readonly: bool,
+    #[serde(default)]
+    pub shareable: bool,
 }
 
 // ── Snapshot Types ──────────────────────────────────────────────────────
@@ -421,6 +429,17 @@ pub struct AttachDiskRequest {
     pub target: String,
     #[serde(default = "default_disk_driver")]
     pub driver: String,
+    /// Disk bus for `<target … bus=…>` (default virtio).
+    #[serde(default)]
+    pub bus: String,
+    #[serde(default)]
+    pub cache: String,
+    #[serde(default)]
+    pub discard: String,
+    #[serde(default)]
+    pub readonly: bool,
+    #[serde(default)]
+    pub shareable: bool,
 }
 
 fn default_disk_target() -> String { "vdb".to_string() }
@@ -523,163 +542,6 @@ pub struct ConfirmationDialog {
     pub message: String,
     pub resource_name: String,
     pub action: String,
-}
-
-// ── Create VM Form ──────────────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum FormFieldType {
-    Text,
-    Number,
-    TemplateSelect,
-}
-
-#[derive(Debug, Clone)]
-pub struct FormField {
-    pub label: String,
-    pub value: String,
-    pub field_type: FormFieldType,
-    pub validation_error: Option<String>,
-}
-
-// Named field indices to avoid magic numbers
-pub const FIELD_NAME: usize = 0;
-pub const FIELD_TEMPLATE: usize = 1;
-pub const FIELD_VCPUS: usize = 2;
-pub const FIELD_MEMORY: usize = 3;
-pub const FIELD_DISK: usize = 4;
-pub const FIELD_NETWORK: usize = 5;
-
-#[derive(Debug, Clone)]
-pub struct CreateVmForm {
-    pub fields: Vec<FormField>,
-    pub focused_field: usize,
-    pub template_index: usize,
-}
-
-impl CreateVmForm {
-    pub fn new() -> Self {
-        Self {
-            fields: vec![
-                FormField {
-                    label: "Name".to_string(),
-                    value: String::new(),
-                    field_type: FormFieldType::Text,
-                    validation_error: None,
-                },
-                FormField {
-                    label: "Template".to_string(),
-                    value: "(none)".to_string(),
-                    field_type: FormFieldType::TemplateSelect,
-                    validation_error: None,
-                },
-                FormField {
-                    label: "vCPUs".to_string(),
-                    value: "1".to_string(),
-                    field_type: FormFieldType::Number,
-                    validation_error: None,
-                },
-                FormField {
-                    label: "Memory (MB)".to_string(),
-                    value: "1024".to_string(),
-                    field_type: FormFieldType::Number,
-                    validation_error: None,
-                },
-                FormField {
-                    label: "Disk (GB)".to_string(),
-                    value: "10".to_string(),
-                    field_type: FormFieldType::Number,
-                    validation_error: None,
-                },
-                FormField {
-                    label: "Network".to_string(),
-                    value: "default".to_string(),
-                    field_type: FormFieldType::Text,
-                    validation_error: None,
-                },
-            ],
-            focused_field: 0,
-            template_index: 0, // 0 = "(none)"
-        }
-    }
-
-    pub fn apply_template(&mut self, tmpl: &VmTemplate) {
-        self.fields[FIELD_VCPUS].value = tmpl.vcpus.to_string();
-        self.fields[FIELD_MEMORY].value = tmpl.memory_mb.to_string();
-        self.fields[FIELD_DISK].value = tmpl.disk_gb.to_string();
-    }
-
-    fn validate_field<T: std::str::FromStr + Copy>(
-        field: &mut FormField,
-        valid: &mut bool,
-        check: impl FnOnce(T) -> bool,
-        err_msg: &str,
-    ) {
-        match field.value.parse::<T>() {
-            Ok(v) if check(v) => field.validation_error = None,
-            _ => {
-                field.validation_error = Some(err_msg.to_string());
-                *valid = false;
-            }
-        }
-    }
-
-    pub fn validate(&mut self) -> bool {
-        let mut valid = true;
-
-        // Validate name
-        let name = &self.fields[FIELD_NAME].value;
-        let name_err = if name.is_empty() {
-            Some("Name required")
-        } else if name.len() > 64 {
-            Some("Max 64 chars")
-        } else if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.') {
-            Some("Invalid chars")
-        } else if name.starts_with('-') || name.starts_with('.') {
-            Some("Bad start char")
-        } else {
-            None
-        };
-        if let Some(err) = name_err {
-            self.fields[FIELD_NAME].validation_error = Some(err.to_string());
-            valid = false;
-        } else {
-            self.fields[FIELD_NAME].validation_error = None;
-        }
-
-        Self::validate_field::<u32>(&mut self.fields[FIELD_VCPUS], &mut valid,
-            |v| (1..=256).contains(&v), "1-256");
-        Self::validate_field::<u64>(&mut self.fields[FIELD_MEMORY], &mut valid,
-            |v| (64..=1_048_576).contains(&v), "64-1048576 MB");
-        Self::validate_field::<u64>(&mut self.fields[FIELD_DISK], &mut valid,
-            |v| (1..=10_240).contains(&v), "1-10240 GB");
-
-        if self.fields[FIELD_NETWORK].value.is_empty() {
-            self.fields[FIELD_NETWORK].validation_error = Some("Required".to_string());
-            valid = false;
-        } else {
-            self.fields[FIELD_NETWORK].validation_error = None;
-        }
-
-        valid
-    }
-
-    pub fn to_create_request(&self) -> CreateVmRequest {
-        CreateVmRequest {
-            name: self.fields[FIELD_NAME].value.clone(),
-            vcpus: self.fields[FIELD_VCPUS].value.parse().unwrap_or(1),
-            memory_mb: self.fields[FIELD_MEMORY].value.parse().unwrap_or(1024),
-            disk_gb: self.fields[FIELD_DISK].value.parse().unwrap_or(10),
-            network: self.fields[FIELD_NETWORK].value.clone(),
-            ..Default::default()
-        }
-    }
-}
-
-impl Default for CreateVmForm {
-    fn default() -> Self {
-        Self::new()
-    }
 }
 
 // ── Sidebar / Content Focus Model ───────────────────────────────────────
@@ -799,7 +661,6 @@ pub enum InputMode {
     Search,
     Confirmation,
     Command,
-    CreateVmDialog,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -902,9 +763,6 @@ pub struct AppState {
 
     // Metrics history (sparklines)
     pub metrics_history: HashMap<String, VecDeque<f64>>,
-
-    // Create VM form
-    pub create_vm_form: Option<CreateVmForm>,
 
     // Sidebar + Content focus model
     pub focus: Focus,
@@ -1412,40 +1270,6 @@ mod tests {
         state.apply_search_filter();
         assert!(state.search_active);
         assert_eq!(state.current_list_len(), 1);
-    }
-
-    #[test]
-    fn test_form_validate_valid() {
-        let mut form = CreateVmForm::new();
-        form.fields[FIELD_NAME].value = "test-vm".into();
-        assert!(form.validate());
-    }
-
-    #[test]
-    fn test_form_validate_empty_name() {
-        let mut form = CreateVmForm::new();
-        form.fields[FIELD_NAME].value = String::new();
-        assert!(!form.validate());
-        assert!(form.fields[FIELD_NAME].validation_error.is_some());
-    }
-
-    #[test]
-    fn test_form_validate_bad_vcpus() {
-        let mut form = CreateVmForm::new();
-        form.fields[FIELD_NAME].value = "myvm".into();
-        form.fields[FIELD_VCPUS].value = "0".into();
-        assert!(!form.validate());
-        assert!(form.fields[FIELD_VCPUS].validation_error.is_some());
-    }
-
-    #[test]
-    fn test_form_apply_template() {
-        let mut form = CreateVmForm::new();
-        let tmpl = VmTemplate::find("linux-small").unwrap();
-        form.apply_template(&tmpl);
-        assert_eq!(form.fields[FIELD_VCPUS].value, "1");
-        assert_eq!(form.fields[FIELD_MEMORY].value, "1024");
-        assert_eq!(form.fields[FIELD_DISK].value, "10");
     }
 
     #[test]

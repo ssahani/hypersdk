@@ -27,6 +27,18 @@
       }
     },
     "schemas": {
+      "ApiError": {
+        "type": "object",
+        "description": "Standard JSON error from virtspawn-daemon",
+        "properties": {
+          "error": { "type": "string", "description": "Human-readable message" },
+          "error_code": {
+            "type": "string",
+            "description": "Stable code: not_found, invalid_request, forbidden, libvirt_connection, operation_failed, internal_error, unauthorized"
+          }
+        },
+        "required": ["error"]
+      },
       "VmSummary": {
         "type": "object",
         "properties": {
@@ -127,7 +139,8 @@
           "ssh_pubkey_inline": { "type": "string", "nullable": true },
           "update": { "type": "boolean", "default": false },
           "selinux_relabel": { "type": "boolean", "default": false },
-          "extra_virt_builder_args": { "type": "array", "items": { "type": "string" } }
+          "extra_virt_builder_args": { "type": "array", "items": { "type": "string" } },
+          "timeout_secs": { "type": "integer", "format": "int64", "default": 0, "description": "Kill virt-builder after this many seconds (0 = unlimited; daemon may set from [libvirt] virt_image_build_timeout_secs)" }
         }
       },
       "GuacamoleAuthResponse": {
@@ -260,6 +273,100 @@
           "load_5": { "type": "number" },
           "load_15": { "type": "number" },
           "uptime_secs": { "type": "integer" }
+        }
+      },
+      "HostFilesystem": {
+        "type": "object",
+        "description": "One mount from df -B1 -T (virtual fstypes omitted)",
+        "properties": {
+          "source": { "type": "string" },
+          "fstype": { "type": "string" },
+          "mount_point": { "type": "string" },
+          "size_bytes": { "type": "integer", "format": "int64" },
+          "used_bytes": { "type": "integer", "format": "int64" },
+          "avail_bytes": { "type": "integer", "format": "int64" },
+          "use_percent": { "type": "number" }
+        }
+      },
+      "HostProcess": {
+        "type": "object",
+        "properties": {
+          "pid": { "type": "integer" },
+          "user": { "type": "string" },
+          "cpu_percent": { "type": "number" },
+          "rss_kb": { "type": "integer", "format": "int64" },
+          "command": { "type": "string" },
+          "args": { "type": "string", "description": "Full argv from /proc/pid/cmdline (Linux)" }
+        }
+      },
+      "PackageUpdateCheck": {
+        "type": "object",
+        "description": "Distro-aware read-only package update probe",
+        "properties": {
+          "backend": { "type": "string" },
+          "probed": { "type": "boolean" },
+          "pending_count": { "type": "integer", "nullable": true },
+          "summary": { "type": "string", "nullable": true },
+          "hint": { "type": "string", "nullable": true },
+          "error": { "type": "string", "nullable": true }
+        }
+      },
+      "NetDevCounter": {
+        "type": "object",
+        "description": "Cumulative RX/TX since boot from /proc/net/dev",
+        "properties": {
+          "iface": { "type": "string" },
+          "rx_bytes": { "type": "integer", "format": "int64" },
+          "rx_packets": { "type": "integer", "format": "int64" },
+          "tx_bytes": { "type": "integer", "format": "int64" },
+          "tx_packets": { "type": "integer", "format": "int64" }
+        }
+      },
+      "NetDevRate": {
+        "type": "object",
+        "description": "Per-second averages from two /proc/net/dev samples",
+        "properties": {
+          "iface": { "type": "string" },
+          "rx_bytes_per_sec": { "type": "number" },
+          "tx_bytes_per_sec": { "type": "number" },
+          "rx_packets_per_sec": { "type": "number" },
+          "tx_packets_per_sec": { "type": "number" }
+        }
+      },
+      "NetDevRatesResponse": {
+        "type": "object",
+        "properties": {
+          "sample_interval_ms": { "type": "integer" },
+          "interfaces": { "type": "array", "items": { "$ref": "#/components/schemas/NetDevRate" } }
+        }
+      },
+      "PasswdEntry": {
+        "type": "object",
+        "properties": {
+          "username": { "type": "string" },
+          "uid": { "type": "integer" },
+          "gid": { "type": "integer" },
+          "gecos": { "type": "string" },
+          "home": { "type": "string" },
+          "shell": { "type": "string" },
+          "system_account": { "type": "boolean" }
+        }
+      },
+      "GroupEntry": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "gid": { "type": "integer" },
+          "members": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "HostSecuritySummary": {
+        "type": "object",
+        "properties": {
+          "network_backend": { "type": "string" },
+          "firewall_backend": { "type": "string" },
+          "ufw_status_line": { "type": "string", "nullable": true },
+          "firewalld_default_zone": { "type": "string", "nullable": true }
         }
       },
       "PciDevice": {
@@ -1414,6 +1521,32 @@
         }
       }
     },
+    "/browse/virt-image-output-roots": {
+      "get": {
+        "summary": "Allowed output path prefixes for virt-image-build and effective TMPDIR",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Slash-terminated directory prefixes and TMPDIR path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "allowed_prefixes": { "type": "array", "items": { "type": "string" } },
+                    "effective_tmpdir": { "type": "string" }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal error",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } }
+          }
+        }
+      }
+    },
     "/browse/virt-builder": {
       "get": {
         "summary": "List virt-builder OS templates (virt-builder --list --list-format json, cached)",
@@ -1435,6 +1568,10 @@
                 "schema": {
                   "type": "object",
                   "properties": {
+                    "virt_builder_allowed": { "type": "boolean", "description": "False when disabled in daemon config" },
+                    "virt_builder_installed": { "type": "boolean", "description": "Whether virt-builder --version succeeds on the host" },
+                    "virt_builder_version": { "type": "string", "nullable": true, "description": "First line of virt-builder --version" },
+                    "catalog_error": { "type": "string", "nullable": true, "description": "Set when the index could not be read or feature is off" },
                     "format_version": { "type": "integer", "description": "virt-builder JSON version field (0 if plain --list fallback)" },
                     "source_uri": { "type": "string", "nullable": true },
                     "items": {
@@ -1452,6 +1589,39 @@
                     "templates": { "type": "array", "items": { "type": "string" }, "description": "Template names only (backward compatible)" },
                     "cached": { "type": "boolean", "description": "True when response came from short-TTL daemon cache" },
                     "cache_age_secs": { "type": "integer", "nullable": true }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browse/virt-builder/probe/{template}": {
+      "get": {
+        "summary": "Validate virt-builder template id and optional catalog cache membership",
+        "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "template",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Template id e.g. ubuntu-22.04"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Probe result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "virt_builder_allowed": { "type": "boolean" },
+                    "name_valid": { "type": "boolean" },
+                    "in_cached_catalog": { "type": "boolean" },
+                    "hint": { "type": "string", "nullable": true }
                   }
                 }
               }
@@ -1541,6 +1711,139 @@
         "summary": "Get host system stats (CPU, memory, disk, load)",
         "tags": ["Extras"],
         "responses": { "200": { "description": "Host stats", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HostStats" } } } } }
+      }
+    },
+    "/host/filesystems": {
+      "get": {
+        "summary": "List host filesystem mounts and usage (df, Cockpit-style)",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Filesystem rows",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HostFilesystem" } } } }
+          }
+        }
+      }
+    },
+    "/host/processes": {
+      "get": {
+        "summary": "Top host processes by memory (RSS)",
+        "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 20, "minimum": 1, "maximum": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Process rows",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/HostProcess" } } } }
+          }
+        }
+      }
+    },
+    "/host/package-updates": {
+      "get": {
+        "summary": "Read-only package update status (apt/dnf/yum/apk/pacman/zypper by distro)",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Probe result",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageUpdateCheck" } } }
+          },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/net-counters": {
+      "get": {
+        "summary": "Per-interface cumulative network bytes/packets since boot (/proc/net/dev)",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Counters",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/NetDevCounter" } } } }
+          }
+        }
+      }
+    },
+    "/host/net-rates": {
+      "get": {
+        "summary": "Per-interface network throughput from two /proc/net/dev samples (blocks interval_ms)",
+        "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "interval_ms",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 1000, "minimum": 50, "maximum": 5000 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Byte and packet rates per second",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/NetDevRatesResponse" } } }
+          },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/passwd-users": {
+      "get": {
+        "summary": "List passwd entries (getent or /etc/passwd), capped",
+        "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 150, "minimum": 1, "maximum": 500 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Users",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/PasswdEntry" } } } }
+          },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/groups": {
+      "get": {
+        "summary": "List group entries (getent or /etc/group), capped",
+        "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 150, "minimum": 1, "maximum": 500 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Groups",
+            "content": { "application/json": { "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GroupEntry" } } } }
+          },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/security-summary": {
+      "get": {
+        "summary": "Network + firewall backend summary (netplan/nmcli, ufw/firewalld/iptables)",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Summary",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HostSecuritySummary" } } }
+          },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
       }
     },
     "/host/interfaces": {

@@ -164,6 +164,19 @@ struct MigrateRequest {
     live: bool,
     #[serde(default)]
     parameters: Option<migrate::MigrateParametersApi>,
+    /// OR with libvirt flags, e.g. unsafe (512), postcopy (32768), undefine source (16).
+    #[serde(default)]
+    extra_flags: u32,
+    #[serde(default)]
+    unsafe_migrate: bool,
+    #[serde(default)]
+    postcopy: bool,
+    #[serde(default)]
+    undefine_source: bool,
+    #[serde(default)]
+    tunnelled: bool,
+    #[serde(default)]
+    paused: bool,
 }
 
 async fn migrate_handler(
@@ -176,8 +189,26 @@ async fn migrate_handler(
     let destination = dest_uri.clone();
     let live = req.live;
     let params = req.parameters.clone();
+    let mut xf = req.extra_flags;
+    if req.unsafe_migrate {
+        xf |= virt::sys::VIR_MIGRATE_UNSAFE;
+    }
+    if req.postcopy {
+        xf |= virt::sys::VIR_MIGRATE_POSTCOPY;
+    }
+    if req.undefine_source {
+        xf |= virt::sys::VIR_MIGRATE_UNDEFINE_SOURCE;
+    }
+    if req.tunnelled {
+        xf |= virt::sys::VIR_MIGRATE_TUNNELLED;
+    }
+    if req.paused {
+        xf |= virt::sys::VIR_MIGRATE_PAUSED;
+    }
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| migrate::migrate_vm_uri(conn, &name2, &dest_uri, live, params.as_ref()))
+        manager.with_conn(|conn| {
+            migrate::migrate_vm_uri(conn, &name2, &dest_uri, live, params.as_ref(), xf)
+        })
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?

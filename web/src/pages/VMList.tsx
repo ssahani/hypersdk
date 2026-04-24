@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router'
-import { listVMs, startVM, stopVM, shutdownVM, pauseVM, resumeVM, deleteVM, VmInfo } from '../api/vm'
+import { listVMs, startVM, stopVM, shutdownVM, pauseVM, resumeVM, VmInfo } from '../api/vm'
+import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import { getStateBadgeClasses } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
@@ -69,7 +70,7 @@ export default function VMList() {
     if (!deleteTarget) return
     const name = deleteTarget
     setDeleteTarget(null)
-    await action(name, deleteVM, 'Delete')
+    await action(name, deleteVmWithNvramRetry, 'Delete')
   }
 
   const filtered = vms.filter((v) => {
@@ -110,7 +111,7 @@ export default function VMList() {
 
   const handleBatchDelete = async () => {
     setBatchDeleteConfirm(false)
-    await batchRun(deleteVM, 'Delete')
+    await batchRun(deleteVmWithNvramRetry, 'Delete')
   }
 
   useEffect(() => { setSelectedVMs(new Set()) }, [search, tagFilter])

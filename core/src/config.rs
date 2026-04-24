@@ -256,7 +256,7 @@ pub struct DaemonConfig {
 pub enum VmCreateBackend {
     /// Native virtspawn domain XML + `qemu-img`.
     LibvirtXml,
-    /// Shell out to `virt-install` (hyper2kvm-style). Default when the client omits `create_backend`.
+    /// Shell out to `virt-install`. Default when the client omits `create_backend`.
     #[default]
     VirtInstall,
 }
@@ -280,9 +280,33 @@ pub struct LibvirtConfig {
     /// Packages always installed via `virt-builder --install` for every virt-builder VM (e.g. `["qemu-guest-agent"]`).
     #[serde(default)]
     pub virt_builder_default_packages: Vec<String>,
+    /// Max concurrent async `virt-image-build` jobs (daemon). Default 2.
+    #[serde(default = "default_virt_image_build_max_concurrent")]
+    pub virt_image_build_max_concurrent: usize,
+    /// Wall-clock limit for each `virt-image-build` / `virt-builder` child (seconds). `0` = unlimited.
+    #[serde(default)]
+    pub virt_image_build_timeout_secs: u64,
+    /// Minimum free bytes on the filesystem that holds the output image directory (default 512 MiB).
+    #[serde(default = "default_virt_image_build_min_free_parent_bytes")]
+    pub virt_image_build_min_free_parent_bytes: u64,
+    /// Minimum free bytes on `TMPDIR` (or `/tmp`) for libguestfs scratch (default 256 MiB).
+    #[serde(default = "default_virt_image_build_min_free_tmp_bytes")]
+    pub virt_image_build_min_free_tmp_bytes: u64,
     /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (optional image builds; requires mkosi on host; see install.sh).
     #[serde(default = "default_true")]
     pub mkosi_allowed: bool,
+}
+
+fn default_virt_image_build_max_concurrent() -> usize {
+    2
+}
+
+fn default_virt_image_build_min_free_parent_bytes() -> u64 {
+    512 * 1024 * 1024
+}
+
+fn default_virt_image_build_min_free_tmp_bytes() -> u64 {
+    256 * 1024 * 1024
 }
 
 fn default_false() -> bool {
@@ -366,6 +390,10 @@ impl Default for LibvirtConfig {
             virt_builder_default_ssh_pubkey_path: String::new(),
             virt_builder_update: true,
             virt_builder_default_packages: Vec::new(),
+            virt_image_build_max_concurrent: default_virt_image_build_max_concurrent(),
+            virt_image_build_timeout_secs: 0,
+            virt_image_build_min_free_parent_bytes: default_virt_image_build_min_free_parent_bytes(),
+            virt_image_build_min_free_tmp_bytes: default_virt_image_build_min_free_tmp_bytes(),
             mkosi_allowed: true,
         }
     }

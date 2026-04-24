@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router'
-import { ArrowLeft, Terminal as TerminalIcon, Monitor } from 'lucide-react'
+import { ArrowLeft, Terminal as TerminalIcon, Monitor, Keyboard, Camera, Download } from 'lucide-react'
 import { apiGet } from '../api/client'
 import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
 import SPICEViewer from '../components/SPICEViewer'
+import { sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl } from '../api/vm'
+import { useToastContext } from '../contexts/ToastContext'
 
 interface ConsoleInfo {
   name: string
@@ -16,8 +18,10 @@ interface ConsoleInfo {
 
 export default function ConsolePage() {
   const { name } = useParams<{ name: string }>()
+  const toast = useToastContext()
   const [mode, setMode] = useState<'serial' | 'vnc' | 'spice'>('serial')
   const [consoleInfo, setConsoleInfo] = useState<ConsoleInfo | null>(null)
+  const [shotBusy, setShotBusy] = useState(false)
 
   useEffect(() => {
     if (!name) return
@@ -93,6 +97,54 @@ export default function ConsolePage() {
           </button>
         </div>
       </div>
+
+      {(mode === 'vnc' || mode === 'spice') && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 transition"
+            onClick={() => {
+              if (!name) return
+              void sendGuestKey(name, { preset: 'ctrl_alt_del' })
+                .then(() => toast.success('Sent Ctrl+Alt+Del'))
+                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+            }}
+          >
+            <Keyboard className="w-4 h-4" aria-hidden />
+            Ctrl+Alt+Del
+          </button>
+          <button
+            type="button"
+            disabled={shotBusy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 transition disabled:opacity-50"
+            onClick={() => {
+              if (!name) return
+              setShotBusy(true)
+              void getGuestScreenshotBlob(name, 0)
+                .then((blob) => {
+                  const u = URL.createObjectURL(blob)
+                  window.open(u, '_blank', 'noopener,noreferrer')
+                  setTimeout(() => URL.revokeObjectURL(u), 60_000)
+                  toast.success('Screenshot opened in new tab')
+                })
+                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                .finally(() => setShotBusy(false))
+            }}
+          >
+            <Camera className="w-4 h-4" aria-hidden />
+            {shotBusy ? 'Screenshot…' : 'Screenshot'}
+          </button>
+          <a
+            href={virtViewerVvUrl(name)}
+            download={`${name}.vv`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/60 hover:bg-emerald-700/70 text-sm text-emerald-100 transition"
+          >
+            <Download className="w-4 h-4" aria-hidden />
+            Virt-Viewer .vv
+          </a>
+          <span className="text-xs text-slate-500">Keys/screenshot use libvirt on a running guest.</span>
+        </div>
+      )}
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         {mode === 'vnc' ? (

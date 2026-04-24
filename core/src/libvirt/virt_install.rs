@@ -208,6 +208,10 @@ pub fn create_vm_virt_install(
     } else if !pool.is_empty() {
         args.push("--disk".into());
         args.push(format!("vol={pool}/{vol},bus=virtio"));
+        if !req.iso.is_empty() {
+            args.push("--cdrom".into());
+            args.push(req.iso.clone());
+        }
         if !define_only
             && req.iso.is_empty()
             && !pxe

@@ -46,7 +46,7 @@ export const navGroups: NavGroup[] = [
     label: 'Monitoring',
     items: [
       { to: '/jobs', icon: React.createElement(ClipboardList, { className: 'w-4 h-4' }), label: 'Jobs' },
-      { to: '/node', icon: React.createElement(Cpu, { className: 'w-4 h-4' }), label: 'Host Info' },
+      { to: '/node', icon: React.createElement(Cpu, { className: 'w-4 h-4' }), label: 'Host overview' },
       { to: '/events', icon: React.createElement(Activity, { className: 'w-4 h-4' }), label: 'Live Metrics' },
       { to: '/capabilities', icon: React.createElement(MonitorCog, { className: 'w-4 h-4' }), label: 'Capabilities' },
       { to: '/devices', icon: React.createElement(Usb, { className: 'w-4 h-4' }), label: 'Node Devices' },
@@ -67,7 +67,7 @@ export const routeLabels: Record<string, string> = {
   '/networks': 'Networks',
   '/storage': 'Storage',
   '/snapshots': 'Snapshots',
-  '/node': 'Host Info',
+  '/node': 'Host overview',
   '/events': 'Live Metrics',
   '/jobs': 'Jobs',
   '/capabilities': 'Capabilities',

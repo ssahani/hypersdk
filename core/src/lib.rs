@@ -1,6 +1,8 @@
 pub mod audit;
+pub mod build_precheck;
 pub mod config;
 pub mod fmt;
+pub mod host_platform;
 pub mod kubevirt;
 pub mod libvirt;
 pub mod state;
@@ -16,13 +18,11 @@ pub use kubevirt::{kubevirt_bundle_from_libvirt_vm, KubeVirtBundle};
 pub use libvirt::LibvirtManager;
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, BackupInfo, BackupRequest, CloneVmRequest,
-    ConfirmationDialog, CreateNetworkRequest, CreateSnapshotRequest, CreateVmForm,
-    CreateVmRequest, CreateVolumeRequest, DashboardStats, DiskInfo, Focus, FormField,
-    FormFieldType, FIELD_DISK, FIELD_MEMORY, FIELD_NAME, FIELD_NETWORK, FIELD_TEMPLATE,
-    FIELD_VCPUS, InputMode, InterfaceInfo, NetworkInfo, NodeInfo, NotifyLevel, ObjectTab,
-    RenameVmRequest, ResourceView, RestoreRequest, SidebarCategory, SidebarItem, SnapshotInfo,
-    SortColumn, SortDirection, StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo,
-    VmMetrics, VmTemplate,
+    ConfirmationDialog, CreateNetworkRequest, CreateSnapshotRequest, CreateVmRequest,
+    CreateVolumeRequest, DashboardStats, DiskInfo, Focus, InputMode, InterfaceInfo, NetworkInfo,
+    NodeInfo, NotifyLevel, ObjectTab, RenameVmRequest, ResourceView, RestoreRequest,
+    SidebarCategory, SidebarItem, SnapshotInfo, SortColumn, SortDirection, StoragePoolInfo,
+    StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics, VmTemplate,
 };
 
 pub const UNKNOWN: &str = "unknown";

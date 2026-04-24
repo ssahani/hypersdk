@@ -3,13 +3,14 @@ use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
 use virtspawn_core::{
-    AppState, ConfirmationDialog, CreateNetworkRequest, CreateVmForm, CreateVmRequest,
-    FIELD_TEMPLATE, Focus, InputMode, NotifyLevel, ObjectTab, ResourceView, SidebarCategory,
-    SidebarItem, SortColumn, SortDirection, ViewMode, VmTemplate,
+    AppState, ConfirmationDialog, CreateNetworkRequest, Focus, InputMode, NotifyLevel, ObjectTab,
+    ResourceView, SidebarCategory, SidebarItem, SortColumn, SortDirection, ViewMode,
 };
 
 use crate::api::DaemonClient;
 use crate::ui;
+
+const PACKER_IMAGE_HINT: &str = "Web /create: ISO install, Packer qcow2 builds, clone golden image (saved template or backing). Packer script: /usr/local/share/virtspawn/packer/build-linux-image.sh";
 
 pub struct App {
     pub state: AppState,
@@ -64,7 +65,6 @@ impl App {
             InputMode::Search => self.handle_search_key(key),
             InputMode::Confirmation => self.handle_confirmation_key(key).await,
             InputMode::Command => self.handle_command_key(key).await,
-            InputMode::CreateVmDialog => self.handle_create_dialog_key(key).await,
             InputMode::Normal => self.handle_normal_key(key).await,
         }
     }
@@ -397,8 +397,7 @@ impl App {
             KeyCode::Char('n') => {
                 match self.state.sidebar_resource_view() {
                     ResourceView::VirtualMachines => {
-                        self.state.create_vm_form = Some(CreateVmForm::new());
-                        self.state.input_mode = InputMode::CreateVmDialog;
+                        self.state.notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
                     }
                     ResourceView::Snapshots => {
                         self.state.input_mode = InputMode::Command;
@@ -636,74 +635,6 @@ impl App {
             }
             KeyCode::Backspace => { self.state.command_input.pop(); }
             KeyCode::Char(c) => self.state.command_input.push(c),
-            _ => {}
-        }
-    }
-
-    // ── Create VM dialog ────────────────────────────────────────────────
-
-    async fn handle_create_dialog_key(&mut self, key: KeyEvent) {
-        let form = match self.state.create_vm_form.as_mut() {
-            Some(f) => f,
-            None => { self.state.input_mode = InputMode::Normal; return; }
-        };
-
-        match key.code {
-            KeyCode::Esc => {
-                self.state.create_vm_form = None;
-                self.state.input_mode = InputMode::Normal;
-            }
-            KeyCode::Tab | KeyCode::Down => {
-                form.focused_field = (form.focused_field + 1) % form.fields.len();
-            }
-            KeyCode::BackTab | KeyCode::Up => {
-                form.focused_field = if form.focused_field == 0 { form.fields.len() - 1 } else { form.focused_field - 1 };
-            }
-            KeyCode::Left | KeyCode::Right => {
-                if form.fields[form.focused_field].field_type == virtspawn_core::FormFieldType::TemplateSelect {
-                    let templates = VmTemplate::all();
-                    let count = templates.len() + 1;
-                    form.template_index = match key.code {
-                        KeyCode::Left => if form.template_index == 0 { count - 1 } else { form.template_index - 1 },
-                        _ => (form.template_index + 1) % count,
-                    };
-                    if form.template_index == 0 {
-                        form.fields[FIELD_TEMPLATE].value = "(none)".to_string();
-                    } else if let Some(tmpl) = templates.get(form.template_index - 1) {
-                        form.fields[FIELD_TEMPLATE].value = tmpl.name.clone();
-                        form.apply_template(tmpl);
-                    }
-                }
-            }
-            KeyCode::Enter => {
-                let Some(mut form_clone) = self.state.create_vm_form.clone() else { return; };
-                if form_clone.validate() {
-                    let req = form_clone.to_create_request();
-                    let name = req.name.clone();
-                    match self.client.create_vm(&req).await {
-                        Ok(()) => {
-                            self.state.notify_with_level(&format!("Created VM '{name}'"), NotifyLevel::Success);
-                            self.state.add_audit_event("create", &name, "OK");
-                            self.state.create_vm_form = None;
-                            self.state.input_mode = InputMode::Normal;
-                            self.refresh_all_data().await;
-                        }
-                        Err(e) => self.state.notify_with_level(&format!("Error creating VM: {e}"), NotifyLevel::Error),
-                    }
-                } else {
-                    self.state.create_vm_form = Some(form_clone);
-                }
-            }
-            KeyCode::Backspace | KeyCode::Char(_) => {
-                let Some(field) = form.fields.get_mut(form.focused_field) else { return; };
-                if field.field_type != virtspawn_core::FormFieldType::TemplateSelect {
-                    match key.code {
-                        KeyCode::Backspace => { field.value.pop(); }
-                        KeyCode::Char(c) => field.value.push(c),
-                        _ => {}
-                    }
-                }
-            }
             _ => {}
         }
     }
@@ -1198,21 +1129,8 @@ impl App {
                 let r = self.client.clone_vm(source, new_name).await;
                 self.report_cmd_result(r, &format!("Cloned '{source}' as '{new_name}'"), "clone", source, true).await;
             }
-            ["create"] => { self.state.create_vm_form = Some(CreateVmForm::new()); self.state.input_mode = InputMode::CreateVmDialog; }
-            ["create", name] | ["create", name, ..] => {
-                let mut req = CreateVmRequest { name: name.to_string(), ..Default::default() };
-                if let ["create", _, vcpus, mem, ..] = parts.as_slice() {
-                    req.vcpus = match vcpus.parse() {
-                        Ok(v) => v,
-                        Err(_) => { self.state.status_message = format!("Invalid vCPU count: '{vcpus}'"); return; }
-                    };
-                    req.memory_mb = match mem.parse() {
-                        Ok(v) => v,
-                        Err(_) => { self.state.status_message = format!("Invalid memory value: '{mem}'"); return; }
-                    };
-                }
-                let r = self.client.create_vm(&req).await;
-                self.report_cmd_result(r, &format!("Created VM '{name}'"), "create", name, true).await;
+            ["create"] | ["create", ..] => {
+                self.state.notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
             }
             ["resize", name, "vcpus", count] => {
                 match count.parse::<u32>() {
@@ -1245,20 +1163,8 @@ impl App {
                 let r = self.client.delete_network(name).await;
                 self.report_cmd_result(r, &format!("Deleted network '{name}'"), "delete-network", name, true).await;
             }
-            ["template", tmpl_name, vm_name] => {
-                if let Some(tmpl) = VmTemplate::find(tmpl_name) {
-                    let req = CreateVmRequest { name: vm_name.to_string(), vcpus: tmpl.vcpus, memory_mb: tmpl.memory_mb, disk_gb: tmpl.disk_gb, os_variant: tmpl.os_variant, ..Default::default() };
-                    let r = self.client.create_vm(&req).await;
-                    self.report_cmd_result(r, &format!("Created '{vm_name}' from template '{tmpl_name}'"), "create-from-template", vm_name, true).await;
-                } else {
-                    let templates = VmTemplate::all();
-                    let names: Vec<&str> = templates.iter().map(|t| t.name.as_str()).collect();
-                    self.state.status_message = format!("Unknown template. Available: {}", names.join(", "));
-                }
-            }
-            ["templates"] => {
-                let desc: Vec<String> = VmTemplate::all().iter().map(|t| format!("{}: {}", t.name, t.description)).collect();
-                self.state.status_message = desc.join(" | ");
+            ["template", ..] | ["templates"] => {
+                self.state.notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
             }
             ["backups"] | ["backup"] => {
                 self.navigate_to_category(SidebarCategory::Backups);

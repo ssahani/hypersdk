@@ -109,11 +109,13 @@ pub fn migrate_vm_uri(
     dest_uri: &str,
     live: bool,
     extra: Option<&MigrateParametersApi>,
+    extra_flags: u32,
 ) -> Result<(), LibvirtError> {
     validate_migrate_uri(dest_uri)?;
     let domain = lookup_domain(conn, name)?;
 
-    let mut flags = virt::sys::VIR_MIGRATE_PEER2PEER | virt::sys::VIR_MIGRATE_PERSIST_DEST;
+    let mut flags =
+        virt::sys::VIR_MIGRATE_PEER2PEER | virt::sys::VIR_MIGRATE_PERSIST_DEST | extra_flags;
     if live {
         flags |= virt::sys::VIR_MIGRATE_LIVE;
     }

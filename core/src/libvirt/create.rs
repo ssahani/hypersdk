@@ -121,7 +121,7 @@ pub fn create_vm(
     );
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg, log)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg, log)?;
-    match backend {
+    let r = match backend {
         VmCreateBackend::VirtInstall => {
             subprocess::log_line(log, "virtspawn", "Defining VM with virt-install…");
             super::virt_install::create_vm_virt_install(conn, &req, libvirt_uri, log)
@@ -136,7 +136,23 @@ pub fn create_vm(
             subprocess::log_line(log, "virtspawn", "Defining VM with libvirt XML…");
             create_vm_libvirt_xml(conn, &req, log)
         }
+    };
+    if r.is_ok() {
+        if let Ok(missing) = super::domain::missing_file_disk_paths(conn, &req.name) {
+            if !missing.is_empty() {
+                subprocess::log_line(
+                    log,
+                    "virtspawn",
+                    &format!(
+                        "WARNING: VM '{}' is defined but file-backed disk(s) are missing on the host — start will fail until you create them or fix paths in the domain XML: {}",
+                        req.name,
+                        missing.join(", ")
+                    ),
+                );
+            }
+        }
     }
+    r
 }
 
 fn create_vm_libvirt_xml(
@@ -297,7 +313,7 @@ fn find_qemu_binary() -> String {
     "/usr/bin/qemu-system-x86_64".to_string()
 }
 
-fn find_ovmf_code() -> Option<String> {
+pub(crate) fn find_ovmf_code() -> Option<String> {
     let candidates = [
         "/usr/share/edk2/ovmf/OVMF_CODE.fd",
         "/usr/share/edk2/ovmf/x64/OVMF_CODE.fd",
@@ -316,7 +332,7 @@ fn find_ovmf_code() -> Option<String> {
     None
 }
 
-fn find_ovmf_vars_template() -> Option<String> {
+pub(crate) fn find_ovmf_vars_template() -> Option<String> {
     let candidates = [
         "/usr/share/edk2/ovmf/OVMF_VARS.fd",
         "/usr/share/OVMF/OVMF_VARS.fd",

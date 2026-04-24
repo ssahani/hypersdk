@@ -2,8 +2,8 @@ use anyhow::Result;
 use virtspawn_core::libvirt::extras::BrowseDirResponse;
 use virtspawn_core::{
     BackupInfo, BackupRequest, CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest,
-    CreateVmRequest, NetworkInfo, NodeInfo, RenameVmRequest, RestoreRequest, SnapshotInfo,
-    StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
+    NetworkInfo, NodeInfo, RenameVmRequest, RestoreRequest, SnapshotInfo, StoragePoolInfo,
+    VmDetails, VmInfo, VmMetrics,
 };
 
 pub struct DaemonClient {
@@ -71,6 +71,11 @@ impl DaemonClient {
         Ok(())
     }
 
+    fn error_suggests_nvram_undefine_needed(msg: &str) -> bool {
+        let m = msg.to_lowercase();
+        m.contains("nvram") && (m.contains("undefine") || m.contains("cannot remove domain"))
+    }
+
     // ── VMs ─────────────────────────────────────────────────────────────
 
     pub async fn fetch_vms(&self) -> Result<Vec<VmInfo>> {
@@ -110,11 +115,19 @@ impl DaemonClient {
     }
 
     pub async fn delete_vm(&self, name: &str) -> Result<()> {
-        self.delete_action(&format!("/api/v1/vms/{name}")).await
-    }
-
-    pub async fn create_vm(&self, req: &CreateVmRequest) -> Result<()> {
-        self.post_json("/api/v1/vms", req).await
+        let path = format!("/api/v1/vms/{name}");
+        match self.delete_action(&path).await {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                let msg = e.to_string();
+                if Self::error_suggests_nvram_undefine_needed(&msg) {
+                    let retry = format!("{path}?undefine_nvram=true");
+                    self.delete_action(&retry).await
+                } else {
+                    Err(e)
+                }
+            }
+        }
     }
 
     pub async fn clone_vm(&self, source: &str, new_name: &str) -> Result<()> {

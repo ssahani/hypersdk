@@ -25,6 +25,17 @@ impl From<LibvirtError> for AppError {
     }
 }
 
+fn libvirt_error_code(err: &LibvirtError) -> &'static str {
+    match err {
+        LibvirtError::NotFound(_) => "not_found",
+        LibvirtError::Invalid(_) => "invalid_request",
+        LibvirtError::Forbidden(_) => "forbidden",
+        LibvirtError::Connection(_) => "libvirt_connection",
+        LibvirtError::Operation(_) => "operation_failed",
+        LibvirtError::Internal(_) => "internal_error",
+    }
+}
+
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, message) = match &self.0 {
@@ -36,7 +47,11 @@ impl IntoResponse for AppError {
             | LibvirtError::Internal(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };
 
-        let body = axum::Json(json!({ "error": message }));
+        let code = libvirt_error_code(&self.0);
+        let body = axum::Json(json!({
+            "error": message,
+            "error_code": code,
+        }));
         (status, body).into_response()
     }
 }

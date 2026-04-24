@@ -36,6 +36,41 @@ fn run_guestfs_tool(
     Ok(())
 }
 
+/// Whether `virt-builder` runs and `--version` succeeds (guestfs-tools installed).
+pub fn virt_builder_installed() -> bool {
+    Command::new("virt-builder")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// First line of `virt-builder --version` (for support / UI diagnostics).
+pub fn virt_builder_version_line() -> Result<String, LibvirtError> {
+    let out = Command::new("virt-builder")
+        .arg("--version")
+        .output()
+        .map_err(|e| {
+            LibvirtError::Operation(format!(
+                "virt-builder not found or not executable (install guestfs-tools / libguestfs-tools): {e}"
+            ))
+        })?;
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        return Err(LibvirtError::Operation(format!(
+            "virt-builder --version failed: {stderr}"
+        )));
+    }
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let line = stdout.lines().next().unwrap_or("").trim();
+    if line.is_empty() {
+        return Err(LibvirtError::Operation(
+            "virt-builder --version produced empty output".into(),
+        ));
+    }
+    Ok(line.to_string())
+}
+
 /// `virt-builder --notes <template>` (template-specific caveats).
 pub fn template_notes(template: &str) -> Result<String, LibvirtError> {
     let t = template.trim();
@@ -121,6 +156,20 @@ pub fn materialize_virt_builder_if_requested(
             "Refusing to overwrite existing disk: {dest}"
         )));
     }
+
+    let dest_pb = Path::new(&dest);
+    let parent = dest_pb
+        .parent()
+        .filter(|p| !p.as_os_str().is_empty())
+        .ok_or_else(|| LibvirtError::Invalid("Could not determine parent directory for new disk".into()))?;
+    let parent_canon = parent.canonicalize().map_err(|e| {
+        LibvirtError::Invalid(format!("Output parent directory inaccessible: {e}"))
+    })?;
+    crate::build_precheck::precheck_virt_builder_host_env(
+        &parent_canon,
+        cfg.virt_image_build_min_free_parent_bytes,
+        cfg.virt_image_build_min_free_tmp_bytes,
+    )?;
 
     let mut args: Vec<String> = vec![
         os.to_string(),

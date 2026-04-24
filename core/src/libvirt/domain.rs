@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use tracing::warn;
 use virt::connect::Connect;
 use virt::domain::Domain;
@@ -111,7 +113,27 @@ fn domain_action(conn: &Connect, name: &str, action: &str, f: impl FnOnce(&Domai
     f(&domain).map_err(|e| LibvirtError::Operation(format!("Failed to {action} VM '{name}': {e}")))
 }
 
+/// File-backed `disk` sources in domain XML that are not regular files on the host (missing or not a file).
+pub fn missing_file_disk_paths(conn: &Connect, name: &str) -> Result<Vec<String>, LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    let xml = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get_xml"))?;
+    let missing: Vec<String> = collect_disk_paths(&xml)
+        .into_iter()
+        .filter(|p| !Path::new(p).is_file())
+        .collect();
+    Ok(missing)
+}
+
 pub fn start_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let missing = missing_file_disk_paths(conn, name)?;
+    if !missing.is_empty() {
+        return Err(LibvirtError::Invalid(format!(
+            "Cannot start VM '{name}': disk image file(s) missing on host (create the image or fix paths before start): {}",
+            missing.join(", ")
+        )));
+    }
     domain_action(conn, name, "start", |d| d.create().map(|_| ()))
 }
 
@@ -208,11 +230,18 @@ fn undefine_persistent(domain: &Domain, name: &str, user_flags: u32) -> Result<(
         | sys::VIR_DOMAIN_UNDEFINE_MANAGED_SAVE
         | sys::VIR_DOMAIN_UNDEFINE_CHECKPOINTS_METADATA;
     let flags = user_flags | base;
+    let nvram_flag = sys::VIR_DOMAIN_UNDEFINE_NVRAM as u32;
+    let nvram_requested = (user_flags & nvram_flag) != 0;
 
     match domain.undefine_flags(flags as sys::virDomainUndefineFlagsValues) {
         Ok(()) => Ok(()),
         Err(e) => {
             let first = format!("{e}");
+            if !nvram_requested && first.to_lowercase().contains("nvram") {
+                return Err(LibvirtError::Invalid(format!(
+                    "Libvirt refused to remove this domain (UEFI NVRAM). Enable 'Remove NVRAM / var file' in advanced delete, or call the API with undefine_nvram=true (same as: virsh undefine {name} --nvram). Original error: {first}"
+                )));
+            }
             warn!(
                 "undefine_flags failed for VM '{name}' (flags={flags:#x}), retrying with base flags only: {first}"
             );
@@ -236,7 +265,7 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 
 /// Collect file-backed disk paths (`device='disk'`) from domain XML.
 /// CDROMs and non-file sources are intentionally excluded.
-fn collect_disk_paths(xml: &str) -> Vec<String> {
+pub(crate) fn collect_disk_paths(xml: &str) -> Vec<String> {
     let mut paths = Vec::new();
     for block in xml::split_blocks(xml, "disk") {
         let device = xml::extract_attr(&block, "disk", "device")
@@ -393,11 +422,21 @@ fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
             .unwrap_or_else(crate::unknown_string);
         let target = xml::extract_attr(&disk_block, "target", "dev")
             .unwrap_or_else(crate::unknown_string);
+        let bus = xml::extract_attr(&disk_block, "target", "bus").unwrap_or_default();
+        let cache = xml::extract_attr(&disk_block, "driver", "cache").unwrap_or_default();
+        let readonly = disk_block.contains("<readonly");
+        let shareable = xml::extract_attr(&disk_block, "disk", "shareable")
+            .map(|s| s == "yes")
+            .unwrap_or(false);
         disks.push(DiskInfo {
             device,
             source,
             driver,
             target,
+            bus,
+            cache,
+            readonly,
+            shareable,
         });
     }
     disks

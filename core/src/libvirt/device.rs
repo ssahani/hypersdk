@@ -9,7 +9,7 @@ pub fn get_domain_flags_pub(domain: &Domain) -> u32 {
     get_domain_flags(domain)
 }
 
-fn get_domain_flags(domain: &Domain) -> u32 {
+pub(crate) fn get_domain_flags(domain: &Domain) -> u32 {
     domain.get_info()
         .map(|info| {
             if info.state == 1 /* VIR_DOMAIN_RUNNING */ {
@@ -20,6 +20,8 @@ fn get_domain_flags(domain: &Domain) -> u32 {
         })
         .unwrap_or(virt::sys::VIR_DOMAIN_AFFECT_CONFIG)
 }
+
+const DISK_BUSES: &[&str] = &["virtio", "scsi", "sata", "ide"];
 
 pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Result<(), LibvirtError> {
     let source_path = std::path::Path::new(&req.source);
@@ -33,17 +35,45 @@ pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Re
         return Err(LibvirtError::Operation(format!("Disk source is not a file: {}", req.source)));
     }
 
+    let bus = req.bus.trim();
+    let bus = if bus.is_empty() { "virtio" } else { bus };
+    if !DISK_BUSES.contains(&bus) {
+        return Err(LibvirtError::Invalid(format!(
+            "Invalid disk bus '{}'. Allowed: {}",
+            bus,
+            DISK_BUSES.join(", ")
+        )));
+    }
+    let cache = req.cache.trim();
+    let discard = req.discard.trim();
+    let mut driver_attrs = vec![
+        "name='qemu'".to_string(),
+        format!("type='{}'", crate::xml::escape(&req.driver)),
+    ];
+    if !cache.is_empty() {
+        driver_attrs.push(format!("cache='{}'", crate::xml::escape(cache)));
+    }
+    if !discard.is_empty() {
+        driver_attrs.push(format!("discard='{}'", crate::xml::escape(discard)));
+    }
+    let driver_xml = format!("<driver {} />", driver_attrs.join(" "));
+    let ro = if req.readonly { "\n  <readonly/>" } else { "" };
+    let share = if req.shareable { " shareable='yes'" } else { "" };
+
     let domain = lookup_domain(conn, vm_name)?;
 
     let xml = format!(
-        r#"<disk type='file' device='disk'>
-  <driver name='qemu' type='{driver}'/>
+        r#"<disk type='file' device='disk'{share}>
+  {driver_xml}
   <source file='{source}'/>
-  <target dev='{target}' bus='virtio'/>
+  <target dev='{target}' bus='{bus}'/>{ro}
 </disk>"#,
-        driver = crate::xml::escape(&req.driver),
+        share = share,
+        driver_xml = driver_xml,
         source = crate::xml::escape(&req.source),
         target = crate::xml::escape(&req.target),
+        bus = crate::xml::escape(bus),
+        ro = ro,
     );
 
     let flags = get_domain_flags(&domain);
