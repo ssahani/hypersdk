@@ -49,7 +49,7 @@ machina/   # git checkout directory name
 ├── docs/               Optional integration notes (e.g. Apache Guacamole)
 ├── guac-bridge/        Apache Guacamole JSON-auth library + optional standalone `libvirt-guac-bridge` binary (daemon integrates `GET …/guacamole-auth`)
 ├── examples/           Example user configuration
-├── scripts/            deploy-remote.sh (remote rsync+install), demo, status, backup, bulk
+├── scripts/            deploy-remote.sh (rsync + remote build/install; --remote-check / --remote-build), demo, status, backup, bulk
 ├── machinactl        Management CLI (deploy, verify, health, backup, upgrade, tls)
 ├── install.sh          Automated installer (Fedora/RHEL/Ubuntu/Debian/openSUSE/Arch)
 └── Makefile            Build, install, deploy, manage targets
@@ -73,13 +73,15 @@ machina/   # git checkout directory name
 - **Command palette** — `Ctrl+K` / `Cmd+K` to search VMs, networks, storage pools, snapshots, navigate pages, and run quick actions with keyboard navigation
 - **Notification bell** — global notification center in navbar with badge count, showing real-time VM state changes, additions, and removals
 - **Breadcrumb navigation** — auto-generated from route path on every page
-- **Keyboard shortcuts** — `g d` (dashboard), `g v` (VMs), `g n` (networks), `g s` (storage), `g c` (create), `?` (help overlay)
+- **Keyboard shortcuts** — `g d` (dashboard), `g v` (VMs), `g n` (networks), `g s` (storage), `g c` (create), `g j` (jobs), `?` (help overlay)
 - **Dashboard** — VM stats, host memory gauge, VM list with inline quick actions (start/shutdown/console), metric charts, real-time activity feed
 - **Batch VM operations** — multi-select VMs with checkboxes, floating action bar for batch start/shutdown/stop/delete
 - **VM Management** — start, stop, shutdown, reboot, pause, resume, delete with confirmation dialogs
 - **VM Details** — tabbed view (Overview, Disks, Network, Snapshots, Devices, XML, Logs) with live metrics, disk-only snapshots, confirmation dialogs, XML download, save-as-template dialog
 - **VM list views** — toggle between table and card grid layouts with localStorage persistence
-- **Create VM** — form with built-in and saved template selectors, validation, UEFI firmware selection, cloud-init support
+- **Create VM** — Cockpit-style install sources (ISO, URL, PXE, curated **virt-install --install os=…** presets); **Golden Forge** runs a local Packer golden qcow2 as a **Jobs** task with live logs and a step timeline; clone-from-golden flows
+- **Jobs** — background work (virt-image-build, Golden Forge / Packer, VM create with SSE logs) with timelines and `/jobs/{id}` detail
+- **Disk images** — scanned pool images; start **virt-image-build** (virt-builder) on the host with the same job + timeline pattern as Create VM
 - **Import VM** — convert and import VMDK/VDI/VHD disk images to qcow2
 - **VNC Console** — in-browser VM display via noVNC RFB client (dynamically loaded from server)
 - **SPICE Console** — in-browser SPICE display via spice-html5
@@ -300,13 +302,21 @@ sudo ./install.sh --no-start               # Install without starting service
 sudo ./install.sh --uninstall              # Remove everything
 ```
 
+Full install runs **dependencies and Rust**, then **builds the workspace and web UI**, then **starts libvirt** (`libvirtd`) and installs files—so compile errors appear in the log **before** the “Enabling libvirt” step.
+
 ### Remote Deploy
+
+Sources are **rsync’d** to `~/.deployment/machina` on the host; **Rust and npm build only on the server** (not on your laptop). Arguments are always **`USER` then `HOST`** (or `USER@HOST`).
 
 ```bash
 ./scripts/deploy-remote.sh user@host --bind 0.0.0.0 --open-firewall   # keys or SSHPASS
 ./scripts/deploy-remote.sh check user@host                             # systemd + /health
-sudo ./install.sh --remote user@host                          # alternative (install.sh)
+./scripts/deploy-remote.sh user@host --remote-check                    # after rsync: `make check` on server (fast compile smoke)
+./scripts/deploy-remote.sh user@host --remote-build                    # after rsync: `make release` on server (no full install.sh)
+sudo ./install.sh --remote user@host                                   # alternative (install.sh drives SSH itself)
 ```
+
+`--remote-check` / `--remote-build` set `PATH` for cargo and a **LIBCLANG_PATH** hint (Alma/RHEL-style) so **pam-sys** can link; run `sudo ./install.sh --deps-only` once on the host if cargo is missing.
 
 ### What `make deploy` does
 
@@ -347,8 +357,10 @@ cd web && npm run dev               # web UI dev server with hot reload (port 30
 | Dashboard | `/` | Stats cards, memory gauge, VM list with quick actions, metric charts, activity feed |
 | VM List | `/vms` | Table/grid view with search, tag filtering, batch operations, state badges, lifecycle actions |
 | VM Details | `/vms/{name}` | 7 tabs (Overview, Disks, Network, Snapshots, Devices, XML, Logs), confirmation dialogs, XML download, save-as-template dialog |
-| Create VM | `/create` | Template selector + form with validation, UEFI, cloud-init |
+| Create VM | `/create` | Install from media (ISO / URL / PXE / curated virt-install OS), golden-image clone, **Golden Forge** (Packer qcow2 job + logs), templates, UEFI, cloud-init |
 | Import VM | `/import` | Convert and import VMDK/VDI/VHD disk images |
+| Disk images | `/disk-images` | Scanned images; **virt-image-build** job from UI + folder picker |
+| Jobs | `/jobs` | virt-image-build, Golden Forge, VM-create jobs with logs and timelines |
 | Console | `/vms/{name}/console` | Auto-detect VNC/Serial, in-browser display via noVNC or xterm.js |
 | SSH Console | `/ssh`, `/ssh/:host` | Opens session API then PTY-backed `ssh` over `/ws/v1/terminal/{session_id}`; query form `/ssh?host=…&user=…` |
 | Host Networking | `/host-networking` | SVG network topology, port forwarding, bridges, firewall |
@@ -600,6 +612,16 @@ All endpoints are prefixed with `/api/v1`. Responses are JSON unless noted. XML 
 | `POST` | `/vms/{name}/tags` | Set VM tags |
 | `POST` | `/vms/{name}/save-template` | Save VM as reusable template |
 | `GET` | `/vms/{name}/logs` | Get per-VM QEMU logs |
+
+### Jobs (background tasks)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/jobs` | List recent jobs (newest first; in-memory until daemon restart) |
+| `POST` | `/jobs/virt-image-build` | Start **virt-image-build** / virt-builder (`BuildDiskRequest` body) |
+| `POST` | `/jobs/packer-golden-build` | Start **Golden Forge** Packer golden image (`{"guest":"ubuntu2404"}` — ids match `contrib/packer/build-linux-image.sh`) |
+| `GET` | `/jobs/{id}` | Job summary, error, target path, and captured log lines |
+| `GET` | `/jobs/{id}/stream` | **SSE** log stream; terminal `complete` / `error` events |
 
 ### Snapshots
 

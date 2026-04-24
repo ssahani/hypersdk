@@ -2,6 +2,8 @@
 
 machina can emit a **CDI upload DataVolume** plus a **KubeVirt VirtualMachine** manifest from an existing libvirt domain, similar in spirit to [hyper2kvm](https://github.com/ssahani/hyper2kvm): root disk as a DataVolume, virtio disks in the guest, and a **virtio-win CDROM** expressed as a `containerDisk` (cluster-pullable image) instead of attaching `virtio-win.iso` on the hypervisor.
 
+Installing or upgrading the **daemon on the hypervisor** (Rust build, web UI, systemd) is covered in the main [README.md](../README.md): `install.sh`, `scripts/deploy-remote.sh` (including `--remote-check` / `--remote-build` for compile-only runs after rsync).
+
 ## API
 
 - `GET /api/v1/vms/{name}/kubevirt-bundle` — JSON with `yaml`, `virtctl_image_upload_example`, `libvirt_root_disk`, Kubernetes names, `upload_size_gi`, and `cluster_exec_enabled`.

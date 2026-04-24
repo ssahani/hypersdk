@@ -1,7 +1,7 @@
 use std::convert::Infallible;
 use std::fs;
 use std::io::{BufRead, BufReader};
-use std::path::{Path, PathBuf};
+use std::path::{Path as FsPath, PathBuf};
 use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -33,11 +33,15 @@ fn log_audit(action: &str, target: &str, result: &str) {
     audit::write_audit_event(&event);
 }
 
-async fn list_jobs(Extension(jobs): Extension<std::sync::Arc<JobRegistry>>) -> Json<Vec<JobSummary>> {
+async fn list_jobs(
+    State(_manager): State<LibvirtManager>,
+    Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
+) -> Json<Vec<JobSummary>> {
     Json(jobs.list_summaries())
 }
 
 async fn get_job_handler(
+    State(_manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Path(id): Path<String>,
 ) -> Result<Json<JobDetail>, AppError> {
@@ -151,6 +155,7 @@ struct PackerGoldenBuildBody {
 }
 
 async fn post_packer_golden_build_job(
+    State(_manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Json(body): Json<PackerGoldenBuildBody>,
 ) -> Result<Json<Value>, AppError> {
@@ -163,7 +168,7 @@ async fn post_packer_golden_build_job(
             "unknown packer guest id: {guest}"
         ))));
     }
-    if !Path::new(PACKER_GOLDEN_SCRIPT).is_file() {
+    if !FsPath::new(PACKER_GOLDEN_SCRIPT).is_file() {
         return Err(AppError::from(LibvirtError::Invalid(format!(
             "packer script not found: {PACKER_GOLDEN_SCRIPT}"
         ))));
@@ -273,6 +278,7 @@ async fn post_packer_golden_build_job(
 }
 
 async fn job_stream_handler(
+    State(_manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>> + Send>, AppError> {

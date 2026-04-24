@@ -28,7 +28,7 @@ RSYNC_RSH="ssh ${SSH_OPTS[*]}"
 usage() {
     cat <<'EOF'
 deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup]
-        [--bind ADDR] [--open-firewall] [--no-start] [--deps-only] [extra install.sh args...]
+        [--remote-build|--remote-check] [--bind ADDR] [--open-firewall] [--no-start] [--deps-only] [extra install.sh args...]
 
 deploy-remote.sh check [USER@HOST | USER HOST]
 
@@ -37,11 +37,17 @@ Full install: install.sh enables + restarts the daemon (--no-start skips). Post-
 Quick: make install then daemon-reload + try-restart (only restarts if machina-daemon was active).
 Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; replace with your CA for browsers).
 
+--remote-build   After rsync+chown, run `make release` on the SSH host only (no sudo install.sh).
+                 Use this to surface Rust / pam-sys / Axum compile errors quickly. Requires Rust + build deps on the server (e.g. after `sudo install.sh --deps-only` once).
+--remote-check   Same but `make check` (faster compile check).
+
 Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpass.
 
 Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 185.165.240.5 --quick
+  deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
+  deploy-remote.sh sus@host --remote-build   # full release build on server, then exit
   # Full install passes --no-tests to install.sh (no post-install curl suite on the server).
   (Order is always USER then HOST — not HOST USER.)
   SYNC_ONLY=1 deploy-remote.sh sus@host
@@ -156,6 +162,8 @@ BIND=""
 OPEN_FW=false
 NO_START=false
 DEPS_ONLY=false
+REMOTE_BUILD=false
+REMOTE_CHECK=false
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -166,6 +174,8 @@ parse_flags() {
             --open-firewall) OPEN_FW=true; shift ;;
             --no-start) NO_START=true; shift ;;
             --deps-only) DEPS_ONLY=true; shift ;;
+            --remote-build) REMOTE_BUILD=true; SKIP_INSTALL=true; shift ;;
+            --remote-check) REMOTE_CHECK=true; SKIP_INSTALL=true; shift ;;
             --bind) shift; BIND="${1:?}"; shift ;;
             *) REST+=("$1"); shift ;;
         esac
@@ -227,6 +237,38 @@ rsync_r \
 # If a previous run left root-owned files under the tree (e.g. interrupted sudo), cargo fails with EACCES.
 info "ensure $REMOTE_DIR is owned by the SSH user (idempotent)"
 ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo chown -R \"\$(id -un):\$(id -gn)\" ." || warn "chown deploy tree failed (non-fatal if you are not sudo-capable)"
+
+if $REMOTE_BUILD || $REMOTE_CHECK; then
+    mk_target=release
+    $REMOTE_CHECK && mk_target=check
+    echo "🔨 remote: make $mk_target on $HOST (compile only — no install.sh)"
+    ssh_r "$REMOTE" "bash -s" "$REMOTE_DIR" "$mk_target" <<'EOS' || die "remote compile failed"
+set -euo pipefail
+REMOTE_DIR="${1:?}"
+REMOTE_MAKE_TARGET="${2:?}"
+cd "$REMOTE_DIR" || exit 1
+export PATH="${HOME}/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:${PATH}"
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "cargo not on PATH — install Rust + clang first (e.g. sudo ./install.sh --deps-only on the server)." >&2
+    exit 1
+fi
+if [ -z "${LIBCLANG_PATH:-}" ]; then
+    if command -v llvm-config >/dev/null 2>&1; then
+        _maj="$(llvm-config --version 2>/dev/null | cut -d. -f1 || true)"
+        if [ -n "$_maj" ] && [ -d "/usr/lib64/llvm${_maj}/lib64" ]; then
+            export LIBCLANG_PATH="/usr/lib64/llvm${_maj}/lib64"
+        fi
+    fi
+    if [ -z "${LIBCLANG_PATH:-}" ] && [ -d /usr/lib64/llvm20/lib64 ]; then
+        export LIBCLANG_PATH=/usr/lib64/llvm20/lib64
+    fi
+fi
+[ -n "${LIBCLANG_PATH:-}" ] && printf 'ℹ  LIBCLANG_PATH=%s\n' "$LIBCLANG_PATH"
+make "$REMOTE_MAKE_TARGET"
+EOS
+    ok "remote compile ok — run full deploy without --remote-build/--remote-check to install"
+    exit 0
+fi
 
 if [[ "${SYNC_ONLY:-0}" == 1 ]] || $SKIP_INSTALL; then
     ok "sync-only done"

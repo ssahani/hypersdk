@@ -1351,7 +1351,6 @@ HELPEOF
     info "Install log: $LOG_FILE"
 
     install_deps
-    enable_libvirt
     install_rust
 
     if $deps_only; then
@@ -1362,6 +1361,8 @@ HELPEOF
     find_source
     build_rust
     build_web
+    # After sources compile: bring up libvirt so virsh failures do not obscure Rust build errors in the log.
+    enable_libvirt
     install_files
     ensure_tls_for_https
 

@@ -1,6 +1,6 @@
 # Apache Guacamole and libvirt (optional integration)
 
-Machina already ships **in-browser consoles**: noVNC and SPICE over WebSocket proxies, serial PTY, and SSH—see the main README. **Guacamole does not replace libvirt** or machina lifecycle management; it is an optional HTML5 gateway if you want Apache Guacamole’s connection model (e.g. RDP to Windows guests, centralized Docker deployment, PostgreSQL-backed connections, or encrypted JSON auth).
+Machina already ships **in-browser consoles**: noVNC and SPICE over WebSocket proxies, serial PTY, and SSH—see the main [README.md](../README.md) for install (`install.sh`), remote deploy (`scripts/deploy-remote.sh`), and the full feature list. **Guacamole does not replace libvirt** or machina lifecycle management; it is an optional HTML5 gateway if you want Apache Guacamole’s connection model (e.g. RDP to Windows guests, centralized Docker deployment, PostgreSQL-backed connections, or encrypted JSON auth).
 
 Separation of roles:
 
