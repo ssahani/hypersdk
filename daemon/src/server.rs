@@ -1,10 +1,14 @@
 use axum::extract::Extension;
 use axum::middleware;
 use axum::Router;
+use http::header;
+use http::HeaderValue;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
+use tower::ServiceBuilder;
 use tower_http::services::{ServeDir, ServeFile};
+use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 use machina_core::{LibvirtManager, MachinaConfig};
 
@@ -70,9 +74,14 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     if let Some(dir) = web_dir {
         tracing::info!("Serving web UI from {}", dir.display());
         let index = dir.join("index.html");
-        router = router.fallback_service(
-            ServeDir::new(&dir).fallback(ServeFile::new(index)),
-        );
+        // Avoid stale SPA shells after upgrades (hashed asset names change; old index.html must not linger in cache).
+        let static_ui = ServiceBuilder::new()
+            .layer(SetResponseHeaderLayer::overriding(
+                header::CACHE_CONTROL,
+                HeaderValue::from_static("no-cache, must-revalidate"),
+            ))
+            .service(ServeDir::new(&dir).fallback(ServeFile::new(index)));
+        router = router.fallback_service(static_ui);
     }
 
     router.layer(TraceLayer::new_for_http())
