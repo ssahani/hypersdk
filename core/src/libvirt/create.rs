@@ -3,11 +3,12 @@ use std::process::Command;
 
 use virt::connect::Connect;
 use virt::domain::Domain;
-use virt::storage_pool::StoragePool;
 
 use crate::config::{LibvirtConfig, VmCreateBackend};
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
+
+use super::subprocess::{self, VmCreateLogSink};
 
 /// [`CreateVmRequest::mkosi_workspace`] set means a Bootable=yes style image (EFI/GPT); BIOS would hang at SeaBIOS.
 fn ensure_uefi_for_mkosi_workspace(req: &mut CreateVmRequest) {
@@ -82,6 +83,7 @@ pub fn create_vm(
     backend: VmCreateBackend,
     libvirt_uri: &str,
     libvirt_cfg: &LibvirtConfig,
+    log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
     crate::validate::validate_name(&req.name)?;
     let mut req = req.clone();
@@ -108,17 +110,30 @@ pub fn create_vm(
     ensure_uefi_for_mkosi_workspace(&mut req);
     apply_fedora_mkosi_resource_defaults(&mut req);
 
-    super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg)?;
-    super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg)?;
+    subprocess::log_line(
+        log,
+        "virtspawn",
+        "Preparing disk image (mkosi / virt-builder / blank)…",
+    );
+    super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg, log)?;
+    super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg, log)?;
     match backend {
         VmCreateBackend::VirtInstall => {
-            super::virt_install::create_vm_virt_install(&req, libvirt_uri)
+            subprocess::log_line(log, "virtspawn", "Defining VM with virt-install…");
+            super::virt_install::create_vm_virt_install(&req, libvirt_uri, log)
         }
-        VmCreateBackend::LibvirtXml => create_vm_libvirt_xml(conn, &req),
+        VmCreateBackend::LibvirtXml => {
+            subprocess::log_line(log, "virtspawn", "Defining VM with libvirt XML…");
+            create_vm_libvirt_xml(conn, &req, log)
+        }
     }
 }
 
-fn create_vm_libvirt_xml(conn: &Connect, req: &CreateVmRequest) -> Result<(), LibvirtError> {
+fn create_vm_libvirt_xml(
+    conn: &Connect,
+    req: &CreateVmRequest,
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_vcpus(req.vcpus)?;
     crate::validate::validate_memory_mb(req.memory_mb)?;
 
@@ -191,7 +206,7 @@ fn create_vm_libvirt_xml(conn: &Connect, req: &CreateVmRequest) -> Result<(), Li
     } else {
         crate::validate::validate_disk_gb(req.disk_gb)?;
         let path = find_disk_path(conn, &req.name)?;
-        create_qcow2_disk(&path, req.disk_gb)?;
+        create_qcow2_disk(&path, req.disk_gb, log)?;
         path
     };
 
@@ -215,36 +230,32 @@ fn create_vm_libvirt_xml(conn: &Connect, req: &CreateVmRequest) -> Result<(), Li
 }
 
 pub(crate) fn find_disk_path(conn: &Connect, vm_name: &str) -> Result<String, LibvirtError> {
-    if let Ok(pool) = StoragePool::lookup_by_name(conn, "default") {
-        if let Ok(xml) = pool.get_xml_desc(0) {
-            if let Some(path) = extract_pool_path(&xml) {
-                return Ok(format!("{}/{}.qcow2", path, vm_name));
-            }
-        }
+    if let Some(base) = super::storage::primary_vm_disk_base_dir(conn) {
+        return Ok(format!("{}/{}.qcow2", base.trim_end_matches('/'), vm_name));
     }
     Ok(format!("/var/lib/libvirt/images/{}.qcow2", vm_name))
 }
 
-fn extract_pool_path(xml: &str) -> Option<String> {
-    crate::xml::extract_simple_text(xml, "path")
-}
-
-fn create_qcow2_disk(path: &str, size_gb: u64) -> Result<(), LibvirtError> {
+fn create_qcow2_disk(
+    path: &str,
+    size_gb: u64,
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
     if Path::new(path).exists() {
         return Err(LibvirtError::Operation(format!(
             "Disk image already exists: {path}"
         )));
     }
 
-    let output = Command::new("qemu-img")
-        .args(["create", "-f", "qcow2", path, &format!("{size_gb}G")])
-        .output()
-        .map_err(LibvirtError::map_op("Failed to run qemu-img"))?;
+    let summary = format!("$ qemu-img create -f qcow2 {path} {size_gb}G");
+    let mut cmd = Command::new("qemu-img");
+    cmd.args(["create", "-f", "qcow2", path, &format!("{size_gb}G")]);
+    let output = subprocess::run_command_streaming(cmd, &summary, "qemu-img", log)?;
 
     if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(LibvirtError::Operation(format!(
-            "qemu-img failed: {stderr}"
+            "qemu-img failed (exit {}); see streamed log",
+            output.status
         )));
     }
 

@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router'
-import { createVM, getTemplates, VmTemplate, CreateVmRequest } from '../api/vm'
+import { createVMWithProgress, getTemplates, VmTemplate, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listIsos, listDiskImages, ImageFile, generateCloudInit, listSavedTemplates, listVirtBuilderTemplates, getVirtBuilderNotes, listMkosiWorkspaces, MkosiWorkspace } from '../api/extras'
+import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Server, Layers, HardDrive, Cloud, Disc, Boxes, FileText, Check } from 'lucide-react'
+import { ArrowLeft, Server, Layers, HardDrive, Cloud, Disc, Boxes, FileText, Check, FolderOpen } from 'lucide-react'
 
 function linesToList(s: string): string[] {
   return s.split(/\r?\n/).map((l) => l.trim()).filter(Boolean)
@@ -247,10 +248,14 @@ export default function CreateVMPage() {
   const [templates, setTemplates] = useState<VmTemplate[]>([])
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [isoFiles, setIsoFiles] = useState<ImageFile[]>([])
+  const [isoBrowseOpen, setIsoBrowseOpen] = useState(false)
+  const [existingDiskBrowseOpen, setExistingDiskBrowseOpen] = useState(false)
   const [diskFiles, setDiskFiles] = useState<ImageFile[]>([])
   const [savedTemplates, setSavedTemplates] = useState<VmTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState<string>('')
   const [submitting, setSubmitting] = useState(false)
+  const [createLog, setCreateLog] = useState<string[]>([])
+  const logEndRef = useRef<HTMLDivElement>(null)
   const [showCloudInit, setShowCloudInit] = useState(false)
   const [ciUser, setCiUser] = useState('')
   const [ciPass, setCiPass] = useState('')
@@ -259,11 +264,15 @@ export default function CreateVMPage() {
   const navigate = useNavigate()
 
   useEffect(() => {
+    if (createLog.length) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [createLog])
+
+  useEffect(() => {
     getTemplates().then(setTemplates).catch(() => {})
     listSavedTemplates().then(setSavedTemplates).catch(() => {})
     listNetworks().then(setNetworks).catch(() => {})
-    listIsos().then(setIsoFiles).catch(() => {})
-    listDiskImages().then(setDiskFiles).catch(() => {})
+    listIsos().then((r) => setIsoFiles(r.files)).catch(() => {})
+    listDiskImages().then((r) => setDiskFiles(r.files)).catch(() => {})
     listVirtBuilderTemplates().then((r) => setVbTemplates(r.templates || [])).catch(() => setVbTemplates([]))
     listMkosiWorkspaces().then(setMkosiWorkspaces).catch(() => setMkosiWorkspaces([]))
   }, [])
@@ -318,6 +327,7 @@ export default function CreateVMPage() {
       if (goldenSaved) { toast.warning('Clear the golden saved template or switch to New disk / Existing disk'); return }
     }
     setSubmitting(true)
+    setCreateLog([])
     try {
       // Generate cloud-init ISO if configured
       let cloudInitIso: string | undefined
@@ -406,7 +416,9 @@ export default function CreateVMPage() {
         const mi = req.mkosi_image?.trim()
         if (!mi) { delete req.mkosi_image }
       }
-      await createVM(req)
+      await createVMWithProgress(req, (line) => {
+        setCreateLog((prev) => [...prev, line])
+      })
       toast.success(`Created VM '${form.name}'`)
       navigate('/vms')
     } catch (e: unknown) {
@@ -665,7 +677,11 @@ export default function CreateVMPage() {
               <p className="text-xs text-slate-400">
                 Runs <code className="text-slate-300">mkosi build</code> in a directory that contains <code className="text-slate-300">mkosi.conf</code> (
                 <a href="https://github.com/systemd/mkosi" className="text-blue-400 hover:underline" target="_blank" rel="noreferrer">systemd/mkosi</a>
-                ). The daemon passes <code className="text-slate-300">--output-dir</code> and <code className="text-slate-300">--workspace-directory</code> into an ephemeral directory under <code className="text-slate-300">/var/tmp</code>; the resulting <code className="text-slate-300">.raw</code> or <code className="text-slate-300">.qcow2</code> is converted and moved to the libvirt image pool — nothing is left in your workspace. Install.sh installs upstream mkosi (v16+) from GitHub when not already present and symlinks <code className="text-slate-300">/usr/local/bin/mkosi</code>.
+                ). The daemon passes <code className="text-slate-300">--output-dir</code> and <code className="text-slate-300">--workspace-directory</code> into an ephemeral directory under <code className="text-slate-300">/var/tmp/virtspawn-mkosi-ws/</code>; the resulting <code className="text-slate-300">.raw</code> or <code className="text-slate-300">.qcow2</code> is converted and moved to your libvirt image pool — nothing is left in your recipe workspace under <code className="text-slate-300">mkosi-defs</code>. Install.sh installs upstream mkosi (v16+) from GitHub when not already present and symlinks <code className="text-slate-300">/usr/local/bin/mkosi</code>.
+              </p>
+              <p className="text-xs text-amber-100/85 border border-amber-800/40 rounded-md px-2 py-1.5 bg-amber-950/15">
+                <strong className="text-amber-50/90">Disk space:</strong> failed builds can leave large trees under <code className="text-amber-100/90">/var/tmp/virtspawn-mkosi-ws/</code>.
+                Remove stale directories when you no longer need the logs (successful builds remove them automatically unless <code className="text-amber-100/90">VIRTSPAWN_MKOSI_KEEP_WORKSPACE</code> is set for debugging).
               </p>
               <p className="text-xs text-sky-200/85 border border-sky-800/40 rounded-md px-2 py-1.5 bg-sky-950/25">
                 <strong className="text-sky-100/90">Alma / RHEL / Rocky 9:</strong> if <code className="text-sky-100/80">mkosi</code> says <code className="text-sky-100/80">systemd-repart</code> must be <strong className="text-sky-100/90">254+</strong> but the host ships 252, add <code className="text-sky-100/80">ToolsTree=yes</code> under <code className="text-sky-100/80">[Build]</code> in <code className="text-sky-100/80">mkosi.conf</code> so mkosi uses its default tools tree (newer repart). See{' '}
@@ -893,17 +909,37 @@ export default function CreateVMPage() {
               <input id="vm-disk" type="number" min={1} value={form.disk_gb} onChange={(e) => setForm({ ...form, disk_gb: parseInt(e.target.value) || 10 })} className="input-field" />
             </div>
           ) : (
-            <div>
+            <div className="space-y-2">
               <label htmlFor="vm-existing-disk" className="block text-sm text-slate-400 mb-1">Disk Image Path *</label>
               {diskFiles.length > 0 ? (
                 <select id="vm-existing-disk" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field">
-                  <option value="">Select disk image...</option>
-                  {diskFiles.map(f => <option key={f.path} value={f.path}>{f.name} ({(f.size_bytes / 1073741824).toFixed(1)} GB)</option>)}
+                  <option value="">Select disk image (from scan)…</option>
+                  {diskFiles.map((f) => (
+                    <option key={f.path} value={f.path}>
+                      {f.name} ({(f.size_bytes / 1073741824).toFixed(1)} GB)
+                    </option>
+                  ))}
                 </select>
-              ) : (
-                <input id="vm-existing-disk" type="text" value={form.existing_disk || ''} onChange={(e) => setForm({ ...form, existing_disk: e.target.value })} className="input-field" placeholder="/var/lib/libvirt/images/disk.qcow2" />
-              )}
-              <p className="text-xs text-slate-500 mt-1">Supports qcow2, raw, and img formats.</p>
+              ) : null}
+              <div className="flex gap-2">
+                <input
+                  id="vm-existing-disk"
+                  type="text"
+                  value={form.existing_disk || ''}
+                  onChange={(e) => setForm({ ...form, existing_disk: e.target.value })}
+                  className="input-field flex-1 min-w-0"
+                  placeholder="/var/lib/libvirt/images/disk.qcow2"
+                />
+                <button
+                  type="button"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
+                  onClick={() => setExistingDiskBrowseOpen(true)}
+                >
+                  <FolderOpen className="w-4 h-4" aria-hidden />
+                  Browse
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">qcow2, raw, img, vmdk, … — browse starts at / on the hypervisor (same permissions as the daemon).</p>
             </div>
           )}
         </div>
@@ -961,13 +997,41 @@ export default function CreateVMPage() {
           <label htmlFor="vm-iso" className="block text-sm text-slate-400 mb-1"><Disc className="w-3 h-3 inline -mt-0.5" /> ISO Path (optional)</label>
           {diskMode === 'virt_builder' || diskMode === 'mkosi' ? (
             <p className="text-xs text-slate-500">Install ISO is not used when the root disk is built from virt-builder or mkosi.</p>
-          ) : isoFiles.length > 0 ? (
-            <select id="vm-iso" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field">
-              <option value="">No ISO</option>
-              {isoFiles.map(f => <option key={f.path} value={f.path}>{f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)</option>)}
-            </select>
           ) : (
-            <input id="vm-iso" type="text" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field" placeholder="/path/to/image.iso" />
+            <div className="space-y-2">
+              {isoFiles.length > 0 ? (
+                <select id="vm-iso" value={form.iso || ''} onChange={(e) => setForm({ ...form, iso: e.target.value })} className="input-field">
+                  <option value="">No ISO (from scan)</option>
+                  {isoFiles.map((f) => (
+                    <option key={f.path} value={f.path}>
+                      {f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <div className="flex gap-2">
+                <input
+                  id="vm-iso"
+                  type="text"
+                  value={form.iso || ''}
+                  onChange={(e) => setForm({ ...form, iso: e.target.value })}
+                  className="input-field flex-1 min-w-0"
+                  placeholder="/path/to/ubuntu.iso on the hypervisor"
+                />
+                <button
+                  type="button"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
+                  onClick={() => setIsoBrowseOpen(true)}
+                >
+                  <FolderOpen className="w-4 h-4" aria-hidden />
+                  Browse
+                </button>
+              </div>
+              <p className="text-xs text-slate-500">
+                Browse opens at <code className="text-slate-400">/</code> on the hypervisor; chips include pools,{' '}
+                <code className="text-slate-400">/data</code>, <code className="text-slate-400">/home</code>, etc. Directories the daemon cannot read are skipped or error.
+              </p>
+            </div>
           )}
         </div>
 
@@ -997,6 +1061,20 @@ export default function CreateVMPage() {
           )}
         </div>
 
+        {(submitting || createLog.length > 0) && (
+          <div className="rounded-xl border border-slate-700/60 bg-slate-950/40 p-4 space-y-2">
+            <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+              <Server className="w-4 h-4 text-blue-400" />
+              Create progress
+            </h3>
+            <p className="text-xs text-slate-500">Live output from mkosi, virt-builder, virt-install, and qemu-img on the hypervisor (same request as Create VM).</p>
+            <pre className="max-h-72 overflow-y-auto rounded-lg bg-black/50 border border-slate-800 p-3 text-[11px] leading-snug font-mono text-slate-200 whitespace-pre-wrap break-all">
+              {createLog.length ? createLog.join('\n') : <span className="text-slate-500">Starting…</span>}
+            </pre>
+            <div ref={logEndRef} />
+          </div>
+        )}
+
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
           <Link to="/vms" className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Cancel</Link>
           <button type="submit" disabled={submitting} className="px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded text-sm transition">
@@ -1004,6 +1082,21 @@ export default function CreateVMPage() {
           </button>
         </div>
       </form>
+
+      <BrowseHostPathModal
+        open={isoBrowseOpen && diskMode !== 'virt_builder' && diskMode !== 'mkosi'}
+        onClose={() => setIsoBrowseOpen(false)}
+        title="Browse for install ISO"
+        canSelectFile={isIsoFileName}
+        onSelectPath={(p) => setForm((prev) => ({ ...prev, iso: p }))}
+      />
+      <BrowseHostPathModal
+        open={existingDiskBrowseOpen}
+        onClose={() => setExistingDiskBrowseOpen(false)}
+        title="Browse for disk image"
+        canSelectFile={isHostDiskImageFileName}
+        onSelectPath={(p) => setForm((prev) => ({ ...prev, existing_disk: p }))}
+      />
     </div>
   )
 }

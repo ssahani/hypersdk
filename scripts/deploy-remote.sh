@@ -33,7 +33,7 @@ deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup
 deploy-remote.sh check [USER@HOST | USER HOST]
 
 Flow: rsync → ~/.deployment/virtspawn (REMOTE_DIR) → build on server → install → systemd.
-Full install: install.sh enables + restarts the daemon (--no-start skips). install.sh also ensures mkosi (v16+): distro package if recent, else pipx from GitHub, else optional git clone (VIRTSPAWN_MKOSI_FROM_CLONE=1), else /opt/mkosi-venv; host build tools (bubblewrap, dosfstools, …) best-effort. Default disk workflow in the Create VM UI.
+Full install: install.sh enables + restarts the daemon (--no-start skips). Post-install curl/API verification is skipped on the remote (--no-tests). install.sh also ensures mkosi (v16+): distro package if recent, else pipx from GitHub, else optional git clone (VIRTSPAWN_MKOSI_FROM_CLONE=1), else /opt/mkosi-venv; host build tools (bubblewrap, dosfstools, …) best-effort. Default disk workflow in the Create VM UI.
 Quick: make install then daemon-reload + try-restart (only restarts if virtspawn-daemon was active).
 Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; replace with your CA for browsers).
 
@@ -42,6 +42,7 @@ Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpas
 Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 185.165.240.5 --quick
+  # Full install passes --no-tests to install.sh (no post-install curl suite on the server).
   (Order is always USER then HOST — not HOST USER.)
   SYNC_ONLY=1 deploy-remote.sh sus@host
   deploy-remote.sh check    deploy-remote.sh check sus@host
@@ -232,7 +233,7 @@ if [[ "${SYNC_ONLY:-0}" == 1 ]] || $SKIP_INSTALL; then
     exit 0
 fi
 
-OPTS=""
+OPTS=" --no-tests"
 [[ -n "$BIND" ]] && OPTS+=" --bind $BIND"
 $OPEN_FW && OPTS+=" --open-firewall"
 $NO_START && OPTS+=" --no-start"

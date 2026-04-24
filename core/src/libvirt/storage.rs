@@ -1,3 +1,5 @@
+use std::path::Path;
+
 use virt::connect::Connect;
 use virt::storage_pool::StoragePool;
 use virt::storage_vol::StorageVol;
@@ -8,6 +10,99 @@ use crate::LibvirtError;
 fn lookup_pool(conn: &Connect, name: &str) -> Result<StoragePool, LibvirtError> {
     StoragePool::lookup_by_name(conn, name)
         .map_err(|e| LibvirtError::NotFound(format!("Pool '{name}' not found: {e}")))
+}
+
+/// Extract `<target>…</path>…` from libvirt storage pool XML (`<path` may include attributes).
+pub fn target_path_from_pool_xml(xml: &str) -> Option<String> {
+    let lower = xml.to_ascii_lowercase();
+    let start = lower.find("<target")?;
+    let after = &xml[start..];
+    let gt = after.find('>')?;
+    let inner_start = start + gt + 1;
+    let inner_lower = &lower[inner_start..];
+    let close_rel = inner_lower.find("</target>")?;
+    let inner = &xml[inner_start..inner_start + close_rel];
+    crate::xml::extract_text(inner, "path")
+        .or_else(|| crate::xml::extract_simple_text(inner, "path"))
+}
+
+/// Sorted unique `<target><path>` values from all defined storage pools.
+pub fn list_pool_target_paths(conn: &Connect) -> Result<Vec<String>, LibvirtError> {
+    let pools = conn
+        .list_all_storage_pools(0)
+        .map_err(LibvirtError::map_op("Failed to list storage pools"))?;
+    let mut set = std::collections::BTreeSet::new();
+    for pool in pools {
+        let Ok(xml) = pool.get_xml_desc(0) else {
+            continue;
+        };
+        if let Some(p) = target_path_from_pool_xml(&xml) {
+            let t = p.trim().to_string();
+            if Path::new(&t).is_absolute() {
+                set.insert(t);
+            }
+        }
+    }
+    Ok(set.into_iter().collect())
+}
+
+/// Directories scanned for disk images / delete allow-list: all pool targets plus virtspawn defaults.
+pub fn collect_image_scan_directories(conn: &Connect) -> Result<Vec<std::path::PathBuf>, LibvirtError> {
+    let mut out: Vec<std::path::PathBuf> = list_pool_target_paths(conn)?
+        .into_iter()
+        .map(std::path::PathBuf::from)
+        .collect();
+    for extra in ["/var/lib/virtspawn/images", "/var/lib/libvirt/images"] {
+        let pb = std::path::PathBuf::from(extra);
+        if !out.iter().any(|p| p == &pb) {
+            out.push(pb);
+        }
+    }
+    Ok(out)
+}
+
+/// Prefixes (each ending with `/`) under which disk image delete is allowed.
+pub fn disk_image_delete_allowed_prefixes(conn: &Connect) -> Result<Vec<String>, LibvirtError> {
+    let dirs = collect_image_scan_directories(conn)?;
+    Ok(dirs
+        .into_iter()
+        .map(|p| {
+            let s = p.to_string_lossy().to_string();
+            if s.ends_with('/') {
+                s
+            } else {
+                format!("{s}/")
+            }
+        })
+        .collect())
+}
+
+/// Directory for new VM root disks: prefers pool `default`, then any path containing `images`, else first pool path.
+pub fn primary_vm_disk_base_dir(conn: &Connect) -> Option<String> {
+    let pools = conn.list_all_storage_pools(0).ok()?;
+    let mut rows: Vec<(String, String)> = Vec::new();
+    for pool in pools {
+        let Ok(name) = pool.get_name() else {
+            continue;
+        };
+        let Ok(xml) = pool.get_xml_desc(0) else {
+            continue;
+        };
+        let Some(path) = target_path_from_pool_xml(&xml) else {
+            continue;
+        };
+        if !Path::new(&path).is_absolute() {
+            continue;
+        }
+        rows.push((name, path.trim_end_matches('/').to_string()));
+    }
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    rows
+        .iter()
+        .find(|(n, _)| n == "default")
+        .or_else(|| rows.iter().find(|(_, p)| p.contains("images")))
+        .or_else(|| rows.first())
+        .map(|(_, p)| p.clone())
 }
 
 pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> {
@@ -259,5 +354,37 @@ fn vol_type_to_string(kind: u32) -> String {
         4 => "netdir".to_string(),
         5 => "ploop".to_string(),
         _ => format!("unknown ({kind})"),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::target_path_from_pool_xml;
+
+    #[test]
+    fn target_path_dir_pool() {
+        let xml = r#"<pool type='dir'>
+  <name>default</name>
+  <target>
+    <path>/data/libvirt/images</path>
+  </target>
+</pool>"#;
+        assert_eq!(
+            target_path_from_pool_xml(xml).as_deref(),
+            Some("/data/libvirt/images")
+        );
+    }
+
+    #[test]
+    fn target_path_with_permissions_attr() {
+        let xml = r#"<pool type='dir'>
+  <target>
+    <path permissions='0711'>/var/lib/libvirt/images</path>
+  </target>
+</pool>"#;
+        assert_eq!(
+            target_path_from_pool_xml(xml).as_deref(),
+            Some("/var/lib/libvirt/images")
+        );
     }
 }

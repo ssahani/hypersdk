@@ -2,7 +2,7 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use virtspawn_core::libvirt::{extras, virt_builder};
+use virtspawn_core::libvirt::{extras, storage, virt_builder};
 use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
 
 use crate::error::AppError;
@@ -19,18 +19,38 @@ fn log_audit(action: &str, target: &str, result: &str) {
 
 // ── ISO / Disk Browser ─────────────────────────────────────────────
 
-async fn list_isos(
-    State(_m): State<LibvirtManager>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let files = extras::list_iso_files();
-    Ok(Json(serde_json::json!(files)))
+async fn list_isos(State(manager): State<LibvirtManager>) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
+    let mgr = manager.clone();
+    let res = tokio::task::spawn_blocking(move || mgr.with_conn(extras::list_iso_files))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(res))
 }
 
-async fn list_disk_images(
-    State(_m): State<LibvirtManager>,
-) -> Result<Json<serde_json::Value>, AppError> {
-    let files = extras::list_disk_images();
-    Ok(Json(serde_json::json!(files)))
+async fn list_disk_images(State(manager): State<LibvirtManager>) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
+    let mgr = manager.clone();
+    let res = tokio::task::spawn_blocking(move || mgr.with_conn(extras::list_disk_images))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(res))
+}
+
+#[derive(Deserialize)]
+struct BrowseDirQuery {
+    /// Absolute directory on the hypervisor; omit or empty to open the first allowed root.
+    path: Option<String>,
+}
+
+async fn browse_directory_handler(
+    State(manager): State<LibvirtManager>,
+    Query(q): Query<BrowseDirQuery>,
+) -> Result<Json<extras::BrowseDirResponse>, AppError> {
+    let path = q.path.unwrap_or_default();
+    let mgr = manager.clone();
+    let res = tokio::task::spawn_blocking(move || mgr.with_conn(|c| extras::browse_directory(c, &path)))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(res))
 }
 
 #[derive(Deserialize)]
@@ -39,18 +59,19 @@ struct DeleteImageQuery {
 }
 
 async fn delete_disk_image(
-    State(_m): State<LibvirtManager>,
+    State(manager): State<LibvirtManager>,
     Query(q): Query<DeleteImageQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let path = q.path.trim().to_string();
     if path.is_empty() {
         return Err(AppError::from(LibvirtError::Invalid("path is required".into())));
     }
-    // Safety: only allow paths under known image directories.
-    let allowed_prefixes = [
-        "/var/lib/libvirt/images/",
-        "/var/lib/virtspawn/images/",
-    ];
+    let mgr = manager.clone();
+    let allowed_prefixes: Vec<String> = tokio::task::spawn_blocking(move || {
+        mgr.with_conn(storage::disk_image_delete_allowed_prefixes)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     if !allowed_prefixes.iter().any(|p| path.starts_with(p)) {
         return Err(AppError::from(LibvirtError::Invalid(
             format!("Path not in an allowed images directory: {path}")
@@ -177,10 +198,31 @@ struct CloudInitRequest {
 }
 
 async fn generate_cloud_init(
-    State(_m): State<LibvirtManager>,
+    State(manager): State<LibvirtManager>,
     Json(req): Json<CloudInitRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let path = extras::generate_cloud_init_iso(&req.output_path, &req.hostname, &req.username, &req.password, &req.ssh_key)?;
+    let mgr = manager.clone();
+    let output_path = req.output_path.clone();
+    let hostname = req.hostname.clone();
+    let username = req.username.clone();
+    let password = req.password.clone();
+    let ssh_key = req.ssh_key.clone();
+    let path = tokio::task::spawn_blocking(move || {
+        mgr.with_conn(|conn| {
+            let default_dir = storage::primary_vm_disk_base_dir(conn)
+                .unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
+            extras::generate_cloud_init_iso(
+                &output_path,
+                &default_dir,
+                &hostname,
+                &username,
+                &password,
+                &ssh_key,
+            )
+        })
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "created", "path": path })))
 }
 
@@ -190,10 +232,17 @@ async fn generate_cloud_init(
 struct ImportRequest { source: String, dest_name: String }
 
 async fn import_disk(
-    State(_m): State<LibvirtManager>,
+    State(manager): State<LibvirtManager>,
     Json(req): Json<ImportRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let path = extras::import_disk_image(&req.source, &req.dest_name)?;
+    let mgr = manager.clone();
+    let source = req.source.clone();
+    let dest_name = req.dest_name.clone();
+    let path = tokio::task::spawn_blocking(move || {
+        mgr.with_conn(|conn| extras::import_disk_image(conn, &source, &dest_name))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "imported", "path": path })))
 }
 
@@ -398,6 +447,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
     Router::new()
         // Browser
         .route("/browse/isos", get(list_isos))
+        .route("/browse/dir", get(browse_directory_handler))
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))
         .route("/browse/virt-builder", get(list_virt_builder_templates))

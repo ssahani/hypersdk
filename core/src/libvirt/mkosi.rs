@@ -16,6 +16,8 @@ use crate::config::LibvirtConfig;
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
+use super::subprocess::{self, VmCreateLogSink};
+
 /// Auto-detect a mkosi workspace when the user provided no boot source.
 ///
 /// Tries these matches in order:
@@ -51,6 +53,7 @@ pub fn materialize_mkosi_if_requested(
     conn: &Connect,
     req: &mut CreateVmRequest,
     cfg: &LibvirtConfig,
+    log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
     let ws = req.mkosi_workspace.trim();
     if ws.is_empty() {
@@ -130,29 +133,29 @@ pub fn materialize_mkosi_if_requested(
     }
     cmd.arg("build");
 
-    let out = cmd
-        .output()
-        .map_err(|e| {
-            LibvirtError::Operation(format!(
-                "Failed to run mkosi at {} (install.sh symlinks to /usr/local/bin/mkosi; v16+): {e}",
-                mkosi_bin.display()
-            ))
-        })?;
+    let summary = format!(
+        "$ mkosi build --directory {ws_str} --workspace-directory {staging_str} --output-dir {output_dir_str}{}",
+        if image_name.is_empty() {
+            String::new()
+        } else {
+            format!(" --image {image_name}")
+        }
+    );
+    let out = subprocess::run_command_streaming(cmd, &summary, "mkosi", log)?;
 
     if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let stdout = String::from_utf8_lossy(&out.stdout);
         tracing::warn!(
             path = %staging.display(),
             "mkosi build failed; ephemeral workspace left for inspection (delete manually or set VIRTSPAWN_MKOSI_KEEP_WORKSPACE)"
         );
         return Err(LibvirtError::Operation(format!(
-            "mkosi build failed: {stderr}{stdout}"
+            "mkosi build failed (exit {}); see streamed log above",
+            out.status
         )));
     }
 
     let artifact = find_mkosi_disk_artifact(&output_dir)?;
-    materialize_artifact_to_dest(&artifact, Path::new(&dest))?;
+    materialize_artifact_to_dest(&artifact, Path::new(&dest), log)?;
 
     let keep_staging = std::env::var_os("VIRTSPAWN_MKOSI_KEEP_WORKSPACE").is_some();
     if !keep_staging {
@@ -249,7 +252,11 @@ fn collect_disk_images(dir: &Path, out: &mut Vec<(SystemTime, PathBuf)>) {
     }
 }
 
-fn materialize_artifact_to_dest(artifact: &Path, dest: &Path) -> Result<(), LibvirtError> {
+fn materialize_artifact_to_dest(
+    artifact: &Path,
+    dest: &Path,
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
     let ext = artifact
         .extension()
         .and_then(|s| s.to_str())
@@ -263,26 +270,18 @@ fn materialize_artifact_to_dest(artifact: &Path, dest: &Path) -> Result<(), Libv
     }
 
     // .raw → qcow2 for libvirt path convention
-    let out = Command::new("qemu-img")
-        .args([
-            "convert",
-            "-O",
-            "qcow2",
-            artifact.to_str().ok_or_else(|| {
-                LibvirtError::Invalid("mkosi artifact path is not valid UTF-8".into())
-            })?,
-            dest.to_str().ok_or_else(|| {
-                LibvirtError::Invalid("destination disk path is not valid UTF-8".into())
-            })?,
-        ])
-        .output()
-        .map_err(|e| LibvirtError::Operation(format!("qemu-img convert: {e}")))?;
+    let a = artifact.to_str().ok_or_else(|| LibvirtError::Invalid("mkosi artifact path is not valid UTF-8".into()))?;
+    let d = dest.to_str().ok_or_else(|| LibvirtError::Invalid("destination disk path is not valid UTF-8".into()))?;
+    let summary = format!("$ qemu-img convert -O qcow2 {a} {d}");
+    let mut qcmd = Command::new("qemu-img");
+    qcmd.args(["convert", "-O", "qcow2", a, d]);
+    let out = subprocess::run_command_streaming(qcmd, &summary, "qemu-img", log)?;
 
     if !out.status.success() {
         let _ = fs::remove_file(dest);
         return Err(LibvirtError::Operation(format!(
-            "qemu-img convert (mkosi raw → qcow2) failed: {}",
-            String::from_utf8_lossy(&out.stderr)
+            "qemu-img convert (mkosi raw → qcow2) failed (exit {}); see streamed log",
+            out.status
         )));
     }
 

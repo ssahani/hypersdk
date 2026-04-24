@@ -57,3 +57,11 @@ uri = "qemu:///system"
 # id = "lab-db"
 # host = "192.168.122.50"
 # ssh_user = "root"
+
+# KubeVirt manifest defaults for GET /api/v1/vms/{name}/kubevirt-bundle (libvirt qcow2 → CDI + VM YAML).
+# [kubevirt]
+# default_namespace = "default"
+# default_storage_class = "local-path"
+# datavolume_padding_gi = 5
+# virtio_container_disk_image = "quay.io/kubevirt/virtio-container-disk:latest"
+# machine_type = "q35"

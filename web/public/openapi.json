@@ -54,6 +54,19 @@
           "interfaces": { "type": "array", "items": { "$ref": "#/components/schemas/InterfaceInfo" } }
         }
       },
+      "KubeVirtBundle": {
+        "type": "object",
+        "required": ["libvirt_vm", "libvirt_root_disk", "namespace", "virtual_machine_name", "datavolume_name", "yaml", "virtctl_image_upload_example"],
+        "properties": {
+          "libvirt_vm": { "type": "string" },
+          "libvirt_root_disk": { "type": "string" },
+          "namespace": { "type": "string" },
+          "virtual_machine_name": { "type": "string" },
+          "datavolume_name": { "type": "string" },
+          "yaml": { "type": "string", "description": "CDI DataVolume + kubevirt.io VirtualMachine, --- separated" },
+          "virtctl_image_upload_example": { "type": "string" }
+        }
+      },
       "DiskInfo": {
         "type": "object",
         "properties": {
@@ -256,6 +269,19 @@
         "responses": { "200": { "description": "VM created" } }
       }
     },
+    "/vms/stream": {
+      "post": {
+        "summary": "Create VM with live SSE logs (mkosi / virt-builder / virt-install / qemu-img)",
+        "description": "Long-running HTTP response. Put reverse proxies in front with a generous read/send timeout (e.g. hours) or mkosi builds may be cut off.",
+        "tags": ["VMs"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CreateVmRequest" } } } },
+        "responses": {
+          "200": {
+            "description": "text/event-stream; default events are log lines, then `event: complete` with JSON or `event: error`"
+          }
+        }
+      }
+    },
     "/vms/{name}": {
       "get": {
         "summary": "Get VM details",
@@ -276,6 +302,32 @@
         "tags": ["VMs"],
         "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "XML string" } }
+      }
+    },
+    "/vms/{name}/kubevirt-bundle": {
+      "get": {
+        "summary": "KubeVirt migration bundle (CDI upload DV + VM YAML, virtio root + virtio-win CDROM)",
+        "description": "Derives the root disk from libvirt domain XML, emits a CDI DataVolume (upload) and kubevirt.io VirtualMachine with virtio disks. virtio-win is attached as containerDisk (cluster image; configure [kubevirt] virtio_container_disk_image). Query: namespace, k8s_vm_name, datavolume_name, storage_gi, storage_class, include_virtio_cdrom (default true).",
+        "tags": ["VMs"],
+        "parameters": [
+          { "name": "name", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "namespace", "in": "query", "schema": { "type": "string" } },
+          { "name": "k8s_vm_name", "in": "query", "schema": { "type": "string" } },
+          { "name": "datavolume_name", "in": "query", "schema": { "type": "string" } },
+          { "name": "storage_gi", "in": "query", "schema": { "type": "integer" } },
+          { "name": "storage_class", "in": "query", "schema": { "type": "string" } },
+          { "name": "include_virtio_cdrom", "in": "query", "schema": { "type": "boolean", "default": true } }
+        ],
+        "responses": {
+          "200": {
+            "description": "YAML bundle + virtctl image-upload example",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KubeVirtBundle" }
+              }
+            }
+          }
+        }
       }
     },
     "/vms/{name}/guacamole-auth": {
@@ -983,16 +1035,117 @@
     },
     "/browse/isos": {
       "get": {
-        "summary": "List available ISO files on host",
+        "summary": "List available ISO files on host (scans libvirt storage pool paths + /home, /root, /tmp)",
         "tags": ["Extras"],
-        "responses": { "200": { "description": "ISO file list" } }
+        "responses": {
+          "200": {
+            "description": "files and scan_directories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["files", "scan_directories"],
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "name": { "type": "string" },
+                          "size_bytes": { "type": "integer" },
+                          "format": { "type": "string" }
+                        }
+                      }
+                    },
+                    "scan_directories": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/browse/dir": {
+      "get": {
+        "summary": "List a directory on the hypervisor (full filesystem from /; shortcuts include pools + /data, /home, …)",
+        "description": "Query `path` must be absolute on the hypervisor, or omit/empty to open `/`. Symlinks are canonicalized. Listing respects OS permissions for the daemon user.",
+        "tags": ["Extras"],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Absolute directory to list; empty uses the first configured root."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Directory listing",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["path", "entries", "roots"],
+                  "properties": {
+                    "path": { "type": "string" },
+                    "parent": { "type": "string", "nullable": true },
+                    "roots": { "type": "array", "items": { "type": "string" } },
+                    "entries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["name", "path", "is_directory", "size_bytes"],
+                        "properties": {
+                          "name": { "type": "string" },
+                          "path": { "type": "string" },
+                          "is_directory": { "type": "boolean" },
+                          "size_bytes": { "type": "integer", "format": "int64" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/browse/disks": {
       "get": {
-        "summary": "List available disk images on host",
+        "summary": "List disk images on host (all libvirt dir-pool target paths + virtspawn defaults)",
         "tags": ["Extras"],
-        "responses": { "200": { "description": "Disk image list" } }
+        "responses": {
+          "200": {
+            "description": "files and scan_directories",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["files", "scan_directories"],
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "path": { "type": "string" },
+                          "name": { "type": "string" },
+                          "size_bytes": { "type": "integer" },
+                          "format": { "type": "string" }
+                        }
+                      }
+                    },
+                    "scan_directories": { "type": "array", "items": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/browse/mkosi-workspaces": {

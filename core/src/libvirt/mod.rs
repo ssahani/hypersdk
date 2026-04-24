@@ -29,6 +29,7 @@ pub mod save_restore;
 pub mod secret;
 pub mod snapshot;
 pub mod storage;
+pub mod subprocess;
 pub mod template_apply;
 pub mod virt_builder;
 pub mod virt_install;

@@ -5,7 +5,7 @@ import {
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
-  insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune,
+  insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   deleteVM, getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
@@ -20,6 +20,7 @@ import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
 import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate, listIommuGroups, IommuGroup } from '../api/extras'
@@ -29,7 +30,7 @@ import {
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, Archive, Copy, Pencil, ArrowRightLeft, Download,
   Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb, Layers,
-  ChevronUp, ChevronDown, X, Tag, Monitor, Shield, Sliders,
+  ChevronUp, ChevronDown, X, Tag, Monitor, Shield, Sliders, FolderOpen,
 } from 'lucide-react'
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
@@ -73,6 +74,15 @@ export default function VMDetailsPage() {
   const [attachSource, setAttachSource] = useState('')
   const [attachTarget, setAttachTarget] = useState('vdb')
   const [attachDriver, setAttachDriver] = useState('qcow2')
+  const [cdromBrowseOpen, setCdromBrowseOpen] = useState(false)
+  const [attachDiskBrowseOpen, setAttachDiskBrowseOpen] = useState(false)
+  const [kubevirtOpen, setKubevirtOpen] = useState(false)
+  const [kubevirtBundle, setKubevirtBundle] = useState<KubeVirtBundle | null>(null)
+  const [kubevirtLoading, setKubevirtLoading] = useState(false)
+  /** Local checklist only (not sent to the server). */
+  const [kubevirtDoneUpload, setKubevirtDoneUpload] = useState(false)
+  const [kubevirtDoneApply, setKubevirtDoneApply] = useState(false)
+  const [kubevirtDoneStart, setKubevirtDoneStart] = useState(false)
   const [resizeTarget, setResizeTarget] = useState('')
   const [resizeGb, setResizeGb] = useState(20)
   const [nicNetwork, setNicNetwork] = useState('default')
@@ -151,10 +161,15 @@ export default function VMDetailsPage() {
   useEffect(() => {
     listNetworks().then(setNetworks).catch(() => {})
     listUsbDevices().then(setUsbDevices).catch(() => {})
-    listIsos().then(setIsoFiles).catch(() => {})
+    listIsos().then((r) => setIsoFiles(r.files)).catch(() => {})
     listPciDevices().then(setPciDevices).catch(() => {})
     listIommuGroups().then(setIommuGroups).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (dialog !== 'cdrom') setCdromBrowseOpen(false)
+    if (dialog !== 'attach-disk') setAttachDiskBrowseOpen(false)
+  }, [dialog])
 
   // Poll per-VM metrics every 5s for charts
   useEffect(() => {
@@ -244,6 +259,24 @@ export default function VMDetailsPage() {
       }
     }
     setDialog(d)
+  }
+
+  const loadKubevirtExport = async () => {
+    if (!name) return
+    setKubevirtLoading(true)
+    setKubevirtBundle(null)
+    setKubevirtDoneUpload(false)
+    setKubevirtDoneApply(false)
+    setKubevirtDoneStart(false)
+    try {
+      const b = await getKubeVirtBundle(name)
+      setKubevirtBundle(b)
+      setKubevirtOpen(true)
+    } catch (e: unknown) {
+      toast.error(`KubeVirt bundle: ${e instanceof Error ? e.message : e}`)
+    } finally {
+      setKubevirtLoading(false)
+    }
   }
 
   // ── Dialog handlers ──────────────────────────────────────────────
@@ -801,7 +834,17 @@ export default function VMDetailsPage() {
 
       {tab === 'disks' && (
         <div className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex justify-end gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={() => void loadKubevirtExport()}
+              disabled={kubevirtLoading}
+              className="px-3 py-1.5 bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-lg text-sm transition flex items-center gap-1"
+              title="CDI upload DataVolume + KubeVirt VM (virtio root + virtio-win CDROM containerDisk)"
+            >
+              <Archive className="w-4 h-4" aria-hidden />
+              {kubevirtLoading ? 'Loading…' : 'KubeVirt YAML'}
+            </button>
             <button onClick={() => openDialog('attach-disk')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach Disk</button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
@@ -1231,14 +1274,37 @@ export default function VMDetailsPage() {
                 </div>
               )}
               <label htmlFor="dlg-iso" className="block text-sm text-slate-400 mb-1">ISO File</label>
-              {isoFiles.length > 0 ? (
-                <select id="dlg-iso" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} className="input-field">
-                  <option value="">Select ISO...</option>
-                  {isoFiles.map(f => <option key={f.path} value={f.path}>{f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)</option>)}
-                </select>
-              ) : (
-                <input id="dlg-iso" type="text" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} placeholder="/var/lib/libvirt/images/image.iso" className="input-field" />
-              )}
+              <div className="space-y-2">
+                {isoFiles.length > 0 ? (
+                  <select id="dlg-iso" autoFocus value={cdromPath} onChange={(e) => setCdromPath(e.target.value)} className="input-field">
+                    <option value="">Select ISO (from scan)…</option>
+                    {isoFiles.map((f) => (
+                      <option key={f.path} value={f.path}>
+                        {f.name} ({(f.size_bytes / 1048576).toFixed(0)} MB)
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+                <div className="flex gap-2">
+                  <input
+                    id="dlg-iso"
+                    type="text"
+                    autoFocus={isoFiles.length === 0}
+                    value={cdromPath}
+                    onChange={(e) => setCdromPath(e.target.value)}
+                    placeholder="/var/lib/libvirt/images/image.iso"
+                    className="input-field flex-1 min-w-0"
+                  />
+                  <button
+                    type="button"
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
+                    onClick={() => setCdromBrowseOpen(true)}
+                  >
+                    <FolderOpen className="w-4 h-4" aria-hidden />
+                    Browse
+                  </button>
+                </div>
+              </div>
               <label htmlFor="dlg-cdtarget" className="block text-sm text-slate-400 mb-1 mt-3">Target Device</label>
               <select id="dlg-cdtarget" value={cdromTarget} onChange={(e) => setCdromTarget(e.target.value)} className="input-field">
                 {cdromDisks.length > 0
@@ -1254,7 +1320,25 @@ export default function VMDetailsPage() {
           {dialog === 'attach-disk' && (
             <DialogBox title="Attach Disk" icon={<HardDrive className="w-5 h-5 text-blue-400" />} onClose={() => setDialog(null)} onConfirm={handleAttachDisk} confirmLabel="Attach">
               <label htmlFor="dlg-disk-src" className="block text-sm text-slate-400 mb-1">Disk Image Path</label>
-              <input id="dlg-disk-src" type="text" autoFocus value={attachSource} onChange={(e) => setAttachSource(e.target.value)} placeholder="/var/lib/libvirt/images/data.qcow2" className="input-field" />
+              <div className="flex gap-2">
+                <input
+                  id="dlg-disk-src"
+                  type="text"
+                  autoFocus
+                  value={attachSource}
+                  onChange={(e) => setAttachSource(e.target.value)}
+                  placeholder="/var/lib/libvirt/images/data.qcow2"
+                  className="input-field flex-1 min-w-0"
+                />
+                <button
+                  type="button"
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
+                  onClick={() => setAttachDiskBrowseOpen(true)}
+                >
+                  <FolderOpen className="w-4 h-4" aria-hidden />
+                  Browse
+                </button>
+              </div>
               <div className="grid grid-cols-2 gap-3 mt-3">
                 <div>
                   <label htmlFor="dlg-disk-target" className="block text-sm text-slate-400 mb-1">Target Device</label>
@@ -1476,6 +1560,145 @@ export default function VMDetailsPage() {
           </div>
         </div>
       )}
+
+      {kubevirtOpen && kubevirtBundle && (
+        <div
+          className="fixed inset-0 z-[95] flex items-center justify-center p-4 bg-black/60"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="kubevirt-export-title"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setKubevirtOpen(false)
+          }}
+        >
+          <div
+            className="bg-slate-900 border border-slate-600 rounded-xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-700 flex items-center justify-between gap-2">
+              <h2 id="kubevirt-export-title" className="text-lg font-semibold text-slate-100">
+                KubeVirt migration bundle
+              </h2>
+              <button
+                type="button"
+                className="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300"
+                onClick={() => setKubevirtOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto space-y-3 text-sm text-slate-300">
+              <p className="text-xs text-slate-400">
+                Libvirt root disk <code className="text-slate-200">{kubevirtBundle.libvirt_root_disk}</code> → DataVolume{' '}
+                <code className="text-slate-200">{kubevirtBundle.datavolume_name}</code> / VM{' '}
+                <code className="text-slate-200">{kubevirtBundle.virtual_machine_name}</code> in namespace{' '}
+                <code className="text-slate-200">{kubevirtBundle.namespace}</code>. The VM includes a virtio-win CDROM via{' '}
+                <code className="text-slate-200">containerDisk</code> (same role as hyper2kvm attaching <code className="text-slate-200">virtio-win.iso</code> on libvirt). Override image in{' '}
+                <code className="text-slate-200">[kubevirt] virtio_container_disk_image</code> in virtspawn config.
+              </p>
+              <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">
+                <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Cluster steps (tick when done)</div>
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-600 bg-slate-900"
+                    checked={kubevirtDoneUpload}
+                    onChange={(e) => setKubevirtDoneUpload(e.target.checked)}
+                  />
+                  <span>
+                    <strong className="text-slate-200">1.</strong> Run <code className="text-slate-400">virtctl image-upload …</code> on a machine with kubeconfig so the libvirt qcow2 fills the upload DataVolume.
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-600 bg-slate-900"
+                    checked={kubevirtDoneApply}
+                    onChange={(e) => setKubevirtDoneApply(e.target.checked)}
+                  />
+                  <span>
+                    <strong className="text-slate-200">2.</strong> <code className="text-slate-400">kubectl apply -f</code> the YAML (or paste from below).
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 cursor-pointer text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 rounded border-slate-600 bg-slate-900"
+                    checked={kubevirtDoneStart}
+                    onChange={(e) => setKubevirtDoneStart(e.target.checked)}
+                  />
+                  <span className="flex-1 min-w-0">
+                    <strong className="text-slate-200">3.</strong> Start the VM when ready:{' '}
+                    <code className="text-slate-400 break-all">
+                      virtctl start {kubevirtBundle.virtual_machine_name} -n {kubevirtBundle.namespace}
+                    </code>
+                    <button
+                      type="button"
+                      className="ml-2 text-violet-400 hover:text-violet-300 underline-offset-2 hover:underline"
+                      onClick={() => {
+                        const cmd = `virtctl start ${kubevirtBundle.virtual_machine_name} -n ${kubevirtBundle.namespace}`
+                        void navigator.clipboard.writeText(cmd)
+                        toast.success('virtctl start copied')
+                      }}
+                    >
+                      Copy
+                    </button>
+                  </span>
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(kubevirtBundle.yaml)
+                    toast.success('YAML copied')
+                  }}
+                >
+                  Copy YAML
+                </button>
+                <button
+                  type="button"
+                  className="text-xs px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(kubevirtBundle.virtctl_image_upload_example)
+                    toast.success('virtctl command copied')
+                  }}
+                >
+                  Copy virtctl upload
+                </button>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block mb-1">virtctl image-upload (run where kubeconfig points at your cluster)</span>
+                <pre className="text-[11px] leading-snug font-mono text-slate-200 bg-black/40 border border-slate-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
+                  {kubevirtBundle.virtctl_image_upload_example}
+                </pre>
+              </div>
+              <div>
+                <span className="text-xs text-slate-500 block mb-1">Kubernetes manifests</span>
+                <pre className="text-[11px] leading-snug font-mono text-slate-200 bg-black/40 border border-slate-800 rounded-lg p-3 max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-all">
+                  {kubevirtBundle.yaml}
+                </pre>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <BrowseHostPathModal
+        open={cdromBrowseOpen}
+        onClose={() => setCdromBrowseOpen(false)}
+        title="Browse for ISO"
+        canSelectFile={isIsoFileName}
+        onSelectPath={(p) => setCdromPath(p)}
+      />
+      <BrowseHostPathModal
+        open={attachDiskBrowseOpen}
+        onClose={() => setAttachDiskBrowseOpen(false)}
+        title="Browse for disk image"
+        canSelectFile={isHostDiskImageFileName}
+        onSelectPath={(p) => setAttachSource(p)}
+      />
     </div>
   )
 }

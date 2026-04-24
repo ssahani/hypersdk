@@ -22,6 +22,7 @@ chmod 600 "$LOG_FILE"
 BIND_HOST=""
 REMOTE_HOST=""
 OPEN_FIREWALL=false
+NO_TESTS=false
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -1084,7 +1085,8 @@ remote_deploy() {
     [ -n "$BIND_HOST" ] && remote_args="--bind $BIND_HOST"
     $OPEN_FIREWALL && remote_args="$remote_args --open-firewall"
 
-    ssh "$remote" "cd ~/.deployment/virtspawn && sudo bash install.sh $remote_args" || fail "Remote install failed"
+    # Skip curl/API verification on the hypervisor — run locally if needed.
+    ssh "$remote" "cd ~/.deployment/virtspawn && sudo bash install.sh --no-tests $remote_args" || fail "Remote install failed"
 
     # Get the remote IP for summary
     local remote_ip
@@ -1188,6 +1190,7 @@ main() {
             --uninstall)     do_uninstall=true ;;
             --deps-only)     deps_only=true ;;
             --no-start)      no_start=true ;;
+            --no-tests)      NO_TESTS=true ;;
             --open-firewall) OPEN_FIREWALL=true ;;
             --bind|--remote) prev_arg="$arg" ;;
             --help|-h)
@@ -1199,7 +1202,7 @@ Usage: install.sh [OPTIONS]
 
   Detects the Linux distribution, installs all dependencies (libvirt,
   QEMU/KVM, Rust, Node.js 20), builds from source, deploys binaries
-  and systemd services, then runs 15 verification tests.
+  and systemd services, then runs verification tests (unless --no-tests).
 
 Install options:
   --bind HOST          Bind daemon to HOST (default: 127.0.0.1)
@@ -1209,6 +1212,8 @@ Install options:
                        Supports firewalld, ufw, and iptables.
   --no-start           Build and install but don't start the daemon.
                        Useful when you want to edit the config first.
+  --no-tests           Skip post-install HTTPS/API verification (curl checks).
+                       Remote deploy (--remote) passes this automatically.
   --deps-only          Only install system dependencies (libvirt, Rust,
                        Node.js) without building or installing virtspawn.
 
@@ -1322,7 +1327,11 @@ HELPEOF
     fi
 
     start_daemon
-    run_tests || true
+    if $NO_TESTS; then
+        info "Skipping verification tests (--no-tests)"
+    else
+        run_tests || true
+    fi
     print_summary
 }
 

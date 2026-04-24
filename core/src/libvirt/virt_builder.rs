@@ -12,20 +12,21 @@ use crate::config::LibvirtConfig;
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
-fn run_guestfs_tool(tool: &str, args: &[String]) -> Result<(), LibvirtError> {
-    let out = Command::new(tool)
-        .args(args)
-        .output()
-        .map_err(|e| {
-            LibvirtError::Operation(format!(
-                "Failed to execute {tool} (is {tool} installed?): {e}"
-            ))
-        })?;
+use super::subprocess::{self, VmCreateLogSink};
+
+fn run_guestfs_tool(
+    tool: &str,
+    args: &[String],
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
+    let summary = format!("$ {tool} {}", args.join(" "));
+    let mut cmd = Command::new(tool);
+    cmd.args(args);
+    let out = subprocess::run_command_streaming(cmd, &summary, tool, log)?;
     if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let stdout = String::from_utf8_lossy(&out.stdout);
         return Err(LibvirtError::Operation(format!(
-            "{tool} failed: {stderr}{stdout}"
+            "{tool} failed (exit {}); see streamed log",
+            out.status
         )));
     }
     Ok(())
@@ -57,6 +58,7 @@ pub fn materialize_virt_builder_if_requested(
     conn: &Connect,
     req: &mut CreateVmRequest,
     cfg: &LibvirtConfig,
+    log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
     let os = req.virt_builder_os.trim();
     if os.is_empty() {
@@ -179,35 +181,26 @@ pub fn materialize_virt_builder_if_requested(
 
     tracing::info!("virt-builder {} (output {})", os, dest);
 
-    let out = Command::new("virt-builder")
-        .args(&args)
-        .output()
-        .map_err(|e| {
-            LibvirtError::Operation(format!(
-                "Failed to run virt-builder (install guestfs-tools / libguestfs-tools?): {e}"
-            ))
-        })?;
+    let summary = format!("$ virt-builder {}", args.join(" "));
+    let mut vb = Command::new("virt-builder");
+    vb.args(&args);
+    let out = subprocess::run_command_streaming(vb, &summary, "virt-builder", log)?;
 
     drop(tmp_key);
 
     if !out.status.success() {
         let _ = fs::remove_file(&dest);
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let stdout = String::from_utf8_lossy(&out.stdout);
         return Err(LibvirtError::Operation(format!(
-            "virt-builder failed: {stderr}{stdout}"
+            "virt-builder failed (exit {}); see streamed log",
+            out.status
         )));
     }
 
     let disk = Path::new(&dest);
-    post_customize(disk, req)?;
+    post_customize(disk, req, log)?;
     if req.virt_builder_sysprep {
         tracing::info!("virt-sysprep {}", dest);
-        run_guestfs_tool(
-            "virt-sysprep",
-            &["-a".into(), dest.clone()],
-        )
-        .map_err(|e| {
+        run_guestfs_tool("virt-sysprep", &["-a".into(), dest.clone()], log).map_err(|e| {
             let _ = fs::remove_file(&dest);
             e
         })?;
@@ -217,7 +210,11 @@ pub fn materialize_virt_builder_if_requested(
     Ok(())
 }
 
-fn post_customize(disk: &Path, req: &CreateVmRequest) -> Result<(), LibvirtError> {
+fn post_customize(
+    disk: &Path,
+    req: &CreateVmRequest,
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
     let installs: Vec<String> = req
         .virt_builder_post_customize_install
         .iter()
@@ -258,7 +255,7 @@ fn post_customize(disk: &Path, req: &CreateVmRequest) -> Result<(), LibvirtError
     }
 
     tracing::info!("virt-customize on {}", disk.display());
-    run_guestfs_tool("virt-customize", &args).map_err(|e| {
+    run_guestfs_tool("virt-customize", &args, log).map_err(|e| {
         let _ = fs::remove_file(disk);
         e
     })

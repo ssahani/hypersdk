@@ -23,6 +23,57 @@ pub struct VirtspawnConfig {
     /// Browser SSH terminal: short-lived sessions, optional host allowlist (`targets`), PTY + system `ssh`.
     #[serde(default)]
     pub ssh_terminal: SshTerminalConfig,
+    /// Defaults for `GET /api/v1/vms/{name}/kubevirt-bundle` (libvirt qcow2 → KubeVirt manifest generation).
+    #[serde(default)]
+    pub kubevirt: KubeVirtConfig,
+}
+
+/// Tuning for generated KubeVirt + CDI YAML ([`crate::kubevirt`]).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct KubeVirtConfig {
+    /// Namespace in generated manifests when the client does not override `?namespace=`.
+    #[serde(default = "default_kubevirt_namespace")]
+    pub default_namespace: String,
+    /// Optional `storageClassName` on the upload DataVolume PVC (empty = cluster default).
+    #[serde(default)]
+    pub default_storage_class: String,
+    /// Extra gibibytes added on top of the source image size (or memory-based fallback).
+    #[serde(default = "default_kubevirt_datavolume_padding_gi")]
+    pub datavolume_padding_gi: u32,
+    /// `containerDisk` image for virtio-win CDROM in the guest (KubeVirt pulls this; analogous to hyper2kvm/libvirt `virtio-win.iso` on disk).
+    #[serde(default = "default_kubevirt_virtio_container_disk_image")]
+    pub virtio_container_disk_image: String,
+    /// `spec.template.spec.domain.machine.type` (e.g. q35).
+    #[serde(default = "default_kubevirt_machine_type")]
+    pub machine_type: String,
+}
+
+fn default_kubevirt_namespace() -> String {
+    "default".to_string()
+}
+
+fn default_kubevirt_datavolume_padding_gi() -> u32 {
+    5
+}
+
+fn default_kubevirt_virtio_container_disk_image() -> String {
+    "quay.io/kubevirt/virtio-container-disk:latest".to_string()
+}
+
+fn default_kubevirt_machine_type() -> String {
+    "q35".to_string()
+}
+
+impl Default for KubeVirtConfig {
+    fn default() -> Self {
+        Self {
+            default_namespace: default_kubevirt_namespace(),
+            default_storage_class: String::new(),
+            datavolume_padding_gi: default_kubevirt_datavolume_padding_gi(),
+            virtio_container_disk_image: default_kubevirt_virtio_container_disk_image(),
+            machine_type: default_kubevirt_machine_type(),
+        }
+    }
 }
 
 /// Apache Guacamole integration: signed/encrypted JSON for `/api/tokens` (see project `docs/guacamole-integration.md`).

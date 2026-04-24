@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { importDisk, listDiskImages, ImageFile } from '../api/extras'
-import { createVM, CreateVmRequest } from '../api/vm'
+import { createVMWithProgress, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
+import { BrowseHostPathModal, isHostDiskImageFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Upload, HardDrive } from 'lucide-react'
+import { ArrowLeft, Upload, HardDrive, FolderOpen } from 'lucide-react'
 import { Link } from 'react-router'
-import { useEffect } from 'react'
 
 export default function ImportVMPage() {
   const [source, setSource] = useState('')
@@ -18,15 +18,22 @@ export default function ImportVMPage() {
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [existingDisks, setExistingDisks] = useState<ImageFile[]>([])
   const [submitting, setSubmitting] = useState(false)
+  const [createLog, setCreateLog] = useState<string[]>([])
+  const logEndRef = useRef<HTMLDivElement>(null)
   const [step, setStep] = useState<'import' | 'configure'>('import')
   const [importedPath, setImportedPath] = useState('')
+  const [sourceBrowseOpen, setSourceBrowseOpen] = useState(false)
   const toast = useToastContext()
   const navigate = useNavigate()
 
   useEffect(() => {
     listNetworks().then(setNetworks).catch(() => {})
-    listDiskImages().then(setExistingDisks).catch(() => {})
+    listDiskImages().then((r) => setExistingDisks(r.files)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (createLog.length) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [createLog])
 
   const handleImport = async () => {
     if (!source || !vmName.trim()) { toast.warning('Source path and VM name required'); return }
@@ -46,6 +53,7 @@ export default function ImportVMPage() {
   const handleCreate = async () => {
     if (!vmName.trim() || !importedPath) return
     setSubmitting(true)
+    setCreateLog([])
     try {
       const req: CreateVmRequest = {
         name: vmName.trim(),
@@ -56,7 +64,9 @@ export default function ImportVMPage() {
         network,
         firmware,
       }
-      await createVM(req)
+      await createVMWithProgress(req, (line) => {
+        setCreateLog((prev) => [...prev, line])
+      })
       toast.success(`VM '${vmName}' created with imported disk`)
       navigate('/vms')
     } catch (e: unknown) {
@@ -88,10 +98,27 @@ export default function ImportVMPage() {
             <input id="import-name" type="text" autoFocus value={vmName} onChange={e => setVmName(e.target.value)} className="input-field" placeholder="imported-vm" />
           </div>
 
-          <div>
+          <div className="space-y-2">
             <label htmlFor="import-source" className="block text-sm text-slate-400 mb-1">Source Disk Image Path *</label>
-            <input id="import-source" type="text" value={source} onChange={e => setSource(e.target.value)} className="input-field" placeholder="/path/to/disk.vmdk" />
-            <p className="text-xs text-slate-500 mt-1">Supported: .vmdk, .vdi, .vhd, .vpc, .raw, .img, .qcow2</p>
+            <div className="flex gap-2">
+              <input
+                id="import-source"
+                type="text"
+                value={source}
+                onChange={(e) => setSource(e.target.value)}
+                className="input-field flex-1 min-w-0"
+                placeholder="/path/to/disk.vmdk on the hypervisor"
+              />
+              <button
+                type="button"
+                className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
+                onClick={() => setSourceBrowseOpen(true)}
+              >
+                <FolderOpen className="w-4 h-4" aria-hidden />
+                Browse
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">Supported: .vmdk, .vdi, .vhd, .vpc, .raw, .img, .qcow2 — browse from / on the hypervisor (daemon permissions).</p>
           </div>
 
           {existingDisks.length > 0 && (
@@ -145,6 +172,16 @@ export default function ImportVMPage() {
             </select>
           </div>
 
+          {(submitting || createLog.length > 0) && (
+            <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">
+              <h4 className="text-xs font-semibold text-slate-300">virt-install progress</h4>
+              <pre className="max-h-56 overflow-y-auto rounded bg-black/50 border border-slate-800 p-2 text-[11px] font-mono text-slate-200 whitespace-pre-wrap break-all">
+                {createLog.length ? createLog.join('\n') : <span className="text-slate-500">Starting…</span>}
+              </pre>
+              <div ref={logEndRef} />
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-700/50">
             <button onClick={() => setStep('import')} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded text-sm transition">Back</button>
             <button onClick={handleCreate} disabled={submitting} className="px-6 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded text-sm transition">
@@ -153,6 +190,14 @@ export default function ImportVMPage() {
           </div>
         </div>
       )}
+
+      <BrowseHostPathModal
+        open={sourceBrowseOpen}
+        onClose={() => setSourceBrowseOpen(false)}
+        title="Browse for source disk image"
+        canSelectFile={isHostDiskImageFileName}
+        onSelectPath={(p) => setSource(p)}
+      />
     </div>
   )
 }

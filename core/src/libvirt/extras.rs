@@ -7,8 +7,9 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use virt::connect::Connect;
 
-use super::domain::lookup_domain;
 use super::automation::with_json_lock;
+use super::domain::lookup_domain;
+use super::storage;
 use crate::LibvirtError;
 
 /// Escape a string for safe inclusion in YAML single-quoted scalars.
@@ -27,35 +28,224 @@ pub struct ImageFile {
     pub format: String, // iso, qcow2, raw, vmdk, img
 }
 
-/// Scan common directories for ISO files.
-pub fn list_iso_files() -> Vec<ImageFile> {
-    let dirs = [
-        "/var/lib/libvirt/images",
-        "/var/lib/virtspawn/images",
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowseFilesResponse {
+    pub files: Vec<ImageFile>,
+    /// Absolute directories scanned (libvirt pool targets plus defaults).
+    pub scan_directories: Vec<String>,
+}
+
+/// One row in a hypervisor directory listing (`browse_directory`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowseDirEntry {
+    pub name: String,
+    pub path: String,
+    pub is_directory: bool,
+    pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrowseDirResponse {
+    /// Canonical absolute path of the directory being listed.
+    pub path: String,
+    /// Nearest ancestor directory that is still inside an allowed root (for “up”).
+    pub parent: Option<String>,
+    pub entries: Vec<BrowseDirEntry>,
+    /// Allowed root directories (shortcuts in the UI).
+    pub roots: Vec<String>,
+}
+
+fn browse_scan_dirs_to_strings(dirs: &[PathBuf]) -> Vec<String> {
+    dirs.iter().map(|p| p.to_string_lossy().to_string()).collect()
+}
+
+/// Scan ISO files under libvirt pool directories (dynamic) plus `/home`, `/root`, `/tmp`.
+pub fn list_iso_files(conn: &Connect) -> Result<BrowseFilesResponse, LibvirtError> {
+    let mut dirs = storage::collect_image_scan_directories(conn)?;
+    for extra in ["/home", "/root", "/tmp"] {
+        let pb = PathBuf::from(extra);
+        if !dirs.iter().any(|p| p == &pb) {
+            dirs.push(pb);
+        }
+    }
+    let scan_directories = browse_scan_dirs_to_strings(&dirs);
+    let mut files = Vec::new();
+    for dir in &dirs {
+        scan_dir_for_extension(dir, &["iso"], &mut files, 2);
+    }
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(BrowseFilesResponse {
+        files,
+        scan_directories,
+    })
+}
+
+/// Scan disk images under all libvirt dir-pool targets plus `/var/lib/virtspawn/images` and `/var/lib/libvirt/images` if missing.
+pub fn list_disk_images(conn: &Connect) -> Result<BrowseFilesResponse, LibvirtError> {
+    let dirs = storage::collect_image_scan_directories(conn)?;
+    let scan_directories = browse_scan_dirs_to_strings(&dirs);
+    let mut files = Vec::new();
+    for dir in &dirs {
+        scan_dir_for_extension(dir, &["qcow2", "raw", "img", "vmdk"], &mut files, 1);
+    }
+    files.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(BrowseFilesResponse {
+        files,
+        scan_directories,
+    })
+}
+
+/// Shortcut directories shown in the browse UI (chips). Always includes filesystem root `/` so any
+/// absolute path on the hypervisor is reachable like a remote-server file picker (subject to OS
+/// permissions for the daemon user). Pool targets and common paths are extra shortcuts.
+fn collect_browse_roots(conn: &Connect) -> Result<Vec<PathBuf>, LibvirtError> {
+    let mut dirs = storage::collect_image_scan_directories(conn)?;
+    for extra in [
+        "/",
+        "/data",
         "/home",
         "/root",
         "/tmp",
-    ];
-    let mut files = Vec::new();
-    for dir in &dirs {
-        scan_dir_for_extension(Path::new(dir), &["iso"], &mut files, 2);
+        "/srv",
+        "/media",
+        "/mnt",
+        "/opt",
+    ] {
+        let pb = PathBuf::from(extra);
+        if pb.is_dir() {
+            dirs.push(pb);
+        }
     }
-    files.sort_by(|a, b| a.name.cmp(&b.name));
-    files
+    let mut canonical: Vec<PathBuf> = Vec::new();
+    for p in dirs {
+        let Ok(c) = p.canonicalize() else { continue };
+        if !canonical.iter().any(|x| x == &c) {
+            canonical.push(c);
+        }
+    }
+    canonical.sort_by(|a, b| a.to_string_lossy().cmp(&b.to_string_lossy()));
+    // Default empty-path browse and left-to-right shortcuts: `/` first so the whole FS is obvious.
+    if let Some(i) = canonical
+        .iter()
+        .position(|p| p.as_os_str() == std::ffi::OsStr::new("/"))
+    {
+        let root = canonical.remove(i);
+        canonical.insert(0, root);
+    }
+    Ok(canonical)
 }
 
-/// Scan common directories for disk images (qcow2, raw, vmdk, img).
-pub fn list_disk_images() -> Vec<ImageFile> {
-    let dirs = [
-        "/var/lib/libvirt/images",
-        "/var/lib/virtspawn/images",
-    ];
-    let mut files = Vec::new();
-    for dir in &dirs {
-        scan_dir_for_extension(Path::new(dir), &["qcow2", "raw", "img", "vmdk"], &mut files, 1);
+fn path_under_any_root(canonical: &Path, roots: &[PathBuf]) -> bool {
+    roots.iter().any(|r| canonical.starts_with(r))
+}
+
+fn browse_parent(canonical_dir: &Path, roots: &[PathBuf]) -> Option<String> {
+    let mut p = canonical_dir.to_path_buf();
+    while let Some(parent) = p.parent() {
+        let parent_canon = parent.canonicalize().ok()?;
+        if parent_canon == p {
+            return None;
+        }
+        if path_under_any_root(&parent_canon, roots) {
+            return Some(parent_canon.to_string_lossy().to_string());
+        }
+        p = parent_canon;
     }
-    files.sort_by(|a, b| a.name.cmp(&b.name));
-    files
+    None
+}
+
+/// List a single directory on the hypervisor (ISO/disk picker). With `/` among the roots, any
+/// absolute path is allowed after canonicalization; entries outside those trees are skipped.
+pub fn browse_directory(conn: &Connect, raw_path: &str) -> Result<BrowseDirResponse, LibvirtError> {
+    if raw_path.contains("..") {
+        return Err(LibvirtError::Invalid("Path traversal not allowed".into()));
+    }
+    let roots = collect_browse_roots(conn)?;
+    if roots.is_empty() {
+        return Err(LibvirtError::Invalid(
+            "No browse roots (filesystem root / could not be resolved).".into(),
+        ));
+    }
+    let roots_str: Vec<String> = roots.iter().map(|p| p.to_string_lossy().to_string()).collect();
+
+    let trimmed = raw_path.trim();
+    let canonical_dir = if trimmed.is_empty() {
+        roots[0].clone()
+    } else {
+        let p = PathBuf::from(trimmed);
+        if !p.is_absolute() {
+            return Err(LibvirtError::Invalid(
+                "path must be an absolute path on the hypervisor".into(),
+            ));
+        }
+        let c = p.canonicalize().map_err(|e| {
+            LibvirtError::Invalid(format!("Cannot resolve path '{trimmed}': {e}"))
+        })?;
+        if !path_under_any_root(&c, &roots) {
+            return Err(LibvirtError::Forbidden(format!(
+                "Path is outside allowed directories: {}",
+                c.display()
+            )));
+        }
+        if !c.is_dir() {
+            return Err(LibvirtError::Invalid(format!("Not a directory: {}", c.display())));
+        }
+        c
+    };
+
+    if !canonical_dir.is_dir() {
+        return Err(LibvirtError::Invalid(format!(
+            "Not a directory: {}",
+            canonical_dir.display()
+        )));
+    }
+
+    let read = std::fs::read_dir(&canonical_dir).map_err(|e| {
+        LibvirtError::Operation(format!(
+            "Failed to read directory {}: {e}",
+            canonical_dir.display()
+        ))
+    })?;
+
+    let mut entries: Vec<BrowseDirEntry> = Vec::new();
+    for e in read.flatten() {
+        let child = e.path();
+        let Ok(child_canon) = child.canonicalize() else {
+            continue;
+        };
+        if !path_under_any_root(&child_canon, &roots) {
+            continue;
+        }
+        let is_directory = child_canon.is_dir();
+        let name = e.file_name().to_string_lossy().to_string();
+        let size_bytes = if is_directory {
+            0
+        } else {
+            std::fs::metadata(&child_canon).map(|m| m.len()).unwrap_or(0)
+        };
+        entries.push(BrowseDirEntry {
+            name,
+            path: child_canon.to_string_lossy().to_string(),
+            is_directory,
+            size_bytes,
+        });
+    }
+
+    entries.sort_by(|a, b| match (a.is_directory, b.is_directory) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+    });
+
+    let path_str = canonical_dir.to_string_lossy().to_string();
+    let parent = browse_parent(&canonical_dir, &roots);
+
+    Ok(BrowseDirResponse {
+        path: path_str,
+        parent,
+        entries,
+        roots: roots_str,
+    })
 }
 
 fn scan_dir_for_extension(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile>, max_depth: u32) {
@@ -240,8 +430,10 @@ pub fn detach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &s
 // ── Cloud-init ─────────────────────────────────────────────────────
 
 /// Generate a cloud-init ISO with user-data and meta-data.
+/// When `output_path` is empty, writes under `default_images_dir` (typically the primary libvirt images pool).
 pub fn generate_cloud_init_iso(
     output_path: &str,
+    default_images_dir: &str,
     hostname: &str,
     username: &str,
     password: &str,
@@ -292,7 +484,11 @@ pub fn generate_cloud_init_iso(
 
     // Generate ISO (try genisoimage, then mkisofs, then xorriso)
     let iso_path = if output_path.is_empty() {
-        format!("/var/lib/libvirt/images/{hostname}-cloud-init.iso")
+        format!(
+            "{}/{}-cloud-init.iso",
+            default_images_dir.trim_end_matches('/'),
+            hostname
+        )
     } else {
         output_path.to_string()
     };
@@ -328,8 +524,8 @@ pub fn generate_cloud_init_iso(
 
 // ── VM Import ──────────────────────────────────────────────────────
 
-/// Import a disk image by converting it to qcow2 if needed.
-pub fn import_disk_image(source: &str, dest_name: &str) -> Result<String, LibvirtError> {
+/// Import a disk image by converting it to qcow2 if needed. Destination directory follows the primary libvirt pool.
+pub fn import_disk_image(conn: &Connect, source: &str, dest_name: &str) -> Result<String, LibvirtError> {
     let source_path = Path::new(source);
     if !source_path.is_absolute() {
         return Err(LibvirtError::Invalid("Source path must be absolute".to_string()));
@@ -343,7 +539,8 @@ pub fn import_disk_image(source: &str, dest_name: &str) -> Result<String, Libvir
     crate::validate::validate_name(dest_name)?;
 
     let ext = source_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-    let dest_path = format!("/var/lib/libvirt/images/{dest_name}.qcow2");
+    let base = storage::primary_vm_disk_base_dir(conn).unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
+    let dest_path = format!("{}/{}.qcow2", base.trim_end_matches('/'), dest_name);
 
     if Path::new(&dest_path).exists() {
         return Err(LibvirtError::Operation(format!("Destination already exists: {dest_path}")));

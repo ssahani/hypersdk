@@ -13,6 +13,7 @@ function formatBytes(b: number): string {
 
 export default function DiskImagesPage() {
   const [images, setImages] = useState<ImageFile[]>([])
+  const [scanDirectories, setScanDirectories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmPath, setConfirmPath] = useState<string | null>(null)
@@ -21,7 +22,9 @@ export default function DiskImagesPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setImages(await listDiskImages())
+      const r = await listDiskImages()
+      setImages(r.files)
+      setScanDirectories(r.scan_directories)
     } catch (e: unknown) {
       toast.error(`Failed to load disk images: ${e instanceof Error ? e.message : e}`)
     } finally {
@@ -66,13 +69,32 @@ export default function DiskImagesPage() {
         </button>
       </div>
 
+      {!loading && scanDirectories.length > 0 && (
+        <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 space-y-2">
+          <p>
+            Scanned directories (from libvirt storage pools plus defaults):{' '}
+            <span className="text-slate-300 font-mono break-all">{scanDirectories.join(', ')}</span>
+          </p>
+          <p className="text-amber-200/90 border-t border-amber-900/30 pt-2 mt-2">
+            <strong className="text-amber-100/90">mkosi temp:</strong> failed image builds may leave large folders under{' '}
+            <code className="text-amber-100/80">/var/tmp/virtspawn-mkosi-ws/</code>.
+            Remove stale ones when you no longer need logs to free disk space (successful builds clean up unless <code className="text-amber-100/80">VIRTSPAWN_MKOSI_KEEP_WORKSPACE</code> is set).
+          </p>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex justify-center py-16">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
         </div>
       ) : images.length === 0 ? (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-12 text-center text-slate-500">
-          No disk images found in <code>/var/lib/libvirt/images</code> or <code>/var/lib/virtspawn/images</code>
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-12 text-center text-slate-500 space-y-2">
+          <p>No disk images found in the scanned directories.</p>
+          {scanDirectories.length > 0 ? (
+            <p className="text-xs font-mono text-slate-400 break-all">{scanDirectories.join(', ')}</p>
+          ) : (
+            <p className="text-xs">(Connect to the daemon to discover libvirt pool paths.)</p>
+          )}
         </div>
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">

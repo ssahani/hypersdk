@@ -10,6 +10,26 @@ export interface ImageFile {
   format: string
 }
 
+/** ISO / disk browse API: discovered files plus directories scanned (libvirt pools + defaults). */
+export interface BrowseFilesResponse {
+  files: ImageFile[]
+  scan_directories: string[]
+}
+
+export interface BrowseDirEntry {
+  name: string
+  path: string
+  is_directory: boolean
+  size_bytes: number
+}
+
+export interface BrowseDirResponse {
+  path: string
+  parent: string | null
+  entries: BrowseDirEntry[]
+  roots: string[]
+}
+
 export interface UsbDevice {
   bus: string
   device: string
@@ -26,8 +46,11 @@ export interface AuditEvent {
 }
 
 // ISO/Disk browser
-export const listIsos = () => apiGet<ImageFile[]>(`${API}/browse/isos`)
-export const listDiskImages = () => apiGet<ImageFile[]>(`${API}/browse/disks`)
+export const listIsos = () => apiGet<BrowseFilesResponse>(`${API}/browse/isos`)
+/** List one directory under allowed hypervisor roots (pools + /home, /media, …). Pass empty path to start at the first root. */
+export const browseDir = (path = '') =>
+  apiGet<BrowseDirResponse>(`${API}/browse/dir?path=${encodeURIComponent(path)}`)
+export const listDiskImages = () => apiGet<BrowseFilesResponse>(`${API}/browse/disks`)
 export const deleteDiskImage = (path: string) =>
   apiDelete(`${API}/browse/disks/delete?path=${encodeURIComponent(path)}`)
 

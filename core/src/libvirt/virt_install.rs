@@ -6,6 +6,8 @@ use std::process::Command;
 use crate::state::CreateVmRequest;
 use crate::LibvirtError;
 
+use super::subprocess::{self, VmCreateLogSink};
+
 fn validate_virt_install_field(s: &str, label: &str) -> Result<(), LibvirtError> {
     if s.is_empty() {
         return Ok(());
@@ -19,7 +21,11 @@ fn validate_virt_install_field(s: &str, label: &str) -> Result<(), LibvirtError>
 }
 
 /// Run `virt-install` to define a new VM (no libvirt XML emit in virtspawn).
-pub fn create_vm_virt_install(req: &CreateVmRequest, libvirt_uri: &str) -> Result<(), LibvirtError> {
+pub fn create_vm_virt_install(
+    req: &CreateVmRequest,
+    libvirt_uri: &str,
+    log: Option<&VmCreateLogSink>,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_vcpus(req.vcpus)?;
     crate::validate::validate_memory_mb(req.memory_mb)?;
     let net = if req.network.trim().is_empty() {
@@ -148,20 +154,15 @@ pub fn create_vm_virt_install(req: &CreateVmRequest, libvirt_uri: &str) -> Resul
 
     tracing::info!("virt-install {}", args.join(" "));
 
-    let out = Command::new("virt-install")
-        .args(&args)
-        .output()
-        .map_err(|e| {
-            LibvirtError::Operation(format!(
-                "Failed to run virt-install (is virt-install installed?): {e}"
-            ))
-        })?;
+    let summary = format!("$ virt-install {}", args.join(" "));
+    let mut cmd = Command::new("virt-install");
+    cmd.args(&args);
+    let out = subprocess::run_command_streaming(cmd, &summary, "virt-install", log)?;
 
     if !out.status.success() {
-        let stderr = String::from_utf8_lossy(&out.stderr);
-        let stdout = String::from_utf8_lossy(&out.stdout);
         return Err(LibvirtError::Operation(format!(
-            "virt-install failed: {stderr}{stdout}"
+            "virt-install failed (exit {}); see streamed log",
+            out.status
         )));
     }
 

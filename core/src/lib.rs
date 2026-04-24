@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod config;
 pub mod fmt;
+pub mod kubevirt;
 pub mod libvirt;
 pub mod state;
 pub mod system_accounts;
@@ -8,9 +9,10 @@ pub mod validate;
 pub mod xml;
 
 pub use config::{
-    AuthConfig, SshTerminalConfig, SshTerminalTarget, VirtspawnConfig, VmCreateBackend,
+    AuthConfig, KubeVirtConfig, SshTerminalConfig, SshTerminalTarget, VirtspawnConfig, VmCreateBackend,
     DEFAULT_DAEMON_PORT,
 };
+pub use kubevirt::{kubevirt_bundle_from_libvirt_vm, KubeVirtBundle};
 pub use libvirt::LibvirtManager;
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, BackupInfo, BackupRequest, CloneVmRequest,

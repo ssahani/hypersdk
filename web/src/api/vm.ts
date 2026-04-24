@@ -104,7 +104,104 @@ export interface VmTemplate {
 export const listVMs = () => apiGet<VmInfo[]>(`${API}/vms`)
 export const getVM = (name: string) => apiGet<VmDetails>(`${API}/vms/${encodeURIComponent(name)}`)
 export const getVMXml = (name: string) => apiGet<string>(`${API}/vms/${encodeURIComponent(name)}/xml`)
+
+/** CDI DataVolume (upload) + KubeVirt VM YAML; virtio-win CDROM via containerDisk (hyper2kvm-style post-migrate drivers). */
+export interface KubeVirtBundle {
+  libvirt_vm: string
+  libvirt_root_disk: string
+  namespace: string
+  virtual_machine_name: string
+  datavolume_name: string
+  yaml: string
+  virtctl_image_upload_example: string
+}
+
+export type KubeVirtBundleQuery = {
+  namespace?: string
+  k8s_vm_name?: string
+  datavolume_name?: string
+  storage_gi?: number
+  storage_class?: string
+  /** Default true: attach virtio-win as containerDisk CDROM. */
+  include_virtio_cdrom?: boolean
+}
+
+export function getKubeVirtBundle(name: string, q?: KubeVirtBundleQuery) {
+  const p = new URLSearchParams()
+  if (q?.namespace) p.set('namespace', q.namespace)
+  if (q?.k8s_vm_name) p.set('k8s_vm_name', q.k8s_vm_name)
+  if (q?.datavolume_name) p.set('datavolume_name', q.datavolume_name)
+  if (q?.storage_gi != null) p.set('storage_gi', String(q.storage_gi))
+  if (q?.storage_class) p.set('storage_class', q.storage_class)
+  if (q?.include_virtio_cdrom === false) p.set('include_virtio_cdrom', 'false')
+  const qs = p.toString()
+  return apiGet<KubeVirtBundle>(
+    `${API}/vms/${encodeURIComponent(name)}/kubevirt-bundle${qs ? `?${qs}` : ''}`,
+  )
+}
 export const createVM = (req: CreateVmRequest) => apiPost<unknown>(`${API}/vms`, req)
+
+export interface CreateVmStreamResult {
+  status: string
+  name: string
+}
+
+/** Create VM with live log lines (mkosi / virt-builder / virt-install / qemu-img) via SSE (`POST /vms/stream`). */
+export async function createVMWithProgress(
+  req: CreateVmRequest,
+  onLogLine: (line: string) => void
+): Promise<CreateVmStreamResult> {
+  const res = await fetch(`${API}/vms/stream`, {
+    method: 'POST',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
+    body: JSON.stringify(req),
+  })
+  if (!res.ok) {
+    const text = await res.text()
+    let msg = text
+    try {
+      const j = JSON.parse(text) as { error?: string }
+      if (j?.error) msg = j.error
+    } catch {
+      /* keep text */
+    }
+    throw new Error(msg || res.statusText)
+  }
+  if (!res.body) throw new Error('No response body')
+  const reader = res.body.getReader()
+  const dec = new TextDecoder()
+  let buf = ''
+  while (true) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buf += dec.decode(value, { stream: true }).replace(/\r\n/g, '\n')
+    for (;;) {
+      const idx = buf.indexOf('\n\n')
+      if (idx < 0) break
+      const block = buf.slice(0, idx)
+      buf = buf.slice(idx + 2)
+      let ev = 'message'
+      const dataLines: string[] = []
+      for (const ln of block.split('\n')) {
+        if (ln.startsWith('event:')) ev = ln.slice(6).trim()
+        else if (ln.startsWith('data:')) dataLines.push(ln.slice(5).trimStart())
+      }
+      const data = dataLines.join('\n')
+      if (ev === 'complete') {
+        return JSON.parse(data) as CreateVmStreamResult
+      }
+      if (ev === 'error') {
+        throw new Error(data || 'Create failed')
+      }
+      if (data && data !== 'keepalive') onLogLine(data)
+    }
+  }
+  throw new Error('Stream ended before VM was created')
+}
 /** Optional `virDomainUndefineFlags` query params for `DELETE /vms/{name}`. */
 export interface VmDeleteUndefineOpts {
   undefine_managed_save?: boolean
