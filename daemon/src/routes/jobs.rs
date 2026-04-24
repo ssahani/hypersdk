@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use uuid::Uuid;
 use virt_image_build::BuildDiskRequest;
 use tokio::sync::Semaphore;
-use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
+use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager, MachinaConfig};
 
 use crate::error::AppError;
 use crate::job_registry::{JobDetail, JobRegistry, JobStatus, JobSummary};
@@ -47,7 +47,7 @@ async fn post_virt_image_build_job(
     Extension(vib_slots): Extension<Arc<Semaphore>>,
     Json(mut req): Json<BuildDiskRequest>,
 ) -> Result<Json<Value>, AppError> {
-    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
+    if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
             "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)".into(),
         )));
@@ -56,7 +56,7 @@ async fn post_virt_image_build_job(
         return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
     }
 
-    let timeout_secs = VirtspawnConfig::load().libvirt.virt_image_build_timeout_secs;
+    let timeout_secs = MachinaConfig::load().libvirt.virt_image_build_timeout_secs;
     if req.timeout_secs == 0 && timeout_secs > 0 {
         req.timeout_secs = timeout_secs;
     }

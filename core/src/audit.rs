@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use crate::state::AuditEvent;
 
 pub fn audit_log_path() -> PathBuf {
-    PathBuf::from("/var/lib/virtspawn/audit.log")
+    PathBuf::from("/var/lib/machina/audit.log")
 }
 
 pub fn write_audit_event(event: &AuditEvent) {

@@ -6,14 +6,14 @@ use std::sync::Arc;
 use tokio::sync::Semaphore;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::trace::TraceLayer;
-use virtspawn_core::{LibvirtManager, VirtspawnConfig};
+use machina_core::{LibvirtManager, MachinaConfig};
 
 use crate::auth::{self, SessionStore};
 use crate::job_registry::JobRegistry;
 use crate::routes;
 use crate::terminal::{self, TerminalSessionStore};
 
-pub fn create_app(manager: LibvirtManager, config: VirtspawnConfig) -> Router {
+pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let web_dir = find_web_dist();
     let session_store = SessionStore::new();
     let terminal_store = TerminalSessionStore::new();
@@ -81,8 +81,8 @@ pub fn create_app(manager: LibvirtManager, config: VirtspawnConfig) -> Router {
 fn find_web_dist() -> Option<PathBuf> {
     let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
     let mut candidates = vec![
-        PathBuf::from("/usr/local/share/virtspawn/web"),
-        PathBuf::from("/usr/share/virtspawn/web"),
+        PathBuf::from("/usr/local/share/machina/web"),
+        PathBuf::from("/usr/share/machina/web"),
     ];
     if let Some(ref exe) = exe_dir {
         candidates.push(exe.join("web/dist"));

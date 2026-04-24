@@ -1,4 +1,4 @@
-//! Standalone HTTP bridge (optional): `GET /bridge/{vm}` → same JSON as virtspawn `/api/v1/vms/.../guacamole-auth`.
+//! Standalone HTTP bridge (optional): `GET /bridge/{vm}` → same JSON as machina `/api/v1/vms/.../guacamole-auth`.
 
 use anyhow::Context;
 use axum::{

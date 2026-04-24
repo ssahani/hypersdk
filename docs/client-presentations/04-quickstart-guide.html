@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>virtspawn — Quick Start Guide</title>
+<title>machina — Quick Start Guide</title>
 <style>
 @page { size: A4; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -121,7 +121,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
   <h1><span>virt</span>spawn</h1>
   <p style="font-size:1.6em; font-weight:700; margin-bottom:0.3em;">Quick Start Guide</p>
   <p>Get running in 5 minutes. From bare metal to managing virtual machines with a modern web interface.</p>
-  <div class="badge" style="margin-top:2em; font-size:0.85em; opacity:0.7;">Default port: 5092 &bull; Config: /etc/virtspawn/config.toml</div>
+  <div class="badge" style="margin-top:2em; font-size:0.85em; opacity:0.7;">Default port: 5092 &bull; Config: /etc/machina/config.toml</div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -130,7 +130,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
 <div class="page page-dark">
   <span class="section-label">Prerequisites</span>
   <h2>System <span>Requirements</span></h2>
-  <p class="subtitle">What you need before installing virtspawn</p>
+  <p class="subtitle">What you need before installing machina</p>
 
   <div class="card-grid card-grid-2">
     <div class="card card-dark">
@@ -191,7 +191,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     <span class="output">   Active: active (running)</span>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -209,8 +209,8 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     </h3>
     <p>Single command that detects your distro, installs dependencies, builds from source, and runs 15 verification tests.</p>
     <div class="code">
-      <span class="prompt">$</span> git clone https://github.com/hypersdk/virtspawn.git<br>
-      <span class="prompt">$</span> cd virtspawn<br>
+      <span class="prompt">$</span> git clone https://github.com/ssahani/machina.git<br>
+      <span class="prompt">$</span> cd machina<br>
       <span class="prompt">$</span> <span class="keyword">sudo</span> ./install.sh<br><br>
       <span class="output">&#10003; Rust toolchain found</span><br>
       <span class="output">&#10003; Node.js 20.x detected</span><br>
@@ -218,7 +218,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <span class="output">&#10003; Building daemon...</span><br>
       <span class="output">&#10003; Building web frontend...</span><br>
       <span class="output">&#10003; 15/15 verification tests passed</span><br>
-      <span class="output">&#10003; virtspawn-daemon.service started on port 5092</span>
+      <span class="output">&#10003; machina-daemon.service started on port 5092</span>
     </div>
   </div>
 
@@ -241,12 +241,12 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
         <span class="step-number" style="width:28px; height:28px; font-size:0.8em;">3</span>
         Deploy Tool
       </h3>
-      <p>Use the virtspawnctl utility for build and deployment in one step.</p>
+      <p>Use the machinactl utility for build and deployment in one step.</p>
       <div class="code">
         <span class="comment"># Build and deploy</span><br>
-        <span class="prompt">$</span> ./virtspawnctl deploy<br><br>
+        <span class="prompt">$</span> ./machinactl deploy<br><br>
         <span class="comment"># Check status</span><br>
-        <span class="prompt">$</span> systemctl status virtspawn-daemon
+        <span class="prompt">$</span> systemctl status machina-daemon
       </div>
     </div>
   </div>
@@ -270,7 +270,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     </div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -297,7 +297,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     <span class="step-number">2</span>
     <div class="step-content">
       <h4>Login with System Credentials</h4>
-      <p>virtspawn uses PAM authentication. Log in with your Linux username and password. No separate accounts to create.</p>
+      <p>machina uses PAM authentication. Log in with your Linux username and password. No separate accounts to create.</p>
       <div class="card card-dark" style="margin-top:8px; padding:16px;">
         <p><strong>Username:</strong> Your Linux user &bull; <strong>Password:</strong> Your system password</p>
         <p style="opacity:0.6; font-size:0.85em; margin-top:4px;">Sessions persist via secure cookies. API tokens (vs_ prefix) available for automation.</p>
@@ -309,7 +309,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     <span class="step-number">3</span>
     <div class="step-content">
       <h4>Create Your First VM</h4>
-      <p>Click "Create VM" and fill in the basics. virtspawn validates inputs in real time.</p>
+      <p>Click "Create VM" and fill in the basics. machina validates inputs in real time.</p>
       <div class="code" style="margin-top:8px;">
         <span class="comment"># Or via API</span><br>
         <span class="prompt">$</span> curl -X POST http://localhost:5092/api/v1/vms \<br>
@@ -324,7 +324,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     <span class="step-number">4</span>
     <div class="step-content">
       <h4>Access the VM Console</h4>
-      <p>Click the console icon on your VM. virtspawn auto-detects the graphics type and opens the appropriate viewer (VNC, SPICE, or serial).</p>
+      <p>Click the console icon on your VM. machina auto-detects the graphics type and opens the appropriate viewer (VNC, SPICE, or serial).</p>
       <div class="card-grid card-grid-3" style="margin-top:10px;">
         <div class="card card-dark" style="padding:14px; text-align:center;">
           <div style="color:#3b82f6; font-weight:700;">VNC</div>
@@ -342,7 +342,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     </div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -403,7 +403,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     </table>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -419,11 +419,11 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <h3>Launch</h3>
       <div class="code" style="margin-top:8px;">
         <span class="comment"># Start the TUI</span><br>
-        <span class="prompt">$</span> virtspawn<br><br>
+        <span class="prompt">$</span> machina<br><br>
         <span class="comment"># Or with a custom config</span><br>
-        <span class="prompt">$</span> virtspawn --config /path/to/config.toml<br><br>
+        <span class="prompt">$</span> machina --config /path/to/config.toml<br><br>
         <span class="comment"># Connect to remote daemon</span><br>
-        <span class="prompt">$</span> virtspawn --host 192.168.1.100 --port 5092
+        <span class="prompt">$</span> machina --host 192.168.1.100 --port 5092
       </div>
     </div>
     <div class="card card-dark">
@@ -477,7 +477,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     </div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -489,7 +489,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
   <p class="subtitle">TOML-based configuration with sensible defaults and CLI overrides</p>
 
   <div class="card card-dark" style="margin-bottom:20px;">
-    <h3>Config File: /etc/virtspawn/config.toml</h3>
+    <h3>Config File: /etc/machina/config.toml</h3>
     <div class="code" style="margin-top:10px;">
       <span class="comment"># General settings</span><br>
       [general]<br>
@@ -504,11 +504,11 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <span class="comment"># TLS (optional)</span><br>
       [tls]<br>
       enabled = <span class="string">false</span><br>
-      cert_path = <span class="string">"/etc/virtspawn/cert.pem"</span><br>
-      key_path = <span class="string">"/etc/virtspawn/key.pem"</span><br><br>
+      cert_path = <span class="string">"/etc/machina/cert.pem"</span><br>
+      key_path = <span class="string">"/etc/machina/key.pem"</span><br><br>
       <span class="comment"># Backup settings</span><br>
       [backup]<br>
-      backup_dir = <span class="string">"/var/lib/virtspawn/backups"</span><br>
+      backup_dir = <span class="string">"/var/lib/machina/backups"</span><br>
       retain_count = <span class="string">5</span>
     </div>
   </div>
@@ -518,12 +518,12 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <h3>File Locations</h3>
       <table style="margin-top:8px;">
         <tbody>
-          <tr><td style="color:#94a3b8;">Main config</td><td style="color:#e2e8f0;">/etc/virtspawn/config.toml</td></tr>
-          <tr><td style="color:#94a3b8;">Backup config</td><td style="color:#e2e8f0;">/etc/virtspawn/backup.conf</td></tr>
-          <tr><td style="color:#94a3b8;">Data directory</td><td style="color:#e2e8f0;">/var/lib/virtspawn/</td></tr>
-          <tr><td style="color:#94a3b8;">Systemd unit</td><td style="color:#e2e8f0;">/etc/systemd/system/virtspawn-daemon.service</td></tr>
-          <tr><td style="color:#94a3b8;">Backup timer</td><td style="color:#e2e8f0;">/etc/systemd/system/virtspawn-backup.timer</td></tr>
-          <tr><td style="color:#94a3b8;">Web assets</td><td style="color:#e2e8f0;">/usr/local/share/virtspawn/web/</td></tr>
+          <tr><td style="color:#94a3b8;">Main config</td><td style="color:#e2e8f0;">/etc/machina/config.toml</td></tr>
+          <tr><td style="color:#94a3b8;">Backup config</td><td style="color:#e2e8f0;">/etc/machina/backup.conf</td></tr>
+          <tr><td style="color:#94a3b8;">Data directory</td><td style="color:#e2e8f0;">/var/lib/machina/</td></tr>
+          <tr><td style="color:#94a3b8;">Systemd unit</td><td style="color:#e2e8f0;">/etc/systemd/system/machina-daemon.service</td></tr>
+          <tr><td style="color:#94a3b8;">Backup timer</td><td style="color:#e2e8f0;">/etc/systemd/system/machina-backup.timer</td></tr>
+          <tr><td style="color:#94a3b8;">Web assets</td><td style="color:#e2e8f0;">/usr/local/share/machina/web/</td></tr>
         </tbody>
       </table>
     </div>
@@ -545,7 +545,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
     </div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -576,7 +576,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
         <span class="comment"># Manual backup</span><br>
         <span class="prompt">$</span> ./scripts/backup.sh --vm my-vm --with-disks<br><br>
         <span class="comment"># Enable scheduled backups</span><br>
-        <span class="prompt">$</span> <span class="keyword">sudo</span> systemctl enable virtspawn-backup.timer
+        <span class="prompt">$</span> <span class="keyword">sudo</span> systemctl enable machina-backup.timer
       </div>
     </div>
     <div class="card" style="border-left: 4px solid #3b82f6;">
@@ -595,7 +595,7 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <p>Scrape metrics from the built-in Prometheus endpoint. Import the included Grafana dashboard for real-time VM monitoring.</p>
       <div class="code" style="margin-top:10px;">
         <span class="comment"># Prometheus scrape config</span><br>
-        - job_name: <span class="string">'virtspawn'</span><br>
+        - job_name: <span class="string">'machina'</span><br>
         &nbsp;&nbsp;static_configs:<br>
         &nbsp;&nbsp;- targets: [<span class="string">'localhost:5092'</span>]<br>
         &nbsp;&nbsp;metrics_path: <span class="string">'/api/v1/prometheus'</span>
@@ -620,21 +620,21 @@ kbd { display: inline-block; background: rgba(255,255,255,0.1); border: 1px soli
       <h3>TLS Setup</h3>
       <p>Enable HTTPS for production deployments.</p>
       <div class="code" style="margin-top:8px;">
-        <span class="comment"># In /etc/virtspawn/config.toml</span><br>
+        <span class="comment"># In /etc/machina/config.toml</span><br>
         [tls]<br>
         enabled = <span class="string">true</span><br>
-        cert_path = <span class="string">"/etc/virtspawn/cert.pem"</span><br>
-        key_path = <span class="string">"/etc/virtspawn/key.pem"</span>
+        cert_path = <span class="string">"/etc/machina/cert.pem"</span><br>
+        key_path = <span class="string">"/etc/machina/key.pem"</span>
       </div>
     </div>
   </div>
 
   <div class="cta-box" style="margin-top:28px;">
     <h3>You're All Set</h3>
-    <p>virtspawn is running on your host. Create VMs, manage networks, take snapshots, and monitor everything from the browser or terminal. Need help? Check the API reference or run scripts/demo.sh for a guided tour.</p>
+    <p>machina is running on your host. Create VMs, manage networks, take snapshots, and monitor everything from the browser or terminal. Need help? Check the API reference or run scripts/demo.sh for a guided tour.</p>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Quick Start Guide</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Quick Start Guide</span></div>
 </div>
 
 </body>

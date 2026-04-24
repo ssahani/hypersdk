@@ -5,17 +5,32 @@ import { listNetworks, NetworkInfo } from '../api/network'
 import { listIsos, listSavedTemplates, ImageFile } from '../api/extras'
 import { listPools, listVolumes, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
+import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   IMAGE_BUILDER_OTHER_LINUX_BUILD_GROUPS,
   IMAGE_BUILDER_PLATFORMS_AND_VERSIONS_LINUX,
   IMAGE_BUILDER_QEMU_RAW_LINUX_EXAMPLES,
   IMAGE_BUILDER_REPO_URL,
-  VIRTSPAWN_PACKER_SCRIPT_GUESTS,
+  MACHINA_PACKER_SCRIPT_GUESTS,
 } from '../data/packerGuests'
-import { ArrowLeft, Boxes, Disc, FolderOpen, HardDrive, Layers, Monitor, Network } from 'lucide-react'
+import {
+  ArrowLeft,
+  Boxes,
+  Disc,
+  Download,
+  FolderOpen,
+  Globe,
+  HardDrive,
+  Layers,
+  LayoutTemplate,
+  Link2,
+  Monitor,
+  Network,
+} from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
-const PACKER_SCRIPT_SYSTEM = '/usr/local/share/virtspawn/packer/build-linux-image.sh'
+const PACKER_SCRIPT_SYSTEM = '/usr/local/share/machina/packer/build-linux-image.sh'
 const PACKER_SCRIPT_REPO = 'contrib/packer/build-linux-image.sh'
 
 type InstallSource = 'iso' | 'url' | 'pxe' | 'download'
@@ -207,7 +222,7 @@ export default function CreateVMPage() {
     }
     if (goldenKind === 'template') {
       if (!selectedTemplateName.trim()) {
-        toast.warning('Choose a saved template (create one under /var/lib/virtspawn/templates/ or Save template from a VM)')
+        toast.warning('Choose a saved template (create one under /var/lib/machina/templates/ or Save template from a VM)')
         return
       }
       const tmpl = savedTemplates.find((x) => x.name === selectedTemplateName.trim())
@@ -259,15 +274,20 @@ export default function CreateVMPage() {
     }
   }
 
-  const sourceTabs: { id: InstallSource; label: string; hint: string }[] = [
-    { id: 'iso', label: 'Local install media', hint: 'ISO on the hypervisor (like Cockpit “Local install media”)' },
-    { id: 'url', label: 'Network install', hint: 'HTTP(S) or NFS tree — virt-install --location' },
-    { id: 'pxe', label: 'Network boot (PXE)', hint: 'PXE on a second NIC (Cockpit-style network install)' },
-    { id: 'download', label: 'Automatic OS install', hint: 'virt-install --install os=… (downloaded media)' },
+  const sourceTabs: {
+    id: InstallSource
+    label: string
+    hint: string
+    icon: LucideIcon
+  }[] = [
+    { id: 'iso', label: 'Local install media', hint: 'ISO on the hypervisor (like Cockpit “Local install media”)', icon: Disc },
+    { id: 'url', label: 'Network install', hint: 'HTTP(S) or NFS tree — virt-install --location', icon: Globe },
+    { id: 'pxe', label: 'Network boot (PXE)', hint: 'PXE on a second NIC (Cockpit-style network install)', icon: Network },
+    { id: 'download', label: 'Automatic OS install', hint: 'virt-install --install os=… (downloaded media)', icon: Download },
   ]
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8 animate-fade-in pb-8">
+    <div className="max-w-4xl mx-auto space-y-8 animate-fade-in pb-8">
       <div className="flex items-center gap-4">
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back">
           <ArrowLeft className="w-5 h-5" />
@@ -284,35 +304,34 @@ export default function CreateVMPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => {
-            setPageFlow('install')
-            setCreateLog([])
-          }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
-            pageFlow === 'install'
-              ? 'bg-blue-600/90 border-blue-500 text-white'
-              : 'bg-slate-900/60 border-slate-600 text-slate-300 hover:border-slate-500'
-          }`}
-        >
-          Install from media
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setPageFlow('golden')
-            setCreateLog([])
-          }}
-          className={`px-4 py-2 rounded-lg text-sm font-medium border transition ${
-            pageFlow === 'golden'
-              ? 'bg-amber-600/90 border-amber-500 text-white'
-              : 'bg-slate-900/60 border-slate-600 text-slate-300 hover:border-slate-500'
-          }`}
-        >
-          Clone from golden image
-        </button>
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">How do you want to create this VM?</h2>
+        <ChoiceCardGrid>
+          <ChoiceCard
+            largeIcon
+            tone="blue"
+            selected={pageFlow === 'install'}
+            onClick={() => {
+              setPageFlow('install')
+              setCreateLog([])
+            }}
+            icon={<Disc className="w-5 h-5" />}
+            title="Install from media"
+            description="Fresh install with ISO, URL, PXE, or downloaded OS — same idea as Cockpit Machines."
+          />
+          <ChoiceCard
+            largeIcon
+            tone="amber"
+            selected={pageFlow === 'golden'}
+            onClick={() => {
+              setPageFlow('golden')
+              setCreateLog([])
+            }}
+            icon={<Layers className="w-5 h-5" />}
+            title="Clone from golden image"
+            description="Many identical guests from a Packer qcow2 — saved template or thin overlay on a golden disk."
+          />
+        </ChoiceCardGrid>
       </div>
 
       {pageFlow === 'install' && (
@@ -323,23 +342,22 @@ export default function CreateVMPage() {
           <Disc className="w-5 h-5 text-amber-400" />
           Installation source
         </h2>
-        <div className="flex flex-wrap gap-2">
-          {sourceTabs.map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              onClick={() => setSource(t.id)}
-              className={`px-3 py-2 rounded-lg text-sm border transition ${
-                installSource === t.id
-                  ? 'bg-blue-600/90 border-blue-500 text-white'
-                  : 'bg-slate-900/60 border-slate-600 text-slate-300 hover:border-slate-500'
-              }`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs text-slate-500">{sourceTabs.find((x) => x.id === installSource)?.hint}</p>
+        <ChoiceCardGrid>
+          {sourceTabs.map((t) => {
+            const Icon = t.icon
+            return (
+              <ChoiceCard
+                key={t.id}
+                tone="sky"
+                selected={installSource === t.id}
+                onClick={() => setSource(t.id)}
+                icon={<Icon className="w-4 h-4" />}
+                title={t.label}
+                description={t.hint}
+              />
+            )
+          })}
+        </ChoiceCardGrid>
 
         {installSource === 'iso' && (
           <div className="space-y-3 pt-2 border-t border-slate-700/50">
@@ -531,30 +549,24 @@ export default function CreateVMPage() {
           <HardDrive className="w-5 h-5 text-sky-400" />
           Storage
         </h2>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
+        <ChoiceCardGrid>
+          <ChoiceCard
+            tone="cyan"
+            selected={storageMode === 'new'}
             onClick={() => setStorageMode('new')}
-            className={`px-3 py-2 rounded-lg text-sm border transition ${
-              storageMode === 'new'
-                ? 'bg-blue-600/90 border-blue-500 text-white'
-                : 'bg-slate-900/60 border-slate-600 text-slate-300 hover:border-slate-500'
-            }`}
-          >
-            Create new disk image
-          </button>
-          <button
-            type="button"
+            icon={<HardDrive className="w-4 h-4" />}
+            title="Create new disk image"
+            description="Let virt-install allocate a new qcow2 in the default pool (set size below)."
+          />
+          <ChoiceCard
+            tone="cyan"
+            selected={storageMode === 'volume'}
             onClick={() => setStorageMode('volume')}
-            className={`px-3 py-2 rounded-lg text-sm border transition ${
-              storageMode === 'volume'
-                ? 'bg-blue-600/90 border-blue-500 text-white'
-                : 'bg-slate-900/60 border-slate-600 text-slate-300 hover:border-slate-500'
-            }`}
-          >
-            Use existing storage volume
-          </button>
-        </div>
+            icon={<Boxes className="w-4 h-4" />}
+            title="Use existing storage volume"
+            description="Attach an empty volume from a pool (e.g. with ISO + existing vol for Cockpit-style installs)."
+          />
+        </ChoiceCardGrid>
         {storageMode === 'new' ? (
           <div>
             <label htmlFor="disk-gb" className="block text-sm text-slate-400 mb-1">
@@ -705,33 +717,32 @@ export default function CreateVMPage() {
             <p className="text-sm text-slate-400">
               After Packer writes e.g. <code className="text-slate-300">output-fedora43/fedora43.qcow2</code>, keep one canonical file on the host and reuse it: either register a{' '}
               <span className="text-slate-200">saved template</span> JSON under{' '}
-              <code className="text-slate-300">/var/lib/virtspawn/templates/</code> with <code className="text-slate-300">base_image</code> pointing at that path, or attach the qcow2 directly as a{' '}
+              <code className="text-slate-300">/var/lib/machina/templates/</code> with <code className="text-slate-300">base_image</code> pointing at that path, or attach the qcow2 directly as a{' '}
               <span className="text-slate-200">backing store</span> (thin overlay per VM).
             </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
+            <ChoiceCardGrid>
+              <ChoiceCard
+                tone="amber"
+                selected={goldenKind === 'template'}
                 onClick={() => setGoldenKind('template')}
-                className={`px-3 py-2 rounded-lg text-sm border transition ${
-                  goldenKind === 'template'
-                    ? 'bg-amber-600/90 border-amber-500 text-white'
-                    : 'bg-slate-900/60 border-slate-600 text-slate-300'
-                }`}
-              >
-                Saved template
-              </button>
-              <button
-                type="button"
+                icon={<LayoutTemplate className="w-4 h-4" />}
+                title="Saved template"
+                description={
+                  <>
+                    JSON under <code className="text-slate-400">/var/lib/machina/templates/</code> with{' '}
+                    <code className="text-slate-400">base_image</code>.
+                  </>
+                }
+              />
+              <ChoiceCard
+                tone="amber"
+                selected={goldenKind === 'backing'}
                 onClick={() => setGoldenKind('backing')}
-                className={`px-3 py-2 rounded-lg text-sm border transition ${
-                  goldenKind === 'backing'
-                    ? 'bg-amber-600/90 border-amber-500 text-white'
-                    : 'bg-slate-900/60 border-slate-600 text-slate-300'
-                }`}
-              >
-                Direct qcow2 backing
-              </button>
-            </div>
+                icon={<Link2 className="w-4 h-4" />}
+                title="Direct qcow2 backing"
+                description="Point at one golden qcow2; each VM gets a thin overlay disk on top."
+              />
+            </ChoiceCardGrid>
 
             {goldenKind === 'template' && (
               <div className="space-y-3 pt-2 border-t border-slate-700/50">
@@ -754,7 +765,7 @@ export default function CreateVMPage() {
                 </select>
                 {savedTemplates.length === 0 && (
                   <p className="text-xs text-amber-200/90">
-                    No templates found. Add <code className="text-slate-300">/var/lib/virtspawn/templates/mytmpl.json</code> with{' '}
+                    No templates found. Add <code className="text-slate-300">/var/lib/machina/templates/mytmpl.json</code> with{' '}
                     <code className="text-slate-300">base_image</code> set to your Packer qcow2 path, or use <span className="text-slate-200">Save template</span> on a VM details page.
                   </p>
                 )}
@@ -979,7 +990,7 @@ export default function CreateVMPage() {
             kubernetes-sigs/image-builder
           </a>{' '}
           (<code className="text-slate-300">images/capi/Makefile</code>: <code className="text-slate-300">PLATFORMS_AND_VERSIONS</code>,{' '}
-          <code className="text-slate-300">QEMU_BUILD_NAMES</code>, <code className="text-slate-300">RAW_BUILD_NAMES</code>, …). The virtspawn script is a small QEMU/KVM subset; upstream builds Photon, Flatcar, RHEL, cloud images, and more.
+          <code className="text-slate-300">QEMU_BUILD_NAMES</code>, <code className="text-slate-300">RAW_BUILD_NAMES</code>, …). The machina script is a small QEMU/KVM subset; upstream builds Photon, Flatcar, RHEL, cloud images, and more.
         </p>
         <div className="overflow-x-auto rounded-lg border border-slate-700/60">
           <table className="min-w-[640px] w-full text-left text-sm text-slate-300">
@@ -995,7 +1006,7 @@ export default function CreateVMPage() {
               </tr>
             </thead>
             <tbody>
-              {VIRTSPAWN_PACKER_SCRIPT_GUESTS.map((g) => (
+              {MACHINA_PACKER_SCRIPT_GUESTS.map((g) => (
                 <tr key={g.id} className="border-t border-slate-700/50 odd:bg-slate-950/30">
                   <td className="px-3 py-2 font-mono text-cyan-300/90">{g.id}</td>
                   <td className="px-3 py-2">
@@ -1030,7 +1041,7 @@ export default function CreateVMPage() {
         </p>
         <p className="text-sm text-slate-400">
           Reuse the qcow2 for many VMs: copy it to a stable path, then either use <span className="text-slate-300">Clone from golden image</span> above (direct backing or saved template), or add{' '}
-          <code className="text-slate-300">/var/lib/virtspawn/templates/&lt;name&gt;.json</code> with a <code className="text-slate-300">base_image</code> field.
+          <code className="text-slate-300">/var/lib/machina/templates/&lt;name&gt;.json</code> with a <code className="text-slate-300">base_image</code> field.
         </p>
       </div>
 

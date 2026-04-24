@@ -80,7 +80,7 @@ pub fn list_iso_files(conn: &Connect) -> Result<BrowseFilesResponse, LibvirtErro
     })
 }
 
-/// Scan disk images under all libvirt dir-pool targets plus `/var/lib/virtspawn/images` and `/var/lib/libvirt/images` if missing.
+/// Scan disk images under all libvirt dir-pool targets plus `/var/lib/machina/images` and `/var/lib/libvirt/images` if missing.
 pub fn list_disk_images(conn: &Connect) -> Result<BrowseFilesResponse, LibvirtError> {
     let dirs = storage::collect_image_scan_directories(conn)?;
     let scan_directories = browse_scan_dirs_to_strings(&dirs);
@@ -292,9 +292,9 @@ pub struct MkosiWorkspace {
 /// Scan standard base directories for mkosi workspaces (subdirs containing `mkosi.conf`).
 pub fn list_mkosi_workspaces() -> Vec<MkosiWorkspace> {
     let bases = [
-        "/var/lib/virtspawn/mkosi-defs",
-        "/var/lib/virtspawn/mkosi",
-        "/etc/virtspawn/mkosi-defs",
+        "/var/lib/machina/mkosi-defs",
+        "/var/lib/machina/mkosi",
+        "/etc/machina/mkosi-defs",
     ];
     let mut out = Vec::new();
     for base in &bases {
@@ -439,7 +439,7 @@ pub fn generate_cloud_init_iso(
     password: &str,
     ssh_key: &str,
 ) -> Result<String, LibvirtError> {
-    let tmp_dir = PathBuf::from("/tmp/virtspawn-cloud-init");
+    let tmp_dir = PathBuf::from("/tmp/machina-cloud-init");
     std::fs::DirBuilder::new()
         .recursive(true)
         .mode(0o700)
@@ -495,9 +495,9 @@ pub fn generate_cloud_init_iso(
 
     let cmds = [
         ("genisoimage", vec!["-output", &iso_path, "-V", "cidata", "-r", "-J",
-            tmp_dir.to_str().unwrap_or("/tmp/virtspawn-cloud-init")]),
+            tmp_dir.to_str().unwrap_or("/tmp/machina-cloud-init")]),
         ("mkisofs", vec!["-output", &iso_path, "-V", "cidata", "-r", "-J",
-            tmp_dir.to_str().unwrap_or("/tmp/virtspawn-cloud-init")]),
+            tmp_dir.to_str().unwrap_or("/tmp/machina-cloud-init")]),
     ];
 
     let mut success = false;
@@ -599,7 +599,7 @@ pub fn live_set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(),
 
 // ── VM Tags ───────────────────────────────────────────────────────
 
-const TAGS_FILE: &str = "/var/lib/virtspawn/tags.json";
+const TAGS_FILE: &str = "/var/lib/machina/tags.json";
 
 /// Tag map: vm_name -> list of tags.
 pub type TagMap = HashMap<String, Vec<String>>;
@@ -614,7 +614,7 @@ pub fn load_tags() -> TagMap {
 
 /// Save tags to the JSON file.
 pub fn save_tags(tags: &TagMap) -> Result<(), LibvirtError> {
-    let dir = Path::new(TAGS_FILE).parent().unwrap_or(Path::new("/var/lib/virtspawn"));
+    let dir = Path::new(TAGS_FILE).parent().unwrap_or(Path::new("/var/lib/machina"));
     let _ = std::fs::create_dir_all(dir);
     let data = serde_json::to_string_pretty(tags)
         .map_err(|e| LibvirtError::Operation(format!("Failed to serialize tags: {e}")))?;
@@ -989,7 +989,7 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
         "template_disk_mode": "backing",
     });
 
-    let templates_dir = "/var/lib/virtspawn/templates";
+    let templates_dir = "/var/lib/machina/templates";
     let _ = std::fs::create_dir_all(templates_dir);
     let path = format!("{}/{}.json", templates_dir, template_name);
     std::fs::write(&path, serde_json::to_string_pretty(&template).unwrap_or_default())
@@ -998,9 +998,9 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
     Ok(())
 }
 
-/// List all saved templates from /var/lib/virtspawn/templates/.
+/// List all saved templates from /var/lib/machina/templates/.
 pub fn list_saved_templates() -> Vec<crate::VmTemplate> {
-    let templates_dir = "/var/lib/virtspawn/templates";
+    let templates_dir = "/var/lib/machina/templates";
     let mut templates = Vec::new();
     let dir = match std::fs::read_dir(templates_dir) {
         Ok(d) => d,

@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::network;
-use virtspawn_core::{CreateNetworkRequest, LibvirtError, LibvirtManager, NetworkInfo};
+use machina_core::libvirt::network;
+use machina_core::{CreateNetworkRequest, LibvirtError, LibvirtManager, NetworkInfo};
 
 use crate::error::{ok_json, AppError, Xml};
 

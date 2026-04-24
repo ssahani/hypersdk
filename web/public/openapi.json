@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "virtspawn API",
+    "title": "Machina API",
     "version": "1.0.0",
     "description": "REST API for managing libvirt virtual machines, networks, storage, and more."
   },
@@ -22,14 +22,14 @@
       "cookieAuth": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "session",
-        "description": "Cookie-based session authentication"
+        "name": "machina_session",
+        "description": "Cookie-based session authentication (`machina_session=`)"
       }
     },
     "schemas": {
       "ApiError": {
         "type": "object",
-        "description": "Standard JSON error from virtspawn-daemon",
+        "description": "Standard JSON error from machina-daemon",
         "properties": {
           "error": { "type": "string", "description": "Human-readable message" },
           "error_code": {
@@ -171,7 +171,7 @@
           "graphics_type": { "type": "string", "enum": ["vnc", "spice"], "default": "vnc" },
           "cloud_init_iso": { "type": "string", "description": "Optional second CD-ROM (cloud-init seed); install ISO uses `iso`" },
           "network": { "type": "string", "default": "default" },
-          "saved_template": { "type": "string", "description": "Saved template name under /var/lib/virtspawn/templates/" },
+          "saved_template": { "type": "string", "description": "Saved template name under /var/lib/machina/templates/" },
           "template_disk_mode": { "type": "string", "enum": ["backing", "copy"], "default": "backing" },
           "create_backend": { "type": "string", "description": "Omit or empty for server default (virt_install unless configured otherwise); libvirt_xml or virt_install to override." },
           "virt_builder_os": { "type": "string", "description": "Legacy libguestfs virt-builder template (virt-builder --list). Disabled by default on the server ([libvirt] virt_builder_allowed). Prefer mkosi_workspace for new deployments." },
@@ -1462,7 +1462,7 @@
     },
     "/browse/disks": {
       "get": {
-        "summary": "List disk images on host (all libvirt dir-pool target paths + virtspawn defaults)",
+        "summary": "List disk images on host (all libvirt dir-pool target paths + machina defaults)",
         "tags": ["Extras"],
         "responses": {
           "200": {
@@ -1497,7 +1497,7 @@
     "/browse/mkosi-workspaces": {
       "get": {
         "summary": "List mkosi workspaces discovered on the hypervisor",
-        "description": "Scans /var/lib/virtspawn/mkosi-defs/ and related directories for subdirectories containing mkosi.conf. Also returns sub-images for image-tree workspaces.",
+        "description": "Scans /var/lib/machina/mkosi-defs/ and related directories for subdirectories containing mkosi.conf. Also returns sub-images for image-tree workspaces.",
         "tags": ["Extras"],
         "responses": {
           "200": {

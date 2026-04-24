@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use virtspawn_core::libvirt::{host_network, host_sysctl};
-use virtspawn_core::LibvirtManager;
+use machina_core::libvirt::{host_network, host_sysctl};
+use machina_core::LibvirtManager;
 
 use crate::error::AppError;
 

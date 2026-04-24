@@ -1,17 +1,17 @@
 [Unit]
-Description=virtspawn VM backup
-Documentation=https://github.com/ssahani/-virtspawn
-After=libvirtd.service network-online.target virtspawn-daemon.service
+Description=Machina VM backup
+Documentation=https://github.com/ssahani/machina
+After=libvirtd.service network-online.target machina-daemon.service
 Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/share/virtspawn/scripts/backup.sh --config /etc/virtspawn/backup.conf
+ExecStart=/usr/local/share/machina/scripts/backup.sh --config /etc/machina/backup.conf
 
 # Allow NFS mounts and disk access
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/var/lib/virtspawn /mnt/virtspawn-backup
+ReadWritePaths=/var/lib/machina /mnt/machina-backup
 PrivateTmp=true
 
 # Need mount capability for NFS
@@ -25,4 +25,4 @@ RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 # Logging
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=virtspawn-backup
+SyslogIdentifier=machina-backup

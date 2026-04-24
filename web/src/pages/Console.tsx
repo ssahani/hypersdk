@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router'
 import { ArrowLeft, Terminal as TerminalIcon, Monitor, Keyboard, Camera, Download } from 'lucide-react'
+import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { apiGet } from '../api/client'
 import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
@@ -54,47 +55,45 @@ export default function ConsolePage() {
           <h1 className="text-2xl font-bold">Console: {name}</h1>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex flex-col items-stretch sm:items-end gap-2 min-w-0 max-w-xl">
           {consoleInfo && consoleInfo.port > 0 && (
-            <span className="text-xs text-slate-500 mr-2">
+            <span className="text-xs text-slate-500 sm:text-right">
               {consoleInfo.console_type.toUpperCase()} port {consoleInfo.port}
             </span>
           )}
-
-          {vncPort > 0 && (
-            <button
-              type="button"
-              onClick={() => setMode('vnc')}
-              className={`flex items-center gap-2 px-4 py-2 rounded transition ${
-                mode === 'vnc' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              <Monitor className="w-4 h-4" />
-              VNC
-            </button>
-          )}
-          {spicePort > 0 && (
-            <button
-              type="button"
-              onClick={() => setMode('spice')}
-              className={`flex items-center gap-2 px-4 py-2 rounded transition ${
-                mode === 'spice' ? 'bg-purple-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-              }`}
-            >
-              <Monitor className="w-4 h-4" />
-              SPICE
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setMode('serial')}
-            className={`flex items-center gap-2 px-4 py-2 rounded transition ${
-              mode === 'serial' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
-          >
-            <TerminalIcon className="w-4 h-4" />
-            Serial
-          </button>
+          <ChoiceCardGrid className="sm:max-w-lg">
+            {vncPort > 0 && (
+              <ChoiceCard
+                compact
+                tone="blue"
+                selected={mode === 'vnc'}
+                onClick={() => setMode('vnc')}
+                icon={<Monitor className="w-4 h-4" />}
+                title="VNC"
+                description="Graphical console in the browser."
+              />
+            )}
+            {spicePort > 0 && (
+              <ChoiceCard
+                compact
+                tone="purple"
+                selected={mode === 'spice'}
+                onClick={() => setMode('spice')}
+                icon={<Monitor className="w-4 h-4" />}
+                title="SPICE"
+                description="Graphical SPICE session."
+              />
+            )}
+            <ChoiceCard
+              compact
+              tone="slate"
+              selected={mode === 'serial'}
+              onClick={() => setMode('serial')}
+              icon={<TerminalIcon className="w-4 h-4" />}
+              title="Serial"
+              description="Text console over WebSocket."
+            />
+          </ChoiceCardGrid>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 /**
- * Packer / golden-image metadata: virtspawn's `contrib/packer/build-linux-image.sh`
+ * Packer / golden-image metadata: machina's `contrib/packer/build-linux-image.sh`
  * plus cross-reference to kubernetes-sigs/image-builder platform names.
  *
  * @see https://github.com/kubernetes-sigs/image-builder
@@ -8,7 +8,7 @@
 
 export type PackerGuestFamily = 'rpm' | 'debian' | 'ubuntu'
 
-export interface VirtspawnPackerScriptGuest {
+export interface MachinaPackerScriptGuest {
   /** First argument to `build-linux-image.sh` */
   id: string
   label: string
@@ -49,7 +49,7 @@ export const IMAGE_BUILDER_OTHER_LINUX_BUILD_GROUPS =
 export const IMAGE_BUILDER_REPO_URL = 'https://github.com/kubernetes-sigs/image-builder'
 
 /** Guests implemented by `contrib/packer/build-linux-image.sh` today. */
-export const VIRTSPAWN_PACKER_SCRIPT_GUESTS: readonly VirtspawnPackerScriptGuest[] = [
+export const MACHINA_PACKER_SCRIPT_GUESTS: readonly MachinaPackerScriptGuest[] = [
   {
     id: 'fedora43',
     label: 'Fedora 43',

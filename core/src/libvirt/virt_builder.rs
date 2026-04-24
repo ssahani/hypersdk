@@ -333,7 +333,7 @@ impl TempSshKeyFile {
     fn write_line(pubkey_line: &str) -> Result<Self, LibvirtError> {
         let mut rng = rand::thread_rng();
         let path = std::env::temp_dir().join(format!(
-            "virtspawn-vb-{}-{}.pub",
+            "machina-vb-{}-{}.pub",
             std::process::id(),
             rng.gen::<u64>()
         ));

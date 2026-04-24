@@ -44,22 +44,22 @@ web-clean: ## Remove web build artifacts
 	rm -rf web/dist web/node_modules
 
 install: ## Install binaries, web UI, config, systemd unit, and mkosi workspace defs
-	@test -f target/release/virtspawn-daemon || { echo "Run 'make' or 'make release' first"; exit 1; }
-	install -Dm755 target/release/virtspawn-daemon $(DESTDIR)$(BINDIR)/virtspawn-daemon
-	install -Dm755 target/release/virtspawn-tui $(DESTDIR)$(BINDIR)/virtspawn
-	install -Dm644 contrib/virtspawn.toml $(DESTDIR)$(SYSCONFDIR)/virtspawn/config.toml
-	install -Dm644 contrib/virtspawn-daemon.service $(DESTDIR)$(UNITDIR)/virtspawn-daemon.service
-	@test -f $(DESTDIR)/etc/default/virtspawn-daemon || install -Dm644 contrib/virtspawn-daemon.default $(DESTDIR)/etc/default/virtspawn-daemon
+	@test -f target/release/machina-daemon || { echo "Run 'make' or 'make release' first"; exit 1; }
+	install -Dm755 target/release/machina-daemon $(DESTDIR)$(BINDIR)/machina-daemon
+	install -Dm755 target/release/machina-tui $(DESTDIR)$(BINDIR)/machina
+	install -Dm644 contrib/machina.toml $(DESTDIR)$(SYSCONFDIR)/machina/config.toml
+	install -Dm644 contrib/machina-daemon.service $(DESTDIR)$(UNITDIR)/machina-daemon.service
+	@test -f $(DESTDIR)/etc/default/machina-daemon || install -Dm644 contrib/machina-daemon.default $(DESTDIR)/etc/default/machina-daemon
 	@if [ -d web/dist ]; then \
-		mkdir -p $(DESTDIR)$(DATADIR)/virtspawn/web; \
-		cp -r web/dist/* $(DESTDIR)$(DATADIR)/virtspawn/web/; \
-		echo "Installed web UI to $(DESTDIR)$(DATADIR)/virtspawn/web"; \
+		mkdir -p $(DESTDIR)$(DATADIR)/machina/web; \
+		cp -r web/dist/* $(DESTDIR)$(DATADIR)/machina/web/; \
+		echo "Installed web UI to $(DESTDIR)$(DATADIR)/machina/web"; \
 	fi
 	@if [ -d contrib/mkosi-defs ]; then \
 		for ws in contrib/mkosi-defs/*/; do \
 			[ -f "$${ws}mkosi.conf" ] || continue; \
 			name=$$(basename "$$ws"); \
-			dst=$(DESTDIR)/var/lib/virtspawn/mkosi-defs/$$name; \
+			dst=$(DESTDIR)/var/lib/machina/mkosi-defs/$$name; \
 			if [ ! -d "$$dst" ]; then \
 				mkdir -p "$$dst"; \
 				cp -r "$${ws}." "$$dst/"; \
@@ -72,38 +72,38 @@ install: ## Install binaries, web UI, config, systemd unit, and mkosi workspace 
 	systemctl daemon-reload 2>/dev/null || true
 
 uninstall: stop ## Remove installed files and stop service
-	systemctl disable virtspawn-daemon 2>/dev/null || true
-	rm -f $(DESTDIR)$(BINDIR)/virtspawn-daemon
-	rm -f $(DESTDIR)$(BINDIR)/virtspawn
-	rm -f $(DESTDIR)$(UNITDIR)/virtspawn-daemon.service
-	rm -rf $(DESTDIR)$(DATADIR)/virtspawn
-	rm -rf $(DESTDIR)$(SYSCONFDIR)/virtspawn
+	systemctl disable machina-daemon 2>/dev/null || true
+	rm -f $(DESTDIR)$(BINDIR)/machina-daemon
+	rm -f $(DESTDIR)$(BINDIR)/machina
+	rm -f $(DESTDIR)$(UNITDIR)/machina-daemon.service
+	rm -rf $(DESTDIR)$(DATADIR)/machina
+	rm -rf $(DESTDIR)$(SYSCONFDIR)/machina
 	systemctl daemon-reload 2>/dev/null || true
 
 start: ## Start the daemon service
-	systemctl enable --now virtspawn-daemon
+	systemctl enable --now machina-daemon
 
 stop: ## Stop the daemon service
-	systemctl stop virtspawn-daemon 2>/dev/null || true
+	systemctl stop machina-daemon 2>/dev/null || true
 
 restart: ## Restart the daemon service
-	systemctl restart virtspawn-daemon
+	systemctl restart machina-daemon
 
 status: ## Show daemon service status
-	@systemctl status virtspawn-daemon 2>/dev/null || echo "Service not running"
+	@systemctl status machina-daemon 2>/dev/null || echo "Service not running"
 
 deploy: install start ## Install and start (run 'make' first to build)
 	@echo ""
-	@echo "✅ virtspawn deployed and running"
+	@echo "✅ Machina deployed and running"
 	@echo "   🌐 Web UI:  https://localhost:5092"
-	@echo "   🖥️  TUI:     virtspawn"
+	@echo "   🖥️  TUI:     machina"
 	@echo "   🔗 API:     https://localhost:5092/api/v1/health"
 
 run-daemon: build ## Run the daemon (debug)
-	$(CARGO) run -p virtspawn-daemon
+	$(CARGO) run -p machina-daemon
 
 run-tui: build ## Run the TUI (debug)
-	$(CARGO) run -p virtspawn-tui
+	$(CARGO) run -p machina-tui
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

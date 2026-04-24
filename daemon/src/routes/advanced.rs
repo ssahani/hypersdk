@@ -2,11 +2,11 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::{
+use machina_core::libvirt::{
     boot, capabilities, cdrom, domain_job, emulator, guest_agent, host_cpu, hostdev_pci,
     migrate, node_device, numa_tune, nwfilter, save_restore, secret, storage,
 };
-use virtspawn_core::{LibvirtError, LibvirtManager};
+use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::error::{AppError, Xml};
 
@@ -688,7 +688,7 @@ async fn resize_volume_handler(
     Json(req): Json<ResizeVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if req.capacity_gb <= 0.0 || req.capacity_gb > 10_240.0 {
-        return Err(virtspawn_core::LibvirtError::Operation(
+        return Err(machina_core::LibvirtError::Operation(
             "capacity_gb must be between 0 and 10240 (10 TB)".to_string(),
         ).into());
     }
@@ -732,7 +732,7 @@ async fn set_memory_balloon_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| virtspawn_core::libvirt::resize::set_memory_balloon(conn, &name2, mb))
+        manager.with_conn(|conn| machina_core::libvirt::resize::set_memory_balloon(conn, &name2, mb))
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?

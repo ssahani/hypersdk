@@ -1,5 +1,5 @@
 #!/bin/bash
-# virtspawn backup — backup VM configs and optionally disk images
+# machina backup — backup VM configs and optionally disk images
 # Supports local and NFS backup targets with retention policies.
 #
 # Usage:
@@ -10,23 +10,23 @@
 #   ./scripts/backup.sh --restore <dir>         # Restore configs from backup
 #   ./scripts/backup.sh --nfs 192.168.1.10:/backups  # Backup to NFS share
 #   ./scripts/backup.sh --retain 7              # Keep only last 7 backups
-#   ./scripts/backup.sh --config /etc/virtspawn/backup.conf  # Use config file
+#   ./scripts/backup.sh --config /etc/machina/backup.conf  # Use config file
 #   ./scripts/backup.sh --vm myvm                # Backup a single VM only
 #   ./scripts/backup.sh --vm myvm --with-disks   # Single VM with disks
 #   ./scripts/backup.sh --verify <dir>           # Verify backup checksums
 set -eo pipefail
 
-API="${VIRTSPAWN_API:-https://localhost:5092/api/v1}"
-BACKUP_DIR="${VIRTSPAWN_BACKUP_DIR:-$HOME/virtspawn-backups}"
-DATE="${VIRTSPAWN_BACKUP_ID:-$(date +%Y%m%d-%H%M%S)}"
+API="${MACHINA_API:-https://localhost:5092/api/v1}"
+BACKUP_DIR="${MACHINA_BACKUP_DIR:-$HOME/machina-backups}"
+DATE="${MACHINA_BACKUP_ID:-$(date +%Y%m%d-%H%M%S)}"
 VM_FILTER=""
 NFS_TARGET=""
-NFS_MOUNT_POINT="/mnt/virtspawn-backup"
+NFS_MOUNT_POINT="/mnt/machina-backup"
 NFS_OPTS="vers=4,soft,timeo=30"
 UNMOUNT_AFTER=true
 RETAIN=0
 CONFIG_FILE=""
-LOG_TAG="virtspawn-backup"
+LOG_TAG="machina-backup"
 INCREMENTAL=false
 VERIFY_DIR=""
 
@@ -72,9 +72,9 @@ cleanup_on_exit() {
         write_status "failed" "Backup interrupted or failed (exit $exit_code)" ""
     fi
     # Always try to unmount NFS on exit
-    if [ -n "${NFS_TARGET:-}" ] && mountpoint -q "${NFS_MOUNT_POINT:-/mnt/virtspawn-backup}" 2>/dev/null; then
+    if [ -n "${NFS_TARGET:-}" ] && mountpoint -q "${NFS_MOUNT_POINT:-/mnt/machina-backup}" 2>/dev/null; then
         sync 2>/dev/null || true
-        umount "${NFS_MOUNT_POINT:-/mnt/virtspawn-backup}" 2>/dev/null || true
+        umount "${NFS_MOUNT_POINT:-/mnt/machina-backup}" 2>/dev/null || true
     fi
     # Release lock
     if [ -n "${LOCK_FD:-}" ]; then
@@ -257,8 +257,8 @@ for arg in "$@"; do
 done
 
 # Load default config if it exists
-if [ -z "$CONFIG_FILE" ] && [ -f /etc/virtspawn/backup.conf ]; then
-    load_config /etc/virtspawn/backup.conf
+if [ -z "$CONFIG_FILE" ] && [ -f /etc/machina/backup.conf ]; then
+    load_config /etc/machina/backup.conf
 elif [ -n "$CONFIG_FILE" ] && [ "$CONFIG_FILE" != "__next__" ]; then
     load_config "$CONFIG_FILE"
 fi
@@ -300,7 +300,7 @@ Backup modes:
 
 NFS options:
   --nfs SERVER:/PATH     Mount NFS share and backup there
-  --mount-point PATH     NFS mount point (default: /mnt/virtspawn-backup)
+  --mount-point PATH     NFS mount point (default: /mnt/machina-backup)
   --nfs-opts OPTS        NFS mount options (default: vers=4,soft,timeo=30)
   --no-unmount           Leave NFS mounted after backup
   --unmount              Unmount NFS after backup (default)
@@ -309,16 +309,16 @@ Retention:
   --retain N             Keep only the last N backups, prune older ones
 
 Config:
-  --config FILE          Load config from file (default: /etc/virtspawn/backup.conf)
+  --config FILE          Load config from file (default: /etc/machina/backup.conf)
 
 Environment:
-  VIRTSPAWN_API          API URL (default: https://localhost:5092/api/v1)
-  VIRTSPAWN_BACKUP_DIR   Backup root (default: ~/virtspawn-backups)
+  MACHINA_API          API URL (default: https://localhost:5092/api/v1)
+  MACHINA_BACKUP_DIR   Backup root (default: ~/machina-backups)
 
 Timer setup:
-  sudo systemctl enable --now virtspawn-backup.timer    # daily backups
-  sudo systemctl list-timers virtspawn-backup           # check schedule
-  journalctl -u virtspawn-backup.service                # check logs
+  sudo systemctl enable --now machina-backup.timer    # daily backups
+  sudo systemctl list-timers machina-backup           # check schedule
+  journalctl -u machina-backup.service                # check logs
 HELPEOF
             exit 0
             ;;
@@ -539,7 +539,7 @@ fi
 
 # ── Create backup ────────────────────────────────────────────────────
 
-echo "virtspawn backup"
+echo "machina backup"
 [ -n "$VM_FILTER" ] && echo "  VM: $VM_FILTER"
 echo "  Destination: $BACKUP_PATH"
 [ -n "$NFS_TARGET" ] && echo "  NFS target: $NFS_TARGET"

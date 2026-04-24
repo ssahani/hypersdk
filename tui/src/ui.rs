@@ -6,7 +6,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Cell, Clear, Paragraph, Row, Table, Wrap};
 use ratatui::Frame;
 
-use virtspawn_core::{
+use machina_core::{
     AppState, Focus, InputMode, NotifyLevel, ObjectTab, ResourceView, SidebarCategory, SidebarItem,
     ViewMode,
 };
@@ -100,7 +100,7 @@ fn compute_sidebar_width(available: u16) -> u16 {
 fn render_header_bar(frame: &mut Frame, area: Rect, state: &AppState) {
     let mut spans: Vec<Span> = vec![
         Span::styled(" \u{26A1} ", ORANGE_BOLD),
-        Span::styled("virtspawn", NAME_BOLD),
+        Span::styled("Machina", NAME_BOLD),
     ];
 
     // Hostname from node_info
@@ -1434,7 +1434,7 @@ fn render_help_overlay(frame: &mut Frame, area: Rect, state: &AppState) {
 
     let lines = vec![
         Line::from(Span::styled(
-            "virtspawn - Keyboard Shortcuts",
+            "Machina — Keyboard Shortcuts",
             ORANGE_BOLD,
         )),
         Line::from(""),
@@ -1718,7 +1718,7 @@ fn state_color(state: &str) -> Color {
     }
 }
 
-fn vm_details_for<'a>(state: &'a AppState, vm_name: &str) -> Option<&'a virtspawn_core::VmDetails> {
+fn vm_details_for<'a>(state: &'a AppState, vm_name: &str) -> Option<&'a machina_core::VmDetails> {
     state.vm_details.as_ref().filter(|d| d.name == vm_name)
 }
 
@@ -1783,7 +1783,7 @@ fn truncate_str(s: &str, max_len: usize) -> String {
 }
 
 fn format_bytes(bytes: u64) -> String {
-    virtspawn_core::fmt::format_bytes(bytes)
+    machina_core::fmt::format_bytes(bytes)
 }
 
 fn centered_rect(percent_x: u16, percent_y: u16, area: Rect) -> Rect {

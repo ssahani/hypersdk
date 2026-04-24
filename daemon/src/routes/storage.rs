@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::storage;
-use virtspawn_core::{CreateVolumeRequest, LibvirtError, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
+use machina_core::libvirt::storage;
+use machina_core::{CreateVolumeRequest, LibvirtError, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
 
 use crate::error::{ok_json, AppError};
 

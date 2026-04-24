@@ -167,7 +167,7 @@ pub fn kubevirt_bundle_from_libvirt_vm(
     dv.push_str("# 3) virtctl start <vm> -n namespace\n");
     dv.push_str("apiVersion: cdi.kubevirt.io/v1beta1\nkind: DataVolume\nmetadata:\n");
     dv.push_str(&format!("  name: {dv_name}\n  namespace: {ns}\n"));
-    dv.push_str("  labels:\n    virtspawn.io/source-libvirt-vm: \"");
+    dv.push_str("  labels:\n    machina.io/source-libvirt-vm: \"");
     dv.push_str(&yaml_escape(libvirt_name));
     dv.push_str("\"\nspec:\n  source:\n    upload: {}\n  pvc:\n    accessModes:\n      - ReadWriteOnce\n    resources:\n      requests:\n");
     dv.push_str(&format!("        storage: {storage_gi}Gi\n"));
@@ -178,7 +178,7 @@ pub fn kubevirt_bundle_from_libvirt_vm(
     vm.push_str("# virtio-win CD: same role as hyper2kvm / libvirt attaching virtio-win.iso for drivers after migration.\n");
     vm.push_str("apiVersion: kubevirt.io/v1\nkind: VirtualMachine\nmetadata:\n");
     vm.push_str(&format!("  name: {vm_k8s}\n  namespace: {ns}\n"));
-    vm.push_str("  labels:\n    virtspawn.io/source-libvirt-vm: \"");
+    vm.push_str("  labels:\n    machina.io/source-libvirt-vm: \"");
     vm.push_str(&yaml_escape(libvirt_name));
     vm.push_str("\"\nspec:\n  runStrategy: Halted\n  template:\n    metadata:\n      labels:\n");
     vm.push_str(&format!("        kubevirt.io/vm: {vm_k8s}\n"));

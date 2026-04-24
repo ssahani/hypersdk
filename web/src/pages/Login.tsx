@@ -1,7 +1,7 @@
 import { useState, FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
-import { Lock, User, AlertCircle, Server, Network, Activity, Zap } from 'lucide-react'
+import { Lock, User, AlertCircle, Server, Network, Activity, Zap, Moon, Cloud, Sun } from 'lucide-react'
 
 const features = [
   {
@@ -52,19 +52,39 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex relative">
-      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20 flex items-center gap-2">
-        <label htmlFor="login-theme" className="sr-only">Theme</label>
-        <select
-          id="login-theme"
-          aria-label="Theme"
-          value={theme}
-          onChange={(e) => setTheme(e.target.value as AppTheme)}
-          className="text-xs rounded-lg border border-slate-600/80 bg-slate-900/90 text-slate-200 px-2 py-1.5 backdrop-blur-sm"
+      <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-20" role="group" aria-label="Theme">
+        <span className="sr-only">Theme</span>
+        <div
+          className={`grid grid-cols-3 gap-1.5 w-[11.5rem] rounded-xl p-1 backdrop-blur-sm border ${
+            isLight ? 'border-slate-300/80 bg-white/90' : 'border-slate-600/80 bg-slate-900/90'
+          }`}
         >
-          <option value="dark">Dark</option>
-          <option value="steel">Steel</option>
-          <option value="light">Light</option>
-        </select>
+          {(
+            [
+              { id: 'dark' as const, label: 'Dark', Icon: Moon },
+              { id: 'steel' as const, label: 'Steel', Icon: Cloud },
+              { id: 'light' as const, label: 'Light', Icon: Sun },
+            ] as const
+          ).map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setTheme(id)}
+              className={`rounded-lg border px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wide flex flex-col items-center gap-1 transition ${
+                theme === id
+                  ? isLight
+                    ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-200'
+                    : 'border-blue-500 bg-blue-950/50 text-blue-200 ring-2 ring-blue-500/50'
+                  : isLight
+                    ? 'border-transparent text-slate-600 hover:bg-slate-100'
+                    : 'border-transparent text-slate-300 hover:bg-slate-800/80'
+              }`}
+            >
+              <Icon className={`w-4 h-4 ${theme === id ? (isLight ? 'text-blue-600' : 'text-blue-300') : ''}`} aria-hidden />
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
       {/* Left Panel — Feature Showcase (desktop only) */}
       <div className={`hidden lg:flex lg:w-[60%] relative overflow-hidden flex-col items-center justify-center px-12 ${
@@ -93,7 +113,7 @@ export default function LoginPage() {
             <span className={`text-4xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
               isLight ? 'from-slate-800 to-slate-600' : 'from-white to-slate-300'
             }`}>
-              virtspawn
+              Machina
             </span>
           </div>
 
@@ -152,7 +172,7 @@ export default function LoginPage() {
             </div>
             <h1 className={`text-2xl font-bold bg-gradient-to-r bg-clip-text text-transparent ${
               isLight ? 'from-slate-800 to-slate-600' : 'from-white to-slate-300'
-            }`}>virtspawn</h1>
+            }`}>Machina</h1>
             <p className={`text-sm mt-1 ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Sign in with your system account</p>
           </div>
 
@@ -231,7 +251,7 @@ export default function LoginPage() {
           </form>
 
           <p className={`text-xs text-center mt-4 max-w-sm mx-auto leading-relaxed ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-            Same username and password as SSH (PAM stack <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>sshd</code> by default). Not a separate virtspawn password — if you only use SSH keys, run{' '}
+            Same username and password as SSH (PAM stack <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>sshd</code> by default). Not a separate Machina password — if you only use SSH keys, run{' '}
             <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>passwd</code>{' '}
             on the server first.
           </p>

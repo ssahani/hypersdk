@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate a complete API Reference PDF for virtspawn."""
+"""Generate a complete API Reference PDF for machina."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os
 
 DIR = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(DIR, "virtspawn-api-reference.pdf")
+OUT = os.path.join(DIR, "machina-api-reference.pdf")
 W, H = 1920, 1080
 
 FONT_PATHS = [
@@ -110,7 +110,7 @@ def slide_title():
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     bar(d, 6)
-    tc(d, 200, "virtspawn", ft, WHITE)
+    tc(d, 200, "machina", ft, WHITE)
     tc(d, 290, "REST API Reference", fh, ACCENT)
     div(d, 370)
     tc(d, 420, "Complete reference for all 40+ API endpoints", fb, GRAY)
@@ -123,7 +123,7 @@ def slide_title():
         d.text((x+16, 665), m, font=fl, fill=WHITE)
         x += 100
     tc(d, 750, "Content-Type: application/json", fc, GRAY)
-    tc(d, 850, "https://github.com/ssahani/-virtspawn", fs, ACCENT)
+    tc(d, 850, "https://github.com/ssahani/machina", fs, ACCENT)
     return img
 
 def slide_vm_endpoints():
@@ -521,7 +521,7 @@ def slide_automation():
         '#!/bin/bash',
         'HEALTH=$(curl -sf localhost:5092/api/v1/health)',
         'if [ $? -ne 0 ]; then',
-        '  echo "CRITICAL: virtspawn daemon down"',
+        '  echo "CRITICAL: machina daemon down"',
         '  exit 2',
         'fi',
         'echo "OK: $HEALTH"',

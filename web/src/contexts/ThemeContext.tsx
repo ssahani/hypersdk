@@ -22,7 +22,7 @@ function parseStoredTheme(raw: string | null): AppTheme {
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<AppTheme>(() =>
-    parseStoredTheme(typeof localStorage !== 'undefined' ? localStorage.getItem('virtspawn-theme') : null)
+    parseStoredTheme(typeof localStorage !== 'undefined' ? localStorage.getItem('machina-theme') : null)
   )
 
   const setTheme = useCallback((t: AppTheme) => {
@@ -30,7 +30,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('virtspawn-theme', theme)
+    localStorage.setItem('machina-theme', theme)
     const root = document.documentElement
     root.classList.remove('light-theme', 'steel-theme')
     if (theme === 'light') {

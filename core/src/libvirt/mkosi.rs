@@ -146,7 +146,7 @@ pub fn materialize_mkosi_if_requested(
     if !out.status.success() {
         tracing::warn!(
             path = %staging.display(),
-            "mkosi build failed; ephemeral workspace left for inspection (delete manually or set VIRTSPAWN_MKOSI_KEEP_WORKSPACE)"
+            "mkosi build failed; ephemeral workspace left for inspection (delete manually or set MACHINA_MKOSI_KEEP_WORKSPACE)"
         );
         return Err(LibvirtError::Operation(format!(
             "mkosi build failed (exit {}); see streamed log above",
@@ -157,7 +157,7 @@ pub fn materialize_mkosi_if_requested(
     let artifact = find_mkosi_disk_artifact(&output_dir)?;
     materialize_artifact_to_dest(&artifact, Path::new(&dest), log)?;
 
-    let keep_staging = std::env::var_os("VIRTSPAWN_MKOSI_KEEP_WORKSPACE").is_some();
+    let keep_staging = std::env::var_os("MACHINA_MKOSI_KEEP_WORKSPACE").is_some();
     if !keep_staging {
         if let Err(e) = fs::remove_dir_all(&staging) {
             tracing::debug!(path = %staging.display(), "mkosi staging cleanup: {e}");
@@ -191,10 +191,10 @@ fn alloc_mkosi_ephemeral_workspace(vm_name: &str) -> Result<PathBuf, LibvirtErro
     } else {
         safe
     };
-    let base: PathBuf = std::env::var_os("VIRTSPAWN_MKOSI_WORKSPACE_DIR")
+    let base: PathBuf = std::env::var_os("MACHINA_MKOSI_WORKSPACE_DIR")
         .map(PathBuf::from)
         .filter(|p| p.is_absolute())
-        .unwrap_or_else(|| PathBuf::from("/var/tmp/virtspawn-mkosi-ws"));
+        .unwrap_or_else(|| PathBuf::from("/var/tmp/machina-mkosi-ws"));
     fs::create_dir_all(&base).map_err(|e| {
         LibvirtError::Operation(format!(
             "mkosi: cannot create workspace base {}: {e}",

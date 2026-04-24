@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# virtspawnctl — Install, manage, and demo the virtspawn VM management platform
+# machinactl — Install, manage, and demo the machina VM management platform
 #
-# Usage: virtspawnctl <command> [options]
+# Usage: machinactl <command> [options]
 #
 # Commands:
 #   deps            Install all system dependencies
 #   build           Build the backend (and optionally web UI)
 #   test            Run the test suite
-#   install         Install virtspawn to the system
-#   uninstall       Remove virtspawn from the system
+#   install         Install machina to the system
+#   uninstall       Remove machina from the system
 #   deploy          Full deployment: deps → build → install → start → verify
 #   reinstall       Rebuild and reinstall: stop → build → install → start → verify
 #   upgrade         Git pull + reinstall
-#   start           Start the virtspawn-daemon service
+#   start           Start the machina-daemon service
 #   stop            Stop the service
 #   restart         Restart the service
 #   status          Show service status
@@ -29,13 +29,13 @@
 #   demo            Run interactive API demo
 #   help            Show this help
 #
-# Web UI sign-in uses PAM (Linux accounts on this host), not a separate virtspawn password.
+# Web UI sign-in uses PAM (Linux accounts on this host), not a separate machina password.
 
 set -euo pipefail
 
 # ── Globals ─────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-API_URL="${VIRTSPAWN_URL:-https://127.0.0.1:5092}"
+API_URL="${MACHINA_URL:-https://127.0.0.1:5092}"
 API_VERSION="v1"
 
 # ── Helpers ─────────────────────────────────────────────────────────────
@@ -212,12 +212,12 @@ cmd_deps() {
 
     ok "All dependencies installed"
     echo ""
-    info "Next: run ./virtspawnctl build"
+    info "Next: run ./machinactl build"
 }
 
 # ── build ───────────────────────────────────────────────────────────────
 cmd_build() {
-    step "Building virtspawn"
+    step "Building machina"
 
     local build_web=1
     [[ "${1:-}" == "--no-web" ]] && build_web=0
@@ -226,7 +226,7 @@ cmd_build() {
     cd "$SCRIPT_DIR"
     export_libclang_path
     cargo build --workspace --release 2>&1
-    ok "Backend built: virtspawn-daemon, virtspawn (TUI)"
+    ok "Backend built: machina-daemon, machina (TUI)"
 
     if [[ $build_web -eq 1 ]] && [[ -d "$SCRIPT_DIR/web" ]]; then
         if command -v node &>/dev/null; then
@@ -242,7 +242,7 @@ cmd_build() {
 
     echo ""
     ok "Build complete"
-    info "Next: run ./virtspawnctl install"
+    info "Next: run ./machinactl install"
 }
 
 # ── test ────────────────────────────────────────────────────────────────
@@ -257,10 +257,10 @@ cmd_test() {
 # ── install ─────────────────────────────────────────────────────────────
 cmd_install() {
     need_root
-    step "Installing virtspawn"
+    step "Installing machina"
 
-    if [[ ! -f "$SCRIPT_DIR/target/release/virtspawn-daemon" ]]; then
-        err "Not built yet. Run: ./virtspawnctl build"
+    if [[ ! -f "$SCRIPT_DIR/target/release/machina-daemon" ]]; then
+        err "Not built yet. Run: ./machinactl build"
         exit 1
     fi
 
@@ -269,30 +269,30 @@ cmd_install() {
     systemctl daemon-reload
 
     # Create state directories
-    mkdir -p /var/lib/virtspawn/backups
+    mkdir -p /var/lib/machina/backups
 
-    ok "virtspawn installed"
-    info "Start with: ./virtspawnctl start"
+    ok "machina installed"
+    info "Start with: ./machinactl start"
 }
 
 # ── uninstall ───────────────────────────────────────────────────────────
 cmd_uninstall() {
     need_root
-    step "Uninstalling virtspawn"
+    step "Uninstalling machina"
 
-    if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
-        info "Stopping virtspawn-daemon..."
-        systemctl stop virtspawn-daemon
+    if systemctl is-active --quiet machina-daemon 2>/dev/null; then
+        info "Stopping machina-daemon..."
+        systemctl stop machina-daemon
     fi
-    systemctl disable virtspawn-daemon virtspawn-backup.timer 2>/dev/null || true
+    systemctl disable machina-daemon machina-backup.timer 2>/dev/null || true
 
     cd "$SCRIPT_DIR"
     make uninstall 2>/dev/null || true
     systemctl daemon-reload
 
-    ok "virtspawn uninstalled"
-    warn "State data preserved at /var/lib/virtspawn"
-    warn "To remove all data: sudo rm -rf /var/lib/virtspawn"
+    ok "machina uninstalled"
+    warn "State data preserved at /var/lib/machina"
+    warn "To remove all data: sudo rm -rf /var/lib/machina"
 }
 
 # ── deploy ──────────────────────────────────────────────────────────────
@@ -304,7 +304,7 @@ cmd_deploy() {
     echo "  1. Install all system dependencies"
     echo "  2. Build the backend (release mode)"
     echo "  3. Install binaries, configs, and systemd units"
-    echo "  4. Start the virtspawn-daemon service"
+    echo "  4. Start the machina-daemon service"
     echo "  5. Run post-install verification"
     echo ""
 
@@ -313,7 +313,7 @@ cmd_deploy() {
 
     if [[ -n "${SUDO_USER:-}" ]]; then
         info "Building as $SUDO_USER..."
-        su - "$SUDO_USER" -c "cd '$SCRIPT_DIR' && ./virtspawnctl build --no-web"
+        su - "$SUDO_USER" -c "cd '$SCRIPT_DIR' && ./machinactl build --no-web"
     else
         cmd_build --no-web
     fi
@@ -330,25 +330,25 @@ cmd_deploy() {
     step "Deployment Complete"
     echo ""
     echo "  🔗 API:     $API_URL"
-    echo "  🖥️  TUI:     virtspawn"
-    echo "  📊 Status:  ./virtspawnctl status"
-    echo "  📜 Logs:    sudo journalctl -u virtspawn-daemon -f"
+    echo "  🖥️  TUI:     machina"
+    echo "  📊 Status:  ./machinactl status"
+    echo "  📜 Logs:    sudo journalctl -u machina-daemon -f"
     echo ""
 }
 
 # ── reinstall ───────────────────────────────────────────────────────────
 cmd_reinstall() {
     need_root
-    step "Reinstalling virtspawn"
+    step "Reinstalling machina"
 
-    if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
-        info "Stopping virtspawn-daemon..."
-        systemctl stop virtspawn-daemon
+    if systemctl is-active --quiet machina-daemon 2>/dev/null; then
+        info "Stopping machina-daemon..."
+        systemctl stop machina-daemon
     fi
 
     if [[ -n "${SUDO_USER:-}" ]]; then
         info "Rebuilding as $SUDO_USER..."
-        su - "$SUDO_USER" -c "cd '$SCRIPT_DIR' && ./virtspawnctl build --no-web"
+        su - "$SUDO_USER" -c "cd '$SCRIPT_DIR' && ./machinactl build --no-web"
     else
         cmd_build --no-web
     fi
@@ -357,15 +357,15 @@ cmd_reinstall() {
     cd "$SCRIPT_DIR"
     make install
     systemctl daemon-reload
-    systemctl start virtspawn-daemon
+    systemctl start machina-daemon
     sleep 2
 
-    if systemctl is-active --quiet virtspawn-daemon; then
-        ok "virtspawn reinstalled and running"
+    if systemctl is-active --quiet machina-daemon; then
+        ok "machina reinstalled and running"
         echo ""
         cmd_verify || true
     else
-        err "Failed to start. Check: sudo journalctl -u virtspawn-daemon -e"
+        err "Failed to start. Check: sudo journalctl -u machina-daemon -e"
         exit 1
     fi
 }
@@ -373,7 +373,7 @@ cmd_reinstall() {
 # ── upgrade ─────────────────────────────────────────────────────────────
 cmd_upgrade() {
     need_root
-    step "Upgrading virtspawn"
+    step "Upgrading machina"
 
     if [[ -n "${SUDO_USER:-}" ]]; then
         info "Pulling latest code as $SUDO_USER..."
@@ -393,12 +393,12 @@ cmd_verify() {
     local failures=0
 
     info "Checking service..."
-    if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
+    if systemctl is-active --quiet machina-daemon 2>/dev/null; then
         ok "Service is running"
-    elif pgrep -f "virtspawn-daemon" &>/dev/null; then
-        ok "virtspawn-daemon process is running"
+    elif pgrep -f "machina-daemon" &>/dev/null; then
+        ok "machina-daemon process is running"
     else
-        err "virtspawn-daemon is not running"
+        err "machina-daemon is not running"
         ((failures++)) || true
         return 1
     fi
@@ -436,10 +436,10 @@ cmd_verify() {
     fi
 
     info "Checking backup timer..."
-    if systemctl is-active --quiet virtspawn-backup.timer 2>/dev/null; then
+    if systemctl is-active --quiet machina-backup.timer 2>/dev/null; then
         ok "Backup timer active"
     else
-        warn "Backup timer not active (enable with: systemctl enable --now virtspawn-backup.timer)"
+        warn "Backup timer not active (enable with: systemctl enable --now machina-backup.timer)"
     fi
 
     echo ""
@@ -453,15 +453,15 @@ cmd_verify() {
 
 # ── health: Deep health check ──────────────────────────────────────────
 cmd_health() {
-    step "virtspawn Health Check"
+    step "machina Health Check"
     local warnings=0 errors=0
 
     echo ""
     echo "📦 Service"
-    if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
-        ok "virtspawn-daemon is running"
+    if systemctl is-active --quiet machina-daemon 2>/dev/null; then
+        ok "machina-daemon is running"
     else
-        err "virtspawn-daemon is not running"; ((errors++)) || true
+        err "machina-daemon is not running"; ((errors++)) || true
     fi
 
     echo ""
@@ -488,7 +488,7 @@ cmd_health() {
 
     echo ""
     echo "💾 Disk space"
-    local backup_dir="/var/lib/virtspawn/backups"
+    local backup_dir="/var/lib/machina/backups"
     if [[ -d "$backup_dir" ]]; then
         local size usage
         size=$(du -sh "$backup_dir" 2>/dev/null | cut -f1)
@@ -504,7 +504,7 @@ cmd_health() {
 
     echo ""
     echo "⏱️  Timers"
-    if systemctl is-active --quiet virtspawn-backup.timer 2>/dev/null; then
+    if systemctl is-active --quiet machina-backup.timer 2>/dev/null; then
         ok "Backup timer active"
     else
         warn "Backup timer not active"; ((warnings++)) || true
@@ -546,26 +546,26 @@ cmd_backup() {
             ;;
         enable)
             need_root
-            systemctl enable --now virtspawn-backup.timer
+            systemctl enable --now machina-backup.timer
             ok "Backup timer enabled (daily at 2:00 AM)"
-            systemctl list-timers virtspawn-backup.timer --no-pager
+            systemctl list-timers machina-backup.timer --no-pager
             ;;
         disable)
             need_root
-            systemctl disable --now virtspawn-backup.timer
+            systemctl disable --now machina-backup.timer
             ok "Backup timer disabled"
             ;;
         status)
             echo ""
-            if systemctl is-active --quiet virtspawn-backup.timer 2>/dev/null; then
+            if systemctl is-active --quiet machina-backup.timer 2>/dev/null; then
                 ok "Backup timer is active"
             else
                 warn "Backup timer is inactive"
             fi
             echo ""
-            systemctl list-timers virtspawn-backup.timer --no-pager 2>/dev/null || true
+            systemctl list-timers machina-backup.timer --no-pager 2>/dev/null || true
             echo ""
-            local backup_dir="/var/lib/virtspawn/backups"
+            local backup_dir="/var/lib/machina/backups"
             info "Backup directory: $backup_dir"
             if [[ -d "$backup_dir" ]]; then
                 info "Backup count: $(find "$backup_dir" -maxdepth 2 -name "*.xml" 2>/dev/null | wc -l) configs"
@@ -573,10 +573,10 @@ cmd_backup() {
             fi
             ;;
         logs)
-            journalctl -u virtspawn-backup -f --no-hostname
+            journalctl -u machina-backup -f --no-hostname
             ;;
         *)
-            echo "Usage: virtspawnctl backup <now|enable|disable|status|logs>"
+            echo "Usage: machinactl backup <now|enable|disable|status|logs>"
             ;;
     esac
 }
@@ -584,49 +584,49 @@ cmd_backup() {
 # ── start/stop/restart/status/logs ──────────────────────────────────────
 cmd_start() {
     need_root
-    step "Starting virtspawn-daemon"
-    systemctl start virtspawn-daemon
+    step "Starting machina-daemon"
+    systemctl start machina-daemon
     sleep 2
-    if systemctl is-active --quiet virtspawn-daemon; then
-        ok "virtspawn-daemon is running"
+    if systemctl is-active --quiet machina-daemon; then
+        ok "machina-daemon is running"
         info "API: $API_URL"
-        info "TUI: virtspawn"
+        info "TUI: machina"
     else
-        err "Failed to start. Check: sudo journalctl -u virtspawn-daemon -e"
+        err "Failed to start. Check: sudo journalctl -u machina-daemon -e"
         exit 1
     fi
 }
 
 cmd_stop() {
     need_root
-    systemctl stop virtspawn-daemon
-    ok "virtspawn-daemon stopped"
+    systemctl stop machina-daemon
+    ok "machina-daemon stopped"
 }
 
 cmd_restart() {
     need_root
-    systemctl restart virtspawn-daemon
+    systemctl restart machina-daemon
     sleep 2
-    if systemctl is-active --quiet virtspawn-daemon; then
-        ok "virtspawn-daemon restarted"
+    if systemctl is-active --quiet machina-daemon; then
+        ok "machina-daemon restarted"
     else
-        err "Failed to restart. Check: sudo journalctl -u virtspawn-daemon -e"
+        err "Failed to restart. Check: sudo journalctl -u machina-daemon -e"
     fi
 }
 
 cmd_status() {
     echo ""
-    if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
-        ok "virtspawn-daemon is running"
+    if systemctl is-active --quiet machina-daemon 2>/dev/null; then
+        ok "machina-daemon is running"
     else
-        warn "virtspawn-daemon is stopped"
+        warn "machina-daemon is stopped"
     fi
     echo ""
-    systemctl status virtspawn-daemon --no-pager 2>/dev/null || true
+    systemctl status machina-daemon --no-pager 2>/dev/null || true
 }
 
 cmd_logs() {
-    journalctl -u virtspawn-daemon -f --no-hostname "${@}"
+    journalctl -u machina-daemon -f --no-hostname "${@}"
 }
 
 # ── doctor ──────────────────────────────────────────────────────────────
@@ -678,24 +678,24 @@ cmd_doctor() {
         warn "libvirtd is not running"
     fi
 
-    # virtspawn
-    if command -v virtspawn-daemon &>/dev/null; then
-        ok "virtspawn-daemon is installed"
+    # machina
+    if command -v machina-daemon &>/dev/null; then
+        ok "machina-daemon is installed"
     else
-        warn "virtspawn-daemon not yet installed"
+        warn "machina-daemon not yet installed"
     fi
 
-    if systemctl is-active --quiet virtspawn-daemon 2>/dev/null; then
-        ok "virtspawn-daemon is running"
+    if systemctl is-active --quiet machina-daemon 2>/dev/null; then
+        ok "machina-daemon is running"
     else
-        warn "virtspawn-daemon is not running"
+        warn "machina-daemon is not running"
     fi
 
     echo ""
     if [[ $issues -eq 0 ]]; then
         ok "System is ready"
     else
-        warn "$issues issue(s) found — run ./virtspawnctl deps to fix"
+        warn "$issues issue(s) found — run ./machinactl deps to fix"
     fi
 }
 
@@ -704,7 +704,7 @@ cmd_tls() {
     need_root
     step "TLS Certificate Setup"
 
-    local cert_dir="/etc/virtspawn/ssl"
+    local cert_dir="/etc/machina/ssl"
     local cert_file="$cert_dir/cert.pem"
     local key_file="$cert_dir/key.pem"
 
@@ -725,7 +725,7 @@ cmd_tls() {
     openssl req -x509 -newkey rsa:4096 \
         -keyout "$key_file" -out "$cert_file" \
         -sha256 -days 365 -nodes \
-        -subj "/CN=$hostname/O=virtspawn" \
+        -subj "/CN=$hostname/O=machina" \
         -addext "subjectAltName=DNS:$hostname,DNS:localhost,IP:127.0.0.1" \
         2>/dev/null
 
@@ -739,14 +739,14 @@ cmd_tls() {
 
 # ── demo ────────────────────────────────────────────────────────────────
 cmd_demo() {
-    step "virtspawn Interactive Demo"
+    step "machina Interactive Demo"
 
     if ! curl -sfk "$API_URL/api/$API_VERSION/health" &>/dev/null; then
-        err "virtspawn-daemon is not running at $API_URL"
-        info "Start it with: ./virtspawnctl start"
+        err "machina-daemon is not running at $API_URL"
+        info "Start it with: ./machinactl start"
         exit 1
     fi
-    ok "virtspawn-daemon is running"
+    ok "machina-daemon is running"
 
     echo ""
     echo "=== VMs ==="
@@ -763,7 +763,7 @@ cmd_demo() {
     echo ""
     echo "📋 Quick reference:"
     echo "  🔗 API:   $API_URL/api/$API_VERSION"
-    echo "  🖥️  TUI:   virtspawn"
+    echo "  🖥️  TUI:   machina"
     echo "  🌐 Web:   $API_URL"
     echo ""
 }
@@ -771,16 +771,16 @@ cmd_demo() {
 # ── help ────────────────────────────────────────────────────────────────
 cmd_help() {
     echo ""
-    echo "virtspawnctl — virtspawn management tool"
+    echo "machinactl — machina management tool"
     echo ""
-    echo "📋 Usage: ./virtspawnctl <command> [options]"
+    echo "📋 Usage: ./machinactl <command> [options]"
     echo ""
     echo "📦 Setup:"
     echo "  deps              Install all system dependencies (auto-sudo)"
     echo "  build [--no-web]  Build backend (and web UI unless --no-web)"
     echo "  test              Run the test suite (cargo test)"
-    echo "  install           Install virtspawn to the system (auto-sudo)"
-    echo "  uninstall         Remove virtspawn from the system (auto-sudo)"
+    echo "  install           Install machina to the system (auto-sudo)"
+    echo "  uninstall         Remove machina from the system (auto-sudo)"
     echo ""
     echo "🔄 Lifecycle:"
     echo "  deploy            Full deployment: deps → build → install → start → verify (auto-sudo)"
@@ -788,7 +788,7 @@ cmd_help() {
     echo "  upgrade           Git pull + reinstall (auto-sudo)"
     echo ""
     echo "⚙️  Service:"
-    echo "  start             Start the virtspawn-daemon service"
+    echo "  start             Start the machina-daemon service"
     echo "  stop              Stop the service"
     echo "  restart           Restart the service"
     echo "  status            Show service status"
@@ -810,10 +810,10 @@ cmd_help() {
     echo "  help              Show this help"
     echo ""
     echo "🚀 Quick start:"
-    echo "  ./virtspawnctl deploy          # Does everything in one command"
+    echo "  ./machinactl deploy          # Does everything in one command"
     echo ""
     echo "🌍 Environment:"
-    echo "  VIRTSPAWN_URL    API URL (default: https://127.0.0.1:5092; self-signed — use curl -k from scripts)"
+    echo "  MACHINA_URL    API URL (default: https://127.0.0.1:5092; self-signed — use curl -k from scripts)"
     echo ""
 }
 

@@ -5,7 +5,8 @@ import { createVMWithProgress, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { BrowseHostPathModal, isHostDiskImageFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Upload, HardDrive, FolderOpen } from 'lucide-react'
+import { ArrowLeft, Upload, HardDrive, FolderOpen, Sliders } from 'lucide-react'
+import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { Link } from 'react-router'
 
 export default function ImportVMPage() {
@@ -77,15 +78,35 @@ export default function ImportVMPage() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-fade-in">
+    <div className="max-w-3xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center gap-4">
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded transition" aria-label="Back"><ArrowLeft className="w-5 h-5" /></Link>
         <h1 className="text-2xl font-bold flex items-center gap-2"><Upload className="w-6 h-6 text-cyan-400" /> Import Virtual Machine</h1>
       </div>
 
-      <div className="flex gap-2 mb-4">
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${step === 'import' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>1. Import Disk</span>
-        <span className={`px-3 py-1 rounded-full text-xs font-medium ${step === 'configure' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-400'}`}>2. Configure VM</span>
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Wizard steps</h2>
+        <ChoiceCardGrid>
+          <ChoiceCard
+            tone="blue"
+            selected={step === 'import'}
+            onClick={() => {
+              if (step === 'configure') setStep('import')
+            }}
+            icon={<Upload className="w-4 h-4" />}
+            title="1 · Import disk"
+            description="Convert or copy the source image to qcow2 on the hypervisor."
+          />
+          <ChoiceCard
+            tone="blue"
+            selected={step === 'configure'}
+            onClick={() => {}}
+            disabled={step === 'import'}
+            icon={<Sliders className="w-4 h-4" />}
+            title="2 · Configure VM"
+            description={step === 'import' ? 'Finish step 1 first, then set CPUs, memory, and network.' : 'Set vCPUs, memory, firmware, and network, then create the VM.'}
+          />
+        </ChoiceCardGrid>
       </div>
 
       {step === 'import' && (

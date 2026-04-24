@@ -9,9 +9,9 @@ use virt::connect::Connect;
 use crate::state::{CreateVmRequest, VmTemplate};
 use crate::LibvirtError;
 
-const TEMPLATES_DIR: &str = "/var/lib/virtspawn/templates";
+const TEMPLATES_DIR: &str = "/var/lib/machina/templates";
 
-/// If `req.saved_template` is set, load `/var/lib/virtspawn/templates/{name}.json`, overwrite sizing/os fields,
+/// If `req.saved_template` is set, load `/var/lib/machina/templates/{name}.json`, overwrite sizing/os fields,
 /// and optionally create a new qcow2 from `base_image` (backing or copy).
 pub fn apply_saved_template(conn: &Connect, req: &mut CreateVmRequest) -> Result<(), LibvirtError> {
     let key = req.saved_template.trim();

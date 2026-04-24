@@ -52,7 +52,7 @@ export default function AdminSessionsPage() {
         </button>
       </div>
       <p className="text-sm text-slate-400">
-        In-memory browser logins for this virtspawn daemon (not API bearer tokens). Revoking a session invalidates that cookie; the user must sign in again.
+        In-memory browser logins for this machina daemon (not API bearer tokens). Revoking a session invalidates that cookie; the user must sign in again.
       </p>
 
       {data && (

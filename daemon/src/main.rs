@@ -11,10 +11,10 @@ mod terminal;
 use clap::Parser;
 use tokio::signal;
 use tracing::info;
-use virtspawn_core::{LibvirtManager, VirtspawnConfig};
+use machina_core::{LibvirtManager, MachinaConfig};
 
 #[derive(Parser)]
-#[command(name = "virtspawn-daemon", about = "virtspawn libvirt management daemon")]
+#[command(name = "machina-daemon", about = "machina libvirt management daemon")]
 struct Cli {
     /// Host to bind to
     #[arg(long)]
@@ -45,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
     init_rustls_crypto_provider()?;
 
     // Same idea as h2kweb: ensure under-/run paths exist for locks / future workflow use.
-    for dir in ["/run/virtspawn", "/run/virtspawn/workflow"] {
+    for dir in ["/run/machina", "/run/machina/workflow"] {
         if let Err(e) = std::fs::create_dir_all(dir) {
             tracing::warn!("cannot create {dir}: {e}");
         }
@@ -57,7 +57,7 @@ async fn main() -> anyhow::Result<()> {
         let contents = std::fs::read_to_string(path)?;
         toml::from_str(&contents)?
     } else {
-        VirtspawnConfig::load()
+        MachinaConfig::load()
     };
 
     // CLI args override config

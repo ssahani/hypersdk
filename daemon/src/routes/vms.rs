@@ -10,13 +10,13 @@ use futures_util::stream::{self, StreamExt};
 use tokio_stream::wrappers::ReceiverStream;
 use serde::Deserialize;
 
-use virtspawn_core::libvirt::{block_jobs, clone, create, device, domain, resize};
-use virtspawn_core::libvirt::domain::UndefineOptions;
-use virtspawn_core::libvirt::resize::{CpuTuneInfo, MemTuneInfo};
-use virtspawn_core::{
+use machina_core::libvirt::{block_jobs, clone, create, device, domain, resize};
+use machina_core::libvirt::domain::UndefineOptions;
+use machina_core::libvirt::resize::{CpuTuneInfo, MemTuneInfo};
+use machina_core::{
     audit, kubevirt_bundle_from_libvirt_vm, AttachDiskRequest, AuditEvent, CloneVmRequest,
     CreateVmRequest, KubeVirtBundle, KubeVirtConfig, LibvirtError, LibvirtManager, RenameVmRequest,
-    VirtspawnConfig, VmCreateBackend, VmDetails, VmInfo,
+    MachinaConfig, VmCreateBackend, VmDetails, VmInfo,
 };
 
 use crate::error::{ok_json, AppError, Xml};
@@ -38,9 +38,9 @@ fn truncate_audit_result(s: impl AsRef<str>) -> String {
 }
 
 fn validate_create_vm_payload(req: &CreateVmRequest) -> Result<(), AppError> {
-    virtspawn_core::validate::validate_create_backend_override(&req.create_backend)?;
-    virtspawn_core::validate::validate_template_disk_mode(&req.template_disk_mode)?;
-    virtspawn_core::validate::validate_create_vm_disk_image_builders(req)?;
+    machina_core::validate::validate_create_backend_override(&req.create_backend)?;
+    machina_core::validate::validate_template_disk_mode(&req.template_disk_mode)?;
+    machina_core::validate::validate_create_vm_disk_image_builders(req)?;
     Ok(())
 }
 
@@ -112,7 +112,7 @@ async fn kubevirt_bundle_handler(
     State(manager): State<LibvirtManager>,
     Query(q): Query<KubeVirtBundleParams>,
 ) -> Result<Json<KubeVirtBundle>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let mgr = manager.clone();
     let name2 = name.clone();
     let details = tokio::task::spawn_blocking(move || mgr.with_conn(|c| domain::get_vm_details(c, &name2)))
@@ -159,7 +159,7 @@ async fn kubevirt_apply_handler(
     State(manager): State<LibvirtManager>,
     Json(params): Json<KubeVirtBundleParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let kv = cfg.kubevirt.clone();
     let kv_for_block = kv.clone();
     let mgr = manager.clone();
@@ -168,7 +168,7 @@ async fn kubevirt_apply_handler(
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     let tmp = std::env::temp_dir().join(format!(
-        "virtspawn-kubevirt-{}-{}.yaml",
+        "machina-kubevirt-{}-{}.yaml",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -197,7 +197,7 @@ async fn kubevirt_upload_handler(
     State(manager): State<LibvirtManager>,
     Json(params): Json<KubeVirtBundleParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let kv = cfg.kubevirt.clone();
     let kv_for_block = kv.clone();
     let mgr = manager.clone();
@@ -229,7 +229,7 @@ async fn kubevirt_start_handler(
     State(manager): State<LibvirtManager>,
     Json(params): Json<KubeVirtBundleParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let kv = cfg.kubevirt.clone();
     let kv_for_block = kv.clone();
     let mgr = manager.clone();
@@ -585,7 +585,7 @@ async fn create_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     validate_create_vm_payload(&req)?;
     let name = req.name.clone();
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let backend = match req.create_backend.trim() {
         "virt_install" => VmCreateBackend::VirtInstall,
         "libvirt_xml" => VmCreateBackend::LibvirtXml,
@@ -635,7 +635,7 @@ async fn create_vm_stream_handler(
     validate_create_vm_payload(&req)?;
 
     let name = req.name.clone();
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let backend = match req.create_backend.trim() {
         "virt_install" => VmCreateBackend::VirtInstall,
         "libvirt_xml" => VmCreateBackend::LibvirtXml,
@@ -731,7 +731,7 @@ async fn set_vcpus(
     State(manager): State<LibvirtManager>,
     Path((name, count)): Path<(String, u32)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    virtspawn_core::validate::validate_vcpus(count)?;
+    machina_core::validate::validate_vcpus(count)?;
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || {
         manager.with_conn(|conn| resize::set_vcpus(conn, &name2, count))
@@ -746,7 +746,7 @@ async fn set_memory(
     State(manager): State<LibvirtManager>,
     Path((name, mb)): Path<(String, u64)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    virtspawn_core::validate::validate_memory_mb(mb)?;
+    machina_core::validate::validate_memory_mb(mb)?;
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || {
         manager.with_conn(|conn| resize::set_memory(conn, &name2, mb))
@@ -868,7 +868,7 @@ async fn get_vm_tags_handler(
     State(_m): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let tags = virtspawn_core::libvirt::extras::get_vm_tags(&name);
+    let tags = machina_core::libvirt::extras::get_vm_tags(&name);
     Ok(Json(serde_json::json!({ "tags": tags })))
 }
 
@@ -880,7 +880,7 @@ async fn set_vm_tags_handler(
     Path(name): Path<String>,
     Json(req): Json<SetTagsRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    virtspawn_core::libvirt::extras::set_vm_tags(&name, req.tags.clone())?;
+    machina_core::libvirt::extras::set_vm_tags(&name, req.tags.clone())?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tags": req.tags })))
 }
 

@@ -175,7 +175,7 @@ fn create_bridge_netplan(req: &CreateBridgeRequest) -> Result<(), LibvirtError> 
         stp = stp_val,
     );
 
-    let config_path = format!("/etc/netplan/90-virtspawn-{}.yaml", req.name);
+    let config_path = format!("/etc/netplan/90-machina-{}.yaml", req.name);
     std::fs::write(&config_path, &yaml)
         .map_err(|e| LibvirtError::Operation(format!("Failed to write netplan config: {e}")))?;
 
@@ -237,7 +237,7 @@ pub fn delete_bridge(name: &str) -> Result<(), LibvirtError> {
     match detect_network_backend() {
         "netplan" => {
             // Remove netplan config and apply
-            let config_path = format!("/etc/netplan/90-virtspawn-{name}.yaml");
+            let config_path = format!("/etc/netplan/90-machina-{name}.yaml");
             let _ = std::fs::remove_file(&config_path);
             let netplan_bin = find_bin("netplan");
             run_cmd(&netplan_bin, &["apply"], "Failed to apply netplan")?;
@@ -297,14 +297,14 @@ pub fn list_port_forwards() -> Result<Vec<PortForwardRule>, LibvirtError> {
     let mut rules = Vec::new();
 
     for line in stdout.lines() {
-        if !line.contains("virtspawn:") { continue; }
+        if !line.contains("machina:") { continue; }
 
-        // Parse: num ... tcp dpt:HOST_PORT ... to:VM_IP:VM_PORT /* virtspawn:desc */
+        // Parse: num ... tcp dpt:HOST_PORT ... to:VM_IP:VM_PORT /* machina:desc */
         let proto = if line.contains(" tcp ") { "tcp" } else if line.contains(" udp ") { "udp" } else { continue };
 
         let host_port = extract_dpt(line).unwrap_or(0);
         let (vm_ip, vm_port) = extract_dnat_target(line).unwrap_or_default();
-        let desc = extract_comment(line, "virtspawn:").unwrap_or_default();
+        let desc = extract_comment(line, "machina:").unwrap_or_default();
         let id = format!("{proto}-{host_port}-{vm_ip}-{vm_port}");
 
         if host_port > 0 && vm_port > 0 {
@@ -339,7 +339,7 @@ pub fn create_port_forward(req: &CreatePortForwardRequest) -> Result<(), Libvirt
     }
     // Sanitize description
     let desc = req.description.chars().filter(|c| c.is_alphanumeric() || *c == ' ' || *c == '-' || *c == '_').collect::<String>();
-    let comment = format!("virtspawn:{desc}");
+    let comment = format!("machina:{desc}");
 
     // PREROUTING DNAT rule
     run_cmd("iptables", &[

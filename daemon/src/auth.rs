@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tracing::{info, warn};
-use virtspawn_core::{AuthConfig, LibvirtError, LibvirtManager};
+use machina_core::{AuthConfig, LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
 
@@ -228,7 +228,7 @@ fn extract_token(req: &Request<Body>) -> Option<String> {
     let cookie_header = req.headers().get(header::COOKIE)?.to_str().ok()?;
     for part in cookie_header.split(';') {
         let part = part.trim();
-        if let Some(value) = part.strip_prefix("virtspawn_session=") {
+        if let Some(value) = part.strip_prefix("machina_session=") {
             let token = value.trim();
             if !token.is_empty() {
                 return Some(token.to_string());
@@ -266,7 +266,7 @@ pub async fn auth_middleware(
     // Check Authorization header for API tokens (Bearer vs_xxx)
     if let Some(auth_header) = req.headers().get("authorization").and_then(|v| v.to_str().ok()) {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            if let Some(api) = virtspawn_core::libvirt::automation::validate_api_token(token) {
+            if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
                 req.extensions_mut().insert(RequestActor {
                     username: api.username,
                     from_api_token: true,
@@ -297,7 +297,7 @@ pub async fn ws_token_handler(
         .and_then(|cookie_header| {
             for part in cookie_header.split(';') {
                 let part = part.trim();
-                if let Some(value) = part.strip_prefix("virtspawn_session=") {
+                if let Some(value) = part.strip_prefix("machina_session=") {
                     let token = value.trim();
                     if !token.is_empty() {
                         return sessions.validate_session(token);
@@ -313,7 +313,7 @@ pub async fn ws_token_handler(
                 .and_then(|v| v.to_str().ok())
                 .and_then(|auth| auth.strip_prefix("Bearer "))
                 .and_then(|token| {
-                    virtspawn_core::libvirt::automation::validate_api_token(token)
+                    machina_core::libvirt::automation::validate_api_token(token)
                         .map(|api_token| api_token.username)
                 })
         });
@@ -386,7 +386,7 @@ async fn login_handler(
         Ok(()) => {
             info!("PAM login successful for user '{}'", req.username);
             let token = store.create_session(&req.username);
-            let cookie = format!("virtspawn_session={token}; Path=/; HttpOnly; SameSite=Strict");
+            let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
             (StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({ "status": "ok", "username": req.username }))).into_response()
         }
         Err(e) => {
@@ -403,7 +403,7 @@ async fn logout_handler(
     if let Some(token) = extract_token(&req) {
         store.remove_session(&token);
     }
-    let cookie = "virtspawn_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0";
+    let cookie = "machina_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0";
     (StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({ "status": "logged_out" }))).into_response()
 }
 

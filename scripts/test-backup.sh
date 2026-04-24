@@ -15,7 +15,7 @@ check() {
 }
 
 echo "============================================"
-echo "  virtspawn backup — full test suite"
+echo "  machina backup — full test suite"
 echo "============================================"
 echo ""
 
@@ -78,7 +78,7 @@ echo ""
 echo "--- Test 6: Download as tar.gz ---"
 HEADERS=$(curl -sI "$API/backups/$BID1/download")
 check "Content-Type is gzip" "application/gzip" "$HEADERS"
-check "Content-Disposition has filename" "virtspawn-backup" "$HEADERS"
+check "Content-Disposition has filename" "machina-backup" "$HEADERS"
 TARSIZE=$(curl -sfk "$API/backups/$BID1/download" | wc -c)
 check "Tar size > 0" "true" "$([ "$TARSIZE" -gt 100 ] && echo true || echo false)"
 echo "  Tar size: ${TARSIZE} bytes"

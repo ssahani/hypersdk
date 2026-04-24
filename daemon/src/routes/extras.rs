@@ -5,10 +5,10 @@ use serde::Deserialize;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
-use virtspawn_core::build_precheck;
-use virtspawn_core::host_platform;
-use virtspawn_core::libvirt::{extras, storage, virt_builder};
-use virtspawn_core::{audit, AuditEvent, LibvirtError, LibvirtManager, VirtspawnConfig};
+use machina_core::build_precheck;
+use machina_core::host_platform;
+use machina_core::libvirt::{extras, storage, virt_builder};
+use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager, MachinaConfig};
 
 use crate::auth::{require_browser_session_for_host_insight, RequestActor};
 use crate::error::AppError;
@@ -169,7 +169,7 @@ async fn list_virt_builder_templates(
     Query(q): Query<VirtBuilderListQuery>,
     State(_m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let allowed = cfg.libvirt.virt_builder_allowed;
 
     let (installed, version) = tokio::task::spawn_blocking(|| {
@@ -281,7 +281,7 @@ async fn virt_builder_probe_template_handler(
     State(_m): State<LibvirtManager>,
     Path(template): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     if !cfg.libvirt.virt_builder_allowed {
         return Ok(Json(serde_json::json!({
             "virt_builder_allowed": false,
@@ -291,7 +291,7 @@ async fn virt_builder_probe_template_handler(
         })));
     }
     let t = template.trim().to_string();
-    if let Err(e) = virtspawn_core::validate::validate_virt_builder_os(&t) {
+    if let Err(e) = machina_core::validate::validate_virt_builder_os(&t) {
         return Ok(Json(serde_json::json!({
             "virt_builder_allowed": true,
             "name_valid": false,
@@ -345,7 +345,7 @@ async fn virt_image_build_handler(
     State(manager): State<LibvirtManager>,
     Json(mut req): Json<virt_image_build::BuildDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
+    if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
             "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)".into(),
         )));
@@ -356,7 +356,7 @@ async fn virt_image_build_handler(
         return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
     }
 
-    let timeout_secs = VirtspawnConfig::load().libvirt.virt_image_build_timeout_secs;
+    let timeout_secs = MachinaConfig::load().libvirt.virt_image_build_timeout_secs;
     if req.timeout_secs == 0 && timeout_secs > 0 {
         req.timeout_secs = timeout_secs;
     }
@@ -397,7 +397,7 @@ async fn virt_builder_notes_handler(
     State(_m): State<LibvirtManager>,
     Path(template): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    if !VirtspawnConfig::load().libvirt.virt_builder_allowed {
+    if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
             "virt-builder is disabled ([libvirt] virt_builder_allowed = false); use mkosi_workspace / mkosi build".into(),
         )));

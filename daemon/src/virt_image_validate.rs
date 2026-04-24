@@ -2,14 +2,14 @@
 
 use virt::connect::Connect;
 use virt_image_build::BuildDiskRequest;
-use virtspawn_core::build_precheck;
-use virtspawn_core::config::VirtspawnConfig;
-use virtspawn_core::libvirt::storage;
-use virtspawn_core::validate::{
+use machina_core::build_precheck;
+use machina_core::config::MachinaConfig;
+use machina_core::libvirt::storage;
+use machina_core::validate::{
     validate_virt_builder_hostname, validate_virt_builder_os, validate_virt_builder_password_file,
     validate_virt_builder_ssh_pubkey_line,
 };
-use virtspawn_core::LibvirtError;
+use machina_core::LibvirtError;
 
 const VIB_LIST_MAX: usize = 64;
 const VIB_STR_MAX: usize = 2048;
@@ -79,7 +79,7 @@ pub fn validate_virt_image_build(conn: &Connect, req: &BuildDiskRequest) -> Resu
         return Err(LibvirtError::Invalid("output is required".into()));
     }
     storage::assert_new_disk_output_parent_allowed(conn, out_path)?;
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     let pb = std::path::Path::new(out_path);
     let parent = pb
         .parent()

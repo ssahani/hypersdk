@@ -1,10 +1,10 @@
 [package]
-name = "virtspawn-daemon"
+name = "machina-daemon"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-virtspawn-core = { path = "../core" }
+machina-core = { path = "../core" }
 virt-image-build = { path = "../virt-image-build" }
 uuid = { workspace = true }
 virt = { workspace = true }

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>virtspawn — Security &amp; Compliance</title>
+<title>machina — Security &amp; Compliance</title>
 <style>
   *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
   :root{--accent:#3b82f6;--accent-dark:#2563eb;--accent-light:#60a5fa;--bg-dark:#0f172a;--bg-light:#f8fafc;--text-dark:#1e293b;--text-light:#e2e8f0;--card-dark:#1e293b;--card-light:#ffffff;--border:#334155;--shadow:0 4px 24px rgba(0,0,0,.12)}
@@ -110,7 +110,7 @@
 <section class="page cover">
   <div class="brand">HyperSDK</div>
   <h1>Security &amp; Compliance<br>Architecture</h1>
-  <p class="subtitle">How virtspawn protects your virtualization infrastructure with defense-in-depth security, strict input validation, and comprehensive audit capabilities.</p>
+  <p class="subtitle">How machina protects your virtualization infrastructure with defense-in-depth security, strict input validation, and comprehensive audit capabilities.</p>
 </section>
 
 <!-- ========== PAGE 2: AUTHENTICATION ========== -->
@@ -286,7 +286,7 @@
         <tr><td><code>NoNewPrivileges</code></td><td>true</td><td>Prevent privilege escalation via setuid/setgid</td></tr>
         <tr><td><code>PrivateTmp</code></td><td>true</td><td>Isolated /tmp namespace per service</td></tr>
         <tr><td><code>RestrictAddressFamilies</code></td><td>AF_UNIX AF_INET AF_INET6</td><td>Block exotic socket families</td></tr>
-        <tr><td><code>ReadWritePaths</code></td><td>/dev/pts, /var/lib/virtspawn</td><td>Minimal writable paths for console + backups</td></tr>
+        <tr><td><code>ReadWritePaths</code></td><td>/dev/pts, /var/lib/machina</td><td>Minimal writable paths for console + backups</td></tr>
       </tbody>
     </table>
   </div>
@@ -347,7 +347,7 @@
 <!-- ========== PAGE 7: COMPLIANCE CHECKLIST ========== -->
 <section class="page page-accent">
   <h2>Compliance Checklist</h2>
-  <p class="lead">virtspawn addresses key security controls required by enterprise compliance frameworks.</p>
+  <p class="lead">machina addresses key security controls required by enterprise compliance frameworks.</p>
 
   <div class="tbl-wrap">
     <table style="background:rgba(255,255,255,.1);border-radius:12px;overflow:hidden">
@@ -411,7 +411,7 @@
 
 <!-- ========== FOOTER ========== -->
 <footer class="footer">
-  HyperSDK &middot; virtspawn &mdash; Security &amp; Compliance Architecture &middot; Confidential
+  HyperSDK &middot; machina &mdash; Security &amp; Compliance Architecture &middot; Confidential
 </footer>
 
 </body>

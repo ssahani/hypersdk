@@ -1,4 +1,4 @@
-const KEY = 'virtspawn_pinned_vms'
+const KEY = 'machina_pinned_vms'
 
 export function getPinnedVMs(): string[] {
   try {

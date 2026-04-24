@@ -3,10 +3,10 @@ use axum::http::HeaderMap;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::domain;
-use virtspawn_core::libvirt::vnc;
-use virtspawn_core::xml::{extract_attr, split_blocks};
-use virtspawn_core::{LibvirtError, LibvirtManager};
+use machina_core::libvirt::domain;
+use machina_core::libvirt::vnc;
+use machina_core::xml::{extract_attr, split_blocks};
+use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
 
@@ -38,7 +38,7 @@ async fn get_console_info(
     ?;
 
     // Find VNC graphics first, then fall back to any graphics type
-    let mut console_type = virtspawn_core::unknown_string();
+    let mut console_type = machina_core::unknown_string();
     let mut port: i32 = -1;
     let mut ws_port: i32 = -1;
 

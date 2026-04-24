@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# api-test.sh — virtspawn end-to-end API smoke test
+# api-test.sh — machina end-to-end API smoke test
 #
 # Usage:
 #   ./scripts/api-test.sh [HOST] [USER] [PASS]

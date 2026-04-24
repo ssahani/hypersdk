@@ -5,6 +5,6 @@ mod sessions;
 pub use pty::run_ssh_terminal;
 pub use sessions::{PendingSession, TerminalSessionStore};
 
-pub fn http_routes() -> axum::Router<virtspawn_core::LibvirtManager> {
+pub fn http_routes() -> axum::Router<machina_core::LibvirtManager> {
     http::routes()
 }

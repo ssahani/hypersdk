@@ -3,8 +3,8 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 use tracing::info;
-use virtspawn_core::system_accounts;
-use virtspawn_core::{LibvirtError, LibvirtManager};
+use machina_core::system_accounts;
+use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::auth::RequestActor;
 use crate::error::AppError;
@@ -68,7 +68,7 @@ async fn create_os_user(
         req.add_to_libvirt_group,
     )?;
     info!(
-        "OS user '{}' created via virtspawn by session user '{}' (libvirt group: {})",
+        "OS user '{}' created via machina by session user '{}' (libvirt group: {})",
         req.username,
         actor.username,
         outcome.libvirt_group_attached

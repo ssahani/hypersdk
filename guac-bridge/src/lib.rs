@@ -1,5 +1,5 @@
 //! Apache Guacamole **encrypted JSON authentication** helpers: VNC endpoint → signed/encrypted `data`
-//! blob for `/api/tokens`. Used by the optional `libvirt-guac-bridge` binary and `virtspawn-daemon`.
+//! blob for `/api/tokens`. Used by the optional `libvirt-guac-bridge` binary and `machina-daemon`.
 
 use anyhow::{anyhow, bail, Context, Result};
 use base64::Engine;

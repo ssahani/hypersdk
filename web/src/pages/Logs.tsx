@@ -97,7 +97,7 @@ export default function LogsPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
           <input
             type="text"
-            placeholder="Filter by unit (e.g. sshd, virtspawn-daemon)"
+            placeholder="Filter by unit (e.g. sshd, machina-daemon)"
             value={unit}
             onChange={e => setUnit(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"

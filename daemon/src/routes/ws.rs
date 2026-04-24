@@ -10,8 +10,8 @@ use futures_util::{SinkExt, StreamExt};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
-use virtspawn_core::libvirt::domain;
-use virtspawn_core::{LibvirtManager, SshTerminalConfig};
+use machina_core::libvirt::domain;
+use machina_core::{LibvirtManager, SshTerminalConfig};
 
 use crate::terminal::{run_ssh_terminal, TerminalSessionStore};
 
@@ -112,12 +112,12 @@ async fn console_handler(
     // Get the PTY path from VM XML
     let pty_path = match manager.with_conn(|conn| {
         let xml = domain::get_vm_xml(conn, &name)?;
-        let path = virtspawn_core::xml::extract_attr(&xml, "console", "tty")
+        let path = machina_core::xml::extract_attr(&xml, "console", "tty")
             .filter(|s| !s.is_empty())
             .or_else(|| {
                 // Look for <source path='...' /> inside <console>
-                for block in virtspawn_core::xml::split_blocks(&xml, "console") {
-                    if let Some(p) = virtspawn_core::xml::extract_attr(&block, "source", "path") {
+                for block in machina_core::xml::split_blocks(&xml, "console") {
+                    if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
                         if !p.is_empty() {
                             return Some(p);
                         }
@@ -255,7 +255,7 @@ async fn vnc_handler(
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
     // hyper2kvm-style: use `virsh vncdisplay` when domain XML still has autoport (-1).
-    let resolved = manager.with_conn(|conn| virtspawn_core::libvirt::vnc::resolve_vnc_tcp(conn, &name));
+    let resolved = manager.with_conn(|conn| machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name));
 
     let (host, port) = match resolved {
         Ok((h, p)) if p > 0 => (h, p),
@@ -351,11 +351,11 @@ async fn spice_handler(
         .with_conn(|conn| {
             let xml = domain::get_vm_xml(conn, &name)?;
             let mut port = 0u16;
-            for block in virtspawn_core::xml::split_blocks(&xml, "graphics") {
-                let gtype = virtspawn_core::xml::extract_attr(&block, "graphics", "type")
+            for block in machina_core::xml::split_blocks(&xml, "graphics") {
+                let gtype = machina_core::xml::extract_attr(&block, "graphics", "type")
                     .unwrap_or_default();
                 if gtype == "spice" {
-                    port = virtspawn_core::xml::extract_attr(&block, "graphics", "port")
+                    port = machina_core::xml::extract_attr(&block, "graphics", "port")
                         .and_then(|s| s.parse().ok())
                         .unwrap_or(0);
                     break;

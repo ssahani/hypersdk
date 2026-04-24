@@ -13,7 +13,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-/// Build request (JSON-serializable for the virtspawn daemon).
+/// Build request (JSON-serializable for the machina daemon).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BuildDiskRequest {
     pub os: String,

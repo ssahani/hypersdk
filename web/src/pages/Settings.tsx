@@ -16,6 +16,7 @@ import {
   Settings, Users, Key, Bell, Webhook, Clock, Plus, Trash2, RefreshCw,
   Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare,
 } from 'lucide-react'
+import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 
 type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
@@ -109,12 +110,21 @@ export default function SettingsPage() {
         <Link to="/secrets" className="text-blue-400 hover:text-blue-300 underline">Secrets</Link> page (define XML + optional base64 value).
       </p>
 
-      <div className="flex gap-1 border-b border-slate-700/50 overflow-x-auto">
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-2 px-4 py-2.5 text-sm transition border-b-2 whitespace-nowrap ${tab === t.key ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-            {t.icon} {t.label}
-          </button>
-        ))}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Section</h2>
+        <ChoiceCardDenseGrid>
+          {tabs.map((t) => (
+            <ChoiceCard
+              key={t.key}
+              compact
+              tone="blue"
+              selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              icon={t.icon}
+              title={t.label}
+            />
+          ))}
+        </ChoiceCardDenseGrid>
       </div>
 
       {/* ── Roles ──────────────────────────────────────────── */}
@@ -149,7 +159,7 @@ export default function SettingsPage() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-400" /> Create system user (PAM)</h3>
               <p className="text-xs text-slate-500">
-                Adds a UNIX account on the virtspawn host (<code className="bg-slate-900/80 px-1 rounded">useradd</code> + password). Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded">newgrp libvirt</code>). The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
+                Adds a UNIX account on the machina host (<code className="bg-slate-900/80 px-1 rounded">useradd</code> + password). Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded">newgrp libvirt</code>). The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
               </p>
               {osUserCap.libvirtGroupAvailable === false && (
                 <p className="text-xs text-amber-400/90">Host has no <code className="bg-slate-900/80 px-1 rounded">libvirt</code> UNIX group — install libvirt or create the group before enabling libvirt access for new users.</p>

@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use virtspawn_core::LibvirtManager;
+use machina_core::LibvirtManager;
 
 async fn health_check(
     State(manager): State<LibvirtManager>,
@@ -13,7 +13,7 @@ async fn health_check(
         manager
             .with_conn(|conn| {
                 conn.get_hostname()
-                    .map_err(|e| virtspawn_core::LibvirtError::Connection(e.to_string()))
+                    .map_err(|e| machina_core::LibvirtError::Connection(e.to_string()))
             })
             .is_ok()
     })

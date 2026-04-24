@@ -1,5 +1,5 @@
 #!/bin/bash
-# virtspawn bulk — batch operations on all VMs
+# machina bulk — batch operations on all VMs
 # Usage:
 #   ./scripts/bulk.sh start          # Start all stopped VMs
 #   ./scripts/bulk.sh stop           # Force stop all running VMs
@@ -9,7 +9,7 @@
 #   ./scripts/bulk.sh snapshot-clean # Delete all snapshots named 'auto-*'
 set -eo pipefail
 
-API="${VIRTSPAWN_API:-https://localhost:5092/api/v1}"
+API="${MACHINA_API:-https://localhost:5092/api/v1}"
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -31,7 +31,7 @@ usage() {
     echo "  status         Quick status of all VMs"
     echo ""
     echo "Environment:"
-    echo "  VIRTSPAWN_API  API URL (default: https://localhost:5092/api/v1)"
+    echo "  MACHINA_API  API URL (default: https://localhost:5092/api/v1)"
     exit 1
 }
 

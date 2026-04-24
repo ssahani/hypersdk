@@ -6,7 +6,7 @@ use std::sync::Mutex;
 
 use crate::LibvirtError;
 
-const DATA_DIR: &str = "/var/lib/virtspawn";
+const DATA_DIR: &str = "/var/lib/machina";
 
 /// Global mutex for JSON file read-modify-write operations.
 /// Since all operations go through the same daemon process, a process-level

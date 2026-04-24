@@ -3,7 +3,7 @@ use std::fs;
 use std::path::PathBuf;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
-pub struct VirtspawnConfig {
+pub struct MachinaConfig {
     #[serde(default)]
     pub general: GeneralConfig,
     #[serde(default)]
@@ -133,7 +133,7 @@ fn default_guacamole_base_url() -> String {
 }
 
 fn default_guacamole_json_username() -> String {
-    "virtspawn".to_string()
+    "machina".to_string()
 }
 
 impl Default for GuacamoleConfig {
@@ -169,7 +169,7 @@ impl Default for TlsConfig {
     }
 }
 
-/// PAM configuration for `virtspawn-daemon` (web sign-in uses the same password as the selected stack).
+/// PAM configuration for `machina-daemon` (web sign-in uses the same password as the selected stack).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
     /// PAM service: which `/etc/pam.d/<name>` to use. `sshd` matches “remote” password rules; `login` is
@@ -254,7 +254,7 @@ pub struct DaemonConfig {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum VmCreateBackend {
-    /// Native virtspawn domain XML + `qemu-img`.
+    /// Native Machina domain XML + `qemu-img`.
     LibvirtXml,
     /// Shell out to `virt-install`. Default when the client omits `create_backend`.
     #[default]
@@ -334,7 +334,7 @@ fn default_libvirt_uri() -> String {
 }
 
 fn default_backup_dir() -> String {
-    "/var/lib/virtspawn/backups".to_string()
+    "/var/lib/machina/backups".to_string()
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -399,15 +399,15 @@ impl Default for LibvirtConfig {
     }
 }
 
-impl VirtspawnConfig {
+impl MachinaConfig {
     /// Installed daemon config (`install.sh`, systemd unit).
     pub fn system_config_path() -> PathBuf {
-        PathBuf::from("/etc/virtspawn/config.toml")
+        PathBuf::from("/etc/machina/config.toml")
     }
 
     /// Optional per-user overrides (development / non-root).
     pub fn user_config_dir() -> PathBuf {
-        dirs_or_home().join(".virtspawn")
+        dirs_or_home().join(".machina")
     }
 
     pub fn user_config_path() -> PathBuf {
@@ -468,7 +468,7 @@ impl VirtspawnConfig {
             fs::write(user, content)?;
             return Ok(());
         }
-        anyhow::bail!("cannot save config (try sudo for /etc/virtspawn)")
+        anyhow::bail!("cannot save config (try sudo for /etc/machina)")
     }
 
     pub fn bind_addr(&self) -> String {
@@ -493,8 +493,8 @@ fn dirs_or_home() -> PathBuf {
     std::env::var("HOME")
         .map(PathBuf::from)
         .unwrap_or_else(|_| {
-            // Fallback: use /var/lib/virtspawn instead of world-writable /tmp
-            PathBuf::from("/var/lib/virtspawn")
+            // Fallback: use /var/lib/machina instead of world-writable /tmp
+            PathBuf::from("/var/lib/machina")
         })
 }
 
@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn daemon_url_uses_http_without_tls() {
-        let c = VirtspawnConfig::default();
+        let c = MachinaConfig::default();
         assert!(
             c.daemon_url().starts_with("http://"),
             "{}",
@@ -514,10 +514,10 @@ mod tests {
 
     #[test]
     fn daemon_url_uses_https_when_tls_configured() {
-        let mut c = VirtspawnConfig::default();
+        let mut c = MachinaConfig::default();
         c.tls.enabled = true;
-        c.tls.cert_path = "/etc/virtspawn/ssl/cert.pem".into();
-        c.tls.key_path = "/etc/virtspawn/ssl/key.pem".into();
+        c.tls.cert_path = "/etc/machina/ssl/cert.pem".into();
+        c.tls.key_path = "/etc/machina/ssl/key.pem".into();
         assert!(c.daemon_url().starts_with("https://"));
     }
 }

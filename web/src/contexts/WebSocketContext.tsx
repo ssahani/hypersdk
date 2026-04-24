@@ -65,7 +65,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
           setConnection('offline')
         }
         if (import.meta.env.DEV) {
-          console.warn('virtspawn: ws-token failed; real-time updates unavailable until it succeeds')
+          console.warn('machina: ws-token failed; real-time updates unavailable until it succeeds')
         }
         retryTimer = setTimeout(connect, retryDelay)
         retryDelay = Math.min(retryDelay * 2, 30000)
@@ -85,7 +85,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         setIsConnected(false)
         setConnection('connecting')
         if (import.meta.env.DEV) {
-          console.warn('virtspawn: /ws/v1/watch closed', ev.code, ev.reason || '(no reason)')
+          console.warn('machina: /ws/v1/watch closed', ev.code, ev.reason || '(no reason)')
         }
         retryTimer = setTimeout(connect, retryDelay)
         retryDelay = Math.min(retryDelay * 2, 30000)

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate a polished demo PDF for virtspawn."""
+"""Generate a polished demo PDF for machina."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os, sys
 
 DIR = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(DIR, "virtspawn-demo.pdf")
+OUT = os.path.join(DIR, "machina-demo.pdf")
 W, H = 1920, 1080
 
 # Try to find a decent font
@@ -57,7 +57,7 @@ def make_title_slide():
     for i in range(6):
         draw.rectangle([0, i, W, i+1], fill=ACCENT)
     # Logo area
-    text_center(draw, 280, "virtspawn", font_title, WHITE)
+    text_center(draw, 280, "machina", font_title, WHITE)
     text_center(draw, 380, "Modern Libvirt Virtual Machine Manager", font_subtitle, GRAY)
     # Feature pills
     features = [
@@ -74,7 +74,7 @@ def make_title_slide():
     # Bottom info
     text_center(draw, 700, "Built with Rust + React + TypeScript", font_body, GRAY)
     text_center(draw, 760, "Secure | Fast | Production-Ready", font_body, LIGHT)
-    text_center(draw, 860, "https://github.com/ssahani/-virtspawn", font_small, ACCENT)
+    text_center(draw, 860, "https://github.com/ssahani/machina", font_small, ACCENT)
     return img
 
 def make_section_slide(title, bullets):
@@ -159,11 +159,11 @@ def make_closing_slide():
     draw = ImageDraw.Draw(img)
     for i in range(6):
         draw.rectangle([0, i, W, i+1], fill=ACCENT)
-    text_center(draw, 300, "virtspawn", font_title, WHITE)
+    text_center(draw, 300, "machina", font_title, WHITE)
     text_center(draw, 400, "Ready for Production", font_subtitle, GREEN)
     text_center(draw, 520, "make && sudo make deploy", font_body, LIGHT)
     text_center(draw, 600, "Web UI at http://localhost:5092", font_body, ACCENT)
-    text_center(draw, 680, "TUI: virtspawn", font_body, ACCENT)
+    text_center(draw, 680, "TUI: machina", font_body, ACCENT)
     text_center(draw, 800, "Questions?", font_heading, GRAY)
     return img
 

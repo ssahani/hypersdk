@@ -8,6 +8,7 @@ import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
 import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star } from 'lucide-react'
+import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
 
@@ -124,9 +125,26 @@ export default function VMList() {
         <div className="flex items-center gap-3">
           <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
           <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
-          <button onClick={() => setViewMode(v => v === 'table' ? 'grid' : 'table')} className="p-2 hover:bg-slate-700 rounded transition" title={viewMode === 'table' ? 'Grid view' : 'Table view'}>
-            {viewMode === 'table' ? <LayoutGrid className="w-4 h-4" /> : <LayoutList className="w-4 h-4" />}
-          </button>
+          <ChoiceCardGrid className="max-w-[220px] sm:max-w-[240px] [&_button]:min-h-0">
+            <ChoiceCard
+              compact
+              tone="slate"
+              selected={viewMode === 'table'}
+              onClick={() => setViewMode('table')}
+              icon={<LayoutList className="w-4 h-4" />}
+              title="Table"
+              description="Dense rows"
+            />
+            <ChoiceCard
+              compact
+              tone="slate"
+              selected={viewMode === 'grid'}
+              onClick={() => setViewMode('grid')}
+              icon={<LayoutGrid className="w-4 h-4" />}
+              title="Grid"
+              description="Card tiles"
+            />
+          </ChoiceCardGrid>
           <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh" aria-label="Refresh VM list">
             <RefreshCw className="w-4 h-4" />
           </button>

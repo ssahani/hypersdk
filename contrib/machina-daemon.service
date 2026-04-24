@@ -1,6 +1,6 @@
 [Unit]
-Description=virtspawn libvirt management daemon
-Documentation=https://github.com/ssahani/-virtspawn
+Description=Machina libvirt management daemon
+Documentation=https://github.com/ssahani/machina
 After=libvirtd.service network-online.target
 Requires=libvirtd.service
 Wants=network-online.target
@@ -16,25 +16,25 @@ Type=simple
 User=root
 Group=root
 
-EnvironmentFile=-/etc/default/virtspawn-daemon
+EnvironmentFile=-/etc/default/machina-daemon
 Environment=RUST_LOG=info
 # install.sh installs mkosi to /usr/local/bin/mkosi; some distros' default root PATH omits it.
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 # ProtectHome=read-only blocks /root/.cache; redirect virt-builder and pip caches to writable dirs.
-Environment=XDG_CACHE_HOME=/var/cache/virtspawn
+Environment=XDG_CACHE_HOME=/var/cache/machina
 
-ExecStart=/usr/local/bin/virtspawn-daemon --config /etc/virtspawn/config.toml
+ExecStart=/usr/local/bin/machina-daemon --config /etc/machina/config.toml
 Restart=on-failure
 RestartSec=10
 TimeoutStopSec=30
 
-RuntimeDirectory=virtspawn
-StateDirectory=virtspawn
-LogsDirectory=virtspawn
+RuntimeDirectory=machina
+StateDirectory=machina
+LogsDirectory=machina
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=virtspawn-daemon
+SyslogIdentifier=machina-daemon
 
 MemoryMax=2G
 TasksMax=256

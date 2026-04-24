@@ -186,7 +186,7 @@ export default function Navbar() {
                   : 'text-base sm:text-lg font-bold bg-gradient-to-r from-white to-slate-300 bg-clip-text text-transparent'
               }
             >
-              virtspawn
+              Machina
             </span>
           </Link>
 

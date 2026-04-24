@@ -63,13 +63,13 @@ export interface CreateVmRequest {
   os_variant?: string
   existing_disk?: string
   firmware?: string
-  /** Libvirt VNC listen IP (default 127.0.0.1). Use 0.0.0.0 for all interfaces (remote display; still use virtspawn’s console proxy where applicable). */
+  /** Libvirt VNC listen IP (default 127.0.0.1). Use 0.0.0.0 for all interfaces (remote display; still use machina’s console proxy where applicable). */
   graphics_listen?: string
   /** `vnc` (noVNC) or `spice` (spice-html5). */
   graphics_type?: string
   /** Second CD-ROM: cloud-init / seed ISO (install ISO stays in `iso`). */
   cloud_init_iso?: string
-  /** Saved template key under `/var/lib/virtspawn/templates/` (server merges + optional golden disk). */
+  /** Saved template key under `/var/lib/machina/templates/` (server merges + optional golden disk). */
   saved_template?: string
   /** With saved template + `base_image`: `backing` (default) or `copy`. */
   template_disk_mode?: string

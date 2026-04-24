@@ -8,7 +8,7 @@ use serde::Serialize;
 use std::process::Command;
 
 /// Drop-in filename for `/etc/sysctl.d/`.
-pub const DROPIN_FILENAME: &str = "99-virtspawn-host-net.conf";
+pub const DROPIN_FILENAME: &str = "99-machina-host-net.conf";
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SysctlTuningRow {
@@ -89,7 +89,7 @@ fn sysctl_read_n(key: &str) -> Result<String, String> {
 /// Build the recommended `/etc/sysctl.d/…` file contents.
 pub fn recommended_sysctl_conf() -> String {
     let mut s = String::from(
-        "# virtspawn - host networking / concurrency sysctl (review before apply)\n\
+        "# machina - host networking / concurrency sysctl (review before apply)\n\
          # Install: sudo install -m 644 … /etc/sysctl.d/",
     );
     s.push_str(DROPIN_FILENAME);

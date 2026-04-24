@@ -1,6 +1,6 @@
 # KubeVirt migration (libvirt → CDI + VirtualMachine)
 
-virtspawn can emit a **CDI upload DataVolume** plus a **KubeVirt VirtualMachine** manifest from an existing libvirt domain, similar in spirit to [hyper2kvm](https://github.com/ssahani/hyper2kvm): root disk as a DataVolume, virtio disks in the guest, and a **virtio-win CDROM** expressed as a `containerDisk` (cluster-pullable image) instead of attaching `virtio-win.iso` on the hypervisor.
+machina can emit a **CDI upload DataVolume** plus a **KubeVirt VirtualMachine** manifest from an existing libvirt domain, similar in spirit to [hyper2kvm](https://github.com/ssahani/hyper2kvm): root disk as a DataVolume, virtio disks in the guest, and a **virtio-win CDROM** expressed as a `containerDisk` (cluster-pullable image) instead of attaching `virtio-win.iso` on the hypervisor.
 
 ## API
 

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ArrowLeft, Server } from 'lucide-react'
+import { ArrowLeft, Server, User } from 'lucide-react'
+import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import SSHConsole from '../components/SSHConsole'
 
 /** SSH to the machine serving this UI: target host is `window.location.hostname` (e.g. 185.165.240.5), not a guest VM. */
@@ -34,10 +35,27 @@ export default function HostSSHPage() {
         </h1>
       </div>
       <p className="text-sm text-slate-400 max-w-2xl">
-        Opens a shell on <span className="font-mono text-slate-200">{targetHost}</span> (the host from your browser address bar). The virtspawn daemon runs{' '}
+        Opens a shell on <span className="font-mono text-slate-200">{targetHost}</span> (the host from your browser address bar). The machina daemon runs{' '}
         <code className="text-xs bg-slate-800 px-1 rounded">ssh</code> on the server to that address. Enter only the SSH user; IP is filled automatically.
       </p>
-      <div className="max-w-md space-y-1">
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Quick user</h2>
+        <ChoiceCardDenseGrid className="max-w-lg">
+          {(['root', 'admin'] as const).map((u) => (
+            <ChoiceCard
+              key={u}
+              compact
+              tone="emerald"
+              selected={sshUser === u}
+              onClick={() => setSshUser(u)}
+              icon={<User className="w-4 h-4" />}
+              title={u}
+              description={u === 'root' ? 'Typical for hypervisors' : 'If your site uses a sudo user'}
+            />
+          ))}
+        </ChoiceCardDenseGrid>
+      </div>
+      <div className="max-w-md space-y-1 pt-2">
         <label htmlFor="host-ssh-user" className="block text-sm text-slate-400">SSH user</label>
         <input
           id="host-ssh-user"

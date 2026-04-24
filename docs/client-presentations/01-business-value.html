@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>virtspawn — Enterprise VM Management Platform</title>
+<title>machina — Enterprise VM Management Platform</title>
 <style>
   @page { size: A4; margin: 0; }
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -129,26 +129,26 @@
 <!-- PAGE 3: THE SOLUTION -->
 <div class="page page-accent">
   <h2 class="section-title">The <span>Solution</span></h2>
-  <p class="subtitle">virtspawn — one platform for complete KVM/libvirt management.</p>
+  <p class="subtitle">machina — one platform for complete KVM/libvirt management.</p>
 
   <div class="flow">
     <div class="flow-step">Web Browser</div>
     <div class="flow-arrow">&#x2192;</div>
-    <div class="flow-step">virtspawn daemon</div>
+    <div class="flow-step">machina daemon</div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">KVM / libvirt</div>
   </div>
   <div class="flow">
     <div class="flow-step">Terminal (TUI)</div>
     <div class="flow-arrow">&#x2192;</div>
-    <div class="flow-step">virtspawn daemon</div>
+    <div class="flow-step">machina daemon</div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">KVM / libvirt</div>
   </div>
   <div class="flow">
     <div class="flow-step">REST API / curl</div>
     <div class="flow-arrow">&#x2192;</div>
-    <div class="flow-step">virtspawn daemon</div>
+    <div class="flow-step">machina daemon</div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">KVM / libvirt</div>
   </div>
@@ -180,10 +180,10 @@
 <!-- PAGE 4: PLATFORM CAPABILITIES -->
 <div class="page page-light">
   <h2 class="section-title">Platform <span>Capabilities</span></h2>
-  <p class="subtitle">How virtspawn compares to alternatives.</p>
+  <p class="subtitle">How machina compares to alternatives.</p>
 
   <table>
-    <tr><th>Capability</th><th>virtspawn</th><th>Manual virsh</th><th>Cockpit</th><th>Proxmox</th></tr>
+    <tr><th>Capability</th><th>machina</th><th>Manual virsh</th><th>Cockpit</th><th>Proxmox</th></tr>
     <tr><td>Web UI (React, dark/light theme)</td><td class="check">&#x2713;</td><td class="cross">&#x2717;</td><td class="check">&#x2713;</td><td class="check">&#x2713;</td></tr>
     <tr><td>VNC Console (in-browser noVNC)</td><td class="check">&#x2713;</td><td class="cross">&#x2717;</td><td class="check">&#x2713;</td><td class="check">&#x2713;</td></tr>
     <tr><td>SSH Browser Terminal</td><td class="check">&#x2713;</td><td class="cross">&#x2717;</td><td class="check">&#x2713;</td><td class="cross">&#x2717;</td></tr>
@@ -212,19 +212,19 @@
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">REST API + WebSocket</div>
     <div class="flow-arrow">&#x2192;</div>
-    <div class="flow-step">virtspawn daemon (Axum)</div>
+    <div class="flow-step">machina daemon (Axum)</div>
   </div>
   <div class="flow" style="margin-top: 1em;">
     <div class="flow-step">TUI (Ratatui)</div>
     <div class="flow-arrow">&#x2192;</div>
-    <div class="flow-step">virtspawn daemon</div>
+    <div class="flow-step">machina daemon</div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">libvirt API</div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">KVM / QEMU</div>
   </div>
   <div class="flow" style="margin-top: 1em;">
-    <div class="flow-step">virtspawn daemon</div>
+    <div class="flow-step">machina daemon</div>
     <div class="flow-arrow">&#x2192;</div>
     <div class="flow-step">Host Networking / iptables</div>
   </div>
@@ -270,7 +270,7 @@
         <li>Interactive navigation and actions</li>
         <li>Network and storage views</li>
         <li>Works over SSH without browser</li>
-        <li>Installed as 'virtspawn' binary</li>
+        <li>Installed as 'machina' binary</li>
         <li>Same daemon backend as web UI</li>
       </ul>
     </div>
@@ -339,7 +339,7 @@
   </div>
 
   <div class="quote">
-    "virtspawn applies security at every layer: authentication, authorization, input validation, path canonicalization, SSRF prevention, and systemd sandboxing. No shortcuts."
+    "machina applies security at every layer: authentication, authorization, input validation, path canonicalization, SSRF prevention, and systemd sandboxing. No shortcuts."
   </div>
 </div>
 
@@ -359,7 +359,7 @@ sudo make deploy          # Install + start systemd service
 
 # Access
 Web UI:   http://localhost:5092
-TUI:      virtspawn
+TUI:      machina
 API:      curl http://localhost:5092/api/vms</pre>
   </div>
 
@@ -378,10 +378,10 @@ API:      curl http://localhost:5092/api/vms</pre>
     <div class="card">
       <h4>What Gets Installed</h4>
       <ul>
-        <li>virtspawn-daemon (Axum HTTP server)</li>
-        <li>virtspawn (TUI binary)</li>
-        <li>Web UI to /usr/local/share/virtspawn/web/</li>
-        <li>Config at /etc/virtspawn/config.toml</li>
+        <li>machina-daemon (Axum HTTP server)</li>
+        <li>machina (TUI binary)</li>
+        <li>Web UI to /usr/local/share/machina/web/</li>
+        <li>Config at /etc/machina/config.toml</li>
         <li>Systemd services (daemon, backup, timer)</li>
         <li>15-point verification test suite</li>
       </ul>
@@ -389,10 +389,10 @@ API:      curl http://localhost:5092/api/vms</pre>
     <div class="card">
       <h4>Configuration Hierarchy</h4>
       <ul>
-        <li>/etc/virtspawn/config.toml (main config)</li>
-        <li>/etc/virtspawn/backup.conf (backup config)</li>
+        <li>/etc/machina/config.toml (main config)</li>
+        <li>/etc/machina/backup.conf (backup config)</li>
         <li>Default port: 5092</li>
-        <li>Data dir: /var/lib/virtspawn</li>
+        <li>Data dir: /var/lib/machina</li>
         <li>Environment variable overrides</li>
       </ul>
     </div>
@@ -429,7 +429,7 @@ API:      curl http://localhost:5092/api/vms</pre>
 
 <!-- PAGE 8: CTA -->
 <div class="page page-accent">
-  <h2 class="section-title">Get Started with <span>virtspawn</span></h2>
+  <h2 class="section-title">Get Started with <span>machina</span></h2>
   <p class="subtitle">Transform your KVM/libvirt infrastructure management today.</p>
 
   <div class="stat-row" style="margin-bottom: 2em;">
@@ -449,7 +449,7 @@ API:      curl http://localhost:5092/api/vms</pre>
 
   <div class="cta-box">
     <h3>Contact HyperSDK</h3>
-    <p>virtspawn is a proprietary product of HyperSDK.<br>
+    <p>machina is a proprietary product of HyperSDK.<br>
     Pricing is available on request based on deployment scale and requirements.</p>
     <p style="margin-top: 1.5em; font-weight: 600; font-size: 1.1em;">Reach out to discuss licensing, pricing, and enterprise support options.</p>
   </div>
@@ -469,7 +469,7 @@ API:      curl http://localhost:5092/api/vms</pre>
     <div class="card">
       <h4>Next Steps</h4>
       <ul>
-        <li>Request a live demo of virtspawn</li>
+        <li>Request a live demo of machina</li>
         <li>Discuss deployment requirements</li>
         <li>Evaluate pricing tiers</li>
         <li>Plan pilot deployment</li>
@@ -480,7 +480,7 @@ API:      curl http://localhost:5092/api/vms</pre>
   </div>
 
   <div class="footer">
-    <p>virtspawn — Enterprise VM Management Platform<br>
+    <p>machina — Enterprise VM Management Platform<br>
     A HyperSDK Product — Proprietary Software<br>
     Pricing Available on Request</p>
   </div>

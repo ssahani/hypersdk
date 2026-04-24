@@ -28,7 +28,7 @@ async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
       || msg.includes('Load failed')
     ) {
       throw new Error(
-        'Cannot reach the virtspawn API (network error). Open the UI from the same URL as the daemon (host + port), ensure virtspawn-daemon is running, and check HTTPS vs HTTP and any browser blockers.',
+        'Cannot reach the machina API (network error). Open the UI from the same URL as the daemon (host + port), ensure machina-daemon is running, and check HTTPS vs HTTP and any browser blockers.',
       )
     }
     throw e

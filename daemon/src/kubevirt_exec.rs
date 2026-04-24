@@ -1,10 +1,10 @@
-//! Optional `kubectl` / `virtctl` execution for KubeVirt migration ([`virtspawn_core::config::KubeVirtConfig`]).
+//! Optional `kubectl` / `virtctl` execution for KubeVirt migration ([`machina_core::config::KubeVirtConfig`]).
 //! Disabled unless `[kubevirt] exec_enabled = true`.
 
 use std::path::Path;
 use tokio::process::Command;
-use virtspawn_core::config::KubeVirtConfig;
-use virtspawn_core::LibvirtError;
+use machina_core::config::KubeVirtConfig;
+use machina_core::LibvirtError;
 
 fn apply_kubeconfig(cmd: &mut Command, k: &KubeVirtConfig) {
     let p = k.kubeconfig_path.trim();
@@ -17,7 +17,7 @@ fn apply_kubeconfig(cmd: &mut Command, k: &KubeVirtConfig) {
 pub async fn kubectl_apply_yaml(k: &KubeVirtConfig, yaml_path: &Path) -> Result<(i32, String, String), LibvirtError> {
     if !k.exec_enabled {
         return Err(LibvirtError::Forbidden(
-            "kubevirt.exec_enabled is false; set it true in virtspawn config to allow cluster commands.".into(),
+            "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
         ));
     }
     let bin = k.kubectl_binary.trim();
@@ -48,7 +48,7 @@ pub async fn virtctl_image_upload_disk(
 ) -> Result<(i32, String, String), LibvirtError> {
     if !k.exec_enabled {
         return Err(LibvirtError::Forbidden(
-            "kubevirt.exec_enabled is false; set it true in virtspawn config to allow cluster commands.".into(),
+            "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
         ));
     }
     let bin = k.virtctl_binary.trim();
@@ -87,7 +87,7 @@ pub async fn virtctl_image_upload_disk(
 pub async fn virtctl_start_vm(k: &KubeVirtConfig, vm_name: &str, namespace: &str) -> Result<(i32, String, String), LibvirtError> {
     if !k.exec_enabled {
         return Err(LibvirtError::Forbidden(
-            "kubevirt.exec_enabled is false; set it true in virtspawn config to allow cluster commands.".into(),
+            "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
         ));
     }
     let bin = k.virtctl_binary.trim();

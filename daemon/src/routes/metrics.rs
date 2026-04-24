@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::metrics;
-use virtspawn_core::{LibvirtError, LibvirtManager, VmMetrics};
+use machina_core::libvirt::metrics;
+use machina_core::{LibvirtError, LibvirtManager, VmMetrics};
 
 use crate::error::AppError;
 

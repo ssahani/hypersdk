@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate Demo & Scripts Guide PDF for virtspawn."""
+"""Generate Demo & Scripts Guide PDF for machina."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os
 
 DIR = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(DIR, "virtspawn-demo-scripts-guide.pdf")
+OUT = os.path.join(DIR, "machina-demo-scripts-guide.pdf")
 W, H = 1920, 1080
 
 FONT_PATHS = [
@@ -91,15 +91,15 @@ def slide_title():
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     bar(d, 6)
-    tc(d, 200, "virtspawn", ft, WHITE)
+    tc(d, 200, "machina", ft, WHITE)
     tc(d, 290, "Demo & Scripts Guide", fh, ACCENT)
     div(d, 370)
     tc(d, 430, "30-step API demo, status dashboard, backup & restore, bulk operations", fb, GRAY)
     tc(d, 510, "scripts/demo.sh    scripts/status.sh", fc, CYAN)
     tc(d, 555, "scripts/backup.sh  scripts/bulk.sh", fc, CYAN)
     tc(d, 650, "All scripts use the REST API — no direct libvirt access needed", fb, LIGHT)
-    tc(d, 710, "Works locally or against any remote virtspawn instance", fb, LIGHT)
-    tc(d, 850, "https://github.com/ssahani/-virtspawn", fs, ACCENT)
+    tc(d, 710, "Works locally or against any remote machina instance", fb, LIGHT)
+    tc(d, 850, "https://github.com/ssahani/machina", fs, ACCENT)
     return img
 
 def slide_demo_overview():
@@ -239,7 +239,7 @@ def slide_status():
 
     d.text((80, 580), "Example output:", font=fsh, fill=ORANGE)
     code_block(d, 80, 625, 1760, [
-        "virtspawn status",
+        "machina status",
         "",
         "Daemon: healthy  (http://localhost:5092/api/v1)",
         "Host:       myserver.example.com",
@@ -281,14 +281,14 @@ def slide_backup():
     code_block(d, 980, 172, 860, [
         "# Restore VMs, networks, pools, disks",
         "$ ./scripts/backup.sh --restore \\",
-        "    /var/lib/virtspawn/backups/20260324-020000",
+        "    /var/lib/machina/backups/20260324-020000",
         "",
         "# Verify checksums",
         "$ ./scripts/backup.sh --verify \\",
-        "    /var/lib/virtspawn/backups/20260324-020000",
+        "    /var/lib/machina/backups/20260324-020000",
         "",
         "# Scheduled backups (systemd timer)",
-        "$ sudo systemctl enable --now virtspawn-backup.timer",
+        "$ sudo systemctl enable --now machina-backup.timer",
     ])
 
     d.text((80, 560), "Features:", font=fsh, fill=CYAN)
@@ -309,8 +309,8 @@ def slide_backup():
 
     d.text((980, 560), "Config file:", font=fsh, fill=PURPLE)
     code_block(d, 980, 605, 860, [
-        "# /etc/virtspawn/backup.conf",
-        "backup_dir = /var/lib/virtspawn/backups",
+        "# /etc/machina/backup.conf",
+        "backup_dir = /var/lib/machina/backups",
         "nfs_target =",
         "with_disks = false",
         "retain = 7",
@@ -405,8 +405,8 @@ def slide_all_scripts():
             "",
         ] + [f"  {line}" for line in desc.split(", ")], color)
 
-    tc(d, 920, "All scripts use the REST API — work locally or against any remote virtspawn instance", fb, GRAY)
-    tc(d, 960, "Set VIRTSPAWN_API=http://remote:5092/api/v1 for remote operation", fc, CYAN)
+    tc(d, 920, "All scripts use the REST API — work locally or against any remote machina instance", fb, GRAY)
+    tc(d, 960, "Set MACHINA_API=http://remote:5092/api/v1 for remote operation", fc, CYAN)
     return img
 
 def slide_summary():
@@ -436,8 +436,8 @@ def slide_summary():
         "$ ./scripts/bulk.sh shutdown",
     ])
 
-    tc(d, 870, "virtspawn  --  Modern Libvirt VM Manager", fsh, ACCENT)
-    tc(d, 920, "https://github.com/ssahani/-virtspawn", fs, ACCENT)
+    tc(d, 870, "machina  --  Modern Libvirt VM Manager", fsh, ACCENT)
+    tc(d, 920, "https://github.com/ssahani/machina", fs, ACCENT)
     return img
 
 slides = [

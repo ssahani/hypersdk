@@ -20,7 +20,7 @@ mod vms;
 mod ws;
 
 use axum::Router;
-use virtspawn_core::LibvirtManager;
+use machina_core::LibvirtManager;
 
 pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()

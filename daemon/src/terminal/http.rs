@@ -6,7 +6,7 @@ use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::info;
-use virtspawn_core::{LibvirtError, LibvirtManager, SshTerminalConfig};
+use machina_core::{LibvirtError, LibvirtManager, SshTerminalConfig};
 
 use crate::auth::RequestActor;
 use crate::error::AppError;

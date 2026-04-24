@@ -1,0 +1,4 @@
+# Optional environment for machina-daemon (see systemd EnvironmentFile).
+# Installed as /etc/default/machina-daemon when not present.
+#
+# RUST_LOG=info

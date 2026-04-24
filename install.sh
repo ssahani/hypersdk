@@ -1,5 +1,5 @@
 #!/bin/bash
-# virtspawn — Automated installer for modern libvirt VM manager
+# machina — Automated installer for modern libvirt VM manager
 #
 # Supports: Fedora, RHEL/CentOS/AlmaLinux/Rocky, Ubuntu/Debian,
 #           openSUSE/SLES, Arch/Manjaro, and compatible distros.
@@ -15,8 +15,8 @@
 set -eo pipefail
 
 INSTALLER_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="/opt/virtspawn"
-LOG_FILE=$(mktemp /tmp/virtspawn-install-XXXXXX.log)
+INSTALL_DIR="/opt/machina"
+LOG_FILE=$(mktemp /tmp/machina-install-XXXXXX.log)
 chmod 600 "$LOG_FILE"
 
 BIND_HOST=""
@@ -338,8 +338,8 @@ mkosi_acceptable() {
 install_mkosi_wrapper() {
     local real="$1"
     [ -x "$real" ] || return 1
-    install -d /usr/local/libexec/virtspawn
-    ln -sf "$real" /usr/local/libexec/virtspawn/mkosi-real
+    install -d /usr/local/libexec/machina
+    ln -sf "$real" /usr/local/libexec/machina/mkosi-real
     local wrap_src="${INSTALLER_ROOT}/scripts/mkosi-wrapper.sh"
     if [ -f "$wrap_src" ]; then
         install -Dm755 "$wrap_src" /usr/local/bin/mkosi
@@ -354,7 +354,7 @@ install_mkosi_wrapper() {
 # Older installs symlinked venv/pipx/clone straight into /usr/local/bin/mkosi;
 # replace with the wrapper once so manual `mkosi` runs get a safe workspace.
 migrate_mkosi_to_wrapper_if_needed() {
-    if [ -f /usr/local/bin/mkosi ] && grep -q 'virtspawn — mkosi CLI wrapper' /usr/local/bin/mkosi 2>/dev/null; then
+    if [ -f /usr/local/bin/mkosi ] && grep -q 'machina — mkosi CLI wrapper' /usr/local/bin/mkosi 2>/dev/null; then
         return 0
     fi
     [ -e /usr/local/bin/mkosi ] || return 0
@@ -397,9 +397,9 @@ try_install_mkosi_pipx() {
 }
 
 try_install_mkosi_git_clone() {
-    [ "${VIRTSPAWN_MKOSI_FROM_CLONE:-0}" = 1 ] || return 1
-    local dir="${VIRTSPAWN_MKOSI_CLONE_DIR:-/opt/mkosi}"
-    step "Installing mkosi from git clone → $dir (VIRTSPAWN_MKOSI_FROM_CLONE=1)"
+    [ "${MACHINA_MKOSI_FROM_CLONE:-0}" = 1 ] || return 1
+    local dir="${MACHINA_MKOSI_CLONE_DIR:-/opt/mkosi}"
+    step "Installing mkosi from git clone → $dir (MACHINA_MKOSI_FROM_CLONE=1)"
     if [ -x "$dir/bin/mkosi" ]; then
         :
     elif [ -d "$dir/.git" ]; then
@@ -459,16 +459,16 @@ Upstream: https://github.com/systemd/mkosi  (v16+ recommended; verify: mkosi --v
 Method 1 — run from a local clone:
   git clone https://github.com/systemd/mkosi /opt/mkosi
   /opt/mkosi/bin/mkosi --workspace-directory /var/tmp/mkosi-ws --version
-  # Re-run virtspawn install.sh (or copy scripts/mkosi-wrapper.sh) to put a safe /usr/local/bin/mkosi on PATH.
+  # Re-run machina install.sh (or copy scripts/mkosi-wrapper.sh) to put a safe /usr/local/bin/mkosi on PATH.
 
 Method 2 — pipx (isolated; good for interactive admin users):
   pipx install git+https://github.com/systemd/mkosi.git
-  # ensure ~/.local/bin on PATH; virtspawn re-runs install.sh to add the workspace wrapper under /usr/local/bin
+  # ensure ~/.local/bin on PATH; machina re-runs install.sh to add the workspace wrapper under /usr/local/bin
 
-Method 3 — Python venv (what virtspawn falls back to):
+Method 3 — Python venv (what machina falls back to):
   python3 -m venv /opt/mkosi-venv
   /opt/mkosi-venv/bin/pip install "git+https://github.com/systemd/mkosi.git"
-  # re-run virtspawn install.sh --deps-only to install the mkosi workspace wrapper
+  # re-run machina install.sh --deps-only to install the mkosi workspace wrapper
 
 Method 4 — zipapp (portable single file):
   git clone https://github.com/systemd/mkosi && cd mkosi && tools/generate-zipapp.sh
@@ -482,18 +482,18 @@ If mkosi complains systemd-repart needs 254+ but the host has 252, add ToolsTree
 
 If mkosi errors that the workspace cannot live under BuildSources=, either pass
   --workspace-directory /var/tmp/mkosi-ws (any dir outside sources), or set
-  MKOSI_WORKSPACE_DIRECTORY or VIRTSPAWN_MKOSI_WORKSPACE_DIR (see scripts/mkosi-wrapper.sh).
+  MKOSI_WORKSPACE_DIRECTORY or MACHINA_MKOSI_WORKSPACE_DIR (see scripts/mkosi-wrapper.sh).
 
-virtspawn env overrides for this script:
-  VIRTSPAWN_MKOSI_FROM_CLONE=1     — git clone to /opt/mkosi (or VIRTSPAWN_MKOSI_CLONE_DIR=…)
-  VIRTSPAWN_MKOSI_CLONE_DIR=/path — clone destination
+machina env overrides for this script:
+  MACHINA_MKOSI_FROM_CLONE=1     — git clone to /opt/mkosi (or MACHINA_MKOSI_CLONE_DIR=…)
+  MACHINA_MKOSI_CLONE_DIR=/path — clone destination
 
-virtspawn-daemon (mkosi build) env overrides:
-  VIRTSPAWN_MKOSI_WORKSPACE_DIR=/path — parent for ephemeral mkosi --workspace-directory (default: /var/tmp/virtspawn-mkosi-ws)
-  VIRTSPAWN_MKOSI_KEEP_WORKSPACE=1 — after a successful build, do not delete the ephemeral workspace tree
+machina-daemon (mkosi build) env overrides:
+  MACHINA_MKOSI_WORKSPACE_DIR=/path — parent for ephemeral mkosi --workspace-directory (default: /var/tmp/machina-mkosi-ws)
+  MACHINA_MKOSI_KEEP_WORKSPACE=1 — after a successful build, do not delete the ephemeral workspace tree
 
 Interactive /usr/local/bin/mkosi (wrapper from this installer):
-  VIRTSPAWN_MKOSI_WORKSPACE_DIR=/path — parent for default workspace (default: /var/tmp/mkosi-workspace; per-user subdir)
+  MACHINA_MKOSI_WORKSPACE_DIR=/path — parent for default workspace (default: /var/tmp/mkosi-workspace; per-user subdir)
   MKOSI_WORKSPACE_DIRECTORY=/abs/dir — force a single workspace directory
 ────────────────────────────────────────────────────────────────
 MKS
@@ -638,7 +638,7 @@ install_rust() {
 # ── Clone and build ──────────────────────────────────────────────────
 
 find_source() {
-    step "Locating virtspawn source"
+    step "Locating machina source"
 
     # If running from within the repo, use it directly
     local script_dir
@@ -651,7 +651,7 @@ find_source() {
     fi
 
     # Check common locations
-    for candidate in /root/.virtspawn /opt/virtspawn "$HOME/.virtspawn" "$HOME/.deployment/virtspawn"; do
+    for candidate in /root/.machina /opt/machina "$HOME/.machina" "$HOME/.deployment/machina"; do
         if [ -f "$candidate/Cargo.toml" ] && [ -f "$candidate/Makefile" ]; then
             INSTALL_DIR="$candidate"
             ok "Found source at $INSTALL_DIR"
@@ -718,8 +718,8 @@ build_rust() {
         fail "Rust build failed. Full log: $LOG_FILE"
     fi
 
-    ok "Built: target/release/virtspawn-daemon ($(du -h target/release/virtspawn-daemon | cut -f1))"
-    ok "Built: target/release/virtspawn-tui ($(du -h target/release/virtspawn-tui | cut -f1))"
+    ok "Built: target/release/machina-daemon ($(du -h target/release/machina-daemon | cut -f1))"
+    ok "Built: target/release/machina-tui ($(du -h target/release/machina-tui | cut -f1))"
 }
 
 build_web() {
@@ -745,11 +745,11 @@ build_web() {
 
 # ── mkosi workspace definitions ──────────────────────────────────────
 
-# Copy bundled workspace definitions to /var/lib/virtspawn/mkosi-defs/.
+# Copy bundled workspace definitions to /var/lib/machina/mkosi-defs/.
 # Existing workspace dirs are preserved (user customisations respected).
 install_mkosi_workspace_defs() {
     local src="${INSTALLER_ROOT}/contrib/mkosi-defs"
-    local dst="/var/lib/virtspawn/mkosi-defs"
+    local dst="/var/lib/machina/mkosi-defs"
 
     if [ ! -d "$src" ]; then
         warn "contrib/mkosi-defs/ not found in installer tree — skipping workspace install"
@@ -778,86 +778,86 @@ install_mkosi_workspace_defs() {
 # ── Install ──────────────────────────────────────────────────────────
 
 install_files() {
-    step "Installing virtspawn"
+    step "Installing machina"
 
     cd "$INSTALL_DIR"
 
     # Create required directories BEFORE installing systemd units
-    # /var/lib/virtspawn MUST exist or systemd ReadWritePaths causes NAMESPACE failure
-    mkdir -p /var/lib/virtspawn/backups
+    # /var/lib/machina MUST exist or systemd ReadWritePaths causes NAMESPACE failure
+    mkdir -p /var/lib/machina/backups
 
     # Binaries
-    install -Dm755 target/release/virtspawn-daemon /usr/local/bin/virtspawn-daemon
-    install -Dm755 target/release/virtspawn-tui /usr/local/bin/virtspawn
+    install -Dm755 target/release/machina-daemon /usr/local/bin/machina-daemon
+    install -Dm755 target/release/machina-tui /usr/local/bin/machina
     ok "Binaries -> /usr/local/bin/"
 
     # Config
-    if [ ! -f /etc/virtspawn/config.toml ]; then
-        install -Dm644 contrib/virtspawn.toml /etc/virtspawn/config.toml
-        ok "Config -> /etc/virtspawn/config.toml"
+    if [ ! -f /etc/machina/config.toml ]; then
+        install -Dm644 contrib/machina.toml /etc/machina/config.toml
+        ok "Config -> /etc/machina/config.toml"
     else
         info "Config already exists, not overwriting"
     fi
 
     # Apply --bind if specified
     if [ -n "$BIND_HOST" ]; then
-        sed -i "s/^host = .*/host = \"$BIND_HOST\"/" /etc/virtspawn/config.toml
+        sed -i "s/^host = .*/host = \"$BIND_HOST\"/" /etc/machina/config.toml
         ok "Configured daemon to bind to $BIND_HOST"
     fi
 
     # Optional env overrides (hyper2kvm-style /etc/default)
-    if [ ! -f /etc/default/virtspawn-daemon ]; then
-        install -Dm644 contrib/virtspawn-daemon.default /etc/default/virtspawn-daemon
-        ok "Defaults -> /etc/default/virtspawn-daemon"
+    if [ ! -f /etc/default/machina-daemon ]; then
+        install -Dm644 contrib/machina-daemon.default /etc/default/machina-daemon
+        ok "Defaults -> /etc/default/machina-daemon"
     fi
 
     # Systemd units
-    install -Dm644 contrib/virtspawn-daemon.service /usr/lib/systemd/system/virtspawn-daemon.service
-    if [ -f contrib/virtspawn-backup.service ]; then
-        install -Dm644 contrib/virtspawn-backup.service /usr/lib/systemd/system/virtspawn-backup.service
+    install -Dm644 contrib/machina-daemon.service /usr/lib/systemd/system/machina-daemon.service
+    if [ -f contrib/machina-backup.service ]; then
+        install -Dm644 contrib/machina-backup.service /usr/lib/systemd/system/machina-backup.service
     fi
-    if [ -f contrib/virtspawn-backup.timer ]; then
-        install -Dm644 contrib/virtspawn-backup.timer /usr/lib/systemd/system/virtspawn-backup.timer
+    if [ -f contrib/machina-backup.timer ]; then
+        install -Dm644 contrib/machina-backup.timer /usr/lib/systemd/system/machina-backup.timer
     fi
     systemctl daemon-reload
     ok "Systemd units installed"
 
     # Scripts
-    mkdir -p /usr/local/share/virtspawn/scripts
+    mkdir -p /usr/local/share/machina/scripts
     for script in scripts/*.sh; do
         [ -f "$script" ] || continue
-        install -Dm755 "$script" "/usr/local/share/virtspawn/scripts/$(basename "$script")"
+        install -Dm755 "$script" "/usr/local/share/machina/scripts/$(basename "$script")"
     done
-    ok "Scripts -> /usr/local/share/virtspawn/scripts/"
+    ok "Scripts -> /usr/local/share/machina/scripts/"
 
-    mkdir -p /usr/local/share/virtspawn/packer
+    mkdir -p /usr/local/share/machina/packer
     if [ -f contrib/packer/build-linux-image.sh ]; then
-        install -Dm755 contrib/packer/build-linux-image.sh /usr/local/share/virtspawn/packer/build-linux-image.sh
-        ok "Packer Linux image script -> /usr/local/share/virtspawn/packer/build-linux-image.sh"
+        install -Dm755 contrib/packer/build-linux-image.sh /usr/local/share/machina/packer/build-linux-image.sh
+        ok "Packer Linux image script -> /usr/local/share/machina/packer/build-linux-image.sh"
     fi
     if [ -d contrib/packer/windows-qemu ]; then
-        rm -rf /usr/local/share/virtspawn/packer/windows-qemu
-        cp -a contrib/packer/windows-qemu /usr/local/share/virtspawn/packer/
-        ok "Packer Windows+VirtIO example -> /usr/local/share/virtspawn/packer/windows-qemu/"
+        rm -rf /usr/local/share/machina/packer/windows-qemu
+        cp -a contrib/packer/windows-qemu /usr/local/share/machina/packer/
+        ok "Packer Windows+VirtIO example -> /usr/local/share/machina/packer/windows-qemu/"
     fi
 
     # Backup config
-    if [ -f contrib/backup.conf ] && [ ! -f /etc/virtspawn/backup.conf ]; then
-        install -Dm644 contrib/backup.conf /etc/virtspawn/backup.conf
-        ok "Backup config -> /etc/virtspawn/backup.conf"
+    if [ -f contrib/backup.conf ] && [ ! -f /etc/machina/backup.conf ]; then
+        install -Dm644 contrib/backup.conf /etc/machina/backup.conf
+        ok "Backup config -> /etc/machina/backup.conf"
     fi
 
     # Web UI
     if [ -d web/dist ]; then
-        mkdir -p /usr/local/share/virtspawn/web
-        cp -r web/dist/* /usr/local/share/virtspawn/web/
-        ok "Web UI -> /usr/local/share/virtspawn/web/"
+        mkdir -p /usr/local/share/machina/web
+        cp -r web/dist/* /usr/local/share/machina/web/
+        ok "Web UI -> /usr/local/share/machina/web/"
     fi
 
-    # virtspawnctl
-    if [ -f virtspawnctl ]; then
-        install -Dm755 virtspawnctl /usr/local/bin/virtspawnctl
-        ok "virtspawnctl -> /usr/local/bin/"
+    # machinactl
+    if [ -f machinactl ]; then
+        install -Dm755 machinactl /usr/local/bin/machinactl
+        ok "machinactl -> /usr/local/bin/"
     fi
 
     # mkosi workspace definitions (shipped in repo, installed once)
@@ -871,7 +871,7 @@ ensure_tls_for_https() {
 
     command -v openssl >/dev/null 2>&1 || fail "openssl is required for HTTPS — install openssl and retry"
 
-    local cdir="/etc/virtspawn/ssl"
+    local cdir="/etc/machina/ssl"
     local cert="$cdir/cert.pem"
     local key="$cdir/key.pem"
     mkdir -p "$cdir"
@@ -886,13 +886,13 @@ ensure_tls_for_https() {
             log_cmd openssl req -x509 -newkey rsa:4096 \
                 -keyout "$key" -out "$cert" \
                 -sha256 -days 3650 -nodes \
-                -subj "/CN=$hn/O=virtspawn" \
+                -subj "/CN=$hn/O=machina" \
                 -addext "subjectAltName=DNS:$hn,DNS:localhost,IP:127.0.0.1"
         else
             log_cmd openssl req -x509 -newkey rsa:4096 \
                 -keyout "$key" -out "$cert" \
                 -sha256 -days 3650 -nodes \
-                -subj "/CN=$hn/O=virtspawn"
+                -subj "/CN=$hn/O=machina"
         fi
         [ -f "$cert" ] && [ -f "$key" ] || fail "openssl failed — see $LOG_FILE"
         chmod 600 "$key"
@@ -900,7 +900,7 @@ ensure_tls_for_https() {
         ok "Self-signed certificate installed"
     fi
 
-    local cfg="/etc/virtspawn/config.toml"
+    local cfg="/etc/machina/config.toml"
     [ -f "$cfg" ] || return 0
     if grep -q '^\[tls\]' "$cfg" 2>/dev/null; then
         ok "Daemon config already defines [tls]"
@@ -910,10 +910,10 @@ ensure_tls_for_https() {
 
 [tls]
 enabled = true
-cert_path = "/etc/virtspawn/ssl/cert.pem"
-key_path = "/etc/virtspawn/ssl/key.pem"
+cert_path = "/etc/machina/ssl/cert.pem"
+key_path = "/etc/machina/ssl/key.pem"
 EOF
-    ok "Enabled [tls] in /etc/virtspawn/config.toml"
+    ok "Enabled [tls] in /etc/machina/config.toml"
 }
 
 # ── Firewall ─────────────────────────────────────────────────────────
@@ -940,8 +940,8 @@ open_firewall() {
 # ── Start and verify ─────────────────────────────────────────────────
 
 stop_daemon_for_upgrade() {
-    info "Stopping existing virtspawn-daemon (releases TCP :5092 for clean start)..."
-    systemctl stop virtspawn-daemon >> "$LOG_FILE" 2>&1 || true
+    info "Stopping existing machina-daemon (releases TCP :5092 for clean start)..."
+    systemctl stop machina-daemon >> "$LOG_FILE" 2>&1 || true
     sleep 2
     # Rare: zombie listener or unrelated process — best-effort clear on Linux.
     if command -v ss >/dev/null 2>&1 && ss -tln 2>/dev/null | grep -q ':5092[[:space:]]'; then
@@ -966,12 +966,12 @@ wait_for_https_health() {
 }
 
 start_daemon() {
-    step "Starting virtspawn daemon"
+    step "Starting machina daemon"
 
     stop_daemon_for_upgrade
 
-    systemctl enable virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to enable virtspawn-daemon. Check: journalctl -u virtspawn-daemon"
-    systemctl start virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to start daemon. Check: journalctl -u virtspawn-daemon"
+    systemctl enable machina-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to enable machina-daemon. Check: journalctl -u machina-daemon"
+    systemctl start machina-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to start daemon. Check: journalctl -u machina-daemon"
 
     if wait_for_https_health 15; then
         return 0
@@ -979,15 +979,15 @@ start_daemon() {
 
     warn "Health check failed — stopping and starting daemon once more (common after TLS/binary upgrade)"
     stop_daemon_for_upgrade
-    systemctl start virtspawn-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to restart daemon. Check: journalctl -u virtspawn-daemon"
+    systemctl start machina-daemon >> "$LOG_FILE" 2>&1 || fail "Failed to restart daemon. Check: journalctl -u machina-daemon"
 
     if wait_for_https_health 15; then
         return 0
     fi
 
     warn "Daemon health check timed out. Showing recent logs:"
-    journalctl -u virtspawn-daemon --no-pager -n 25 2>/dev/null || true
-    fail "Daemon failed to become healthy at https://localhost:5092/api/v1/health — fix the error above then: sudo systemctl restart virtspawn-daemon"
+    journalctl -u machina-daemon --no-pager -n 25 2>/dev/null || true
+    fail "Daemon failed to become healthy at https://localhost:5092/api/v1/health — fix the error above then: sudo systemctl restart machina-daemon"
 }
 
 # ── Verification tests ───────────────────────────────────────────────
@@ -1050,19 +1050,19 @@ run_tests() {
     fi
 
     # Binaries
-    if /usr/local/bin/virtspawn-daemon --help > /dev/null 2>&1; then
-        ok "  virtspawn-daemon binary"
+    if /usr/local/bin/machina-daemon --help > /dev/null 2>&1; then
+        ok "  machina-daemon binary"
         passed=$((passed + 1))
     else
-        echo "  ❌ FAIL virtspawn-daemon binary"
+        echo "  ❌ FAIL machina-daemon binary"
         failed=$((failed + 1))
     fi
 
-    if /usr/local/bin/virtspawn --help > /dev/null 2>&1; then
-        ok "  virtspawn TUI binary"
+    if /usr/local/bin/machina --help > /dev/null 2>&1; then
+        ok "  machina TUI binary"
         passed=$((passed + 1))
     else
-        echo "  ❌ FAIL virtspawn TUI binary"
+        echo "  ❌ FAIL machina TUI binary"
         failed=$((failed + 1))
     fi
 
@@ -1109,16 +1109,16 @@ remote_deploy() {
     source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
     if [ ! -f "$source_dir/Cargo.toml" ]; then
-        fail "Must run --remote from within the virtspawn source directory"
+        fail "Must run --remote from within the machina source directory"
     fi
 
     step "Deploying to $remote"
 
-    info "Copying source to $remote:~/.deployment/virtspawn (build runs on remote only, not here) ..."
-    ssh "$remote" "mkdir -p ~/.deployment/virtspawn"
+    info "Copying source to $remote:~/.deployment/machina (build runs on remote only, not here) ..."
+    ssh "$remote" "mkdir -p ~/.deployment/machina"
     rsync -az --delete \
         --exclude target --exclude node_modules --exclude .git --exclude web/dist \
-        "$source_dir/" "$remote:~/.deployment/virtspawn/" || fail "rsync failed"
+        "$source_dir/" "$remote:~/.deployment/machina/" || fail "rsync failed"
     ok "Source copied"
 
     info "Running install.sh on $remote (cargo/npm build on server) ..."
@@ -1127,7 +1127,7 @@ remote_deploy() {
     $OPEN_FIREWALL && remote_args="$remote_args --open-firewall"
 
     # Skip curl/API verification on the hypervisor — run locally if needed.
-    ssh "$remote" "cd ~/.deployment/virtspawn && sudo bash install.sh --no-tests $remote_args" || fail "Remote install failed"
+    ssh "$remote" "cd ~/.deployment/machina && sudo bash install.sh --no-tests $remote_args" || fail "Remote install failed"
 
     # Get the remote IP for summary
     local remote_ip
@@ -1145,30 +1145,30 @@ remote_deploy() {
 # ── Uninstall ────────────────────────────────────────────────────────
 
 uninstall() {
-    step "Uninstalling virtspawn"
+    step "Uninstalling machina"
 
-    systemctl stop virtspawn-daemon 2>/dev/null || true
-    systemctl disable virtspawn-daemon 2>/dev/null || true
-    systemctl stop virtspawn-backup.timer 2>/dev/null || true
-    systemctl disable virtspawn-backup.timer 2>/dev/null || true
+    systemctl stop machina-daemon 2>/dev/null || true
+    systemctl disable machina-daemon 2>/dev/null || true
+    systemctl stop machina-backup.timer 2>/dev/null || true
+    systemctl disable machina-backup.timer 2>/dev/null || true
 
-    rm -f /usr/local/bin/virtspawn-daemon
-    rm -f /usr/local/bin/virtspawn
-    rm -f /usr/local/bin/virtspawnctl
-    rm -f /usr/local/libexec/virtspawn/mkosi-real
-    if [ -f /usr/local/bin/mkosi ] && grep -q 'virtspawn — mkosi CLI wrapper' /usr/local/bin/mkosi 2>/dev/null; then
+    rm -f /usr/local/bin/machina-daemon
+    rm -f /usr/local/bin/machina
+    rm -f /usr/local/bin/machinactl
+    rm -f /usr/local/libexec/machina/mkosi-real
+    if [ -f /usr/local/bin/mkosi ] && grep -q 'machina — mkosi CLI wrapper' /usr/local/bin/mkosi 2>/dev/null; then
         rm -f /usr/local/bin/mkosi
     fi
-    rmdir /usr/local/libexec/virtspawn 2>/dev/null || true
-    rm -f /usr/lib/systemd/system/virtspawn-daemon.service
-    rm -f /usr/lib/systemd/system/virtspawn-backup.service
-    rm -f /usr/lib/systemd/system/virtspawn-backup.timer
-    rm -rf /usr/local/share/virtspawn
+    rmdir /usr/local/libexec/machina 2>/dev/null || true
+    rm -f /usr/lib/systemd/system/machina-daemon.service
+    rm -f /usr/lib/systemd/system/machina-backup.service
+    rm -f /usr/lib/systemd/system/machina-backup.timer
+    rm -rf /usr/local/share/machina
     systemctl daemon-reload 2>/dev/null || true
 
     ok "Binaries and service removed"
-    info "Config kept at /etc/virtspawn/ (remove manually if desired)"
-    info "Data kept at /var/lib/virtspawn/ (remove manually if desired)"
+    info "Config kept at /etc/machina/ (remove manually if desired)"
+    info "Data kept at /var/lib/machina/ (remove manually if desired)"
 }
 
 # ── Summary ──────────────────────────────────────────────────────────
@@ -1186,24 +1186,24 @@ print_summary() {
 
     echo ""
     echo "============================================"
-    echo "✅ virtspawn installed successfully!"
+    echo "✅ machina installed successfully!"
     echo "============================================"
     echo ""
     echo "  🌐 Web UI:    https://$bind_info:5092"
-    echo "  🖥️  TUI:       virtspawn"
+    echo "  🖥️  TUI:       machina"
     echo "  🔗 API:       https://$bind_info:5092/api/v1/health"
     echo "  📊 VMs found: $vm_count"
     echo ""
     echo "  📋 Manage:"
-    echo "    sudo systemctl status  virtspawn-daemon"
-    echo "    sudo systemctl restart virtspawn-daemon"
-    echo "    sudo journalctl -u virtspawn-daemon -f"
+    echo "    sudo systemctl status  machina-daemon"
+    echo "    sudo systemctl restart machina-daemon"
+    echo "    sudo journalctl -u machina-daemon -f"
     echo ""
-    echo "  ⚙️  Config:  /etc/virtspawn/config.toml"
+    echo "  ⚙️  Config:  /etc/machina/config.toml"
     echo "  📂 Source:  $INSTALL_DIR"
     echo "  📜 Log:     $LOG_FILE"
-    echo "  🏗️  Packer:  /usr/local/share/virtspawn/packer/build-linux-image.sh"
-    echo "  🪟  Win+VirtIO: /usr/local/share/virtspawn/packer/windows-qemu/ (see HOWTO.txt)"
+    echo "  🏗️  Packer:  /usr/local/share/machina/packer/build-linux-image.sh"
+    echo "  🪟  Win+VirtIO: /usr/local/share/machina/packer/windows-qemu/ (see HOWTO.txt)"
     echo ""
 }
 
@@ -1216,7 +1216,7 @@ main() {
     echo "  \_/ |_| \__|/__/|  _/\__,_| \_/\_/ |_||_|"
     echo "                  |_|"
     echo ""
-    echo "virtspawn installer — Modern Libvirt VM Manager"
+    echo "machina installer — Modern Libvirt VM Manager"
     echo ""
 
     # Parse args
@@ -1240,7 +1240,7 @@ main() {
                 cat <<'HELPEOF'
 Usage: install.sh [OPTIONS]
 
-  Automated installer for virtspawn — a modern libvirt VM manager with
+  Automated installer for machina — a modern libvirt VM manager with
   Web UI, REST API, TUI, backup system, and monitoring.
 
   Detects the Linux distribution, installs all dependencies (libvirt,
@@ -1258,7 +1258,7 @@ Install options:
   --no-tests           Skip post-install HTTPS/API verification (curl checks).
                        Remote deploy (--remote) passes this automatically.
   --deps-only          Only install system dependencies (libvirt, Rust,
-                       Node.js) without building or installing virtspawn.
+                       Node.js) without building or installing machina.
 
 Remote deploy:
   --remote USER@HOST   Deploy to a remote machine over SSH.
@@ -1269,7 +1269,7 @@ Remote deploy:
 
 Uninstall:
   --uninstall          Stop the daemon, remove binaries and systemd units.
-                       Config (/etc/virtspawn) and data (/var/lib/virtspawn)
+                       Config (/etc/machina) and data (/var/lib/machina)
                        are preserved — remove manually if desired.
 
 Supported distributions:
@@ -1280,17 +1280,17 @@ Supported distributions:
   Other distros may work if dnf/apt/zypper/pacman is available.
 
 What gets installed:
-  /usr/local/bin/virtspawn-daemon    Daemon binary (REST API + WebSocket)
-  /usr/local/bin/virtspawn           TUI binary (terminal interface)
-  /usr/local/bin/virtspawnctl        Management helper script
-  /usr/local/share/virtspawn/web/    Web UI (React frontend)
-  /usr/local/share/virtspawn/scripts/  Backup, demo, status scripts
-  /etc/virtspawn/config.toml         Daemon configuration
-  /etc/default/virtspawn-daemon      Optional env overrides (RUST_LOG, etc.; hyper2kvm-style)
-  /etc/virtspawn/backup.conf         Backup configuration
-  /var/lib/virtspawn/backups/        Backup storage directory
-  /usr/lib/systemd/system/virtspawn-daemon.service
-  /usr/lib/systemd/system/virtspawn-backup.{service,timer}
+  /usr/local/bin/machina-daemon    Daemon binary (REST API + WebSocket)
+  /usr/local/bin/machina           TUI binary (terminal interface)
+  /usr/local/bin/machinactl        Management helper script
+  /usr/local/share/machina/web/    Web UI (React frontend)
+  /usr/local/share/machina/scripts/  Backup, demo, status scripts
+  /etc/machina/config.toml         Daemon configuration
+  /etc/default/machina-daemon      Optional env overrides (RUST_LOG, etc.; hyper2kvm-style)
+  /etc/machina/backup.conf         Backup configuration
+  /var/lib/machina/backups/        Backup storage directory
+  /usr/lib/systemd/system/machina-daemon.service
+  /usr/lib/systemd/system/machina-backup.{service,timer}
 
 Prerequisites (installed automatically):
   - libvirt + QEMU/KVM
@@ -1312,16 +1312,16 @@ Examples:
     sudo ./install.sh --deps-only
     sudo ./install.sh
 
-  Remove virtspawn:
+  Remove machina:
     sudo ./install.sh --uninstall
 
 After install:
   Web UI:    https://localhost:5092   (self-signed by default — browser warning until you install a real cert)
-  TUI:       virtspawn
+  TUI:       machina
   API test:  curl -sk https://localhost:5092/api/v1/health
-  Logs:      sudo journalctl -u virtspawn-daemon -f
-  Config:    sudo vim /etc/virtspawn/config.toml
-  Restart:   sudo systemctl restart virtspawn-daemon
+  Logs:      sudo journalctl -u machina-daemon -f
+  Config:    sudo vim /etc/machina/config.toml
+  Restart:   sudo systemctl restart machina-daemon
 HELPEOF
                 exit 0
                 ;;
@@ -1365,7 +1365,7 @@ HELPEOF
     fi
 
     if $no_start; then
-        ok "Installed but not started. Run: sudo systemctl start virtspawn-daemon"
+        ok "Installed but not started. Run: sudo systemctl start machina-daemon"
         exit 0
     fi
 

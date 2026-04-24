@@ -2,7 +2,7 @@ use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyModifiers, MouseEvent,
 use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
-use virtspawn_core::{
+use machina_core::{
     AppState, ConfirmationDialog, CreateNetworkRequest, Focus, InputMode, NotifyLevel, ObjectTab,
     ResourceView, SidebarCategory, SidebarItem, SortColumn, SortDirection, ViewMode,
 };
@@ -10,7 +10,7 @@ use virtspawn_core::{
 use crate::api::DaemonClient;
 use crate::ui;
 
-const PACKER_IMAGE_HINT: &str = "Web /create: ISO install, Packer qcow2 builds, clone golden image (saved template or backing). Packer script: /usr/local/share/virtspawn/packer/build-linux-image.sh";
+const PACKER_IMAGE_HINT: &str = "Web /create: ISO install, Packer qcow2 builds, clone golden image (saved template or backing). Packer script: /usr/local/share/machina/packer/build-linux-image.sh";
 
 pub struct App {
     pub state: AppState,
@@ -1171,12 +1171,12 @@ impl App {
                 if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
             }
             ["backup", "run"] => {
-                let req = virtspawn_core::BackupRequest::default();
+                let req = machina_core::BackupRequest::default();
                 let r = self.client.trigger_backup(&req).await;
                 self.report_cmd_result(r, "Backup started (all VMs)", "backup", "all", false).await;
             }
             ["backup", "run", vm_name] => {
-                let req = virtspawn_core::BackupRequest { vm_name: vm_name.to_string(), ..Default::default() };
+                let req = machina_core::BackupRequest { vm_name: vm_name.to_string(), ..Default::default() };
                 let r = self.client.trigger_backup(&req).await;
                 self.report_cmd_result(r, &format!("Backup started for '{vm_name}'"), "backup", vm_name, false).await;
             }
@@ -1261,7 +1261,7 @@ impl App {
 
     // ── Refresh ─────────────────────────────────────────────────────────
 
-    fn apply_vm_data(&mut self, vms: Vec<virtspawn_core::VmInfo>) {
+    fn apply_vm_data(&mut self, vms: Vec<machina_core::VmInfo>) {
         self.state.connected = true;
         self.state.vms = vms;
         self.state.sort_vms();

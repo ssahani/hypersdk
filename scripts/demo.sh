@@ -1,5 +1,5 @@
 #!/bin/bash
-# virtspawn demo — exercises the REST API to demonstrate all features
+# machina demo — exercises the REST API to demonstrate all features
 # Usage: ./scripts/demo.sh [API_URL]
 set -eo pipefail
 
@@ -32,7 +32,7 @@ api() {
 DEMO_VM="demo-vm-$$"
 
 echo ""
-echo "🚀 virtspawn API Demo"
+echo "🚀 machina API Demo"
 echo "  🔗 API: $API"
 echo "  🖥️  Demo VM: $DEMO_VM"
 echo ""
@@ -215,6 +215,6 @@ echo ""
 echo "✅ Demo complete!"
 echo ""
 echo "  🌐 Web UI:  https://localhost:5092"
-echo "  🖥️  TUI:     virtspawn"
+echo "  🖥️  TUI:     machina"
 echo "  🔗 API:     ${API}/health"
 echo ""

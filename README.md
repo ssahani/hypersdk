@@ -1,4 +1,4 @@
-# virtspawn
+# Machina
 
 **A modern libvirt VM management suite** — Rust daemon with REST/WebSocket API, a web UI with VNC/SPICE/Serial/SSH console, and a keyboard-driven terminal UI.
 
@@ -10,7 +10,7 @@ Manage virtual machines, networks, storage, snapshots, host networking, and auto
 
 ```
   ┌─────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
-  │   virtspawn Web UI  │   │   virtspawn TUI      │   │  API / Automation    │
+  │   machina Web UI  │   │   machina TUI      │   │  API / Automation    │
   │  (React + noVNC +   │   │  (ratatui terminal)  │   │  (curl / scripts /   │
   │   SPICE + xterm.js) │   │                      │   │   Bearer tokens)     │
   └─────────┬───────────┘   └──────────┬───────────┘   └──────────┬───────────┘
@@ -18,7 +18,7 @@ Manage virtual machines, networks, storage, snapshots, host networking, and auto
             └────────┬─────────────────┼──────────────────────────┘
                      │  HTTP / WebSocket (optional TLS)
             ┌────────┴─────────────────┐
-            │    virtspawn-daemon      │
+            │    machina-daemon      │
             │  PAM auth + RBAC + API   │
             │  tokens + cookie sessions│
             │  VNC/SPICE/Serial/SSH    │
@@ -34,12 +34,12 @@ Manage virtual machines, networks, storage, snapshots, host networking, and auto
   └──────────────┘  └──────┘  └──────────────┘
 ```
 
-Virtspawn provides **built-in** noVNC/SPICE (and serial/SSH) consoles over the daemon; libvirt remains the source of truth for VMs. If you prefer a separate HTML5 gateway (e.g. **RDP for Windows**, or Apache’s connection model), see [docs/guacamole-integration.md](docs/guacamole-integration.md)—Guacamole sits in front of guest RDP/VNC/SSH and does **not** replace libvirt or virtspawn lifecycle APIs.
+Machina provides **built-in** noVNC/SPICE (and serial/SSH) consoles over the daemon; libvirt remains the source of truth for VMs. If you prefer a separate HTML5 gateway (e.g. **RDP for Windows**, or Apache’s connection model), see [docs/guacamole-integration.md](docs/guacamole-integration.md)—Guacamole sits in front of guest RDP/VNC/SSH and does **not** replace libvirt or machina lifecycle APIs.
 
 ### Workspace Layout
 
 ```
-virtspawn/
+machina/   # git checkout directory name
 ├── core/               Shared library — types, config, libvirt bindings, validation, XML helpers
 ├── daemon/             REST + WebSocket server (axum), VNC proxy, noVNC serving, Prometheus metrics
 ├── tui/                Terminal UI client (ratatui) with sidebar + content panel layout
@@ -50,7 +50,7 @@ virtspawn/
 ├── guac-bridge/        Apache Guacamole JSON-auth library + optional standalone `libvirt-guac-bridge` binary (daemon integrates `GET …/guacamole-auth`)
 ├── examples/           Example user configuration
 ├── scripts/            deploy-remote.sh (remote rsync+install), demo, status, backup, bulk
-├── virtspawnctl        Management CLI (deploy, verify, health, backup, upgrade, tls)
+├── machinactl        Management CLI (deploy, verify, health, backup, upgrade, tls)
 ├── install.sh          Automated installer (Fedora/RHEL/Ubuntu/Debian/openSUSE/Arch)
 └── Makefile            Build, install, deploy, manage targets
 ```
@@ -65,7 +65,7 @@ virtspawn/
 - **API tokens** — Bearer token authentication for automation and scripting
 - **WebSocket token authentication** — short-lived token-based auth for all console/VNC/SSH WebSocket connections
 - **Session TTL with max session limits** — 24-hour session expiry, max 1000 total sessions, max 10 sessions per user
-- **HTTPS by default** — packaged install enables `[tls]` with self-signed certs (`install.sh` generates `/etc/virtspawn/ssl/`); replace with your CA as needed
+- **HTTPS by default** — packaged install enables `[tls]` with self-signed certs (`install.sh` generates `/etc/machina/ssl/`); replace with your CA as needed
 - **Same-origin only** — no CORS (prevents cross-site attacks)
 
 ### Web UI (https://localhost:5092)
@@ -183,7 +183,7 @@ virtspawn/
 - **Sorting** — by name, state, CPU, or memory
 - **Command mode** — vim-style `:command` interface
 - **Mouse support** — click, scroll, select
-- **Audit trail** — persistent log at `~/.virtspawn/audit.log`
+- **Audit trail** — persistent log at `~/.machina/audit.log`
 
 ### Backup & Restore
 - **Full or per-VM backup** — XML configs and optionally disk images
@@ -211,7 +211,7 @@ virtspawn/
 - **noVNC serving** — auto-discovers system noVNC installation and serves at `/novnc/`
 - **Connection resilience** — auto-reconnects to libvirt if connection drops
 - **Systemd service** — hardened unit file with security restrictions
-- **Config hierarchy** — `/etc/virtspawn/config.toml` (system), optional `~/.virtspawn/config.toml`, defaults, then CLI overrides
+- **Config hierarchy** — `/etc/machina/config.toml` then `~/.machina/config.toml`, then defaults; CLI overrides file values
 - **Input validation** — VM names, vCPU counts, memory, disk size bounds checked; XML-escaped user inputs
 - **Security hardened** — migration URI validation (SSRF prevention), ISO/import path canonicalization with symlink resolution, webhook URL validation, email header injection prevention, PTY path validation, integer overflow protection, no CORS (same-origin only), RBAC defaults to ReadOnly for unknown users; browser SSH uses server-issued **terminal sessions** (no raw host in the WebSocket URL), rejects API tokens for session creation, optional **named targets** in `[ssh_terminal].targets`, and disables legacy `/ws/v1/ssh/{host}` unless explicitly enabled
 - **Audit logging** — all operations logged with timestamps
@@ -225,9 +225,9 @@ virtspawn/
 ### One-Command Deployment (recommended)
 
 ```bash
-git clone https://github.com/ssahani/-virtspawn.git
-cd virtspawn
-./virtspawnctl deploy    # Installs deps, builds, installs, starts, and auto-verifies
+git clone https://github.com/ssahani/machina.git
+cd machina
+./machinactl deploy    # Installs deps, builds, installs, starts, and auto-verifies
 ```
 
 No `sudo` needed — the script auto-escalates when required. After deployment, you'll see:
@@ -241,42 +241,42 @@ No `sudo` needed — the script auto-escalates when required. After deployment, 
 ✓ All verification checks passed
 ```
 
-Open **https://localhost:5092** or run `virtspawn` for the TUI.
+Open **https://localhost:5092** or run `machina` for the TUI.
 
 ### Step-by-Step
 
 ```bash
-./virtspawnctl deps            # Install dependencies (auto-sudo)
-./virtspawnctl build           # Build everything
-./virtspawnctl test            # Run tests
-./virtspawnctl install         # Install to system (auto-sudo)
-./virtspawnctl start           # Start the service (auto-sudo)
-./virtspawnctl verify          # Post-install smoke test
+./machinactl deps            # Install dependencies (auto-sudo)
+./machinactl build           # Build everything
+./machinactl test            # Run tests
+./machinactl install         # Install to system (auto-sudo)
+./machinactl start           # Start the service (auto-sudo)
+./machinactl verify          # Post-install smoke test
 ```
 
 ### Management Commands
 
 ```bash
-./virtspawnctl status          # Check service status
-./virtspawnctl verify          # Post-install smoke test (API, VMs, libvirt)
-./virtspawnctl health          # Deep health check (disk, libvirt, timers)
-./virtspawnctl logs            # Follow logs
-./virtspawnctl restart         # Restart service (auto-sudo)
-./virtspawnctl reinstall       # Rebuild + reinstall + auto-verify (auto-sudo)
-./virtspawnctl upgrade         # Git pull + reinstall (auto-sudo)
-./virtspawnctl uninstall       # Remove everything (auto-sudo)
-./virtspawnctl doctor          # System readiness check
-./virtspawnctl tls             # Generate self-signed TLS certificate
+./machinactl status          # Check service status
+./machinactl verify          # Post-install smoke test (API, VMs, libvirt)
+./machinactl health          # Deep health check (disk, libvirt, timers)
+./machinactl logs            # Follow logs
+./machinactl restart         # Restart service (auto-sudo)
+./machinactl reinstall       # Rebuild + reinstall + auto-verify (auto-sudo)
+./machinactl upgrade         # Git pull + reinstall (auto-sudo)
+./machinactl uninstall       # Remove everything (auto-sudo)
+./machinactl doctor          # System readiness check
+./machinactl tls             # Generate self-signed TLS certificate
 ```
 
 ### Backup Commands
 
 ```bash
-./virtspawnctl backup now      # Run backup immediately
-./virtspawnctl backup enable   # Enable daily backup timer (2:00 AM)
-./virtspawnctl backup disable  # Disable backup timer
-./virtspawnctl backup status   # Show timer state + storage info
-./virtspawnctl backup logs     # Follow backup logs
+./machinactl backup now      # Run backup immediately
+./machinactl backup enable   # Enable daily backup timer (2:00 AM)
+./machinactl backup disable  # Disable backup timer
+./machinactl backup status   # Show timer state + storage info
+./machinactl backup logs     # Follow backup logs
 ```
 
 ### Alternative: Make (manual)
@@ -310,13 +310,13 @@ sudo ./install.sh --remote user@host                          # alternative (ins
 
 ### What `make deploy` does
 
-1. Installs `virtspawn-daemon` → `/usr/local/bin/virtspawn-daemon`
-2. Installs `virtspawn` (TUI) → `/usr/local/bin/virtspawn`
-3. Installs web UI → `/usr/local/share/virtspawn/web/`
-4. Installs config → `/etc/virtspawn/config.toml`
-5. Installs systemd units → `virtspawn-daemon.service`, `virtspawn-backup.service`, `virtspawn-backup.timer`
-6. Installs backup script → `/usr/local/share/virtspawn/scripts/backup.sh`
-7. Installs backup config → `/etc/virtspawn/backup.conf`
+1. Installs `machina-daemon` → `/usr/local/bin/machina-daemon`
+2. Installs `machina` (TUI) → `/usr/local/bin/machina`
+3. Installs web UI → `/usr/local/share/machina/web/`
+4. Installs config → `/etc/machina/config.toml`
+5. Installs systemd units → `machina-daemon.service`, `machina-backup.service`, `machina-backup.timer`
+6. Installs backup script → `/usr/local/share/machina/scripts/backup.sh`
+7. Installs backup config → `/etc/machina/backup.conf`
 8. Reloads systemd and starts the daemon
 
 ### Service Management
@@ -333,8 +333,8 @@ sudo make uninstall # stop + remove everything
 
 ```bash
 make build                          # debug build
-./target/debug/virtspawn-daemon     # run daemon
-./target/debug/virtspawn-tui        # run TUI
+./target/debug/machina-daemon     # run daemon
+./target/debug/machina-tui        # run TUI
 cd web && npm run dev               # web UI dev server with hot reload (port 3000)
 ```
 
@@ -393,7 +393,7 @@ Browser → xterm.js → WebSocket (/ws/v1/console/{name}) → async PTY I/O →
 Browser → xterm.js → POST /api/v1/terminal/sessions → WebSocket (/ws/v1/terminal/{session_id}?token=…) → PTY + system ssh user@host
 ```
 
-> **Note:** New VMs created through virtspawn use VNC by default. The console page auto-detects the graphics type and selects VNC or SPICE accordingly. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
+> **Note:** New VMs created through machina use VNC by default. The console page auto-detects the graphics type and selects VNC or SPICE accordingly. The serial console requires `console=ttyS0` in the guest OS kernel cmdline.
 
 ### Web UI Keyboard Shortcuts
 
@@ -417,11 +417,11 @@ The command palette supports fuzzy search across all pages and VMs, with inline 
 
 Config resolution:
 
-1. CLI arguments (highest priority — including `virtspawn-daemon --config /path`)
-2. Config file load order when using `VirtspawnConfig::load()` (no `--config`): **`/etc/virtspawn/config.toml`** first, then **`~/.virtspawn/config.toml`** if the system file is missing
+1. CLI arguments (highest priority — including `machina-daemon --config /path`)
+2. Config file load order when using `MachinaConfig::load()` (no `--config`): **`/etc/machina/config.toml`** first, then **`~/.machina/config.toml`** if the system file is missing
 3. Built-in defaults when no file exists
 
-The installer and systemd unit install **`/etc/virtspawn/config.toml`** and start the daemon with **`--config /etc/virtspawn/config.toml`**.
+The installer and systemd unit install **`/etc/machina/config.toml`** and start the daemon with **`--config /etc/machina/config.toml`**.
 
 ```toml
 [general]
@@ -439,11 +439,11 @@ pam_service = "sshd"         # /etc/pam.d/<name> — use sshd so web login match
 
 [tls]
 enabled = true                              # Enable HTTPS
-cert_path = "/etc/virtspawn/cert.pem"       # TLS certificate
-key_path = "/etc/virtspawn/key.pem"         # TLS private key
+cert_path = "/etc/machina/cert.pem"       # TLS certificate
+key_path = "/etc/machina/key.pem"         # TLS private key
 
 [backup]
-backup_dir = "/var/lib/virtspawn/backups"  # Where backups are stored
+backup_dir = "/var/lib/machina/backups"  # Where backups are stored
 # nfs_target = "192.168.1.100:/backups"    # NFS target (optional)
 with_disks = false                          # Include disk images by default
 retain = 7                                  # Keep last 7 backups
@@ -451,7 +451,7 @@ retain = 7                                  # Keep last 7 backups
 
 Generate a self-signed TLS certificate:
 ```bash
-./virtspawnctl tls    # Generates cert.pem and key.pem in /etc/virtspawn/
+./machinactl tls    # Generates cert.pem and key.pem in /etc/machina/
 ```
 
 See [`examples/config.toml`](examples/config.toml) for the full annotated configuration.
@@ -461,20 +461,20 @@ See [`examples/config.toml`](examples/config.toml) for the full annotated config
 **Daemon:**
 
 ```bash
-virtspawn-daemon                                    # defaults
-virtspawn-daemon --port 9090 --host 127.0.0.1        # localhost only
-virtspawn-daemon --libvirt-uri qemu:///session       # user session
-virtspawn-daemon --config /path/to/config.toml      # custom config
-RUST_LOG=tower_http=debug virtspawn-daemon          # enable request tracing
+machina-daemon                                    # defaults
+machina-daemon --port 9090 --host 127.0.0.1        # localhost only
+machina-daemon --libvirt-uri qemu:///session       # user session
+machina-daemon --config /path/to/config.toml      # custom config
+RUST_LOG=tower_http=debug machina-daemon          # enable request tracing
 ```
 
 **TUI:**
 
 ```bash
-virtspawn                                           # defaults
-virtspawn --url https://192.168.1.10:5092            # remote daemon
-virtspawn --refresh 10                              # 10s refresh interval
-virtspawn --config /path/to/config.toml             # custom config
+machina                                           # defaults
+machina --url https://192.168.1.10:5092            # remote daemon
+machina --refresh 10                              # 10s refresh interval
+machina --config /path/to/config.toml             # custom config
 ```
 
 ---
@@ -969,9 +969,9 @@ sudo make uninstall && make clean
 
 ```bash
 sudo make install
-sudo systemctl enable --now virtspawn-daemon
-sudo systemctl status virtspawn-daemon
-sudo journalctl -u virtspawn-daemon -f
+sudo systemctl enable --now machina-daemon
+sudo systemctl status machina-daemon
+sudo journalctl -u machina-daemon -f
 ```
 
 Security hardening: `ProtectSystem=strict`, `NoNewPrivileges=true`, `PrivateTmp=true`, `ProtectKernelTunables/Modules/Logs=true`, `RestrictAddressFamilies`, `SystemCallArchitectures=native`.
@@ -985,14 +985,14 @@ Security hardening: `ProtectSystem=strict`, `NoNewPrivileges=true`, `PrivateTmp=
 ```bash
 sudo systemctl status libvirtd              # Is libvirtd running?
 virsh -c qemu:///system list --all          # Can you connect?
-journalctl -u virtspawn-daemon -e           # Check logs
-RUST_LOG=debug virtspawn-daemon             # Debug logging
+journalctl -u machina-daemon -e           # Check logs
+RUST_LOG=debug machina-daemon             # Debug logging
 ```
 
 ### Web UI shows blank page
 
 ```bash
-ls /usr/local/share/virtspawn/web/index.html   # Is web UI installed?
+ls /usr/local/share/machina/web/index.html   # Is web UI installed?
 make web && sudo make install                   # Rebuild and reinstall
 ```
 
@@ -1047,7 +1047,7 @@ sudo virsh edit <vm-name>
 
 ```bash
 sudo usermod -aG libvirt $USER && newgrp libvirt
-# Or: virtspawn-daemon --libvirt-uri qemu:///session
+# Or: machina-daemon --libvirt-uri qemu:///session
 ```
 
 ---
@@ -1092,20 +1092,20 @@ Single-screen dashboard showing host info, all VMs with state/vCPUs/memory, live
 ./scripts/backup.sh --nfs 192.168.1.10:/bk  # Backup to NFS share
 ./scripts/backup.sh --retain 7             # Keep only last 7 backups
 ./scripts/backup.sh --list                  # Preview what would be backed up
-./scripts/backup.sh --restore /var/lib/virtspawn/backups/20260323-123456
-./scripts/backup.sh --verify /var/lib/virtspawn/backups/20260323-123456
+./scripts/backup.sh --restore /var/lib/machina/backups/20260323-123456
+./scripts/backup.sh --verify /var/lib/machina/backups/20260323-123456
 ```
 
-Backups are saved to `/var/lib/virtspawn/backups/<timestamp>/` with VM/network/pool XML, JSON summaries, SHA-256 checksums, and optionally disk images. Use `--restore` to redefine VMs, networks, and storage pools (and optionally copy disk images back).
+Backups are saved to `/var/lib/machina/backups/<timestamp>/` with VM/network/pool XML, JSON summaries, SHA-256 checksums, and optionally disk images. Use `--restore` to redefine VMs, networks, and storage pools (and optionally copy disk images back).
 
 **Scheduled backups** via systemd timer:
 ```bash
-sudo systemctl enable --now virtspawn-backup.timer   # Daily at 2 AM
-sudo systemctl list-timers virtspawn-backup           # Check schedule
-journalctl -u virtspawn-backup.service                # View logs
+sudo systemctl enable --now machina-backup.timer   # Daily at 2 AM
+sudo systemctl list-timers machina-backup           # Check schedule
+journalctl -u machina-backup.service                # View logs
 ```
 
-**Config file:** `/etc/virtspawn/backup.conf` — set backup_dir, nfs_target, retention, etc.
+**Config file:** `/etc/machina/backup.conf` — set backup_dir, nfs_target, retention, etc.
 
 ### Bulk Operations
 
@@ -1137,11 +1137,11 @@ PDF documentation is available in `demo-screenshots/`:
 
 | Document | Description |
 |----------|-------------|
-| [virtspawn-demo.pdf](demo-screenshots/virtspawn-demo.pdf) | Client presentation — features, architecture, 10 live screenshots, security |
-| [virtspawn-quickstart.pdf](demo-screenshots/virtspawn-quickstart.pdf) | Quick Start Guide — prerequisites, build, install, access, TUI shortcuts, config, troubleshooting |
-| [virtspawn-api-reference.pdf](demo-screenshots/virtspawn-api-reference.pdf) | Complete API reference — REST endpoints, curl examples, response formats, automation scripts |
-| [virtspawn-security-architecture.pdf](demo-screenshots/virtspawn-security-architecture.pdf) | Security & Architecture — system diagram, input validation, SSRF prevention, comparison table |
-| [virtspawn-demo-scripts-guide.pdf](demo-screenshots/virtspawn-demo-scripts-guide.pdf) | Demo & Scripts Guide — 30-step demo walkthrough, status/backup/bulk scripts reference |
+| [machina-demo.pdf](demo-screenshots/machina-demo.pdf) | Client presentation — features, architecture, 10 live screenshots, security |
+| [machina-quickstart.pdf](demo-screenshots/machina-quickstart.pdf) | Quick Start Guide — prerequisites, build, install, access, TUI shortcuts, config, troubleshooting |
+| [machina-api-reference.pdf](demo-screenshots/machina-api-reference.pdf) | Complete API reference — REST endpoints, curl examples, response formats, automation scripts |
+| [machina-security-architecture.pdf](demo-screenshots/machina-security-architecture.pdf) | Security & Architecture — system diagram, input validation, SSRF prevention, comparison table |
+| [machina-demo-scripts-guide.pdf](demo-screenshots/machina-demo-scripts-guide.pdf) | Demo & Scripts Guide — 30-step demo walkthrough, status/backup/bulk scripts reference |
 
 Regenerate PDFs:
 ```bash
@@ -1157,8 +1157,8 @@ python3 demo-screenshots/generate_demo_guide_pdf.py    # demo & scripts guide
 ## Contributing
 
 ```bash
-git clone https://github.com/ssahani/-virtspawn.git
-cd virtspawn
+git clone https://github.com/ssahani/machina.git
+cd machina
 make build && make test && make lint && make fmt-check
 ```
 

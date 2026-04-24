@@ -7,11 +7,11 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use std::collections::HashMap;
 
-use virtspawn_core::libvirt::{device_tune, domain, extra_devices, firmware, guest_input, vnc};
-use virtspawn_core::{LibvirtError, LibvirtManager};
+use machina_core::libvirt::{device_tune, domain, extra_devices, firmware, guest_input, vnc};
+use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
-use virtspawn_core::xml::{extract_attr, split_blocks};
+use machina_core::xml::{extract_attr, split_blocks};
 
 #[derive(serde::Deserialize)]
 struct SendKeyRequest {

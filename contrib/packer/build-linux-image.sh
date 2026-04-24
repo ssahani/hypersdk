@@ -421,4 +421,4 @@ if [ "$GUEST" = "debian12" ] || [ "$GUEST" = "debian13" ]; then
   echo ""
 fi
 echo "Logins: Fedora 43 packer/password — Alma/Rocky/CentOS Stream/Oracle root/password — Debian/Ubuntu packer/password"
-echo "Import this disk in virtspawn (Web: Import VM) or attach as existing disk when creating a VM."
+echo "Import this disk in machina (Web: Import VM) or attach as existing disk when creating a VM."

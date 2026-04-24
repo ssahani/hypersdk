@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# virtspawn — mkosi CLI wrapper
+# machina — mkosi CLI wrapper
 # Injects --workspace-directory under /var/tmp when not already set, so the default
 # ~/.cache/mkosi workspace is never used under BuildSources= trees (e.g. /home/user).
 #
-# Real binary: /usr/local/libexec/virtspawn/mkosi-real (symlink installed by install.sh)
+# Real binary: /usr/local/libexec/machina/mkosi-real (symlink installed by install.sh)
 # Overrides:
 #   MKOSI_WORKSPACE_DIRECTORY  — explicit workspace dir (must be absolute)
-#   VIRTSPAWN_MKOSI_WORKSPACE_DIR — parent dir; per-user dir is ${DIR}/${USER}-${UID}
+#   MACHINA_MKOSI_WORKSPACE_DIR — parent dir; per-user dir is ${DIR}/${USER}-${UID}
 
 set -euo pipefail
 
-REAL="/usr/local/libexec/virtspawn/mkosi-real"
+REAL="/usr/local/libexec/machina/mkosi-real"
 if [ ! -x "$REAL" ]; then
-  echo "virtspawn mkosi wrapper: missing or not executable: $REAL" >&2
+  echo "machina mkosi wrapper: missing or not executable: $REAL" >&2
   exit 127
 fi
 
@@ -33,7 +33,7 @@ if [ "$has_ws" -eq 1 ]; then
   exec "$REAL" "$@"
 fi
 
-_base="${VIRTSPAWN_MKOSI_WORKSPACE_DIR:-/var/tmp/mkosi-workspace}"
+_base="${MACHINA_MKOSI_WORKSPACE_DIR:-/var/tmp/mkosi-workspace}"
 _u="${USER:-user}"
 _uid="${UID:-$(id -u)}"
 _ws="${MKOSI_WORKSPACE_DIRECTORY:-}"
@@ -43,7 +43,7 @@ fi
 case "$_ws" in
   /*) ;;
   *)
-    echo "virtspawn mkosi wrapper: workspace path must be absolute: $_ws" >&2
+    echo "machina mkosi wrapper: workspace path must be absolute: $_ws" >&2
     exit 2
     ;;
 esac

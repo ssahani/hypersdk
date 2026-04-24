@@ -1,7 +1,7 @@
-# virtspawn daemon configuration — canonical path: /etc/virtspawn/config.toml
+# machina daemon configuration — canonical path: /etc/machina/config.toml
 #
-# VirtspawnConfig::load() tries /etc/virtspawn/config.toml first, then ~/.virtspawn/config.toml.
-# systemd: ExecStart passes --config /etc/virtspawn/config.toml so the daemon always uses /etc.
+# MachinaConfig::load() tries /etc/machina/config.toml then ~/.machina/config.toml.
+# systemd: ExecStart passes --config /etc/machina/config.toml so the daemon always uses /etc.
 # CLI (--host / --port / ...) overrides settings from the loaded file.
 
 [general]
@@ -19,7 +19,7 @@ port = 5092
 # base_url = "http://127.0.0.1:8080/guacamole"
 # public_vnc_host = ""
 # fetch_token = true
-# json_username = "virtspawn"
+# json_username = "machina"
 
 [libvirt]
 uri = "qemu:///system"
@@ -29,7 +29,7 @@ create_backend = "virt_install"
 # mkosi_allowed = true
 # Legacy virt-builder API (`virt_builder_*`): off by default — set virt_builder_allowed = true only if needed (guestfs-tools).
 # virt_builder_allowed = false
-# virt_builder_default_ssh_pubkey_path = "/var/lib/virtspawn/provision.pub"
+# virt_builder_default_ssh_pubkey_path = "/var/lib/machina/provision.pub"
 # virt_builder_update = true
 # virt_builder_default_packages = ["qemu-guest-agent"]
 # Async POST /jobs/virt-image-build: max concurrent builds and optional wall-clock timeout (0 = unlimited).
@@ -41,8 +41,8 @@ create_backend = "virt_install"
 # Faster repeat virt-builder runs: set LIBGUESTFS_CACHEDIR to a persistent directory on the hypervisor (see libguestfs docs).
 
 [backup]
-backup_dir = "/var/lib/virtspawn/backups"
-# nfs_target = "192.168.1.100:/backups/virtspawn"
+backup_dir = "/var/lib/machina/backups"
+# nfs_target = "192.168.1.100:/backups/machina"
 with_disks = false
 retain = 7
 
@@ -53,5 +53,5 @@ pam_service = "sshd"
 # HTTPS is enabled by default (self-signed cert created by install.sh if missing).
 [tls]
 enabled = true
-cert_path = "/etc/virtspawn/ssl/cert.pem"
-key_path = "/etc/virtspawn/ssl/key.pem"
+cert_path = "/etc/machina/ssl/cert.pem"
+key_path = "/etc/machina/ssl/key.pem"

@@ -212,7 +212,7 @@ pub struct CreateVmRequest {
     /// Firmware type: "bios" (default) or "uefi"
     #[serde(default = "default_firmware")]
     pub firmware: String,
-    /// Libvirt VNC `listen=` address (IP only). Default `127.0.0.1`; use `0.0.0.0` to match hyper2kvm-style remote display (still reach via virtspawn's WS proxy / TLS front).
+    /// Libvirt VNC `listen=` address (IP only). Default `127.0.0.1`; use `0.0.0.0` to match hyper2kvm-style remote display (still reach via machina's WS proxy / TLS front).
     #[serde(default = "default_graphics_listen")]
     pub graphics_listen: String,
     /// `vnc` (default, noVNC) or `spice` (spice-html5 + WS proxy).
@@ -221,7 +221,7 @@ pub struct CreateVmRequest {
     /// Optional cloud-init / seed ISO (second CD-ROM, hyper2kvm-style). Install/boot ISO stays in `iso`.
     #[serde(default)]
     pub cloud_init_iso: String,
-    /// Saved template name under `/var/lib/virtspawn/templates/{name}.json` (server applies sizing + optional `base_image`).
+    /// Saved template name under `/var/lib/machina/templates/{name}.json` (server applies sizing + optional `base_image`).
     #[serde(default)]
     pub saved_template: String,
     /// When using a template with `base_image`: `backing` (default) or `copy`.

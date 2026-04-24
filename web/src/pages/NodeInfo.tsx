@@ -26,7 +26,8 @@ import {
   HostSecuritySummary,
 } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, ArrowUpRight, Package, Shield, Network, Users, UserSquare, Activity } from 'lucide-react'
+import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, Package, Shield, Network, Users, UserSquare, Activity, ScrollText } from 'lucide-react'
+import { ChoiceCardGrid, ChoiceLinkCard } from '../components/ChoiceCards'
 import { formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 
@@ -589,16 +590,13 @@ export default function NodeInfoPage() {
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2 text-sm">
-        <Link to="/services" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 hover:border-blue-500/40 hover:text-blue-300 transition">
-          Systemd services <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
-        </Link>
-        <Link to="/logs" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 hover:border-blue-500/40 hover:text-blue-300 transition">
-          Journal logs <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
-        </Link>
-        <Link to="/host-networking" className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800/80 border border-slate-700/50 text-slate-200 hover:border-blue-500/40 hover:text-blue-300 transition">
-          Host networking <ArrowUpRight className="w-3.5 h-3.5 opacity-60" />
-        </Link>
+      <div>
+        <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Host tools</h3>
+        <ChoiceCardGrid>
+          <ChoiceLinkCard to="/services" icon={<Server className="w-4 h-4" />} title="Systemd services" description="Unit status, start/stop, and journal tails." />
+          <ChoiceLinkCard to="/logs" icon={<ScrollText className="w-4 h-4" />} title="Journal logs" description="Filter and follow messages on the hypervisor." />
+          <ChoiceLinkCard to="/host-networking" icon={<Network className="w-4 h-4" />} title="Host networking" description="Bridges, routes, DNS, and firewall context." />
+        </ChoiceCardGrid>
       </div>
     </div>
   )

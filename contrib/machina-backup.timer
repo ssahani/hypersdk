@@ -1,6 +1,6 @@
 [Unit]
-Description=Daily virtspawn VM backup
-Documentation=https://github.com/ssahani/-virtspawn
+Description=Daily Machina VM backup
+Documentation=https://github.com/ssahani/machina
 
 [Timer]
 # Run daily at 2:00 AM

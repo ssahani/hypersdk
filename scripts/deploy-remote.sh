@@ -15,7 +15,7 @@ SSH_PORT="${SSH_PORT:-22}"
 HEALTH_URL="${HEALTH_URL:-https://127.0.0.1:5092/api/v1/health}"
 STRICT="${STRICT:-0}"
 # Default matches VM-style layout: rsync here → build on server → install to /usr/local + systemd
-REMOTE_DIR="${REMOTE_DIR:-~/.deployment/virtspawn}"
+REMOTE_DIR="${REMOTE_DIR:-~/.deployment/machina}"
 
 info() { printf 'ℹ️  %s\n' "$*"; }
 ok()   { printf '✅ %s\n' "$*"; }
@@ -32,9 +32,9 @@ deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup
 
 deploy-remote.sh check [USER@HOST | USER HOST]
 
-Flow: rsync → ~/.deployment/virtspawn (REMOTE_DIR) → build on server → install → systemd.
-Full install: install.sh enables + restarts the daemon (--no-start skips). Post-install curl/API verification is skipped on the remote (--no-tests). install.sh also ensures mkosi (v16+): distro package if recent, else pipx from GitHub, else optional git clone (VIRTSPAWN_MKOSI_FROM_CLONE=1), else /opt/mkosi-venv; host build tools (bubblewrap, dosfstools, …) best-effort. Default disk workflow in the Create VM UI.
-Quick: make install then daemon-reload + try-restart (only restarts if virtspawn-daemon was active).
+Flow: rsync → ~/.deployment/machina (REMOTE_DIR) → build on server → install → systemd.
+Full install: install.sh enables + restarts the daemon (--no-start skips). Post-install curl/API verification is skipped on the remote (--no-tests). install.sh also ensures mkosi (v16+): distro package if recent, else pipx from GitHub, else optional git clone (MACHINA_MKOSI_FROM_CLONE=1), else /opt/mkosi-venv; host build tools (bubblewrap, dosfstools, …) best-effort. Default disk workflow in the Create VM UI.
+Quick: make install then daemon-reload + try-restart (only restarts if machina-daemon was active).
 Open the UI at https://HOST:5092 (install.sh generates a self-signed cert; replace with your CA for browsers).
 
 Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpass.
@@ -86,18 +86,18 @@ check_body() {
     else
         printf '\n⚙️  Systemd units\n'
         unit_line libvirtd.service
-        unit_line virtspawn-daemon.service
-        unit_line virtspawn-backup.timer
+        unit_line machina-daemon.service
+        unit_line machina-backup.timer
         local ad al
-        ad=$(systemctl is-active virtspawn-daemon 2>/dev/null || true)
+        ad=$(systemctl is-active machina-daemon 2>/dev/null || true)
         al=$(systemctl is-active libvirtd 2>/dev/null || true)
         [[ "$al" == active ]] || { warn "libvirtd not active"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
         [[ "$al" == active ]] && ok "libvirtd active"
-        [[ "$ad" == active ]] || { warn "virtspawn-daemon not active"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
-        [[ "$ad" == active ]] && ok "virtspawn-daemon active"
+        [[ "$ad" == active ]] || { warn "machina-daemon not active"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
+        [[ "$ad" == active ]] && ok "machina-daemon active"
     fi
     command -v journalctl &>/dev/null && printf '\n📜 Last 5 daemon log lines\n' && \
-        journalctl -u virtspawn-daemon -n 5 --no-pager 2>/dev/null || warn "no journal access for virtspawn-daemon"
+        journalctl -u machina-daemon -n 5 --no-pager 2>/dev/null || warn "no journal access for machina-daemon"
     printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
     if command -v curl &>/dev/null; then
         curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null 2>&1 && ok "GET $HEALTH_URL" || {
@@ -127,17 +127,17 @@ run() {
     if ! command -v systemctl &>/dev/null; then warn "no systemctl"; exit 1; fi
     printf '\n⚙️  Systemd units\n'
     unit_line libvirtd.service
-    unit_line virtspawn-daemon.service
-    unit_line virtspawn-backup.timer
+    unit_line machina-daemon.service
+    unit_line machina-backup.timer
     local ad al
-    ad=$(systemctl is-active virtspawn-daemon 2>/dev/null || true)
+    ad=$(systemctl is-active machina-daemon 2>/dev/null || true)
     al=$(systemctl is-active libvirtd 2>/dev/null || true)
     [[ "$al" == active ]] || warn "libvirtd not active"
-    [[ "$ad" == active ]] || warn "virtspawn-daemon not active"
+    [[ "$ad" == active ]] || warn "machina-daemon not active"
     [[ "$al" == active ]] && ok "libvirtd active"
-    [[ "$ad" == active ]] && ok "virtspawn-daemon active"
+    [[ "$ad" == active ]] && ok "machina-daemon active"
     printf '\n📜 Last 5 daemon log lines\n'
-    journalctl -u virtspawn-daemon -n 5 --no-pager 2>/dev/null || warn "no journal"
+    journalctl -u machina-daemon -n 5 --no-pager 2>/dev/null || warn "no journal"
     printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
     command -v curl &>/dev/null && curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null && ok "GET $HEALTH_URL" || warn "cannot reach $HEALTH_URL"
     printf '\n'
@@ -210,7 +210,7 @@ if ((${#REST[@]} > 0)); then
     INSTALL_ARGS=("${REST[@]}")
 fi
 
-[[ -f "$REPO/Cargo.toml" ]] || die "run from virtspawn repo root (sources are rsync'd — not built here)"
+[[ -f "$REPO/Cargo.toml" ]] || die "run from machina repo root (sources are rsync'd — not built here)"
 [[ -n "${SSHPASS:-}" ]] && ! command -v sshpass &>/dev/null && die "install sshpass for password auth"
 command -v rsync &>/dev/null || die "rsync required"
 
@@ -249,8 +249,8 @@ if $QUICK; then
     # Build as SSH user (rustup cargo on PATH); only `make install` needs root (install + systemctl).
     # Do not wrap `make release` in sudo — secure_path often omits cargo.
     ssh_r "$REMOTE" "cd $REMOTE_DIR && make release web && sudo make install" || die "quick build failed"
-    echo "🔄 [3/3] systemd: daemon-reload + try-restart (reloads unit if virtspawn-daemon was running)"
-    ssh_r "$REMOTE" "sudo bash -lc 'systemctl daemon-reload && systemctl try-restart virtspawn-daemon'" || die "service reload failed"
+    echo "🔄 [3/3] systemd: daemon-reload + try-restart (reloads unit if machina-daemon was running)"
+    ssh_r "$REMOTE" "sudo bash -lc 'systemctl daemon-reload && systemctl try-restart machina-daemon'" || die "service reload failed"
 else
     echo "🔨 [2/2] remote: sudo install.sh on $HOST (deps + cargo + npm + install + enable/restart)"
     ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo bash install.sh${OPTS}${REMOTE_INST}" || die "install failed"

@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
 use tokio_util::io::ReaderStream;
-use virtspawn_core::LibvirtManager;
+use machina_core::LibvirtManager;
 
 use crate::error::AppError;
 
@@ -40,12 +40,12 @@ struct RestoreRequest {
 // ── Helpers ─────────────────────────────────────────────────────────
 
 fn backup_dir() -> PathBuf {
-    let config = virtspawn_core::VirtspawnConfig::load();
+    let config = machina_core::MachinaConfig::load();
     if !config.backup.backup_dir.is_empty() {
         return PathBuf::from(&config.backup.backup_dir);
     }
 
-    if let Ok(content) = std::fs::read_to_string("/etc/virtspawn/backup.conf") {
+    if let Ok(content) = std::fs::read_to_string("/etc/machina/backup.conf") {
         for line in content.lines() {
             let trimmed = line.trim();
             if trimmed.starts_with('#') || trimmed.is_empty() {
@@ -63,11 +63,11 @@ fn backup_dir() -> PathBuf {
         }
     }
 
-    PathBuf::from("/var/lib/virtspawn/backups")
+    PathBuf::from("/var/lib/machina/backups")
 }
 
 fn backup_script() -> PathBuf {
-    let installed = PathBuf::from("/usr/local/share/virtspawn/scripts/backup.sh");
+    let installed = PathBuf::from("/usr/local/share/machina/scripts/backup.sh");
     if installed.exists() {
         return installed;
     }
@@ -85,18 +85,18 @@ fn backup_script() -> PathBuf {
 fn validate_backup_id(id: &str) -> Result<(), AppError> {
     if id.is_empty() || id.len() > 64 {
         return Err(
-            virtspawn_core::LibvirtError::Invalid("Invalid backup id length".to_string()).into(),
+            machina_core::LibvirtError::Invalid("Invalid backup id length".to_string()).into(),
         );
     }
     if !id.chars().all(|c| c.is_ascii_digit() || c == '-') {
-        return Err(virtspawn_core::LibvirtError::Invalid(
+        return Err(machina_core::LibvirtError::Invalid(
             "Backup id must contain only digits and dashes".to_string(),
         )
         .into());
     }
     // Explicitly reject path traversal patterns
     if id.contains("..") || id.contains('/') || id.contains('\\') {
-        return Err(virtspawn_core::LibvirtError::Invalid(
+        return Err(machina_core::LibvirtError::Invalid(
             "Backup id contains invalid path characters".to_string(),
         )
         .into());
@@ -112,7 +112,7 @@ fn validate_nfs_target(target: &str) -> Result<(), AppError> {
     // Must contain exactly one colon separating host and path
     let parts: Vec<&str> = target.splitn(2, ':').collect();
     if parts.len() != 2 || parts[0].is_empty() || !parts[1].starts_with('/') {
-        return Err(virtspawn_core::LibvirtError::Invalid(
+        return Err(machina_core::LibvirtError::Invalid(
             "Invalid NFS target format. Expected: host:/path".to_string(),
         )
         .into());
@@ -120,7 +120,7 @@ fn validate_nfs_target(target: &str) -> Result<(), AppError> {
     let host = parts[0];
     // Host must be alphanumeric, dots, dashes only
     if !host.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-') {
-        return Err(virtspawn_core::LibvirtError::Invalid(
+        return Err(machina_core::LibvirtError::Invalid(
             "NFS host contains invalid characters".to_string(),
         )
         .into());
@@ -129,14 +129,14 @@ fn validate_nfs_target(target: &str) -> Result<(), AppError> {
     if host.contains("..") || host.starts_with('-') || host.ends_with('-')
         || host.starts_with('.') || host.ends_with('.')
     {
-        return Err(virtspawn_core::LibvirtError::Invalid(
+        return Err(machina_core::LibvirtError::Invalid(
             "NFS host has invalid format".to_string(),
         )
         .into());
     }
     // Path must not contain traversal
     if parts[1].contains("..") {
-        return Err(virtspawn_core::LibvirtError::Invalid(
+        return Err(machina_core::LibvirtError::Invalid(
             "NFS path must not contain '..'".to_string(),
         )
         .into());
@@ -302,7 +302,7 @@ async fn trigger_backup(
     let script = backup_script();
 
     if !script.exists() {
-        return Err(virtspawn_core::LibvirtError::Operation(format!(
+        return Err(machina_core::LibvirtError::Operation(format!(
             "Backup script not found at {}",
             script.display()
         ))
@@ -312,7 +312,7 @@ async fn trigger_backup(
     // Validate vm_name if provided
     if let Some(ref vm) = req.vm_name {
         if !vm.is_empty() {
-            virtspawn_core::validate::validate_name(vm)?;
+            machina_core::validate::validate_name(vm)?;
         }
     }
 
@@ -325,10 +325,10 @@ async fn trigger_backup(
     let mut cmd = tokio::process::Command::new("bash");
     cmd.arg(&script);
     cmd.env(
-        "VIRTSPAWN_BACKUP_DIR",
+        "MACHINA_BACKUP_DIR",
         backup_dir().to_string_lossy().as_ref(),
     );
-    cmd.env("VIRTSPAWN_BACKUP_ID", &backup_id);
+    cmd.env("MACHINA_BACKUP_ID", &backup_id);
 
     if req.with_disks {
         cmd.arg("--with-disks");
@@ -355,7 +355,7 @@ async fn trigger_backup(
         .stderr(std::process::Stdio::null());
 
     cmd.spawn().map_err(|e| {
-        virtspawn_core::LibvirtError::Operation(format!("Failed to start backup: {e}"))
+        machina_core::LibvirtError::Operation(format!("Failed to start backup: {e}"))
     })?;
 
     Ok(Json(json!({
@@ -401,11 +401,11 @@ async fn get_backup_status(
     let dir = backup_dir().join(&id);
     // Canonicalize and verify the path is within the backup directory
     let dir = dir.canonicalize().map_err(|_| {
-        virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
+        machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
     })?;
     if !dir.starts_with(backup_dir()) || !dir.is_dir() {
         return Err(
-            virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
+            machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
     }
 
@@ -447,11 +447,11 @@ async fn verify_backup(
 
     let dir = backup_dir().join(&id);
     let dir = dir.canonicalize().map_err(|_| {
-        virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
+        machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
     })?;
     if !dir.starts_with(backup_dir()) || !dir.is_dir() {
         return Err(
-            virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
+            machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
     }
 
@@ -474,7 +474,7 @@ async fn verify_backup(
         .output()
         .await
         .map_err(|e| {
-            virtspawn_core::LibvirtError::Operation(format!("Failed to run sha256sum: {e}"))
+            machina_core::LibvirtError::Operation(format!("Failed to run sha256sum: {e}"))
         })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -507,7 +507,7 @@ async fn download_backup(
     let dir = backup_dir().join(&id);
     if !dir.exists() || !dir.is_dir() {
         return Err(
-            virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
+            machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
     }
 
@@ -522,17 +522,17 @@ async fn download_backup(
         .stderr(std::process::Stdio::null())
         .spawn()
         .map_err(|e| {
-            virtspawn_core::LibvirtError::Operation(format!("Failed to start tar: {e}"))
+            machina_core::LibvirtError::Operation(format!("Failed to start tar: {e}"))
         })?;
 
     let stdout = child.stdout.take().ok_or_else(|| {
-        virtspawn_core::LibvirtError::Operation("Failed to capture tar stdout".to_string())
+        machina_core::LibvirtError::Operation("Failed to capture tar stdout".to_string())
     })?;
 
     let stream = ReaderStream::new(stdout);
     let body = Body::from_stream(stream);
 
-    let filename = format!("virtspawn-backup-{id}.tar.gz");
+    let filename = format!("machina-backup-{id}.tar.gz");
     Ok((
         [
             (header::CONTENT_TYPE, "application/gzip"),
@@ -555,7 +555,7 @@ async fn restore_backup(
 
     let dir = backup_dir().join(&req.backup_id);
     if !dir.exists() || !dir.is_dir() {
-        return Err(virtspawn_core::LibvirtError::NotFound(format!(
+        return Err(machina_core::LibvirtError::NotFound(format!(
             "Backup '{}' not found",
             req.backup_id
         ))
@@ -564,7 +564,7 @@ async fn restore_backup(
 
     let script = backup_script();
     if !script.exists() {
-        return Err(virtspawn_core::LibvirtError::Operation(format!(
+        return Err(machina_core::LibvirtError::Operation(format!(
             "Backup script not found at {}",
             script.display()
         ))
@@ -576,7 +576,7 @@ async fn restore_backup(
         .arg("--restore")
         .arg(dir.to_string_lossy().as_ref());
     cmd.env(
-        "VIRTSPAWN_BACKUP_DIR",
+        "MACHINA_BACKUP_DIR",
         backup_dir().to_string_lossy().as_ref(),
     );
 
@@ -585,7 +585,7 @@ async fn restore_backup(
         .stderr(std::process::Stdio::null());
 
     cmd.spawn().map_err(|e| {
-        virtspawn_core::LibvirtError::Operation(format!("Failed to start restore: {e}"))
+        machina_core::LibvirtError::Operation(format!("Failed to start restore: {e}"))
     })?;
 
     Ok(Json(json!({
@@ -604,12 +604,12 @@ async fn delete_backup(
     let dir = backup_dir().join(&id);
     if !dir.exists() || !dir.is_dir() {
         return Err(
-            virtspawn_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
+            machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
         );
     }
 
     tokio::fs::remove_dir_all(&dir).await.map_err(|e| {
-        virtspawn_core::LibvirtError::Operation(format!("Failed to delete backup '{}': {e}", id))
+        machina_core::LibvirtError::Operation(format!("Failed to delete backup '{}': {e}", id))
     })?;
 
     Ok(Json(json!({
@@ -623,14 +623,14 @@ async fn get_schedule(
     State(_manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let active = tokio::process::Command::new("systemctl")
-        .args(["is-active", "virtspawn-backup.timer"])
+        .args(["is-active", "machina-backup.timer"])
         .output()
         .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "active")
         .unwrap_or(false);
 
     let enabled = tokio::process::Command::new("systemctl")
-        .args(["is-enabled", "virtspawn-backup.timer"])
+        .args(["is-enabled", "machina-backup.timer"])
         .output()
         .await
         .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "enabled")
@@ -639,7 +639,7 @@ async fn get_schedule(
     let next_run = tokio::process::Command::new("systemctl")
         .args([
             "show",
-            "virtspawn-backup.timer",
+            "machina-backup.timer",
             "--property=NextElapseUSecRealtime",
             "--value",
         ])
@@ -651,7 +651,7 @@ async fn get_schedule(
     let last_run = tokio::process::Command::new("systemctl")
         .args([
             "show",
-            "virtspawn-backup.timer",
+            "machina-backup.timer",
             "--property=LastTriggerUSec",
             "--value",
         ])
@@ -660,8 +660,8 @@ async fn get_schedule(
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_default();
 
-    let installed = std::path::Path::new("/usr/lib/systemd/system/virtspawn-backup.timer").exists()
-        || std::path::Path::new("/etc/systemd/system/virtspawn-backup.timer").exists();
+    let installed = std::path::Path::new("/usr/lib/systemd/system/machina-backup.timer").exists()
+        || std::path::Path::new("/etc/systemd/system/machina-backup.timer").exists();
 
     Ok(Json(json!({
         "installed": installed,
@@ -689,16 +689,16 @@ async fn set_schedule(
     };
 
     let output = tokio::process::Command::new("systemctl")
-        .args([action, "--now", "virtspawn-backup.timer"])
+        .args([action, "--now", "machina-backup.timer"])
         .output()
         .await
         .map_err(|e| {
-            virtspawn_core::LibvirtError::Operation(format!("Failed to {action} timer: {e}"))
+            machina_core::LibvirtError::Operation(format!("Failed to {action} timer: {e}"))
         })?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(virtspawn_core::LibvirtError::Operation(format!(
+        return Err(machina_core::LibvirtError::Operation(format!(
             "systemctl {action} failed: {stderr}"
         ))
         .into());

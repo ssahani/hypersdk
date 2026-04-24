@@ -1,10 +1,10 @@
 [package]
-name = "virtspawn-tui"
+name = "machina-tui"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-virtspawn-core = { path = "../core" }
+machina-core = { path = "../core" }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 tokio = { workspace = true }

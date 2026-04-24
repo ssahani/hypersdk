@@ -1,6 +1,6 @@
 /** Remember last SSH target for a VM (browser sessionStorage). */
 
-const storageKey = (vmName: string) => `virtspawn:vm-ssh:${encodeURIComponent(vmName)}`
+const storageKey = (vmName: string) => `machina:vm-ssh:${encodeURIComponent(vmName)}`
 
 export interface VmSshPrefs {
   host: string

@@ -1,11 +1,11 @@
 #!/bin/bash
-# virtspawn status — quick overview of your virtualization environment
+# machina status — quick overview of your virtualization environment
 # Usage: ./scripts/status.sh [API_URL]
 set -eo pipefail
 
 API="${1:-https://localhost:5092/api/v1}"
 
-printf "📊 virtspawn status\n\n"
+printf "📊 machina status\n\n"
 
 HEALTH=$(curl -sfk "$API/health" 2>/dev/null) || { echo "❌ Daemon not reachable at $API"; exit 1; }
 echo "✅ Daemon: healthy  ($API)"
@@ -119,8 +119,8 @@ fi
 
 # Service status
 if command -v systemctl &>/dev/null; then
-    SVC=$(systemctl is-active virtspawn-daemon 2>/dev/null) || SVC="unknown"
-    PID=$(systemctl show virtspawn-daemon --property=MainPID --value 2>/dev/null) || PID=""
+    SVC=$(systemctl is-active machina-daemon 2>/dev/null) || SVC="unknown"
+    PID=$(systemctl show machina-daemon --property=MainPID --value 2>/dev/null) || PID=""
     MEM_SVC=$(ps -o rss= -p "$PID" 2>/dev/null | awk '{printf "%.1f MB", $1/1024}') || MEM_SVC=""
     echo "⚙️  Service"
     icon="✅" ; [[ "$SVC" != "active" ]] && icon="⛔"

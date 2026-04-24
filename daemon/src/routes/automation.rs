@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
-use virtspawn_core::libvirt::automation;
-use virtspawn_core::LibvirtManager;
+use machina_core::libvirt::automation;
+use machina_core::LibvirtManager;
 
 use crate::error::AppError;
 
@@ -107,7 +107,7 @@ struct TestNotificationRequest {
 }
 
 async fn test_notification(State(_m): State<LibvirtManager>, Json(req): Json<TestNotificationRequest>) -> Result<Json<serde_json::Value>, AppError> {
-    automation::send_notification(&req.channel, "virtspawn test", "This is a test notification from virtspawn.")?;
+    automation::send_notification(&req.channel, "machina test", "This is a test notification from machina.")?;
     Ok(Json(serde_json::json!({"status": "sent"})))
 }
 

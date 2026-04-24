@@ -1,10 +1,10 @@
 # ─────────────────────────────────────────────────────────────────────
-# virtspawn configuration
+# machina configuration
 # ─────────────────────────────────────────────────────────────────────
 #
 # Config file locations (checked in order, first found wins):
-#   1. ~/.virtspawn/config.toml   (user config)
-#   2. /etc/virtspawn/config.toml (system config)
+#   1. /etc/machina/config.toml (system)
+#   2. ~/.machina/config.toml (per-user)
 #
 # CLI arguments override all config file values.
 # All settings below show the built-in defaults.
@@ -23,7 +23,7 @@ refresh_interval_secs = 5
 # base_url = "http://127.0.0.1:8080/guacamole"
 # public_vnc_host = ""
 # fetch_token = true
-# json_username = "virtspawn"
+# json_username = "machina"
 
 [daemon]
 # Address and port the daemon binds to.

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>virtspawn — Technical Architecture</title>
+<title>machina — Technical Architecture</title>
 <style>
 @page { size: A4; margin: 0; }
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -110,7 +110,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
   <div class="badge">HyperSDK Engineering</div>
   <h1><span>virt</span>spawn</h1>
   <p style="font-size:1.6em; font-weight:700; margin-bottom:0.3em;">Technical Architecture Deep Dive</p>
-  <p>A comprehensive look at the system design, technology stack, security model, and deployment architecture behind virtspawn.</p>
+  <p>A comprehensive look at the system design, technology stack, security model, and deployment architecture behind machina.</p>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -127,7 +127,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
       <div class="comp">Web UI (React 19 + Tailwind)</div>
       <div class="comp">TUI (Ratatui + Crossterm)</div>
       <div class="comp">API Clients (curl / SDK)</div>
-      <div class="comp">CLI (virtspawnctl)</div>
+      <div class="comp">CLI (machinactl)</div>
     </div>
   </div>
 
@@ -136,7 +136,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
   <div class="arch-box">
     <h4>Middleware Layer</h4>
     <div class="components">
-      <div class="comp">virtspawn-daemon (Axum + Tokio)</div>
+      <div class="comp">machina-daemon (Axum + Tokio)</div>
       <div class="comp">PAM Authentication</div>
       <div class="comp">Cookie Sessions</div>
       <div class="comp">API Token Auth</div>
@@ -176,7 +176,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     </div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Technical Architecture</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Technical Architecture</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -216,7 +216,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     <div class="stat"><div class="number">0</div><div class="label">Unsafe Blocks</div></div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Technical Architecture</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Technical Architecture</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -286,7 +286,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     </div>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Technical Architecture</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Technical Architecture</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -341,7 +341,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     <div class="card">
       <div class="icon">&#9881;</div>
       <h3>Systemd Hardening</h3>
-      <p>ProtectSystem=strict, NoNewPrivileges=true, PrivateTmp, ReadWritePaths restricted to /dev/pts and /var/lib/virtspawn only.</p>
+      <p>ProtectSystem=strict, NoNewPrivileges=true, PrivateTmp, ReadWritePaths restricted to /dev/pts and /var/lib/machina only.</p>
     </div>
   </div>
 
@@ -354,7 +354,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     <span class="pill" style="background:rgba(59,130,246,0.1); color:#3b82f6;">Dual-RandomState MAC generation</span>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Technical Architecture</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Technical Architecture</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -401,7 +401,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     <p>All endpoints return JSON with consistent structure. Domain XML configs return Content-Type: text/xml. Errors include machine-readable codes and human-readable messages. WebSocket messages use JSON with event-type discriminators.</p>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Technical Architecture</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Technical Architecture</span></div>
 </div>
 
 <!-- ════════════════════════════════════════════════════════════════════
@@ -419,7 +419,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
         <span class="comment"># One-command install with 15-point verification</span><br>
         <span class="keyword">sudo</span> ./install.sh<br><br>
         <span class="comment"># Or via the deploy tool</span><br>
-        ./virtspawnctl deploy
+        ./machinactl deploy
       </div>
       <p style="margin-top:12px;">Detects Fedora/Ubuntu, installs dependencies, builds from source, configures systemd, runs verification tests.</p>
     </div>
@@ -431,7 +431,7 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
         <span class="comment"># Install + start service</span><br>
         <span class="keyword">sudo make</span> deploy
       </div>
-      <p style="margin-top:12px;">Builds release binaries (virtspawn-daemon, virtspawn-tui) and web frontend, installs to /usr/local, starts systemd service.</p>
+      <p style="margin-top:12px;">Builds release binaries (machina-daemon, machina-tui) and web frontend, installs to /usr/local, starts systemd service.</p>
     </div>
   </div>
 
@@ -439,15 +439,15 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
     <h3>Systemd Service Architecture</h3>
     <div class="card-grid card-grid-3" style="margin-top:12px;">
       <div style="text-align:center;">
-        <div style="color:#3b82f6; font-weight:700; font-size:1.1em;">virtspawn-daemon.service</div>
+        <div style="color:#3b82f6; font-weight:700; font-size:1.1em;">machina-daemon.service</div>
         <p style="font-size:0.85em; margin-top:6px;">Main HTTP/WS server on port 5092. Hardened with ProtectSystem, NoNewPrivileges, PrivateTmp.</p>
       </div>
       <div style="text-align:center;">
-        <div style="color:#3b82f6; font-weight:700; font-size:1.1em;">virtspawn-backup.service</div>
-        <p style="font-size:0.85em; margin-top:6px;">One-shot backup execution. Triggered by timer or API. Reads /etc/virtspawn/backup.conf.</p>
+        <div style="color:#3b82f6; font-weight:700; font-size:1.1em;">machina-backup.service</div>
+        <p style="font-size:0.85em; margin-top:6px;">One-shot backup execution. Triggered by timer or API. Reads /etc/machina/backup.conf.</p>
       </div>
       <div style="text-align:center;">
-        <div style="color:#3b82f6; font-weight:700; font-size:1.1em;">virtspawn-backup.timer</div>
+        <div style="color:#3b82f6; font-weight:700; font-size:1.1em;">machina-backup.timer</div>
         <p style="font-size:0.85em; margin-top:6px;">Scheduled backup timer. Configurable interval. Activates backup.service on trigger.</p>
       </div>
     </div>
@@ -458,12 +458,12 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
       <h3>File Locations</h3>
       <table style="margin-top:8px;">
         <tbody>
-          <tr><td style="color:#94a3b8;">Binary</td><td style="color:#e2e8f0;">/usr/local/bin/virtspawn-daemon</td></tr>
-          <tr><td style="color:#94a3b8;">TUI Binary</td><td style="color:#e2e8f0;">/usr/local/bin/virtspawn</td></tr>
-          <tr><td style="color:#94a3b8;">Config</td><td style="color:#e2e8f0;">/etc/virtspawn/config.toml</td></tr>
-          <tr><td style="color:#94a3b8;">Backup Config</td><td style="color:#e2e8f0;">/etc/virtspawn/backup.conf</td></tr>
-          <tr><td style="color:#94a3b8;">Web Assets</td><td style="color:#e2e8f0;">/usr/local/share/virtspawn/web/</td></tr>
-          <tr><td style="color:#94a3b8;">Data</td><td style="color:#e2e8f0;">/var/lib/virtspawn/</td></tr>
+          <tr><td style="color:#94a3b8;">Binary</td><td style="color:#e2e8f0;">/usr/local/bin/machina-daemon</td></tr>
+          <tr><td style="color:#94a3b8;">TUI Binary</td><td style="color:#e2e8f0;">/usr/local/bin/machina</td></tr>
+          <tr><td style="color:#94a3b8;">Config</td><td style="color:#e2e8f0;">/etc/machina/config.toml</td></tr>
+          <tr><td style="color:#94a3b8;">Backup Config</td><td style="color:#e2e8f0;">/etc/machina/backup.conf</td></tr>
+          <tr><td style="color:#94a3b8;">Web Assets</td><td style="color:#e2e8f0;">/usr/local/share/machina/web/</td></tr>
+          <tr><td style="color:#94a3b8;">Data</td><td style="color:#e2e8f0;">/var/lib/machina/</td></tr>
         </tbody>
       </table>
     </div>
@@ -473,19 +473,19 @@ tr:last-child td:last-child { border-radius: 0 0 8px 0; }
       <div class="code" style="margin-top:10px;">
         <span class="comment"># Build locally, deploy remotely</span><br>
         <span class="keyword">make</span> all<br>
-        <span class="keyword">rsync</span> -avz target/release/virtspawn-* remote:/usr/local/bin/<br>
-        <span class="keyword">rsync</span> -avz web/dist/ remote:/usr/local/share/virtspawn/web/<br>
-        <span class="keyword">ssh</span> remote <span class="string">"systemctl restart virtspawn-daemon"</span>
+        <span class="keyword">rsync</span> -avz target/release/machina-* remote:/usr/local/bin/<br>
+        <span class="keyword">rsync</span> -avz web/dist/ remote:/usr/local/share/machina/web/<br>
+        <span class="keyword">ssh</span> remote <span class="string">"systemctl restart machina-daemon"</span>
       </div>
     </div>
   </div>
 
   <div class="cta-box" style="margin-top:32px;">
     <h3>Ready to Deploy?</h3>
-    <p>virtspawn installs in under 5 minutes on any Linux host with KVM and libvirt. No containers, no orchestration overhead -- just a single binary and a systemd service.</p>
+    <p>machina installs in under 5 minutes on any Linux host with KVM and libvirt. No containers, no orchestration overhead -- just a single binary and a systemd service.</p>
   </div>
 
-  <div class="page-footer"><span>HyperSDK / virtspawn</span><span>Technical Architecture</span></div>
+  <div class="page-footer"><span>HyperSDK / machina</span><span>Technical Architecture</span></div>
 </div>
 
 </body>

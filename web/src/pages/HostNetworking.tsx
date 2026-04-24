@@ -13,6 +13,7 @@ import {
   Network, Globe, Shield, Router, Plus, Trash2, RefreshCw,
   ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check,
 } from 'lucide-react'
+import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 
 type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'sysctl'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
@@ -238,12 +239,21 @@ export default function HostNetworkingPage() {
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-700/50">
-        {tabs.map(t => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-2 px-4 py-2.5 text-sm transition border-b-2 ${tab === t.key ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-            {t.icon} {t.label}
-          </button>
-        ))}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">View</h2>
+        <ChoiceCardDenseGrid>
+          {tabs.map((t) => (
+            <ChoiceCard
+              key={t.key}
+              compact
+              tone="blue"
+              selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              icon={t.icon}
+              title={t.label}
+            />
+          ))}
+        </ChoiceCardDenseGrid>
       </div>
 
       {/* ── Topology ──────────────────────────────────────────── */}
@@ -418,7 +428,7 @@ export default function HostNetworkingPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-400 max-w-3xl">
               Optional reference <code className="text-slate-300">sysctl</code> values for high concurrency; your host may already differ in ways that suit you better.
-              If you apply the snippet, do it on a staging host first; install under <code className="text-slate-300">{sysctlData?.dropin_path ?? '/etc/sysctl.d/99-virtspawn-host-net.conf'}</code>, then run{' '}
+              If you apply the snippet, do it on a staging host first; install under <code className="text-slate-300">{sysctlData?.dropin_path ?? '/etc/sysctl.d/99-machina-host-net.conf'}</code>, then run{' '}
               <code className="text-slate-300">sudo sysctl --system</code>.
             </p>
             <div className="flex gap-2 shrink-0">

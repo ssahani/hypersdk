@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate a Quick Start Guide PDF for virtspawn."""
+"""Generate a Quick Start Guide PDF for machina."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os
 
 DIR = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(DIR, "virtspawn-quickstart.pdf")
+OUT = os.path.join(DIR, "machina-quickstart.pdf")
 W, H = 1920, 1080
 
 FONT_PATHS = [
@@ -98,14 +98,14 @@ def slide_title():
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
     draw_accent_bar(draw, 6)
-    text_center(draw, 220, "virtspawn", font_title, WHITE)
+    text_center(draw, 220, "machina", font_title, WHITE)
     text_center(draw, 310, "Quick Start Guide", font_heading, ACCENT)
     draw_divider(draw, 390)
     text_center(draw, 440, "How to build, install, run, and access your VM manager", font_body, GRAY)
     text_center(draw, 540, "Prerequisites: Fedora/RHEL/Ubuntu with libvirt + QEMU", font_body, LIGHT)
     text_center(draw, 590, "Rust toolchain (rustup) + Node.js 18+", font_body, LIGHT)
     text_center(draw, 700, "Estimated setup time: 5 minutes", font_subheading, GREEN)
-    text_center(draw, 800, "https://github.com/ssahani/-virtspawn", font_small, ACCENT)
+    text_center(draw, 800, "https://github.com/ssahani/machina", font_small, ACCENT)
     return img
 
 def slide_prerequisites():
@@ -161,8 +161,8 @@ def slide_build():
     draw_step_number(draw, 100, 170, 1)
     draw.text((160, 175), "Clone the repository", font=font_subheading, fill=LIGHT)
     draw_code_block(draw, 100, 230, 1720, [
-        "$ git clone https://github.com/ssahani/-virtspawn.git",
-        "$ cd virtspawn",
+        "$ git clone https://github.com/ssahani/machina.git",
+        "$ cd machina",
     ])
 
     draw_step_number(draw, 100, 380, 2, GREEN)
@@ -180,8 +180,8 @@ def slide_build():
 
     draw.text((100, 760), "Build output:", font=font_subheading, fill=ORANGE)
     draw_code_block(draw, 100, 810, 1720, [
-        "> target/release/virtspawn-daemon    # REST API daemon (~10 MB)",
-        "> target/release/virtspawn           # Terminal TUI (~8 MB)",
+        "> target/release/machina-daemon    # REST API daemon (~10 MB)",
+        "> target/release/machina           # Terminal TUI (~8 MB)",
         "> web/dist/                          # Web UI static files",
     ])
     return img
@@ -200,8 +200,8 @@ def slide_install():
         "$ sudo make deploy",
         "",
         "> Installs to /usr/local/bin/",
-        "> Web UI to /usr/local/share/virtspawn/web/",
-        "> Config to /etc/virtspawn/config.toml",
+        "> Web UI to /usr/local/share/machina/web/",
+        "> Config to /etc/machina/config.toml",
         "> Enables and starts systemd service",
     ])
 
@@ -210,13 +210,13 @@ def slide_install():
     draw.text((160, 515), "Manual step-by-step", font=font_subheading, fill=LIGHT)
     draw_code_block(draw, 100, 570, 1720, [
         "$ sudo make install              # Install binaries and files",
-        "$ sudo systemctl start virtspawn-daemon   # Start the daemon",
-        "$ sudo systemctl enable virtspawn-daemon  # Auto-start on boot",
+        "$ sudo systemctl start machina-daemon   # Start the daemon",
+        "$ sudo systemctl enable machina-daemon  # Auto-start on boot",
     ])
 
     draw.text((100, 780), "Verify it is running:", font=font_subheading, fill=CYAN)
     draw_code_block(draw, 100, 830, 1720, [
-        "$ sudo systemctl status virtspawn-daemon",
+        "$ sudo systemctl status machina-daemon",
         "> Active: active (running)  ...  listening on 0.0.0.0:5092",
     ])
     return img
@@ -225,7 +225,7 @@ def slide_access():
     img = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(img)
     draw_accent_bar(draw)
-    text_center(draw, 50, "Step 3: Access virtspawn", font_heading, WHITE)
+    text_center(draw, 50, "Step 3: Access machina", font_heading, WHITE)
     draw_divider(draw, 120)
 
     # Three access methods
@@ -242,7 +242,7 @@ def slide_access():
         ("Terminal TUI", GREEN, [
             "Run from any terminal:",
             "",
-            "$ virtspawn",
+            "$ machina",
             "",
             "Keyboard-driven interface.",
             "j/k to navigate, s to start,",
@@ -283,7 +283,7 @@ def slide_access():
 
     # Bottom note
     text_center(draw, 780, "Remote access: replace localhost with your server IP", font_body, GRAY)
-    text_center(draw, 830, "Default port: 5092  |  Config: /etc/virtspawn/config.toml", font_body, GRAY)
+    text_center(draw, 830, "Default port: 5092  |  Config: /etc/machina/config.toml", font_body, GRAY)
     text_center(draw, 900, "All three interfaces connect to the same daemon", font_body, YELLOW)
     return img
 
@@ -431,7 +431,7 @@ def slide_config():
     text_center(draw, 50, "Configuration", font_heading, WHITE)
     draw_divider(draw, 120)
 
-    draw.text((100, 170), "Config file: /etc/virtspawn/config.toml", font=font_subheading, fill=ACCENT)
+    draw.text((100, 170), "Config file: /etc/machina/config.toml", font=font_subheading, fill=ACCENT)
     draw_code_block(draw, 100, 220, 820, [
         "[general]",
         "refresh_interval_secs = 5",
@@ -453,13 +453,13 @@ def slide_config():
         "",
         "# Check status",
         "$ sudo make status",
-        "$ sudo systemctl status virtspawn-daemon",
+        "$ sudo systemctl status machina-daemon",
     ])
 
     draw.text((100, 610), "CLI options (override config):", font=font_subheading, fill=ORANGE)
     draw_code_block(draw, 100, 660, 1720, [
-        "$ virtspawn-daemon --host 0.0.0.0 --port 9090 --libvirt-uri qemu:///system",
-        "$ virtspawn-daemon --config /path/to/custom-config.toml",
+        "$ machina-daemon --host 0.0.0.0 --port 9090 --libvirt-uri qemu:///system",
+        "$ machina-daemon --config /path/to/custom-config.toml",
         "",
         "# Run in foreground (debug mode)",
         "$ make run-daemon",
@@ -481,17 +481,17 @@ def slide_troubleshooting():
         ]),
         ("Port 5092 already in use", ORANGE, [
             "$ sudo ss -tlnp | grep 5092        # find what's using it",
-            "# Change port in /etc/virtspawn/config.toml",
-            "$ sudo systemctl restart virtspawn-daemon",
+            "# Change port in /etc/machina/config.toml",
+            "$ sudo systemctl restart machina-daemon",
         ]),
         ("Web UI not loading", YELLOW, [
-            "$ ls /usr/local/share/virtspawn/web/index.html",
+            "$ ls /usr/local/share/machina/web/index.html",
             "# If missing, rebuild: make web && sudo make install",
             "$ curl -s http://localhost:5092/api/v1/health",
         ]),
         ("Permission denied errors", PURPLE, [
-            "$ sudo systemctl status virtspawn-daemon  # check logs",
-            "$ sudo journalctl -u virtspawn-daemon -f  # live logs",
+            "$ sudo systemctl status machina-daemon  # check logs",
+            "$ sudo journalctl -u machina-daemon -f  # live logs",
             "# Daemon runs as root by default for libvirt access",
         ]),
     ]
@@ -514,24 +514,24 @@ def slide_summary():
 
     draw_code_block(draw, 300, 280, 1320, [
         "# Build",
-        "$ git clone https://github.com/ssahani/-virtspawn.git",
-        "$ cd virtspawn && make all",
+        "$ git clone https://github.com/ssahani/machina.git",
+        "$ cd machina && make all",
         "",
         "# Deploy",
         "$ sudo make deploy",
         "",
         "# Access",
         "> Web UI:   http://localhost:5092",
-        "> TUI:      virtspawn",
+        "> TUI:      machina",
         "> API:      curl http://localhost:5092/api/v1/health",
         "",
         "# Manage",
         "$ sudo make status | start | stop | restart",
     ])
 
-    text_center(draw, 830, "virtspawn  --  Modern Libvirt VM Manager", font_subheading, ACCENT)
+    text_center(draw, 830, "machina  --  Modern Libvirt VM Manager", font_subheading, ACCENT)
     text_center(draw, 890, "Built with Rust + React  |  Secure  |  Fast  |  Production-Ready", font_body, GRAY)
-    text_center(draw, 950, "https://github.com/ssahani/-virtspawn", font_small, ACCENT)
+    text_center(draw, 950, "https://github.com/ssahani/machina", font_small, ACCENT)
     return img
 
 # ── Build PDF ───────────────────────────────────────────────────────────

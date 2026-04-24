@@ -25,6 +25,7 @@ import { addRecentVM } from '../utils/recentVMs'
 import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
 import { triggerBackup } from '../api/backup'
@@ -909,13 +910,22 @@ export default function VMDetailsPage() {
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-700/50">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-2 px-4 py-2.5 text-sm transition border-b-2 ${tab === t.key ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-            {t.icon} {t.label}
-          </button>
-        ))}
+      {/* Tabs — card picker */}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">VM details</h2>
+        <ChoiceCardDenseGrid>
+          {tabs.map((t) => (
+            <ChoiceCard
+              key={t.key}
+              compact
+              tone="blue"
+              selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              icon={t.icon}
+              title={t.label}
+            />
+          ))}
+        </ChoiceCardDenseGrid>
       </div>
 
       {/* ── Overview Tab ─────────────────────────────────────────── */}
@@ -2093,7 +2103,7 @@ export default function VMDetailsPage() {
                 <code className="text-slate-200">{kubevirtBundle.virtual_machine_name}</code> in namespace{' '}
                 <code className="text-slate-200">{kubevirtBundle.namespace}</code>. The VM includes a virtio-win CDROM via{' '}
                 <code className="text-slate-200">containerDisk</code> (cluster pulls the image instead of attaching <code className="text-slate-200">virtio-win.iso</code> from the hypervisor). Override image in{' '}
-                <code className="text-slate-200">[kubevirt] virtio_container_disk_image</code> in virtspawn config.
+                <code className="text-slate-200">[kubevirt] virtio_container_disk_image</code> in machina config.
               </p>
               <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 p-3 space-y-2">
                 <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">Cluster steps (tick when done)</div>
@@ -2150,7 +2160,7 @@ export default function VMDetailsPage() {
                   <div className="text-xs font-medium text-violet-300 uppercase tracking-wide">Run on daemon host</div>
                   <p className="text-[11px] text-slate-400 leading-relaxed">
                     <code className="text-slate-300">[kubevirt] exec_enabled = true</code> — uses this machine&apos;s kubeconfig (set{' '}
-                    <code className="text-slate-300">kubeconfig_path</code> in virtspawn config if needed).{' '}
+                    <code className="text-slate-300">kubeconfig_path</code> in machina config if needed).{' '}
                     <strong className="text-slate-300">virtctl image-upload</strong> may run for a long time; the browser request blocks until it finishes.
                   </p>
                   <div className="flex flex-wrap gap-2">

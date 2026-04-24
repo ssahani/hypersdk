@@ -77,8 +77,8 @@ export default function DiskImagesPage() {
           </p>
           <p className="text-amber-200/90 border-t border-amber-900/30 pt-2 mt-2">
             <strong className="text-amber-100/90">mkosi temp:</strong> failed image builds may leave large folders under{' '}
-            <code className="text-amber-100/80">/var/tmp/virtspawn-mkosi-ws/</code>.
-            Remove stale ones when you no longer need logs to free disk space (successful builds clean up unless <code className="text-amber-100/80">VIRTSPAWN_MKOSI_KEEP_WORKSPACE</code> is set).
+            <code className="text-amber-100/80">/var/tmp/machina-mkosi-ws/</code>.
+            Remove stale ones when you no longer need logs to free disk space (successful builds clean up unless <code className="text-amber-100/80">MACHINA_MKOSI_KEEP_WORKSPACE</code> is set).
           </p>
         </div>
       )}

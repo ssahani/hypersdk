@@ -56,7 +56,7 @@ fn extract_domain_xml_from_print_xml(stdout: &[u8]) -> Result<String, LibvirtErr
     Ok(last.to_string())
 }
 
-/// Run `virt-install` to define a new VM (no libvirt XML emit in virtspawn).
+/// Run `virt-install` to define a new VM (no libvirt XML emit in machina).
 pub fn create_vm_virt_install(
     conn: &Connect,
     req: &CreateVmRequest,
@@ -303,7 +303,7 @@ pub fn create_vm_virt_install(
     if define_only {
         subprocess::log_line(
             log,
-            "virtspawn",
+            "machina",
             "virt-install --print-xml=1 (define only, no installer)…",
         );
         let summary = format!("$ virt-install {}", args.join(" "));
@@ -320,7 +320,7 @@ pub fn create_vm_virt_install(
         Domain::define_xml(conn, &xml).map_err(|e| {
             LibvirtError::Operation(format!("Failed to define VM '{}' from virt-install XML: {e}", req.name))
         })?;
-        subprocess::log_line(log, "virtspawn", "Domain defined from virt-install XML.");
+        subprocess::log_line(log, "machina", "Domain defined from virt-install XML.");
         return Ok(());
     }
 

@@ -1,4 +1,4 @@
-const KEY = 'virtspawn_recent_vms'
+const KEY = 'machina_recent_vms'
 
 export function addRecentVM(name: string) {
   const list = getRecentVMs().filter(n => n !== name)

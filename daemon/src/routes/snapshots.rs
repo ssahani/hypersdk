@@ -2,8 +2,8 @@ use axum::extract::{Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
-use virtspawn_core::libvirt::snapshot;
-use virtspawn_core::{CreateSnapshotRequest, LibvirtError, LibvirtManager, SnapshotInfo};
+use machina_core::libvirt::snapshot;
+use machina_core::{CreateSnapshotRequest, LibvirtError, LibvirtManager, SnapshotInfo};
 
 use crate::error::AppError;
 

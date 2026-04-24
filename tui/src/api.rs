@@ -1,6 +1,6 @@
 use anyhow::Result;
-use virtspawn_core::libvirt::extras::BrowseDirResponse;
-use virtspawn_core::{
+use machina_core::libvirt::extras::BrowseDirResponse;
+use machina_core::{
     BackupInfo, BackupRequest, CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest,
     NetworkInfo, NodeInfo, RenameVmRequest, RestoreRequest, SnapshotInfo, StoragePoolInfo,
     VmDetails, VmInfo, VmMetrics,
@@ -210,7 +210,7 @@ impl DaemonClient {
             .await
     }
 
-    pub async fn fetch_volumes(&self, pool: &str) -> Result<Vec<virtspawn_core::StorageVolumeInfo>> {
+    pub async fn fetch_volumes(&self, pool: &str) -> Result<Vec<machina_core::StorageVolumeInfo>> {
         self.get_json(&format!("/api/v1/storage/pools/{pool}/volumes"))
             .await
     }

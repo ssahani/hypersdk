@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Generate Security & Architecture PDF for virtspawn."""
+"""Generate Security & Architecture PDF for machina."""
 
 from PIL import Image, ImageDraw, ImageFont
 import os
 
 DIR = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(DIR, "virtspawn-security-architecture.pdf")
+OUT = os.path.join(DIR, "machina-security-architecture.pdf")
 W, H = 1920, 1080
 
 FONT_PATHS = [
@@ -77,14 +77,14 @@ def slide_title():
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     bar(d, 6)
-    tc(d, 200, "virtspawn", ft, WHITE)
+    tc(d, 200, "machina", ft, WHITE)
     tc(d, 290, "Security & Architecture", fh, ACCENT)
     div(d, 370)
     tc(d, 430, "Defense-in-depth approach to VM management security", fb, GRAY)
     tc(d, 490, "Input validation | SSRF prevention | Audit logging | Panic-free design", fb, LIGHT)
     tc(d, 600, "Built with Rust for memory safety", fsh, GREEN)
     tc(d, 660, "Zero unsafe blocks | No C dependencies in core logic", fb, GRAY)
-    tc(d, 800, "https://github.com/ssahani/-virtspawn", fs, ACCENT)
+    tc(d, 800, "https://github.com/ssahani/machina", fs, ACCENT)
     return img
 
 def slide_architecture():
@@ -96,8 +96,8 @@ def slide_architecture():
     # Browser -> Daemon -> libvirt -> QEMU/KVM
     boxes = [
         (60, 200, 340, 300, "Browser / Client", ["Web UI (React)", "REST API calls", "WebSocket events"], ACCENT),
-        (440, 200, 340, 300, "virtspawn-daemon", ["Axum HTTP server", "Input validation", "Route handlers"], GREEN),
-        (840, 200, 340, 300, "virtspawn-core", ["LibvirtManager", "XML parsing", "State management"], ORANGE),
+        (440, 200, 340, 300, "machina-daemon", ["Axum HTTP server", "Input validation", "Route handlers"], GREEN),
+        (840, 200, 340, 300, "machina-core", ["LibvirtManager", "XML parsing", "State management"], ORANGE),
         (1240, 200, 340, 300, "libvirt", ["Domain mgmt", "Storage mgmt", "Network mgmt"], PURPLE),
         (1640, 200, 220, 300, "QEMU/KVM", ["VM execution", "Hardware virt"], RED),
     ]
@@ -288,7 +288,7 @@ def slide_audit_logging():
     card(d, 80, 120, 840, 300, "Audit Log", [
         "Every operation logged with timestamp",
         "Format: timestamp  action  target  result",
-        "Stored at: ~/.virtspawn/audit.log",
+        "Stored at: ~/.machina/audit.log",
         "",
         "Logged operations:",
         "  create, delete, start, stop, shutdown",
@@ -302,8 +302,8 @@ def slide_audit_logging():
         "Structured tracing with tracing crate",
         "",
         "View with:",
-        "  journalctl -u virtspawn-daemon -f",
-        "  RUST_LOG=debug virtspawn-daemon",
+        "  journalctl -u machina-daemon -f",
+        "  RUST_LOG=debug machina-daemon",
     ], ACCENT)
 
     card(d, 80, 470, 840, 260, "Real-time Monitoring", [
@@ -329,9 +329,9 @@ def slide_comparison():
     img = Image.new("RGB", (W, H), BG)
     d = ImageDraw.Draw(img)
     bar(d)
-    tc(d, 40, "Why virtspawn?", fh, WHITE)
+    tc(d, 40, "Why machina?", fh, WHITE)
 
-    headers = ["Feature", "virtspawn", "virt-manager", "Cockpit", "Proxmox"]
+    headers = ["Feature", "machina", "virt-manager", "Cockpit", "Proxmox"]
     colors = [GRAY, GREEN, ORANGE, ACCENT, PURPLE]
     rows = [
         ["Language", "Rust + React", "Python + GTK", "Python + JS", "Perl + JS"],
@@ -370,7 +370,7 @@ def slide_comparison():
             cx += col_widths[ci]
         y += 42
 
-    tc(d, 720, "virtspawn: Purpose-built, lightweight, secure VM management", fbig, GREEN)
+    tc(d, 720, "machina: Purpose-built, lightweight, secure VM management", fbig, GREEN)
     tc(d, 770, "No bloat | No full OS required | Production-ready in minutes", fb, GRAY)
     return img
 
@@ -400,7 +400,7 @@ def slide_summary():
         shield(d, (W - 700) // 2, y, item[:48], GREEN)
         y += 58
 
-    tc(d, 950, "virtspawn  --  Secure by Design  |  Safe by Default", fsh, ACCENT)
+    tc(d, 950, "machina  --  Secure by Design  |  Safe by Default", fsh, ACCENT)
     return img
 
 slides = [

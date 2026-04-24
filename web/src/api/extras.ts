@@ -126,7 +126,7 @@ export const getVirtBuilderNotes = (template: string) =>
     `${API}/browse/virt-builder/notes/${encodeURIComponent(template)}`
   )
 
-/** mkosi workspace directories discovered under /var/lib/virtspawn/mkosi-defs/ etc. */
+/** mkosi workspace directories discovered under /var/lib/machina/mkosi-defs/ etc. */
 export interface MkosiWorkspace {
   path: string
   name: string

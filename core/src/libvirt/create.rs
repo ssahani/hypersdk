@@ -116,14 +116,14 @@ pub fn create_vm(
 
     subprocess::log_line(
         log,
-        "virtspawn",
+        "machina",
         "Preparing disk image (mkosi / virt-builder / blank)…",
     );
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg, log)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg, log)?;
     let r = match backend {
         VmCreateBackend::VirtInstall => {
-            subprocess::log_line(log, "virtspawn", "Defining VM with virt-install…");
+            subprocess::log_line(log, "machina", "Defining VM with virt-install…");
             super::virt_install::create_vm_virt_install(conn, &req, libvirt_uri, log)
         }
         VmCreateBackend::LibvirtXml => {
@@ -133,7 +133,7 @@ pub fn create_vm(
                         .into(),
                 ));
             }
-            subprocess::log_line(log, "virtspawn", "Defining VM with libvirt XML…");
+            subprocess::log_line(log, "machina", "Defining VM with libvirt XML…");
             create_vm_libvirt_xml(conn, &req, log)
         }
     };
@@ -142,7 +142,7 @@ pub fn create_vm(
             if !missing.is_empty() {
                 subprocess::log_line(
                     log,
-                    "virtspawn",
+                    "machina",
                     &format!(
                         "WARNING: VM '{}' is defined but file-backed disk(s) are missing on the host — start will fail until you create them or fix paths in the domain XML: {}",
                         req.name,

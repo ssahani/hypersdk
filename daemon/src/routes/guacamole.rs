@@ -4,8 +4,8 @@ use axum::extract::{Path, State};
 use axum::routing::get;
 use axum::{Json, Router};
 use libvirt_guac_bridge::{bridge_from_vnc_tcp, GuacamoleBridgeParams};
-use virtspawn_core::libvirt::vnc;
-use virtspawn_core::{LibvirtError, LibvirtManager, VirtspawnConfig};
+use machina_core::libvirt::vnc;
+use machina_core::{LibvirtError, LibvirtManager, MachinaConfig};
 
 use crate::error::AppError;
 
@@ -13,7 +13,7 @@ async fn guacamole_auth_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
 ) -> Result<Json<libvirt_guac_bridge::BridgeResponse>, AppError> {
-    let cfg = VirtspawnConfig::load();
+    let cfg = MachinaConfig::load();
     if !cfg.guacamole.enabled {
         return Err(AppError::from(LibvirtError::Invalid(
             "Guacamole integration is disabled ([guacamole] enabled = false)".into(),
@@ -46,7 +46,7 @@ async fn guacamole_auth_handler(
 
     let username_storage = cfg.guacamole.json_username.trim().to_string();
     let username_ref: &str = if username_storage.is_empty() {
-        "virtspawn"
+        "machina"
     } else {
         username_storage.as_str()
     };

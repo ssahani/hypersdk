@@ -1,13 +1,13 @@
 # Apache Guacamole and libvirt (optional integration)
 
-Virtspawn already ships **in-browser consoles**: noVNC and SPICE over WebSocket proxies, serial PTY, and SSH—see the main README. **Guacamole does not replace libvirt** or virtspawn lifecycle management; it is an optional HTML5 gateway if you want Apache Guacamole’s connection model (e.g. RDP to Windows guests, centralized Docker deployment, PostgreSQL-backed connections, or encrypted JSON auth).
+Machina already ships **in-browser consoles**: noVNC and SPICE over WebSocket proxies, serial PTY, and SSH—see the main README. **Guacamole does not replace libvirt** or machina lifecycle management; it is an optional HTML5 gateway if you want Apache Guacamole’s connection model (e.g. RDP to Windows guests, centralized Docker deployment, PostgreSQL-backed connections, or encrypted JSON auth).
 
 Separation of roles:
 
 | Layer | Responsibility |
 |--------|----------------|
 | **libvirt / QEMU** | Defines the VM; graphics devices and guest network live in domain XML—source of truth. |
-| **Virtspawn** | VM lifecycle, APIs, RBAC, built-in console proxies (alternative to Guacamole for VNC/SPICE). |
+| **Machina** | VM lifecycle, APIs, RBAC, built-in console proxies (alternative to Guacamole for VNC/SPICE). |
 | **Guacamole** | Browser HTTPS → `guacd` → **RDP**, **VNC**, or **SSH** to whatever endpoint the guest exposes—not a hypervisor API. |
 
 References: [Apache Guacamole](https://guacamole.apache.org/), [Guacamole Docker install](https://guacamole.apache.org/doc/gug/guacamole-docker.html), [domain XML graphics](https://libvirt.org/formatdomain.html), [`virsh`](https://www.libvirt.org/manpages/virsh.html).
@@ -64,7 +64,7 @@ Define graphics in domain XML, typically binding listen to loopback on the hyper
 
 Inspect the endpoint with `virsh domdisplay <domain>`. Prefer **localhost or Unix sockets** on the libvirt host and place **Guacamole close to that host** so you do not publish raw VNC to the Internet.
 
-Virtspawn’s own console proxy already assumes a similar security stance (HTTPS to the daemon, proxied graphics).
+Machina’s own console proxy already assumes a similar security stance (HTTPS to the daemon, proxied graphics).
 
 ---
 
@@ -174,7 +174,7 @@ User opens VM dashboard
 
 ## Security notes
 
-- Do **not** expose raw VNC ports publicly; bind to `127.0.0.1` or socket on the hypervisor and terminate TLS at Guacamole or virtspawn.
+- Do **not** expose raw VNC ports publicly; bind to `127.0.0.1` or socket on the hypervisor and terminate TLS at Guacamole or machina.
 - Prefer **HTTPS only** on the gateway users hit.
 - Guacamole supports LDAP, OpenID Connect, and other SSO methods for larger deployments.
 
@@ -182,7 +182,7 @@ User opens VM dashboard
 
 ## Integrated daemon API (recommended)
 
-**virtspawn-daemon** exposes (when enabled):
+**machina-daemon** exposes (when enabled):
 
 `GET /api/v1/vms/{name}/guacamole-auth`
 
@@ -190,7 +190,7 @@ User opens VM dashboard
 - Resolves VNC using the same libvirt path as the built-in console (`vnc::resolve_vnc_tcp`), then builds encrypted JSON per [encrypted JSON authentication](https://guacamole.apache.org/doc/gug/json-auth.html).
 - Optionally POSTs to Guacamole `/api/tokens` and returns `token` when `[guacamole] fetch_token = true`.
 
-**`/etc/virtspawn/config.toml`**
+**`/etc/machina/config.toml`**
 
 ```toml
 [guacamole]
@@ -199,7 +199,7 @@ json_secret_hex = "4c0b569e4c96df157eee1b65dd0e4d41"  # same 32 hex chars as Gua
 base_url = "http://127.0.0.1:8080/guacamole"
 public_vnc_host = "192.168.122.1"   # optional: when VNC listen is loopback, rewrite for guacd
 fetch_token = true
-json_username = "virtspawn"
+json_username = "machina"
 ```
 
 The VM must be **running** with **VNC** graphics (not SPICE-only). Guacamole/`guacd` must reach `target_host:target_port` from the JSON.
@@ -224,10 +224,10 @@ curl -s "http://127.0.0.1:3000/bridge/myvm" | jq
 
 ---
 
-## Relation to virtspawn
+## Relation to machina
 
-- **Guacamole + `guacd`**: deploy next to the hypervisor; virtspawn keeps VM lifecycle and RBAC.
-- **Avoid** driving libvirt from Guacamole; session auth stays with virtspawn + optional Guacamole SSO.
+- **Guacamole + `guacd`**: deploy next to the hypervisor; machina keeps VM lifecycle and RBAC.
+- **Avoid** driving libvirt from Guacamole; session auth stays with machina + optional Guacamole SSO.
 
 ---
 

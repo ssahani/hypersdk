@@ -4,10 +4,10 @@ mod ui;
 
 use app::App;
 use clap::Parser;
-use virtspawn_core::VirtspawnConfig;
+use machina_core::MachinaConfig;
 
 #[derive(Parser)]
-#[command(name = "virtspawn", about = "virtspawn TUI - libvirt VM manager")]
+#[command(name = "machina", about = "machina TUI - libvirt VM manager")]
 struct Cli {
     /// Daemon URL (default from config uses https when [tls] is enabled; packaged install enables TLS)
     #[arg(short, long)]
@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
         let contents = std::fs::read_to_string(path)?;
         toml::from_str(&contents)?
     } else {
-        VirtspawnConfig::load()
+        MachinaConfig::load()
     };
 
     let daemon_url = cli.url.unwrap_or_else(|| config.daemon_url());

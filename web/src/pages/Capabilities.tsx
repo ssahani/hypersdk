@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { getCapabilities, getSysinfo, CapabilitiesInfo } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import { RefreshCw, Cpu, Info } from 'lucide-react'
+import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import SysinfoDisplay from '../components/SysinfoDisplay'
 
 export default function CapabilitiesPage() {
@@ -42,12 +43,21 @@ export default function CapabilitiesPage() {
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
       </div>
 
-      <div className="flex gap-1 border-b border-slate-700/50">
-        {tabs.map((t) => (
-          <button key={t.key} onClick={() => setTab(t.key)} className={`flex items-center gap-2 px-4 py-2 text-sm transition border-b-2 ${tab === t.key ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-400 hover:text-slate-200'}`}>
-            {t.icon} {t.label}
-          </button>
-        ))}
+      <div>
+        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">View</h2>
+        <ChoiceCardGrid>
+          {tabs.map((t) => (
+            <ChoiceCard
+              key={t.key}
+              compact
+              tone="blue"
+              selected={tab === t.key}
+              onClick={() => setTab(t.key)}
+              icon={t.icon}
+              title={t.label}
+            />
+          ))}
+        </ChoiceCardGrid>
       </div>
 
       {tab === 'capabilities' && capabilities && (

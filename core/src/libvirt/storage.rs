@@ -46,13 +46,13 @@ pub fn list_pool_target_paths(conn: &Connect) -> Result<Vec<String>, LibvirtErro
     Ok(set.into_iter().collect())
 }
 
-/// Directories scanned for disk images / delete allow-list: all pool targets plus virtspawn defaults.
+/// Directories scanned for disk images / delete allow-list: all pool targets plus machina defaults.
 pub fn collect_image_scan_directories(conn: &Connect) -> Result<Vec<std::path::PathBuf>, LibvirtError> {
     let mut out: Vec<std::path::PathBuf> = list_pool_target_paths(conn)?
         .into_iter()
         .map(std::path::PathBuf::from)
         .collect();
-    for extra in ["/var/lib/virtspawn/images", "/var/lib/libvirt/images"] {
+    for extra in ["/var/lib/machina/images", "/var/lib/libvirt/images"] {
         let pb = std::path::PathBuf::from(extra);
         if !out.iter().any(|p| p == &pb) {
             out.push(pb);
