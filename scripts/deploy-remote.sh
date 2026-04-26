@@ -102,8 +102,12 @@ check_body() {
         [[ "$ad" == active ]] || { warn "machina-daemon not active"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
         [[ "$ad" == active ]] && ok "machina-daemon active"
     fi
-    command -v journalctl &>/dev/null && printf '\n📜 Last 5 daemon log lines\n' && \
-        journalctl -u machina-daemon -n 5 --no-pager 2>/dev/null || warn "no journal access for machina-daemon"
+    if command -v systemctl &>/dev/null; then
+        printf '\n📋 systemctl status machina-daemon\n'
+        systemctl status machina-daemon --no-pager 2>/dev/null || warn "cannot read machina-daemon status"
+        printf '\n📋 systemctl status libvirtd\n'
+        systemctl status libvirtd --no-pager 2>/dev/null || warn "cannot read libvirtd status"
+    fi
     printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
     if command -v curl &>/dev/null; then
         curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null 2>&1 && ok "GET $HEALTH_URL" || {
@@ -142,8 +146,10 @@ run() {
     [[ "$ad" == active ]] || warn "machina-daemon not active"
     [[ "$al" == active ]] && ok "libvirtd active"
     [[ "$ad" == active ]] && ok "machina-daemon active"
-    printf '\n📜 Last 5 daemon log lines\n'
-    journalctl -u machina-daemon -n 5 --no-pager 2>/dev/null || warn "no journal"
+    printf '\n📋 systemctl status machina-daemon\n'
+    systemctl status machina-daemon --no-pager 2>/dev/null || warn "cannot read machina-daemon status"
+    printf '\n📋 systemctl status libvirtd\n'
+    systemctl status libvirtd --no-pager 2>/dev/null || warn "cannot read libvirtd status"
     printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
     command -v curl &>/dev/null && curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null && ok "GET $HEALTH_URL" || warn "cannot reach $HEALTH_URL"
     printf '\n'
@@ -297,6 +303,20 @@ else
     echo "🔨 [2/2] remote: sudo install.sh on $HOST (deps + cargo + npm + install + enable/restart)"
     ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo bash install.sh${OPTS}${REMOTE_INST}" || die "install failed"
 fi
+
+echo "🩺 services"
+ssh_r "$REMOTE" "bash -lc '
+for svc in machina-daemon libvirtd; do
+  st=\$(systemctl is-active \$svc 2>/dev/null || echo unknown)
+  if [ \"\$st\" = active ]; then
+    echo \"✅ \$svc: running\"
+  else
+    echo \"⚠️  \$svc: \$st\"
+  fi
+  systemctl status \$svc --no-pager || true
+  echo
+done
+'" || warn "service status check failed"
 
 $CLEANUP && { echo "🧹 cleanup $REMOTE_DIR"; ssh_r "$REMOTE" "rm -rf $REMOTE_DIR"; }
 
