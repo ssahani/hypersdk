@@ -3,6 +3,7 @@ import {
   Home, Server, Plus, Upload, Network, HardDrive, Camera, Shield, Archive, Globe,
   Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key, Users, Database, Terminal,
   ClipboardList,
+  Boxes,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -40,6 +41,8 @@ export const navGroups: NavGroup[] = [
       { to: '/backups', icon: React.createElement(Archive, { className: 'w-4 h-4' }), label: 'Backups' },
       { to: '/host-networking', icon: React.createElement(Globe, { className: 'w-4 h-4' }), label: 'Host Networking' },
       { to: '/host-ssh', icon: React.createElement(Terminal, { className: 'w-4 h-4' }), label: 'Host SSH' },
+      { to: '/k8s', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Kubernetes' },
+      { to: '/k8s/workloads', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'K8s Workloads' },
     ],
   },
   {
@@ -77,6 +80,8 @@ export const routeLabels: Record<string, string> = {
   '/backups': 'Backups',
   '/host-networking': 'Host Networking',
   '/host-ssh': 'Host SSH',
+  '/k8s': 'Kubernetes',
+  '/k8s/workloads': 'K8s Workloads',
   '/audit': 'Audit Log',
   '/import': 'Import VM',
   '/api-docs': 'API Docs',

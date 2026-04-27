@@ -42,6 +42,8 @@ const StoragePoolDetail = lazy(() => import('./pages/StoragePoolDetail'))
 const AdminSessions = lazy(() => import('./pages/AdminSessions'))
 const DiskImages = lazy(() => import('./pages/DiskImages'))
 const Jobs = lazy(() => import('./pages/Jobs'))
+const K8sOverview = lazy(() => import('./pages/K8sOverview'))
+const K8sWorkloads = lazy(() => import('./pages/K8sWorkloads'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -112,6 +114,8 @@ function AuthenticatedApp() {
                 <Route path="/create" element={<CreateVM />} />
                 <Route path="/jobs/:jobId" element={<Jobs />} />
                 <Route path="/jobs" element={<Jobs />} />
+                <Route path="/k8s" element={<K8sOverview />} />
+                <Route path="/k8s/workloads" element={<K8sWorkloads />} />
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />
                 <Route path="/storage/:pool" element={<StoragePoolDetail />} />

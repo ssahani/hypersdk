@@ -69,11 +69,25 @@ export interface SysctlTuningResponse {
   notes: string[]
 }
 
+export interface SystemdNetworkDiagnostics {
+  systemd_networkd_active: boolean
+  network_manager_active: boolean
+  networkctl_list: string
+  networkctl_status_all: string
+  resolvectl_status: string
+  resolvectl_statistics: string
+  networkd_recent_logs: string
+  resolved_recent_logs: string
+}
+
 // Host interfaces
 export const listHostInterfaces = () => apiGet<HostInterface[]>(`${API}/host/interfaces`)
 
 /** Recommended sysctl drop-in + current runtime values (hypervisor / high-concurrency tuning). */
 export const getSysctlTuning = () => apiGet<SysctlTuningResponse>(`${API}/host/sysctl-tuning`)
+export const getSystemdNetworkDiagnostics = () => apiGet<SystemdNetworkDiagnostics>(`${API}/host/network-diag`)
+export const getSystemdInterfaceStatus = (name: string) =>
+  apiGet<{ interface: string; status: string }>(`${API}/host/network-diag/interface/${encodeURIComponent(name)}`)
 
 // Bridges
 export const createBridge = (req: CreateBridgeRequest) => apiPost<unknown>(`${API}/host/bridges`, req)

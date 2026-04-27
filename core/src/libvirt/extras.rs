@@ -1295,8 +1295,72 @@ pub struct JournalEntry {
     pub message: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct JournalBootEntry {
+    pub index: i32,
+    pub boot_id: String,
+    pub first_entry: String,
+    pub last_entry: String,
+}
+
+pub fn get_journal_boots() -> Result<Vec<JournalBootEntry>, LibvirtError> {
+    let output = Command::new("journalctl")
+        .args(["--no-pager", "--list-boots"])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run journalctl --list-boots"))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!(
+            "journalctl --list-boots failed: {stderr}"
+        )));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let mut out = Vec::new();
+    for line in stdout.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let parts: Vec<&str> = trimmed.split_whitespace().collect();
+        if parts.len() < 4 {
+            continue;
+        }
+        let idx = match parts[0].parse::<i32>() {
+            Ok(v) => v,
+            Err(_) => continue,
+        };
+        let boot_id = parts[1].to_string();
+        let first_entry = format!("{} {}", parts[2], parts[3]);
+        let last_entry = if parts.len() >= 6 {
+            format!("{} {}", parts[4], parts[5])
+        } else {
+            String::new()
+        };
+        out.push(JournalBootEntry {
+            index: idx,
+            boot_id,
+            first_entry,
+            last_entry,
+        });
+    }
+    Ok(out)
+}
+
 /// Get journal logs from journalctl.
-pub fn get_journal_logs(lines: u32, priority: Option<&str>, unit: Option<&str>) -> Result<Vec<JournalEntry>, LibvirtError> {
+pub fn get_journal_logs(
+    lines: u32,
+    priority: Option<&str>,
+    unit: Option<&str>,
+    boot: Option<i32>,
+    since: Option<&str>,
+    until: Option<&str>,
+    grep: Option<&str>,
+    uid: Option<u32>,
+    pid: Option<u32>,
+    kernel_only: bool,
+) -> Result<Vec<JournalEntry>, LibvirtError> {
     let lines_str = lines.min(5000).to_string();
     let mut args = vec!["--no-pager", "-n", &lines_str, "-o", "json"];
 
@@ -1323,6 +1387,79 @@ pub fn get_journal_logs(lines: u32, priority: Option<&str>, unit: Option<&str>) 
             args.push(&unit_owned);
             args.push(u);
         }
+    }
+
+    let boot_owned;
+    if let Some(b) = boot {
+        if b == 0 {
+            args.push("-b");
+        } else {
+            boot_owned = b.to_string();
+            args.push("-b");
+            args.push(&boot_owned);
+        }
+    }
+
+    let since_owned;
+    if let Some(s) = since {
+        if !s.trim().is_empty() {
+            // Restrict to simple date/time tokens to avoid odd control chars.
+            if !s
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "-:+./,_".contains(c))
+            {
+                return Err(LibvirtError::Invalid("Invalid --since value".to_string()));
+            }
+            since_owned = s.trim().to_string();
+            args.push("--since");
+            args.push(&since_owned);
+        }
+    }
+
+    let until_owned;
+    if let Some(u) = until {
+        if !u.trim().is_empty() {
+            if !u
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "-:+./,_".contains(c))
+            {
+                return Err(LibvirtError::Invalid("Invalid --until value".to_string()));
+            }
+            until_owned = u.trim().to_string();
+            args.push("--until");
+            args.push(&until_owned);
+        }
+    }
+
+    let grep_owned;
+    if let Some(g) = grep {
+        if !g.trim().is_empty() {
+            if g.len() > 200 {
+                return Err(LibvirtError::Invalid("Search text too long".to_string()));
+            }
+            if !g.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+                return Err(LibvirtError::Invalid("Invalid search text".to_string()));
+            }
+            grep_owned = g.trim().to_string();
+            args.push("--grep");
+            args.push(&grep_owned);
+        }
+    }
+
+    let uid_owned;
+    if let Some(u) = uid {
+        uid_owned = format!("_UID={u}");
+        args.push(&uid_owned);
+    }
+
+    let pid_owned;
+    if let Some(p) = pid {
+        pid_owned = format!("_PID={p}");
+        args.push(&pid_owned);
+    }
+
+    if kernel_only {
+        args.push("-k");
     }
 
     let output = Command::new("journalctl")
@@ -1423,14 +1560,124 @@ fn is_leap_year(y: u64) -> bool {
 
 // ── Hostname / Timezone / System Info ────────────────────────────
 
+fn try_cmd_stdout(cmd: &str, args: &[&str]) -> String {
+    Command::new(cmd)
+        .args(args)
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default()
+}
+
+/// Like `try_cmd_stdout`, but returns stdout even when exit status is non-zero (e.g. failed units list).
+fn try_cmd_stdout_any_status(cmd: &str, args: &[&str]) -> String {
+    Command::new(cmd)
+        .args(args)
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default()
+}
+
+fn truncate_text(mut s: String, max_lines: usize, max_bytes: usize) -> String {
+    let lines: Vec<&str> = s.lines().take(max_lines).collect();
+    s = lines.join("\n");
+    if s.len() > max_bytes {
+        s.truncate(max_bytes);
+        s.push_str("\n… [truncated]");
+    }
+    s
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemInfo {
     pub hostname: String,
     pub timezone: String,
     pub kernel_version: String,
+    pub architecture: String,
     pub os_name: String,
     pub os_version: String,
     pub os_pretty_name: String,
+    pub boot_time: String,
+    pub rtc_time: String,
+    pub ntp_service: String,
+    pub system_clock_synchronized: bool,
+    pub systemd_version: String,
+    pub boot_duration: String,
+    pub critical_chain_top: Vec<String>,
+    pub logged_in_users: usize,
+    /// Extra `hostnamectl` fields (when present).
+    pub pretty_hostname: String,
+    pub transient_hostname: String,
+    pub icon_name: String,
+    pub chassis: String,
+    pub deployment: String,
+    pub location: String,
+    pub machine_id: String,
+    pub boot_id: String,
+    pub hardware_model: String,
+    pub firmware_version: String,
+    /// Extra `timedatectl` fields.
+    pub local_time: String,
+    pub universal_time: String,
+    pub rtc_in_local_tz: String,
+    /// Full `systemctl --version` output (truncated server-side).
+    pub systemd_version_full: String,
+    /// Top lines of `systemd-analyze blame`.
+    pub systemd_analyze_blame_top: Vec<String>,
+    /// `loginctl list-users` text (truncated).
+    pub loginctl_users_text: String,
+    /// `loginctl list-sessions` text (truncated).
+    pub loginctl_sessions_text: String,
+    /// `systemctl show` manager properties (truncated).
+    pub systemctl_show_manager: String,
+    /// Active mount units (truncated).
+    pub mount_units_text: String,
+    /// Failed units (truncated).
+    pub failed_units_text: String,
+    /// `systemctl list-dependencies systemd-networkd` (truncated; empty if unavailable).
+    pub networkd_dependencies_text: String,
+    /// Raw `hostnamectl` human output (truncated).
+    pub hostnamectl_status_text: String,
+    /// Raw `timedatectl` human output (truncated).
+    pub timedatectl_status_text: String,
+    /// `timedatectl show` (key=value, truncated).
+    pub timedatectl_show_text: String,
+    /// `systemctl is-system-running`.
+    pub systemctl_is_system_running: String,
+    /// `systemctl show-environment` (truncated).
+    pub systemctl_show_environment_text: String,
+    /// `systemctl list-sockets` (truncated).
+    pub systemctl_list_sockets_text: String,
+    /// `systemctl list-timers --all` (truncated).
+    pub systemctl_list_timers_text: String,
+    /// `systemctl list-jobs` (truncated).
+    pub systemctl_list_jobs_text: String,
+    /// `systemctl status systemd-networkd` (truncated).
+    pub systemctl_status_networkd_text: String,
+    /// `systemctl status systemd-resolved` (truncated).
+    pub systemctl_status_resolved_text: String,
+    /// `systemctl list-dependencies systemd-resolved` (truncated).
+    pub resolved_dependencies_text: String,
+    /// `resolvectl status` (truncated).
+    pub resolvectl_status_text: String,
+    /// `resolvectl statistics` (truncated).
+    pub resolvectl_statistics_text: String,
+    /// `bootctl status` (truncated; empty if not using systemd-boot).
+    pub bootctl_status_text: String,
+    /// Enabled `.service` unit files (truncated).
+    pub enabled_service_unit_files_text: String,
+    /// Running `.service` units (truncated).
+    pub running_service_units_text: String,
+    /// `loginctl list-seats` (truncated).
+    pub loginctl_list_seats_text: String,
+    /// `journalctl --list-boots` (truncated).
+    pub journalctl_list_boots_text: String,
+    /// `systemd-analyze verify` (truncated; may be non-zero exit).
+    pub systemd_analyze_verify_text: String,
+    /// `systemctl list-dependencies default.target` (truncated).
+    pub default_target_dependencies_text: String,
     // Hardware info from DMI
     pub product_name: String,
     pub sys_vendor: String,
@@ -1444,41 +1691,262 @@ pub struct SystemInfo {
 
 /// Get system info: hostname, timezone, kernel, OS.
 pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
-    let hostname = std::fs::read_to_string("/etc/hostname")
-        .unwrap_or_default()
+    let hostnamectl_raw = Command::new("hostnamectl")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+    let timedatectl_raw = Command::new("timedatectl")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+    let systemd_analyze_raw = Command::new("systemd-analyze")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+    let systemctl_version_raw = Command::new("systemctl")
+        .args(["--version"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+    let critical_chain_raw = Command::new("systemd-analyze")
+        .args(["critical-chain"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+    let userspace_ts = Command::new("systemctl")
+        .args(["show", "--property=UserspaceTimestamp", "--value"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+    let loginctl_users_raw = Command::new("loginctl")
+        .args(["list-users", "--no-legend"])
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
+        .unwrap_or_default();
+    let loginctl_sessions_raw = try_cmd_stdout_any_status("loginctl", &["list-sessions", "--no-legend"]);
+
+    let systemd_version_full = truncate_text(
+        try_cmd_stdout("systemctl", &["--version"]),
+        80,
+        24_576,
+    );
+    let blame_raw = try_cmd_stdout_any_status("systemd-analyze", &["blame"]);
+    let systemd_analyze_blame_top: Vec<String> = blame_raw
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty())
+        .take(50)
+        .map(|s| s.to_string())
+        .collect();
+    let systemctl_show_manager = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["show", "--no-pager"]),
+        200,
+        65_536,
+    );
+    let mount_units_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-units", "--type=mount", "--state=active", "--no-pager", "--no-legend"]),
+        120,
+        32_768,
+    );
+    let failed_units_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-units", "--state=failed", "--no-pager", "--no-legend"]),
+        80,
+        16_384,
+    );
+    let networkd_dependencies_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-dependencies", "systemd-networkd", "--no-pager"]),
+        120,
+        24_576,
+    );
+    let hostnamectl_status_text = truncate_text(hostnamectl_raw.clone(), 120, 32_768);
+    let timedatectl_status_text = truncate_text(timedatectl_raw.clone(), 120, 24_576);
+    let timedatectl_show_text = truncate_text(
+        try_cmd_stdout_any_status("timedatectl", &["show"]),
+        200,
+        16_384,
+    );
+    let systemctl_is_system_running = try_cmd_stdout_any_status("systemctl", &["is-system-running"])
         .trim()
         .to_string();
+    let systemctl_show_environment_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["show-environment", "--no-pager"]),
+        120,
+        24_576,
+    );
+    let systemctl_list_sockets_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-sockets", "--no-pager"]),
+        100,
+        32_768,
+    );
+    let systemctl_list_timers_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-timers", "--all", "--no-pager", "--no-legend"]),
+        120,
+        32_768,
+    );
+    let systemctl_list_jobs_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-jobs", "--no-pager"]),
+        40,
+        8_192,
+    );
+    let systemctl_status_networkd_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["status", "systemd-networkd", "--no-pager", "-l"]),
+        80,
+        24_576,
+    );
+    let systemctl_status_resolved_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["status", "systemd-resolved", "--no-pager", "-l"]),
+        80,
+        24_576,
+    );
+    let resolved_dependencies_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-dependencies", "systemd-resolved", "--no-pager"]),
+        120,
+        24_576,
+    );
+    let resolvectl_status_text = truncate_text(
+        try_cmd_stdout_any_status("resolvectl", &["status"]),
+        150,
+        48_640,
+    );
+    let resolvectl_statistics_text = truncate_text(
+        try_cmd_stdout_any_status("resolvectl", &["statistics"]),
+        80,
+        16_384,
+    );
+    let bootctl_status_text = truncate_text(
+        try_cmd_stdout("bootctl", &["status"]),
+        80,
+        16_384,
+    );
+    let enabled_service_unit_files_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &[
+            "list-unit-files",
+            "--type=service",
+            "--state=enabled",
+            "--no-pager",
+            "--no-legend",
+        ]),
+        150,
+        48_640,
+    );
+    let running_service_units_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &[
+            "list-units",
+            "--type=service",
+            "--state=running",
+            "--no-pager",
+            "--no-legend",
+        ]),
+        120,
+        32_768,
+    );
+    let loginctl_list_seats_text = truncate_text(
+        try_cmd_stdout_any_status("loginctl", &["list-seats", "--no-legend"]),
+        40,
+        8_192,
+    );
+    let journalctl_list_boots_text = truncate_text(
+        try_cmd_stdout_any_status("journalctl", &["--list-boots", "--no-pager"]),
+        50,
+        12_288,
+    );
+    let systemd_analyze_verify_text = truncate_text(
+        try_cmd_stdout_any_status("systemd-analyze", &["verify", "--no-pager"]),
+        100,
+        32_768,
+    );
+    let default_target_dependencies_text = truncate_text(
+        try_cmd_stdout_any_status("systemctl", &["list-dependencies", "default.target", "--no-pager"]),
+        120,
+        24_576,
+    );
 
-    // Get timezone from timedatectl
-    let timezone = Command::new("timedatectl")
-        .args(["show", "--property=Timezone", "--value"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
+    let field = |blob: &str, key: &str| -> String {
+        blob.lines()
+            .find_map(|line| {
+                let (k, v) = line.split_once(':')?;
+                if k.trim() == key {
+                    Some(v.trim().to_string())
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default()
+    };
 
-    // Get kernel version
-    let kernel_version = Command::new("uname")
-        .args(["-r"])
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "unknown".to_string());
-
-    // Parse /etc/os-release
-    let os_release = std::fs::read_to_string("/etc/os-release").unwrap_or_default();
-    let mut os_name = String::new();
-    let mut os_version = String::new();
-    let mut os_pretty_name = String::new();
-    for line in os_release.lines() {
-        if let Some((key, val)) = line.split_once('=') {
-            let val = val.trim_matches('"');
-            match key {
-                "NAME" => os_name = val.to_string(),
-                "VERSION" => os_version = val.to_string(),
-                "PRETTY_NAME" => os_pretty_name = val.to_string(),
-                _ => {}
-            }
-        }
+    let hostname = field(&hostnamectl_raw, "Static hostname");
+    let pretty_hostname = field(&hostnamectl_raw, "Pretty hostname");
+    let transient_hostname = field(&hostnamectl_raw, "Transient hostname");
+    let icon_name = field(&hostnamectl_raw, "Icon name");
+    let chassis = field(&hostnamectl_raw, "Chassis");
+    let deployment = field(&hostnamectl_raw, "Deployment");
+    let location = field(&hostnamectl_raw, "Location");
+    let machine_id = field(&hostnamectl_raw, "Machine ID");
+    let boot_id = field(&hostnamectl_raw, "Boot ID");
+    let hardware_model = field(&hostnamectl_raw, "Hardware Model");
+    let mut firmware_version = field(&hostnamectl_raw, "Firmware Version");
+    if firmware_version.is_empty() {
+        firmware_version = field(&hostnamectl_raw, "BIOS Version");
     }
+
+    let os_pretty_name = field(&hostnamectl_raw, "Operating System");
+    let kernel_version = field(&hostnamectl_raw, "Kernel")
+        .strip_prefix("Linux ")
+        .unwrap_or(&field(&hostnamectl_raw, "Kernel"))
+        .to_string();
+    let architecture = field(&hostnamectl_raw, "Architecture");
+    let virtualization = {
+        let v = field(&hostnamectl_raw, "Virtualization");
+        if v.is_empty() { "none".to_string() } else { v }
+    };
+    let os_name = os_pretty_name
+        .split_whitespace()
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    let os_version = os_pretty_name
+        .split_once(' ')
+        .map(|(_, v)| v.to_string())
+        .unwrap_or_default();
+
+    let timezone = field(&timedatectl_raw, "Time zone")
+        .split_whitespace()
+        .next()
+        .unwrap_or("unknown")
+        .to_string();
+    let boot_time = if userspace_ts.is_empty() { "unknown".to_string() } else { userspace_ts };
+    let rtc_time = field(&timedatectl_raw, "RTC time");
+    let ntp_service = field(&timedatectl_raw, "NTP service");
+    let system_clock_synchronized = field(&timedatectl_raw, "System clock synchronized") == "yes";
+    let local_time = field(&timedatectl_raw, "Local time");
+    let universal_time = field(&timedatectl_raw, "Universal time");
+    let rtc_in_local_tz = field(&timedatectl_raw, "RTC in local TZ");
+
+    let boot_duration = systemd_analyze_raw
+        .lines()
+        .next()
+        .unwrap_or("unknown")
+        .trim()
+        .to_string();
+    let systemd_version = systemctl_version_raw
+        .lines()
+        .next()
+        .unwrap_or("unknown")
+        .trim()
+        .to_string();
+    let logged_in_users = loginctl_users_raw
+        .lines()
+        .filter(|l| !l.trim().is_empty())
+        .count();
+    let loginctl_users_text = truncate_text(loginctl_users_raw.clone(), 40, 8_192);
+    let loginctl_sessions_text = truncate_text(loginctl_sessions_raw, 80, 16_384);
+    let critical_chain_top = critical_chain_raw
+        .lines()
+        .map(str::trim)
+        .filter(|l| !l.is_empty() && !l.starts_with("The time when unit became active"))
+        .take(8)
+        .map(|s| s.to_string())
+        .collect::<Vec<_>>();
 
     // DMI hardware info
     let read_dmi = |name: &str| -> String {
@@ -1499,15 +1967,51 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         .map(|s| s.trim().to_string())
         .unwrap_or_default();
 
-    // Detect virtualization
-    let virtualization = Command::new("systemd-detect-virt")
-        .output()
-        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
-        .unwrap_or_else(|_| "none".to_string());
-
     Ok(SystemInfo {
-        hostname, timezone, kernel_version,
-        os_name, os_version, os_pretty_name,
+        hostname, timezone, kernel_version, architecture,
+        os_name, os_version, os_pretty_name, boot_time, rtc_time, ntp_service,
+        system_clock_synchronized, systemd_version, boot_duration, critical_chain_top, logged_in_users,
+        pretty_hostname,
+        transient_hostname,
+        icon_name,
+        chassis,
+        deployment,
+        location,
+        machine_id,
+        boot_id,
+        hardware_model,
+        firmware_version,
+        local_time,
+        universal_time,
+        rtc_in_local_tz,
+        systemd_version_full,
+        systemd_analyze_blame_top,
+        loginctl_users_text,
+        loginctl_sessions_text,
+        systemctl_show_manager,
+        mount_units_text,
+        failed_units_text,
+        networkd_dependencies_text,
+        hostnamectl_status_text,
+        timedatectl_status_text,
+        timedatectl_show_text,
+        systemctl_is_system_running,
+        systemctl_show_environment_text,
+        systemctl_list_sockets_text,
+        systemctl_list_timers_text,
+        systemctl_list_jobs_text,
+        systemctl_status_networkd_text,
+        systemctl_status_resolved_text,
+        resolved_dependencies_text,
+        resolvectl_status_text,
+        resolvectl_statistics_text,
+        bootctl_status_text,
+        enabled_service_unit_files_text,
+        running_service_units_text,
+        loginctl_list_seats_text,
+        journalctl_list_boots_text,
+        systemd_analyze_verify_text,
+        default_target_dependencies_text,
         product_name, sys_vendor, bios_version, bios_date,
         board_name, serial_number, cpu_model, virtualization,
     })

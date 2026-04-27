@@ -327,6 +327,81 @@ pub fn get_detected_backends() -> (String, String) {
     (detect_network_backend().to_string(), detect_firewall_backend().to_string())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SystemdNetworkDiagnostics {
+    pub systemd_networkd_active: bool,
+    pub network_manager_active: bool,
+    pub networkctl_list: String,
+    pub networkctl_status_all: String,
+    pub resolvectl_status: String,
+    pub resolvectl_statistics: String,
+    pub networkd_recent_logs: String,
+    pub resolved_recent_logs: String,
+}
+
+pub fn get_systemd_network_diagnostics() -> Result<SystemdNetworkDiagnostics, LibvirtError> {
+    let systemd_networkd_active =
+        is_service_active("systemd-networkd").unwrap_or(false);
+    let network_manager_active = is_service_active("NetworkManager").unwrap_or(false);
+
+    let networkctl_list = run_capture(
+        &find_bin("networkctl"),
+        &["list"],
+        "Failed to run networkctl list",
+    )?;
+    let networkctl_status_all = run_capture(
+        &find_bin("networkctl"),
+        &["status", "--all"],
+        "Failed to run networkctl status --all",
+    )?;
+    let resolvectl_status = run_capture(
+        &find_bin("resolvectl"),
+        &["status"],
+        "Failed to run resolvectl status",
+    )?;
+    let resolvectl_statistics = run_capture(
+        &find_bin("resolvectl"),
+        &["statistics"],
+        "Failed to run resolvectl statistics",
+    )?;
+    let networkd_recent_logs = run_capture(
+        &find_bin("journalctl"),
+        &["-u", "systemd-networkd", "--since", "5 minutes ago", "--no-pager", "-n", "120"],
+        "Failed to read systemd-networkd logs",
+    )?;
+    let resolved_recent_logs = run_capture(
+        &find_bin("journalctl"),
+        &["-u", "systemd-resolved", "--since", "5 minutes ago", "--no-pager", "-n", "120"],
+        "Failed to read systemd-resolved logs",
+    )?;
+
+    Ok(SystemdNetworkDiagnostics {
+        systemd_networkd_active,
+        network_manager_active,
+        networkctl_list,
+        networkctl_status_all,
+        resolvectl_status,
+        resolvectl_statistics,
+        networkd_recent_logs,
+        resolved_recent_logs,
+    })
+}
+
+pub fn get_systemd_interface_status(iface: &str) -> Result<String, LibvirtError> {
+    if iface.is_empty()
+        || !iface
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@')
+    {
+        return Err(LibvirtError::Invalid("Invalid interface name".to_string()));
+    }
+    run_capture(
+        &find_bin("networkctl"),
+        &["status", iface],
+        "Failed to run networkctl status for interface",
+    )
+}
+
 pub fn create_port_forward(req: &CreatePortForwardRequest) -> Result<(), LibvirtError> {
     if req.protocol != "tcp" && req.protocol != "udp" {
         return Err(LibvirtError::Invalid("Protocol must be 'tcp' or 'udp'".to_string()));
@@ -543,6 +618,26 @@ fn run_cmd(cmd: &str, args: &[&str], context: &str) -> Result<(), LibvirtError> 
         return Err(LibvirtError::Operation(format!("{context}: {}", stderr.trim())));
     }
     Ok(())
+}
+
+fn run_capture(cmd: &str, args: &[&str], context: &str) -> Result<String, LibvirtError> {
+    let output = Command::new(cmd)
+        .args(args)
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("{context}: {e}")))?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(LibvirtError::Operation(format!("{context}: {}", stderr.trim())));
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+}
+
+fn is_service_active(name: &str) -> Result<bool, LibvirtError> {
+    let output = Command::new(find_bin("systemctl"))
+        .args(["is-active", name])
+        .output()
+        .map_err(LibvirtError::map_op("Failed to run systemctl is-active"))?;
+    Ok(String::from_utf8_lossy(&output.stdout).trim() == "active")
 }
 
 fn extract_dpt(line: &str) -> Option<u16> {

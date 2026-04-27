@@ -30,6 +30,21 @@ async fn get_sysctl_tuning(State(_manager): State<LibvirtManager>) -> Json<host_
     Json(host_sysctl::sysctl_tuning_report())
 }
 
+async fn get_systemd_network_diagnostics(
+    State(_manager): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let out = host_network::get_systemd_network_diagnostics()?;
+    Ok(Json(serde_json::json!(out)))
+}
+
+async fn get_systemd_interface_status(
+    State(_manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let out = host_network::get_systemd_interface_status(&name)?;
+    Ok(Json(serde_json::json!({ "interface": name, "status": out })))
+}
+
 // ── Bridges ────────────────────────────────────────────────────────
 
 async fn create_bridge_handler(
@@ -114,6 +129,8 @@ pub fn host_network_routes() -> Router<LibvirtManager> {
         .route("/host/interfaces", get(list_interfaces))
         .route("/host/backends", get(get_network_backends))
         .route("/host/sysctl-tuning", get(get_sysctl_tuning))
+        .route("/host/network-diag", get(get_systemd_network_diagnostics))
+        .route("/host/network-diag/interface/{name}", get(get_systemd_interface_status))
         // Bridges
         .route("/host/bridges", post(create_bridge_handler))
         .route("/host/bridges/{name}", delete(delete_bridge_handler))

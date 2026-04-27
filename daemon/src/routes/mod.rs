@@ -1,19 +1,20 @@
 mod advanced;
 mod automation;
 mod backup;
-mod system;
 mod console;
 mod extras;
 mod guacamole;
 mod health;
 mod host_network;
 mod jobs;
+mod k8s;
 mod metrics;
 mod networks;
 mod node;
 mod prometheus;
 mod snapshots;
 mod storage;
+mod system;
 mod templates;
 mod vm_guest;
 mod vms;
@@ -25,6 +26,7 @@ use machina_core::LibvirtManager;
 pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()
         .merge(jobs::job_routes())
+        .merge(k8s::k8s_routes())
         .merge(vms::vm_routes())
         .merge(vm_guest::vm_guest_routes())
         .merge(snapshots::snapshot_routes())

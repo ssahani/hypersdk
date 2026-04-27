@@ -340,12 +340,43 @@ export interface JournalEntry {
   priority: string
   message: string
 }
-export const getJournalLogs = (lines: number = 100, priority?: string, unit?: string) => {
+
+export interface JournalBootEntry {
+  index: number
+  boot_id: string
+  first_entry: string
+  last_entry: string
+}
+
+export interface JournalLogsQuery {
+  lines?: number
+  priority?: string
+  unit?: string
+  boot?: number
+  since?: string
+  until?: string
+  grep?: string
+  uid?: number
+  pid?: number
+  kernel?: boolean
+}
+
+export const getJournalLogs = (query: JournalLogsQuery = {}) => {
+  const { lines = 100, priority, unit, boot, since, until, grep, uid, pid, kernel } = query
   const params = new URLSearchParams({ lines: String(lines) })
   if (priority) params.set('priority', priority)
   if (unit) params.set('unit', unit)
+  if (boot != null && Number.isFinite(boot)) params.set('boot', String(boot))
+  if (since) params.set('since', since)
+  if (until) params.set('until', until)
+  if (grep) params.set('grep', grep)
+  if (uid != null && Number.isFinite(uid)) params.set('uid', String(uid))
+  if (pid != null && Number.isFinite(pid)) params.set('pid', String(pid))
+  if (kernel) params.set('kernel', 'true')
   return apiGet<JournalEntry[]>(`${API}/logs?${params.toString()}`)
 }
+
+export const getJournalBoots = () => apiGet<JournalBootEntry[]>(`${API}/logs/boots`)
 
 // Host Shutdown/Reboot
 export const hostShutdown = () => apiPost<{ status: string }>(`${API}/host/shutdown`)
@@ -356,9 +387,59 @@ export interface SystemInfo {
   hostname: string
   timezone: string
   kernel_version: string
+  architecture: string
   os_name: string
   os_version: string
   os_pretty_name: string
+  boot_time: string
+  rtc_time: string
+  ntp_service: string
+  system_clock_synchronized: boolean
+  systemd_version: string
+  boot_duration: string
+  critical_chain_top: string[]
+  logged_in_users: number
+  pretty_hostname: string
+  transient_hostname: string
+  icon_name: string
+  chassis: string
+  deployment: string
+  location: string
+  machine_id: string
+  boot_id: string
+  hardware_model: string
+  firmware_version: string
+  local_time: string
+  universal_time: string
+  rtc_in_local_tz: string
+  systemd_version_full: string
+  systemd_analyze_blame_top: string[]
+  loginctl_users_text: string
+  loginctl_sessions_text: string
+  systemctl_show_manager: string
+  mount_units_text: string
+  failed_units_text: string
+  networkd_dependencies_text: string
+  hostnamectl_status_text: string
+  timedatectl_status_text: string
+  timedatectl_show_text: string
+  systemctl_is_system_running: string
+  systemctl_show_environment_text: string
+  systemctl_list_sockets_text: string
+  systemctl_list_timers_text: string
+  systemctl_list_jobs_text: string
+  systemctl_status_networkd_text: string
+  systemctl_status_resolved_text: string
+  resolved_dependencies_text: string
+  resolvectl_status_text: string
+  resolvectl_statistics_text: string
+  bootctl_status_text: string
+  enabled_service_unit_files_text: string
+  running_service_units_text: string
+  loginctl_list_seats_text: string
+  journalctl_list_boots_text: string
+  systemd_analyze_verify_text: string
+  default_target_dependencies_text: string
   product_name: string
   sys_vendor: string
   bios_version: string

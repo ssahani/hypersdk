@@ -1,9 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { getJournalLogs, JournalEntry } from '../api/extras'
+import { getJournalBoots, getJournalLogs, JournalBootEntry, JournalEntry } from '../api/extras'
 import { RefreshCw, Search } from 'lucide-react'
 
 const PRIORITIES = ['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug'] as const
 const LINE_COUNTS = [50, 100, 500, 1000] as const
+const BOOT_FILTERS = [
+  { label: 'All boots', value: '' },
+  { label: 'Current boot', value: '0' },
+  { label: 'Previous boot', value: '-1' },
+] as const
 
 function priorityColor(p: string): string {
   switch (p) {
@@ -36,22 +41,47 @@ export default function LogsPage() {
   const [loading, setLoading] = useState(true)
   const [priority, setPriority] = useState('')
   const [unit, setUnit] = useState('')
+  const [boot, setBoot] = useState('')
+  const [boots, setBoots] = useState<JournalBootEntry[]>([])
+  const [since, setSince] = useState('')
+  const [until, setUntil] = useState('')
+  const [grep, setGrep] = useState('')
+  const [uid, setUid] = useState('')
+  const [pid, setPid] = useState('')
+  const [kernelOnly, setKernelOnly] = useState(false)
   const [lineCount, setLineCount] = useState(100)
   const [autoRefresh, setAutoRefresh] = useState(false)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
     try {
-      const data = await getJournalLogs(lineCount, priority || undefined, unit || undefined)
+      const data = await getJournalLogs({
+        lines: lineCount,
+        priority: priority || undefined,
+        unit: unit || undefined,
+        boot: boot === '' ? undefined : Number(boot),
+        since: since || undefined,
+        until: until || undefined,
+        grep: grep || undefined,
+        uid: uid.trim() ? Number(uid) : undefined,
+        pid: pid.trim() ? Number(pid) : undefined,
+        kernel: kernelOnly,
+      })
       setEntries(data)
     } catch (e) {
       console.error('Failed to load logs:', e)
     } finally {
       setLoading(false)
     }
-  }, [lineCount, priority, unit])
+  }, [lineCount, priority, unit, boot, since, until, grep, uid, pid, kernelOnly])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    getJournalBoots()
+      .then(setBoots)
+      .catch(() => setBoots([]))
+  }, [])
 
   useEffect(() => {
     if (autoRefresh) {
@@ -82,6 +112,35 @@ export default function LogsPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => {
+            setUnit('sshd')
+            setPriority('')
+            setBoot('0')
+            setSince('1 hour ago')
+            setUntil('')
+            setGrep('')
+          }}
+          className="px-3 py-2 text-xs rounded-lg border border-slate-700/50 bg-slate-800/40 hover:bg-slate-700/40"
+        >
+          SSH last 1h
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setUnit('')
+            setPriority('err')
+            setBoot('-1')
+            setSince('')
+            setUntil('')
+            setGrep('')
+          }}
+          className="px-3 py-2 text-xs rounded-lg border border-slate-700/50 bg-slate-800/40 hover:bg-slate-700/40"
+        >
+          Previous boot errors
+        </button>
+
         <select
           value={priority}
           onChange={e => setPriority(e.target.value)}
@@ -104,6 +163,66 @@ export default function LogsPage() {
           />
         </div>
 
+        <div className="relative flex-1 min-w-[220px] max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search log messages (like --grep)"
+            value={grep}
+            onChange={e => setGrep(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          />
+        </div>
+
+        <select
+          value={boot}
+          onChange={e => setBoot(e.target.value)}
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        >
+          {BOOT_FILTERS.map((b) => (
+            <option key={b.label} value={b.value}>{b.label}</option>
+          ))}
+          {boots.map((b) => (
+            <option key={`${b.index}-${b.boot_id}`} value={String(b.index)}>
+              Boot {b.index} ({b.first_entry} .. {b.last_entry})
+            </option>
+          ))}
+        </select>
+
+        <input
+          type="text"
+          placeholder='Since (e.g. "1 hour ago" or 2026-04-20 10:00:00)'
+          value={since}
+          onChange={e => setSince(e.target.value)}
+          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        />
+
+        <input
+          type="text"
+          placeholder='Until (e.g. "now" or 2026-04-27 13:00:00)'
+          value={until}
+          onChange={e => setUntil(e.target.value)}
+          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        />
+
+        <input
+          type="number"
+          min={0}
+          placeholder="UID"
+          value={uid}
+          onChange={e => setUid(e.target.value)}
+          className="w-24 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        />
+
+        <input
+          type="number"
+          min={0}
+          placeholder="PID"
+          value={pid}
+          onChange={e => setPid(e.target.value)}
+          className="w-28 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+        />
+
         <select
           value={lineCount}
           onChange={e => setLineCount(Number(e.target.value))}
@@ -123,6 +242,20 @@ export default function LogsPage() {
           />
           Auto-refresh
         </label>
+
+        <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={kernelOnly}
+            onChange={e => setKernelOnly(e.target.checked)}
+            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/50"
+          />
+          Kernel only (-k)
+        </label>
+      </div>
+
+      <div className="text-xs text-slate-500">
+        Examples: <code>unit=sshd</code>, <code>priority=err</code>, <code>since=1 hour ago</code>, <code>boot=-1</code>, <code>uid=1000</code>, <code>pid=1234</code>, <code>grep=disconnect</code>
       </div>
 
       {/* Log entries */}

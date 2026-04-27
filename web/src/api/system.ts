@@ -2,14 +2,23 @@ const API = '/api/v1'
 
 export interface OsUserCapability {
   canCreateOsUsers: boolean
+  /** Same gate as create; omitted on older daemons (treat like canCreateOsUsers). */
+  canDeleteOsUsers?: boolean
   reason: string | null
   /** Host has `getent group libvirt` (typical for qemu:///system). */
   libvirtGroupAvailable?: boolean
   libvirtGroupName?: string
+  /** `"traditional"` or `"systemd-homed"` — how new accounts are provisioned. */
+  userAccountBackend?: string
+  systemdHomedActive?: boolean
+  homectlAvailable?: boolean
+  /** `wheel` or `sudo` when present in NSS (used for sudo-capable supplementary group). */
+  sudoSupplementaryGroup?: string | null
 }
 
 export interface CreateOsUserResult {
   libvirt_group_attached: boolean
+  account_backend?: string
 }
 
 export async function getOsUserCapability(): Promise<OsUserCapability> {
@@ -33,6 +42,24 @@ export async function createOsUser(
     const body = await res.json().catch(() => ({})) as { error?: string }
     throw new Error(body.error || `HTTP ${res.status}`)
   }
-  const body = await res.json().catch(() => ({})) as { libvirt_group_attached?: boolean }
-  return { libvirt_group_attached: Boolean(body.libvirt_group_attached) }
+  const body = await res.json().catch(() => ({})) as {
+    libvirt_group_attached?: boolean
+    account_backend?: string
+  }
+  return {
+    libvirt_group_attached: Boolean(body.libvirt_group_attached),
+    account_backend: body.account_backend,
+  }
+}
+
+export async function deleteOsUser(username: string): Promise<void> {
+  const enc = encodeURIComponent(username)
+  const res = await fetch(`${API}/system/os-users/${enc}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({})) as { error?: string }
+    throw new Error(body.error || `HTTP ${res.status}`)
+  }
 }

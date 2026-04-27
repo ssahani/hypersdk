@@ -772,8 +772,36 @@ async fn get_logs_handler(
     let lines: u32 = params.get("lines").and_then(|v| v.parse().ok()).unwrap_or(100);
     let priority = params.get("priority").map(|s| s.as_str());
     let unit = params.get("unit").map(|s| s.as_str());
-    let entries = extras::get_journal_logs(lines, priority, unit)?;
+    let boot = params.get("boot").and_then(|v| v.parse::<i32>().ok());
+    let since = params.get("since").map(|s| s.as_str());
+    let until = params.get("until").map(|s| s.as_str());
+    let grep = params.get("grep").map(|s| s.as_str());
+    let uid = params.get("uid").and_then(|v| v.parse::<u32>().ok());
+    let pid = params.get("pid").and_then(|v| v.parse::<u32>().ok());
+    let kernel_only = params
+        .get("kernel")
+        .map(|v| matches!(v.as_str(), "1" | "true" | "yes" | "on"))
+        .unwrap_or(false);
+    let entries = extras::get_journal_logs(
+        lines,
+        priority,
+        unit,
+        boot,
+        since,
+        until,
+        grep,
+        uid,
+        pid,
+        kernel_only,
+    )?;
     Ok(Json(serde_json::json!(entries)))
+}
+
+async fn list_log_boots_handler(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let boots = extras::get_journal_boots()?;
+    Ok(Json(serde_json::json!(boots)))
 }
 
 // ── Host Shutdown/Reboot ──────────────────────────────────────────
@@ -882,6 +910,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/services/{name}/{action}", post(service_action_handler))
         // System logs
         .route("/logs", get(get_logs_handler))
+        .route("/logs/boots", get(list_log_boots_handler))
         // Host shutdown/reboot
         .route("/host/shutdown", post(host_shutdown_handler))
         .route("/host/reboot", post(host_reboot_handler))

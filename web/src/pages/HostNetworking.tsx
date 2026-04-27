@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listVMs, VmInfo, getInterfaces, GuestIpAddress } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import {
@@ -6,16 +6,18 @@ import {
   createBridge, deleteBridge, createPortForward, deletePortForward,
   createFirewallRule, deleteFirewallRule,
   getSysctlTuning,
-  HostInterface, PortForwardRule, FirewallRule, SysctlTuningResponse, SysctlTuningRow,
+  getSystemdNetworkDiagnostics,
+  getSystemdInterfaceStatus,
+  HostInterface, PortForwardRule, FirewallRule, SysctlTuningResponse, SysctlTuningRow, SystemdNetworkDiagnostics,
 } from '../api/hostNetwork'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   Network, Globe, Shield, Router, Plus, Trash2, RefreshCw,
-  ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check,
+  ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check, Search,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 
-type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'sysctl'
+type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'sysctl' | 'systemd'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
 
 interface TopologyNode {
@@ -58,6 +60,22 @@ export default function HostNetworkingPage() {
   const [sysctlData, setSysctlData] = useState<SysctlTuningResponse | null>(null)
   const [sysctlLoading, setSysctlLoading] = useState(false)
   const [sysctlCopied, setSysctlCopied] = useState(false)
+  const [diag, setDiag] = useState<SystemdNetworkDiagnostics | null>(null)
+  const [diagLoading, setDiagLoading] = useState(false)
+  const [ifaceDiag, setIfaceDiag] = useState<Record<string, string>>({})
+  const [ifaceDiagLoading, setIfaceDiagLoading] = useState<string | null>(null)
+  const [ifaceFilter, setIfaceFilter] = useState('')
+
+  const filteredHostIfaces = useMemo(() => {
+    const q = ifaceFilter.trim().toLowerCase()
+    if (!q) return hostIfaces
+    return hostIfaces.filter((i) =>
+      i.name.toLowerCase().includes(q)
+      || i.iface_type.toLowerCase().includes(q)
+      || i.master.toLowerCase().includes(q)
+      || i.ipv4.some((ip) => ip.toLowerCase().includes(q)),
+    )
+  }, [hostIfaces, ifaceFilter])
 
   const loadSysctlTuning = useCallback(async () => {
     setSysctlLoading(true)
@@ -68,6 +86,30 @@ export default function HostNetworkingPage() {
       toast.error(`Sysctl tuning: ${e instanceof Error ? e.message : e}`)
     } finally {
       setSysctlLoading(false)
+    }
+  }, [toast])
+
+  const loadInterfaceDiag = useCallback(async (name: string) => {
+    setIfaceDiagLoading(name)
+    try {
+      const out = await getSystemdInterfaceStatus(name)
+      setIfaceDiag((prev) => ({ ...prev, [name]: out.status || '' }))
+    } catch (e: unknown) {
+      toast.error(`Interface diagnostics (${name}): ${e instanceof Error ? e.message : e}`)
+    } finally {
+      setIfaceDiagLoading(null)
+    }
+  }, [toast])
+
+  const loadSystemdDiag = useCallback(async () => {
+    setDiagLoading(true)
+    try {
+      const out = await getSystemdNetworkDiagnostics()
+      setDiag(out)
+    } catch (e: unknown) {
+      toast.error(`Systemd network diagnostics: ${e instanceof Error ? e.message : e}`)
+    } finally {
+      setDiagLoading(false)
     }
   }, [toast])
 
@@ -103,6 +145,12 @@ export default function HostNetworkingPage() {
     if (sysctlData) return
     void loadSysctlTuning()
   }, [tab, sysctlData, loadSysctlTuning])
+
+  useEffect(() => {
+    if (tab !== 'systemd') return
+    if (diag) return
+    void loadSystemdDiag()
+  }, [tab, diag, loadSystemdDiag])
 
   // ── Topology data ──────────────────────────────────────────────
 
@@ -209,6 +257,7 @@ export default function HostNetworkingPage() {
     { key: 'bridges', label: `Bridges`, icon: <Router className="w-4 h-4" /> },
     { key: 'firewall', label: `Firewall (${firewallRules.length})`, icon: <Shield className="w-4 h-4" /> },
     { key: 'sysctl', label: 'Host sysctl', icon: <Sliders className="w-4 h-4" /> },
+    { key: 'systemd', label: 'Systemd net diag', icon: <Cable className="w-4 h-4" /> },
   ]
 
   const normSysctlVal = (s: string) => s.trim().replace(/\s+/g, ' ')
@@ -485,6 +534,112 @@ export default function HostNetworkingPage() {
               <summary className="px-4 py-3 text-sm text-slate-400 cursor-pointer hover:text-slate-200">Full drop-in file text</summary>
               <pre className="px-4 pb-4 text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap border-t border-slate-700/30 pt-3 max-h-96 overflow-y-auto">{sysctlData.recommended_conf}</pre>
             </details>
+          )}
+        </div>
+      )}
+
+      {/* ── Systemd network diagnostics ───────────────────────── */}
+      {tab === 'systemd' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm text-slate-400 max-w-3xl">
+              Native systemd networking view: <code className="text-slate-300">networkctl</code>, <code className="text-slate-300">resolvectl</code>, and recent
+              <code className="text-slate-300"> systemd-networkd</code>/<code className="text-slate-300">systemd-resolved</code> logs.
+            </p>
+            <button type="button" onClick={() => void loadSystemdDiag()} disabled={diagLoading} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1 disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${diagLoading ? 'animate-spin' : ''}`} /> Refresh diagnostics
+            </button>
+          </div>
+
+          {diag && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 px-4 py-3">
+                <div className="text-xs text-slate-500">systemd-networkd</div>
+                <div className={diag.systemd_networkd_active ? 'text-green-400 text-sm font-medium' : 'text-amber-400 text-sm font-medium'}>
+                  {diag.systemd_networkd_active ? 'active' : 'inactive'}
+                </div>
+              </div>
+              <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 px-4 py-3">
+                <div className="text-xs text-slate-500">NetworkManager</div>
+                <div className={diag.network_manager_active ? 'text-blue-400 text-sm font-medium' : 'text-slate-500 text-sm font-medium'}>
+                  {diag.network_manager_active ? 'active' : 'inactive'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {diagLoading && !diag && (
+            <div className="flex items-center justify-center py-16 text-slate-500 text-sm">Collecting systemd network diagnostics…</div>
+          )}
+
+          {diag && (
+            <div className="space-y-3">
+              <div className="bg-slate-900/40 rounded-xl border border-slate-700/40 p-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                  <div className="text-sm text-slate-300">Per-interface quick status</div>
+                  <span className="text-xs text-slate-500">
+                    Showing {filteredHostIfaces.length} of {hostIfaces.length} interfaces
+                  </span>
+                </div>
+                <div className="relative mb-3 max-w-md">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <input
+                    type="search"
+                    value={ifaceFilter}
+                    onChange={(e) => setIfaceFilter(e.target.value)}
+                    placeholder="Filter by name, type, master, or IP…"
+                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    aria-label="Filter interfaces"
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {filteredHostIfaces.map((iface) => (
+                    <button
+                      key={iface.name}
+                      type="button"
+                      onClick={() => void loadInterfaceDiag(iface.name)}
+                      disabled={ifaceDiagLoading === iface.name}
+                      className="px-2.5 py-1.5 text-xs rounded-md border border-slate-700/60 bg-slate-800/70 hover:bg-slate-700/60 disabled:opacity-50"
+                    >
+                      {ifaceDiagLoading === iface.name ? `Loading ${iface.name}...` : `networkctl status ${iface.name}`}
+                    </button>
+                  ))}
+                </div>
+                {filteredHostIfaces.length === 0 && (
+                  <p className="text-xs text-slate-500 mt-2">No interfaces match this filter.</p>
+                )}
+                {Object.entries(ifaceDiag)
+                  .filter(([name]) => {
+                    const q = ifaceFilter.trim().toLowerCase()
+                    if (!q) return true
+                    return name.toLowerCase().includes(q)
+                  })
+                  .map(([name, body]) => (
+                  <details key={name} className="mt-3 bg-slate-900/50 rounded-lg border border-slate-700/40" open>
+                    <summary className="px-3 py-2 text-xs text-slate-300 cursor-pointer hover:text-white">{`networkctl status ${name}`}</summary>
+                    <pre className="px-3 pb-3 text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+                      {body.trim() || 'No output.'}
+                    </pre>
+                  </details>
+                ))}
+              </div>
+
+              {[
+                ['networkctl list', diag.networkctl_list],
+                ['networkctl status --all', diag.networkctl_status_all],
+                ['resolvectl status', diag.resolvectl_status],
+                ['resolvectl statistics', diag.resolvectl_statistics],
+                ['journalctl -u systemd-networkd --since "5 minutes ago"', diag.networkd_recent_logs],
+                ['journalctl -u systemd-resolved --since "5 minutes ago"', diag.resolved_recent_logs],
+              ].map(([title, body]) => (
+                <details key={title} className="bg-slate-900/40 rounded-xl border border-slate-700/40" open={title === 'networkctl list'}>
+                  <summary className="px-4 py-3 text-sm text-slate-300 cursor-pointer hover:text-white">{title}</summary>
+                  <pre className="px-4 pb-4 text-xs text-slate-400 overflow-x-auto whitespace-pre-wrap border-t border-slate-700/30 pt-3 max-h-96 overflow-y-auto">
+                    {String(body || '').trim() || 'No output.'}
+                  </pre>
+                </details>
+              ))}
+            </div>
           )}
         </div>
       )}

@@ -166,6 +166,22 @@ export default function NodeInfoPage() {
           <h3 className="text-lg font-semibold flex items-center gap-2"><Monitor className="w-5 h-5 text-cyan-400" /> System Configuration</h3>
           <InfoRow label="OS" value={sysInfo.os_pretty_name || `${sysInfo.os_name} ${sysInfo.os_version}`} />
           <InfoRow label="Kernel" value={sysInfo.kernel_version} />
+          {sysInfo.architecture && <InfoRow label="Architecture" value={sysInfo.architecture} />}
+          {sysInfo.hardware_model && <InfoRow label="Hardware model" value={sysInfo.hardware_model} />}
+          {sysInfo.firmware_version && <InfoRow label="Firmware (hostnamectl)" value={sysInfo.firmware_version} />}
+          {sysInfo.systemd_version && <InfoRow label="systemd" value={sysInfo.systemd_version} />}
+          {sysInfo.boot_duration && <InfoRow label="Boot duration" value={sysInfo.boot_duration} />}
+          {sysInfo.boot_time && <InfoRow label="Boot time" value={sysInfo.boot_time} />}
+          {sysInfo.local_time && <InfoRow label="Local time" value={sysInfo.local_time} />}
+          {sysInfo.universal_time && <InfoRow label="Universal time" value={sysInfo.universal_time} />}
+          {sysInfo.rtc_time && <InfoRow label="RTC time" value={sysInfo.rtc_time} />}
+          {sysInfo.rtc_in_local_tz && <InfoRow label="RTC in local TZ" value={sysInfo.rtc_in_local_tz} />}
+          {sysInfo.ntp_service && <InfoRow label="NTP service" value={sysInfo.ntp_service} />}
+          <InfoRow label="Clock sync" value={sysInfo.system_clock_synchronized ? 'yes' : 'no'} />
+          {sysInfo.systemctl_is_system_running && (
+            <InfoRow label="systemctl is-system-running" value={sysInfo.systemctl_is_system_running} />
+          )}
+          <InfoRow label="Logged-in users" value={sysInfo.logged_in_users} />
           {sysInfo.cpu_model && <InfoRow label="CPU Model" value={sysInfo.cpu_model} />}
           {sysInfo.sys_vendor && <InfoRow label="Vendor" value={sysInfo.sys_vendor} />}
           {sysInfo.product_name && <InfoRow label="Product" value={sysInfo.product_name} />}
@@ -173,6 +189,14 @@ export default function NodeInfoPage() {
           {sysInfo.bios_version && <InfoRow label="BIOS" value={`${sysInfo.bios_version} (${sysInfo.bios_date})`} />}
           {sysInfo.serial_number && sysInfo.serial_number !== 'None' && <InfoRow label="Serial" value={sysInfo.serial_number} />}
           {sysInfo.virtualization && sysInfo.virtualization !== 'none' && <InfoRow label="Virtualization" value={sysInfo.virtualization} />}
+          {sysInfo.pretty_hostname && <InfoRow label="Pretty hostname" value={sysInfo.pretty_hostname} />}
+          {sysInfo.transient_hostname && <InfoRow label="Transient hostname" value={sysInfo.transient_hostname} />}
+          {sysInfo.icon_name && <InfoRow label="Icon name" value={sysInfo.icon_name} />}
+          {sysInfo.chassis && <InfoRow label="Chassis" value={sysInfo.chassis} />}
+          {sysInfo.deployment && <InfoRow label="Deployment" value={sysInfo.deployment} />}
+          {sysInfo.location && <InfoRow label="Location" value={sysInfo.location} />}
+          {sysInfo.machine_id && <InfoRow label="Machine ID" value={sysInfo.machine_id} />}
+          {sysInfo.boot_id && <InfoRow label="Boot ID" value={sysInfo.boot_id} />}
 
           {/* Editable Hostname */}
           <div className="flex items-center justify-between py-2 border-b border-slate-700/30">
@@ -226,6 +250,191 @@ export default function NodeInfoPage() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {sysInfo && (
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Activity className="w-5 h-5 text-emerald-400" /> Raw systemd diagnostics
+          </h3>
+          <p className="text-xs text-slate-500">
+            Extended snapshot: raw <code className="text-slate-400">hostnamectl</code>/<code className="text-slate-400">timedatectl</code>,{' '}
+            <code className="text-slate-400">resolvectl</code>, sockets/timers/jobs, unit lists, target dependencies,{' '}
+            <code className="text-slate-400">journalctl --list-boots</code>, and more (truncated server-side).
+          </p>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40" open>
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl --version (full)</summary>
+            <pre className="px-3 pb-3 text-xs text-cyan-300/90 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.systemd_version_full || sysInfo.systemd_version || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40" open>
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemd-analyze critical-chain (top)</summary>
+            <div className="px-3 pb-3 border-t border-slate-700/30 pt-2 space-y-1 max-h-56 overflow-y-auto">
+              {sysInfo.critical_chain_top?.length ? sysInfo.critical_chain_top.map((line, idx) => (
+                <pre key={`${idx}-${line}`} className="text-xs text-slate-300 whitespace-pre-wrap break-words font-mono">{line}</pre>
+              )) : <div className="text-xs text-slate-500">No critical-chain data.</div>}
+            </div>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemd-analyze blame (top)</summary>
+            <div className="px-3 pb-3 border-t border-slate-700/30 pt-2 space-y-0.5 max-h-72 overflow-y-auto">
+              {sysInfo.systemd_analyze_blame_top?.length ? sysInfo.systemd_analyze_blame_top.map((line, idx) => (
+                <pre key={`${idx}-${line}`} className="text-xs text-slate-300 whitespace-pre-wrap break-words font-mono">{line}</pre>
+              )) : <div className="text-xs text-slate-500">No blame data.</div>}
+            </div>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">loginctl list-users</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-48 overflow-y-auto">
+              {(sysInfo.loginctl_users_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">loginctl list-sessions</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.loginctl_sessions_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl show (manager, truncated)</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-80 overflow-y-auto">
+              {(sysInfo.systemctl_show_manager || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-units --type=mount --state=active</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.mount_units_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-units --state=failed</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-48 overflow-y-auto">
+              {(sysInfo.failed_units_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-dependencies systemd-networkd</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.networkd_dependencies_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">hostnamectl (raw)</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.hostnamectl_status_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">timedatectl (raw)</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.timedatectl_status_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">timedatectl show</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.timedatectl_show_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl show-environment</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.systemctl_show_environment_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-sockets</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.systemctl_list_sockets_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-timers --all</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.systemctl_list_timers_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-jobs</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-48 overflow-y-auto">
+              {(sysInfo.systemctl_list_jobs_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl status systemd-networkd</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.systemctl_status_networkd_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl status systemd-resolved</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.systemctl_status_resolved_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-dependencies systemd-resolved</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.resolved_dependencies_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">resolvectl status</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-80 overflow-y-auto">
+              {(sysInfo.resolvectl_status_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">resolvectl statistics</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-48 overflow-y-auto">
+              {(sysInfo.resolvectl_statistics_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">bootctl status</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-64 overflow-y-auto">
+              {(sysInfo.bootctl_status_text || '').trim() || 'No output (not using systemd-boot or bootctl missing).'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-unit-files (enabled services)</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.enabled_service_unit_files_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-units (running services)</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.running_service_units_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">loginctl list-seats</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-40 overflow-y-auto">
+              {(sysInfo.loginctl_list_seats_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">journalctl --list-boots</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-56 overflow-y-auto">
+              {(sysInfo.journalctl_list_boots_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemd-analyze verify</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.systemd_analyze_verify_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/40">
+            <summary className="px-3 py-2 text-sm text-slate-300 cursor-pointer hover:text-white">systemctl list-dependencies default.target</summary>
+            <pre className="px-3 pb-3 text-xs text-slate-400 font-mono whitespace-pre-wrap break-words border-t border-slate-700/30 pt-2 max-h-72 overflow-y-auto">
+              {(sysInfo.default_target_dependencies_text || '').trim() || 'No output.'}
+            </pre>
+          </details>
         </div>
       )}
 
@@ -596,6 +805,8 @@ export default function NodeInfoPage() {
           <ChoiceLinkCard to="/services" icon={<Server className="w-4 h-4" />} title="Systemd services" description="Unit status, start/stop, and journal tails." />
           <ChoiceLinkCard to="/logs" icon={<ScrollText className="w-4 h-4" />} title="Journal logs" description="Filter and follow messages on the hypervisor." />
           <ChoiceLinkCard to="/host-networking" icon={<Network className="w-4 h-4" />} title="Host networking" description="Bridges, routes, DNS, and firewall context." />
+          <ChoiceLinkCard to="/k8s" icon={<Server className="w-4 h-4" />} title="Kubernetes cluster" description="Control-plane and worker node status with click actions." />
+          <ChoiceLinkCard to="/k8s/workloads" icon={<Activity className="w-4 h-4" />} title="K8s workloads" description="Deployments, pods, services, and rollout/scale/delete actions." />
         </ChoiceCardGrid>
       </div>
     </div>

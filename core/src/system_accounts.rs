@@ -1,4 +1,5 @@
-//! Create local UNIX accounts (useradd / chpasswd). Intended for daemons running as root;
+//! Create and remove local UNIX accounts (`useradd` / `userdel`, or `homectl` when
+//! `systemd-homed` is active), plus `chpasswd`. Intended for daemons running as root;
 //! callers must enforce policy (e.g. only session users in wheel/sudo).
 
 use std::io::Write;
@@ -8,6 +9,58 @@ use crate::LibvirtError;
 
 /// Groups that conventionally grant `sudo` on common distros (membership checked via NSS).
 const PRIVILEGED_GROUPS: &[&str] = &["wheel", "sudo", "admin"];
+
+/// `systemd-homed` is the active systemd unit (may still coexist with `/etc/passwd` users).
+pub fn systemd_homed_is_active() -> bool {
+    Command::new("systemctl")
+        .args(["is-active", "systemd-homed"])
+        .output()
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim() == "active")
+        .unwrap_or(false)
+}
+
+/// `homectl` is installed and runnable.
+pub fn homectl_available() -> bool {
+    Command::new("homectl")
+        .arg("--version")
+        .output()
+        .ok()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+/// Prefer `wheel` (RHEL/Fedora), then `sudo`, then `admin` (legacy Debian), when present in NSS.
+pub fn sudo_supplementary_group() -> Option<&'static str> {
+    if getent_line("group", "wheel").is_some() {
+        return Some("wheel");
+    }
+    if getent_line("group", "sudo").is_some() {
+        return Some("sudo");
+    }
+    if getent_line("group", "admin").is_some() {
+        return Some("admin");
+    }
+    None
+}
+
+/// `"systemd-homed"` when homed is active and `homectl` exists; otherwise `"traditional"`.
+pub fn os_user_account_backend() -> &'static str {
+    if systemd_homed_is_active() && homectl_available() {
+        "systemd-homed"
+    } else {
+        "traditional"
+    }
+}
+
+fn is_homed_managed_user(username: &str) -> bool {
+    Command::new("homectl")
+        .args(["inspect", username])
+        .output()
+        .ok()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
 
 /// Standard UNIX group for `qemu:///system` socket/policy on Fedora/RHEL/Debian derivatives.
 pub const LIBVIRT_UNIX_GROUP: &str = "libvirt";
@@ -134,6 +187,10 @@ pub struct LocalUserCreateOutcome {
 
 /// Create a new local user with home directory and `/bin/bash`, set password via `chpasswd`,
 /// and optionally append the user to the `libvirt` group for `qemu:///system` access.
+///
+/// When `systemd-homed` is active and `homectl` is available, uses `homectl create` with
+/// `--member-of` for the host `wheel`/`sudo` group plus optional `libvirt`; otherwise uses
+/// `useradd` / `usermod`.
 pub fn create_local_user(
     new_username: &str,
     password: &str,
@@ -173,31 +230,74 @@ pub fn create_local_user(
         )));
     }
 
-    let st = Command::new("useradd")
-        .args(["-m", "-s", "/bin/bash", "--", new_username])
-        .status()
-        .map_err(|e| LibvirtError::Operation(format!("useradd: {e}")))?;
-    if !st.success() {
-        return Err(LibvirtError::Operation(
-            "useradd failed (see journal for details)".into(),
-        ));
-    }
-
+    let use_homed = os_user_account_backend() == "systemd-homed";
     let mut libvirt_attached = false;
-    if add_to_libvirt_group {
-        let um = Command::new("usermod")
-            .args(["-aG", LIBVIRT_UNIX_GROUP, "--", new_username])
-            .output()
-            .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
-        if !um.status.success() {
-            let err = String::from_utf8_lossy(&um.stderr);
-            return Err(LibvirtError::Operation(format!(
-                "usermod -aG {} failed: {}",
-                LIBVIRT_UNIX_GROUP,
-                err.trim()
-            )));
+
+    if use_homed {
+        let Some(sudo_g) = sudo_supplementary_group() else {
+            return Err(LibvirtError::Invalid(
+                "systemd-homed is active but no wheel, sudo, or admin group exists in NSS; cannot assign sudo membership"
+                    .into(),
+            ));
+        };
+        let mut args: Vec<String> = vec![
+            "create".into(),
+            "--shell=/bin/bash".into(),
+            format!("--member-of={sudo_g}"),
+            "--storage=directory".into(),
+        ];
+        if add_to_libvirt_group {
+            args.push(format!("--member-of={LIBVIRT_UNIX_GROUP}"));
+            libvirt_attached = true;
         }
-        libvirt_attached = true;
+        args.push(new_username.to_string());
+        let st = Command::new("homectl")
+            .args(args.iter().map(String::as_str))
+            .status()
+            .map_err(|e| LibvirtError::Operation(format!("homectl: {e}")))?;
+        if !st.success() {
+            return Err(LibvirtError::Operation(
+                "homectl create failed (see journal for details)".into(),
+            ));
+        }
+    } else {
+        let st = Command::new("useradd")
+            .args(["-m", "-s", "/bin/bash", "--", new_username])
+            .status()
+            .map_err(|e| LibvirtError::Operation(format!("useradd: {e}")))?;
+        if !st.success() {
+            return Err(LibvirtError::Operation(
+                "useradd failed (see journal for details)".into(),
+            ));
+        }
+        if let Some(g) = sudo_supplementary_group() {
+            let um = Command::new("usermod")
+                .args(["-aG", g, "--", new_username])
+                .output()
+                .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
+            if !um.status.success() {
+                let err = String::from_utf8_lossy(&um.stderr);
+                return Err(LibvirtError::Operation(format!(
+                    "usermod -aG {g} failed: {}",
+                    err.trim()
+                )));
+            }
+        }
+        if add_to_libvirt_group {
+            let um = Command::new("usermod")
+                .args(["-aG", LIBVIRT_UNIX_GROUP, "--", new_username])
+                .output()
+                .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
+            if !um.status.success() {
+                let err = String::from_utf8_lossy(&um.stderr);
+                return Err(LibvirtError::Operation(format!(
+                    "usermod -aG {} failed: {}",
+                    LIBVIRT_UNIX_GROUP,
+                    err.trim()
+                )));
+            }
+            libvirt_attached = true;
+        }
     }
 
     let mut child = Command::new("chpasswd")
@@ -229,6 +329,48 @@ pub fn create_local_user(
     Ok(LocalUserCreateOutcome {
         libvirt_group_attached: libvirt_attached,
     })
+}
+
+/// Remove a local user and home directory. Uses `homectl remove` when the account is managed by
+/// `systemd-homed` (`homectl inspect` succeeds); otherwise `userdel -r`.
+pub fn delete_local_user(username: &str) -> Result<(), LibvirtError> {
+    validate_login_username(username)?;
+    if username.eq_ignore_ascii_case("root") {
+        return Err(LibvirtError::Invalid("Cannot delete root".into()));
+    }
+
+    let exists = Command::new("id")
+        .arg(username)
+        .status()
+        .map_err(|e| LibvirtError::Operation(format!("id: {e}")))?;
+    if !exists.success() {
+        return Err(LibvirtError::NotFound(format!(
+            "User '{username}' does not exist"
+        )));
+    }
+
+    if is_homed_managed_user(username) {
+        let st = Command::new("homectl")
+            .args(["remove", username])
+            .status()
+            .map_err(|e| LibvirtError::Operation(format!("homectl: {e}")))?;
+        if !st.success() {
+            return Err(LibvirtError::Operation(
+                "homectl remove failed (see journal for details)".into(),
+            ));
+        }
+    } else {
+        let st = Command::new("userdel")
+            .args(["-r", "--", username])
+            .status()
+            .map_err(|e| LibvirtError::Operation(format!("userdel: {e}")))?;
+        if !st.success() {
+            return Err(LibvirtError::Operation(
+                "userdel failed (see journal for details)".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
