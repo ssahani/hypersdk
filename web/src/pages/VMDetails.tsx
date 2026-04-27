@@ -8,7 +8,7 @@ import {
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
-  setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu,
+  setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu, getNumaTune, setNumaTune, pinEmulator,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
   VmDeleteUndefineOpts, BlockJobInfo,
   tuneVmDisk, tuneVmNic, setVmFirmware, attachVmTpm, detachVmTpm,
@@ -85,7 +85,7 @@ function SnapshotTableRows({
 
 type Tab = 'overview' | 'disks' | 'network' | 'snapshots' | 'devices' | 'xml' | 'logs' | 'advanced'
 type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'boot-order' | 'vcpus' | 'memory' | 'balloon' | 'attach-disk' | 'resize-disk' | 'attach-nic' | 'attach-usb' | 'save-template'
-  | 'delete-vm' | 'scheduler-tune' | 'memtune' | 'pin-vcpu' | 'block-commit'
+  | 'delete-vm' | 'scheduler-tune' | 'memtune' | 'numa-tune' | 'emulator-pin' | 'pin-vcpu' | 'block-commit'
   | 'disk-tune' | 'nic-tune' | 'firmware' | 'watchdog' | 'sound' | 'serial' | 'video'
 
 export default function VMDetailsPage() {
@@ -183,6 +183,9 @@ export default function VMDetailsPage() {
   const [memSwapKb, setMemSwapKb] = useState('')
   const [pinVcpuN, setPinVcpuN] = useState(0)
   const [pinMap, setPinMap] = useState<boolean[]>(() => Array.from({ length: 64 }, () => false))
+  const [numaNodeSet, setNumaNodeSet] = useState('')
+  const [numaModeInput, setNumaModeInput] = useState('')
+  const [emuPinMap, setEmuPinMap] = useState<boolean[]>(() => Array.from({ length: 64 }, () => false))
 
   // Confirmation dialog state for destructive actions
   const [detachDiskTarget, setDetachDiskTarget] = useState<string | null>(null)
@@ -291,6 +294,20 @@ export default function VMDetailsPage() {
   }, [tab, name, logsLines])
 
   useEffect(() => {
+    if (dialog === 'numa-tune' && name) {
+      void getNumaTune(name)
+        .then((n) => {
+          setNumaNodeSet(n.node_set ?? '')
+          setNumaModeInput(n.mode != null ? String(n.mode) : '')
+        })
+        .catch(() => {
+          setNumaNodeSet('')
+          setNumaModeInput('')
+        })
+    }
+  }, [dialog, name])
+
+  useEffect(() => {
     if (tab === 'advanced' && vm?.disks?.length && !blockDisk) {
       const t = vm.disks.find((d) => d.device === 'disk')?.target
       if (t) setBlockDisk(t)
@@ -324,6 +341,9 @@ export default function VMDetailsPage() {
       if (d === 'pin-vcpu') {
         setPinVcpuN(0)
         setPinMap(Array.from({ length: 64 }, () => false))
+      }
+      if (d === 'emulator-pin') {
+        setEmuPinMap(Array.from({ length: 64 }, () => false))
       }
       if (d === 'delete-vm') {
         setDeleteUndefine({})
@@ -703,6 +723,48 @@ export default function VMDetailsPage() {
       }
       await applyMemTuneApi(name, body)
       toast.success('Memory tuning updated')
+      setDialog(null)
+      load()
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleNumaSave = async () => {
+    if (!name) return
+    const ns = numaNodeSet.trim()
+    const ms = numaModeInput.trim()
+    if (ns === '' && ms === '') {
+      toast.warning('Enter node_set and/or mode to apply')
+      return
+    }
+    let mode: number | null = null
+    if (ms !== '') {
+      const m = parseInt(ms, 10)
+      if (Number.isNaN(m)) {
+        toast.warning('Mode must be a libvirt mem mode integer')
+        return
+      }
+      mode = m
+    }
+    try {
+      await setNumaTune(name, {
+        node_set: ns === '' ? null : ns,
+        mode,
+      })
+      toast.success('NUMA tuning updated')
+      setDialog(null)
+      load()
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const handleEmulatorPinSave = async () => {
+    if (!name) return
+    try {
+      await pinEmulator(name, emuPinMap)
+      toast.success('Emulator threads pinned')
       setDialog(null)
       load()
     } catch (e: unknown) {
@@ -1405,6 +1467,8 @@ export default function VMDetailsPage() {
             <div className="flex flex-wrap gap-2">
               <button type="button" onClick={() => openDialog('scheduler-tune')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Edit scheduler (shares / vCPU bandwidth)</button>
               <button type="button" onClick={() => openDialog('memtune')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Edit memtune (KiB)</button>
+              <button type="button" onClick={() => openDialog('numa-tune')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">NUMA memory tuning</button>
+              <button type="button" onClick={() => openDialog('emulator-pin')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Pin QEMU emulator threads</button>
               <button type="button" onClick={() => openDialog('pin-vcpu')} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Pin vCPU to host CPUs</button>
             </div>
           </div>
@@ -1976,6 +2040,30 @@ export default function VMDetailsPage() {
               <input className="input-field mb-2" value={memSoftKb} onChange={(e) => setMemSoftKb(e.target.value)} />
               <label className="block text-sm text-slate-400 mb-1">swap_hard_limit_kb</label>
               <input className="input-field" value={memSwapKb} onChange={(e) => setMemSwapKb(e.target.value)} />
+            </DialogBox>
+          )}
+
+          {dialog === 'numa-tune' && (
+            <DialogBox title="NUMA memory tuning" icon={<Cpu className="w-5 h-5 text-violet-400" />} onClose={() => setDialog(null)} onConfirm={() => void handleNumaSave()} confirmLabel="Apply">
+              <p className="text-xs text-slate-500 mb-2">Maps to libvirt <code className="text-slate-400">numatune</code>. Mode is the raw libvirt mem mode integer; leave blank to skip updating mode.</p>
+              <label className="block text-sm text-slate-400 mb-1">node_set (e.g. 0-1 or 0)</label>
+              <input className="input-field mb-3" value={numaNodeSet} onChange={(e) => setNumaNodeSet(e.target.value)} placeholder="0" />
+              <label className="block text-sm text-slate-400 mb-1">mode (optional)</label>
+              <input className="input-field" value={numaModeInput} onChange={(e) => setNumaModeInput(e.target.value)} placeholder="strict / preferred / … as int" />
+            </DialogBox>
+          )}
+
+          {dialog === 'emulator-pin' && (
+            <DialogBox title="Pin QEMU emulator to host CPUs" icon={<Cpu className="w-5 h-5 text-amber-400" />} onClose={() => setDialog(null)} onConfirm={() => void handleEmulatorPinSave()} confirmLabel="Apply">
+              <p className="text-xs text-slate-500 mb-2">Host CPUs 0–63 (first 64 logical CPUs), same grid as vCPU pinning.</p>
+              <div className="max-h-40 overflow-y-auto border border-slate-700 rounded p-2 grid grid-cols-8 gap-1">
+                {emuPinMap.map((on, i) => (
+                  <label key={i} className="flex items-center gap-1 text-[10px] text-slate-400 cursor-pointer">
+                    <input type="checkbox" checked={on} onChange={(e) => setEmuPinMap((m) => { const n = [...m]; n[i] = e.target.checked; return n })} />
+                    {i}
+                  </label>
+                ))}
+              </div>
             </DialogBox>
           )}
 

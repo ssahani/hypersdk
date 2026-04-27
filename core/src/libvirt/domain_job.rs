@@ -27,7 +27,11 @@ pub fn job_stats(
 }
 
 /// Same as [`job_stats`] with `flags` as `u32` (`virDomainGetJobStatsFlags`).
-pub fn job_stats_u32(conn: &Connect, name: &str, flags: u32) -> Result<serde_json::Value, LibvirtError> {
+pub fn job_stats_u32(
+    conn: &Connect,
+    name: &str,
+    flags: u32,
+) -> Result<serde_json::Value, LibvirtError> {
     job_stats(conn, name, flags as _)
 }
 

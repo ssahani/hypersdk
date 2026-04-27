@@ -15,7 +15,9 @@ fn hex_u32_max4(s: &str) -> Result<u32, LibvirtError> {
 
 fn hex_u8_exact2(s: &str) -> Result<u8, LibvirtError> {
     if s.len() != 2 {
-        return Err(LibvirtError::Invalid(format!("PCI segment must be 2 hex digits, got '{s}'")));
+        return Err(LibvirtError::Invalid(format!(
+            "PCI segment must be 2 hex digits, got '{s}'"
+        )));
     }
     u8::from_str_radix(s, 16).map_err(|_| LibvirtError::Invalid(format!("Invalid hex '{s}'")))
 }
@@ -23,9 +25,11 @@ fn hex_u8_exact2(s: &str) -> Result<u8, LibvirtError> {
 /// PCI BDF as `BBBB:BB:DD.F` (e.g. `0000:03:00.0`), domain/bus/slot in hex, function 0–7.
 pub fn parse_pci_bdf(s: &str) -> Result<(String, String, String, String), LibvirtError> {
     let s = s.trim();
-    let (prefix, func_s) = s
-        .rsplit_once('.')
-        .ok_or_else(|| LibvirtError::Invalid(format!("Invalid PCI address '{s}' (expected e.g. 0000:03:00.0)")))?;
+    let (prefix, func_s) = s.rsplit_once('.').ok_or_else(|| {
+        LibvirtError::Invalid(format!(
+            "Invalid PCI address '{s}' (expected e.g. 0000:03:00.0)"
+        ))
+    })?;
     let func: u8 = func_s
         .parse()
         .map_err(|_| LibvirtError::Invalid(format!("Invalid PCI function '{func_s}'")))?;
@@ -57,25 +61,35 @@ fn pci_hostdev_xml(pci_domain: &str, bus: &str, slot: &str, function: &str) -> S
     )
 }
 
-pub fn attach_pci_hostdev(conn: &Connect, vm_name: &str, pci_bdf: &str) -> Result<(), LibvirtError> {
+pub fn attach_pci_hostdev(
+    conn: &Connect,
+    vm_name: &str,
+    pci_bdf: &str,
+) -> Result<(), LibvirtError> {
     let (pci_domain, bus, slot, function) = parse_pci_bdf(pci_bdf)?;
     let xml = pci_hostdev_xml(&pci_domain, &bus, &slot, &function);
     let dom = lookup_domain(conn, vm_name)?;
     let flags = get_domain_flags_pub(&dom);
-    dom
-        .attach_device_flags(&xml, flags)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to attach PCI hostdev to '{vm_name}': {e}")))?;
+    dom.attach_device_flags(&xml, flags).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to attach PCI hostdev to '{vm_name}': {e}"))
+    })?;
     Ok(())
 }
 
-pub fn detach_pci_hostdev(conn: &Connect, vm_name: &str, pci_bdf: &str) -> Result<(), LibvirtError> {
+pub fn detach_pci_hostdev(
+    conn: &Connect,
+    vm_name: &str,
+    pci_bdf: &str,
+) -> Result<(), LibvirtError> {
     let (pci_domain, bus, slot, function) = parse_pci_bdf(pci_bdf)?;
     let xml = pci_hostdev_xml(&pci_domain, &bus, &slot, &function);
     let dom = lookup_domain(conn, vm_name)?;
     let flags = get_domain_flags_pub(&dom);
-    dom
-        .detach_device_flags(&xml, flags)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to detach PCI hostdev from '{vm_name}': {e}")))?;
+    dom.detach_device_flags(&xml, flags).map_err(|e| {
+        LibvirtError::Operation(format!(
+            "Failed to detach PCI hostdev from '{vm_name}': {e}"
+        ))
+    })?;
     Ok(())
 }
 

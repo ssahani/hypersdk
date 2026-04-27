@@ -32,11 +32,16 @@ pub struct GuestFilesystem {
     pub used_bytes: u64,
 }
 
-pub fn get_guest_interfaces(conn: &Connect, name: &str) -> Result<Vec<GuestIpAddress>, LibvirtError> {
+pub fn get_guest_interfaces(
+    conn: &Connect,
+    name: &str,
+) -> Result<Vec<GuestIpAddress>, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
     let ifaces = domain
         .interface_addresses(virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
-        .or_else(|_| domain.interface_addresses(virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT, 0))
+        .or_else(|_| {
+            domain.interface_addresses(virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT, 0)
+        })
         .unwrap_or_default();
 
     let mut result = Vec::new();
@@ -45,7 +50,11 @@ pub fn get_guest_interfaces(conn: &Connect, name: &str) -> Result<Vec<GuestIpAdd
             result.push(GuestIpAddress {
                 name: iface.name.clone(),
                 mac: iface.hwaddr.clone(),
-                ip_type: if addr.typed == 0 { "ipv4".to_string() } else { "ipv6".to_string() },
+                ip_type: if addr.typed == 0 {
+                    "ipv4".to_string()
+                } else {
+                    "ipv6".to_string()
+                },
                 address: addr.addr.clone(),
                 prefix: addr.prefix as u32,
             });

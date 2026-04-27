@@ -8,16 +8,19 @@ import {
   getSysctlTuning,
   getSystemdNetworkDiagnostics,
   getSystemdInterfaceStatus,
+  getHostRoutingTables,
+  postHostKernelRoute,
   HostInterface, PortForwardRule, FirewallRule, SysctlTuningResponse, SysctlTuningRow, SystemdNetworkDiagnostics,
+  HostRoutingTables,
 } from '../api/hostNetwork'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   Network, Globe, Shield, Router, Plus, Trash2, RefreshCw,
-  ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check, Search,
+  ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check, Search, Route,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 
-type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'sysctl' | 'systemd'
+type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'routing' | 'sysctl' | 'systemd'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
 
 interface TopologyNode {
@@ -62,6 +65,15 @@ export default function HostNetworkingPage() {
   const [sysctlCopied, setSysctlCopied] = useState(false)
   const [diag, setDiag] = useState<SystemdNetworkDiagnostics | null>(null)
   const [diagLoading, setDiagLoading] = useState(false)
+  const [routing, setRouting] = useState<HostRoutingTables | null>(null)
+  const [routesError, setRoutesError] = useState<string | null>(null)
+  const [routeFamily, setRouteFamily] = useState<'ipv4' | 'ipv6'>('ipv4')
+  const [routeOp, setRouteOp] = useState<'add' | 'delete'>('add')
+  const [routeDest, setRouteDest] = useState('')
+  const [routeVia, setRouteVia] = useState('')
+  const [routeDev, setRouteDev] = useState('')
+  const [routeTableStr, setRouteTableStr] = useState('')
+  const [routeBusy, setRouteBusy] = useState(false)
   const [ifaceDiag, setIfaceDiag] = useState<Record<string, string>>({})
   const [ifaceDiagLoading, setIfaceDiagLoading] = useState<string | null>(null)
   const [ifaceFilter, setIfaceFilter] = useState('')
@@ -115,15 +127,29 @@ export default function HostNetworkingPage() {
 
   const load = useCallback(async () => {
     try {
-      const [v, n, h, pf, fw] = await Promise.allSettled([
+      const [v, n, h, pf, fw, rt] = await Promise.allSettled([
         listVMs(), listNetworks(), listHostInterfaces(),
         listPortForwards(), listFirewallRules(),
+        getHostRoutingTables(),
       ])
       if (v.status === 'fulfilled') setVMs(v.value)
       if (n.status === 'fulfilled') setNetworks(n.value)
       if (h.status === 'fulfilled') setHostIfaces(h.value)
       if (pf.status === 'fulfilled') setPortForwards(pf.value)
       if (fw.status === 'fulfilled') setFirewallRules(fw.value)
+      if (rt.status === 'fulfilled') {
+        setRouting(rt.value)
+        setRoutesError(null)
+      } else {
+        setRouting(null)
+        setRoutesError(
+          rt.status === 'rejected'
+            ? rt.reason instanceof Error
+              ? rt.reason.message
+              : String(rt.reason)
+            : null,
+        )
+      }
 
       // Fetch guest IPs for running VMs
       if (v.status === 'fulfilled') {
@@ -137,6 +163,51 @@ export default function HostNetworkingPage() {
       toast.error(`Load failed: ${e instanceof Error ? e.message : e}`)
     } finally { setLoading(false) }
   }, [toast])
+
+  const applyKernelRoute = useCallback(async () => {
+    const dest = routeDest.trim()
+    if (!dest) {
+      toast.error('Enter a destination (CIDR or "default").')
+      return
+    }
+    const verb = routeOp === 'add' ? 'Add' : 'Delete'
+    if (
+      !window.confirm(
+        `${verb} this ${routeFamily} route to "${dest}"? Incorrect static routes can break host or guest networking.`,
+      )
+    ) {
+      return
+    }
+    let table: number | undefined
+    const ts = routeTableStr.trim()
+    if (ts !== '') {
+      const t = parseInt(ts, 10)
+      if (Number.isNaN(t) || t < 0) {
+        toast.error('Routing table id must be a non-negative integer, or leave empty for the main table.')
+        return
+      }
+      table = t
+    }
+    const via = routeVia.trim()
+    const dev = routeDev.trim()
+    setRouteBusy(true)
+    try {
+      await postHostKernelRoute({
+        family: routeFamily,
+        operation: routeOp,
+        destination: dest,
+        ...(via ? { via } : {}),
+        ...(dev ? { dev } : {}),
+        ...(table !== undefined ? { table } : {}),
+      })
+      toast.success(routeOp === 'add' ? 'Route added' : 'Route removed')
+      await load()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRouteBusy(false)
+    }
+  }, [load, routeDest, routeDev, routeFamily, routeOp, routeTableStr, routeVia, toast])
 
   useEffect(() => { load() }, [load])
 
@@ -256,6 +327,7 @@ export default function HostNetworkingPage() {
     { key: 'portforward', label: `Port Forwarding (${portForwards.length})`, icon: <ArrowRight className="w-4 h-4" /> },
     { key: 'bridges', label: `Bridges`, icon: <Router className="w-4 h-4" /> },
     { key: 'firewall', label: `Firewall (${firewallRules.length})`, icon: <Shield className="w-4 h-4" /> },
+    { key: 'routing', label: 'Routing', icon: <Route className="w-4 h-4" /> },
     { key: 'sysctl', label: 'Host sysctl', icon: <Sliders className="w-4 h-4" /> },
     { key: 'systemd', label: 'Systemd net diag', icon: <Cable className="w-4 h-4" /> },
   ]
@@ -283,7 +355,7 @@ export default function HostNetworkingPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="w-6 h-6 text-blue-400" /> Host Networking</h1>
-          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{hostIfaces.length} physical interfaces, {networks.length} libvirt-defined networks — bridges, NAT, DHCP, and port forwards on this worker host.</p>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{hostIfaces.length} physical interfaces, {networks.length} libvirt-defined networks — bridges, NAT, DHCP, port forwards, kernel routing tables, and firewall context on this worker host.</p>
         </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
@@ -468,6 +540,125 @@ export default function HostNetworkingPage() {
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* ── Kernel routing tables + limited route mutations ───── */}
+      {tab === 'routing' && (
+        <div className="space-y-4">
+          <p className="text-sm text-slate-400 max-w-3xl">
+            Tables below are read-only snapshots from the hypervisor (IPv4:{' '}
+            <code className="text-slate-300">ip route show table all</code>; IPv6:{' '}
+            <code className="text-slate-300">ip -6 route show table all</code>). You may also add or delete a single validated static route per action (same as{' '}
+            <code className="text-slate-300">ip route add|del</code>); requires a browser session and is audited on the daemon.
+          </p>
+          <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+            <h4 className="text-sm font-medium text-slate-200">Add or delete one route</h4>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <label className="flex flex-col gap-1 text-xs text-slate-400">
+                <span>Family</span>
+                <select
+                  className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-2 text-slate-200"
+                  value={routeFamily}
+                  onChange={(e) => setRouteFamily(e.target.value as 'ipv4' | 'ipv6')}
+                  disabled={routeBusy}
+                >
+                  <option value="ipv4">IPv4</option>
+                  <option value="ipv6">IPv6</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-400">
+                <span>Operation</span>
+                <select
+                  className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-2 text-slate-200"
+                  value={routeOp}
+                  onChange={(e) => setRouteOp(e.target.value as 'add' | 'delete')}
+                  disabled={routeBusy}
+                >
+                  <option value="add">add</option>
+                  <option value="delete">delete</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-400 sm:col-span-2">
+                <span>Destination (CIDR, host address, or default)</span>
+                <input
+                  className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-3 text-slate-200 font-mono"
+                  value={routeDest}
+                  onChange={(e) => setRouteDest(e.target.value)}
+                  placeholder="192.168.20.0/24 or default"
+                  disabled={routeBusy}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-400">
+                <span>via (gateway, optional)</span>
+                <input
+                  className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-3 text-slate-200 font-mono"
+                  value={routeVia}
+                  onChange={(e) => setRouteVia(e.target.value)}
+                  placeholder="192.168.1.1"
+                  disabled={routeBusy}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-400">
+                <span>dev (optional)</span>
+                <input
+                  className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-3 text-slate-200 font-mono"
+                  value={routeDev}
+                  onChange={(e) => setRouteDev(e.target.value)}
+                  placeholder="eth0"
+                  disabled={routeBusy}
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs text-slate-400">
+                <span>table (optional)</span>
+                <input
+                  className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-3 text-slate-200 font-mono"
+                  value={routeTableStr}
+                  onChange={(e) => setRouteTableStr(e.target.value)}
+                  placeholder="main = leave empty"
+                  disabled={routeBusy}
+                />
+              </label>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => void applyKernelRoute()}
+                disabled={routeBusy}
+                className="px-3 py-1.5 rounded-lg text-sm font-medium bg-sky-600/25 text-sky-100 border border-sky-500/40 hover:bg-sky-600/40 disabled:opacity-50"
+              >
+                {routeBusy ? 'Applying…' : 'Apply route change'}
+              </button>
+            </div>
+          </div>
+          {routesError && (
+            <div className="rounded-lg border border-amber-500/35 bg-amber-950/30 px-4 py-2 text-sm text-amber-100/90">
+              Could not load routing tables: {routesError}
+            </div>
+          )}
+          {!routing && !routesError && (
+            <div className="text-center text-slate-500 py-8 text-sm">No routing data loaded. Use refresh above.</div>
+          )}
+          {routing && (
+            <div className="space-y-3">
+              <details className="bg-slate-900/40 rounded-xl border border-slate-700/40" open>
+                <summary className="px-4 py-3 text-sm text-slate-300 cursor-pointer hover:text-white flex items-center gap-2">
+                  <Route className="w-4 h-4 text-sky-400" /> IPv4 — <code className="text-xs text-slate-500">ip route show table all</code>
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap border-t border-slate-700/30 pt-3 max-h-[28rem] overflow-y-auto font-mono leading-relaxed">
+                  {(routing.ipv4 || '').trim() || '(empty)'}
+                </pre>
+              </details>
+              <details className="bg-slate-900/40 rounded-xl border border-slate-700/40" open>
+                <summary className="px-4 py-3 text-sm text-slate-300 cursor-pointer hover:text-white flex items-center gap-2">
+                  <Route className="w-4 h-4 text-violet-400" /> IPv6 — <code className="text-xs text-slate-500">ip -6 route show table all</code>
+                </summary>
+                <pre className="px-4 pb-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap border-t border-slate-700/30 pt-3 max-h-[28rem] overflow-y-auto font-mono leading-relaxed">
+                  {(routing.ipv6 || '').trim() || '(empty)'}
+                </pre>
+              </details>
+            </div>
+          )}
         </div>
       )}
 

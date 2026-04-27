@@ -2,13 +2,12 @@
 
 use virt::connect::Connect;
 
-use super::domain::lookup_domain;
 use super::device::get_domain_flags_pub;
+use super::domain::lookup_domain;
 use crate::LibvirtError;
 
 fn bools_to_cpumap(cpus: &[bool]) -> Vec<u8> {
-    cpus
-        .chunks(8)
+    cpus.chunks(8)
         .map(|chunk| {
             chunk
                 .iter()

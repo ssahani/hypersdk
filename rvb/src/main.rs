@@ -17,7 +17,11 @@ use crate::catalog::Template;
 use crate::mkosi_workspace::OutputShape;
 
 #[derive(Parser)]
-#[command(name = "rvb", version, about = "Virt-builder-style UX over mkosi (prototype CLI)")]
+#[command(
+    name = "rvb",
+    version,
+    about = "Virt-builder-style UX over mkosi (prototype CLI)"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -78,7 +82,10 @@ fn main() -> Result<()> {
         }
         Commands::Show { id } => {
             let t = catalog::get(&catalog, &id)?;
-            println!("{}", serde_yaml::to_string(&t).context("serialize template")?);
+            println!(
+                "{}",
+                serde_yaml::to_string(&t).context("serialize template")?
+            );
         }
         Commands::Build {
             template,
@@ -93,7 +100,8 @@ fn main() -> Result<()> {
                 other => anyhow::bail!("unknown --format {other} (use qcow2 or raw)"),
             };
             if let Some(parent) = output.parent() {
-                fs::create_dir_all(parent).with_context(|| format!("mkdir {}", parent.display()))?;
+                fs::create_dir_all(parent)
+                    .with_context(|| format!("mkdir {}", parent.display()))?;
             }
             info!(template = %t.id, dest = %output.display(), "mkosi build");
             mkosi_workspace::build_catalog_template(&t, &output, shape, &t.id)

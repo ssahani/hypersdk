@@ -35,10 +35,7 @@ fn is_file_disk(d: &DiskInfo) -> bool {
 
 fn pick_root_disk(details: &VmDetails) -> Result<&DiskInfo, LibvirtError> {
     let pathish = |s: &str| {
-        s.ends_with(".qcow2")
-            || s.ends_with(".QCOW2")
-            || s.ends_with(".raw")
-            || s.ends_with(".img")
+        s.ends_with(".qcow2") || s.ends_with(".QCOW2") || s.ends_with(".raw") || s.ends_with(".img")
     };
     for d in &details.disks {
         if is_file_disk(d) && pathish(&d.source) {
@@ -74,7 +71,11 @@ pub fn sanitize_k8s_label(s: &str) -> String {
     if out.len() <= 63 {
         return out;
     }
-    out.chars().take(63).collect::<String>().trim_matches('-').to_string()
+    out.chars()
+        .take(63)
+        .collect::<String>()
+        .trim_matches('-')
+        .to_string()
 }
 
 fn storage_gi_for_disk(path: &str, memory_mb: u64, padding_gi: u32) -> u32 {
@@ -83,7 +84,10 @@ fn storage_gi_for_disk(path: &str, memory_mb: u64, padding_gi: u32) -> u32 {
         ((b + (1 << 30) - 1) / (1 << 30)) as u32
     });
     let fallback = ((memory_mb + 1023) / 1024).max(1) as u32;
-    from_file.unwrap_or(fallback).saturating_add(padding_gi).max(1)
+    from_file
+        .unwrap_or(fallback)
+        .saturating_add(padding_gi)
+        .max(1)
 }
 
 fn yaml_escape(s: &str) -> String {
@@ -188,7 +192,9 @@ pub fn kubevirt_bundle_from_libvirt_vm(
     vm.push_str(&format!("          cores: {cores}\n"));
     vm.push_str("        devices:\n          disks:\n            - name: rootdisk\n              disk:\n                bus: virtio\n");
     if include_virtio_cdrom {
-        vm.push_str("            - name: virtiocd\n              cdrom:\n                bus: sata\n");
+        vm.push_str(
+            "            - name: virtiocd\n              cdrom:\n                bus: sata\n",
+        );
     }
     vm.push_str("          interfaces:\n            - name: default\n              masquerade: {}\n              model: virtio\n");
     vm.push_str("        resources:\n          requests:\n");

@@ -15,7 +15,12 @@ pub const KEY_ESC: u32 = 1;
 pub const KEY_TAB: u32 = 15;
 
 /// Send keycodes using `VIR_KEYCODE_SET_LINUX` (holdtime ms between press/release simulation).
-pub fn send_linux_keycodes(conn: &Connect, vm_name: &str, keycodes: &[u32], holdtime_ms: u32) -> Result<(), LibvirtError> {
+pub fn send_linux_keycodes(
+    conn: &Connect,
+    vm_name: &str,
+    keycodes: &[u32],
+    holdtime_ms: u32,
+) -> Result<(), LibvirtError> {
     if keycodes.is_empty() {
         return Err(LibvirtError::Invalid("keycodes must not be empty".into()));
     }
@@ -34,9 +39,14 @@ pub fn send_linux_keycodes(conn: &Connect, vm_name: &str, keycodes: &[u32], hold
 }
 
 /// Capture the VM display as PNG (or JPEG) bytes. VM should be running.
-pub fn screenshot(conn: &Connect, vm_name: &str, screen: u32) -> Result<(Vec<u8>, String), LibvirtError> {
+pub fn screenshot(
+    conn: &Connect,
+    vm_name: &str,
+    screen: u32,
+) -> Result<(Vec<u8>, String), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
-    let stream = Stream::new(conn, 0).map_err(|e| LibvirtError::Operation(format!("stream new: {e}")))?;
+    let stream =
+        Stream::new(conn, 0).map_err(|e| LibvirtError::Operation(format!("stream new: {e}")))?;
     let mime = domain
         .screenshot(&stream, screen, 0)
         .map_err(|e| LibvirtError::Operation(format!("screenshot '{vm_name}': {e}")))?;

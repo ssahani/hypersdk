@@ -36,9 +36,9 @@ pub fn run_command_streaming(
     log_line(Some(tx), label, summary_line);
 
     cmd.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = cmd.spawn().map_err(|e| {
-        LibvirtError::Operation(format!("Failed to spawn {program}: {e}"))
-    })?;
+    let mut child = cmd
+        .spawn()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to spawn {program}: {e}")))?;
     let stdout = child.stdout.take().unwrap();
     let stderr = child.stderr.take().unwrap();
     let tx_out = tx.clone();
@@ -51,9 +51,9 @@ pub fn run_command_streaming(
     let h_err = std::thread::spawn(move || {
         stream_reader_lines(stderr, &lbl2, "stderr", &tx_err);
     });
-    let status = child.wait().map_err(|e| {
-        LibvirtError::Operation(format!("Failed waiting on {program}: {e}"))
-    })?;
+    let status = child
+        .wait()
+        .map_err(|e| LibvirtError::Operation(format!("Failed waiting on {program}: {e}")))?;
     if h_out.join().is_err() {
         tracing::error!(program = %program, label = %label, stream = "stdout", "log reader thread panicked");
     }
@@ -68,12 +68,7 @@ pub fn run_command_streaming(
 }
 
 /// Read newline-delimited chunks as **lossy UTF-8** (invalid bytes become U+FFFD, never dropped).
-fn stream_reader_lines<R: Read>(
-    r: R,
-    label: &str,
-    stream: &str,
-    tx: &VmCreateLogSink,
-) {
+fn stream_reader_lines<R: Read>(r: R, label: &str, stream: &str, tx: &VmCreateLogSink) {
     let mut reader = BufReader::new(r);
     let mut buf = Vec::new();
     loop {

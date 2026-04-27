@@ -4,7 +4,7 @@ use virt::sys::virDomainModificationImpact;
 
 use super::device::get_domain_flags_pub;
 use super::domain::lookup_domain;
-use crate::{LibvirtError, xml};
+use crate::{xml, LibvirtError};
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct CpuTuneInfo {
@@ -29,16 +29,27 @@ pub struct MemTuneInfo {
 
 pub fn get_cputune(conn: &Connect, name: &str) -> Result<CpuTuneInfo, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let xml_str = domain.get_xml_desc(0).map_err(LibvirtError::map_op("get XML"))?;
+    let xml_str = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get XML"))?;
     let mut info = CpuTuneInfo::default();
     if let Some(block) = xml::extract_text(&xml_str, "cputune") {
-        if let Some(s) = xml::extract_simple_text(&block, "shares") { info.shares = s.trim().parse().ok(); }
-        if let Some(p) = xml::extract_simple_text(&block, "period") { info.period = p.trim().parse().ok(); }
-        if let Some(q) = xml::extract_simple_text(&block, "quota") { info.quota = q.trim().parse().ok(); }
+        if let Some(s) = xml::extract_simple_text(&block, "shares") {
+            info.shares = s.trim().parse().ok();
+        }
+        if let Some(p) = xml::extract_simple_text(&block, "period") {
+            info.period = p.trim().parse().ok();
+        }
+        if let Some(q) = xml::extract_simple_text(&block, "quota") {
+            info.quota = q.trim().parse().ok();
+        }
     }
     // Parse vcpupin entries
     for block in xml::split_blocks(&xml_str, "vcpupin") {
-        if let (Some(vcpu), Some(cpuset)) = (xml::extract_attr(&block, "vcpupin", "vcpu"), xml::extract_attr(&block, "vcpupin", "cpuset")) {
+        if let (Some(vcpu), Some(cpuset)) = (
+            xml::extract_attr(&block, "vcpupin", "vcpu"),
+            xml::extract_attr(&block, "vcpupin", "cpuset"),
+        ) {
             if let Ok(v) = vcpu.parse() {
                 info.vcpupin.push(VcpuPin { vcpu: v, cpuset });
             }
@@ -49,12 +60,20 @@ pub fn get_cputune(conn: &Connect, name: &str) -> Result<CpuTuneInfo, LibvirtErr
 
 pub fn get_memtune(conn: &Connect, name: &str) -> Result<MemTuneInfo, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let xml_str = domain.get_xml_desc(0).map_err(LibvirtError::map_op("get XML"))?;
+    let xml_str = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get XML"))?;
     let mut info = MemTuneInfo::default();
     if let Some(block) = xml::extract_text(&xml_str, "memtune") {
-        if let Some(v) = xml::extract_simple_text(&block, "hard_limit") { info.hard_limit_kb = v.trim().parse().ok(); }
-        if let Some(v) = xml::extract_simple_text(&block, "soft_limit") { info.soft_limit_kb = v.trim().parse().ok(); }
-        if let Some(v) = xml::extract_simple_text(&block, "swap_hard_limit") { info.swap_hard_limit_kb = v.trim().parse().ok(); }
+        if let Some(v) = xml::extract_simple_text(&block, "hard_limit") {
+            info.hard_limit_kb = v.trim().parse().ok();
+        }
+        if let Some(v) = xml::extract_simple_text(&block, "soft_limit") {
+            info.soft_limit_kb = v.trim().parse().ok();
+        }
+        if let Some(v) = xml::extract_simple_text(&block, "swap_hard_limit") {
+            info.swap_hard_limit_kb = v.trim().parse().ok();
+        }
     }
     Ok(info)
 }
@@ -91,9 +110,9 @@ pub fn pin_vcpu(conn: &Connect, name: &str, vcpu: u32, cpus: &[bool]) -> Result<
         })
         .collect();
     let flags = get_domain_flags_pub(&domain);
-    domain
-        .pin_vcpu_flags(vcpu, &cpumap, flags)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to pin vCPU {vcpu} for '{name}': {e}")))?;
+    domain.pin_vcpu_flags(vcpu, &cpumap, flags).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to pin vCPU {vcpu} for '{name}': {e}"))
+    })?;
     Ok(())
 }
 
@@ -169,8 +188,8 @@ pub fn set_cpu_scheduler_partial(
 pub fn set_memory_balloon(conn: &Connect, name: &str, memory_mb: u64) -> Result<(), LibvirtError> {
     crate::validate::validate_memory_mb(memory_mb)?;
     let domain = lookup_domain(conn, name)?;
-    domain
-        .set_memory(memory_mb * 1024)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to balloon memory for '{name}': {e}")))?;
+    domain.set_memory(memory_mb * 1024).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to balloon memory for '{name}': {e}"))
+    })?;
     Ok(())
 }

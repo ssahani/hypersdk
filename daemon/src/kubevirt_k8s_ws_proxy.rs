@@ -69,18 +69,13 @@ async fn spawn_kubectl_proxy() -> Result<KubectlProxy, String> {
     }
 
     for _ in 0..60 {
-        if TcpStream::connect(("127.0.0.1", port))
-            .await
-            .is_ok()
-        {
+        if TcpStream::connect(("127.0.0.1", port)).await.is_ok() {
             sleep(Duration::from_millis(80)).await;
             return Ok(KubectlProxy { child, port });
         }
         match child.try_wait() {
             Ok(Some(st)) => {
-                return Err(format!(
-                    "kubectl proxy exited before listen (status={st})"
-                ));
+                return Err(format!("kubectl proxy exited before listen (status={st})"));
             }
             Ok(None) => {}
             Err(e) => return Err(format!("kubectl proxy try_wait: {e}")),
@@ -150,9 +145,7 @@ pub async fn proxy_kubevirt_ws(
     name: String,
     tail: &'static str,
 ) {
-    info!(
-        "KubeVirt {tail} WS: starting kubectl proxy for namespace={namespace} name={name}"
-    );
+    info!("KubeVirt {tail} WS: starting kubectl proxy for namespace={namespace} name={name}");
 
     let proxy = match spawn_kubectl_proxy().await {
         Ok(p) => p,

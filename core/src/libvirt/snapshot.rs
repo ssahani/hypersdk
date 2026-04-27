@@ -1,6 +1,6 @@
+use tracing::warn;
 use virt::connect::Connect;
 use virt::domain_snapshot::DomainSnapshot;
-use tracing::warn;
 
 use super::domain::lookup_domain;
 use crate::state::SnapshotInfo;
@@ -109,11 +109,7 @@ pub fn create_snapshot(
     Ok(())
 }
 
-pub fn delete_snapshot(
-    conn: &Connect,
-    vm_name: &str,
-    snap_name: &str,
-) -> Result<(), LibvirtError> {
+pub fn delete_snapshot(conn: &Connect, vm_name: &str, snap_name: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
 
     let snap = DomainSnapshot::lookup_by_name(&domain, snap_name, 0)
@@ -125,11 +121,7 @@ pub fn delete_snapshot(
     Ok(())
 }
 
-pub fn revert_snapshot(
-    conn: &Connect,
-    vm_name: &str,
-    snap_name: &str,
-) -> Result<(), LibvirtError> {
+pub fn revert_snapshot(conn: &Connect, vm_name: &str, snap_name: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
 
     let snap = DomainSnapshot::lookup_by_name(&domain, snap_name, 0)
@@ -143,5 +135,7 @@ pub fn revert_snapshot(
 
 fn extract_parent_name(xml_str: &str) -> Option<String> {
     let blocks = xml::split_blocks(xml_str, "parent");
-    blocks.first().and_then(|block| xml::extract_simple_text(block, "name"))
+    blocks
+        .first()
+        .and_then(|block| xml::extract_simple_text(block, "name"))
 }

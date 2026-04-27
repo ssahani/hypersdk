@@ -308,7 +308,70 @@
           "pending_count": { "type": "integer", "nullable": true },
           "summary": { "type": "string", "nullable": true },
           "hint": { "type": "string", "nullable": true },
-          "error": { "type": "string", "nullable": true }
+          "error": { "type": "string", "nullable": true },
+          "reboot_required": {
+            "type": "boolean",
+            "description": "Linux: true when /var/run/reboot-required exists (Debian/Ubuntu family)"
+          }
+        }
+      },
+      "PackageActionResult": {
+        "type": "object",
+        "description": "Stdout/stderr from a mutating package-manager run on the host",
+        "properties": {
+          "command": { "type": "string" },
+          "exit_code": { "type": "integer" },
+          "stdout": { "type": "string" },
+          "stderr": { "type": "string" },
+          "ok": { "type": "boolean" }
+        }
+      },
+      "HostPackagesBody": {
+        "type": "object",
+        "description": "Package install request body",
+        "required": ["packages"],
+        "properties": {
+          "packages": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Package names; max 32 entries"
+          }
+        }
+      },
+      "HostPackageUpgradeBody": {
+        "type": "object",
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "description": "When true, runs a distro-specific upgrade simulation (no system changes) instead of applying upgrades"
+          }
+        }
+      },
+      "HostPackageRemoveBody": {
+        "type": "object",
+        "required": ["packages"],
+        "properties": {
+          "packages": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Package names; max 32 entries"
+          },
+          "purge": {
+            "type": "boolean",
+            "description": "apt: pass --purge to remove (config files)"
+          }
+        }
+      },
+      "KernelRouteChangeRequest": {
+        "type": "object",
+        "required": ["family", "operation", "destination"],
+        "properties": {
+          "family": { "type": "string", "enum": ["ipv4", "ipv6"] },
+          "operation": { "type": "string", "enum": ["add", "delete"] },
+          "destination": { "type": "string", "description": "default or CIDR / host prefix" },
+          "via": { "type": "string", "nullable": true, "description": "Gateway IP for the route" },
+          "dev": { "type": "string", "nullable": true, "description": "Output interface name" },
+          "table": { "type": "integer", "format": "int32", "nullable": true, "description": "Routing table id (omit for main)" }
         }
       },
       "NetDevCounter": {
@@ -1801,6 +1864,74 @@
         }
       }
     },
+    "/host/package-upgrade": {
+      "post": {
+        "summary": "Upgrade all packages on the host using the detected package backend (mutating; Linux only)",
+        "tags": ["Extras"],
+        "requestBody": {
+          "required": false,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HostPackageUpgradeBody" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Command output; check `ok` and `exit_code`",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageActionResult" } } }
+          },
+          "400": { "description": "Unsupported or unknown package backend" },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/package-install": {
+      "post": {
+        "summary": "Install named packages on the host (mutating; Linux only)",
+        "tags": ["Extras"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HostPackagesBody" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Command output; check `ok` and `exit_code`",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageActionResult" } } }
+          },
+          "400": { "description": "Invalid package list or unsupported backend" },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/package-remove": {
+      "post": {
+        "summary": "Remove (uninstall) named packages on the host (mutating; Linux only)",
+        "tags": ["Extras"],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/HostPackageRemoveBody" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Command output; check `ok` and `exit_code`",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageActionResult" } } }
+          },
+          "400": { "description": "Invalid package list or unsupported backend" },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
+    "/host/package-autoremove": {
+      "post": {
+        "summary": "apt-get autoremove (apt backend only; removes orphaned dependency packages)",
+        "tags": ["Extras"],
+        "responses": {
+          "200": {
+            "description": "Command output; check `ok` and `exit_code`",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PackageActionResult" } } }
+          },
+          "400": { "description": "Not an apt system or other validation error" },
+          "403": { "description": "Not available with API token; use a browser session cookie" }
+        }
+      }
+    },
     "/host/net-counters": {
       "get": {
         "summary": "Per-interface cumulative network bytes/packets since boot (/proc/net/dev)",
@@ -1894,6 +2025,30 @@
         "summary": "List host network interfaces",
         "tags": ["Host Networking"],
         "responses": { "200": { "description": "Interface list" } }
+      }
+    },
+    "/host/routing-tables": {
+      "get": {
+        "summary": "Kernel IPv4/IPv6 routing tables (read-only ip route output)",
+        "tags": ["Host Networking"],
+        "responses": { "200": { "description": "{ ipv4, ipv6 } text from ip route show table all" } }
+      }
+    },
+    "/host/routing": {
+      "post": {
+        "summary": "Add or delete one validated kernel static route (ip route add|del; audited; browser session)",
+        "tags": ["Host Networking"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/KernelRouteChangeRequest" } }
+          }
+        },
+        "responses": {
+          "200": { "description": "{ \"status\": \"ok\" }" },
+          "400": { "description": "Invalid route parameters" },
+          "403": { "description": "Browser session required" }
+        }
       }
     },
     "/host/sysctl-tuning": {
@@ -2075,6 +2230,119 @@
         "summary": "Save scheduled tasks",
         "tags": ["Automation"],
         "responses": { "200": { "description": "Schedules saved" } }
+      }
+    },
+    "/k8s/overview": {
+      "get": {
+        "summary": "Kubernetes overview counts and kubectl environment",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" }, "description": "kubectl --context" }
+        ],
+        "responses": { "200": { "description": "JSON overview" } }
+      }
+    },
+    "/k8s/environment": {
+      "get": {
+        "summary": "kubectl/kubeconfig diagnostics",
+        "tags": ["Kubernetes"],
+        "responses": { "200": { "description": "JSON" } }
+      }
+    },
+    "/k8s/contexts": {
+      "get": {
+        "summary": "List kubectl contexts",
+        "tags": ["Kubernetes"],
+        "responses": { "200": { "description": "JSON" } }
+      }
+    },
+    "/k8s/apply": {
+      "post": {
+        "summary": "kubectl apply -f (manifest body; optional dry_run and context)",
+        "tags": ["Kubernetes"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["manifest"],
+                "properties": {
+                  "manifest": { "type": "string" },
+                  "dry_run": { "type": "boolean" },
+                  "context": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "kubectl JSON result" } }
+      }
+    },
+    "/k8s/action": {
+      "post": {
+        "summary": "Cluster mutations (cordon, drain, delete pod, scale deployment, rollout restart, …)",
+        "tags": ["Kubernetes"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "Action result" } }
+      }
+    },
+    "/k8s/auth-can-i": {
+      "post": {
+        "summary": "kubectl auth can-i",
+        "tags": ["Kubernetes"],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object" } } } },
+        "responses": { "200": { "description": "can-i result" } }
+      }
+    },
+    "/k8s/logs": {
+      "get": {
+        "summary": "Pod container logs",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "pod", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "namespace", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "container", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "tail_lines", "in": "query", "required": false, "schema": { "type": "integer" } },
+          { "name": "previous", "in": "query", "required": false, "schema": { "type": "boolean" } },
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "log text" } }
+      }
+    },
+    "/k8s/events": {
+      "get": {
+        "summary": "kubectl get events",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "namespace", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "all_namespaces", "in": "query", "required": false, "schema": { "type": "boolean" } },
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "JSON or text from kubectl" } }
+      }
+    },
+    "/k8s/helm/releases": {
+      "get": {
+        "summary": "helm list (when helm is on PATH)",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "namespace", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Helm release list" } }
+      }
+    },
+    "/k8s/pods": {
+      "get": {
+        "summary": "List pods (kubectl get pods -o json)",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "namespace", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "all_namespaces", "in": "query", "required": false, "schema": { "type": "boolean" } },
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "JSON" } }
       }
     }
   }

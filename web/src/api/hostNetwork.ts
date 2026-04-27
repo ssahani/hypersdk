@@ -80,6 +80,22 @@ export interface SystemdNetworkDiagnostics {
   resolved_recent_logs: string
 }
 
+/** Read-only `ip route show table all` / `ip -6 route show table all` output. */
+export interface HostRoutingTables {
+  ipv4: string
+  ipv6: string
+}
+
+/** Add or delete one static route via `ip route` (validated on the daemon; browser session). */
+export interface KernelRouteChangeRequest {
+  family: 'ipv4' | 'ipv6' | string
+  operation: 'add' | 'delete' | string
+  destination: string
+  via?: string | null
+  dev?: string | null
+  table?: number | null
+}
+
 // Host interfaces
 export const listHostInterfaces = () => apiGet<HostInterface[]>(`${API}/host/interfaces`)
 
@@ -88,6 +104,11 @@ export const getSysctlTuning = () => apiGet<SysctlTuningResponse>(`${API}/host/s
 export const getSystemdNetworkDiagnostics = () => apiGet<SystemdNetworkDiagnostics>(`${API}/host/network-diag`)
 export const getSystemdInterfaceStatus = (name: string) =>
   apiGet<{ interface: string; status: string }>(`${API}/host/network-diag/interface/${encodeURIComponent(name)}`)
+
+export const getHostRoutingTables = () => apiGet<HostRoutingTables>(`${API}/host/routing-tables`)
+
+export const postHostKernelRoute = (req: KernelRouteChangeRequest) =>
+  apiPost<{ status: string }>(`${API}/host/routing`, req)
 
 // Bridges
 export const createBridge = (req: CreateBridgeRequest) => apiPost<unknown>(`${API}/host/bridges`, req)

@@ -197,7 +197,8 @@ pub fn build_catalog_template(
     match shape {
         OutputShape::Qcow2 => {
             if artifact.extension().and_then(|s| s.to_str()) == Some("qcow2") {
-                fs::copy(&artifact, output).with_context(|| format!("copy to {}", output.display()))?;
+                fs::copy(&artifact, output)
+                    .with_context(|| format!("copy to {}", output.display()))?;
             } else {
                 convert_raw_to_qcow2(&artifact, output)?;
             }

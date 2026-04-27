@@ -11,6 +11,10 @@ import {
   getHostFilesystems,
   getHostTopProcesses,
   getHostPackageUpdates,
+  postHostPackageUpgrade,
+  postHostPackageInstall,
+  postHostPackageRemove,
+  postHostPackageAutoremove,
   getHostNetCounters,
   getHostNetRates,
   getHostPasswdUsers,
@@ -19,6 +23,7 @@ import {
   HostFilesystem,
   HostProcess,
   PackageUpdateCheck,
+  PackageActionResult,
   NetDevCounter,
   NetDevRatesResponse,
   PasswdEntry,
@@ -26,7 +31,7 @@ import {
   HostSecuritySummary,
 } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, Package, Shield, Network, Users, UserSquare, Activity, ScrollText } from 'lucide-react'
+import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, Package, Shield, Network, Users, UserSquare, Activity, ScrollText, ArrowUpCircle, PlusCircle, MinusCircle } from 'lucide-react'
 import { ChoiceCardGrid, ChoiceLinkCard } from '../components/ChoiceCards'
 import { formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
@@ -44,6 +49,11 @@ export default function NodeInfoPage() {
   const [filesystems, setFilesystems] = useState<HostFilesystem[]>([])
   const [topProcesses, setTopProcesses] = useState<HostProcess[]>([])
   const [pkgUpdates, setPkgUpdates] = useState<PackageUpdateCheck | null>(null)
+  const [pkgMutBusy, setPkgMutBusy] = useState(false)
+  const [pkgInstallInput, setPkgInstallInput] = useState('')
+  const [pkgRemoveInput, setPkgRemoveInput] = useState('')
+  const [pkgRemovePurge, setPkgRemovePurge] = useState(false)
+  const [pkgActionResult, setPkgActionResult] = useState<PackageActionResult | null>(null)
   const [netCounters, setNetCounters] = useState<NetDevCounter[]>([])
   const [netRates, setNetRates] = useState<NetDevRatesResponse | null>(null)
   const [netRatesLoading, setNetRatesLoading] = useState(false)
@@ -89,6 +99,7 @@ export default function NodeInfoPage() {
             summary: null,
             hint: 'Could not load package probe (non-Linux UI build, or API error).',
             error: pk.status === 'rejected' ? (pk.reason instanceof Error ? pk.reason.message : String(pk.reason)) : null,
+            reboot_required: false,
           })
         }
         if (nc.status === 'fulfilled') setNetCounters(nc.value)
@@ -112,6 +123,145 @@ export default function NodeInfoPage() {
       })
       .finally(() => setLoading(false))
   }, [])
+
+  const parsePackageList = (raw: string): string[] => {
+    const parts = raw.split(/[\s,]+/).map((s) => s.trim()).filter(Boolean)
+    return [...new Set(parts)]
+  }
+
+  const runPackageUpgrade = useCallback(async () => {
+    if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
+    if (
+      !window.confirm(
+        'Run a full system package upgrade on this host? This uses your distro package manager (apt, dnf, …), can take a long time, and may restart services. Continue?',
+      )
+    ) {
+      return
+    }
+    setPkgMutBusy(true)
+    setPkgActionResult(null)
+    try {
+      const r = await postHostPackageUpgrade()
+      setPkgActionResult(r)
+      if (r.ok) toast.success('Package upgrade completed.')
+      else toast.error(`Package upgrade finished with errors (exit ${r.exit_code}).`)
+      try {
+        setPkgUpdates(await getHostPackageUpdates())
+      } catch {
+        /* keep prior probe */
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPkgMutBusy(false)
+    }
+  }, [pkgUpdates, toast])
+
+  const runPackageUpgradeDryRun = useCallback(async () => {
+    if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
+    setPkgMutBusy(true)
+    setPkgActionResult(null)
+    try {
+      const r = await postHostPackageUpgrade({ dry_run: true })
+      setPkgActionResult(r)
+      if (r.ok) toast.success('Upgrade dry-run finished (no packages were changed).')
+      else toast.error(`Upgrade preview exited with code ${r.exit_code}.`)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPkgMutBusy(false)
+    }
+  }, [pkgUpdates, toast])
+
+  const runPackageAutoremove = useCallback(async () => {
+    if (!pkgUpdates || pkgUpdates.backend !== 'apt') {
+      toast.error('Autoremove is only available when the package backend is apt.')
+      return
+    }
+    if (
+      !window.confirm(
+        'Run apt autoremove on this host? This removes packages that were installed only as dependencies and are no longer needed.',
+      )
+    ) {
+      return
+    }
+    setPkgMutBusy(true)
+    setPkgActionResult(null)
+    try {
+      const r = await postHostPackageAutoremove()
+      setPkgActionResult(r)
+      if (r.ok) toast.success('Autoremove completed.')
+      else toast.error(`Autoremove finished with errors (exit ${r.exit_code}).`)
+      try {
+        setPkgUpdates(await getHostPackageUpdates())
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPkgMutBusy(false)
+    }
+  }, [pkgUpdates, toast])
+
+  const runPackageInstall = useCallback(async () => {
+    if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
+    const pkgs = parsePackageList(pkgInstallInput)
+    if (pkgs.length === 0) {
+      toast.error('Enter at least one package name.')
+      return
+    }
+    setPkgMutBusy(true)
+    setPkgActionResult(null)
+    try {
+      const r = await postHostPackageInstall(pkgs)
+      setPkgActionResult(r)
+      if (r.ok) toast.success(`Installed: ${pkgs.join(', ')}`)
+      else toast.error(`Install failed (exit ${r.exit_code}).`)
+      try {
+        setPkgUpdates(await getHostPackageUpdates())
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPkgMutBusy(false)
+    }
+  }, [pkgInstallInput, pkgUpdates, toast])
+
+  const runPackageRemove = useCallback(async () => {
+    if (!pkgUpdates || pkgUpdates.backend === 'unknown') return
+    const pkgs = parsePackageList(pkgRemoveInput)
+    if (pkgs.length === 0) {
+      toast.error('Enter at least one package name to remove.')
+      return
+    }
+    if (
+      !window.confirm(
+        `Remove these packages from the host? This may break dependent software: ${pkgs.join(', ')}`,
+      )
+    ) {
+      return
+    }
+    setPkgMutBusy(true)
+    setPkgActionResult(null)
+    try {
+      const r = await postHostPackageRemove(pkgs, { purge: pkgRemovePurge })
+      setPkgActionResult(r)
+      if (r.ok) toast.success(pkgRemovePurge ? `Purged: ${pkgs.join(', ')}` : `Removed: ${pkgs.join(', ')}`)
+      else toast.error(`Remove failed (exit ${r.exit_code}).`)
+      try {
+        setPkgUpdates(await getHostPackageUpdates())
+      } catch {
+        /* ignore */
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setPkgMutBusy(false)
+    }
+  }, [pkgRemoveInput, pkgRemovePurge, pkgUpdates, toast])
 
   const measureNetRates = useCallback(async () => {
     setNetRatesLoading(true)
@@ -611,15 +761,127 @@ export default function NodeInfoPage() {
       </div>
 
       {!loading && pkgUpdates && (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-2">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-green-400" /> Package updates (read-only)</h3>
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-green-400" /> Package updates</h3>
           <div className="text-sm text-slate-300 space-y-1">
             <div><span className="text-slate-500">Backend:</span> <code className="text-amber-300/90">{pkgUpdates.backend}</code></div>
             {pkgUpdates.summary && <div>{pkgUpdates.summary}</div>}
             {pkgUpdates.pending_count != null && <div><span className="text-slate-500">Pending count:</span> {pkgUpdates.pending_count}</div>}
+            {pkgUpdates.reboot_required && (
+              <div className="rounded-md border border-amber-600/40 bg-amber-950/25 px-3 py-2 text-amber-100/95 text-sm">
+                A reboot appears to be required on this host (e.g. Debian/Ubuntu <code className="text-amber-200/90">/var/run/reboot-required</code> is present). Plan maintenance before applying kernel or libc upgrades.
+              </div>
+            )}
             {pkgUpdates.hint && <div className="text-slate-500 text-xs">{pkgUpdates.hint}</div>}
             {pkgUpdates.error && <div className="text-red-400 text-xs break-words">{pkgUpdates.error}</div>}
           </div>
+          <p className="text-xs text-slate-500 leading-relaxed">
+            The probe above is read-only. Upgrade, install, and remove require a browser session (not an API token), use the same backend as the probe, and are limited to one action at a time on the daemon (commands may run up to an hour).
+          </p>
+          {pkgUpdates.backend !== 'unknown' && (
+            <div className="space-y-3 pt-1 border-t border-slate-700/50">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void runPackageUpgrade()}
+                  disabled={pkgMutBusy}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/20 text-amber-200 border border-amber-600/35 hover:bg-amber-600/30 disabled:opacity-50 transition"
+                >
+                  <ArrowUpCircle className="w-4 h-4 shrink-0" />
+                  {pkgMutBusy ? 'Running…' : 'Upgrade all packages'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void runPackageUpgradeDryRun()}
+                  disabled={pkgMutBusy}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-slate-600/25 text-slate-200 border border-slate-500/40 hover:bg-slate-600/40 disabled:opacity-50 transition"
+                >
+                  Dry-run / preview upgrade
+                </button>
+                {pkgUpdates.backend === 'apt' && (
+                  <button
+                    type="button"
+                    onClick={() => void runPackageAutoremove()}
+                    disabled={pkgMutBusy}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-violet-600/20 text-violet-100 border border-violet-500/35 hover:bg-violet-600/30 disabled:opacity-50 transition"
+                  >
+                    apt autoremove
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                <label className="flex-1 flex flex-col gap-1 text-xs text-slate-400">
+                  <span>Install packages (space or comma separated, max 32)</span>
+                  <input
+                    type="text"
+                    value={pkgInstallInput}
+                    onChange={(e) => setPkgInstallInput(e.target.value)}
+                    disabled={pkgMutBusy}
+                    placeholder="e.g. htop curl"
+                    className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-3 text-slate-200 placeholder:text-slate-600 disabled:opacity-50"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void runPackageInstall()}
+                  disabled={pkgMutBusy}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-sky-600/20 text-sky-200 border border-sky-600/35 hover:bg-sky-600/30 disabled:opacity-50 transition sm:shrink-0"
+                >
+                  <PlusCircle className="w-4 h-4 shrink-0" />
+                  Install
+                </button>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-2">
+                <label className="flex-1 flex flex-col gap-1 text-xs text-slate-400">
+                  <span>Remove packages (space or comma separated, max 32)</span>
+                  <input
+                    type="text"
+                    value={pkgRemoveInput}
+                    onChange={(e) => setPkgRemoveInput(e.target.value)}
+                    disabled={pkgMutBusy}
+                    placeholder="e.g. cowsay"
+                    className="bg-slate-900 border border-slate-600 rounded-lg text-sm py-2 px-3 text-slate-200 placeholder:text-slate-600 disabled:opacity-50"
+                  />
+                </label>
+                <label className="flex items-center gap-2 text-xs text-slate-400 sm:pb-2 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={pkgRemovePurge}
+                    onChange={(e) => setPkgRemovePurge(e.target.checked)}
+                    disabled={pkgMutBusy}
+                    className="rounded border-slate-500"
+                  />
+                  Purge (apt: remove config files)
+                </label>
+                <button
+                  type="button"
+                  onClick={() => void runPackageRemove()}
+                  disabled={pkgMutBusy}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-rose-600/20 text-rose-200 border border-rose-600/35 hover:bg-rose-600/30 disabled:opacity-50 transition sm:shrink-0"
+                >
+                  <MinusCircle className="w-4 h-4 shrink-0" />
+                  Remove
+                </button>
+              </div>
+            </div>
+          )}
+          {pkgActionResult && (
+            <div className="space-y-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={pkgActionResult.ok ? 'text-emerald-400' : 'text-red-400'}>
+                  {pkgActionResult.ok ? 'Finished successfully' : 'Finished with errors'}
+                </span>
+                <span className="text-slate-500">exit {pkgActionResult.exit_code}</span>
+              </div>
+              <div className="text-slate-500 font-mono break-all">{pkgActionResult.command}</div>
+              {(pkgActionResult.stdout || pkgActionResult.stderr) && (
+                <pre className="max-h-64 overflow-auto rounded-lg bg-slate-950/80 border border-slate-700/60 p-3 text-slate-300 whitespace-pre-wrap break-words">
+                  {pkgActionResult.stdout ? `--- stdout ---\n${pkgActionResult.stdout}\n` : ''}
+                  {pkgActionResult.stderr ? `--- stderr ---\n${pkgActionResult.stderr}` : ''}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       )}
 

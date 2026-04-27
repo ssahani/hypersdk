@@ -143,14 +143,19 @@ export type K8sAction =
   | 'node_uncordon'
   | 'node_drain'
   | 'rollout_restart_deployment'
+  | 'rollout_restart_stateful_set'
+  | 'rollout_restart_daemon_set'
   | 'delete_pod'
+  | 'delete_job'
   | 'scale_deployment'
+  | 'scale_stateful_set'
 
 export interface K8sActionRequest {
   action: K8sAction
   name: string
   namespace?: string
   replicas?: number
+  context?: string
 }
 
 export interface K8sActionResult {
@@ -161,35 +166,175 @@ export interface K8sActionResult {
   ok: boolean
 }
 
-export const getK8sOverview = () => apiGet<K8sOverview>(`${API}/k8s/overview`)
+function withK8sContext(base: string, context?: string): string {
+  const c = context?.trim()
+  if (!c) return base
+  return `${base}${base.includes('?') ? '&' : '?'}context=${encodeURIComponent(c)}`
+}
+
+export const getK8sOverview = (context?: string) =>
+  apiGet<K8sOverview>(withK8sContext(`${API}/k8s/overview`, context))
+
 export const getK8sEnvironment = () => apiGet<K8sEnvironment>(`${API}/k8s/environment`)
-export const getK8sNodes = () => apiGet<K8sNodeInfo[]>(`${API}/k8s/nodes`)
-export const getK8sNamespaces = () => apiGet<K8sNamespaceList>(`${API}/k8s/namespaces`)
-export const getK8sPods = (namespace?: string) =>
+
+export const getK8sContexts = () => apiGet<{ contexts: string[] }>(`${API}/k8s/contexts`)
+
+export const getK8sNodes = (context?: string) =>
+  apiGet<K8sNodeInfo[]>(withK8sContext(`${API}/k8s/nodes`, context))
+
+export const getK8sNamespaces = (context?: string) =>
+  apiGet<K8sNamespaceList>(withK8sContext(`${API}/k8s/namespaces`, context))
+
+export const getK8sPods = (namespace?: string, context?: string) =>
   apiGet<K8sListResponse<K8sPod>>(
-    namespace ? `${API}/k8s/pods?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/pods?all_namespaces=true`,
+    withK8sContext(
+      namespace ? `${API}/k8s/pods?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/pods?all_namespaces=true`,
+      context,
+    ),
   )
-export const getK8sDeployments = (namespace?: string) =>
+
+export const getK8sDeployments = (namespace?: string, context?: string) =>
   apiGet<K8sListResponse<K8sDeployment>>(
-    namespace ? `${API}/k8s/deployments?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/deployments?all_namespaces=true`,
+    withK8sContext(
+      namespace
+        ? `${API}/k8s/deployments?namespace=${encodeURIComponent(namespace)}`
+        : `${API}/k8s/deployments?all_namespaces=true`,
+      context,
+    ),
   )
-export const getK8sServices = (namespace?: string) =>
+
+export const getK8sServices = (namespace?: string, context?: string) =>
   apiGet<K8sListResponse<K8sService>>(
-    namespace ? `${API}/k8s/services?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/services?all_namespaces=true`,
+    withK8sContext(
+      namespace ? `${API}/k8s/services?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/services?all_namespaces=true`,
+      context,
+    ),
   )
 
-export const getK8sKubevirtVirtualMachines = (namespace?: string) =>
+export const getK8sStatefulSets = (namespace?: string, context?: string) =>
+  apiGet<K8sListResponse<K8sDeployment>>(
+    withK8sContext(
+      namespace
+        ? `${API}/k8s/statefulsets?namespace=${encodeURIComponent(namespace)}`
+        : `${API}/k8s/statefulsets?all_namespaces=true`,
+      context,
+    ),
+  )
+
+export const getK8sDaemonSets = (namespace?: string, context?: string) =>
+  apiGet<K8sListResponse<K8sDeployment>>(
+    withK8sContext(
+      namespace ? `${API}/k8s/daemonsets?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/daemonsets?all_namespaces=true`,
+      context,
+    ),
+  )
+
+export const getK8sJobs = (namespace?: string, context?: string) =>
+  apiGet<K8sListResponse<K8sMetadataName>>(
+    withK8sContext(
+      namespace ? `${API}/k8s/jobs?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/jobs?all_namespaces=true`,
+      context,
+    ),
+  )
+
+export const getK8sCronJobs = (namespace?: string, context?: string) =>
+  apiGet<K8sListResponse<K8sMetadataName>>(
+    withK8sContext(
+      namespace ? `${API}/k8s/cronjobs?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/cronjobs?all_namespaces=true`,
+      context,
+    ),
+  )
+
+export const getK8sIngresses = (namespace?: string, context?: string) =>
+  apiGet<K8sListResponse<K8sMetadataName>>(
+    withK8sContext(
+      namespace ? `${API}/k8s/ingresses?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/ingresses?all_namespaces=true`,
+      context,
+    ),
+  )
+
+export const getK8sPersistentVolumeClaims = (namespace?: string, context?: string) =>
+  apiGet<K8sListResponse<K8sMetadataName>>(
+    withK8sContext(
+      namespace
+        ? `${API}/k8s/persistentvolumeclaims?namespace=${encodeURIComponent(namespace)}`
+        : `${API}/k8s/persistentvolumeclaims?all_namespaces=true`,
+      context,
+    ),
+  )
+
+export const getK8sPersistentVolumes = (context?: string) =>
+  apiGet<{ items: unknown[] }>(withK8sContext(`${API}/k8s/persistentvolumes`, context))
+
+export const getK8sStorageClasses = (context?: string) =>
+  apiGet<{ items: unknown[] }>(withK8sContext(`${API}/k8s/storageclasses`, context))
+
+export const getK8sEvents = (opts: { namespace?: string; allNamespaces?: boolean; context?: string }) => {
+  const q: string[] = []
+  if (opts.allNamespaces) q.push('all_namespaces=true')
+  else if (opts.namespace) q.push(`namespace=${encodeURIComponent(opts.namespace)}`)
+  else q.push('namespace=default')
+  let url = `${API}/k8s/events?${q.join('&')}`
+  url = withK8sContext(url, opts.context)
+  return apiGet<{ items: unknown[] }>(url)
+}
+
+export const getK8sPodLogs = (opts: {
+  pod: string
+  namespace?: string
+  container?: string
+  tailLines?: number
+  previous?: boolean
+  context?: string
+}) => {
+  const q = new URLSearchParams()
+  q.set('pod', opts.pod)
+  if (opts.namespace) q.set('namespace', opts.namespace)
+  if (opts.container) q.set('container', opts.container)
+  if (opts.tailLines != null) q.set('tail_lines', String(opts.tailLines))
+  if (opts.previous) q.set('previous', 'true')
+  let url = `${API}/k8s/logs?${q.toString()}`
+  url = withK8sContext(url, opts.context)
+  return apiGet<K8sActionResult>(url)
+}
+
+export const postK8sApply = (manifest: string, dryRun?: boolean, context?: string) =>
+  apiPost<K8sActionResult>(`${API}/k8s/apply`, { manifest, dry_run: dryRun, context })
+
+export const postK8sAuthCanI = (body: {
+  verb: string
+  resource: string
+  namespace?: string
+  resource_name?: string
+  context?: string
+}) => apiPost<K8sActionResult>(`${API}/k8s/auth-can-i`, body)
+
+export const getK8sHelmReleases = (namespace?: string, context?: string) => {
+  const q = new URLSearchParams()
+  if (namespace) q.set('namespace', namespace === '*' ? 'all' : namespace)
+  let url = `${API}/k8s/helm/releases${q.toString() ? `?${q}` : ''}`
+  url = withK8sContext(url, context)
+  return apiGet<unknown>(url)
+}
+
+export const getK8sKubevirtVirtualMachines = (namespace?: string, context?: string) =>
   apiGet<K8sListResponse<K8sKubeVirtVM>>(
-    namespace
-      ? `${API}/k8s/kubevirt/virtualmachines?namespace=${encodeURIComponent(namespace)}`
-      : `${API}/k8s/kubevirt/virtualmachines?all_namespaces=true`,
+    withK8sContext(
+      namespace
+        ? `${API}/k8s/kubevirt/virtualmachines?namespace=${encodeURIComponent(namespace)}`
+        : `${API}/k8s/kubevirt/virtualmachines?all_namespaces=true`,
+      context,
+    ),
   )
 
-export const getK8sKubevirtVmSummary = (namespace?: string) =>
+export const getK8sKubevirtVmSummary = (namespace?: string, context?: string) =>
   apiGet<KubeVirtVmSummaryRow[]>(
-    namespace
-      ? `${API}/k8s/kubevirt/vm-summary?namespace=${encodeURIComponent(namespace)}`
-      : `${API}/k8s/kubevirt/vm-summary?all_namespaces=true`,
+    withK8sContext(
+      namespace
+        ? `${API}/k8s/kubevirt/vm-summary?namespace=${encodeURIComponent(namespace)}`
+        : `${API}/k8s/kubevirt/vm-summary?all_namespaces=true`,
+      context,
+    ),
   )
 
 export const runK8sAction = (body: K8sActionRequest) => apiPost<K8sActionResult>(`${API}/k8s/action`, body)

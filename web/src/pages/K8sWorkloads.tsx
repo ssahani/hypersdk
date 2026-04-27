@@ -5,12 +5,27 @@ import KubeVirtSerialConsole from '../components/KubeVirtSerialConsole'
 import KubeVirtExposeServiceModal from '../components/KubeVirtExposeServiceModal'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import {
+  getK8sContexts,
+  getK8sCronJobs,
+  getK8sDaemonSets,
   getK8sDeployments,
+  getK8sEvents,
+  getK8sHelmReleases,
+  getK8sIngresses,
+  getK8sJobs,
   getK8sKubevirtVmSummary,
   getK8sNamespaces,
+  getK8sPersistentVolumeClaims,
+  getK8sPersistentVolumes,
+  getK8sPodLogs,
   getK8sPods,
   getK8sServices,
+  getK8sStatefulSets,
+  getK8sStorageClasses,
+  postK8sApply,
+  postK8sAuthCanI,
   K8sDeployment,
+  K8sMetadataName,
   KubeVirtVmSummaryRow,
   K8sPod,
   K8sService,
@@ -35,17 +50,41 @@ export default function K8sWorkloadsPage() {
   const [acting, setActing] = useState<string | null>(null)
   const [scaleValue, setScaleValue] = useState<Record<string, number>>({})
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [k8sContext, setK8sContext] = useState('')
+  const [contextChoices, setContextChoices] = useState<string[]>([])
+  const [statefulsets, setStatefulsets] = useState<K8sDeployment[]>([])
+  const [daemonsets, setDaemonsets] = useState<K8sDeployment[]>([])
+  const [jobs, setJobs] = useState<K8sMetadataName[]>([])
+  const [eventsText, setEventsText] = useState('')
+  const [logPod, setLogPod] = useState('')
+  const [logNs, setLogNs] = useState('default')
+  const [logContainer, setLogContainer] = useState('')
+  const [logOut, setLogOut] = useState('')
+  const [applyYaml, setApplyYaml] = useState('')
+  const [applyDry, setApplyDry] = useState(true)
+  const [applyOut, setApplyOut] = useState('')
+  const [caniVerb, setCaniVerb] = useState('get')
+  const [caniRes, setCaniRes] = useState('pods')
+  const [caniNs, setCaniNs] = useState('')
+  const [caniOut, setCaniOut] = useState('')
+  const [helmJson, setHelmJson] = useState('')
+  const [explorerKind, setExplorerKind] = useState('ingresses')
+  const [explorerJson, setExplorerJson] = useState('')
 
   const nsValue = namespace === 'all' ? undefined : namespace
+  const ctxTrim = k8sContext.trim() || undefined
 
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
     try {
-      const [ns, dep, pod, svc] = await Promise.all([
-        getK8sNamespaces(),
-        getK8sDeployments(nsValue),
-        getK8sPods(nsValue),
-        getK8sServices(nsValue),
+      const [ns, dep, pod, svc, sts, ds, jb] = await Promise.all([
+        getK8sNamespaces(ctxTrim),
+        getK8sDeployments(nsValue, ctxTrim),
+        getK8sPods(nsValue, ctxTrim),
+        getK8sServices(nsValue, ctxTrim),
+        getK8sStatefulSets(nsValue, ctxTrim),
+        getK8sDaemonSets(nsValue, ctxTrim),
+        getK8sJobs(nsValue, ctxTrim),
       ])
       setConnectionError(null)
       setNamespaces(
@@ -56,9 +95,12 @@ export default function K8sWorkloadsPage() {
       setDeployments(dep.items ?? [])
       setPods(pod.items ?? [])
       setServices(svc.items ?? [])
+      setStatefulsets(sts.items ?? [])
+      setDaemonsets(ds.items ?? [])
+      setJobs(jb.items ?? [])
       setKubevirtListError(null)
       try {
-        const rows = await getK8sKubevirtVmSummary(nsValue)
+        const rows = await getK8sKubevirtVmSummary(nsValue, ctxTrim)
         setKubevirtRows(Array.isArray(rows) ? rows : [])
       } catch (e: unknown) {
         setKubevirtRows([])
@@ -70,7 +112,7 @@ export default function K8sWorkloadsPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [nsValue])
+  }, [nsValue, ctxTrim])
 
   useEffect(() => {
     void load()
@@ -87,7 +129,10 @@ export default function K8sWorkloadsPage() {
   const runAction = useCallback(async (payload: Parameters<typeof runK8sAction>[0]) => {
     setActing(`${payload.action}:${payload.name}`)
     try {
-      const res = await runK8sAction(payload)
+      const res = await runK8sAction({
+        ...payload,
+        ...(ctxTrim ? { context: ctxTrim } : {}),
+      })
       toast.success(res.stdout.trim() || `Action ${payload.action} succeeded`)
       await load(true)
     } catch (e: unknown) {
@@ -96,7 +141,7 @@ export default function K8sWorkloadsPage() {
     } finally {
       setActing(null)
     }
-  }, [load, toast])
+  }, [load, toast, ctxTrim])
 
   const byNs = useMemo(() => {
     const m: Record<string, { pods: number; deployments: number; services: number; kubevirtVms: number }> = {}
@@ -139,7 +184,34 @@ export default function K8sWorkloadsPage() {
             Pods show node name and host IP. KubeVirt VMs merge VMI guest / pod IP and node InternalIP; use <strong className="text-slate-400">Console</strong> / <strong className="text-slate-400">VNC</strong> to copy <code className="text-xs bg-slate-900/80 px-1 rounded">virtctl</code> commands (run where kubeconfig reaches the cluster).
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            type="text"
+            value={k8sContext}
+            onChange={(e) => setK8sContext(e.target.value)}
+            placeholder="kubectl context (optional)"
+            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm w-44 min-w-[10rem]"
+            list="k8s-ctx-list"
+          />
+          <datalist id="k8s-ctx-list">
+            {contextChoices.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+          <button
+            type="button"
+            className="px-2 py-2 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600"
+            onClick={() => {
+              void getK8sContexts()
+                .then((r) => {
+                  setContextChoices(r.contexts ?? [])
+                  toast.success(`Loaded ${(r.contexts ?? []).length} context(s)`)
+                })
+                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+            }}
+          >
+            List contexts
+          </button>
           <select
             value={namespace}
             onChange={(e) => setNamespace(e.target.value)}
@@ -219,7 +291,7 @@ export default function K8sWorkloadsPage() {
                           disabled={acting !== null}
                           onClick={() => void runAction({
                             action: 'rollout_restart_deployment',
-                            name: d.metadata.name,
+                            name: d.metadata.name ?? '',
                             namespace: d.metadata.namespace || 'default',
                           })}
                         >
@@ -230,7 +302,7 @@ export default function K8sWorkloadsPage() {
                           disabled={acting !== null}
                           onClick={() => void runAction({
                             action: 'scale_deployment',
-                            name: d.metadata.name,
+                            name: d.metadata.name ?? '',
                             namespace: d.metadata.namespace || 'default',
                             replicas: Math.max(0, Number.isFinite(scale) ? scale : replicaCurrent),
                           })}
@@ -246,6 +318,161 @@ export default function K8sWorkloadsPage() {
           </table>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">StatefulSets</div>
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {statefulsets.map((d) => {
+                  const key = `${d.metadata?.namespace || 'default'}/${d.metadata?.name}`
+                  return (
+                    <tr key={key} className="hover:bg-slate-700/20">
+                      <td className="px-3 py-2 text-white">{d.metadata?.name}</td>
+                      <td className="px-3 py-2 text-slate-400">{d.metadata?.namespace || 'default'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button type="button" className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-200 border border-blue-500/30 disabled:opacity-50" disabled={acting !== null} onClick={() => void runAction({ action: 'rollout_restart_stateful_set', name: d.metadata?.name ?? '', namespace: d.metadata?.namespace || 'default' })}>Restart</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">DaemonSets</div>
+          <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
+              <tbody className="divide-y divide-slate-700/30">
+                {daemonsets.map((d) => {
+                  const key = `${d.metadata?.namespace || 'default'}/${d.metadata?.name}`
+                  return (
+                    <tr key={key} className="hover:bg-slate-700/20">
+                      <td className="px-3 py-2 text-white">{d.metadata?.name}</td>
+                      <td className="px-3 py-2 text-slate-400">{d.metadata?.namespace || 'default'}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button type="button" className="text-xs px-2 py-1 rounded bg-blue-500/20 text-blue-200 border border-blue-500/30 disabled:opacity-50" disabled={acting !== null} onClick={() => void runAction({ action: 'rollout_restart_daemon_set', name: d.metadata?.name ?? '', namespace: d.metadata?.namespace || 'default' })}>Restart</button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-700/50 text-lg font-semibold">Jobs</div>
+        <div className="overflow-x-auto max-h-56 overflow-y-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="text-slate-400 text-xs border-b border-slate-700/50"><th className="text-left px-3 py-2">Name</th><th className="text-left px-3 py-2">NS</th><th className="text-right px-3 py-2">Action</th></tr></thead>
+            <tbody className="divide-y divide-slate-700/30">
+              {jobs.map((j) => {
+                const n = j.metadata?.name ?? ''
+                const ns = j.metadata?.namespace || 'default'
+                const key = `${ns}/${n}`
+                return (
+                  <tr key={key} className="hover:bg-slate-700/20">
+                    <td className="px-3 py-2 text-white font-mono text-xs">{n}</td>
+                    <td className="px-3 py-2 text-slate-400">{ns}</td>
+                    <td className="px-3 py-2 text-right">
+                      <button type="button" className="text-xs px-2 py-1 rounded bg-rose-500/20 text-rose-200 border border-rose-500/30 disabled:opacity-50" disabled={acting !== null} onClick={() => void runAction({ action: 'delete_job', name: n, namespace: ns })}>Delete</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <details className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden group">
+        <summary className="px-4 py-3 cursor-pointer text-lg font-semibold text-slate-200 select-none">Cluster tools (events, logs, apply, auth, Helm, API explorer)</summary>
+        <div className="p-4 space-y-6 border-t border-slate-700/40">
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-300">Events</div>
+            <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
+              void getK8sEvents({ allNamespaces: namespace === 'all', namespace: namespace === 'all' ? undefined : namespace, context: ctxTrim })
+                .then((ev) => setEventsText(JSON.stringify(ev.items ?? [], null, 2)))
+                .catch((e: unknown) => setEventsText(e instanceof Error ? e.message : String(e)))
+            }}>Load events JSON</button>
+            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-48 overflow-auto text-slate-300">{eventsText || '—'}</pre>
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-300">Pod logs</div>
+            <div className="flex flex-wrap gap-2 items-end">
+              <label className="text-xs text-slate-400">Pod <input className="ml-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-slate-200" value={logPod} onChange={(e) => setLogPod(e.target.value)} /></label>
+              <label className="text-xs text-slate-400">NS <input className="ml-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 w-28 text-slate-200" value={logNs} onChange={(e) => setLogNs(e.target.value)} /></label>
+              <label className="text-xs text-slate-400">Container <input className="ml-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 w-28 text-slate-200" value={logContainer} onChange={(e) => setLogContainer(e.target.value)} placeholder="opt" /></label>
+              <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-emerald-700/40 text-emerald-100 border border-emerald-600/40" onClick={() => {
+                if (!logPod.trim()) { toast.error('Pod name required'); return }
+                void getK8sPodLogs({ pod: logPod.trim(), namespace: logNs.trim() || 'default', container: logContainer.trim() || undefined, tailLines: 500, context: ctxTrim })
+                  .then((r) => setLogOut(`${r.stdout}\n${r.stderr}`.trim()))
+                  .catch((e: unknown) => setLogOut(e instanceof Error ? e.message : String(e)))
+              }}>Fetch logs</button>
+            </div>
+            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-56 overflow-auto text-slate-300 whitespace-pre-wrap">{logOut || '—'}</pre>
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-300">kubectl apply (YAML)</div>
+            <label className="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" checked={applyDry} onChange={(e) => setApplyDry(e.target.checked)} /> Server dry-run</label>
+            <textarea className="w-full min-h-[120px] bg-slate-900 border border-slate-600 rounded p-2 text-xs font-mono text-slate-200" value={applyYaml} onChange={(e) => setApplyYaml(e.target.value)} placeholder="apiVersion: v1&#10;kind: ConfigMap&#10;..." />
+            <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-amber-700/40 text-amber-100 border border-amber-600/40" onClick={() => {
+              void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(JSON.stringify(r, null, 2))).catch((e: unknown) => setApplyOut(e instanceof Error ? e.message : String(e)))
+            }}>Apply</button>
+            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-40 overflow-auto text-slate-300">{applyOut || '—'}</pre>
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-300">kubectl auth can-i</div>
+            <div className="flex flex-wrap gap-2 items-end">
+              <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-24" value={caniVerb} onChange={(e) => setCaniVerb(e.target.value)} placeholder="verb" />
+              <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs flex-1 min-w-[8rem]" value={caniRes} onChange={(e) => setCaniRes(e.target.value)} placeholder="resource" />
+              <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-28" value={caniNs} onChange={(e) => setCaniNs(e.target.value)} placeholder="-n (opt)" />
+              <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
+                void postK8sAuthCanI({ verb: caniVerb.trim(), resource: caniRes.trim(), namespace: caniNs.trim() || undefined, context: ctxTrim }).then((r) => setCaniOut(r.stdout.trim() || JSON.stringify(r))).catch((e: unknown) => setCaniOut(e instanceof Error ? e.message : String(e)))
+              }}>Check</button>
+            </div>
+            <pre className="text-xs text-slate-400">{caniOut || '—'}</pre>
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-300">Helm releases</div>
+            <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
+              void getK8sHelmReleases('*', ctxTrim).then((h) => setHelmJson(JSON.stringify(h, null, 2))).catch((e: unknown) => setHelmJson(e instanceof Error ? e.message : String(e)))
+            }}>helm list -A (JSON)</button>
+            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-48 overflow-auto text-slate-300">{helmJson || '—'}</pre>
+          </div>
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-slate-300">API list explorer</div>
+            <div className="flex flex-wrap gap-2">
+              <select className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs" value={explorerKind} onChange={(e) => setExplorerKind(e.target.value)}>
+                <option value="ingresses">Ingresses</option>
+                <option value="cronjobs">CronJobs</option>
+                <option value="pvcs">PVCs</option>
+                <option value="pvs">PVs</option>
+                <option value="storageclasses">StorageClasses</option>
+              </select>
+              <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
+                const c = ctxTrim
+                const ns = nsValue
+                const p = (() => {
+                  if (explorerKind === 'ingresses') return getK8sIngresses(ns, c)
+                  if (explorerKind === 'cronjobs') return getK8sCronJobs(ns, c)
+                  if (explorerKind === 'pvcs') return getK8sPersistentVolumeClaims(ns, c)
+                  if (explorerKind === 'pvs') return getK8sPersistentVolumes(c)
+                  return getK8sStorageClasses(c)
+                })()
+                void p.then((x) => setExplorerJson(JSON.stringify(x, null, 2))).catch((e: unknown) => setExplorerJson(e instanceof Error ? e.message : String(e)))
+              }}>Fetch</button>
+            </div>
+            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-64 overflow-auto text-slate-300">{explorerJson || '—'}</pre>
+          </div>
+        </div>
+      </details>
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700/50 space-y-1">

@@ -228,9 +228,37 @@ export interface PackageUpdateCheck {
   summary: string | null
   hint: string | null
   error: string | null
+  /** Linux: true when `/var/run/reboot-required` exists (common on Debian/Ubuntu after certain upgrades). */
+  reboot_required?: boolean
 }
 
 export const getHostPackageUpdates = () => apiGet<PackageUpdateCheck>(`${API}/host/package-updates`)
+
+/** Result of `package-upgrade`, `package-install`, or `package-remove` (stdout/stderr from the distro tool). */
+export interface PackageActionResult {
+  command: string
+  exit_code: number
+  stdout: string
+  stderr: string
+  ok: boolean
+}
+
+/** Upgrade all pending packages (distro-specific; browser session only). Set `dry_run` for a no-change preview when supported. */
+export const postHostPackageUpgrade = (opts?: { dry_run?: boolean }) =>
+  apiPost<PackageActionResult>(`${API}/host/package-upgrade`, { dry_run: opts?.dry_run === true })
+
+export const postHostPackageInstall = (packages: string[]) =>
+  apiPost<PackageActionResult>(`${API}/host/package-install`, { packages })
+
+/** apt: runs `apt-get autoremove` (browser session only). */
+export const postHostPackageAutoremove = () =>
+  apiPost<PackageActionResult>(`${API}/host/package-autoremove`, {})
+
+export const postHostPackageRemove = (packages: string[], opts?: { purge?: boolean }) =>
+  apiPost<PackageActionResult>(`${API}/host/package-remove`, {
+    packages,
+    ...(opts?.purge ? { purge: true } : {}),
+  })
 
 export interface NetDevCounter {
   iface: string

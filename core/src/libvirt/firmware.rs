@@ -77,6 +77,7 @@ pub fn set_guest_firmware(conn: &Connect, vm_name: &str, uefi: bool) -> Result<(
     };
 
     full.replace_range(os_start..os_end, &new_os);
-    Domain::define_xml(conn, &full).map_err(|e| LibvirtError::Operation(format!("define_xml firmware: {e}")))?;
+    Domain::define_xml(conn, &full)
+        .map_err(|e| LibvirtError::Operation(format!("define_xml firmware: {e}")))?;
     Ok(())
 }

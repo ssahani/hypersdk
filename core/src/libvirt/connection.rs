@@ -25,13 +25,10 @@ impl LibvirtManager {
     where
         F: FnOnce(&Connect) -> Result<R, LibvirtError>,
     {
-        let mut conn = self
-            .conn
-            .lock()
-            .unwrap_or_else(|e| {
-                tracing::warn!("Recovering from poisoned mutex");
-                e.into_inner()
-            });
+        let mut conn = self.conn.lock().unwrap_or_else(|e| {
+            tracing::warn!("Recovering from poisoned mutex");
+            e.into_inner()
+        });
 
         // Check if connection is alive, reconnect if needed
         if conn.is_alive().unwrap_or(false) {

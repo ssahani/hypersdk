@@ -52,7 +52,9 @@ pub struct UserRole {
 
 type RoleMap = HashMap<String, Role>;
 
-fn roles_path() -> String { format!("{DATA_DIR}/roles.json") }
+fn roles_path() -> String {
+    format!("{DATA_DIR}/roles.json")
+}
 
 pub fn load_roles() -> RoleMap {
     match std::fs::read_to_string(roles_path()) {
@@ -96,7 +98,9 @@ pub struct ApiToken {
 
 type TokenMap = HashMap<String, ApiToken>; // token -> ApiToken
 
-fn tokens_path() -> String { format!("{DATA_DIR}/api-tokens.json") }
+fn tokens_path() -> String {
+    format!("{DATA_DIR}/api-tokens.json")
+}
 
 pub fn load_tokens() -> TokenMap {
     match std::fs::read_to_string(tokens_path()) {
@@ -155,7 +159,7 @@ pub fn list_api_tokens() -> Vec<ApiToken> {
     // Mask token values for listing
     for t in &mut list {
         if t.token.len() > 12 {
-            t.token = format!("{}...{}", &t.token[..8], &t.token[t.token.len()-4..]);
+            t.token = format!("{}...{}", &t.token[..8], &t.token[t.token.len() - 4..]);
         }
     }
     list
@@ -167,7 +171,7 @@ pub fn list_api_tokens() -> Vec<ApiToken> {
 pub struct AlertRule {
     pub id: String,
     pub name: String,
-    pub condition: String,   // cpu_percent > 90, disk_percent > 85, vm_down
+    pub condition: String, // cpu_percent > 90, disk_percent > 85, vm_down
     pub threshold: f64,
     pub enabled: bool,
 }
@@ -182,8 +186,12 @@ pub struct Alert {
     pub acknowledged: bool,
 }
 
-fn alerts_path() -> String { format!("{DATA_DIR}/alerts.json") }
-fn alert_rules_path() -> String { format!("{DATA_DIR}/alert-rules.json") }
+fn alerts_path() -> String {
+    format!("{DATA_DIR}/alerts.json")
+}
+fn alert_rules_path() -> String {
+    format!("{DATA_DIR}/alert-rules.json")
+}
 
 pub fn load_alert_rules() -> Vec<AlertRule> {
     match std::fs::read_to_string(alert_rules_path()) {
@@ -194,9 +202,27 @@ pub fn load_alert_rules() -> Vec<AlertRule> {
 
 fn default_alert_rules() -> Vec<AlertRule> {
     vec![
-        AlertRule { id: "cpu-high".into(), name: "High CPU".into(), condition: "cpu_percent".into(), threshold: 90.0, enabled: true },
-        AlertRule { id: "mem-high".into(), name: "High Memory".into(), condition: "memory_percent".into(), threshold: 90.0, enabled: true },
-        AlertRule { id: "disk-high".into(), name: "Disk Full".into(), condition: "disk_percent".into(), threshold: 85.0, enabled: true },
+        AlertRule {
+            id: "cpu-high".into(),
+            name: "High CPU".into(),
+            condition: "cpu_percent".into(),
+            threshold: 90.0,
+            enabled: true,
+        },
+        AlertRule {
+            id: "mem-high".into(),
+            name: "High Memory".into(),
+            condition: "memory_percent".into(),
+            threshold: 90.0,
+            enabled: true,
+        },
+        AlertRule {
+            id: "disk-high".into(),
+            name: "Disk Full".into(),
+            condition: "disk_percent".into(),
+            threshold: 85.0,
+            enabled: true,
+        },
     ]
 }
 
@@ -222,7 +248,9 @@ pub fn save_alert(alert: &Alert) -> Result<(), LibvirtError> {
     with_json_lock(|| {
         let mut alerts = load_alerts();
         // Keep only last 100 alerts
-        if alerts.len() > 100 { alerts.drain(0..alerts.len()-100); }
+        if alerts.len() > 100 {
+            alerts.drain(0..alerts.len() - 100);
+        }
         alerts.push(alert.clone());
         let _ = std::fs::create_dir_all(DATA_DIR);
         let data = serde_json::to_string_pretty(&alerts)
@@ -237,12 +265,13 @@ pub fn acknowledge_alert(id: &str) -> Result<(), LibvirtError> {
     with_json_lock(|| {
         let mut alerts = load_alerts();
         for a in &mut alerts {
-            if a.id == id { a.acknowledged = true; }
+            if a.id == id {
+                a.acknowledged = true;
+            }
         }
         let data = serde_json::to_string_pretty(&alerts)
             .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
-        std::fs::write(alerts_path(), data)
-            .map_err(|e| LibvirtError::Operation(format!("{e}")))?;
+        std::fs::write(alerts_path(), data).map_err(|e| LibvirtError::Operation(format!("{e}")))?;
         Ok(())
     })
 }
@@ -257,7 +286,9 @@ pub struct WebhookConfig {
     pub enabled: bool,
 }
 
-fn webhooks_path() -> String { format!("{DATA_DIR}/webhooks.json") }
+fn webhooks_path() -> String {
+    format!("{DATA_DIR}/webhooks.json")
+}
 
 pub fn load_webhooks() -> Vec<WebhookConfig> {
     match std::fs::read_to_string(webhooks_path()) {
@@ -280,8 +311,12 @@ pub fn save_webhooks(hooks: &[WebhookConfig]) -> Result<(), LibvirtError> {
 pub fn fire_webhook(event: &str, payload: &serde_json::Value) {
     let hooks = load_webhooks();
     for hook in hooks {
-        if !hook.enabled { continue; }
-        if !hook.events.contains(&event.to_string()) && !hook.events.contains(&"*".to_string()) { continue; }
+        if !hook.enabled {
+            continue;
+        }
+        if !hook.events.contains(&event.to_string()) && !hook.events.contains(&"*".to_string()) {
+            continue;
+        }
         let url = hook.url.clone();
         // Validate URL scheme to prevent arbitrary command injection
         if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -291,7 +326,17 @@ pub fn fire_webhook(event: &str, payload: &serde_json::Value) {
         // Fire and forget in background
         std::thread::spawn(move || {
             let _ = std::process::Command::new("curl")
-                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, "--", &url])
+                .args([
+                    "-sf",
+                    "-X",
+                    "POST",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    &body,
+                    "--",
+                    &url,
+                ])
                 .output();
         });
     }
@@ -303,13 +348,15 @@ pub fn fire_webhook(event: &str, payload: &serde_json::Value) {
 pub struct ScheduledAction {
     pub id: String,
     pub vm_name: String,
-    pub action: String,     // start, stop, shutdown, snapshot, reboot
-    pub schedule: String,   // cron-like: "0 22 * * *" or simple: "daily 22:00"
+    pub action: String,   // start, stop, shutdown, snapshot, reboot
+    pub schedule: String, // cron-like: "0 22 * * *" or simple: "daily 22:00"
     pub enabled: bool,
     pub last_run: String,
 }
 
-fn schedules_path() -> String { format!("{DATA_DIR}/schedules.json") }
+fn schedules_path() -> String {
+    format!("{DATA_DIR}/schedules.json")
+}
 
 pub fn load_schedules() -> Vec<ScheduledAction> {
     match std::fs::read_to_string(schedules_path()) {
@@ -339,7 +386,9 @@ pub struct NotificationChannel {
     pub enabled: bool,
 }
 
-fn notifications_path() -> String { format!("{DATA_DIR}/notifications.json") }
+fn notifications_path() -> String {
+    format!("{DATA_DIR}/notifications.json")
+}
 
 pub fn load_notification_channels() -> Vec<NotificationChannel> {
     match std::fs::read_to_string(notifications_path()) {
@@ -360,7 +409,11 @@ pub fn save_notification_channels(channels: &[NotificationChannel]) -> Result<()
 }
 
 /// Send a notification through the given channel.
-pub fn send_notification(channel: &NotificationChannel, subject: &str, message: &str) -> Result<(), LibvirtError> {
+pub fn send_notification(
+    channel: &NotificationChannel,
+    subject: &str,
+    message: &str,
+) -> Result<(), LibvirtError> {
     if !channel.enabled {
         return Ok(());
     }
@@ -369,7 +422,16 @@ pub fn send_notification(channel: &NotificationChannel, subject: &str, message: 
             let body = serde_json::json!({ "text": format!("{subject}: {message}") }).to_string();
             let url = channel.config.clone();
             std::process::Command::new("curl")
-                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .args([
+                    "-sf",
+                    "-X",
+                    "POST",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    &body,
+                    &url,
+                ])
                 .output()
                 .map_err(|e| LibvirtError::Operation(format!("Slack notification failed: {e}")))?;
             Ok(())
@@ -377,11 +439,18 @@ pub fn send_notification(channel: &NotificationChannel, subject: &str, message: 
         "email" => {
             let addr = &channel.config;
             // Validate email address: must contain @, no spaces or newlines
-            if !addr.contains('@') || addr.contains(' ') || addr.contains('\n') || addr.contains('\r') {
+            if !addr.contains('@')
+                || addr.contains(' ')
+                || addr.contains('\n')
+                || addr.contains('\r')
+            {
                 return Err(LibvirtError::Invalid("Invalid email address".to_string()));
             }
             // Sanitize subject to prevent header injection
-            let safe_subject: String = subject.chars().filter(|c| *c != '\r' && *c != '\n').collect();
+            let safe_subject: String = subject
+                .chars()
+                .filter(|c| *c != '\r' && *c != '\n')
+                .collect();
             let full_message = format!("Subject: {safe_subject}\n\n{message}");
             let mut child = std::process::Command::new("sendmail")
                 .arg(addr)
@@ -399,26 +468,54 @@ pub fn send_notification(channel: &NotificationChannel, subject: &str, message: 
             // config format: "bot_token|chat_id" (use | delimiter because bot tokens contain ':')
             let parts: Vec<&str> = channel.config.splitn(2, '|').collect();
             if parts.len() != 2 {
-                return Err(LibvirtError::Invalid("Telegram config must be bot_token|chat_id".into()));
+                return Err(LibvirtError::Invalid(
+                    "Telegram config must be bot_token|chat_id".into(),
+                ));
             }
             let url = format!("https://api.telegram.org/bot{}/sendMessage", parts[0]);
-            let body = serde_json::json!({ "chat_id": parts[1], "text": format!("{subject}: {message}") }).to_string();
+            let body =
+                serde_json::json!({ "chat_id": parts[1], "text": format!("{subject}: {message}") })
+                    .to_string();
             std::process::Command::new("curl")
-                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .args([
+                    "-sf",
+                    "-X",
+                    "POST",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    &body,
+                    &url,
+                ])
                 .output()
-                .map_err(|e| LibvirtError::Operation(format!("Telegram notification failed: {e}")))?;
+                .map_err(|e| {
+                    LibvirtError::Operation(format!("Telegram notification failed: {e}"))
+                })?;
             Ok(())
         }
         "webhook" => {
             let body = serde_json::json!({ "subject": subject, "message": message }).to_string();
             let url = channel.config.clone();
             std::process::Command::new("curl")
-                .args(["-sf", "-X", "POST", "-H", "Content-Type: application/json", "-d", &body, &url])
+                .args([
+                    "-sf",
+                    "-X",
+                    "POST",
+                    "-H",
+                    "Content-Type: application/json",
+                    "-d",
+                    &body,
+                    &url,
+                ])
                 .output()
-                .map_err(|e| LibvirtError::Operation(format!("Webhook notification failed: {e}")))?;
+                .map_err(|e| {
+                    LibvirtError::Operation(format!("Webhook notification failed: {e}"))
+                })?;
             Ok(())
         }
-        other => Err(LibvirtError::Invalid(format!("Unknown channel type: {other}"))),
+        other => Err(LibvirtError::Invalid(format!(
+            "Unknown channel type: {other}"
+        ))),
     }
 }
 
@@ -434,7 +531,9 @@ pub struct SnapshotSchedule {
     pub last_run: String,
 }
 
-fn snapshot_schedules_path() -> String { format!("{DATA_DIR}/snapshot-schedules.json") }
+fn snapshot_schedules_path() -> String {
+    format!("{DATA_DIR}/snapshot-schedules.json")
+}
 
 pub fn load_snapshot_schedules() -> Vec<SnapshotSchedule> {
     match std::fs::read_to_string(snapshot_schedules_path()) {

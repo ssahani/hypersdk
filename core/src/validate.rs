@@ -127,7 +127,9 @@ pub fn validate_template_disk_mode(s: &str) -> Result<(), LibvirtError> {
 /// `virt-builder` template index name (e.g. `ubuntu-22.04`, `debian-12`).
 pub fn validate_virt_builder_os(s: &str) -> Result<(), LibvirtError> {
     if s.is_empty() {
-        return Err(LibvirtError::Invalid("virt_builder_os cannot be empty".into()));
+        return Err(LibvirtError::Invalid(
+            "virt_builder_os cannot be empty".into(),
+        ));
     }
     if s.len() > 128 {
         return Err(LibvirtError::Invalid(
@@ -177,7 +179,9 @@ pub fn validate_virt_builder_hostname(s: &str) -> Result<(), LibvirtError> {
 
 pub fn validate_virt_builder_ssh_pubkey_line(s: &str) -> Result<(), LibvirtError> {
     if s.len() > 16_384 {
-        return Err(LibvirtError::Invalid("SSH public key line is too long".into()));
+        return Err(LibvirtError::Invalid(
+            "SSH public key line is too long".into(),
+        ));
     }
     if s.contains('\n') || s.contains('\r') {
         return Err(LibvirtError::Invalid(
@@ -211,9 +215,8 @@ pub fn validate_virt_builder_password_file(path: &str) -> Result<(), LibvirtErro
             "virt_builder_root_password_file must be an absolute path".into(),
         ));
     }
-    let meta = std::fs::metadata(pb).map_err(|e| {
-        LibvirtError::Invalid(format!("virt_builder_root_password_file: {e}"))
-    })?;
+    let meta = std::fs::metadata(pb)
+        .map_err(|e| LibvirtError::Invalid(format!("virt_builder_root_password_file: {e}")))?;
     if !meta.is_file() {
         return Err(LibvirtError::Invalid(
             "virt_builder_root_password_file must be a regular file".into(),
@@ -239,7 +242,9 @@ fn validate_virt_builder_string_list(items: &[String], label: &str) -> Result<()
     }
     for (i, s) in items.iter().enumerate() {
         if s.is_empty() {
-            return Err(LibvirtError::Invalid(format!("{label}: entry {i} is empty")));
+            return Err(LibvirtError::Invalid(format!(
+                "{label}: entry {i} is empty"
+            )));
         }
         if s.len() > VB_STR_MAX {
             return Err(LibvirtError::Invalid(format!(
@@ -247,7 +252,9 @@ fn validate_virt_builder_string_list(items: &[String], label: &str) -> Result<()
             )));
         }
         if s.contains('\0') {
-            return Err(LibvirtError::Invalid(format!("{label}: entry {i} contains NUL")));
+            return Err(LibvirtError::Invalid(format!(
+                "{label}: entry {i} contains NUL"
+            )));
         }
     }
     Ok(())
@@ -261,9 +268,8 @@ pub fn validate_mkosi_workspace(path: &str) -> Result<(), LibvirtError> {
             "mkosi_workspace must be an absolute path".into(),
         ));
     }
-    let meta = std::fs::metadata(p).map_err(|e| {
-        LibvirtError::Invalid(format!("mkosi_workspace: {e}"))
-    })?;
+    let meta =
+        std::fs::metadata(p).map_err(|e| LibvirtError::Invalid(format!("mkosi_workspace: {e}")))?;
     if !meta.is_dir() {
         return Err(LibvirtError::Invalid(
             "mkosi_workspace must be a directory".into(),
@@ -302,7 +308,9 @@ pub fn validate_create_vm_disk_image_builders(req: &CreateVmRequest) -> Result<(
 }
 
 /// Mutual exclusion and basic sanity for Cockpit-style `virt-install` request fields.
-pub fn validate_create_vm_virt_install_extensions(req: &CreateVmRequest) -> Result<(), LibvirtError> {
+pub fn validate_create_vm_virt_install_extensions(
+    req: &CreateVmRequest,
+) -> Result<(), LibvirtError> {
     let pool = req.root_disk_storage_pool.trim();
     let vol = req.root_disk_storage_volume.trim();
     if pool.is_empty() != vol.is_empty() {
@@ -341,7 +349,8 @@ pub fn validate_create_vm_virt_install_extensions(req: &CreateVmRequest) -> Resu
         let p = std::path::Path::new(backing);
         if !p.is_absolute() || !p.is_file() {
             return Err(LibvirtError::Invalid(
-                "virt_install_disk_backing_store must be an absolute path to an existing file".into(),
+                "virt_install_disk_backing_store must be an absolute path to an existing file"
+                    .into(),
             ));
         }
     }
@@ -381,11 +390,10 @@ pub fn validate_create_vm_virt_install_extensions(req: &CreateVmRequest) -> Resu
         ));
     }
 
-    if !ios.is_empty()
-        && (!req.iso.trim().is_empty() || !loc.is_empty() || req.virt_install_pxe)
-    {
+    if !ios.is_empty() && (!req.iso.trim().is_empty() || !loc.is_empty() || req.virt_install_pxe) {
         return Err(LibvirtError::Invalid(
-            "virt_install_install_os cannot be combined with iso, virt_install_location, or PXE".into(),
+            "virt_install_install_os cannot be combined with iso, virt_install_location, or PXE"
+                .into(),
         ));
     }
 
@@ -414,7 +422,10 @@ fn validate_virt_install_field(s: &str, label: &str) -> Result<(), LibvirtError>
     if s.is_empty() {
         return Ok(());
     }
-    if !s.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-') {
+    if !s
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
         return Err(LibvirtError::Invalid(format!(
             "{label} may only contain letters, digits, dot, underscore, hyphen"
         )));
@@ -568,10 +579,10 @@ mod tests {
 
     #[test]
     fn test_validate_virt_builder_ssh_pubkey_line() {
-        assert!(validate_virt_builder_ssh_pubkey_line(
-            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIfake"
-        )
-        .is_ok());
+        assert!(
+            validate_virt_builder_ssh_pubkey_line("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIfake")
+                .is_ok()
+        );
         assert!(validate_virt_builder_ssh_pubkey_line("not-a-key").is_err());
         assert!(validate_virt_builder_ssh_pubkey_line("ssh-ed25519 A\nB").is_err());
     }

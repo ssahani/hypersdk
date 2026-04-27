@@ -1,7 +1,5 @@
 //! Shared validation for virt-image-build (sync POST and async jobs).
 
-use virt::connect::Connect;
-use virt_image_build::BuildDiskRequest;
 use machina_core::build_precheck;
 use machina_core::config::MachinaConfig;
 use machina_core::libvirt::storage;
@@ -10,6 +8,8 @@ use machina_core::validate::{
     validate_virt_builder_ssh_pubkey_line,
 };
 use machina_core::LibvirtError;
+use virt::connect::Connect;
+use virt_image_build::BuildDiskRequest;
 
 const VIB_LIST_MAX: usize = 64;
 const VIB_STR_MAX: usize = 2048;
@@ -42,27 +42,39 @@ fn validate_vib_install_list(s: &str) -> Result<(), LibvirtError> {
         }
         n += 1;
         if n > 512 {
-            return Err(LibvirtError::Invalid("install: too many package names".into()));
+            return Err(LibvirtError::Invalid(
+                "install: too many package names".into(),
+            ));
         }
         if p.len() > 128 {
-            return Err(LibvirtError::Invalid(format!("install: package name too long: {p}")));
+            return Err(LibvirtError::Invalid(format!(
+                "install: package name too long: {p}"
+            )));
         }
     }
     Ok(())
 }
 
-fn validate_optional_host_file(path: &str, label: &str, max_bytes: u64) -> Result<(), LibvirtError> {
+fn validate_optional_host_file(
+    path: &str,
+    label: &str,
+    max_bytes: u64,
+) -> Result<(), LibvirtError> {
     let p = path.trim();
     if p.is_empty() {
         return Ok(());
     }
     let pb = std::path::Path::new(p);
     if !pb.is_absolute() {
-        return Err(LibvirtError::Invalid(format!("{label} must be an absolute path")));
+        return Err(LibvirtError::Invalid(format!(
+            "{label} must be an absolute path"
+        )));
     }
     let meta = std::fs::metadata(pb).map_err(|e| LibvirtError::Invalid(format!("{label}: {e}")))?;
     if !meta.is_file() {
-        return Err(LibvirtError::Invalid(format!("{label} must be a regular file")));
+        return Err(LibvirtError::Invalid(format!(
+            "{label} must be a regular file"
+        )));
     }
     if meta.len() > max_bytes {
         return Err(LibvirtError::Invalid(format!(
@@ -73,7 +85,10 @@ fn validate_optional_host_file(path: &str, label: &str, max_bytes: u64) -> Resul
 }
 
 /// Full request validation that requires a libvirt connection (output directory policy).
-pub fn validate_virt_image_build(conn: &Connect, req: &BuildDiskRequest) -> Result<(), LibvirtError> {
+pub fn validate_virt_image_build(
+    conn: &Connect,
+    req: &BuildDiskRequest,
+) -> Result<(), LibvirtError> {
     let out_path = req.output.trim();
     if out_path.is_empty() {
         return Err(LibvirtError::Invalid("output is required".into()));

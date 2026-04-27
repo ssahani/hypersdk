@@ -99,11 +99,13 @@ impl DaemonClient {
     }
 
     pub async fn shutdown_vm(&self, name: &str) -> Result<()> {
-        self.post_action(&format!("/api/v1/vms/{name}/shutdown")).await
+        self.post_action(&format!("/api/v1/vms/{name}/shutdown"))
+            .await
     }
 
     pub async fn reboot_vm(&self, name: &str) -> Result<()> {
-        self.post_action(&format!("/api/v1/vms/{name}/reboot")).await
+        self.post_action(&format!("/api/v1/vms/{name}/reboot"))
+            .await
     }
 
     pub async fn pause_vm(&self, name: &str) -> Result<()> {
@@ -111,7 +113,8 @@ impl DaemonClient {
     }
 
     pub async fn resume_vm(&self, name: &str) -> Result<()> {
-        self.post_action(&format!("/api/v1/vms/{name}/resume")).await
+        self.post_action(&format!("/api/v1/vms/{name}/resume"))
+            .await
     }
 
     pub async fn delete_vm(&self, name: &str) -> Result<()> {
@@ -182,7 +185,8 @@ impl DaemonClient {
     }
 
     pub async fn delete_network(&self, name: &str) -> Result<()> {
-        self.delete_action(&format!("/api/v1/networks/{name}")).await
+        self.delete_action(&format!("/api/v1/networks/{name}"))
+            .await
     }
 
     pub async fn set_network_autostart(&self, name: &str, enabled: bool) -> Result<()> {
@@ -247,10 +251,8 @@ impl DaemonClient {
     }
 
     pub async fn delete_snapshot(&self, vm_name: &str, snap_name: &str) -> Result<()> {
-        self.delete_action(&format!(
-            "/api/v1/vms/{vm_name}/snapshots/{snap_name}"
-        ))
-        .await
+        self.delete_action(&format!("/api/v1/vms/{vm_name}/snapshots/{snap_name}"))
+            .await
     }
 
     pub async fn revert_snapshot(&self, vm_name: &str, snap_name: &str) -> Result<()> {
@@ -346,6 +348,7 @@ impl DaemonClient {
         if !status.is_success() {
             anyhow::bail!("[{status}] {text}");
         }
-        serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("invalid JSON from daemon: {e}; body: {text}"))
+        serde_json::from_str(&text)
+            .map_err(|e| anyhow::anyhow!("invalid JSON from daemon: {e}; body: {text}"))
     }
 }

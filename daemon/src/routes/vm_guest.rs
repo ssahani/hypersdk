@@ -55,8 +55,7 @@ async fn send_key_handler(
         manager.with_conn(|conn| guest_input::send_linux_keycodes(conn, &name2, &codes, ht))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -71,13 +70,10 @@ async fn screenshot_handler(
         manager.with_conn(|conn| guest_input::screenshot(conn, &name2, screen))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    let hv = HeaderValue::from_str(&mime).unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
-    Ok((
-        [(header::CONTENT_TYPE, hv)],
-        bytes,
-    ))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let hv = HeaderValue::from_str(&mime)
+        .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
+    Ok(([(header::CONTENT_TYPE, hv)], bytes))
 }
 
 #[derive(serde::Deserialize)]
@@ -97,9 +93,10 @@ async fn set_firmware_handler(
         manager.with_conn(|conn| firmware::set_guest_firmware(conn, &name2, uefi))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "uefi": req.uefi })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "uefi": req.uefi }),
+    ))
 }
 
 async fn attach_tpm_handler(
@@ -111,9 +108,10 @@ async fn attach_tpm_handler(
         manager.with_conn(|conn| extra_devices::attach_tpm_emulator(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tpm": "attached" })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "tpm": "attached" }),
+    ))
 }
 
 async fn detach_tpm_handler(
@@ -125,9 +123,10 @@ async fn detach_tpm_handler(
         manager.with_conn(|conn| extra_devices::detach_tpm(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "tpm": "detached" })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "tpm": "detached" }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -148,8 +147,7 @@ async fn attach_watchdog_handler(
         manager.with_conn(|conn| extra_devices::attach_watchdog(conn, &name2, &model, &action))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -169,8 +167,7 @@ async fn attach_sound_handler(
         manager.with_conn(|conn| extra_devices::attach_sound(conn, &name2, &model))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -190,9 +187,10 @@ async fn attach_serial_handler(
         manager.with_conn(|conn| extra_devices::attach_serial_pty(conn, &name2, port))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "port": port })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "port": port }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -211,9 +209,10 @@ async fn set_video_model_handler(
         manager.with_conn(|conn| device_tune::set_video_model(conn, &name2, &model))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "model": req.model })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "model": req.model }),
+    ))
 }
 
 async fn disk_tune_handler(
@@ -227,8 +226,7 @@ async fn disk_tune_handler(
         manager.with_conn(|conn| device_tune::update_disk_tune(conn, &name2, &tune))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -243,8 +241,7 @@ async fn nic_tune_handler(
         manager.with_conn(|conn| device_tune::update_nic_tune(conn, &name2, &tune))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -263,8 +260,7 @@ async fn virt_viewer_vv_handler(
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
 
     let mut console_type = String::from("vnc");
     let mut port: i32 = -1;
@@ -286,7 +282,10 @@ async fn virt_viewer_vv_handler(
         .get("host")
         .and_then(|v| v.to_str().ok())
         .and_then(|h| h.split(':').next())
-        .filter(|h| h.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-'))
+        .filter(|h| {
+            h.chars()
+                .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+        })
         .unwrap_or("127.0.0.1")
         .to_string();
 
@@ -298,9 +297,10 @@ async fn virt_viewer_vv_handler(
     }
 
     if port <= 0 {
-        return Err(
-            LibvirtError::Operation("Graphics port not available (is the VM running?)".into()).into(),
-        );
+        return Err(LibvirtError::Operation(
+            "Graphics port not available (is the VM running?)".into(),
+        )
+        .into());
     }
 
     let body = if console_type == "spice" {
@@ -320,7 +320,10 @@ async fn virt_viewer_vv_handler(
     Ok((
         StatusCode::OK,
         [
-            (header::CONTENT_TYPE, HeaderValue::from_static("text/plain; charset=utf-8")),
+            (
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("text/plain; charset=utf-8"),
+            ),
             (header::CONTENT_DISPOSITION, cdv),
         ],
         body,
@@ -332,11 +335,20 @@ pub fn vm_guest_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/guest/send-key", post(send_key_handler))
         .route("/vms/{name}/guest/screenshot", get(screenshot_handler))
         .route("/vms/{name}/firmware", post(set_firmware_handler))
-        .route("/vms/{name}/devices/tpm", post(attach_tpm_handler).delete(detach_tpm_handler))
-        .route("/vms/{name}/devices/watchdog", post(attach_watchdog_handler))
+        .route(
+            "/vms/{name}/devices/tpm",
+            post(attach_tpm_handler).delete(detach_tpm_handler),
+        )
+        .route(
+            "/vms/{name}/devices/watchdog",
+            post(attach_watchdog_handler),
+        )
         .route("/vms/{name}/devices/sound", post(attach_sound_handler))
         .route("/vms/{name}/devices/serial", post(attach_serial_handler))
-        .route("/vms/{name}/devices/video-model", post(set_video_model_handler))
+        .route(
+            "/vms/{name}/devices/video-model",
+            post(set_video_model_handler),
+        )
         .route("/vms/{name}/disk/tune", post(disk_tune_handler))
         .route("/vms/{name}/nic/tune", post(nic_tune_handler))
         .route("/vms/{name}/virt-viewer.vv", get(virt_viewer_vv_handler))

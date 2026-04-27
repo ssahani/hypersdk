@@ -47,7 +47,9 @@ pub fn list_pool_target_paths(conn: &Connect) -> Result<Vec<String>, LibvirtErro
 }
 
 /// Directories scanned for disk images / delete allow-list: all pool targets plus machina defaults.
-pub fn collect_image_scan_directories(conn: &Connect) -> Result<Vec<std::path::PathBuf>, LibvirtError> {
+pub fn collect_image_scan_directories(
+    conn: &Connect,
+) -> Result<Vec<std::path::PathBuf>, LibvirtError> {
     let mut out: Vec<std::path::PathBuf> = list_pool_target_paths(conn)?
         .into_iter()
         .map(std::path::PathBuf::from)
@@ -79,17 +81,24 @@ pub fn disk_image_delete_allowed_prefixes(conn: &Connect) -> Result<Vec<String>,
 
 /// Ensures `output`'s parent directory exists and lies under [`disk_image_delete_allowed_prefixes`]
 /// (same policy as disk image browse / delete).
-pub fn assert_new_disk_output_parent_allowed(conn: &Connect, output: &str) -> Result<(), LibvirtError> {
+pub fn assert_new_disk_output_parent_allowed(
+    conn: &Connect,
+    output: &str,
+) -> Result<(), LibvirtError> {
     let out = output.trim();
     if out.is_empty() {
         return Err(LibvirtError::Invalid("output path is empty".into()));
     }
     let pb = Path::new(out);
     if !pb.is_absolute() {
-        return Err(LibvirtError::Invalid("output must be an absolute path".into()));
+        return Err(LibvirtError::Invalid(
+            "output must be an absolute path".into(),
+        ));
     }
     if out.contains("/../") || out.ends_with("/..") || out.starts_with("../") {
-        return Err(LibvirtError::Invalid("output path must not contain '..'".into()));
+        return Err(LibvirtError::Invalid(
+            "output path must not contain '..'".into(),
+        ));
     }
     let parent = pb
         .parent()
@@ -134,8 +143,7 @@ pub fn primary_vm_disk_base_dir(conn: &Connect) -> Option<String> {
         rows.push((name, path.trim_end_matches('/').to_string()));
     }
     rows.sort_by(|a, b| a.0.cmp(&b.0));
-    rows
-        .iter()
+    rows.iter()
         .find(|(n, _)| n == "default")
         .or_else(|| rows.iter().find(|(_, p)| p.contains("images")))
         .or_else(|| rows.first())
@@ -177,7 +185,10 @@ pub fn list_pools(conn: &Connect) -> Result<Vec<StoragePoolInfo>, LibvirtError> 
     Ok(result)
 }
 
-pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolumeInfo>, LibvirtError> {
+pub fn list_volumes(
+    conn: &Connect,
+    pool_name: &str,
+) -> Result<Vec<StorageVolumeInfo>, LibvirtError> {
     let pool = lookup_pool(conn, pool_name)?;
     if let Err(e) = pool.refresh(0) {
         tracing::debug!("Pool refresh for '{}' failed (non-fatal): {}", pool_name, e);
@@ -194,7 +205,11 @@ pub fn list_volumes(conn: &Connect, pool_name: &str) -> Result<Vec<StorageVolume
             .map_err(LibvirtError::map_op("Failed to get volume name"))?;
 
         let (vol_type, capacity_gb, allocation_gb) = match vol.get_info().ok() {
-            Some(i) => (vol_type_to_string(i.kind), bytes_to_gb(i.capacity), bytes_to_gb(i.allocation)),
+            Some(i) => (
+                vol_type_to_string(i.kind),
+                bytes_to_gb(i.capacity),
+                bytes_to_gb(i.allocation),
+            ),
             None => (crate::unknown_string(), 0.0, 0.0),
         };
 
@@ -244,7 +259,8 @@ pub fn create_volume(
     crate::validate::validate_name(vol_name)?;
     let pool = lookup_pool(conn, pool_name)?;
 
-    let capacity_bytes = capacity_gb.checked_mul(1024 * 1024 * 1024)
+    let capacity_bytes = capacity_gb
+        .checked_mul(1024 * 1024 * 1024)
         .ok_or_else(|| LibvirtError::Operation("Capacity overflow".to_string()))?;
     let xml = format!(
         r#"<volume>
@@ -258,8 +274,9 @@ pub fn create_volume(
         crate::xml::escape(format),
     );
 
-    StorageVol::create_xml(&pool, &xml, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to create volume '{vol_name}': {e}")))?;
+    StorageVol::create_xml(&pool, &xml, 0).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to create volume '{vol_name}': {e}"))
+    })?;
     Ok(())
 }
 
@@ -277,7 +294,12 @@ pub fn refresh_pool(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
-pub fn create_pool(conn: &Connect, name: &str, pool_type: &str, target_path: &str) -> Result<(), LibvirtError> {
+pub fn create_pool(
+    conn: &Connect,
+    name: &str,
+    pool_type: &str,
+    target_path: &str,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_name(name)?;
 
     let xml = match pool_type {
@@ -335,24 +357,38 @@ pub fn get_pool_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> 
         .map_err(LibvirtError::map_op("Failed to get pool XML"))
 }
 
-pub fn resize_volume(conn: &Connect, pool_name: &str, vol_name: &str, capacity_gb: u64) -> Result<(), LibvirtError> {
+pub fn resize_volume(
+    conn: &Connect,
+    pool_name: &str,
+    vol_name: &str,
+    capacity_gb: u64,
+) -> Result<(), LibvirtError> {
     let pool = lookup_pool(conn, pool_name)?;
     let vol = StorageVol::lookup_by_name(&pool, vol_name)
         .map_err(|e| LibvirtError::NotFound(format!("Volume '{}' not found: {}", vol_name, e)))?;
-    let capacity_bytes = capacity_gb.checked_mul(1024 * 1024 * 1024)
+    let capacity_bytes = capacity_gb
+        .checked_mul(1024 * 1024 * 1024)
         .ok_or_else(|| LibvirtError::Operation("Capacity overflow".to_string()))?;
-    vol.resize(capacity_bytes, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to resize volume '{vol_name}': {e}")))?;
+    vol.resize(capacity_bytes, 0).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to resize volume '{vol_name}': {e}"))
+    })?;
     Ok(())
 }
 
-pub fn clone_volume(conn: &Connect, pool_name: &str, src_vol: &str, new_name: &str) -> Result<(), LibvirtError> {
+pub fn clone_volume(
+    conn: &Connect,
+    pool_name: &str,
+    src_vol: &str,
+    new_name: &str,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_name(new_name)?;
     let pool = lookup_pool(conn, pool_name)?;
     let vol = StorageVol::lookup_by_name(&pool, src_vol)
         .map_err(|e| LibvirtError::NotFound(format!("Volume '{}' not found: {}", src_vol, e)))?;
 
-    let vol_info = vol.get_info().map_err(LibvirtError::map_op("Failed to get volume info"))?;
+    let vol_info = vol
+        .get_info()
+        .map_err(LibvirtError::map_op("Failed to get volume info"))?;
     let xml = format!(
         r#"<volume>
   <name>{}</name>

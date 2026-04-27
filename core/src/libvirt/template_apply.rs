@@ -22,9 +22,8 @@ pub fn apply_saved_template(conn: &Connect, req: &mut CreateVmRequest) -> Result
     let path = format!("{TEMPLATES_DIR}/{key}.json");
     let raw = fs::read_to_string(&path)
         .map_err(|e| LibvirtError::NotFound(format!("Saved template '{key}': {e}")))?;
-    let tmpl: VmTemplate = serde_json::from_str(&raw).map_err(|e| {
-        LibvirtError::Operation(format!("Invalid template JSON for '{key}': {e}"))
-    })?;
+    let tmpl: VmTemplate = serde_json::from_str(&raw)
+        .map_err(|e| LibvirtError::Operation(format!("Invalid template JSON for '{key}': {e}")))?;
 
     req.vcpus = tmpl.vcpus;
     req.memory_mb = tmpl.memory_mb;

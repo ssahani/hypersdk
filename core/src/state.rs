@@ -314,11 +314,21 @@ fn default_firmware() -> String {
     "bios".to_string()
 }
 
-fn default_vcpus() -> u32 { 1 }
-fn default_memory() -> u64 { 1024 }
-fn default_disk_gb() -> u64 { 10 }
-fn default_network() -> String { "default".to_string() }
-fn default_os_variant() -> String { "generic".to_string() }
+fn default_vcpus() -> u32 {
+    1
+}
+fn default_memory() -> u64 {
+    1024
+}
+fn default_disk_gb() -> u64 {
+    10
+}
+fn default_network() -> String {
+    "default".to_string()
+}
+fn default_os_variant() -> String {
+    "generic".to_string()
+}
 
 impl Default for CreateVmRequest {
     fn default() -> Self {
@@ -377,9 +387,15 @@ pub struct CreateNetworkRequest {
     pub dhcp_end: String,
 }
 
-fn default_subnet() -> String { "192.168.100".to_string() }
-fn default_dhcp_start() -> String { "192.168.100.100".to_string() }
-fn default_dhcp_end() -> String { "192.168.100.254".to_string() }
+fn default_subnet() -> String {
+    "192.168.100".to_string()
+}
+fn default_dhcp_start() -> String {
+    "192.168.100.100".to_string()
+}
+fn default_dhcp_end() -> String {
+    "192.168.100.254".to_string()
+}
 
 // ── Volume Create Request ───────────────────────────────────────────────
 
@@ -392,8 +408,12 @@ pub struct CreateVolumeRequest {
     pub format: String,
 }
 
-fn default_vol_capacity() -> u64 { 10 }
-fn default_vol_format() -> String { "qcow2".to_string() }
+fn default_vol_capacity() -> u64 {
+    10
+}
+fn default_vol_format() -> String {
+    "qcow2".to_string()
+}
 
 // ── Rename Request ──────────────────────────────────────────────────────
 
@@ -442,8 +462,12 @@ pub struct AttachDiskRequest {
     pub shareable: bool,
 }
 
-fn default_disk_target() -> String { "vdb".to_string() }
-fn default_disk_driver() -> String { "qcow2".to_string() }
+fn default_disk_target() -> String {
+    "vdb".to_string()
+}
+fn default_disk_driver() -> String {
+    "qcow2".to_string()
+}
 
 // ── VM Templates ────────────────────────────────────────────────────────
 
@@ -788,14 +812,34 @@ impl AppState {
 
         // Data-driven: each category maps to its child items
         let categories: Vec<(SidebarCategory, Vec<SidebarItem>)> = vec![
-            (SidebarCategory::VirtualMachines,
-             self.vms.iter().map(|vm| SidebarItem::Vm(vm.name.clone())).collect()),
-            (SidebarCategory::Networks,
-             self.networks.iter().map(|n| SidebarItem::Network(n.name.clone())).collect()),
-            (SidebarCategory::Storage,
-             self.storage_pools.iter().map(|p| SidebarItem::StoragePool(p.name.clone())).collect()),
-            (SidebarCategory::Snapshots,
-             self.snapshots.iter().map(|s| SidebarItem::Snapshot(s.vm_name.clone(), s.name.clone())).collect()),
+            (
+                SidebarCategory::VirtualMachines,
+                self.vms
+                    .iter()
+                    .map(|vm| SidebarItem::Vm(vm.name.clone()))
+                    .collect(),
+            ),
+            (
+                SidebarCategory::Networks,
+                self.networks
+                    .iter()
+                    .map(|n| SidebarItem::Network(n.name.clone()))
+                    .collect(),
+            ),
+            (
+                SidebarCategory::Storage,
+                self.storage_pools
+                    .iter()
+                    .map(|p| SidebarItem::StoragePool(p.name.clone()))
+                    .collect(),
+            ),
+            (
+                SidebarCategory::Snapshots,
+                self.snapshots
+                    .iter()
+                    .map(|s| SidebarItem::Snapshot(s.vm_name.clone(), s.name.clone()))
+                    .collect(),
+            ),
             (SidebarCategory::Backups, vec![]),
         ];
 
@@ -817,7 +861,9 @@ impl AppState {
     }
 
     pub fn toggle_sidebar_collapse(&mut self) {
-        if let Some(SidebarItem::Category(cat)) = self.sidebar_items.get(self.sidebar_selected).cloned() {
+        if let Some(SidebarItem::Category(cat)) =
+            self.sidebar_items.get(self.sidebar_selected).cloned()
+        {
             let collapsed = self.is_collapsed(cat);
             self.sidebar_collapsed.insert(cat, !collapsed);
             self.rebuild_sidebar();
@@ -830,10 +876,14 @@ impl AppState {
 
     pub fn sidebar_resource_view(&self) -> ResourceView {
         match self.selected_sidebar_item() {
-            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) | Some(SidebarItem::Vm(_)) => ResourceView::VirtualMachines,
-            Some(SidebarItem::Category(SidebarCategory::Networks)) | Some(SidebarItem::Network(_)) => ResourceView::Networks,
-            Some(SidebarItem::Category(SidebarCategory::Storage)) | Some(SidebarItem::StoragePool(_)) => ResourceView::StoragePools,
-            Some(SidebarItem::Category(SidebarCategory::Snapshots)) | Some(SidebarItem::Snapshot(_, _)) => ResourceView::Snapshots,
+            Some(SidebarItem::Category(SidebarCategory::VirtualMachines))
+            | Some(SidebarItem::Vm(_)) => ResourceView::VirtualMachines,
+            Some(SidebarItem::Category(SidebarCategory::Networks))
+            | Some(SidebarItem::Network(_)) => ResourceView::Networks,
+            Some(SidebarItem::Category(SidebarCategory::Storage))
+            | Some(SidebarItem::StoragePool(_)) => ResourceView::StoragePools,
+            Some(SidebarItem::Category(SidebarCategory::Snapshots))
+            | Some(SidebarItem::Snapshot(_, _)) => ResourceView::Snapshots,
             Some(SidebarItem::Category(SidebarCategory::Backups)) => ResourceView::Backups,
             None => ResourceView::VirtualMachines,
         }
@@ -852,7 +902,9 @@ impl AppState {
     pub fn effective_vm_name(&self) -> Option<&str> {
         match self.selected_sidebar_item() {
             Some(SidebarItem::Vm(name)) => Some(name.as_str()),
-            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => self.selected_vm_name(),
+            Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
+                self.selected_vm_name()
+            }
             _ => None,
         }
     }
@@ -912,7 +964,11 @@ impl AppState {
             total_networks: self.networks.len(),
             active_networks: self.networks.iter().filter(|n| n.active).count(),
             total_pools: self.storage_pools.len(),
-            active_pools: self.storage_pools.iter().filter(|p| p.state == "running").count(),
+            active_pools: self
+                .storage_pools
+                .iter()
+                .filter(|p| p.state == "running")
+                .count(),
             total_snapshots: self.snapshots.len(),
         };
     }
@@ -931,7 +987,11 @@ impl AppState {
     pub fn notify_with_level(&mut self, msg: &str, level: NotifyLevel) {
         self.notification = Some((msg.to_string(), Instant::now(), level));
         let timestamp = chrono::Local::now().format("%H:%M:%S").to_string();
-        push_bounded(&mut self.notification_history, (msg.to_string(), level, timestamp), 100);
+        push_bounded(
+            &mut self.notification_history,
+            (msg.to_string(), level, timestamp),
+            100,
+        );
     }
 
     pub fn load_audit_history(&mut self) {
@@ -943,7 +1003,9 @@ impl AppState {
     }
 
     pub fn vm_state_str(&self, name: &str) -> &str {
-        self.find_vm(name).map(|v| v.state.as_str()).unwrap_or("unknown")
+        self.find_vm(name)
+            .map(|v| v.state.as_str())
+            .unwrap_or("unknown")
     }
 
     pub fn find_network(&self, name: &str) -> Option<&NetworkInfo> {
@@ -955,7 +1017,9 @@ impl AppState {
     }
 
     pub fn find_snapshot(&self, vm_name: &str, snap_name: &str) -> Option<&SnapshotInfo> {
-        self.snapshots.iter().find(|s| s.vm_name == vm_name && s.name == snap_name)
+        self.snapshots
+            .iter()
+            .find(|s| s.vm_name == vm_name && s.name == snap_name)
     }
 
     pub fn get_metrics_for_vm(&self, name: &str) -> Option<&VmMetrics> {
@@ -1021,14 +1085,18 @@ impl AppState {
         if self.resource_view != ResourceView::Networks {
             return None;
         }
-        self.networks.get(self.selected_index).map(|n| n.name.as_str())
+        self.networks
+            .get(self.selected_index)
+            .map(|n| n.name.as_str())
     }
 
     pub fn selected_pool_name(&self) -> Option<&str> {
         if self.resource_view != ResourceView::StoragePools {
             return None;
         }
-        self.storage_pools.get(self.selected_index).map(|p| p.name.as_str())
+        self.storage_pools
+            .get(self.selected_index)
+            .map(|p| p.name.as_str())
     }
 
     pub fn selected_snapshot(&self) -> Option<&SnapshotInfo> {
@@ -1061,19 +1129,22 @@ impl AppState {
     }
 
     pub fn detect_state_changes(&mut self) {
-        self.state_changed_vms.retain(|_, when| when.elapsed().as_secs() < 3);
+        self.state_changed_vms
+            .retain(|_, when| when.elapsed().as_secs() < 3);
 
         for vm in &self.vms {
             if let Some(prev_state) = self.previous_vm_states.get(&vm.name) {
                 if *prev_state != vm.state {
-                    self.state_changed_vms.insert(vm.name.clone(), Instant::now());
+                    self.state_changed_vms
+                        .insert(vm.name.clone(), Instant::now());
                 }
             }
         }
 
         self.previous_vm_states.clear();
         for vm in &self.vms {
-            self.previous_vm_states.insert(vm.name.clone(), vm.state.clone());
+            self.previous_vm_states
+                .insert(vm.name.clone(), vm.state.clone());
         }
     }
 
@@ -1090,7 +1161,9 @@ impl AppState {
             SortColumn::Name => self.vms.sort_by(|a, b| dir.apply(a.name.cmp(&b.name))),
             SortColumn::State => self.vms.sort_by(|a, b| dir.apply(a.state.cmp(&b.state))),
             SortColumn::Cpu => self.vms.sort_by(|a, b| dir.apply(a.vcpus.cmp(&b.vcpus))),
-            SortColumn::Memory => self.vms.sort_by(|a, b| dir.apply(a.memory_mb.cmp(&b.memory_mb))),
+            SortColumn::Memory => self
+                .vms
+                .sort_by(|a, b| dir.apply(a.memory_mb.cmp(&b.memory_mb))),
         }
     }
 }
@@ -1126,13 +1199,21 @@ impl Searchable for SnapshotInfo {
 }
 
 fn score_searchable<T: Searchable>(items: &[T], query: &str) -> Vec<(usize, i32)> {
-    items.iter().enumerate()
+    items
+        .iter()
+        .enumerate()
         .filter_map(|(i, item)| {
-            let best = item.search_fields().iter()
+            let best = item
+                .search_fields()
+                .iter()
                 .map(|f| fuzzy_match(f, query))
                 .max()
                 .unwrap_or(0);
-            if best > 0 { Some((i, best)) } else { None }
+            if best > 0 {
+                Some((i, best))
+            } else {
+                None
+            }
         })
         .collect()
 }
@@ -1235,8 +1316,18 @@ mod tests {
         let mut state = AppState::new();
         state.resource_view = ResourceView::VirtualMachines;
         state.vms = vec![
-            VmInfo { name: "alpha".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
-            VmInfo { name: "bravo".into(), state: "shutoff".into(), vcpus: 2, memory_mb: 1024 },
+            VmInfo {
+                name: "alpha".into(),
+                state: "running".into(),
+                vcpus: 1,
+                memory_mb: 512,
+            },
+            VmInfo {
+                name: "bravo".into(),
+                state: "shutoff".into(),
+                vcpus: 2,
+                memory_mb: 1024,
+            },
         ];
         state.search_query = "zzzznotfound".into();
         state.apply_search_filter();
@@ -1248,9 +1339,12 @@ mod tests {
     fn test_search_filter_empty_query_shows_all() {
         let mut state = AppState::new();
         state.resource_view = ResourceView::VirtualMachines;
-        state.vms = vec![
-            VmInfo { name: "alpha".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
-        ];
+        state.vms = vec![VmInfo {
+            name: "alpha".into(),
+            state: "running".into(),
+            vcpus: 1,
+            memory_mb: 512,
+        }];
         state.search_query.clear();
         state.apply_search_filter();
         assert!(!state.search_active);
@@ -1262,9 +1356,24 @@ mod tests {
         let mut state = AppState::new();
         state.resource_view = ResourceView::VirtualMachines;
         state.vms = vec![
-            VmInfo { name: "alpha".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
-            VmInfo { name: "bravo".into(), state: "shutoff".into(), vcpus: 2, memory_mb: 1024 },
-            VmInfo { name: "charlie".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
+            VmInfo {
+                name: "alpha".into(),
+                state: "running".into(),
+                vcpus: 1,
+                memory_mb: 512,
+            },
+            VmInfo {
+                name: "bravo".into(),
+                state: "shutoff".into(),
+                vcpus: 2,
+                memory_mb: 1024,
+            },
+            VmInfo {
+                name: "charlie".into(),
+                state: "running".into(),
+                vcpus: 1,
+                memory_mb: 512,
+            },
         ];
         state.search_query = "alpha".into();
         state.apply_search_filter();
@@ -1276,9 +1385,24 @@ mod tests {
     fn test_dashboard_compute() {
         let mut state = AppState::new();
         state.vms = vec![
-            VmInfo { name: "a".into(), state: "running".into(), vcpus: 2, memory_mb: 1024 },
-            VmInfo { name: "b".into(), state: "shutoff".into(), vcpus: 1, memory_mb: 512 },
-            VmInfo { name: "c".into(), state: "paused".into(), vcpus: 4, memory_mb: 2048 },
+            VmInfo {
+                name: "a".into(),
+                state: "running".into(),
+                vcpus: 2,
+                memory_mb: 1024,
+            },
+            VmInfo {
+                name: "b".into(),
+                state: "shutoff".into(),
+                vcpus: 1,
+                memory_mb: 512,
+            },
+            VmInfo {
+                name: "c".into(),
+                state: "paused".into(),
+                vcpus: 4,
+                memory_mb: 2048,
+            },
         ];
         state.compute_dashboard();
         assert_eq!(state.dashboard.total_vms, 3);
@@ -1293,9 +1417,24 @@ mod tests {
     fn test_sort_vms() {
         let mut state = AppState::new();
         state.vms = vec![
-            VmInfo { name: "charlie".into(), state: "running".into(), vcpus: 1, memory_mb: 512 },
-            VmInfo { name: "alpha".into(), state: "shutoff".into(), vcpus: 2, memory_mb: 1024 },
-            VmInfo { name: "bravo".into(), state: "paused".into(), vcpus: 4, memory_mb: 256 },
+            VmInfo {
+                name: "charlie".into(),
+                state: "running".into(),
+                vcpus: 1,
+                memory_mb: 512,
+            },
+            VmInfo {
+                name: "alpha".into(),
+                state: "shutoff".into(),
+                vcpus: 2,
+                memory_mb: 1024,
+            },
+            VmInfo {
+                name: "bravo".into(),
+                state: "paused".into(),
+                vcpus: 4,
+                memory_mb: 256,
+            },
         ];
         state.sort_column = SortColumn::Name;
         state.sort_direction = SortDirection::Ascending;

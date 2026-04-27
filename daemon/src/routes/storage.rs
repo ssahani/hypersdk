@@ -3,7 +3,9 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use machina_core::libvirt::storage;
-use machina_core::{CreateVolumeRequest, LibvirtError, LibvirtManager, StoragePoolInfo, StorageVolumeInfo};
+use machina_core::{
+    CreateVolumeRequest, LibvirtError, LibvirtManager, StoragePoolInfo, StorageVolumeInfo,
+};
 
 use crate::error::{ok_json, AppError};
 
@@ -37,8 +39,7 @@ async fn start_pool(
         manager.with_conn(|conn| storage::start_pool(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("started", &name))
 }
 
@@ -47,12 +48,9 @@ async fn stop_pool(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| storage::stop_pool(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    tokio::task::spawn_blocking(move || manager.with_conn(|conn| storage::stop_pool(conn, &name2)))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("stopped", &name))
 }
 
@@ -65,8 +63,7 @@ async fn refresh_pool(
         manager.with_conn(|conn| storage::refresh_pool(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("refreshed", &name))
 }
 
@@ -79,8 +76,7 @@ async fn set_pool_autostart(
         manager.with_conn(|conn| storage::set_pool_autostart(conn, &name2, enabled))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     let label = if enabled { "enabled" } else { "disabled" };
     Ok(ok_json(label, &name))
 }
@@ -95,9 +91,10 @@ async fn delete_volume(
         manager.with_conn(|conn| storage::delete_volume(conn, &pool2, &vol2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "pool": pool_name, "volume": vol_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "deleted", "pool": pool_name, "volume": vol_name }),
+    ))
 }
 
 async fn create_volume(
@@ -113,9 +110,10 @@ async fn create_volume(
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "created", "pool": pool_name, "volume": vol_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "created", "pool": pool_name, "volume": vol_name }),
+    ))
 }
 
 pub fn storage_routes() -> Router<LibvirtManager> {
@@ -124,7 +122,10 @@ pub fn storage_routes() -> Router<LibvirtManager> {
         .route("/storage/pools/{name}/start", post(start_pool))
         .route("/storage/pools/{name}/stop", post(stop_pool))
         .route("/storage/pools/{name}/refresh", post(refresh_pool))
-        .route("/storage/pools/{name}/autostart/{enabled}", post(set_pool_autostart))
+        .route(
+            "/storage/pools/{name}/autostart/{enabled}",
+            post(set_pool_autostart),
+        )
         .route("/storage/pools/{pool_name}/volumes", get(list_volumes))
         .route("/storage/pools/{pool_name}/volumes", post(create_volume))
         .route(

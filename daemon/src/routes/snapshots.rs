@@ -10,11 +10,10 @@ use crate::error::AppError;
 async fn list_all_snapshots(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<SnapshotInfo>>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(snapshot::list_all_snapshots)
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result =
+        tokio::task::spawn_blocking(move || manager.with_conn(snapshot::list_all_snapshots))
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Json(result?))
 }
 
@@ -38,12 +37,15 @@ async fn create_snapshot_handler(
     let vm2 = vm_name.clone();
     let snap_name = req.name.clone();
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| snapshot::create_snapshot(conn, &vm2, &req.name, &req.description, req.disk_only))
+        manager.with_conn(|conn| {
+            snapshot::create_snapshot(conn, &vm2, &req.name, &req.description, req.disk_only)
+        })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "created", "vm": vm_name, "snapshot": snap_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "created", "vm": vm_name, "snapshot": snap_name }),
+    ))
 }
 
 async fn delete_snapshot_handler(
@@ -56,9 +58,10 @@ async fn delete_snapshot_handler(
         manager.with_conn(|conn| snapshot::delete_snapshot(conn, &vm2, &snap2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "vm": vm_name, "snapshot": snap_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "deleted", "vm": vm_name, "snapshot": snap_name }),
+    ))
 }
 
 async fn revert_snapshot_handler(
@@ -71,9 +74,10 @@ async fn revert_snapshot_handler(
         manager.with_conn(|conn| snapshot::revert_snapshot(conn, &vm2, &snap2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "reverted", "vm": vm_name, "snapshot": snap_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "reverted", "vm": vm_name, "snapshot": snap_name }),
+    ))
 }
 
 pub fn snapshot_routes() -> Router<LibvirtManager> {

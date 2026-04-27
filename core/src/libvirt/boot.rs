@@ -28,13 +28,22 @@ pub fn get_boot_config(conn: &Connect, name: &str) -> Result<BootConfig, Libvirt
         }
     }
 
-    let firmware = crate::xml::extract_attr(&xml, "loader", "type").unwrap_or_else(|| "bios".to_string());
-    let secure_boot = crate::xml::extract_attr(&xml, "loader", "secure").unwrap_or_default() == "yes";
+    let firmware =
+        crate::xml::extract_attr(&xml, "loader", "type").unwrap_or_else(|| "bios".to_string());
+    let secure_boot =
+        crate::xml::extract_attr(&xml, "loader", "secure").unwrap_or_default() == "yes";
     let kernel = crate::xml::extract_simple_text(&xml, "kernel").unwrap_or_default();
     let initrd = crate::xml::extract_simple_text(&xml, "initrd").unwrap_or_default();
     let cmdline = crate::xml::extract_simple_text(&xml, "cmdline").unwrap_or_default();
 
-    Ok(BootConfig { boot_devices, firmware, secure_boot, kernel, initrd, cmdline })
+    Ok(BootConfig {
+        boot_devices,
+        firmware,
+        secure_boot,
+        kernel,
+        initrd,
+        cmdline,
+    })
 }
 
 pub fn set_boot_order(conn: &Connect, name: &str, devices: &[String]) -> Result<(), LibvirtError> {
@@ -58,7 +67,8 @@ pub fn set_boot_order(conn: &Connect, name: &str, devices: &[String]) -> Result<
 
     // Insert new boot entries before </os>
     if let Some(os_end) = new_xml.find("</os>") {
-        let boot_xml: String = devices.iter()
+        let boot_xml: String = devices
+            .iter()
             .map(|d| format!("    <boot dev='{}'/>\n", crate::xml::escape(d)))
             .collect();
         new_xml.insert_str(os_end, &boot_xml);

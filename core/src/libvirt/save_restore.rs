@@ -13,9 +13,9 @@ pub fn managed_save(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 
 pub fn managed_save_remove(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    domain
-        .managed_save_remove(0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to remove managed save for '{name}': {e}")))?;
+    domain.managed_save_remove(0).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to remove managed save for '{name}': {e}"))
+    })?;
     Ok(())
 }
 

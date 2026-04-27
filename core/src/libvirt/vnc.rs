@@ -83,7 +83,11 @@ fn vnc_endpoint_from_virsh(domain_name: &str) -> Result<(String, u16), LibvirtEr
 }
 
 /// Resolve VNC using live domain XML, then `virsh vncdisplay` when the XML port is still `-1` / `0` (autoport).
-pub fn resolve_vnc_tcp_xml(_conn: &Connect, domain_name: &str, xml: &str) -> Result<(String, u16), LibvirtError> {
+pub fn resolve_vnc_tcp_xml(
+    _conn: &Connect,
+    domain_name: &str,
+    xml: &str,
+) -> Result<(String, u16), LibvirtError> {
     if !xml_has_graphics_type(xml, "vnc") {
         return Err(LibvirtError::Operation(
             "Domain has no VNC graphics device".into(),

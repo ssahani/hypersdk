@@ -98,36 +98,48 @@ pub fn materialize_mkosi_if_requested(
         )));
     }
 
-    let ws_str = workspace.to_str().ok_or_else(|| {
-        LibvirtError::Invalid("mkosi_workspace path is not valid UTF-8".into())
-    })?;
+    let ws_str = workspace
+        .to_str()
+        .ok_or_else(|| LibvirtError::Invalid("mkosi_workspace path is not valid UTF-8".into()))?;
 
     let staging = alloc_mkosi_ephemeral_workspace(&req.name)?;
-    let staging_str = staging.to_str().ok_or_else(|| {
-        LibvirtError::Internal("mkosi staging path is not valid UTF-8".into())
-    })?;
+    let staging_str = staging
+        .to_str()
+        .ok_or_else(|| LibvirtError::Internal("mkosi staging path is not valid UTF-8".into()))?;
 
     // Direct all output into the staging tree so we know exactly where to find the
     // artifact and it is cleaned up with staging rather than accumulating in the workspace.
     let output_dir = staging.join("output");
-    fs::create_dir(&output_dir).map_err(|e| {
-        LibvirtError::Operation(format!("mkosi: cannot create output dir: {e}"))
-    })?;
-    let output_dir_str = output_dir.to_str().ok_or_else(|| {
-        LibvirtError::Internal("mkosi output dir path is not valid UTF-8".into())
-    })?;
+    fs::create_dir(&output_dir)
+        .map_err(|e| LibvirtError::Operation(format!("mkosi: cannot create output dir: {e}")))?;
+    let output_dir_str = output_dir
+        .to_str()
+        .ok_or_else(|| LibvirtError::Internal("mkosi output dir path is not valid UTF-8".into()))?;
 
     let mkosi_bin = resolve_mkosi_executable();
     let image_name = req.mkosi_image.trim().to_string();
 
     tracing::info!(
         "mkosi build --directory {} --workspace-directory {} --output-dir {}{}",
-        ws_str, staging_str, output_dir_str,
-        if image_name.is_empty() { String::new() } else { format!(" --image {image_name}") },
+        ws_str,
+        staging_str,
+        output_dir_str,
+        if image_name.is_empty() {
+            String::new()
+        } else {
+            format!(" --image {image_name}")
+        },
     );
 
     let mut cmd = Command::new(&mkosi_bin);
-    cmd.args(["--directory", ws_str, "--workspace-directory", staging_str, "--output-dir", output_dir_str]);
+    cmd.args([
+        "--directory",
+        ws_str,
+        "--workspace-directory",
+        staging_str,
+        "--output-dir",
+        output_dir_str,
+    ]);
     if !image_name.is_empty() {
         cmd.args(["--image", &image_name]);
     }
@@ -257,21 +269,25 @@ fn materialize_artifact_to_dest(
     dest: &Path,
     log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
-    let ext = artifact
-        .extension()
-        .and_then(|s| s.to_str())
-        .unwrap_or("");
+    let ext = artifact.extension().and_then(|s| s.to_str()).unwrap_or("");
 
     if ext == "qcow2" {
         fs::copy(artifact, dest).map_err(|e| {
-            LibvirtError::Operation(format!("Failed to copy mkosi qcow2 to {}: {e}", dest.display()))
+            LibvirtError::Operation(format!(
+                "Failed to copy mkosi qcow2 to {}: {e}",
+                dest.display()
+            ))
         })?;
         return Ok(());
     }
 
     // .raw → qcow2 for libvirt path convention
-    let a = artifact.to_str().ok_or_else(|| LibvirtError::Invalid("mkosi artifact path is not valid UTF-8".into()))?;
-    let d = dest.to_str().ok_or_else(|| LibvirtError::Invalid("destination disk path is not valid UTF-8".into()))?;
+    let a = artifact
+        .to_str()
+        .ok_or_else(|| LibvirtError::Invalid("mkosi artifact path is not valid UTF-8".into()))?;
+    let d = dest
+        .to_str()
+        .ok_or_else(|| LibvirtError::Invalid("destination disk path is not valid UTF-8".into()))?;
     let summary = format!("$ qemu-img convert -O qcow2 {a} {d}");
     let mut qcmd = Command::new("qemu-img");
     qcmd.args(["convert", "-O", "qcow2", a, d]);

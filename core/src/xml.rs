@@ -133,7 +133,10 @@ mod tests {
     #[test]
     fn test_extract_attr() {
         let xml = r#"<type arch='x86_64' machine='pc'>hvm</type>"#;
-        assert_eq!(extract_attr(xml, "type", "arch"), Some("x86_64".to_string()));
+        assert_eq!(
+            extract_attr(xml, "type", "arch"),
+            Some("x86_64".to_string())
+        );
         assert_eq!(extract_attr(xml, "type", "machine"), Some("pc".to_string()));
         assert_eq!(extract_attr(xml, "type", "missing"), None);
     }
@@ -141,14 +144,23 @@ mod tests {
     #[test]
     fn test_extract_attr_double_quotes() {
         let xml = r#"<source file="/var/lib/test.img"/>"#;
-        assert_eq!(extract_attr(xml, "source", "file"), Some("/var/lib/test.img".to_string()));
+        assert_eq!(
+            extract_attr(xml, "source", "file"),
+            Some("/var/lib/test.img".to_string())
+        );
     }
 
     #[test]
     fn test_extract_attr_word_boundary() {
         let xml = r#"<interface type='network'><source network='default'/></interface>"#;
-        assert_eq!(extract_attr(xml, "interface", "type"), Some("network".to_string()));
-        assert_eq!(extract_attr(xml, "source", "network"), Some("default".to_string()));
+        assert_eq!(
+            extract_attr(xml, "interface", "type"),
+            Some("network".to_string())
+        );
+        assert_eq!(
+            extract_attr(xml, "source", "network"),
+            Some("default".to_string())
+        );
     }
 
     #[test]
@@ -177,6 +189,9 @@ mod tests {
     #[test]
     fn test_extract_simple_text_whitespace() {
         let xml = "<state>  running  </state>";
-        assert_eq!(extract_simple_text(xml, "state"), Some("running".to_string()));
+        assert_eq!(
+            extract_simple_text(xml, "state"),
+            Some("running".to_string())
+        );
     }
 }

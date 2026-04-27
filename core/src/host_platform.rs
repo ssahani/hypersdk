@@ -1,6 +1,7 @@
 //! Distro-aware host insight: package updates, accounts, network counters, firewall summary.
 //! Targets common families: Debian/Ubuntu (apt), Fedora/RHEL (dnf/microdnf/yum), Arch (pacman),
-//! openSUSE (zypper). Read-only; uses `getent` where available so LDAP/NIS users appear.
+//! openSUSE (zypper). Probes are read-only; [`package_upgrade`], [`package_install`], and
+//! [`package_remove`] are mutating (Linux). Uses `getent` where available so LDAP/NIS users appear.
 
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -44,6 +45,9 @@ pub struct PackageUpdateCheck {
     pub hint: Option<String>,
     /// stderr or error text when probe failed.
     pub error: Option<String>,
+    /// Linux: true when `/var/run/reboot-required` exists (Debian/Ubuntu family after many upgrades).
+    #[serde(default)]
+    pub reboot_required: bool,
 }
 
 /// Prefer Debian family before RPM so Ubuntu WSL with stray `dnf` still uses apt.
@@ -77,7 +81,10 @@ pub fn detect_package_backend() -> &'static str {
 const PROBE_BUDGET: Duration = Duration::from_secs(45);
 
 #[cfg(target_os = "linux")]
-fn run_with_budget(cmd: &mut Command, budget: Duration) -> Result<std::process::Output, LibvirtError> {
+fn run_with_budget(
+    cmd: &mut Command,
+    budget: Duration,
+) -> Result<std::process::Output, LibvirtError> {
     let start = Instant::now();
     let mut child = cmd
         .stdout(Stdio::piped())
@@ -89,7 +96,7 @@ fn run_with_budget(cmd: &mut Command, budget: Duration) -> Result<std::process::
             let _ = child.kill();
             let _ = child.wait();
             return Err(LibvirtError::Operation(
-                "package probe timed out (distro tools can be slow; try again)".into(),
+                "subprocess timed out (distro tools can be slow; try again)".into(),
             ));
         }
         match child.try_wait() {
@@ -128,6 +135,7 @@ pub fn check_package_updates() -> Result<PackageUpdateCheck, LibvirtError> {
             summary: None,
             hint: Some("Only available on Linux hypervisors".into()),
             error: None,
+            reboot_required: false,
         });
     }
     #[cfg(target_os = "linux")]
@@ -146,6 +154,7 @@ fn check_package_updates_linux() -> Result<PackageUpdateCheck, LibvirtError> {
         summary: None,
         hint: None,
         error: None,
+        reboot_required: false,
     };
 
     let r = match backend {
@@ -167,6 +176,7 @@ fn check_package_updates_linux() -> Result<PackageUpdateCheck, LibvirtError> {
     if let Err(e) = r {
         out.error = Some(e.to_string());
     }
+    out.reboot_required = std::path::Path::new("/var/run/reboot-required").exists();
     Ok(out)
 }
 
@@ -206,7 +216,9 @@ fn probe_apt_updates(out: &mut PackageUpdateCheck) -> Result<(), LibvirtError> {
             }
             out.pending_count = upgraded;
             out.summary = upgraded.map(|n| format!("{n} packages would be upgraded (simulate)"));
-            out.hint = Some("Debian/Ubuntu: `apt-get -s upgrade` via sh+tail (no install performed)".into());
+            out.hint = Some(
+                "Debian/Ubuntu: `apt-get -s upgrade` via sh+tail (no install performed)".into(),
+            );
         }
         Err(e) => out.error = Some(e.to_string()),
     }
@@ -225,7 +237,9 @@ fn probe_dnf_updates(bin: &str, out: &mut PackageUpdateCheck) -> Result<(), Libv
             let line = String::from_utf8_lossy(&output.stdout);
             let n: u32 = line.trim().parse().unwrap_or(0);
             out.pending_count = Some(n);
-            out.summary = Some(format!("{n} package(s) with newer versions (`{bin} repoquery --cacheonly`)"));
+            out.summary = Some(format!(
+                "{n} package(s) with newer versions (`{bin} repoquery --cacheonly`)"
+            ));
             out.hint = Some(format!(
                 "Fedora/RHEL-style: `{bin} repoquery` (tail+wc limits I/O). If 0 but updates exist, refresh metadata on the host."
             ));
@@ -250,7 +264,9 @@ fn probe_yum_updates(out: &mut PackageUpdateCheck) -> Result<(), LibvirtError> {
             let code = output.status.code().unwrap_or(-1);
             if code == 100 {
                 out.pending_count = None;
-                out.summary = Some("Updates available (yum check-update exit 100; count not enumerated)".into());
+                out.summary = Some(
+                    "Updates available (yum check-update exit 100; count not enumerated)".into(),
+                );
             } else if output.status.success() {
                 out.pending_count = Some(0);
                 out.summary = Some("No updates pending".into());
@@ -258,7 +274,8 @@ fn probe_yum_updates(out: &mut PackageUpdateCheck) -> Result<(), LibvirtError> {
                 let err = String::from_utf8_lossy(&output.stderr);
                 out.error = Some(err.trim().chars().take(400).collect::<String>());
             }
-            out.hint = Some("RHEL/CentOS 7-style yum: exit 100 means at least one update exists".into());
+            out.hint =
+                Some("RHEL/CentOS 7-style yum: exit 100 means at least one update exists".into());
         }
         Err(e) => out.error = Some(e.to_string()),
     }
@@ -274,10 +291,15 @@ fn probe_apk_updates(out: &mut PackageUpdateCheck) -> Result<(), LibvirtError> {
     ));
     match run_with_budget(&mut cmd, Duration::from_secs(25)) {
         Ok(output) => {
-            let n: u32 = String::from_utf8_lossy(&output.stdout).trim().parse().unwrap_or(0);
+            let n: u32 = String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .parse()
+                .unwrap_or(0);
             out.pending_count = Some(n);
             out.summary = Some(format!("{n} package(s) upgradable (`apk list -u`)"));
-            out.hint = Some("Alpine Linux: read-only count; run `apk upgrade` on the host to apply".into());
+            out.hint = Some(
+                "Alpine Linux: read-only count; run `apk upgrade` on the host to apply".into(),
+            );
             if !output.status.success() && n == 0 {
                 let e = String::from_utf8_lossy(&output.stderr);
                 if !e.trim().is_empty() {
@@ -299,7 +321,10 @@ fn probe_pacman_updates(out: &mut PackageUpdateCheck) -> Result<(), LibvirtError
     ));
     match run_with_budget(&mut cmd, Duration::from_secs(25)) {
         Ok(output) => {
-            let n: u32 = String::from_utf8_lossy(&output.stdout).trim().parse().unwrap_or(0);
+            let n: u32 = String::from_utf8_lossy(&output.stdout)
+                .trim()
+                .parse()
+                .unwrap_or(0);
             out.pending_count = Some(n);
             out.summary = Some(format!("{n} package(s) pending (`pacman -Qu`, bounded)"));
             out.hint = Some("Arch Linux".into());
@@ -381,7 +406,9 @@ fn parse_proc_net_dev() -> Result<Vec<NetDevCounter>, LibvirtError> {
         .map_err(|e| LibvirtError::Operation(format!("read /proc/net/dev: {e}")))?;
     let mut out = Vec::new();
     for line in raw.lines().skip(2) {
-        let Some((iface, rest)) = line.split_once(':') else { continue };
+        let Some((iface, rest)) = line.split_once(':') else {
+            continue;
+        };
         let iface = iface.trim().to_string();
         if iface.is_empty() {
             continue;
@@ -501,7 +528,8 @@ fn read_passwd_source() -> Result<String, LibvirtError> {
             return Ok(String::from_utf8_lossy(&o.stdout).to_string());
         }
     }
-    std::fs::read_to_string("/etc/passwd").map_err(|e| LibvirtError::Operation(format!("passwd: {e}")))
+    std::fs::read_to_string("/etc/passwd")
+        .map_err(|e| LibvirtError::Operation(format!("passwd: {e}")))
 }
 
 #[cfg(target_os = "linux")]
@@ -512,7 +540,8 @@ fn read_group_source() -> Result<String, LibvirtError> {
             return Ok(String::from_utf8_lossy(&o.stdout).to_string());
         }
     }
-    std::fs::read_to_string("/etc/group").map_err(|e| LibvirtError::Operation(format!("group: {e}")))
+    std::fs::read_to_string("/etc/group")
+        .map_err(|e| LibvirtError::Operation(format!("group: {e}")))
 }
 
 /// NSS-aware passwd listing (LDAP/NIS if configured). `limit` capped at 500.
@@ -535,8 +564,12 @@ pub fn list_passwd_entries(limit: usize) -> Result<Vec<PasswdEntry>, LibvirtErro
             if parts.len() < 7 {
                 continue;
             }
-            let Ok(uid) = parts[2].parse::<u32>() else { continue };
-            let Ok(gid) = parts[3].parse::<u32>() else { continue };
+            let Ok(uid) = parts[2].parse::<u32>() else {
+                continue;
+            };
+            let Ok(gid) = parts[3].parse::<u32>() else {
+                continue;
+            };
             let system_account = uid != 0 && uid < 1000;
             rows.push(PasswdEntry {
                 username: parts[0].to_string(),
@@ -572,7 +605,9 @@ pub fn list_group_entries(limit: usize) -> Result<Vec<GroupEntry>, LibvirtError>
             if parts.len() < 4 {
                 continue;
             }
-            let Ok(gid) = parts[2].parse::<u32>() else { continue };
+            let Ok(gid) = parts[2].parse::<u32>() else {
+                continue;
+            };
             let members_str = parts.get(3).copied().unwrap_or("");
             let members = members_str
                 .split(',')
@@ -625,9 +660,13 @@ pub fn host_security_summary() -> Result<HostSecuritySummary, LibvirtError> {
         }
         let mut firewalld_default_zone = None;
         if fw == "firewalld" {
-            if let Ok(o) = Command::new(find_bin("firewall-cmd")).arg("--get-default-zone").output() {
+            if let Ok(o) = Command::new(find_bin("firewall-cmd"))
+                .arg("--get-default-zone")
+                .output()
+            {
                 if o.status.success() {
-                    firewalld_default_zone = Some(String::from_utf8_lossy(&o.stdout).trim().to_string());
+                    firewalld_default_zone =
+                        Some(String::from_utf8_lossy(&o.stdout).trim().to_string());
                 }
             }
         }
@@ -640,3 +679,550 @@ pub fn host_security_summary() -> Result<HostSecuritySummary, LibvirtError> {
     }
 }
 
+// ── Package install / upgrade (mutating; Linux only) ───────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageActionResult {
+    pub command: String,
+    pub exit_code: i32,
+    pub stdout: String,
+    pub stderr: String,
+    pub ok: bool,
+}
+
+/// Single package name / version pin token (apt `pkg=ver`, dnf names, etc.).
+pub fn validate_package_token(name: &str) -> Result<(), LibvirtError> {
+    let s = name.trim();
+    if s.is_empty() {
+        return Err(LibvirtError::Invalid("package name is empty".into()));
+    }
+    if s.len() > 200 {
+        return Err(LibvirtError::Invalid("package name is too long".into()));
+    }
+    let ok = s.chars().all(|c| {
+        c.is_ascii_alphanumeric()
+            || matches!(
+                c,
+                '+' | '.' | '-' | '_' | ':' | '=' | '*' | '~' | '@' | '%' | '[' | ']'
+            )
+    });
+    if !ok {
+        return Err(LibvirtError::Invalid(
+            "package name contains unsupported characters".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+const PACKAGE_ACTION_BUDGET: Duration = Duration::from_secs(3600);
+
+#[cfg(target_os = "linux")]
+const MAX_PACKAGES_PER_REQUEST: usize = 32;
+
+#[cfg(target_os = "linux")]
+fn merge_action_result(
+    command: &str,
+    prior: PackageActionResult,
+    mut cmd: Command,
+) -> Result<PackageActionResult, LibvirtError> {
+    let out = run_with_budget(&mut cmd, PACKAGE_ACTION_BUDGET)?;
+    let ok = prior.ok && out.status.success();
+    let stdout = format!("{}\n{}", prior.stdout, String::from_utf8_lossy(&out.stdout));
+    let stderr = format!("{}\n{}", prior.stderr, String::from_utf8_lossy(&out.stderr));
+    let exit_code = if out.status.success() {
+        prior.exit_code
+    } else {
+        out.status.code().unwrap_or(-1)
+    };
+    Ok(PackageActionResult {
+        command: format!("{} ; {}", prior.command, command),
+        exit_code,
+        stdout,
+        stderr,
+        ok,
+    })
+}
+
+#[cfg(target_os = "linux")]
+fn run_one_action(
+    mut cmd: Command,
+    command_display: String,
+) -> Result<PackageActionResult, LibvirtError> {
+    let out = run_with_budget(&mut cmd, PACKAGE_ACTION_BUDGET)?;
+    let ok = out.status.success();
+    Ok(PackageActionResult {
+        command: command_display,
+        exit_code: out.status.code().unwrap_or(-1),
+        stdout: String::from_utf8_lossy(&out.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&out.stderr).to_string(),
+        ok,
+    })
+}
+
+/// Apply pending upgrades using the same backend ordering as [`detect_package_backend`].
+pub fn package_upgrade() -> Result<PackageActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err(LibvirtError::Operation(
+            "package upgrade is only supported on Linux".into(),
+        ))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        package_upgrade_linux()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn package_upgrade_linux() -> Result<PackageActionResult, LibvirtError> {
+    let backend = detect_package_backend();
+    match backend {
+        "apt" => {
+            let apt = find_bin("apt-get");
+            let r1 = run_one_action(
+                {
+                    let mut c = Command::new(&apt);
+                    c.arg("-qq")
+                        .arg("update")
+                        .env("DEBIAN_FRONTEND", "noninteractive");
+                    c
+                },
+                format!("{apt} -qq update"),
+            )?;
+            if !r1.ok {
+                return Ok(r1);
+            }
+            merge_action_result(&format!("{apt} -y -qq upgrade"), r1, {
+                let mut c = Command::new(&apt);
+                c.args(["-y", "-qq", "upgrade"])
+                    .env("DEBIAN_FRONTEND", "noninteractive");
+                c
+            })
+        }
+        "microdnf" => {
+            let exe = find_bin("microdnf");
+            run_one_action(
+                {
+                    let mut c = Command::new(&exe);
+                    c.args(["-y", "upgrade"]);
+                    c
+                },
+                format!("{exe} -y upgrade"),
+            )
+        }
+        "dnf" => {
+            let exe = find_bin("dnf");
+            run_one_action(
+                {
+                    let mut c = Command::new(&exe);
+                    c.args(["-y", "upgrade"]);
+                    c
+                },
+                format!("{exe} -y upgrade"),
+            )
+        }
+        "yum" => {
+            let exe = find_bin("yum");
+            run_one_action(
+                {
+                    let mut c = Command::new(&exe);
+                    c.args(["-y", "upgrade"]);
+                    c
+                },
+                format!("{exe} -y upgrade"),
+            )
+        }
+        "apk" => {
+            let apk = find_bin("apk");
+            let r1 = run_one_action(
+                {
+                    let mut c = Command::new(&apk);
+                    c.args(["update", "--no-cache"]);
+                    c
+                },
+                format!("{apk} update --no-cache"),
+            )?;
+            if !r1.ok {
+                return Ok(r1);
+            }
+            merge_action_result(&format!("{apk} upgrade -U"), r1, {
+                let mut c = Command::new(&apk);
+                c.args(["upgrade", "-U"]);
+                c
+            })
+        }
+        "pacman" => {
+            let pm = find_bin("pacman");
+            run_one_action(
+                {
+                    let mut c = Command::new(&pm);
+                    c.args(["-Syu", "--noconfirm"]);
+                    c
+                },
+                format!("{pm} -Syu --noconfirm"),
+            )
+        }
+        "zypper" => {
+            let zp = find_bin("zypper");
+            let r1 = run_one_action(
+                {
+                    let mut c = Command::new(&zp);
+                    c.args(["-n", "ref"]);
+                    c
+                },
+                format!("{zp} -n ref"),
+            )?;
+            if !r1.ok {
+                return Ok(r1);
+            }
+            merge_action_result(&format!("{zp} -n up -y"), r1, {
+                let mut c = Command::new(&zp);
+                c.args(["-n", "up", "-y"]);
+                c
+            })
+        }
+        _ => Err(LibvirtError::Invalid(format!(
+            "unsupported package backend for upgrade: {backend}"
+        ))),
+    }
+}
+
+/// Install one or more packages (same backend as [`detect_package_backend`]; max {MAX_PACKAGES_PER_REQUEST}).
+pub fn package_install(packages: Vec<String>) -> Result<PackageActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = packages;
+        Err(LibvirtError::Operation(
+            "package install is only supported on Linux".into(),
+        ))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        package_install_linux(packages)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn package_install_linux(packages: Vec<String>) -> Result<PackageActionResult, LibvirtError> {
+    if packages.is_empty() {
+        return Err(LibvirtError::Invalid("no packages specified".into()));
+    }
+    if packages.len() > MAX_PACKAGES_PER_REQUEST {
+        return Err(LibvirtError::Invalid(format!(
+            "too many packages (max {MAX_PACKAGES_PER_REQUEST})"
+        )));
+    }
+    for p in &packages {
+        validate_package_token(p)?;
+    }
+    let backend = detect_package_backend();
+    let pkgs: Vec<&str> = packages.iter().map(|s| s.trim()).collect();
+    match backend {
+        "apt" => {
+            let apt = find_bin("apt-get");
+            let r1 = run_one_action(
+                {
+                    let mut c = Command::new(&apt);
+                    c.arg("-qq")
+                        .arg("update")
+                        .env("DEBIAN_FRONTEND", "noninteractive");
+                    c
+                },
+                format!("{apt} -qq update"),
+            )?;
+            if !r1.ok {
+                return Ok(r1);
+            }
+            let mut c = Command::new(&apt);
+            c.arg("-y")
+                .arg("-qq")
+                .arg("install")
+                .env("DEBIAN_FRONTEND", "noninteractive");
+            for p in &pkgs {
+                c.arg(p);
+            }
+            merge_action_result(&format!("{apt} -y -qq install {}", pkgs.join(" ")), r1, c)
+        }
+        "microdnf" => {
+            let exe = find_bin("microdnf");
+            let mut c = Command::new(&exe);
+            c.arg("-y").arg("install");
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{exe} -y install {}", pkgs.join(" ")))
+        }
+        "dnf" => {
+            let exe = find_bin("dnf");
+            let mut c = Command::new(&exe);
+            c.args(["-y", "install"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{exe} -y install {}", pkgs.join(" ")))
+        }
+        "yum" => {
+            let exe = find_bin("yum");
+            let mut c = Command::new(&exe);
+            c.args(["-y", "install"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{exe} -y install {}", pkgs.join(" ")))
+        }
+        "apk" => {
+            let apk = find_bin("apk");
+            let mut c = Command::new(&apk);
+            c.args(["add", "--no-cache"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{apk} add --no-cache {}", pkgs.join(" ")))
+        }
+        "pacman" => {
+            let pm = find_bin("pacman");
+            let mut c = Command::new(&pm);
+            c.args(["-S", "--noconfirm"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{pm} -S --noconfirm {}", pkgs.join(" ")))
+        }
+        "zypper" => {
+            let zp = find_bin("zypper");
+            let r1 = run_one_action(
+                {
+                    let mut c = Command::new(&zp);
+                    c.args(["-n", "ref"]);
+                    c
+                },
+                format!("{zp} -n ref"),
+            )?;
+            if !r1.ok {
+                return Ok(r1);
+            }
+            let mut c = Command::new(&zp);
+            c.args(["-n", "in", "-y"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            merge_action_result(&format!("{zp} -n in -y {}", pkgs.join(" ")), r1, c)
+        }
+        _ => Err(LibvirtError::Invalid(format!(
+            "unsupported package backend for install: {backend}"
+        ))),
+    }
+}
+
+/// Remove (uninstall) one or more packages (same backend as [`detect_package_backend`]; max 32 per request).
+/// When `purge` is true, Debian/Ubuntu uses `apt-get remove --purge`; other backends ignore it.
+pub fn package_remove(
+    packages: Vec<String>,
+    purge: bool,
+) -> Result<PackageActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (packages, purge);
+        Err(LibvirtError::Operation(
+            "package remove is only supported on Linux".into(),
+        ))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        package_remove_linux(packages, purge)
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn package_remove_linux(
+    packages: Vec<String>,
+    purge: bool,
+) -> Result<PackageActionResult, LibvirtError> {
+    if packages.is_empty() {
+        return Err(LibvirtError::Invalid("no packages specified".into()));
+    }
+    if packages.len() > MAX_PACKAGES_PER_REQUEST {
+        return Err(LibvirtError::Invalid(format!(
+            "too many packages (max {MAX_PACKAGES_PER_REQUEST})"
+        )));
+    }
+    for p in &packages {
+        validate_package_token(p)?;
+    }
+    let backend = detect_package_backend();
+    let pkgs: Vec<&str> = packages.iter().map(|s| s.trim()).collect();
+    match backend {
+        "apt" => {
+            let apt = find_bin("apt-get");
+            let mut c = Command::new(&apt);
+            if purge {
+                c.args(["-y", "-qq", "remove", "--purge"])
+                    .env("DEBIAN_FRONTEND", "noninteractive");
+            } else {
+                c.args(["-y", "-qq", "remove"])
+                    .env("DEBIAN_FRONTEND", "noninteractive");
+            }
+            for p in &pkgs {
+                c.arg(p);
+            }
+            let label = if purge {
+                format!("{apt} -y -qq remove --purge {}", pkgs.join(" "))
+            } else {
+                format!("{apt} -y -qq remove {}", pkgs.join(" "))
+            };
+            run_one_action(c, label)
+        }
+        "microdnf" => {
+            let exe = find_bin("microdnf");
+            let mut c = Command::new(&exe);
+            c.args(["-y", "remove"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{exe} -y remove {}", pkgs.join(" ")))
+        }
+        "dnf" => {
+            let exe = find_bin("dnf");
+            let mut c = Command::new(&exe);
+            c.args(["-y", "remove"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{exe} -y remove {}", pkgs.join(" ")))
+        }
+        "yum" => {
+            let exe = find_bin("yum");
+            let mut c = Command::new(&exe);
+            c.args(["-y", "remove"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{exe} -y remove {}", pkgs.join(" ")))
+        }
+        "apk" => {
+            let apk = find_bin("apk");
+            let mut c = Command::new(&apk);
+            c.arg("del");
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{apk} del {}", pkgs.join(" ")))
+        }
+        "pacman" => {
+            let pm = find_bin("pacman");
+            let mut c = Command::new(&pm);
+            c.args(["-R", "--noconfirm"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{pm} -R --noconfirm {}", pkgs.join(" ")))
+        }
+        "zypper" => {
+            let zp = find_bin("zypper");
+            let mut c = Command::new(&zp);
+            c.args(["-n", "rm", "-y"]);
+            for p in &pkgs {
+                c.arg(p);
+            }
+            run_one_action(c, format!("{zp} -n rm -y {}", pkgs.join(" ")))
+        }
+        _ => Err(LibvirtError::Invalid(format!(
+            "unsupported package backend for remove: {backend}"
+        ))),
+    }
+}
+
+/// Simulate a full upgrade (no changes) and return combined tool output for operator review.
+pub fn package_upgrade_preview() -> Result<PackageActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err(LibvirtError::Operation(
+            "package upgrade preview is only supported on Linux".into(),
+        ))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        package_upgrade_preview_linux()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn package_upgrade_preview_linux() -> Result<PackageActionResult, LibvirtError> {
+    let backend = detect_package_backend();
+    match backend {
+        "apt" => {
+            let ag = find_bin("apt-get");
+            let mut cmd = Command::new(find_bin("sh"));
+            cmd.arg("-c").arg(format!(
+                "set -o pipefail; DEBIAN_FRONTEND=noninteractive {ag} -qq -s upgrade 2>&1 | tail -n 4000"
+            ));
+            run_one_action(cmd, format!("{ag} -qq -s upgrade (simulate, tail)"))
+        }
+        "microdnf" | "dnf" => {
+            let exe = find_bin(if backend == "microdnf" {
+                "microdnf"
+            } else {
+                "dnf"
+            });
+            let mut cmd = Command::new(&exe);
+            cmd.args(["upgrade", "--assumeno"]);
+            run_one_action(cmd, format!("{exe} upgrade --assumeno"))
+        }
+        "yum" => {
+            let exe = find_bin("yum");
+            let mut cmd = Command::new(&exe);
+            cmd.args(["upgrade", "--assumeno"]);
+            run_one_action(cmd, format!("{exe} upgrade --assumeno"))
+        }
+        "apk" => {
+            let apk = find_bin("apk");
+            let mut cmd = Command::new(&apk);
+            cmd.args(["upgrade", "--simulate"]);
+            run_one_action(cmd, format!("{apk} upgrade --simulate"))
+        }
+        "pacman" => {
+            let pm = find_bin("pacman");
+            let mut cmd = Command::new(&pm);
+            cmd.args(["-Sup", "--noconfirm"]);
+            run_one_action(cmd, format!("{pm} -Sup --noconfirm"))
+        }
+        "zypper" => {
+            let zp = find_bin("zypper");
+            let mut cmd = Command::new(&zp);
+            cmd.args(["-n", "up", "--dry-run", "-y"]);
+            run_one_action(cmd, format!("{zp} -n up --dry-run -y"))
+        }
+        _ => Err(LibvirtError::Invalid(format!(
+            "unsupported package backend for upgrade preview: {backend}"
+        ))),
+    }
+}
+
+/// Remove packages that were installed only as dependencies and are no longer needed (apt: `autoremove`).
+pub fn package_autoremove() -> Result<PackageActionResult, LibvirtError> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        Err(LibvirtError::Operation(
+            "package autoremove is only supported on Linux".into(),
+        ))
+    }
+    #[cfg(target_os = "linux")]
+    {
+        package_autoremove_linux()
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn package_autoremove_linux() -> Result<PackageActionResult, LibvirtError> {
+    if detect_package_backend() != "apt" {
+        return Err(LibvirtError::Invalid(
+            "autoremove is only implemented for apt".into(),
+        ));
+    }
+    let apt = find_bin("apt-get");
+    let mut c = Command::new(&apt);
+    c.args(["-y", "-qq", "autoremove"])
+        .env("DEBIAN_FRONTEND", "noninteractive");
+    run_one_action(c, format!("{apt} -y -qq autoremove"))
+}

@@ -7,9 +7,7 @@ use machina_core::{LibvirtError, LibvirtManager, NodeInfo};
 
 use crate::error::AppError;
 
-async fn get_node_info(
-    State(manager): State<LibvirtManager>,
-) -> Result<Json<NodeInfo>, AppError> {
+async fn get_node_info(State(manager): State<LibvirtManager>) -> Result<Json<NodeInfo>, AppError> {
     let result = tokio::task::spawn_blocking(move || manager.with_conn(node::get_node_info))
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;

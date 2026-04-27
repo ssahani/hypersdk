@@ -7,11 +7,11 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
+use machina_core::libvirt::domain;
+use machina_core::{LibvirtManager, SshTerminalConfig};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
-use machina_core::libvirt::domain;
-use machina_core::{LibvirtManager, SshTerminalConfig};
 
 use crate::kubevirt_k8s_ws_proxy;
 use crate::terminal::{run_ssh_terminal, TerminalSessionStore};
@@ -68,17 +68,18 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
         // (e.g. while another thread holds the connection mutex during destroy/undefine). Blocking
         // the executor starves HTTP/WebSocket work and can look like a daemon "crash".
         let manager2 = manager.clone();
-        let current = match tokio::task::spawn_blocking(move || manager2.with_conn(domain::list_vms)).await {
-            Ok(Ok(vms)) => vms,
-            Ok(Err(e)) => {
-                warn!("Failed to list VMs for watch: {}", e);
-                Vec::new()
-            }
-            Err(e) => {
-                warn!("Watch list_vms task join error: {}", e);
-                Vec::new()
-            }
-        };
+        let current =
+            match tokio::task::spawn_blocking(move || manager2.with_conn(domain::list_vms)).await {
+                Ok(Ok(vms)) => vms,
+                Ok(Err(e)) => {
+                    warn!("Failed to list VMs for watch: {}", e);
+                    Vec::new()
+                }
+                Err(e) => {
+                    warn!("Watch list_vms task join error: {}", e);
+                    Vec::new()
+                }
+            };
 
         let mut changes = Vec::new();
         let mut current_names: HashMap<String, String> = HashMap::with_capacity(current.len());
@@ -173,9 +174,15 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
 
     let pty = match pty_path {
         Some(ref p) => match std::fs::canonicalize(p) {
-            Ok(canonical) if canonical.starts_with("/dev/pts/") => canonical.to_string_lossy().to_string(),
+            Ok(canonical) if canonical.starts_with("/dev/pts/") => {
+                canonical.to_string_lossy().to_string()
+            }
             Ok(canonical) => {
-                warn!("PTY path '{}' resolved to '{}' which is outside /dev/pts/", p, canonical.display());
+                warn!(
+                    "PTY path '{}' resolved to '{}' which is outside /dev/pts/",
+                    p,
+                    canonical.display()
+                );
                 let (mut sink, _) = socket.split();
                 let _ = sink
                     .send(Message::Text(
@@ -188,7 +195,11 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
                 let (mut sink, _) = socket.split();
                 let _ = sink
                     .send(Message::Text(
-                        format!("\r\nNo console PTY found for VM '{}'. Is it running?\r\n", name).into(),
+                        format!(
+                            "\r\nNo console PTY found for VM '{}'. Is it running?\r\n",
+                            name
+                        )
+                        .into(),
                     ))
                     .await;
                 return;
@@ -198,8 +209,11 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
             let (mut sink, _) = socket.split();
             let _ = sink
                 .send(Message::Text(
-                    format!("\r\nNo console PTY found for VM '{}'. Is it running?\r\n", name)
-                        .into(),
+                    format!(
+                        "\r\nNo console PTY found for VM '{}'. Is it running?\r\n",
+                        name
+                    )
+                    .into(),
                 ))
                 .await;
             return;
@@ -286,7 +300,8 @@ async fn vnc_handler(
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
     // hyper2kvm-style: use `virsh vncdisplay` when domain XML still has autoport (-1).
-    let resolved = manager.with_conn(|conn| machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name));
+    let resolved =
+        manager.with_conn(|conn| machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name));
 
     let (host, port) = match resolved {
         Ok((h, p)) if p > 0 => (h, p),
@@ -383,8 +398,8 @@ async fn spice_handler(
             let xml = domain::get_vm_xml(conn, &name)?;
             let mut port = 0u16;
             for block in machina_core::xml::split_blocks(&xml, "graphics") {
-                let gtype = machina_core::xml::extract_attr(&block, "graphics", "type")
-                    .unwrap_or_default();
+                let gtype =
+                    machina_core::xml::extract_attr(&block, "graphics", "type").unwrap_or_default();
                 if gtype == "spice" {
                     port = machina_core::xml::extract_attr(&block, "graphics", "port")
                         .and_then(|s| s.parse().ok())
@@ -407,7 +422,10 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
         return;
     }
 
-    info!("SPICE WebSocket proxy connecting to 127.0.0.1:{} for VM '{}'", port, name);
+    info!(
+        "SPICE WebSocket proxy connecting to 127.0.0.1:{} for VM '{}'",
+        port, name
+    );
 
     let tcp = match tokio::net::TcpStream::connect(format!("127.0.0.1:{}", port)).await {
         Ok(s) => s,
@@ -430,7 +448,11 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
             match tcp_read.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
-                    if ws_sink.send(Message::Binary(buf[..n].to_vec().into())).await.is_err() {
+                    if ws_sink
+                        .send(Message::Binary(buf[..n].to_vec().into()))
+                        .await
+                        .is_err()
+                    {
                         break;
                     }
                 }
@@ -443,10 +465,14 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
         while let Some(Ok(msg)) = ws_stream.next().await {
             match msg {
                 Message::Binary(data) => {
-                    if tcp_write.write_all(&data).await.is_err() { break; }
+                    if tcp_write.write_all(&data).await.is_err() {
+                        break;
+                    }
                 }
                 Message::Text(text) => {
-                    if tcp_write.write_all(text.as_bytes()).await.is_err() { break; }
+                    if tcp_write.write_all(text.as_bytes()).await.is_err() {
+                        break;
+                    }
                 }
                 Message::Ping(_) | Message::Pong(_) => {}
                 Message::Close(_) => break,
@@ -459,7 +485,10 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
         _ = &mut write_task => { read_task.abort(); }
     }
 
-    info!("SPICE WebSocket proxy closed for VM '{}' port {}", name, port);
+    info!(
+        "SPICE WebSocket proxy closed for VM '{}' port {}",
+        name, port
+    );
 }
 
 // ── SSH WebSocket proxy (legacy raw I/O) ───────────────────────────
@@ -553,7 +582,9 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         Some(s) => s,
         None => {
             let (mut sink, _) = socket.split();
-            let _ = sink.send(Message::Text("\r\nFailed to get SSH stdin\r\n".into())).await;
+            let _ = sink
+                .send(Message::Text("\r\nFailed to get SSH stdin\r\n".into()))
+                .await;
             return;
         }
     };
@@ -562,7 +593,9 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
         Some(s) => s,
         None => {
             let (mut sink, _) = socket.split();
-            let _ = sink.send(Message::Text("\r\nFailed to get SSH stdout\r\n".into())).await;
+            let _ = sink
+                .send(Message::Text("\r\nFailed to get SSH stdout\r\n".into()))
+                .await;
             return;
         }
     };

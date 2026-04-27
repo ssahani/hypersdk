@@ -392,7 +392,8 @@ impl Default for LibvirtConfig {
             virt_builder_default_packages: Vec::new(),
             virt_image_build_max_concurrent: default_virt_image_build_max_concurrent(),
             virt_image_build_timeout_secs: 0,
-            virt_image_build_min_free_parent_bytes: default_virt_image_build_min_free_parent_bytes(),
+            virt_image_build_min_free_parent_bytes: default_virt_image_build_min_free_parent_bytes(
+            ),
             virt_image_build_min_free_tmp_bytes: default_virt_image_build_min_free_tmp_bytes(),
             mkosi_allowed: true,
         }
@@ -436,10 +437,7 @@ impl MachinaConfig {
                             return config;
                         }
                         Err(e) => {
-                            tracing::warn!(
-                                "Failed to parse {}: {e}",
-                                config_path.display()
-                            );
+                            tracing::warn!("Failed to parse {}: {e}", config_path.display());
                         }
                     },
                     Err(e) => {
@@ -505,11 +503,7 @@ mod tests {
     #[test]
     fn daemon_url_uses_http_without_tls() {
         let c = MachinaConfig::default();
-        assert!(
-            c.daemon_url().starts_with("http://"),
-            "{}",
-            c.daemon_url()
-        );
+        assert!(c.daemon_url().starts_with("http://"), "{}", c.daemon_url());
     }
 
     #[test]

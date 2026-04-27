@@ -5,18 +5,21 @@ mod k8s_kubeconfig;
 mod kubevirt_exec;
 mod kubevirt_k8s_ws_proxy;
 mod routes;
-mod virt_image_validate;
 mod server;
 mod systemd;
 mod terminal;
+mod virt_image_validate;
 
 use clap::Parser;
+use machina_core::{LibvirtManager, MachinaConfig};
 use tokio::signal;
 use tracing::info;
-use machina_core::{LibvirtManager, MachinaConfig};
 
 #[derive(Parser)]
-#[command(name = "machina-daemon", about = "machina-daemon — HTTP/WebSocket control plane for Linux hypervisor hosts (libvirt/QEMU/KVM)")]
+#[command(
+    name = "machina-daemon",
+    about = "machina-daemon — HTTP/WebSocket control plane for Linux hypervisor hosts (libvirt/QEMU/KVM)"
+)]
 struct Cli {
     /// Host to bind to
     #[arg(long)]
@@ -73,16 +76,17 @@ async fn main() -> anyhow::Result<()> {
         config.libvirt.uri = uri;
     }
 
-    let manager = LibvirtManager::new(&config.libvirt.uri)
-        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let manager = LibvirtManager::new(&config.libvirt.uri).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     info!("Connected to libvirt ({})", config.libvirt.uri);
-    info!("PAM service for web login: /etc/pam.d/{}", config.auth.pam_service);
+    info!(
+        "PAM service for web login: /etc/pam.d/{}",
+        config.auth.pam_service
+    );
 
     let bind_addr = config.bind_addr();
-    let tls_enabled = config.tls.enabled
-        && !config.tls.cert_path.is_empty()
-        && !config.tls.key_path.is_empty();
+    let tls_enabled =
+        config.tls.enabled && !config.tls.cert_path.is_empty() && !config.tls.key_path.is_empty();
     let tls_cert_path = config.tls.cert_path.clone();
     let tls_key_path = config.tls.key_path.clone();
 
@@ -93,9 +97,9 @@ async fn main() -> anyhow::Result<()> {
         info!("  cert: {}", tls_cert_path);
         info!("  key:  {}", tls_key_path);
 
-        let tls_config = axum_server::tls_rustls::RustlsConfig::from_pem_file(
-            &tls_cert_path, &tls_key_path,
-        ).await?;
+        let tls_config =
+            axum_server::tls_rustls::RustlsConfig::from_pem_file(&tls_cert_path, &tls_key_path)
+                .await?;
 
         // bind_rustls opens its own listener — do not TcpListener::bind first or we get EADDRINUSE.
         systemd::notify_ready();
@@ -127,7 +131,9 @@ async fn shutdown_signal() {
     #[cfg(unix)]
     let terminate = async {
         match signal::unix::signal(signal::unix::SignalKind::terminate()) {
-            Ok(mut sig) => { sig.recv().await; }
+            Ok(mut sig) => {
+                sig.recv().await;
+            }
             Err(e) => tracing::error!("Failed to listen for SIGTERM: {e}"),
         }
     };

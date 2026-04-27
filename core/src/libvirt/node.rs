@@ -12,10 +12,17 @@ pub fn get_node_info(conn: &Connect) -> Result<NodeInfo, LibvirtError> {
         .get_type()
         .map_err(LibvirtError::map_op("Failed to get hypervisor type"))?;
 
-    let format_version = |v: u32| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000);
+    let format_version =
+        |v: u32| format!("{}.{}.{}", v / 1_000_000, (v / 1_000) % 1_000, v % 1_000);
 
-    let hv_version = conn.get_hyp_version().map(format_version).unwrap_or_else(|_| crate::unknown_string());
-    let lib_version = conn.get_lib_version().map(format_version).unwrap_or_else(|_| crate::unknown_string());
+    let hv_version = conn
+        .get_hyp_version()
+        .map(format_version)
+        .unwrap_or_else(|_| crate::unknown_string());
+    let lib_version = conn
+        .get_lib_version()
+        .map(format_version)
+        .unwrap_or_else(|_| crate::unknown_string());
 
     let node = conn
         .get_node_info()

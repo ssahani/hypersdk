@@ -13,12 +13,13 @@ use axum::response::sse::{Event, KeepAlive, Sse};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use futures_util::stream;
+use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager, MachinaConfig};
 use serde::Deserialize;
 use serde_json::{json, Value};
-use uuid::Uuid;
-use virt_image_build::BuildDiskRequest;
 use tokio::sync::Semaphore;
-use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager, MachinaConfig};
+use uuid::Uuid;
+use virt::connect::Connect;
+use virt_image_build::BuildDiskRequest;
 
 use crate::error::AppError;
 use crate::job_registry::{JobDetail, JobRegistry, JobStatus, JobSummary};
@@ -45,9 +46,9 @@ async fn get_job_handler(
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Path(id): Path<String>,
 ) -> Result<Json<JobDetail>, AppError> {
-    let uid = Uuid::parse_str(&id).map_err(|_| AppError::from(LibvirtError::Invalid("invalid job id".into())))?;
-    jobs
-        .get_detail(&uid)
+    let uid = Uuid::parse_str(&id)
+        .map_err(|_| AppError::from(LibvirtError::Invalid("invalid job id".into())))?;
+    jobs.get_detail(&uid)
         .map(Json)
         .ok_or_else(|| AppError::from(LibvirtError::NotFound(format!("job not found: {id}"))))
 }
@@ -60,11 +61,14 @@ async fn post_virt_image_build_job(
 ) -> Result<Json<Value>, AppError> {
     if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
-            "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)".into(),
+            "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)"
+                .into(),
         )));
     }
     if req.output.trim().is_empty() {
-        return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
+        return Err(AppError::from(LibvirtError::Invalid(
+            "output is required".into(),
+        )));
     }
 
     let timeout_secs = MachinaConfig::load().libvirt.virt_image_build_timeout_secs;
@@ -73,7 +77,8 @@ async fn post_virt_image_build_job(
     }
 
     let id = jobs.start_virt_image_build(req.os.trim(), req.output.trim());
-    let mgr = manager.clone();
+    let cfg = MachinaConfig::load();
+    let libvirt_uri = cfg.libvirt.uri.clone();
     let jobs_bg = jobs.clone();
     let jobs_for_blocking = jobs_bg.clone();
     let req_bg = req.clone();
@@ -93,13 +98,19 @@ async fn post_virt_image_build_job(
 
         let res = tokio::task::spawn_blocking(move || {
             let _permit = permit;
-            mgr.with_conn(|conn| {
-                crate::virt_image_validate::validate_virt_image_build(conn, &req_bg)?;
+            let conn = Connect::open(Some(&libvirt_uri)).map_err(|e| {
+                LibvirtError::Connection(format!(
+                    "Failed to connect to libvirt ({}): {e}",
+                    libvirt_uri
+                ))
+            })?;
+            (|| {
+                crate::virt_image_validate::validate_virt_image_build(&conn, &req_bg)?;
                 virt_image_build::build_disk_image_with_logs(&req_bg, |line| {
                     jobs_for_blocking.append_log(id, line);
                 })
                 .map_err(|e| LibvirtError::Operation(e.to_string()))
-            })
+            })()
         })
         .await;
 
@@ -161,7 +172,9 @@ async fn post_packer_golden_build_job(
 ) -> Result<Json<Value>, AppError> {
     let guest = body.guest.trim().to_string();
     if guest.is_empty() {
-        return Err(AppError::from(LibvirtError::Invalid("guest is required".into())));
+        return Err(AppError::from(LibvirtError::Invalid(
+            "guest is required".into(),
+        )));
     }
     if !packer_guest_allowed(&guest) {
         return Err(AppError::from(LibvirtError::Invalid(format!(
@@ -246,10 +259,7 @@ async fn post_packer_golden_build_job(
         };
 
         if !status.success() {
-            jobs_bg.fail(
-                id,
-                &format!("packer build exited with status {}", status),
-            );
+            jobs_bg.fail(id, &format!("packer build exited with status {}", status));
             return;
         }
 
@@ -282,9 +292,12 @@ async fn job_stream_handler(
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Path(id): Path<String>,
 ) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>> + Send>, AppError> {
-    let uid = Uuid::parse_str(&id).map_err(|_| AppError::from(LibvirtError::Invalid("invalid job id".into())))?;
+    let uid = Uuid::parse_str(&id)
+        .map_err(|_| AppError::from(LibvirtError::Invalid("invalid job id".into())))?;
     if jobs.get_detail(&uid).is_none() {
-        return Err(AppError::from(LibvirtError::NotFound(format!("job not found: {id}"))));
+        return Err(AppError::from(LibvirtError::NotFound(format!(
+            "job not found: {id}"
+        ))));
     }
 
     let jobs2 = jobs.clone();
@@ -315,7 +328,10 @@ async fn job_stream_handler(
                 if offset < detail.logs.len() {
                     let chunk = detail.logs[offset..].join("\n");
                     offset = detail.logs.len();
-                    return Some((Ok(Event::default().data(chunk)), (interval, offset, terminal_sent)));
+                    return Some((
+                        Ok(Event::default().data(chunk)),
+                        (interval, offset, terminal_sent),
+                    ));
                 }
                 match detail.summary.status {
                     JobStatus::Running => Some((
@@ -352,20 +368,21 @@ async fn job_stream_handler(
         },
     );
 
-    Ok(
-        Sse::new(stream).keep_alive(
-            KeepAlive::new()
-                .interval(Duration::from_secs(25))
-                .text("keepalive"),
-        ),
-    )
+    Ok(Sse::new(stream).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(25))
+            .text("keepalive"),
+    ))
 }
 
 pub fn job_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/jobs", get(list_jobs))
         .route("/jobs/virt-image-build", post(post_virt_image_build_job))
-        .route("/jobs/packer-golden-build", post(post_packer_golden_build_job))
+        .route(
+            "/jobs/packer-golden-build",
+            post(post_packer_golden_build_job),
+        )
         .route("/jobs/{id}/stream", get(job_stream_handler))
         .route("/jobs/{id}", get(get_job_handler))
 }

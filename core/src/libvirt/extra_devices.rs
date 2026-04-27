@@ -51,7 +51,12 @@ const WATCHDOG_MODELS: &[&str] = &["i6300esb", "ib700", "diag288"];
 const WATCHDOG_ACTIONS: &[&str] = &["reset", "shutdown", "poweroff", "pause", "none", "dump"];
 
 /// Attach a watchdog device (`model` + `action` when guest hangs).
-pub fn attach_watchdog(conn: &Connect, vm_name: &str, model: &str, action: &str) -> Result<(), LibvirtError> {
+pub fn attach_watchdog(
+    conn: &Connect,
+    vm_name: &str,
+    model: &str,
+    action: &str,
+) -> Result<(), LibvirtError> {
     if !WATCHDOG_MODELS.contains(&model) {
         return Err(LibvirtError::Invalid(format!(
             "watchdog model must be one of: {}",

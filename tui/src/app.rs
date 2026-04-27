@@ -159,9 +159,18 @@ impl App {
                 return;
             }
             KeyCode::Char('r') => {
-                if let Some(SidebarItem::StoragePool(name)) = self.state.selected_sidebar_item().cloned() {
+                if let Some(SidebarItem::StoragePool(name)) =
+                    self.state.selected_sidebar_item().cloned()
+                {
                     let r = self.client.refresh_pool(&name).await;
-                    self.report_cmd_result(r, &format!("Refreshed pool '{name}'"), "refresh-pool", &name, true).await;
+                    self.report_cmd_result(
+                        r,
+                        &format!("Refreshed pool '{name}'"),
+                        "refresh-pool",
+                        &name,
+                        true,
+                    )
+                    .await;
                 } else {
                     self.refresh_all_data().await;
                 }
@@ -181,8 +190,14 @@ impl App {
             KeyCode::Right => {
                 if self.state.focus == Focus::Sidebar {
                     self.state.focus = Focus::Content;
-                    if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
-                        if self.state.vm_details.as_ref().is_none_or(|d| d.name != name) {
+                    if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned()
+                    {
+                        if self
+                            .state
+                            .vm_details
+                            .as_ref()
+                            .is_none_or(|d| d.name != name)
+                        {
                             self.load_vm_details(&name).await;
                         }
                     }
@@ -223,54 +238,61 @@ impl App {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
                 if len > 0 {
-                    self.navigate_sidebar((self.state.sidebar_selected + 1) % len).await;
+                    self.navigate_sidebar((self.state.sidebar_selected + 1) % len)
+                        .await;
                 }
             }
             KeyCode::Char('k') | KeyCode::Up => {
                 if len > 0 {
-                    let pos = if self.state.sidebar_selected == 0 { len - 1 } else { self.state.sidebar_selected - 1 };
+                    let pos = if self.state.sidebar_selected == 0 {
+                        len - 1
+                    } else {
+                        self.state.sidebar_selected - 1
+                    };
                     self.navigate_sidebar(pos).await;
                 }
             }
             KeyCode::Char('g') => self.navigate_sidebar(0).await,
             KeyCode::Char('G') => {
-                if len > 0 { self.navigate_sidebar(len - 1).await; }
+                if len > 0 {
+                    self.navigate_sidebar(len - 1).await;
+                }
             }
-            KeyCode::PageDown => self.navigate_sidebar(self.state.sidebar_selected + 10).await,
+            KeyCode::PageDown => {
+                self.navigate_sidebar(self.state.sidebar_selected + 10)
+                    .await
+            }
             KeyCode::PageUp => {
-                self.navigate_sidebar(self.state.sidebar_selected.saturating_sub(10)).await;
+                self.navigate_sidebar(self.state.sidebar_selected.saturating_sub(10))
+                    .await;
             }
 
-            KeyCode::Char(' ') => {
-                match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Category(_)) => self.state.toggle_sidebar_collapse(),
-                    Some(SidebarItem::Vm(name)) => self.toggle_multi_select(&name),
-                    _ => {}
-                }
-            }
+            KeyCode::Char(' ') => match self.state.selected_sidebar_item().cloned() {
+                Some(SidebarItem::Category(_)) => self.state.toggle_sidebar_collapse(),
+                Some(SidebarItem::Vm(name)) => self.toggle_multi_select(&name),
+                _ => {}
+            },
 
-            KeyCode::Enter => {
-                match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Category(_)) => self.state.toggle_sidebar_collapse(),
-                    Some(SidebarItem::Vm(name)) => {
-                        if self.state.multi_select_mode {
-                            self.state.toggle_selection(&name);
-                        } else {
-                            self.load_vm_details(&name).await;
-                            self.state.focus = Focus::Content;
-                            self.state.active_object_tab = ObjectTab::Summary;
-                        }
-                    }
-                    Some(SidebarItem::StoragePool(name)) => {
-                        self.browse_pool_volumes_by_name(&name).await;
+            KeyCode::Enter => match self.state.selected_sidebar_item().cloned() {
+                Some(SidebarItem::Category(_)) => self.state.toggle_sidebar_collapse(),
+                Some(SidebarItem::Vm(name)) => {
+                    if self.state.multi_select_mode {
+                        self.state.toggle_selection(&name);
+                    } else {
+                        self.load_vm_details(&name).await;
                         self.state.focus = Focus::Content;
+                        self.state.active_object_tab = ObjectTab::Summary;
                     }
-                    Some(SidebarItem::Network(_)) | Some(SidebarItem::Snapshot(_, _)) => {
-                        self.state.focus = Focus::Content;
-                    }
-                    None => {}
                 }
-            }
+                Some(SidebarItem::StoragePool(name)) => {
+                    self.browse_pool_volumes_by_name(&name).await;
+                    self.state.focus = Focus::Content;
+                }
+                Some(SidebarItem::Network(_)) | Some(SidebarItem::Snapshot(_, _)) => {
+                    self.state.focus = Focus::Content;
+                }
+                None => {}
+            },
 
             KeyCode::Backspace => self.exit_volume_browser(),
 
@@ -291,15 +313,23 @@ impl App {
             let len = self.state.current_list_len();
             if len > 0 {
                 if delta > 0 {
-                    self.state.selected_index = (self.state.selected_index + delta as usize).min(len - 1);
+                    self.state.selected_index =
+                        (self.state.selected_index + delta as usize).min(len - 1);
                 } else {
-                    self.state.selected_index = self.state.selected_index.saturating_sub((-delta) as usize);
+                    self.state.selected_index =
+                        self.state.selected_index.saturating_sub((-delta) as usize);
                 }
             }
         } else if delta > 0 {
-            self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(delta as u16);
+            self.state.content_scroll_offset = self
+                .state
+                .content_scroll_offset
+                .saturating_add(delta as u16);
         } else {
-            self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub((-delta) as u16);
+            self.state.content_scroll_offset = self
+                .state
+                .content_scroll_offset
+                .saturating_sub((-delta) as u16);
         }
     }
 
@@ -308,23 +338,36 @@ impl App {
     async fn handle_content_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Char('j') | KeyCode::Down => {
-                if self.is_showing_table() { self.move_down(); }
-                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(1); }
+                if self.is_showing_table() {
+                    self.move_down();
+                } else {
+                    self.state.content_scroll_offset =
+                        self.state.content_scroll_offset.saturating_add(1);
+                }
             }
             KeyCode::Char('k') | KeyCode::Up => {
-                if self.is_showing_table() { self.move_up(); }
-                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(1); }
+                if self.is_showing_table() {
+                    self.move_up();
+                } else {
+                    self.state.content_scroll_offset =
+                        self.state.content_scroll_offset.saturating_sub(1);
+                }
             }
             KeyCode::PageDown => self.navigate_content(10),
             KeyCode::PageUp => self.navigate_content(-10),
             KeyCode::Char('g') => {
-                if self.is_showing_table() { self.state.selected_index = 0; }
-                else { self.state.content_scroll_offset = 0; }
+                if self.is_showing_table() {
+                    self.state.selected_index = 0;
+                } else {
+                    self.state.content_scroll_offset = 0;
+                }
             }
             KeyCode::Char('G') => {
                 if self.is_showing_table() {
                     let len = self.state.current_list_len();
-                    if len > 0 { self.state.selected_index = len - 1; }
+                    if len > 0 {
+                        self.state.selected_index = len - 1;
+                    }
                 }
             }
 
@@ -346,26 +389,24 @@ impl App {
                 self.state.content_scroll_offset = 0;
             }
 
-            KeyCode::Enter => {
-                match self.state.selected_sidebar_item().cloned() {
-                    Some(SidebarItem::Vm(name)) => {
-                        if self.state.multi_select_mode {
-                            self.state.toggle_selection(&name);
-                        } else {
-                            self.load_vm_details(&name).await;
-                        }
+            KeyCode::Enter => match self.state.selected_sidebar_item().cloned() {
+                Some(SidebarItem::Vm(name)) => {
+                    if self.state.multi_select_mode {
+                        self.state.toggle_selection(&name);
+                    } else {
+                        self.load_vm_details(&name).await;
                     }
-                    Some(SidebarItem::StoragePool(name)) => {
+                }
+                Some(SidebarItem::StoragePool(name)) => {
+                    self.browse_pool_volumes_by_name(&name).await;
+                }
+                Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+                    if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
                         self.browse_pool_volumes_by_name(&name).await;
                     }
-                    Some(SidebarItem::Category(SidebarCategory::Storage)) => {
-                        if let Some(name) = self.state.selected_pool_name().map(|s| s.to_string()) {
-                            self.browse_pool_volumes_by_name(&name).await;
-                        }
-                    }
-                    _ => {}
                 }
-            }
+                _ => {}
+            },
 
             KeyCode::Backspace => self.exit_volume_browser(),
 
@@ -394,25 +435,32 @@ impl App {
             KeyCode::Char('u') => self.action_on_sidebar_item("resume").await,
             KeyCode::Char('d') => self.request_confirmation_sidebar().await,
 
-            KeyCode::Char('n') => {
-                match self.state.sidebar_resource_view() {
-                    ResourceView::VirtualMachines => {
-                        self.state.notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
-                    }
-                    ResourceView::Snapshots => {
-                        self.state.input_mode = InputMode::Command;
-                        self.state.command_input = "snap ".to_string();
-                    }
-                    _ => {}
+            KeyCode::Char('n') => match self.state.sidebar_resource_view() {
+                ResourceView::VirtualMachines => {
+                    self.state
+                        .notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
                 }
-            }
+                ResourceView::Snapshots => {
+                    self.state.input_mode = InputMode::Command;
+                    self.state.command_input = "snap ".to_string();
+                }
+                _ => {}
+            },
 
             // VM-specific actions (resolve name once, dispatch)
             KeyCode::Char('o') => self.with_vm(|app, name| {
                 app.state.status_message = format!("Use ':clone {} <new-name>' to clone", name);
             }),
-            KeyCode::Char('v') => { if let Some(n) = self.resolve_vm_name() { self.launch_viewer_by_name(&n).await; } }
-            KeyCode::Char('V') => { if let Some(n) = self.resolve_vm_name() { self.launch_novnc_by_name(&n).await; } }
+            KeyCode::Char('v') => {
+                if let Some(n) = self.resolve_vm_name() {
+                    self.launch_viewer_by_name(&n).await;
+                }
+            }
+            KeyCode::Char('V') => {
+                if let Some(n) = self.resolve_vm_name() {
+                    self.launch_novnc_by_name(&n).await;
+                }
+            }
             KeyCode::Char('y') => {
                 if let Some(name) = self.state.effective_network_name().map(|s| s.to_string()) {
                     let r = self.client.get_network_xml(&name).await;
@@ -421,7 +469,11 @@ impl App {
                     self.show_vm_xml_by_name(&n).await;
                 }
             }
-            KeyCode::Char('c') => { if let Some(n) = self.resolve_vm_name() { self.launch_console_by_name(&n).await; } }
+            KeyCode::Char('c') => {
+                if let Some(n) = self.resolve_vm_name() {
+                    self.launch_console_by_name(&n).await;
+                }
+            }
             KeyCode::Char('t') => {
                 if let Some(name) = self.state.effective_network_name().map(|s| s.to_string()) {
                     self.toggle_network_autostart_by_name(&name).await;
@@ -431,7 +483,11 @@ impl App {
                     self.toggle_autostart_by_name(&n).await;
                 }
             }
-            KeyCode::Char('e') => { if let Some(n) = self.resolve_vm_name() { self.launch_ssh_by_name(&n).await; } }
+            KeyCode::Char('e') => {
+                if let Some(n) = self.resolve_vm_name() {
+                    self.launch_ssh_by_name(&n).await;
+                }
+            }
 
             // Network/pool start/stop
             KeyCode::Char('a') => self.handle_network_pool_action("start").await,
@@ -441,36 +497,58 @@ impl App {
             KeyCode::Char('R') => {
                 if let Some((vm, snap)) = self.resolve_snapshot() {
                     let r = self.client.revert_snapshot(&vm, &snap).await;
-                    self.report_cmd_result(r, &format!("Reverted '{vm}' to snapshot '{snap}'"), "revert-snapshot", &snap, true).await;
+                    self.report_cmd_result(
+                        r,
+                        &format!("Reverted '{vm}' to snapshot '{snap}'"),
+                        "revert-snapshot",
+                        &snap,
+                        true,
+                    )
+                    .await;
                 }
             }
 
             // Multi-select all
             KeyCode::Char('A') if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
+                if matches!(
+                    self.state.sidebar_resource_view(),
+                    ResourceView::VirtualMachines
+                ) {
                     self.state.multi_select_mode = true;
                     self.state.select_all_vms();
-                    self.state.status_message = format!("Selected all {} VMs", self.state.selected_items.len());
+                    self.state.status_message =
+                        format!("Selected all {} VMs", self.state.selected_items.len());
                 }
             }
 
             // Sort
-            KeyCode::Char('N') if key.modifiers.contains(KeyModifiers::SHIFT) => self.toggle_sort(SortColumn::Name),
+            KeyCode::Char('N') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.toggle_sort(SortColumn::Name)
+            }
             KeyCode::Char('S') if key.modifiers.contains(KeyModifiers::SHIFT) => {
-                if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
+                if matches!(
+                    self.state.sidebar_resource_view(),
+                    ResourceView::VirtualMachines
+                ) {
                     self.toggle_sort(SortColumn::State);
                 }
             }
-            KeyCode::Char('C') if key.modifiers.contains(KeyModifiers::SHIFT) => self.toggle_sort(SortColumn::Cpu),
-            KeyCode::Char('M') if key.modifiers.contains(KeyModifiers::SHIFT) => self.toggle_sort(SortColumn::Memory),
+            KeyCode::Char('C') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.toggle_sort(SortColumn::Cpu)
+            }
+            KeyCode::Char('M') if key.modifiers.contains(KeyModifiers::SHIFT) => {
+                self.toggle_sort(SortColumn::Memory)
+            }
 
             _ => {}
         }
     }
 
     fn is_showing_table(&self) -> bool {
-        matches!(self.state.selected_sidebar_item(), Some(SidebarItem::Category(_)))
-            || self.state.command_content_override.is_some()
+        matches!(
+            self.state.selected_sidebar_item(),
+            Some(SidebarItem::Category(_))
+        ) || self.state.command_content_override.is_some()
     }
 
     // ── Resource resolution helpers ─────────────────────────────────────
@@ -480,7 +558,9 @@ impl App {
     }
 
     fn resolve_snapshot(&self) -> Option<(String, String)> {
-        self.state.effective_snapshot().map(|s| (s.vm_name.clone(), s.name.clone()))
+        self.state
+            .effective_snapshot()
+            .map(|s| (s.vm_name.clone(), s.name.clone()))
     }
 
     /// Execute a sync closure with the resolved VM name (avoids repeated resolve pattern).
@@ -491,7 +571,10 @@ impl App {
     }
 
     fn toggle_multi_select(&mut self, name: &str) {
-        if matches!(self.state.sidebar_resource_view(), ResourceView::VirtualMachines) {
+        if matches!(
+            self.state.sidebar_resource_view(),
+            ResourceView::VirtualMachines
+        ) {
             if !self.state.multi_select_mode {
                 self.state.multi_select_mode = true;
             }
@@ -528,7 +611,8 @@ impl App {
 
     async fn action_on_sidebar_item(&mut self, action: &str) {
         match self.state.selected_sidebar_item().cloned() {
-            Some(SidebarItem::Vm(_)) | Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
+            Some(SidebarItem::Vm(_))
+            | Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
                 if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
                     self.batch_vm_action(action).await;
                 } else if let Some(name) = self.resolve_vm_name() {
@@ -563,8 +647,19 @@ impl App {
             ("pool", "stop") => self.client.stop_pool(name).await,
             _ => return,
         };
-        let kind_cap = match kind { "network" => "Network", "pool" => "Pool", _ => kind };
-        self.report_cmd_result(result, &format!("{kind_cap} '{name}': {action} OK"), &format!("{kind}-{action}"), name, true).await;
+        let kind_cap = match kind {
+            "network" => "Network",
+            "pool" => "Pool",
+            _ => kind,
+        };
+        self.report_cmd_result(
+            result,
+            &format!("{kind_cap} '{name}': {action} OK"),
+            &format!("{kind}-{action}"),
+            name,
+            true,
+        )
+        .await;
     }
 
     // ── Context menu ────────────────────────────────────────────────────
@@ -633,7 +728,9 @@ impl App {
                 self.state.command_input.clear();
                 self.execute_command(&cmd).await;
             }
-            KeyCode::Backspace => { self.state.command_input.pop(); }
+            KeyCode::Backspace => {
+                self.state.command_input.pop();
+            }
             KeyCode::Char(c) => self.state.command_input.push(c),
             _ => {}
         }
@@ -646,17 +743,25 @@ impl App {
             MouseEventKind::ScrollDown => {
                 if mouse.column < self.sidebar_width {
                     if !self.state.sidebar_items.is_empty() {
-                        self.state.sidebar_selected =
-                            (self.state.sidebar_selected + 1).min(self.state.sidebar_items.len() - 1);
+                        self.state.sidebar_selected = (self.state.sidebar_selected + 1)
+                            .min(self.state.sidebar_items.len() - 1);
                     }
-                } else if self.is_showing_table() { self.move_down(); }
-                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_add(1); }
+                } else if self.is_showing_table() {
+                    self.move_down();
+                } else {
+                    self.state.content_scroll_offset =
+                        self.state.content_scroll_offset.saturating_add(1);
+                }
             }
             MouseEventKind::ScrollUp => {
                 if mouse.column < self.sidebar_width {
                     self.state.sidebar_selected = self.state.sidebar_selected.saturating_sub(1);
-                } else if self.is_showing_table() { self.move_up(); }
-                else { self.state.content_scroll_offset = self.state.content_scroll_offset.saturating_sub(1); }
+                } else if self.is_showing_table() {
+                    self.move_up();
+                } else {
+                    self.state.content_scroll_offset =
+                        self.state.content_scroll_offset.saturating_sub(1);
+                }
             }
             MouseEventKind::Down(_) => {
                 if mouse.column < self.sidebar_width {
@@ -685,13 +790,19 @@ impl App {
 
     fn move_down(&mut self) {
         let len = self.state.current_list_len();
-        if len > 0 { self.state.selected_index = (self.state.selected_index + 1) % len; }
+        if len > 0 {
+            self.state.selected_index = (self.state.selected_index + 1) % len;
+        }
     }
 
     fn move_up(&mut self) {
         let len = self.state.current_list_len();
         if len > 0 {
-            self.state.selected_index = if self.state.selected_index == 0 { len - 1 } else { self.state.selected_index - 1 };
+            self.state.selected_index = if self.state.selected_index == 0 {
+                len - 1
+            } else {
+                self.state.selected_index - 1
+            };
         }
     }
 
@@ -731,7 +842,8 @@ impl App {
             }
             Err(e) => {
                 let msg = format!("Error {action} '{name}': {e}");
-                self.state.add_audit_event(action, name, &format!("ERROR: {e}"));
+                self.state
+                    .add_audit_event(action, name, &format!("ERROR: {e}"));
                 self.state.notify(&msg);
                 self.state.status_message = msg;
             }
@@ -746,14 +858,25 @@ impl App {
 
         for name in &names {
             match self.dispatch_vm_client_action(action, name).await {
-                Ok(()) => { ok += 1; self.state.add_audit_event(action, name, "OK"); }
-                Err(e) => { errors += 1; self.state.add_audit_event(action, name, &format!("ERROR: {e}")); }
+                Ok(()) => {
+                    ok += 1;
+                    self.state.add_audit_event(action, name, "OK");
+                }
+                Err(e) => {
+                    errors += 1;
+                    self.state
+                        .add_audit_event(action, name, &format!("ERROR: {e}"));
+                }
             }
         }
 
         self.state.status_message = format!(
             "Batch {action}: {ok}/{total} OK{}",
-            if errors > 0 { format!(", {errors} failed") } else { String::new() }
+            if errors > 0 {
+                format!(", {errors} failed")
+            } else {
+                String::new()
+            }
         );
         self.state.clear_selection();
         self.refresh_vms_and_metrics().await;
@@ -761,20 +884,27 @@ impl App {
 
     async fn request_confirmation_sidebar(&mut self) {
         let dialog = match self.state.selected_sidebar_item().cloned() {
-            Some(SidebarItem::Vm(_)) | Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
+            Some(SidebarItem::Vm(_))
+            | Some(SidebarItem::Category(SidebarCategory::VirtualMachines)) => {
                 if self.state.multi_select_mode && !self.state.selected_items.is_empty() {
                     Some(self.batch_delete_dialog())
                 } else {
-                    self.resolve_vm_name().map(|name| Self::delete_vm_dialog(&name))
+                    self.resolve_vm_name()
+                        .map(|name| Self::delete_vm_dialog(&name))
                 }
             }
-            Some(SidebarItem::Network(_)) | Some(SidebarItem::Category(SidebarCategory::Networks)) => {
-                self.state.effective_network_name().map(Self::delete_network_dialog)
-            }
-            Some(SidebarItem::Snapshot(_, _)) | Some(SidebarItem::Category(SidebarCategory::Snapshots)) => {
-                self.state.effective_snapshot().map(|s| Self::delete_snapshot_dialog(&s.vm_name, &s.name))
-            }
-            Some(SidebarItem::StoragePool(_)) | Some(SidebarItem::Category(SidebarCategory::Storage)) => {
+            Some(SidebarItem::Network(_))
+            | Some(SidebarItem::Category(SidebarCategory::Networks)) => self
+                .state
+                .effective_network_name()
+                .map(Self::delete_network_dialog),
+            Some(SidebarItem::Snapshot(_, _))
+            | Some(SidebarItem::Category(SidebarCategory::Snapshots)) => self
+                .state
+                .effective_snapshot()
+                .map(|s| Self::delete_snapshot_dialog(&s.vm_name, &s.name)),
+            Some(SidebarItem::StoragePool(_))
+            | Some(SidebarItem::Category(SidebarCategory::Storage)) => {
                 self.resolve_volume_for_delete()
             }
             _ => None,
@@ -791,7 +921,10 @@ impl App {
         let vol = self.state.volumes.get(self.state.selected_index)?;
         Some(ConfirmationDialog {
             title: "Delete Volume".to_string(),
-            message: format!("This will permanently delete volume '{}' from pool '{}'.", vol.name, pool),
+            message: format!(
+                "This will permanently delete volume '{}' from pool '{}'.",
+                vol.name, pool
+            ),
             resource_name: format!("{}/{}", pool, vol.name),
             action: format!("delete-vol:{}:{}", pool, vol.name),
         })
@@ -828,7 +961,10 @@ impl App {
         let count = self.state.selected_items.len();
         ConfirmationDialog {
             title: "Delete VMs".to_string(),
-            message: format!("This will permanently delete {} VMs and their storage.", count),
+            message: format!(
+                "This will permanently delete {} VMs and their storage.",
+                count
+            ),
             resource_name: format!("{} selected VMs", count),
             action: format!("batch-delete-vm:{count}"),
         }
@@ -839,8 +975,11 @@ impl App {
         match parts.as_slice() {
             ["delete-vm", name] => {
                 let r = self.client.delete_vm(name).await;
-                if r.is_ok() { self.state.vm_details = None; }
-                self.report_cmd_result(r, &format!("Deleted VM '{name}'"), "delete", name, false).await;
+                if r.is_ok() {
+                    self.state.vm_details = None;
+                }
+                self.report_cmd_result(r, &format!("Deleted VM '{name}'"), "delete", name, false)
+                    .await;
                 self.refresh_vms_and_metrics().await;
             }
             ["batch-delete-vm", _] => {
@@ -849,8 +988,14 @@ impl App {
                 let mut ok = 0;
                 for name in &names {
                     match self.client.delete_vm(name).await {
-                        Ok(()) => { ok += 1; self.state.add_audit_event("delete", name, "OK"); }
-                        Err(e) => { self.state.add_audit_event("delete", name, &format!("ERROR: {e}")); }
+                        Ok(()) => {
+                            ok += 1;
+                            self.state.add_audit_event("delete", name, "OK");
+                        }
+                        Err(e) => {
+                            self.state
+                                .add_audit_event("delete", name, &format!("ERROR: {e}"));
+                        }
                     }
                 }
                 self.state.status_message = format!("Batch delete: {ok}/{total} OK");
@@ -860,15 +1005,36 @@ impl App {
             }
             ["delete-snap", vm_name, snap_name] => {
                 let r = self.client.delete_snapshot(vm_name, snap_name).await;
-                self.report_cmd_result(r, &format!("Deleted snapshot '{snap_name}' from '{vm_name}'"), "delete-snapshot", snap_name, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted snapshot '{snap_name}' from '{vm_name}'"),
+                    "delete-snapshot",
+                    snap_name,
+                    true,
+                )
+                .await;
             }
             ["delete-network", name] => {
                 let r = self.client.delete_network(name).await;
-                self.report_cmd_result(r, &format!("Deleted network '{name}'"), "delete-network", name, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted network '{name}'"),
+                    "delete-network",
+                    name,
+                    true,
+                )
+                .await;
             }
             ["delete-vol", pool, vol] => {
                 let r = self.client.delete_volume(pool, vol).await;
-                self.report_cmd_result(r, &format!("Deleted volume '{vol}' from pool '{pool}'"), "delete-volume", vol, false).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted volume '{vol}' from pool '{pool}'"),
+                    "delete-volume",
+                    vol,
+                    false,
+                )
+                .await;
                 // Refresh volume list
                 if let Some(pool_name) = self.state.browsing_pool.clone() {
                     self.browse_pool_volumes_by_name(&pool_name).await;
@@ -891,28 +1057,61 @@ impl App {
         let current = if let Some(d) = self.state.vm_details.as_ref().filter(|d| d.name == name) {
             d.autostart
         } else {
-            self.client.get_vm_details(name).await.map(|d| d.autostart).unwrap_or(false)
+            self.client
+                .get_vm_details(name)
+                .await
+                .map(|d| d.autostart)
+                .unwrap_or(false)
         };
         let new_val = !current;
         let label = if new_val { "enabled" } else { "disabled" };
         let r = self.client.set_autostart(name, new_val).await;
-        self.report_cmd_result(r, &format!("Autostart for '{name}': {label}"), "autostart", name, false).await;
+        self.report_cmd_result(
+            r,
+            &format!("Autostart for '{name}': {label}"),
+            "autostart",
+            name,
+            false,
+        )
+        .await;
     }
 
     async fn toggle_network_autostart_by_name(&mut self, name: &str) {
-        let current = self.state.find_network(name).map(|n| n.autostart).unwrap_or(false);
+        let current = self
+            .state
+            .find_network(name)
+            .map(|n| n.autostart)
+            .unwrap_or(false);
         let new_val = !current;
         let label = if new_val { "enabled" } else { "disabled" };
         let r = self.client.set_network_autostart(name, new_val).await;
-        self.report_cmd_result(r, &format!("Autostart for network '{name}': {label}"), "network-autostart", name, true).await;
+        self.report_cmd_result(
+            r,
+            &format!("Autostart for network '{name}': {label}"),
+            "network-autostart",
+            name,
+            true,
+        )
+        .await;
     }
 
     async fn toggle_pool_autostart_by_name(&mut self, name: &str) {
-        let current = self.state.find_pool(name).map(|p| p.autostart).unwrap_or(false);
+        let current = self
+            .state
+            .find_pool(name)
+            .map(|p| p.autostart)
+            .unwrap_or(false);
         let new_val = !current;
         let label = if new_val { "enabled" } else { "disabled" };
         let r = self.client.set_pool_autostart(name, new_val).await;
-        self.report_cmd_result(r, &format!("Autostart for pool '{name}': {label}"), "pool-autostart", name, true).await;
+        self.report_cmd_result(
+            r,
+            &format!("Autostart for pool '{name}': {label}"),
+            "pool-autostart",
+            name,
+            true,
+        )
+        .await;
     }
 
     fn show_xml_result(&mut self, result: anyhow::Result<String>, kind: &str) {
@@ -935,7 +1134,11 @@ impl App {
                 self.state.volumes = vols;
                 self.state.browsing_pool = Some(pool.to_string());
                 self.state.selected_index = 0;
-                self.state.status_message = format!("Pool '{}': {} volumes (Backspace to go back)", pool, self.state.volumes.len());
+                self.state.status_message = format!(
+                    "Pool '{}': {} volumes (Backspace to go back)",
+                    pool,
+                    self.state.volumes.len()
+                );
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
         }
@@ -944,9 +1147,23 @@ impl App {
     // ── Terminal launcher helper ─────────────────────────────────────────
 
     fn launch_in_terminal(args: &[&str]) -> Option<String> {
-        const TERMINALS: &[&str] = &["gnome-terminal", "xfce4-terminal", "konsole", "foot", "alacritty", "kitty", "wezterm", "xterm"];
+        const TERMINALS: &[&str] = &[
+            "gnome-terminal",
+            "xfce4-terminal",
+            "konsole",
+            "foot",
+            "alacritty",
+            "kitty",
+            "wezterm",
+            "xterm",
+        ];
         TERMINALS.iter().find_map(|term| {
-            std::process::Command::new(term).args(["--"]).args(args).spawn().ok().map(|_| term.to_string())
+            std::process::Command::new(term)
+                .args(["--"])
+                .args(args)
+                .spawn()
+                .ok()
+                .map(|_| term.to_string())
         })
     }
 
@@ -955,7 +1172,11 @@ impl App {
     async fn launch_viewer_by_name(&mut self, name: &str) {
         self.state.status_message = format!("Launching virt-viewer for '{name}'...");
         self.state.add_audit_event("virt-viewer", name, "launched");
-        let _ = std::process::Command::new("virt-viewer").arg("--connect").arg("qemu:///system").arg(name).spawn();
+        let _ = std::process::Command::new("virt-viewer")
+            .arg("--connect")
+            .arg("qemu:///system")
+            .arg(name)
+            .spawn();
     }
 
     async fn launch_console_by_name(&mut self, name: &str) {
@@ -963,7 +1184,8 @@ impl App {
             self.state.status_message = format!("Opened console for '{name}' in {term}");
             self.state.add_audit_event("console", name, &term);
         } else {
-            self.state.status_message = format!("No terminal found. Run manually: virsh console {name}");
+            self.state.status_message =
+                format!("No terminal found. Run manually: virsh console {name}");
         }
     }
 
@@ -975,19 +1197,26 @@ impl App {
                 let ws_port = info["websocket_port"].as_i64().unwrap_or(-1);
 
                 if port <= 0 {
-                    self.state.status_message = format!("No VNC/SPICE port for '{name}' (port={port})");
+                    self.state.status_message =
+                        format!("No VNC/SPICE port for '{name}' (port={port})");
                     return;
                 }
 
                 let connect_port = if ws_port > 0 { ws_port } else { port };
                 let novnc_url = format!("http://127.0.0.1:6080/vnc.html?host=127.0.0.1&port={connect_port}&autoconnect=true");
 
-                if std::process::Command::new("xdg-open").arg(&novnc_url).spawn().is_ok() {
-                    self.state.status_message = format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
+                if std::process::Command::new("xdg-open")
+                    .arg(&novnc_url)
+                    .spawn()
+                    .is_ok()
+                {
+                    self.state.status_message =
+                        format!("Opening noVNC for '{name}' ({ctype} port {connect_port})");
                 } else {
                     self.state.status_message = format!("VNC for '{name}': {ctype} on 127.0.0.1:{port}. Connect with: vncviewer 127.0.0.1:{port}");
                 }
-                self.state.add_audit_event("novnc", name, &format!("port {connect_port}"));
+                self.state
+                    .add_audit_event("novnc", name, &format!("port {connect_port}"));
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
         }
@@ -1007,17 +1236,24 @@ impl App {
         let mut content = String::new();
         for path in &log_paths {
             if let Ok(data) = tokio::fs::read_to_string(path).await {
-                if !content.is_empty() { content.push_str("\n\n"); }
+                if !content.is_empty() {
+                    content.push_str("\n\n");
+                }
                 content.push_str(&format!("\u{2500}\u{2500} {} \u{2500}\u{2500}\n", path));
                 let lines: Vec<&str> = data.lines().collect();
                 let start = lines.len().saturating_sub(200);
-                for line in &lines[start..] { content.push_str(line); content.push('\n'); }
+                for line in &lines[start..] {
+                    content.push_str(line);
+                    content.push('\n');
+                }
             }
         }
 
         if content.is_empty() {
             content = format!("No logs found for '{name}'.\nChecked:\n");
-            for path in &log_paths { content.push_str(&format!("  {path}\n")); }
+            for path in &log_paths {
+                content.push_str(&format!("  {path}\n"));
+            }
         }
 
         self.state.content_overlay_caption.clear();
@@ -1027,14 +1263,20 @@ impl App {
     }
 
     async fn launch_ssh_by_name(&mut self, name: &str) {
-        let ip = std::process::Command::new("virsh").args(["domifaddr", name]).output().ok().and_then(|o| {
-            String::from_utf8_lossy(&o.stdout).lines().find_map(|line| {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 4 && parts[2] == "ipv4" {
-                    Some(parts[3].split('/').next().unwrap_or_default().to_string())
-                } else { None }
-            })
-        });
+        let ip = std::process::Command::new("virsh")
+            .args(["domifaddr", name])
+            .output()
+            .ok()
+            .and_then(|o| {
+                String::from_utf8_lossy(&o.stdout).lines().find_map(|line| {
+                    let parts: Vec<&str> = line.split_whitespace().collect();
+                    if parts.len() >= 4 && parts[2] == "ipv4" {
+                        Some(parts[3].split('/').next().unwrap_or_default().to_string())
+                    } else {
+                        None
+                    }
+                })
+            });
 
         if let Some(ip) = ip {
             if let Some(term) = Self::launch_in_terminal(&["ssh", &ip]) {
@@ -1044,18 +1286,28 @@ impl App {
                 self.state.status_message = format!("SSH: ssh {ip}  (no terminal found)");
             }
         } else {
-            self.state.status_message = format!("No IP found for '{name}'. Is it running with a network?");
+            self.state.status_message =
+                format!("No IP found for '{name}'. Is it running with a network?");
         }
     }
 
     // ── Command execution ───────────────────────────────────────────────
 
-    async fn report_cmd_result(&mut self, result: anyhow::Result<()>, ok_msg: &str, audit_action: &str, audit_target: &str, refresh: bool) {
+    async fn report_cmd_result(
+        &mut self,
+        result: anyhow::Result<()>,
+        ok_msg: &str,
+        audit_action: &str,
+        audit_target: &str,
+        refresh: bool,
+    ) {
         match result {
             Ok(()) => {
                 self.state.status_message = ok_msg.to_string();
                 self.state.add_audit_event(audit_action, audit_target, "OK");
-                if refresh { self.refresh_all_data().await; }
+                if refresh {
+                    self.refresh_all_data().await;
+                }
             }
             Err(e) => self.state.status_message = format!("Error: {e}"),
         }
@@ -1092,7 +1344,13 @@ impl App {
         }
     }
 
-    fn show_cluster_cmd_output(&mut self, title: &str, vm: &str, v: serde_json::Value, audit_action: &str) {
+    fn show_cluster_cmd_output(
+        &mut self,
+        title: &str,
+        vm: &str,
+        v: serde_json::Value,
+        audit_action: &str,
+    ) {
         let code = v["exit_code"].as_i64().unwrap_or(-1);
         let stdout = v["stdout"].as_str().unwrap_or("");
         let stderr = v["stderr"].as_str().unwrap_or("");
@@ -1113,95 +1371,179 @@ impl App {
             ["net"] | ["networks"] => self.navigate_to_category(SidebarCategory::Networks),
             ["pool"] | ["storage"] => self.navigate_to_category(SidebarCategory::Storage),
             ["snap"] | ["snapshots"] => self.navigate_to_category(SidebarCategory::Snapshots),
-            ["events"] => { self.state.command_content_override = Some(ResourceView::Events); self.state.resource_view = ResourceView::Events; }
+            ["events"] => {
+                self.state.command_content_override = Some(ResourceView::Events);
+                self.state.resource_view = ResourceView::Events;
+            }
             ["node"] => {
                 self.state.command_content_override = Some(ResourceView::Node);
                 self.state.resource_view = ResourceView::Node;
                 if self.state.node_info.is_none() {
-                    if let Ok(info) = self.client.fetch_node_info().await { self.state.node_info = Some(info); }
+                    if let Ok(info) = self.client.fetch_node_info().await {
+                        self.state.node_info = Some(info);
+                    }
                 }
             }
             ["snap", vm, name] => {
                 let r = self.client.create_snapshot(vm, name, "").await;
-                self.report_cmd_result(r, &format!("Created snapshot '{name}' for '{vm}'"), "create-snapshot", name, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Created snapshot '{name}' for '{vm}'"),
+                    "create-snapshot",
+                    name,
+                    true,
+                )
+                .await;
             }
             ["clone", source, new_name] => {
                 let r = self.client.clone_vm(source, new_name).await;
-                self.report_cmd_result(r, &format!("Cloned '{source}' as '{new_name}'"), "clone", source, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Cloned '{source}' as '{new_name}'"),
+                    "clone",
+                    source,
+                    true,
+                )
+                .await;
             }
             ["create"] | ["create", ..] => {
-                self.state.notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
+                self.state
+                    .notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
             }
-            ["resize", name, "vcpus", count] => {
-                match count.parse::<u32>() {
-                    Ok(count) => {
-                        let r = self.client.set_vcpus(name, count).await;
-                        self.report_cmd_result(r, &format!("Set vCPUs for '{name}' to {count} (applies on next boot)"), "resize-vcpus", name, false).await;
-                    }
-                    Err(_) => self.state.status_message = format!("Invalid vCPU count: '{count}'"),
+            ["resize", name, "vcpus", count] => match count.parse::<u32>() {
+                Ok(count) => {
+                    let r = self.client.set_vcpus(name, count).await;
+                    self.report_cmd_result(
+                        r,
+                        &format!("Set vCPUs for '{name}' to {count} (applies on next boot)"),
+                        "resize-vcpus",
+                        name,
+                        false,
+                    )
+                    .await;
                 }
-            }
-            ["resize", name, "memory", mb] => {
-                match mb.parse::<u64>() {
-                    Ok(mb) => {
-                        let r = self.client.set_memory(name, mb).await;
-                        self.report_cmd_result(r, &format!("Set memory for '{name}' to {mb} MB (applies on next boot)"), "resize-memory", name, false).await;
-                    }
-                    Err(_) => self.state.status_message = format!("Invalid memory value: '{mb}'"),
+                Err(_) => self.state.status_message = format!("Invalid vCPU count: '{count}'"),
+            },
+            ["resize", name, "memory", mb] => match mb.parse::<u64>() {
+                Ok(mb) => {
+                    let r = self.client.set_memory(name, mb).await;
+                    self.report_cmd_result(
+                        r,
+                        &format!("Set memory for '{name}' to {mb} MB (applies on next boot)"),
+                        "resize-memory",
+                        name,
+                        false,
+                    )
+                    .await;
                 }
-            }
+                Err(_) => self.state.status_message = format!("Invalid memory value: '{mb}'"),
+            },
             ["rename", old_name, new_name] => {
                 let r = self.client.rename_vm(old_name, new_name).await;
-                self.report_cmd_result(r, &format!("Renamed '{old_name}' to '{new_name}'"), "rename", old_name, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Renamed '{old_name}' to '{new_name}'"),
+                    "rename",
+                    old_name,
+                    true,
+                )
+                .await;
             }
             ["netcreate", name] => {
-                let req = CreateNetworkRequest { name: name.to_string(), subnet: "192.168.100".to_string(), dhcp_start: "192.168.100.100".to_string(), dhcp_end: "192.168.100.254".to_string() };
+                let req = CreateNetworkRequest {
+                    name: name.to_string(),
+                    subnet: "192.168.100".to_string(),
+                    dhcp_start: "192.168.100.100".to_string(),
+                    dhcp_end: "192.168.100.254".to_string(),
+                };
                 let r = self.client.create_network(&req).await;
-                self.report_cmd_result(r, &format!("Created network '{name}'"), "create-network", name, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Created network '{name}'"),
+                    "create-network",
+                    name,
+                    true,
+                )
+                .await;
             }
             ["netdelete", name] => {
                 let r = self.client.delete_network(name).await;
-                self.report_cmd_result(r, &format!("Deleted network '{name}'"), "delete-network", name, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted network '{name}'"),
+                    "delete-network",
+                    name,
+                    true,
+                )
+                .await;
             }
             ["template", ..] | ["templates"] => {
-                self.state.notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
+                self.state
+                    .notify_with_level(PACKER_IMAGE_HINT, NotifyLevel::Info);
             }
             ["backups"] | ["backup"] => {
                 self.navigate_to_category(SidebarCategory::Backups);
-                if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
+                if let Ok(backups) = self.client.fetch_backups().await {
+                    self.state.backups = backups;
+                }
             }
             ["backup", "run"] => {
                 let req = machina_core::BackupRequest::default();
                 let r = self.client.trigger_backup(&req).await;
-                self.report_cmd_result(r, "Backup started (all VMs)", "backup", "all", false).await;
+                self.report_cmd_result(r, "Backup started (all VMs)", "backup", "all", false)
+                    .await;
             }
             ["backup", "run", vm_name] => {
-                let req = machina_core::BackupRequest { vm_name: vm_name.to_string(), ..Default::default() };
+                let req = machina_core::BackupRequest {
+                    vm_name: vm_name.to_string(),
+                    ..Default::default()
+                };
                 let r = self.client.trigger_backup(&req).await;
-                self.report_cmd_result(r, &format!("Backup started for '{vm_name}'"), "backup", vm_name, false).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Backup started for '{vm_name}'"),
+                    "backup",
+                    vm_name,
+                    false,
+                )
+                .await;
             }
             ["backup", "restore", backup_id] => {
                 let r = self.client.restore_backup(backup_id).await;
-                self.report_cmd_result(r, &format!("Restore started from '{backup_id}'"), "restore", backup_id, true).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Restore started from '{backup_id}'"),
+                    "restore",
+                    backup_id,
+                    true,
+                )
+                .await;
             }
             ["backup", "delete", backup_id] => {
                 let r = self.client.delete_backup(backup_id).await;
-                self.report_cmd_result(r, &format!("Deleted backup '{backup_id}'"), "delete-backup", backup_id, false).await;
-                if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
-            }
-            ["kubevirt-bundle", vm] => {
-                match self.client.get_kubevirt_bundle_yaml(vm).await {
-                    Ok(yaml) => {
-                        self.state.xml_content = yaml;
-                        self.state.content_overlay_caption =
-                            format!(" KubeVirt YAML — {vm} (j/k:scroll  Esc:close) ");
-                        self.state.scroll_offset = 0;
-                        self.state.view_mode = ViewMode::Xml;
-                        self.state.add_audit_event("kubevirt-bundle", vm, "OK");
-                    }
-                    Err(e) => self.state.status_message = format!("kubevirt-bundle: {e}"),
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted backup '{backup_id}'"),
+                    "delete-backup",
+                    backup_id,
+                    false,
+                )
+                .await;
+                if let Ok(backups) = self.client.fetch_backups().await {
+                    self.state.backups = backups;
                 }
             }
+            ["kubevirt-bundle", vm] => match self.client.get_kubevirt_bundle_yaml(vm).await {
+                Ok(yaml) => {
+                    self.state.xml_content = yaml;
+                    self.state.content_overlay_caption =
+                        format!(" KubeVirt YAML — {vm} (j/k:scroll  Esc:close) ");
+                    self.state.scroll_offset = 0;
+                    self.state.view_mode = ViewMode::Xml;
+                    self.state.add_audit_event("kubevirt-bundle", vm, "OK");
+                }
+                Err(e) => self.state.status_message = format!("kubevirt-bundle: {e}"),
+            },
             ["kubevirt-apply", vm] => {
                 match self
                     .client
@@ -1218,7 +1560,12 @@ impl App {
                     .kubevirt_cluster_exec(vm, "upload", &serde_json::json!({}))
                     .await
                 {
-                    Ok(v) => self.show_cluster_cmd_output("virtctl image-upload", vm, v, "kubevirt-upload"),
+                    Ok(v) => self.show_cluster_cmd_output(
+                        "virtctl image-upload",
+                        vm,
+                        v,
+                        "kubevirt-upload",
+                    ),
                     Err(e) => self.state.status_message = format!("kubevirt-upload: {e}"),
                 }
             }
@@ -1251,7 +1598,12 @@ impl App {
     }
 
     fn select_sidebar_category(&mut self, cat: SidebarCategory) {
-        if let Some(pos) = self.state.sidebar_items.iter().position(|item| *item == SidebarItem::Category(cat)) {
+        if let Some(pos) = self
+            .state
+            .sidebar_items
+            .iter()
+            .position(|item| *item == SidebarItem::Category(cat))
+        {
             self.state.sidebar_selected = pos;
         }
         self.state.resource_view = self.state.sidebar_resource_view();
@@ -1282,17 +1634,35 @@ impl App {
 
         match vms {
             Ok(vms) => self.apply_vm_data(vms),
-            Err(e) => { self.state.connected = false; self.state.status_message = format!("Error: {e}"); }
+            Err(e) => {
+                self.state.connected = false;
+                self.state.status_message = format!("Error: {e}");
+            }
         }
-        if let Ok(nets) = nets { self.state.networks = nets; }
-        if let Ok(pools) = pools { self.state.storage_pools = pools; }
-        if let Ok(snaps) = snaps { self.state.snapshots = snaps; }
-        if let Ok(info) = node { self.state.node_info = Some(info); }
-        if let Ok(backups) = self.client.fetch_backups().await { self.state.backups = backups; }
-        if let Ok(m) = metrics { self.state.vm_metrics = m; self.state.record_metrics_snapshot(); }
+        if let Ok(nets) = nets {
+            self.state.networks = nets;
+        }
+        if let Ok(pools) = pools {
+            self.state.storage_pools = pools;
+        }
+        if let Ok(snaps) = snaps {
+            self.state.snapshots = snaps;
+        }
+        if let Ok(info) = node {
+            self.state.node_info = Some(info);
+        }
+        if let Ok(backups) = self.client.fetch_backups().await {
+            self.state.backups = backups;
+        }
+        if let Ok(m) = metrics {
+            self.state.vm_metrics = m;
+            self.state.record_metrics_snapshot();
+        }
 
         if let Some(pool) = self.state.browsing_pool.clone() {
-            if let Ok(vols) = self.client.fetch_volumes(&pool).await { self.state.volumes = vols; }
+            if let Ok(vols) = self.client.fetch_volumes(&pool).await {
+                self.state.volumes = vols;
+            }
         }
 
         self.state.compute_dashboard();
@@ -1303,10 +1673,16 @@ impl App {
     async fn refresh_vms_and_metrics(&mut self) {
         match self.client.fetch_vms().await {
             Ok(vms) => self.apply_vm_data(vms),
-            Err(e) => { self.state.connected = false; self.state.status_message = format!("Error: {e}"); }
+            Err(e) => {
+                self.state.connected = false;
+                self.state.status_message = format!("Error: {e}");
+            }
         }
 
-        if let Ok(metrics) = self.client.fetch_metrics().await { self.state.vm_metrics = metrics; self.state.record_metrics_snapshot(); }
+        if let Ok(metrics) = self.client.fetch_metrics().await {
+            self.state.vm_metrics = metrics;
+            self.state.record_metrics_snapshot();
+        }
 
         self.state.compute_dashboard();
         self.state.rebuild_sidebar();

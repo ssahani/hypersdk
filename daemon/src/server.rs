@@ -3,6 +3,7 @@ use axum::middleware;
 use axum::Router;
 use http::header;
 use http::HeaderValue;
+use machina_core::{LibvirtManager, MachinaConfig};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Semaphore;
@@ -10,7 +11,6 @@ use tower::ServiceBuilder;
 use tower_http::services::{ServeDir, ServeFile};
 use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
-use machina_core::{LibvirtManager, MachinaConfig};
 
 use crate::auth::{self, SessionStore};
 use crate::job_registry::JobRegistry;
@@ -56,9 +56,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .layer(Extension(ssh_terminal_cfg))
         .with_state(manager);
 
-    let mut router = Router::new()
-        .nest("/api/v1", api)
-        .nest("/ws/v1", ws);
+    let mut router = Router::new().nest("/api/v1", api).nest("/ws/v1", ws);
 
     if let Some(novnc_dir) = find_novnc() {
         tracing::info!("Serving noVNC from {}", novnc_dir.display());
@@ -88,7 +86,9 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
 }
 
 fn find_web_dist() -> Option<PathBuf> {
-    let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf()));
+    let exe_dir = std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()));
     let mut candidates = vec![
         PathBuf::from("/usr/local/share/machina/web"),
         PathBuf::from("/usr/share/machina/web"),
@@ -98,7 +98,9 @@ fn find_web_dist() -> Option<PathBuf> {
     }
     candidates.push(PathBuf::from("web/dist"));
     candidates.push(PathBuf::from("../web/dist"));
-    candidates.into_iter().find(|p| p.join("index.html").exists())
+    candidates
+        .into_iter()
+        .find(|p| p.join("index.html").exists())
 }
 
 fn find_spice_html5() -> Option<PathBuf> {
@@ -106,7 +108,9 @@ fn find_spice_html5() -> Option<PathBuf> {
         PathBuf::from("/usr/share/spice-html5"),
         PathBuf::from("/usr/local/share/spice-html5"),
     ];
-    candidates.into_iter().find(|p| p.join("spice.html").exists() || p.join("spice_auto.html").exists())
+    candidates
+        .into_iter()
+        .find(|p| p.join("spice.html").exists() || p.join("spice_auto.html").exists())
 }
 
 fn find_novnc() -> Option<PathBuf> {

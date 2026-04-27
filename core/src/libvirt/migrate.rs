@@ -13,13 +13,17 @@ const ALLOWED_URI_SCHEMES: &[&str] = &[
 ];
 
 fn validate_migrate_uri(uri: &str) -> Result<(), LibvirtError> {
-    if !ALLOWED_URI_SCHEMES.iter().any(|scheme| uri.starts_with(scheme)) {
+    if !ALLOWED_URI_SCHEMES
+        .iter()
+        .any(|scheme| uri.starts_with(scheme))
+    {
         return Err(LibvirtError::Invalid(format!(
             "Invalid migration URI scheme. Allowed: {}",
             ALLOWED_URI_SCHEMES.join(", ")
         )));
     }
-    if uri.contains(|c: char| c == ';' || c == '|' || c == '&' || c == '$' || c == '`' || c == '\n') {
+    if uri.contains(|c: char| c == ';' || c == '|' || c == '&' || c == '$' || c == '`' || c == '\n')
+    {
         return Err(LibvirtError::Invalid(
             "Migration URI contains invalid characters".into(),
         ));
@@ -135,7 +139,11 @@ pub fn migrate_vm_uri(
 }
 
 /// Limit migration bandwidth (MiB/s as in libvirt `virDomainMigrateSetMaxSpeed`).
-pub fn migrate_set_max_speed(conn: &Connect, name: &str, bandwidth_mib_per_sec: u64) -> Result<(), LibvirtError> {
+pub fn migrate_set_max_speed(
+    conn: &Connect,
+    name: &str,
+    bandwidth_mib_per_sec: u64,
+) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
     domain
         .migrate_set_max_speed(bandwidth_mib_per_sec, 0)
@@ -151,7 +159,11 @@ pub fn migrate_get_max_speed(conn: &Connect, name: &str) -> Result<u64, LibvirtE
 }
 
 /// Set max downtime (nanoseconds) for live migration.
-pub fn migrate_set_max_downtime(conn: &Connect, name: &str, downtime_ns: u64) -> Result<(), LibvirtError> {
+pub fn migrate_set_max_downtime(
+    conn: &Connect,
+    name: &str,
+    downtime_ns: u64,
+) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
     domain
         .migrate_set_max_downtime(downtime_ns, 0)

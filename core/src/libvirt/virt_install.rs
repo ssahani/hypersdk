@@ -15,7 +15,10 @@ fn validate_virt_install_field(s: &str, label: &str) -> Result<(), LibvirtError>
     if s.is_empty() {
         return Ok(());
     }
-    if !s.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-') {
+    if !s
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '_' || c == '-')
+    {
         return Err(LibvirtError::Invalid(format!(
             "{label} may only contain letters, digits, dot, underscore, hyphen"
         )));
@@ -318,7 +321,10 @@ pub fn create_vm_virt_install(
         }
         let xml = extract_domain_xml_from_print_xml(&out.stdout)?;
         Domain::define_xml(conn, &xml).map_err(|e| {
-            LibvirtError::Operation(format!("Failed to define VM '{}' from virt-install XML: {e}", req.name))
+            LibvirtError::Operation(format!(
+                "Failed to define VM '{}' from virt-install XML: {e}",
+                req.name
+            ))
         })?;
         subprocess::log_line(log, "machina", "Domain defined from virt-install XML.");
         return Ok(());

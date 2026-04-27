@@ -13,7 +13,10 @@ pub struct NodeDevice {
     pub xml: String,
 }
 
-pub fn list_node_devices(conn: &Connect, capability: Option<&str>) -> Result<Vec<NodeDevice>, LibvirtError> {
+pub fn list_node_devices(
+    conn: &Connect,
+    capability: Option<&str>,
+) -> Result<Vec<NodeDevice>, LibvirtError> {
     let flags = 0u32;
     let devices = conn
         .list_all_node_devices(flags)
@@ -57,8 +60,9 @@ pub fn get_node_device_xml(conn: &Connect, name: &str) -> Result<String, Libvirt
 pub fn detach_node_device(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let dev = virt::nodedev::NodeDevice::lookup_by_name(conn, name)
         .map_err(|e| LibvirtError::NotFound(format!("Device '{}' not found: {}", name, e)))?;
-    dev.detach()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to detach node device '{name}': {e}")))?;
+    dev.detach().map_err(|e| {
+        LibvirtError::Operation(format!("Failed to detach node device '{name}': {e}"))
+    })?;
     Ok(())
 }
 
@@ -66,7 +70,8 @@ pub fn detach_node_device(conn: &Connect, name: &str) -> Result<(), LibvirtError
 pub fn reattach_node_device(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let dev = virt::nodedev::NodeDevice::lookup_by_name(conn, name)
         .map_err(|e| LibvirtError::NotFound(format!("Device '{}' not found: {}", name, e)))?;
-    dev.reattach()
-        .map_err(|e| LibvirtError::Operation(format!("Failed to reattach node device '{name}': {e}")))?;
+    dev.reattach().map_err(|e| {
+        LibvirtError::Operation(format!("Failed to reattach node device '{name}': {e}"))
+    })?;
     Ok(())
 }

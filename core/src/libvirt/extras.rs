@@ -56,7 +56,9 @@ pub struct BrowseDirResponse {
 }
 
 fn browse_scan_dirs_to_strings(dirs: &[PathBuf]) -> Vec<String> {
-    dirs.iter().map(|p| p.to_string_lossy().to_string()).collect()
+    dirs.iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect()
 }
 
 /// Scan ISO files under libvirt pool directories (dynamic) plus `/home`, `/root`, `/tmp`.
@@ -101,15 +103,7 @@ pub fn list_disk_images(conn: &Connect) -> Result<BrowseFilesResponse, LibvirtEr
 fn collect_browse_roots(conn: &Connect) -> Result<Vec<PathBuf>, LibvirtError> {
     let mut dirs = storage::collect_image_scan_directories(conn)?;
     for extra in [
-        "/",
-        "/data",
-        "/home",
-        "/root",
-        "/tmp",
-        "/srv",
-        "/media",
-        "/mnt",
-        "/opt",
+        "/", "/data", "/home", "/root", "/tmp", "/srv", "/media", "/mnt", "/opt",
     ] {
         let pb = PathBuf::from(extra);
         if pb.is_dir() {
@@ -166,7 +160,10 @@ pub fn browse_directory(conn: &Connect, raw_path: &str) -> Result<BrowseDirRespo
             "No browse roots (filesystem root / could not be resolved).".into(),
         ));
     }
-    let roots_str: Vec<String> = roots.iter().map(|p| p.to_string_lossy().to_string()).collect();
+    let roots_str: Vec<String> = roots
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
 
     let trimmed = raw_path.trim();
     let canonical_dir = if trimmed.is_empty() {
@@ -178,9 +175,9 @@ pub fn browse_directory(conn: &Connect, raw_path: &str) -> Result<BrowseDirRespo
                 "path must be an absolute path on the hypervisor".into(),
             ));
         }
-        let c = p.canonicalize().map_err(|e| {
-            LibvirtError::Invalid(format!("Cannot resolve path '{trimmed}': {e}"))
-        })?;
+        let c = p
+            .canonicalize()
+            .map_err(|e| LibvirtError::Invalid(format!("Cannot resolve path '{trimmed}': {e}")))?;
         if !path_under_any_root(&c, &roots) {
             return Err(LibvirtError::Forbidden(format!(
                 "Path is outside allowed directories: {}",
@@ -188,7 +185,10 @@ pub fn browse_directory(conn: &Connect, raw_path: &str) -> Result<BrowseDirRespo
             )));
         }
         if !c.is_dir() {
-            return Err(LibvirtError::Invalid(format!("Not a directory: {}", c.display())));
+            return Err(LibvirtError::Invalid(format!(
+                "Not a directory: {}",
+                c.display()
+            )));
         }
         c
     };
@@ -221,7 +221,9 @@ pub fn browse_directory(conn: &Connect, raw_path: &str) -> Result<BrowseDirRespo
         let size_bytes = if is_directory {
             0
         } else {
-            std::fs::metadata(&child_canon).map(|m| m.len()).unwrap_or(0)
+            std::fs::metadata(&child_canon)
+                .map(|m| m.len())
+                .unwrap_or(0)
         };
         entries.push(BrowseDirEntry {
             name,
@@ -248,12 +250,25 @@ pub fn browse_directory(conn: &Connect, raw_path: &str) -> Result<BrowseDirRespo
     })
 }
 
-fn scan_dir_for_extension(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile>, max_depth: u32) {
+fn scan_dir_for_extension(
+    dir: &Path,
+    extensions: &[&str],
+    files: &mut Vec<ImageFile>,
+    max_depth: u32,
+) {
     scan_dir_recursive(dir, extensions, files, 0, max_depth);
 }
 
-fn scan_dir_recursive(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile>, depth: u32, max_depth: u32) {
-    if depth > max_depth { return; }
+fn scan_dir_recursive(
+    dir: &Path,
+    extensions: &[&str],
+    files: &mut Vec<ImageFile>,
+    depth: u32,
+    max_depth: u32,
+) {
+    if depth > max_depth {
+        return;
+    }
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -269,7 +284,11 @@ fn scan_dir_recursive(dir: &Path, extensions: &[&str], files: &mut Vec<ImageFile
                     let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
                     files.push(ImageFile {
                         path: path.to_string_lossy().to_string(),
-                        name: path.file_name().unwrap_or_default().to_string_lossy().to_string(),
+                        name: path
+                            .file_name()
+                            .unwrap_or_default()
+                            .to_string_lossy()
+                            .to_string(),
                         size_bytes: size,
                         format: ext_lower,
                     });
@@ -298,12 +317,19 @@ pub fn list_mkosi_workspaces() -> Vec<MkosiWorkspace> {
     ];
     let mut out = Vec::new();
     for base in &bases {
-        let Ok(entries) = std::fs::read_dir(base) else { continue };
+        let Ok(entries) = std::fs::read_dir(base) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let path = entry.path();
-            if !path.is_dir() { continue; }
-            if !path.join("mkosi.conf").is_file() { continue; }
-            let name = path.file_name()
+            if !path.is_dir() {
+                continue;
+            }
+            if !path.join("mkosi.conf").is_file() {
+                continue;
+            }
+            let name = path
+                .file_name()
                 .map(|n| n.to_string_lossy().to_string())
                 .unwrap_or_default();
             // Collect sub-images: subdirs that also contain mkosi.conf (image trees).
@@ -374,13 +400,21 @@ pub fn list_usb_devices() -> Result<Vec<UsbDevice>, LibvirtError> {
 }
 
 /// Attach a USB device to a VM by vendor:product ID.
-pub fn attach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &str) -> Result<(), LibvirtError> {
+pub fn attach_usb(
+    conn: &Connect,
+    vm_name: &str,
+    vendor_id: &str,
+    product_id: &str,
+) -> Result<(), LibvirtError> {
     // Validate hex IDs
-    if vendor_id.len() != 4 || product_id.len() != 4
+    if vendor_id.len() != 4
+        || product_id.len() != 4
         || !vendor_id.chars().all(|c| c.is_ascii_hexdigit())
         || !product_id.chars().all(|c| c.is_ascii_hexdigit())
     {
-        return Err(LibvirtError::Invalid("Invalid USB vendor/product ID format".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Invalid USB vendor/product ID format".to_string(),
+        ));
     }
 
     let domain = lookup_domain(conn, vm_name)?;
@@ -401,13 +435,21 @@ pub fn attach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &s
 }
 
 /// Detach a USB device from a VM.
-pub fn detach_usb(conn: &Connect, vm_name: &str, vendor_id: &str, product_id: &str) -> Result<(), LibvirtError> {
+pub fn detach_usb(
+    conn: &Connect,
+    vm_name: &str,
+    vendor_id: &str,
+    product_id: &str,
+) -> Result<(), LibvirtError> {
     // Validate hex IDs
-    if vendor_id.len() != 4 || product_id.len() != 4
+    if vendor_id.len() != 4
+        || product_id.len() != 4
         || !vendor_id.chars().all(|c| c.is_ascii_hexdigit())
         || !product_id.chars().all(|c| c.is_ascii_hexdigit())
     {
-        return Err(LibvirtError::Invalid("Invalid USB vendor/product ID format".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Invalid USB vendor/product ID format".to_string(),
+        ));
     }
 
     let domain = lookup_domain(conn, vm_name)?;
@@ -444,7 +486,9 @@ pub fn generate_cloud_init_iso(
         .recursive(true)
         .mode(0o700)
         .create(&tmp_dir)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to create cloud-init temp dir: {e}")))?;
+        .map_err(|e| {
+            LibvirtError::Operation(format!("Failed to create cloud-init temp dir: {e}"))
+        })?;
 
     // meta-data (escape user-provided hostname to prevent YAML injection)
     let meta_data = format!(
@@ -494,10 +538,30 @@ pub fn generate_cloud_init_iso(
     };
 
     let cmds = [
-        ("genisoimage", vec!["-output", &iso_path, "-V", "cidata", "-r", "-J",
-            tmp_dir.to_str().unwrap_or("/tmp/machina-cloud-init")]),
-        ("mkisofs", vec!["-output", &iso_path, "-V", "cidata", "-r", "-J",
-            tmp_dir.to_str().unwrap_or("/tmp/machina-cloud-init")]),
+        (
+            "genisoimage",
+            vec![
+                "-output",
+                &iso_path,
+                "-V",
+                "cidata",
+                "-r",
+                "-J",
+                tmp_dir.to_str().unwrap_or("/tmp/machina-cloud-init"),
+            ],
+        ),
+        (
+            "mkisofs",
+            vec![
+                "-output",
+                &iso_path,
+                "-V",
+                "cidata",
+                "-r",
+                "-J",
+                tmp_dir.to_str().unwrap_or("/tmp/machina-cloud-init"),
+            ],
+        ),
     ];
 
     let mut success = false;
@@ -515,7 +579,7 @@ pub fn generate_cloud_init_iso(
 
     if !success {
         return Err(LibvirtError::Operation(
-            "Failed to create cloud-init ISO. Install genisoimage or mkisofs.".to_string()
+            "Failed to create cloud-init ISO. Install genisoimage or mkisofs.".to_string(),
         ));
     }
 
@@ -525,25 +589,42 @@ pub fn generate_cloud_init_iso(
 // ── VM Import ──────────────────────────────────────────────────────
 
 /// Import a disk image by converting it to qcow2 if needed. Destination directory follows the primary libvirt pool.
-pub fn import_disk_image(conn: &Connect, source: &str, dest_name: &str) -> Result<String, LibvirtError> {
+pub fn import_disk_image(
+    conn: &Connect,
+    source: &str,
+    dest_name: &str,
+) -> Result<String, LibvirtError> {
     let source_path = Path::new(source);
     if !source_path.is_absolute() {
-        return Err(LibvirtError::Invalid("Source path must be absolute".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Source path must be absolute".to_string(),
+        ));
     }
-    let source_path = source_path.canonicalize()
+    let source_path = source_path
+        .canonicalize()
         .map_err(|e| LibvirtError::Invalid(format!("Cannot resolve source path: {e}")))?;
     if !source_path.is_file() {
-        return Err(LibvirtError::Operation(format!("Source file not found: {}", source_path.display())));
+        return Err(LibvirtError::Operation(format!(
+            "Source file not found: {}",
+            source_path.display()
+        )));
     }
 
     crate::validate::validate_name(dest_name)?;
 
-    let ext = source_path.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
-    let base = storage::primary_vm_disk_base_dir(conn).unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
+    let ext = source_path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_lowercase();
+    let base = storage::primary_vm_disk_base_dir(conn)
+        .unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
     let dest_path = format!("{}/{}.qcow2", base.trim_end_matches('/'), dest_name);
 
     if Path::new(&dest_path).exists() {
-        return Err(LibvirtError::Operation(format!("Destination already exists: {dest_path}")));
+        return Err(LibvirtError::Operation(format!(
+            "Destination already exists: {dest_path}"
+        )));
     }
 
     match ext.as_str() {
@@ -556,12 +637,22 @@ pub fn import_disk_image(conn: &Connect, source: &str, dest_name: &str) -> Resul
             // Convert with qemu-img
             let source_str = source_path.to_string_lossy();
             let output = Command::new("qemu-img")
-                .args(["convert", "-f", &ext, "-O", "qcow2", &*source_str, &dest_path])
+                .args([
+                    "convert",
+                    "-f",
+                    &ext,
+                    "-O",
+                    "qcow2",
+                    &*source_str,
+                    &dest_path,
+                ])
                 .output()
                 .map_err(LibvirtError::map_op("qemu-img convert"))?;
             if !output.status.success() {
                 let stderr = String::from_utf8_lossy(&output.stderr);
-                return Err(LibvirtError::Operation(format!("qemu-img convert failed: {stderr}")));
+                return Err(LibvirtError::Operation(format!(
+                    "qemu-img convert failed: {stderr}"
+                )));
             }
         }
         _ => {
@@ -581,8 +672,13 @@ pub fn live_set_vcpus(conn: &Connect, name: &str, vcpus: u32) -> Result<(), Libv
 
     // Set both live and config
     domain
-        .set_vcpus_flags(vcpus, virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to live-set vCPUs for '{name}': {e}")))?;
+        .set_vcpus_flags(
+            vcpus,
+            virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG,
+        )
+        .map_err(|e| {
+            LibvirtError::Operation(format!("Failed to live-set vCPUs for '{name}': {e}"))
+        })?;
     Ok(())
 }
 
@@ -593,7 +689,9 @@ pub fn live_set_memory(conn: &Connect, name: &str, memory_mb: u64) -> Result<(),
 
     domain
         .set_memory_flags(memory_mb * 1024, virt::sys::VIR_DOMAIN_AFFECT_LIVE)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to live-set memory for '{name}': {e}")))?;
+        .map_err(|e| {
+            LibvirtError::Operation(format!("Failed to live-set memory for '{name}': {e}"))
+        })?;
     Ok(())
 }
 
@@ -614,7 +712,9 @@ pub fn load_tags() -> TagMap {
 
 /// Save tags to the JSON file.
 pub fn save_tags(tags: &TagMap) -> Result<(), LibvirtError> {
-    let dir = Path::new(TAGS_FILE).parent().unwrap_or(Path::new("/var/lib/machina"));
+    let dir = Path::new(TAGS_FILE)
+        .parent()
+        .unwrap_or(Path::new("/var/lib/machina"));
     let _ = std::fs::create_dir_all(dir);
     let data = serde_json::to_string_pretty(tags)
         .map_err(|e| LibvirtError::Operation(format!("Failed to serialize tags: {e}")))?;
@@ -669,17 +769,47 @@ pub fn get_host_stats() -> HostStats {
     let (l1, l5, l15) = parse_loadavg();
     let uptime = parse_uptime();
     let procs = std::fs::read_dir("/proc")
-        .map(|d| d.filter(|e| e.as_ref().ok().and_then(|e| e.file_name().to_str().map(|s| s.chars().all(|c| c.is_ascii_digit()))).unwrap_or(false)).count() as u32)
+        .map(|d| {
+            d.filter(|e| {
+                e.as_ref()
+                    .ok()
+                    .and_then(|e| {
+                        e.file_name()
+                            .to_str()
+                            .map(|s| s.chars().all(|c| c.is_ascii_digit()))
+                    })
+                    .unwrap_or(false)
+            })
+            .count() as u32
+        })
         .unwrap_or(0);
 
-    let mem_pct = if mem_total > 0 { (mem_used as f64 / mem_total as f64 * 100.0).min(100.0) } else { 0.0 };
-    let disk_pct = if disk_total > 0.0 { (disk_used / disk_total * 100.0).min(100.0) } else { 0.0 };
+    let mem_pct = if mem_total > 0 {
+        (mem_used as f64 / mem_total as f64 * 100.0).min(100.0)
+    } else {
+        0.0
+    };
+    let disk_pct = if disk_total > 0.0 {
+        (disk_used / disk_total * 100.0).min(100.0)
+    } else {
+        0.0
+    };
 
     HostStats {
-        cpu_percent, memory_total_mb: mem_total, memory_used_mb: mem_used, memory_percent: mem_pct,
-        swap_total_mb: swap_total, swap_used_mb: swap_used,
-        disk_total_gb: disk_total, disk_used_gb: disk_used, disk_percent: disk_pct,
-        load_1: l1, load_5: l5, load_15: l15, uptime_secs: uptime, processes: procs,
+        cpu_percent,
+        memory_total_mb: mem_total,
+        memory_used_mb: mem_used,
+        memory_percent: mem_pct,
+        swap_total_mb: swap_total,
+        swap_used_mb: swap_used,
+        disk_total_gb: disk_total,
+        disk_used_gb: disk_used,
+        disk_percent: disk_pct,
+        load_1: l1,
+        load_5: l5,
+        load_15: l15,
+        uptime_secs: uptime,
+        processes: procs,
     }
 }
 
@@ -778,10 +908,7 @@ fn parse_df_bt_output(stdout: &str) -> Result<Vec<HostFilesystem>, LibvirtError>
         let size_b: u64 = parts[2].parse().unwrap_or(0);
         let used_b: u64 = parts[3].parse().unwrap_or(0);
         let avail_b: u64 = parts[4].parse().unwrap_or(0);
-        let pcent = parts[5]
-            .trim_end_matches('%')
-            .parse::<f64>()
-            .unwrap_or(0.0);
+        let pcent = parts[5].trim_end_matches('%').parse::<f64>().unwrap_or(0.0);
         let mount_point = parts[6..].join(" ");
         if mount_point.is_empty() {
             continue;
@@ -817,7 +944,10 @@ fn read_proc_cmdline(pid: u32) -> String {
     let path = format!("/proc/{pid}/cmdline");
     std::fs::read(&path)
         .map(|b| {
-            let s = String::from_utf8_lossy(&b).replace('\0', " ").trim().to_string();
+            let s = String::from_utf8_lossy(&b)
+                .replace('\0', " ")
+                .trim()
+                .to_string();
             if s.len() > 280 {
                 format!("{}...", &s[..277])
             } else {
@@ -867,7 +997,11 @@ fn list_host_top_processes_linux(limit: u32) -> Result<Vec<HostProcess>, Libvirt
         }
         let cpu_percent: f64 = pcpu_s.parse().unwrap_or(0.0);
         let rss_kb: u64 = rss_s.parse().unwrap_or(0);
-        let mut command = if comm.is_empty() { "?".to_string() } else { comm };
+        let mut command = if comm.is_empty() {
+            "?".to_string()
+        } else {
+            comm
+        };
         if command.len() > 64 {
             command.truncate(61);
             command.push_str("...");
@@ -908,12 +1042,22 @@ fn parse_cpu_percent() -> f64 {
     // Read /proc/stat for cpu line
     let stat = std::fs::read_to_string("/proc/stat").unwrap_or_default();
     let line = stat.lines().next().unwrap_or("");
-    let vals: Vec<u64> = line.split_whitespace().skip(1).filter_map(|s| s.parse().ok()).collect();
+    let vals: Vec<u64> = line
+        .split_whitespace()
+        .skip(1)
+        .filter_map(|s| s.parse().ok())
+        .collect();
     if vals.len() >= 4 {
         let total: u64 = vals.iter().sum();
         let idle = vals[3];
-        if total > 0 { ((total - idle) as f64 / total as f64 * 100.0).min(100.0) } else { 0.0 }
-    } else { 0.0 }
+        if total > 0 {
+            ((total - idle) as f64 / total as f64 * 100.0).min(100.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    }
 }
 
 fn parse_meminfo() -> (u64, u64, u64, u64) {
@@ -935,7 +1079,12 @@ fn parse_meminfo() -> (u64, u64, u64, u64) {
             }
         }
     }
-    (total, total.saturating_sub(available), swap_total, swap_total.saturating_sub(swap_free))
+    (
+        total,
+        total.saturating_sub(available),
+        swap_total,
+        swap_total.saturating_sub(swap_free),
+    )
 }
 
 fn parse_disk_usage(path: &str) -> (f64, f64) {
@@ -956,22 +1105,41 @@ fn parse_disk_usage(path: &str) -> (f64, f64) {
 
 fn parse_loadavg() -> (f64, f64, f64) {
     let content = std::fs::read_to_string("/proc/loadavg").unwrap_or_default();
-    let parts: Vec<f64> = content.split_whitespace().take(3).filter_map(|s| s.parse().ok()).collect();
-    if parts.len() >= 3 { (parts[0], parts[1], parts[2]) } else { (0.0, 0.0, 0.0) }
+    let parts: Vec<f64> = content
+        .split_whitespace()
+        .take(3)
+        .filter_map(|s| s.parse().ok())
+        .collect();
+    if parts.len() >= 3 {
+        (parts[0], parts[1], parts[2])
+    } else {
+        (0.0, 0.0, 0.0)
+    }
 }
 
 fn parse_uptime() -> u64 {
     let content = std::fs::read_to_string("/proc/uptime").unwrap_or_default();
-    content.split_whitespace().next().and_then(|s| s.parse::<f64>().ok()).map(|f| f as u64).unwrap_or(0)
+    content
+        .split_whitespace()
+        .next()
+        .and_then(|s| s.parse::<f64>().ok())
+        .map(|f| f as u64)
+        .unwrap_or(0)
 }
 
 // ── Save VM as Template ──────────────────────────────────────────
 
 /// Save a VM's configuration as a reusable template.
-pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -> Result<(), LibvirtError> {
+pub fn save_vm_as_template(
+    conn: &Connect,
+    vm_name: &str,
+    template_name: &str,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_name(template_name)?;
     let domain = lookup_domain(conn, vm_name)?;
-    let info = domain.get_info().map_err(LibvirtError::map_op("Failed to get VM info"))?;
+    let info = domain
+        .get_info()
+        .map_err(LibvirtError::map_op("Failed to get VM info"))?;
     let xml = domain
         .get_xml_desc(0)
         .map_err(LibvirtError::map_op("Failed to get domain XML"))?;
@@ -992,8 +1160,11 @@ pub fn save_vm_as_template(conn: &Connect, vm_name: &str, template_name: &str) -
     let templates_dir = "/var/lib/machina/templates";
     let _ = std::fs::create_dir_all(templates_dir);
     let path = format!("{}/{}.json", templates_dir, template_name);
-    std::fs::write(&path, serde_json::to_string_pretty(&template).unwrap_or_default())
-        .map_err(|e| LibvirtError::Operation(format!("Failed to save template: {e}")))?;
+    std::fs::write(
+        &path,
+        serde_json::to_string_pretty(&template).unwrap_or_default(),
+    )
+    .map_err(|e| LibvirtError::Operation(format!("Failed to save template: {e}")))?;
 
     Ok(())
 }
@@ -1031,16 +1202,22 @@ pub struct DhcpLease {
 
 /// Get DHCP leases from all active libvirt networks via virsh.
 pub fn list_dhcp_leases(conn: &Connect) -> Result<Vec<DhcpLease>, LibvirtError> {
-    let networks = conn.list_all_networks(0)
+    let networks = conn
+        .list_all_networks(0)
         .map_err(LibvirtError::map_op("Failed to list networks"))?;
 
     let mut leases = Vec::new();
     for net in networks {
         let net_name = net.get_name().unwrap_or_default();
-        if !net.is_active().unwrap_or(false) { continue; }
+        if !net.is_active().unwrap_or(false) {
+            continue;
+        }
 
         // Use virsh net-dhcp-leases to get lease info
-        if let Ok(output) = Command::new("virsh").args(["net-dhcp-leases", &net_name]).output() {
+        if let Ok(output) = Command::new("virsh")
+            .args(["net-dhcp-leases", &net_name])
+            .output()
+        {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for line in stdout.lines().skip(2) {
                 // Format: Expiry  MAC  Protocol  IP  Hostname  ClientID
@@ -1057,7 +1234,11 @@ pub fn list_dhcp_leases(conn: &Connect) -> Result<Vec<DhcpLease>, LibvirtError> 
                             network: net_name.clone(),
                             mac: rest[0].to_string(),
                             ip: rest[2].to_string(),
-                            hostname: if rest.len() > 3 && rest[3] != "-" { rest[3].to_string() } else { String::new() },
+                            hostname: if rest.len() > 3 && rest[3] != "-" {
+                                rest[3].to_string()
+                            } else {
+                                String::new()
+                            },
                             expiry,
                         });
                     }
@@ -1072,7 +1253,7 @@ pub fn list_dhcp_leases(conn: &Connect) -> Result<Vec<DhcpLease>, LibvirtError> 
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IommuDevice {
-    pub bdf: String,     // e.g. "0000:01:00.0"
+    pub bdf: String, // e.g. "0000:01:00.0"
     pub vendor: String,
     pub device_name: String,
 }
@@ -1105,7 +1286,11 @@ pub fn list_iommu_groups() -> Result<Vec<IommuGroup>, LibvirtError> {
     });
 
     for entry in &group_dirs {
-        let group_id = match entry.file_name().to_str().and_then(|s| s.parse::<u32>().ok()) {
+        let group_id = match entry
+            .file_name()
+            .to_str()
+            .and_then(|s| s.parse::<u32>().ok())
+        {
             Some(id) => id,
             None => continue,
         };
@@ -1121,16 +1306,14 @@ pub fn list_iommu_groups() -> Result<Vec<IommuGroup>, LibvirtError> {
                 let bdf = dev_entry.file_name().to_string_lossy().to_string();
 
                 // Try to read vendor/device description via lspci -s BDF -mm
-                let (vendor, device_name) = match Command::new("lspci")
-                    .args(["-s", &bdf, "-mm"])
-                    .output()
-                {
-                    Ok(output) => {
-                        let stdout = String::from_utf8_lossy(&output.stdout);
-                        parse_lspci_mm_line(&stdout)
-                    }
-                    Err(_) => (String::new(), String::new()),
-                };
+                let (vendor, device_name) =
+                    match Command::new("lspci").args(["-s", &bdf, "-mm"]).output() {
+                        Ok(output) => {
+                            let stdout = String::from_utf8_lossy(&output.stdout);
+                            parse_lspci_mm_line(&stdout)
+                        }
+                        Err(_) => (String::new(), String::new()),
+                    };
 
                 devices.push(IommuDevice {
                     bdf,
@@ -1142,10 +1325,7 @@ pub fn list_iommu_groups() -> Result<Vec<IommuGroup>, LibvirtError> {
 
         devices.sort_by(|a, b| a.bdf.cmp(&b.bdf));
 
-        groups.push(IommuGroup {
-            group_id,
-            devices,
-        });
+        groups.push(IommuGroup { group_id, devices });
     }
 
     Ok(groups)
@@ -1180,7 +1360,14 @@ pub struct SystemdService {
 /// List all systemd services via `systemctl list-units --type=service`.
 pub fn list_services() -> Result<Vec<SystemdService>, LibvirtError> {
     let output = Command::new("systemctl")
-        .args(["list-units", "--type=service", "--all", "--no-pager", "--plain", "--output=json"])
+        .args([
+            "list-units",
+            "--type=service",
+            "--all",
+            "--no-pager",
+            "--plain",
+            "--output=json",
+        ])
         .output()
         .map_err(LibvirtError::map_op("Failed to run systemctl list-units"))?;
 
@@ -1194,9 +1381,21 @@ pub fn list_services() -> Result<Vec<SystemdService>, LibvirtError> {
                 let name = u.get("unit")?.as_str()?.to_string();
                 Some(SystemdService {
                     name: name.clone(),
-                    description: u.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string(),
-                    active_state: u.get("active").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
-                    sub_state: u.get("sub").and_then(|v| v.as_str()).unwrap_or("unknown").to_string(),
+                    description: u
+                        .get("description")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("")
+                        .to_string(),
+                    active_state: u
+                        .get("active")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
+                    sub_state: u
+                        .get("sub")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("unknown")
+                        .to_string(),
                     enabled: String::new(), // filled below
                 })
             })
@@ -1209,9 +1408,17 @@ pub fn list_services() -> Result<Vec<SystemdService>, LibvirtError> {
 
     // Fallback: parse plain text output
     let plain_output = Command::new("systemctl")
-        .args(["list-units", "--type=service", "--all", "--no-pager", "--plain"])
+        .args([
+            "list-units",
+            "--type=service",
+            "--all",
+            "--no-pager",
+            "--plain",
+        ])
         .output()
-        .map_err(LibvirtError::map_op("Failed to run systemctl list-units (plain)"))?;
+        .map_err(LibvirtError::map_op(
+            "Failed to run systemctl list-units (plain)",
+        ))?;
 
     let plain_stdout = String::from_utf8_lossy(&plain_output.stdout);
     let mut services = Vec::new();
@@ -1241,9 +1448,9 @@ fn fill_enabled_states(services: &mut [SystemdService]) {
         if let Ok(output) = Command::new("systemctl").args(&args).output() {
             let stdout = String::from_utf8_lossy(&output.stdout);
             for (i, line) in stdout.lines().enumerate() {
-                let global_idx = names.iter().position(|n| {
-                    chunk.get(i).map_or(false, |c| n == c)
-                });
+                let global_idx = names
+                    .iter()
+                    .position(|n| chunk.get(i).map_or(false, |c| n == c));
                 if let Some(idx) = global_idx {
                     services[idx].enabled = line.trim().to_string();
                 }
@@ -1255,10 +1462,17 @@ fn fill_enabled_states(services: &mut [SystemdService]) {
 /// Validate a systemd service name (alphanumeric, dash, underscore, dot, @).
 fn validate_service_name(name: &str) -> Result<(), LibvirtError> {
     if name.is_empty() || name.len() > 256 {
-        return Err(LibvirtError::Invalid("Service name too short or too long".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Service name too short or too long".to_string(),
+        ));
     }
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@') {
-        return Err(LibvirtError::Invalid("Service name contains invalid characters".to_string()));
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@')
+    {
+        return Err(LibvirtError::Invalid(
+            "Service name contains invalid characters".to_string(),
+        ));
     }
     Ok(())
 }
@@ -1269,7 +1483,9 @@ pub fn service_action(name: &str, action: &str) -> Result<(), LibvirtError> {
 
     let valid_actions = ["start", "stop", "restart", "enable", "disable"];
     if !valid_actions.contains(&action) {
-        return Err(LibvirtError::Invalid(format!("Invalid action: {action}. Must be one of: start, stop, restart, enable, disable")));
+        return Err(LibvirtError::Invalid(format!(
+            "Invalid action: {action}. Must be one of: start, stop, restart, enable, disable"
+        )));
     }
 
     let output = Command::new("systemctl")
@@ -1279,7 +1495,9 @@ pub fn service_action(name: &str, action: &str) -> Result<(), LibvirtError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LibvirtError::Operation(format!("systemctl {action} {name} failed: {stderr}")));
+        return Err(LibvirtError::Operation(format!(
+            "systemctl {action} {name} failed: {stderr}"
+        )));
     }
 
     Ok(())
@@ -1307,7 +1525,9 @@ pub fn get_journal_boots() -> Result<Vec<JournalBootEntry>, LibvirtError> {
     let output = Command::new("journalctl")
         .args(["--no-pager", "--list-boots"])
         .output()
-        .map_err(LibvirtError::map_op("Failed to run journalctl --list-boots"))?;
+        .map_err(LibvirtError::map_op(
+            "Failed to run journalctl --list-boots",
+        ))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
@@ -1367,7 +1587,10 @@ pub fn get_journal_logs(
     let priority_owned;
     if let Some(p) = priority {
         // Validate priority
-        let valid = ["emerg", "alert", "crit", "err", "warning", "notice", "info", "debug", "0", "1", "2", "3", "4", "5", "6", "7"];
+        let valid = [
+            "emerg", "alert", "crit", "err", "warning", "notice", "info", "debug", "0", "1", "2",
+            "3", "4", "5", "6", "7",
+        ];
         if !valid.contains(&p) {
             return Err(LibvirtError::Invalid(format!("Invalid priority: {p}")));
         }
@@ -1380,7 +1603,9 @@ pub fn get_journal_logs(
     if let Some(u) = unit {
         if !u.is_empty() {
             // Validate unit name
-            if !u.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@' || c == '*') {
+            if !u.chars().all(|c| {
+                c.is_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '@' || c == '*'
+            }) {
                 return Err(LibvirtError::Invalid("Invalid unit name".to_string()));
             }
             unit_owned = format!("-u");
@@ -1404,10 +1629,9 @@ pub fn get_journal_logs(
     if let Some(s) = since {
         if !s.trim().is_empty() {
             // Restrict to simple date/time tokens to avoid odd control chars.
-            if !s
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "-:+./,_".contains(c))
-            {
+            if !s.chars().all(|c| {
+                c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "-:+./,_".contains(c)
+            }) {
                 return Err(LibvirtError::Invalid("Invalid --since value".to_string()));
             }
             since_owned = s.trim().to_string();
@@ -1419,10 +1643,9 @@ pub fn get_journal_logs(
     let until_owned;
     if let Some(u) = until {
         if !u.trim().is_empty() {
-            if !u
-                .chars()
-                .all(|c| c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "-:+./,_".contains(c))
-            {
+            if !u.chars().all(|c| {
+                c.is_ascii_alphanumeric() || c.is_ascii_whitespace() || "-:+./,_".contains(c)
+            }) {
                 return Err(LibvirtError::Invalid("Invalid --until value".to_string()));
             }
             until_owned = u.trim().to_string();
@@ -1437,7 +1660,10 @@ pub fn get_journal_logs(
             if g.len() > 200 {
                 return Err(LibvirtError::Invalid("Search text too long".to_string()));
             }
-            if !g.chars().all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace()) {
+            if !g
+                .chars()
+                .all(|c| c.is_ascii_graphic() || c.is_ascii_whitespace())
+            {
                 return Err(LibvirtError::Invalid("Invalid search text".to_string()));
             }
             grep_owned = g.trim().to_string();
@@ -1472,9 +1698,12 @@ pub fn get_journal_logs(
 
     for line in stdout.lines() {
         let line = line.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         if let Ok(obj) = serde_json::from_str::<serde_json::Value>(line) {
-            let timestamp = obj.get("__REALTIME_TIMESTAMP")
+            let timestamp = obj
+                .get("__REALTIME_TIMESTAMP")
                 .and_then(|v| v.as_str())
                 .and_then(|s| s.parse::<u64>().ok())
                 .map(|us| {
@@ -1483,14 +1712,20 @@ pub fn get_journal_logs(
                 })
                 .unwrap_or_default();
 
-            let unit_field = obj.get("_SYSTEMD_UNIT")
+            let unit_field = obj
+                .get("_SYSTEMD_UNIT")
                 .or_else(|| obj.get("SYSLOG_IDENTIFIER"))
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
-            let prio_val = obj.get("PRIORITY")
-                .and_then(|v| v.as_str().and_then(|s| s.parse::<u8>().ok()).or_else(|| v.as_u64().map(|n| n as u8)))
+            let prio_val = obj
+                .get("PRIORITY")
+                .and_then(|v| {
+                    v.as_str()
+                        .and_then(|s| s.parse::<u8>().ok())
+                        .or_else(|| v.as_u64().map(|n| n as u8))
+                })
                 .unwrap_or(6);
             let priority_str = match prio_val {
                 0 => "emerg",
@@ -1502,9 +1737,11 @@ pub fn get_journal_logs(
                 6 => "info",
                 7 => "debug",
                 _ => "info",
-            }.to_string();
+            }
+            .to_string();
 
-            let message = obj.get("MESSAGE")
+            let message = obj
+                .get("MESSAGE")
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
@@ -1534,7 +1771,9 @@ fn format_epoch_timestamp(secs: u64) -> String {
     let mut year: u64 = 1970;
     loop {
         let days_in_year = if is_leap_year(year) { 366 } else { 365 };
-        if days < days_in_year { break; }
+        if days < days_in_year {
+            break;
+        }
         days -= days_in_year;
         year += 1;
     }
@@ -1545,7 +1784,9 @@ fn format_epoch_timestamp(secs: u64) -> String {
     };
     let mut month: u64 = 1;
     for md in &month_days {
-        if days < *md as u64 { break; }
+        if days < *md as u64 {
+            break;
+        }
         days -= *md as u64;
         month += 1;
     }
@@ -1723,13 +1964,11 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         .output()
         .map(|o| String::from_utf8_lossy(&o.stdout).to_string())
         .unwrap_or_default();
-    let loginctl_sessions_raw = try_cmd_stdout_any_status("loginctl", &["list-sessions", "--no-legend"]);
+    let loginctl_sessions_raw =
+        try_cmd_stdout_any_status("loginctl", &["list-sessions", "--no-legend"]);
 
-    let systemd_version_full = truncate_text(
-        try_cmd_stdout("systemctl", &["--version"]),
-        80,
-        24_576,
-    );
+    let systemd_version_full =
+        truncate_text(try_cmd_stdout("systemctl", &["--version"]), 80, 24_576);
     let blame_raw = try_cmd_stdout_any_status("systemd-analyze", &["blame"]);
     let systemd_analyze_blame_top: Vec<String> = blame_raw
         .lines()
@@ -1744,17 +1983,32 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         65_536,
     );
     let mount_units_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["list-units", "--type=mount", "--state=active", "--no-pager", "--no-legend"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &[
+                "list-units",
+                "--type=mount",
+                "--state=active",
+                "--no-pager",
+                "--no-legend",
+            ],
+        ),
         120,
         32_768,
     );
     let failed_units_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["list-units", "--state=failed", "--no-pager", "--no-legend"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["list-units", "--state=failed", "--no-pager", "--no-legend"],
+        ),
         80,
         16_384,
     );
     let networkd_dependencies_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["list-dependencies", "systemd-networkd", "--no-pager"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["list-dependencies", "systemd-networkd", "--no-pager"],
+        ),
         120,
         24_576,
     );
@@ -1765,9 +2019,10 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         200,
         16_384,
     );
-    let systemctl_is_system_running = try_cmd_stdout_any_status("systemctl", &["is-system-running"])
-        .trim()
-        .to_string();
+    let systemctl_is_system_running =
+        try_cmd_stdout_any_status("systemctl", &["is-system-running"])
+            .trim()
+            .to_string();
     let systemctl_show_environment_text = truncate_text(
         try_cmd_stdout_any_status("systemctl", &["show-environment", "--no-pager"]),
         120,
@@ -1779,7 +2034,10 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         32_768,
     );
     let systemctl_list_timers_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["list-timers", "--all", "--no-pager", "--no-legend"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["list-timers", "--all", "--no-pager", "--no-legend"],
+        ),
         120,
         32_768,
     );
@@ -1789,17 +2047,26 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         8_192,
     );
     let systemctl_status_networkd_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["status", "systemd-networkd", "--no-pager", "-l"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["status", "systemd-networkd", "--no-pager", "-l"],
+        ),
         80,
         24_576,
     );
     let systemctl_status_resolved_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["status", "systemd-resolved", "--no-pager", "-l"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["status", "systemd-resolved", "--no-pager", "-l"],
+        ),
         80,
         24_576,
     );
     let resolved_dependencies_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["list-dependencies", "systemd-resolved", "--no-pager"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["list-dependencies", "systemd-resolved", "--no-pager"],
+        ),
         120,
         24_576,
     );
@@ -1813,30 +2080,32 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         80,
         16_384,
     );
-    let bootctl_status_text = truncate_text(
-        try_cmd_stdout("bootctl", &["status"]),
-        80,
-        16_384,
-    );
+    let bootctl_status_text = truncate_text(try_cmd_stdout("bootctl", &["status"]), 80, 16_384);
     let enabled_service_unit_files_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &[
-            "list-unit-files",
-            "--type=service",
-            "--state=enabled",
-            "--no-pager",
-            "--no-legend",
-        ]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &[
+                "list-unit-files",
+                "--type=service",
+                "--state=enabled",
+                "--no-pager",
+                "--no-legend",
+            ],
+        ),
         150,
         48_640,
     );
     let running_service_units_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &[
-            "list-units",
-            "--type=service",
-            "--state=running",
-            "--no-pager",
-            "--no-legend",
-        ]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &[
+                "list-units",
+                "--type=service",
+                "--state=running",
+                "--no-pager",
+                "--no-legend",
+            ],
+        ),
         120,
         32_768,
     );
@@ -1856,7 +2125,10 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         32_768,
     );
     let default_target_dependencies_text = truncate_text(
-        try_cmd_stdout_any_status("systemctl", &["list-dependencies", "default.target", "--no-pager"]),
+        try_cmd_stdout_any_status(
+            "systemctl",
+            &["list-dependencies", "default.target", "--no-pager"],
+        ),
         120,
         24_576,
     );
@@ -1897,7 +2169,11 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
     let architecture = field(&hostnamectl_raw, "Architecture");
     let virtualization = {
         let v = field(&hostnamectl_raw, "Virtualization");
-        if v.is_empty() { "none".to_string() } else { v }
+        if v.is_empty() {
+            "none".to_string()
+        } else {
+            v
+        }
     };
     let os_name = os_pretty_name
         .split_whitespace()
@@ -1914,7 +2190,11 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         .next()
         .unwrap_or("unknown")
         .to_string();
-    let boot_time = if userspace_ts.is_empty() { "unknown".to_string() } else { userspace_ts };
+    let boot_time = if userspace_ts.is_empty() {
+        "unknown".to_string()
+    } else {
+        userspace_ts
+    };
     let rtc_time = field(&timedatectl_raw, "RTC time");
     let ntp_service = field(&timedatectl_raw, "NTP service");
     let system_clock_synchronized = field(&timedatectl_raw, "System clock synchronized") == "yes";
@@ -1951,7 +2231,9 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
     // DMI hardware info
     let read_dmi = |name: &str| -> String {
         std::fs::read_to_string(format!("/sys/class/dmi/id/{name}"))
-            .unwrap_or_default().trim().to_string()
+            .unwrap_or_default()
+            .trim()
+            .to_string()
     };
     let product_name = read_dmi("product_name");
     let sys_vendor = read_dmi("sys_vendor");
@@ -1961,16 +2243,30 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
     let serial_number = read_dmi("product_serial");
 
     // CPU model from /proc/cpuinfo
-    let cpu_model = std::fs::read_to_string("/proc/cpuinfo").unwrap_or_default()
-        .lines().find(|l| l.starts_with("model name"))
+    let cpu_model = std::fs::read_to_string("/proc/cpuinfo")
+        .unwrap_or_default()
+        .lines()
+        .find(|l| l.starts_with("model name"))
         .and_then(|l| l.split(':').nth(1))
         .map(|s| s.trim().to_string())
         .unwrap_or_default();
 
     Ok(SystemInfo {
-        hostname, timezone, kernel_version, architecture,
-        os_name, os_version, os_pretty_name, boot_time, rtc_time, ntp_service,
-        system_clock_synchronized, systemd_version, boot_duration, critical_chain_top, logged_in_users,
+        hostname,
+        timezone,
+        kernel_version,
+        architecture,
+        os_name,
+        os_version,
+        os_pretty_name,
+        boot_time,
+        rtc_time,
+        ntp_service,
+        system_clock_synchronized,
+        systemd_version,
+        boot_duration,
+        critical_chain_top,
+        logged_in_users,
         pretty_hostname,
         transient_hostname,
         icon_name,
@@ -2012,8 +2308,14 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
         journalctl_list_boots_text,
         systemd_analyze_verify_text,
         default_target_dependencies_text,
-        product_name, sys_vendor, bios_version, bios_date,
-        board_name, serial_number, cpu_model, virtualization,
+        product_name,
+        sys_vendor,
+        bios_version,
+        bios_date,
+        board_name,
+        serial_number,
+        cpu_model,
+        virtualization,
     })
 }
 
@@ -2021,13 +2323,22 @@ pub fn get_system_info() -> Result<SystemInfo, LibvirtError> {
 pub fn set_hostname(name: &str) -> Result<(), LibvirtError> {
     // Validate hostname: RFC 1123
     if name.is_empty() || name.len() > 253 {
-        return Err(LibvirtError::Invalid("Hostname must be 1-253 characters".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Hostname must be 1-253 characters".to_string(),
+        ));
     }
-    if !name.chars().all(|c| c.is_alphanumeric() || c == '-' || c == '.') {
-        return Err(LibvirtError::Invalid("Hostname contains invalid characters".to_string()));
+    if !name
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '-' || c == '.')
+    {
+        return Err(LibvirtError::Invalid(
+            "Hostname contains invalid characters".to_string(),
+        ));
     }
     if name.starts_with('-') || name.ends_with('-') {
-        return Err(LibvirtError::Invalid("Hostname must not start or end with a dash".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Hostname must not start or end with a dash".to_string(),
+        ));
     }
 
     let output = Command::new("hostnamectl")
@@ -2037,7 +2348,9 @@ pub fn set_hostname(name: &str) -> Result<(), LibvirtError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LibvirtError::Operation(format!("hostnamectl set-hostname failed: {stderr}")));
+        return Err(LibvirtError::Operation(format!(
+            "hostnamectl set-hostname failed: {stderr}"
+        )));
     }
     Ok(())
 }
@@ -2046,10 +2359,17 @@ pub fn set_hostname(name: &str) -> Result<(), LibvirtError> {
 pub fn set_timezone(tz: &str) -> Result<(), LibvirtError> {
     // Validate timezone: alphanumeric, slash, dash, underscore, plus
     if tz.is_empty() || tz.len() > 64 {
-        return Err(LibvirtError::Invalid("Timezone must be 1-64 characters".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Timezone must be 1-64 characters".to_string(),
+        ));
     }
-    if !tz.chars().all(|c| c.is_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '+') {
-        return Err(LibvirtError::Invalid("Timezone contains invalid characters".to_string()));
+    if !tz
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '/' || c == '-' || c == '_' || c == '+')
+    {
+        return Err(LibvirtError::Invalid(
+            "Timezone contains invalid characters".to_string(),
+        ));
     }
 
     let output = Command::new("timedatectl")
@@ -2059,7 +2379,9 @@ pub fn set_timezone(tz: &str) -> Result<(), LibvirtError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LibvirtError::Operation(format!("timedatectl set-timezone failed: {stderr}")));
+        return Err(LibvirtError::Operation(format!(
+            "timedatectl set-timezone failed: {stderr}"
+        )));
     }
     Ok(())
 }
@@ -2075,7 +2397,9 @@ pub fn host_shutdown() -> Result<(), LibvirtError> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(LibvirtError::Operation(format!("shutdown failed: {stderr}")));
+        return Err(LibvirtError::Operation(format!(
+            "shutdown failed: {stderr}"
+        )));
     }
     Ok(())
 }

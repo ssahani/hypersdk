@@ -4,11 +4,11 @@ use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
+use machina_core::LibvirtManager;
 use serde::Deserialize;
 use serde_json::json;
 use std::path::PathBuf;
 use tokio_util::io::ReaderStream;
-use machina_core::LibvirtManager;
 
 use crate::error::AppError;
 
@@ -119,20 +119,25 @@ fn validate_nfs_target(target: &str) -> Result<(), AppError> {
     }
     let host = parts[0];
     // Host must be alphanumeric, dots, dashes only
-    if !host.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-') {
+    if !host
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+    {
         return Err(machina_core::LibvirtError::Invalid(
             "NFS host contains invalid characters".to_string(),
         )
         .into());
     }
     // Reject suspicious hostname patterns
-    if host.contains("..") || host.starts_with('-') || host.ends_with('-')
-        || host.starts_with('.') || host.ends_with('.')
+    if host.contains("..")
+        || host.starts_with('-')
+        || host.ends_with('-')
+        || host.starts_with('.')
+        || host.ends_with('.')
     {
-        return Err(machina_core::LibvirtError::Invalid(
-            "NFS host has invalid format".to_string(),
-        )
-        .into());
+        return Err(
+            machina_core::LibvirtError::Invalid("NFS host has invalid format".to_string()).into(),
+        );
     }
     // Path must not contain traversal
     if parts[1].contains("..") {
@@ -400,9 +405,9 @@ async fn get_backup_status(
 
     let dir = backup_dir().join(&id);
     // Canonicalize and verify the path is within the backup directory
-    let dir = dir.canonicalize().map_err(|_| {
-        machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
-    })?;
+    let dir = dir
+        .canonicalize()
+        .map_err(|_| machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)))?;
     if !dir.starts_with(backup_dir()) || !dir.is_dir() {
         return Err(
             machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
@@ -446,9 +451,9 @@ async fn verify_backup(
     validate_backup_id(&id)?;
 
     let dir = backup_dir().join(&id);
-    let dir = dir.canonicalize().map_err(|_| {
-        machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id))
-    })?;
+    let dir = dir
+        .canonicalize()
+        .map_err(|_| machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)))?;
     if !dir.starts_with(backup_dir()) || !dir.is_dir() {
         return Err(
             machina_core::LibvirtError::NotFound(format!("Backup '{}' not found", id)).into(),
@@ -480,10 +485,7 @@ async fn verify_backup(
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
     let total = stdout.lines().count();
-    let failed: Vec<&str> = stdout
-        .lines()
-        .filter(|l| l.contains("FAILED"))
-        .collect();
+    let failed: Vec<&str> = stdout.lines().filter(|l| l.contains("FAILED")).collect();
     let ok_count = total - failed.len();
 
     Ok(Json(json!({
@@ -521,9 +523,7 @@ async fn download_backup(
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .spawn()
-        .map_err(|e| {
-            machina_core::LibvirtError::Operation(format!("Failed to start tar: {e}"))
-        })?;
+        .map_err(|e| machina_core::LibvirtError::Operation(format!("Failed to start tar: {e}")))?;
 
     let stdout = child.stdout.take().ok_or_else(|| {
         machina_core::LibvirtError::Operation("Failed to capture tar stdout".to_string())
@@ -682,11 +682,7 @@ async fn set_schedule(
     State(_manager): State<LibvirtManager>,
     Json(req): Json<ScheduleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let action = if req.enabled {
-        "enable"
-    } else {
-        "disable"
-    };
+    let action = if req.enabled { "enable" } else { "disable" };
 
     let output = tokio::process::Command::new("systemctl")
         .args([action, "--now", "machina-backup.timer"])

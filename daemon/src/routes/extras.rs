@@ -1,20 +1,23 @@
 use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
-use serde::Deserialize;
-use std::sync::{LazyLock, Mutex};
-use std::time::{Duration, Instant};
-use tokio::sync::Semaphore;
 use machina_core::build_precheck;
 use machina_core::host_platform;
 use machina_core::libvirt::{extras, storage, virt_builder};
 use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager, MachinaConfig};
+use serde::Deserialize;
+use std::sync::{LazyLock, Mutex};
+use std::time::{Duration, Instant};
+use tokio::sync::Semaphore;
 
 use crate::auth::{require_browser_session_for_host_insight, RequestActor};
 use crate::error::AppError;
 
 /// Caps concurrent blocking host probes (`package-updates`, `net-rates`) that can stall the default pool.
 static HOST_HEAVY_PROBE_SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(2));
+
+/// Only one mutating package action at a time (can run for a long time and locks package managers).
+static HOST_PACKAGE_ACTION_SEM: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(1));
 
 /// Short-lived cache for `virt-builder --list --list-format json` (avoid hammering the tool on every UI poll).
 const VIRT_BUILDER_LIST_CACHE_TTL: Duration = Duration::from_secs(300);
@@ -38,7 +41,9 @@ fn log_audit(action: &str, target: &str, result: &str) {
 
 // ── ISO / Disk Browser ─────────────────────────────────────────────
 
-async fn list_isos(State(manager): State<LibvirtManager>) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
+async fn list_isos(
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
     let mgr = manager.clone();
     let res = tokio::task::spawn_blocking(move || mgr.with_conn(extras::list_iso_files))
         .await
@@ -46,7 +51,9 @@ async fn list_isos(State(manager): State<LibvirtManager>) -> Result<Json<extras:
     Ok(Json(res))
 }
 
-async fn list_disk_images(State(manager): State<LibvirtManager>) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
+async fn list_disk_images(
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<extras::BrowseFilesResponse>, AppError> {
     let mgr = manager.clone();
     let res = tokio::task::spawn_blocking(move || mgr.with_conn(extras::list_disk_images))
         .await
@@ -66,9 +73,10 @@ async fn browse_directory_handler(
 ) -> Result<Json<extras::BrowseDirResponse>, AppError> {
     let path = q.path.unwrap_or_default();
     let mgr = manager.clone();
-    let res = tokio::task::spawn_blocking(move || mgr.with_conn(|c| extras::browse_directory(c, &path)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let res =
+        tokio::task::spawn_blocking(move || mgr.with_conn(|c| extras::browse_directory(c, &path)))
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(res))
 }
 
@@ -83,7 +91,9 @@ async fn delete_disk_image(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let path = q.path.trim().to_string();
     if path.is_empty() {
-        return Err(AppError::from(LibvirtError::Invalid("path is required".into())));
+        return Err(AppError::from(LibvirtError::Invalid(
+            "path is required".into(),
+        )));
     }
     let mgr = manager.clone();
     let allowed_prefixes: Vec<String> = tokio::task::spawn_blocking(move || {
@@ -92,33 +102,39 @@ async fn delete_disk_image(
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     if !allowed_prefixes.iter().any(|p| path.starts_with(p)) {
-        return Err(AppError::from(LibvirtError::Invalid(
-            format!("Path not in an allowed images directory: {path}")
-        )));
+        return Err(AppError::from(LibvirtError::Invalid(format!(
+            "Path not in an allowed images directory: {path}"
+        ))));
     }
     // Reject path traversal.
     if path.contains("..") {
-        return Err(AppError::from(LibvirtError::Invalid("Path traversal not allowed".into())));
+        return Err(AppError::from(LibvirtError::Invalid(
+            "Path traversal not allowed".into(),
+        )));
     }
     // Only delete known disk image extensions.
-    let ok_ext = path.ends_with(".qcow2") || path.ends_with(".raw")
-        || path.ends_with(".img") || path.ends_with(".vmdk");
+    let ok_ext = path.ends_with(".qcow2")
+        || path.ends_with(".raw")
+        || path.ends_with(".img")
+        || path.ends_with(".vmdk");
     if !ok_ext {
-        return Err(AppError::from(LibvirtError::Invalid(
-            format!("File extension not allowed for deletion: {path}")
-        )));
+        return Err(AppError::from(LibvirtError::Invalid(format!(
+            "File extension not allowed for deletion: {path}"
+        ))));
     }
     match std::fs::remove_file(&path) {
         Ok(()) => {
             log_audit("delete-disk-image", &path, "ok");
-            Ok(Json(serde_json::json!({ "status": "deleted", "path": path })))
+            Ok(Json(
+                serde_json::json!({ "status": "deleted", "path": path }),
+            ))
         }
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
-            Ok(Json(serde_json::json!({ "status": "not_found", "path": path })))
-        }
-        Err(e) => Err(AppError::from(LibvirtError::Operation(
-            format!("Failed to delete {path}: {e}")
-        ))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Json(
+            serde_json::json!({ "status": "not_found", "path": path }),
+        )),
+        Err(e) => Err(AppError::from(LibvirtError::Operation(format!(
+            "Failed to delete {path}: {e}"
+        )))),
     }
 }
 
@@ -273,7 +289,9 @@ async fn list_virt_builder_templates(
                 },
             )))
         }
-        Err(e) => Err(AppError::from(LibvirtError::Internal(format!("Task failed: {e}")))),
+        Err(e) => Err(AppError::from(LibvirtError::Internal(format!(
+            "Task failed: {e}"
+        )))),
     }
 }
 
@@ -347,13 +365,16 @@ async fn virt_image_build_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !MachinaConfig::load().libvirt.virt_builder_allowed {
         return Err(AppError::from(LibvirtError::Invalid(
-            "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)".into(),
+            "virt-builder / virt-image-build is disabled ([libvirt] virt_builder_allowed = false)"
+                .into(),
         )));
     }
 
     let out_path = req.output.trim().to_string();
     if out_path.is_empty() {
-        return Err(AppError::from(LibvirtError::Invalid("output is required".into())));
+        return Err(AppError::from(LibvirtError::Invalid(
+            "output is required".into(),
+        )));
     }
 
     let timeout_secs = MachinaConfig::load().libvirt.virt_image_build_timeout_secs;
@@ -376,7 +397,9 @@ async fn virt_image_build_handler(
     match block {
         Ok(()) => {
             log_audit("virt-image-build", &out_path, "ok");
-            Ok(Json(serde_json::json!({ "status": "ok", "path": out_path })))
+            Ok(Json(
+                serde_json::json!({ "status": "ok", "path": out_path }),
+            ))
         }
         Err(e) => {
             let msg = e.to_string();
@@ -406,20 +429,23 @@ async fn virt_builder_notes_handler(
     let notes = tokio::task::spawn_blocking(move || virt_builder::template_notes(&t))
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    Ok(Json(serde_json::json!({ "template": template, "notes": notes })))
+    Ok(Json(
+        serde_json::json!({ "template": template, "notes": notes }),
+    ))
 }
 
 // ── USB Passthrough ────────────────────────────────────────────────
 
-async fn list_usb(
-    State(_m): State<LibvirtManager>,
-) -> Result<Json<serde_json::Value>, AppError> {
+async fn list_usb(State(_m): State<LibvirtManager>) -> Result<Json<serde_json::Value>, AppError> {
     let devices = extras::list_usb_devices()?;
     Ok(Json(serde_json::json!(devices)))
 }
 
 #[derive(Deserialize)]
-struct UsbRequest { vendor_id: String, product_id: String }
+struct UsbRequest {
+    vendor_id: String,
+    product_id: String,
+}
 
 async fn attach_usb_handler(
     State(m): State<LibvirtManager>,
@@ -431,9 +457,10 @@ async fn attach_usb_handler(
         m.with_conn(|conn| extras::attach_usb(conn, &name2, &req.vendor_id, &req.product_id))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "attached", "name": name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "attached", "name": name }),
+    ))
 }
 
 async fn detach_usb_handler(
@@ -446,9 +473,10 @@ async fn detach_usb_handler(
         m.with_conn(|conn| extras::detach_usb(conn, &name2, &req.vendor_id, &req.product_id))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "detached", "name": name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "detached", "name": name }),
+    ))
 }
 
 // ── Cloud-init ─────────────────────────────────────────────────────
@@ -492,13 +520,18 @@ async fn generate_cloud_init(
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    Ok(Json(serde_json::json!({ "status": "created", "path": path })))
+    Ok(Json(
+        serde_json::json!({ "status": "created", "path": path }),
+    ))
 }
 
 // ── VM Import ──────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
-struct ImportRequest { source: String, dest_name: String }
+struct ImportRequest {
+    source: String,
+    dest_name: String,
+}
 
 async fn import_disk(
     State(manager): State<LibvirtManager>,
@@ -512,7 +545,9 @@ async fn import_disk(
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    Ok(Json(serde_json::json!({ "status": "imported", "path": path })))
+    Ok(Json(
+        serde_json::json!({ "status": "imported", "path": path }),
+    ))
 }
 
 // ── Live Resize ────────────────────────────────────────────────────
@@ -526,9 +561,10 @@ async fn live_vcpus_handler(
         m.with_conn(|conn| extras::live_set_vcpus(conn, &name2, count))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "vcpus": count, "live": true })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "vcpus": count, "live": true }),
+    ))
 }
 
 async fn live_memory_handler(
@@ -540,9 +576,10 @@ async fn live_memory_handler(
         m.with_conn(|conn| extras::live_set_memory(conn, &name2, mb))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb, "live": true })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb, "live": true }),
+    ))
 }
 
 // ── DHCP Leases ────────────────────────────────────────────────────
@@ -605,11 +642,140 @@ async fn get_host_package_updates(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
     let _permit = HOST_HEAVY_PROBE_SEM.acquire().await.map_err(|_| {
-        AppError::from(LibvirtError::Internal("host probe concurrency limiter closed".into()))
+        AppError::from(LibvirtError::Internal(
+            "host probe concurrency limiter closed".into(),
+        ))
     })?;
     let res = tokio::task::spawn_blocking(host_platform::check_package_updates)
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(res)))
+}
+
+#[derive(Deserialize, Default)]
+struct HostPackageUpgradeBody {
+    /// When true, only simulates upgrade (no system changes); returns tool output in the same shape as a real run.
+    #[serde(default)]
+    dry_run: Option<bool>,
+}
+
+async fn post_host_package_upgrade(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<HostPackageUpgradeBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let _permit = HOST_PACKAGE_ACTION_SEM.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal(
+            "host package action concurrency limiter closed".into(),
+        ))
+    })?;
+    let dry = body.dry_run.unwrap_or(false);
+    let res = if dry {
+        tokio::task::spawn_blocking(host_platform::package_upgrade_preview)
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??
+    } else {
+        tokio::task::spawn_blocking(host_platform::package_upgrade)
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??
+    };
+    let audit_result = if res.ok { "ok" } else { "failed" };
+    log_audit(
+        if dry {
+            "host-package-upgrade-preview"
+        } else {
+            "host-package-upgrade"
+        },
+        "host",
+        &format!("{audit_result} exit={}", res.exit_code),
+    );
+    Ok(Json(serde_json::json!(res)))
+}
+
+async fn post_host_package_autoremove(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let _permit = HOST_PACKAGE_ACTION_SEM.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal(
+            "host package action concurrency limiter closed".into(),
+        ))
+    })?;
+    let res = tokio::task::spawn_blocking(host_platform::package_autoremove)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let audit_result = if res.ok { "ok" } else { "failed" };
+    log_audit(
+        "host-package-autoremove",
+        "host",
+        &format!("{audit_result} exit={}", res.exit_code),
+    );
+    Ok(Json(serde_json::json!(res)))
+}
+
+#[derive(Deserialize)]
+struct HostPackagesBody {
+    /// Package names or pins (install/remove); max 32.
+    packages: Vec<String>,
+}
+
+async fn post_host_package_install(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<HostPackagesBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let _permit = HOST_PACKAGE_ACTION_SEM.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal(
+            "host package action concurrency limiter closed".into(),
+        ))
+    })?;
+    let pkgs = body.packages;
+    let target = pkgs.join(",").chars().take(240).collect::<String>();
+    let res = tokio::task::spawn_blocking(move || host_platform::package_install(pkgs))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let audit_result = if res.ok { "ok" } else { "failed" };
+    log_audit(
+        "host-package-install",
+        &target,
+        &format!("{audit_result} exit={}", res.exit_code),
+    );
+    Ok(Json(serde_json::json!(res)))
+}
+
+#[derive(Deserialize)]
+struct HostPackageRemoveBody {
+    packages: Vec<String>,
+    #[serde(default)]
+    purge: Option<bool>,
+}
+
+async fn post_host_package_remove(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<HostPackageRemoveBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    let _permit = HOST_PACKAGE_ACTION_SEM.acquire().await.map_err(|_| {
+        AppError::from(LibvirtError::Internal(
+            "host package action concurrency limiter closed".into(),
+        ))
+    })?;
+    let pkgs = body.packages;
+    let purge = body.purge.unwrap_or(false);
+    let target = pkgs.join(",").chars().take(240).collect::<String>();
+    let res = tokio::task::spawn_blocking(move || host_platform::package_remove(pkgs, purge))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let audit_result = if res.ok { "ok" } else { "failed" };
+    log_audit(
+        "host-package-remove",
+        &target,
+        &format!("{audit_result} exit={}", res.exit_code),
+    );
     Ok(Json(serde_json::json!(res)))
 }
 
@@ -636,7 +802,9 @@ async fn get_host_net_rates(
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
     let _permit = HOST_HEAVY_PROBE_SEM.acquire().await.map_err(|_| {
-        AppError::from(LibvirtError::Internal("host probe concurrency limiter closed".into()))
+        AppError::from(LibvirtError::Internal(
+            "host probe concurrency limiter closed".into(),
+        ))
     })?;
     let ms = q.interval_ms.unwrap_or(1000).clamp(50, 5000);
     let res = tokio::task::spawn_blocking(move || host_platform::list_net_dev_rates(ms))
@@ -685,7 +853,9 @@ async fn get_host_security_summary(
 // ── Save VM as Template ────────────────────────────────────────────
 
 #[derive(Deserialize)]
-struct SaveTemplateRequest { template_name: String }
+struct SaveTemplateRequest {
+    template_name: String,
+}
 
 async fn save_template_handler(
     State(m): State<LibvirtManager>,
@@ -698,9 +868,10 @@ async fn save_template_handler(
         m.with_conn(|conn| extras::save_vm_as_template(conn, &name2, &template_name))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "saved", "name": name, "template": req.template_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "saved", "name": name, "template": req.template_name }),
+    ))
 }
 
 // ── Audit Log ──────────────────────────────────────────────────────
@@ -760,7 +931,9 @@ async fn service_action_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     log_audit("service_action", &format!("{action} {name}"), "");
     extras::service_action(&name, &action)?;
-    Ok(Json(serde_json::json!({ "status": "ok", "service": name, "action": action })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "service": name, "action": action }),
+    ))
 }
 
 // ── System Logs ───────────────────────────────────────────────────
@@ -769,7 +942,10 @@ async fn get_logs_handler(
     State(_m): State<LibvirtManager>,
     axum::extract::Query(params): axum::extract::Query<std::collections::HashMap<String, String>>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let lines: u32 = params.get("lines").and_then(|v| v.parse().ok()).unwrap_or(100);
+    let lines: u32 = params
+        .get("lines")
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(100);
     let priority = params.get("priority").map(|s| s.as_str());
     let unit = params.get("unit").map(|s| s.as_str());
     let boot = params.get("boot").and_then(|v| v.parse::<i32>().ok());
@@ -832,7 +1008,9 @@ async fn get_system_info_handler(
 }
 
 #[derive(Deserialize)]
-struct SetHostnameRequest { hostname: String }
+struct SetHostnameRequest {
+    hostname: String,
+}
 
 async fn set_hostname_handler(
     State(_m): State<LibvirtManager>,
@@ -840,11 +1018,15 @@ async fn set_hostname_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     log_audit("set_hostname", &req.hostname, "");
     extras::set_hostname(&req.hostname)?;
-    Ok(Json(serde_json::json!({ "status": "ok", "hostname": req.hostname })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "hostname": req.hostname }),
+    ))
 }
 
 #[derive(Deserialize)]
-struct SetTimezoneRequest { timezone: String }
+struct SetTimezoneRequest {
+    timezone: String,
+}
 
 async fn set_timezone_handler(
     State(_m): State<LibvirtManager>,
@@ -852,7 +1034,9 @@ async fn set_timezone_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     log_audit("set_timezone", &req.timezone, "");
     extras::set_timezone(&req.timezone)?;
-    Ok(Json(serde_json::json!({ "status": "ok", "timezone": req.timezone })))
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "timezone": req.timezone }),
+    ))
 }
 
 // ── Router ─────────────────────────────────────────────────────────
@@ -864,15 +1048,24 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/browse/dir", get(browse_directory_handler))
         .route("/browse/disks", get(list_disk_images))
         .route("/browse/disks/delete", delete(delete_disk_image))
-        .route("/browse/virt-image-output-roots", get(list_virt_image_output_roots))
+        .route(
+            "/browse/virt-image-output-roots",
+            get(list_virt_image_output_roots),
+        )
         .route("/browse/virt-builder", get(list_virt_builder_templates))
         .route(
             "/browse/virt-builder/probe/{template}",
             get(virt_builder_probe_template_handler),
         )
         .route("/browse/virt-image-build", post(virt_image_build_handler))
-        .route("/browse/virt-builder/notes/{template}", get(virt_builder_notes_handler))
-        .route("/browse/mkosi-workspaces", get(list_mkosi_workspaces_handler))
+        .route(
+            "/browse/virt-builder/notes/{template}",
+            get(virt_builder_notes_handler),
+        )
+        .route(
+            "/browse/mkosi-workspaces",
+            get(list_mkosi_workspaces_handler),
+        )
         // USB
         .route("/host/usb", get(list_usb))
         .route("/vms/{name}/usb/attach", post(attach_usb_handler))
@@ -897,6 +1090,13 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/host/filesystems", get(get_host_filesystems))
         .route("/host/processes", get(get_host_processes))
         .route("/host/package-updates", get(get_host_package_updates))
+        .route("/host/package-upgrade", post(post_host_package_upgrade))
+        .route(
+            "/host/package-autoremove",
+            post(post_host_package_autoremove),
+        )
+        .route("/host/package-install", post(post_host_package_install))
+        .route("/host/package-remove", post(post_host_package_remove))
         .route("/host/net-counters", get(get_host_net_counters))
         .route("/host/net-rates", get(get_host_net_rates))
         .route("/host/passwd-users", get(get_host_passwd_users))

@@ -30,7 +30,12 @@ pub fn list_secrets(conn: &Connect) -> Result<Vec<SecretInfo>, LibvirtError> {
             .or_else(|| crate::xml::extract_text(&xml, "target"))
             .unwrap_or_default();
 
-        result.push(SecretInfo { uuid, usage_type, usage_id, xml });
+        result.push(SecretInfo {
+            uuid,
+            usage_type,
+            usage_id,
+            xml,
+        });
     }
     Ok(result)
 }

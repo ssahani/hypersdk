@@ -38,12 +38,7 @@ async fn raw_version_ok(kubeconfig: Option<&Path>) -> bool {
         };
         cmd.args(["--kubeconfig", ps]);
     }
-    match timeout(
-        Duration::from_secs(PROBE_TIMEOUT_SECS),
-        cmd.output(),
-    )
-    .await
-    {
+    match timeout(Duration::from_secs(PROBE_TIMEOUT_SECS), cmd.output()).await {
         Ok(Ok(out)) => out.status.success(),
         _ => false,
     }

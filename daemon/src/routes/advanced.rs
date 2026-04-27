@@ -3,8 +3,8 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use machina_core::libvirt::{
-    boot, capabilities, cdrom, domain_job, emulator, guest_agent, host_cpu, hostdev_pci,
-    migrate, node_device, numa_tune, nwfilter, save_restore, secret, storage,
+    boot, capabilities, cdrom, domain_job, emulator, guest_agent, host_cpu, hostdev_pci, migrate,
+    node_device, numa_tune, nwfilter, save_restore, secret, storage,
 };
 use machina_core::{LibvirtError, LibvirtManager};
 
@@ -45,7 +45,9 @@ struct CdromRequest {
     target: String,
 }
 
-fn default_cdrom_target() -> String { "sda".to_string() }
+fn default_cdrom_target() -> String {
+    "sda".to_string()
+}
 
 async fn insert_cdrom_handler(
     State(manager): State<LibvirtManager>,
@@ -58,9 +60,10 @@ async fn insert_cdrom_handler(
         manager.with_conn(|conn| cdrom::insert_cdrom(conn, &name2, &req.iso_path, &req.target))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "inserted", "name": name, "target": target })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "inserted", "name": name, "target": target }),
+    ))
 }
 
 async fn eject_cdrom_handler(
@@ -73,9 +76,10 @@ async fn eject_cdrom_handler(
         manager.with_conn(|conn| cdrom::eject_cdrom(conn, &name2, &target2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ejected", "name": name, "target": target })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ejected", "name": name, "target": target }),
+    ))
 }
 
 // ── Save/Restore ────────────────────────────────────────────────────
@@ -89,8 +93,7 @@ async fn managed_save_handler(
         manager.with_conn(|conn| save_restore::managed_save(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "saved", "name": name })))
 }
 
@@ -103,9 +106,10 @@ async fn managed_save_remove_handler(
         manager.with_conn(|conn| save_restore::managed_save_remove(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "removed", "name": name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "removed", "name": name }),
+    ))
 }
 
 async fn has_managed_save_handler(
@@ -119,7 +123,9 @@ async fn has_managed_save_handler(
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     let has_save = result?;
-    Ok(Json(serde_json::json!({ "name": name, "has_managed_save": has_save })))
+    Ok(Json(
+        serde_json::json!({ "name": name, "has_managed_save": has_save }),
+    ))
 }
 
 // ── Boot ────────────────────────────────────────────────────────────
@@ -137,7 +143,9 @@ async fn get_boot_config_handler(
 }
 
 #[derive(serde::Deserialize)]
-struct BootOrderRequest { devices: Vec<String> }
+struct BootOrderRequest {
+    devices: Vec<String>,
+}
 
 async fn set_boot_order_handler(
     State(manager): State<LibvirtManager>,
@@ -150,9 +158,10 @@ async fn set_boot_order_handler(
         manager.with_conn(|conn| boot::set_boot_order(conn, &name2, &devices))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "boot_devices": req.devices })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "boot_devices": req.devices }),
+    ))
 }
 
 // ── Migration ───────────────────────────────────────────────────────
@@ -211,9 +220,10 @@ async fn migrate_handler(
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "migrated", "name": name, "destination": destination })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "migrated", "name": name, "destination": destination }),
+    ))
 }
 
 async fn migrate_get_max_speed_handler(
@@ -226,7 +236,9 @@ async fn migrate_get_max_speed_handler(
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!({ "name": name, "mib_per_sec": mib? })))
+    Ok(Json(
+        serde_json::json!({ "name": name, "mib_per_sec": mib? }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -245,9 +257,10 @@ async fn migrate_set_max_speed_handler(
         manager.with_conn(|conn| migrate::migrate_set_max_speed(conn, &name2, mib))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "mib_per_sec": mib })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "mib_per_sec": mib }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -266,9 +279,10 @@ async fn migrate_set_max_downtime_handler(
         manager.with_conn(|conn| migrate::migrate_set_max_downtime(conn, &name2, ns))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "downtime_ns": ns })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "downtime_ns": ns }),
+    ))
 }
 
 async fn get_numa_tune_handler(
@@ -295,8 +309,7 @@ async fn set_numa_tune_handler(
         manager.with_conn(|conn| numa_tune::set_numa_tune(conn, &name2, &body))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -316,8 +329,7 @@ async fn pin_emulator_handler(
         manager.with_conn(|conn| emulator::pin_emulator(conn, &name2, &cpus))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -381,22 +393,17 @@ async fn job_stats_handler(
 async fn get_capabilities_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(capabilities::get_capabilities)
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result =
+        tokio::task::spawn_blocking(move || manager.with_conn(capabilities::get_capabilities))
+            .await
+            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Json(serde_json::json!(result?)))
 }
 
-async fn get_sysinfo_handler(
-    State(manager): State<LibvirtManager>,
-) -> Result<Xml, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(capabilities::get_sysinfo)
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+async fn get_sysinfo_handler(State(manager): State<LibvirtManager>) -> Result<Xml, AppError> {
+    let result = tokio::task::spawn_blocking(move || manager.with_conn(capabilities::get_sysinfo))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Xml(result?))
 }
 
@@ -437,11 +444,9 @@ async fn get_node_device_handler(
 async fn list_nwfilters_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(nwfilter::list_nwfilters)
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = tokio::task::spawn_blocking(move || manager.with_conn(nwfilter::list_nwfilters))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Json(serde_json::json!(result?)))
 }
 
@@ -466,9 +471,10 @@ async fn delete_nwfilter_handler(
         manager.with_conn(|conn| nwfilter::delete_nwfilter(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "deleted", "name": name }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -485,9 +491,10 @@ async fn define_nwfilter_handler(
         manager.with_conn(|conn| nwfilter::define_nwfilter(conn, &xml))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "defined", "name": name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "defined", "name": name }),
+    ))
 }
 
 // ── Secrets ─────────────────────────────────────────────────────────
@@ -495,11 +502,9 @@ async fn define_nwfilter_handler(
 async fn list_secrets_handler(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(secret::list_secrets)
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = tokio::task::spawn_blocking(move || manager.with_conn(secret::list_secrets))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Json(serde_json::json!(result?)))
 }
 
@@ -512,9 +517,10 @@ async fn delete_secret_handler(
         manager.with_conn(|conn| secret::delete_secret(conn, &uuid2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "uuid": uuid })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "deleted", "uuid": uuid }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -547,19 +553,14 @@ async fn define_secret_handler(
     let svf = req.set_value_flags;
     let uuid = tokio::task::spawn_blocking(move || {
         manager.with_conn(|conn| {
-            secret::define_secret_with_value(
-                conn,
-                &xml,
-                value_bytes.as_deref(),
-                validate,
-                svf,
-            )
+            secret::define_secret_with_value(conn, &xml, value_bytes.as_deref(), validate, svf)
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "defined", "uuid": uuid })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "defined", "uuid": uuid }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
@@ -579,9 +580,10 @@ async fn attach_pci_hostdev_handler(
         manager.with_conn(|conn| hostdev_pci::attach_pci_hostdev(conn, &name2, &pci_for_task))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "pci_attached", "name": name, "pci": pci })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "pci_attached", "name": name, "pci": pci }),
+    ))
 }
 
 async fn detach_pci_hostdev_handler(
@@ -596,9 +598,10 @@ async fn detach_pci_hostdev_handler(
         manager.with_conn(|conn| hostdev_pci::detach_pci_hostdev(conn, &name2, &pci_for_task))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "pci_detached", "name": name, "pci": pci })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "pci_detached", "name": name, "pci": pci }),
+    ))
 }
 
 async fn detach_nodedev_handler(
@@ -606,11 +609,14 @@ async fn detach_nodedev_handler(
     Path(devname): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let dev = devname.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| node_device::detach_node_device(conn, &dev)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-        ?;
-    Ok(Json(serde_json::json!({ "status": "nodedev_detached", "name": devname })))
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| node_device::detach_node_device(conn, &dev))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "nodedev_detached", "name": devname }),
+    ))
 }
 
 async fn reattach_nodedev_handler(
@@ -618,11 +624,14 @@ async fn reattach_nodedev_handler(
     Path(devname): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let dev = devname.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| node_device::reattach_node_device(conn, &dev)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-        ?;
-    Ok(Json(serde_json::json!({ "status": "nodedev_reattached", "name": devname })))
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| node_device::reattach_node_device(conn, &dev))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "nodedev_reattached", "name": devname }),
+    ))
 }
 
 // ── Storage Pool Create/Delete ──────────────────────────────────────
@@ -635,7 +644,9 @@ struct CreatePoolRequest {
     target_path: String,
 }
 
-fn default_pool_type() -> String { "dir".to_string() }
+fn default_pool_type() -> String {
+    "dir".to_string()
+}
 
 async fn create_pool_handler(
     State(manager): State<LibvirtManager>,
@@ -643,12 +654,15 @@ async fn create_pool_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let req_name = req.name.clone();
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| storage::create_pool(conn, &req.name, &req.pool_type, &req.target_path))
+        manager.with_conn(|conn| {
+            storage::create_pool(conn, &req.name, &req.pool_type, &req.target_path)
+        })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "created", "name": req_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "created", "name": req_name }),
+    ))
 }
 
 async fn delete_pool_handler(
@@ -660,9 +674,10 @@ async fn delete_pool_handler(
         manager.with_conn(|conn| storage::delete_pool(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "deleted", "name": name }),
+    ))
 }
 
 async fn get_pool_xml_handler(
@@ -680,7 +695,9 @@ async fn get_pool_xml_handler(
 // ── Volume Resize/Clone ─────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
-struct ResizeVolumeRequest { capacity_gb: f64 }
+struct ResizeVolumeRequest {
+    capacity_gb: f64,
+}
 
 async fn resize_volume_handler(
     State(manager): State<LibvirtManager>,
@@ -690,7 +707,8 @@ async fn resize_volume_handler(
     if req.capacity_gb <= 0.0 || req.capacity_gb > 10_240.0 {
         return Err(machina_core::LibvirtError::Operation(
             "capacity_gb must be between 0 and 10240 (10 TB)".to_string(),
-        ).into());
+        )
+        .into());
     }
     let capacity = req.capacity_gb.ceil() as u64;
     let pool2 = pool.clone();
@@ -699,13 +717,16 @@ async fn resize_volume_handler(
         manager.with_conn(|conn| storage::resize_volume(conn, &pool2, &vol2, capacity))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": capacity })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": capacity }),
+    ))
 }
 
 #[derive(serde::Deserialize)]
-struct CloneVolumeRequest { new_name: String }
+struct CloneVolumeRequest {
+    new_name: String,
+}
 
 async fn clone_volume_handler(
     State(manager): State<LibvirtManager>,
@@ -719,9 +740,10 @@ async fn clone_volume_handler(
         manager.with_conn(|conn| storage::clone_volume(conn, &pool2, &vol2, &new_name))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "cloned", "pool": pool, "source": vol, "clone": req.new_name })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "cloned", "pool": pool, "source": vol, "clone": req.new_name }),
+    ))
 }
 
 // ── Memory Balloon ──────────────────────────────────────────────────
@@ -732,12 +754,14 @@ async fn set_memory_balloon_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| machina_core::libvirt::resize::set_memory_balloon(conn, &name2, mb))
+        manager
+            .with_conn(|conn| machina_core::libvirt::resize::set_memory_balloon(conn, &name2, mb))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
-    Ok(Json(serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb })))
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb }),
+    ))
 }
 
 // ── Routes ──────────────────────────────────────────────────────────
@@ -749,11 +773,20 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/hostname", get(get_hostname))
         // CD-ROM
         .route("/vms/{name}/cdrom/insert", post(insert_cdrom_handler))
-        .route("/vms/{name}/cdrom/eject/{target}", post(eject_cdrom_handler))
+        .route(
+            "/vms/{name}/cdrom/eject/{target}",
+            post(eject_cdrom_handler),
+        )
         // Save/Restore
         .route("/vms/{name}/managed-save", post(managed_save_handler))
-        .route("/vms/{name}/managed-save", delete(managed_save_remove_handler))
-        .route("/vms/{name}/managed-save/status", get(has_managed_save_handler))
+        .route(
+            "/vms/{name}/managed-save",
+            delete(managed_save_remove_handler),
+        )
+        .route(
+            "/vms/{name}/managed-save/status",
+            get(has_managed_save_handler),
+        )
         // Boot
         .route("/vms/{name}/boot", get(get_boot_config_handler))
         .route("/vms/{name}/boot", post(set_boot_order_handler))
@@ -763,8 +796,14 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
             "/vms/{name}/migrate/max-bandwidth",
             get(migrate_get_max_speed_handler).post(migrate_set_max_speed_handler),
         )
-        .route("/vms/{name}/migrate/max-downtime", post(migrate_set_max_downtime_handler))
-        .route("/vms/{name}/numa", get(get_numa_tune_handler).post(set_numa_tune_handler))
+        .route(
+            "/vms/{name}/migrate/max-downtime",
+            post(migrate_set_max_downtime_handler),
+        )
+        .route(
+            "/vms/{name}/numa",
+            get(get_numa_tune_handler).post(set_numa_tune_handler),
+        )
         .route("/vms/{name}/emulator/pin", post(pin_emulator_handler))
         .route("/vms/{name}/job", get(job_info_handler))
         .route("/vms/{name}/job/stats", get(job_stats_handler))
@@ -778,22 +817,43 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route("/devices", get(list_node_devices_handler))
         .route("/devices/{name}", get(get_node_device_handler))
         // Network filters
-        .route("/nwfilters", get(list_nwfilters_handler).post(define_nwfilter_handler))
+        .route(
+            "/nwfilters",
+            get(list_nwfilters_handler).post(define_nwfilter_handler),
+        )
         .route("/nwfilters/{name}", get(get_nwfilter_handler))
         .route("/nwfilters/{name}", delete(delete_nwfilter_handler))
         // Secrets
-        .route("/secrets", get(list_secrets_handler).post(define_secret_handler))
+        .route(
+            "/secrets",
+            get(list_secrets_handler).post(define_secret_handler),
+        )
         .route("/secrets/{uuid}", delete(delete_secret_handler))
         // PCI hostdev + node device detach (VFIO prep)
-        .route("/vms/{name}/hostdev/pci/attach", post(attach_pci_hostdev_handler))
-        .route("/vms/{name}/hostdev/pci/detach", post(detach_pci_hostdev_handler))
+        .route(
+            "/vms/{name}/hostdev/pci/attach",
+            post(attach_pci_hostdev_handler),
+        )
+        .route(
+            "/vms/{name}/hostdev/pci/detach",
+            post(detach_pci_hostdev_handler),
+        )
         .route("/host/nodedev/{name}/detach", post(detach_nodedev_handler))
-        .route("/host/nodedev/{name}/reattach", post(reattach_nodedev_handler))
+        .route(
+            "/host/nodedev/{name}/reattach",
+            post(reattach_nodedev_handler),
+        )
         // Storage pool management
         .route("/storage/pools", post(create_pool_handler))
         .route("/storage/pools/{name}", delete(delete_pool_handler))
         .route("/storage/pools/{name}/xml", get(get_pool_xml_handler))
         // Volume resize/clone
-        .route("/storage/pools/{pool}/volumes/{vol}/resize", post(resize_volume_handler))
-        .route("/storage/pools/{pool}/volumes/{vol}/clone", post(clone_volume_handler))
+        .route(
+            "/storage/pools/{pool}/volumes/{vol}/resize",
+            post(resize_volume_handler),
+        )
+        .route(
+            "/storage/pools/{pool}/volumes/{vol}/clone",
+            post(clone_volume_handler),
+        )
 }

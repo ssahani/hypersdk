@@ -27,8 +27,7 @@ async fn create_network(
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("created", &name))
 }
 
@@ -41,8 +40,7 @@ async fn delete_network_handler(
         manager.with_conn(|conn| network::delete_network(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("deleted", &name))
 }
 
@@ -55,8 +53,7 @@ async fn start_network(
         manager.with_conn(|conn| network::start_network(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("started", &name))
 }
 
@@ -69,8 +66,7 @@ async fn stop_network(
         manager.with_conn(|conn| network::stop_network(conn, &name2))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(ok_json("stopped", &name))
 }
 
@@ -96,8 +92,7 @@ async fn set_network_autostart(
         manager.with_conn(|conn| network::set_network_autostart(conn, &name2, autostart))
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     let label = if autostart { "enabled" } else { "disabled" };
     Ok(ok_json(label, &name))
 }
@@ -110,5 +105,8 @@ pub fn network_routes() -> Router<LibvirtManager> {
         .route("/networks/{name}/start", post(start_network))
         .route("/networks/{name}/stop", post(stop_network))
         .route("/networks/{name}/xml", get(get_network_xml))
-        .route("/networks/{name}/autostart/{enabled}", post(set_network_autostart))
+        .route(
+            "/networks/{name}/autostart/{enabled}",
+            post(set_network_autostart),
+        )
 }

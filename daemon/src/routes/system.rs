@@ -1,10 +1,10 @@
 use axum::extract::{Extension, Path};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
-use serde::Deserialize;
-use tracing::info;
 use machina_core::system_accounts;
 use machina_core::{LibvirtError, LibvirtManager};
+use serde::Deserialize;
+use tracing::info;
 
 use crate::auth::RequestActor;
 use crate::error::AppError;
@@ -47,9 +47,7 @@ fn os_user_capability_json(actor: &RequestActor) -> serde_json::Value {
     })
 }
 
-async fn os_users_capability(
-    Extension(actor): Extension<RequestActor>,
-) -> Json<serde_json::Value> {
+async fn os_users_capability(Extension(actor): Extension<RequestActor>) -> Json<serde_json::Value> {
     Json(os_user_capability_json(&actor))
 }
 
@@ -71,9 +69,7 @@ async fn create_os_user(
     Json(req): Json<CreateOsUserRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if actor.from_api_token {
-        return Err(
-            LibvirtError::Forbidden("API tokens cannot create system users".into()).into(),
-        );
+        return Err(LibvirtError::Forbidden("API tokens cannot create system users".into()).into());
     }
     if !system_accounts::unix_user_may_use_sudo(&actor.username) {
         return Err(LibvirtError::Forbidden(
@@ -81,16 +77,11 @@ async fn create_os_user(
         )
         .into());
     }
-    let outcome = system_accounts::create_local_user(
-        &req.username,
-        &req.password,
-        req.add_to_libvirt_group,
-    )?;
+    let outcome =
+        system_accounts::create_local_user(&req.username, &req.password, req.add_to_libvirt_group)?;
     info!(
         "OS user '{}' created via machina by session user '{}' (libvirt group: {})",
-        req.username,
-        actor.username,
-        outcome.libvirt_group_attached
+        req.username, actor.username, outcome.libvirt_group_attached
     );
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -105,9 +96,7 @@ async fn delete_os_user(
     Path(username): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if actor.from_api_token {
-        return Err(
-            LibvirtError::Forbidden("API tokens cannot delete system users".into()).into(),
-        );
+        return Err(LibvirtError::Forbidden("API tokens cannot delete system users".into()).into());
     }
     if !system_accounts::unix_user_may_use_sudo(&actor.username) {
         return Err(LibvirtError::Forbidden(

@@ -150,9 +150,7 @@ fn user_in_group_getent(username: &str, group: &str) -> bool {
         return false;
     };
     let members = line.split(':').nth(3).unwrap_or("");
-    members
-        .split(',')
-        .any(|m| m.trim() == username)
+    members.split(',').any(|m| m.trim() == username)
 }
 
 /// True if `username` may administer host accounts: root, or in wheel / sudo / admin (any NSS path).
@@ -308,9 +306,10 @@ pub fn create_local_user(
         .map_err(|e| LibvirtError::Operation(format!("chpasswd: {e}")))?;
     let line = format!("{new_username}:{password}\n");
     {
-        let stdin = child.stdin.as_mut().ok_or_else(|| {
-            LibvirtError::Operation("chpasswd: no stdin".into())
-        })?;
+        let stdin = child
+            .stdin
+            .as_mut()
+            .ok_or_else(|| LibvirtError::Operation("chpasswd: no stdin".into()))?;
         stdin
             .write_all(line.as_bytes())
             .map_err(|e| LibvirtError::Operation(format!("chpasswd write: {e}")))?;

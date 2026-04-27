@@ -5,6 +5,7 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
+use machina_core::{AuthConfig, LibvirtError, LibvirtManager};
 use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
@@ -12,7 +13,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tracing::{info, warn};
-use machina_core::{AuthConfig, LibvirtError, LibvirtManager};
 
 use crate::error::AppError;
 
@@ -264,7 +264,11 @@ pub async fn auth_middleware(
     }
 
     // Check Authorization header for API tokens (Bearer mach_…; legacy vs_… still valid if stored)
-    if let Some(auth_header) = req.headers().get("authorization").and_then(|v| v.to_str().ok()) {
+    if let Some(auth_header) = req
+        .headers()
+        .get("authorization")
+        .and_then(|v| v.to_str().ok())
+    {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
             if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
                 req.extensions_mut().insert(RequestActor {
@@ -278,7 +282,9 @@ pub async fn auth_middleware(
 
     (
         StatusCode::UNAUTHORIZED,
-        Json(serde_json::json!({ "error": "Authentication required", "error_code": "unauthorized" })),
+        Json(
+            serde_json::json!({ "error": "Authentication required", "error_code": "unauthorized" }),
+        ),
     )
         .into_response()
 }
@@ -336,14 +342,10 @@ pub async fn ws_auth_middleware(
     next: Next,
 ) -> Response {
     // Extract token from query string
-    let token = req
-        .uri()
-        .query()
-        .and_then(|q| {
-            q.split('&').find_map(|pair| {
-                pair.strip_prefix("token=").map(|v| v.to_string())
-            })
-        });
+    let token = req.uri().query().and_then(|q| {
+        q.split('&')
+            .find_map(|pair| pair.strip_prefix("token=").map(|v| v.to_string()))
+    });
 
     if let Some(ref tok) = token {
         if store.validate_ws_token(tok).is_some() {
@@ -378,7 +380,11 @@ async fn login_handler(
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Username and password required", "error_code": "invalid_request" }))).into_response();
     }
 
-    if !req.username.chars().all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.') {
+    if !req
+        .username
+        .chars()
+        .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '.')
+    {
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid username characters", "error_code": "invalid_request" }))).into_response();
     }
 
@@ -387,7 +393,12 @@ async fn login_handler(
             info!("PAM login successful for user '{}'", req.username);
             let token = store.create_session(&req.username);
             let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
-            (StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({ "status": "ok", "username": req.username }))).into_response()
+            (
+                StatusCode::OK,
+                [(header::SET_COOKIE, cookie)],
+                Json(serde_json::json!({ "status": "ok", "username": req.username })),
+            )
+                .into_response()
         }
         Err(e) => {
             warn!("PAM login failed for user '{}': {}", req.username, e);
@@ -396,15 +407,17 @@ async fn login_handler(
     }
 }
 
-async fn logout_handler(
-    Extension(store): Extension<SessionStore>,
-    req: Request<Body>,
-) -> Response {
+async fn logout_handler(Extension(store): Extension<SessionStore>, req: Request<Body>) -> Response {
     if let Some(token) = extract_token(&req) {
         store.remove_session(&token);
     }
     let cookie = "machina_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0";
-    (StatusCode::OK, [(header::SET_COOKIE, cookie)], Json(serde_json::json!({ "status": "logged_out" }))).into_response()
+    (
+        StatusCode::OK,
+        [(header::SET_COOKIE, cookie)],
+        Json(serde_json::json!({ "status": "logged_out" })),
+    )
+        .into_response()
 }
 
 async fn session_handler(
@@ -425,7 +438,11 @@ async fn session_handler(
                 .into_response();
         }
     }
-    (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "authenticated": false }))).into_response()
+    (
+        StatusCode::UNAUTHORIZED,
+        Json(serde_json::json!({ "authenticated": false })),
+    )
+        .into_response()
 }
 
 fn require_root_session(actor: &RequestActor) -> Result<(), LibvirtError> {
@@ -451,13 +468,12 @@ async fn admin_list_sessions(
     let current_public_id = extract_token(&req).and_then(|t| store.session_public_id(&t));
     let list = store.list_browser_sessions(current_public_id.as_deref());
     let total_sessions = list.len();
-    let by_user: std::collections::HashMap<String, usize> = list.iter().fold(
-        std::collections::HashMap::new(),
-        |mut acc, s| {
-            *acc.entry(s.username.clone()).or_insert(0) += 1;
-            acc
-        },
-    );
+    let by_user: std::collections::HashMap<String, usize> =
+        list.iter()
+            .fold(std::collections::HashMap::new(), |mut acc, s| {
+                *acc.entry(s.username.clone()).or_insert(0) += 1;
+                acc
+            });
     Ok(Json(serde_json::json!({
         "sessions": list,
         "total_sessions": total_sessions,
@@ -477,7 +493,9 @@ async fn admin_revoke_session(
     }
     if store.revoke_session_by_public_id(&session_id) {
         info!("Session {} revoked by root", session_id);
-        Ok(Json(serde_json::json!({ "status": "revoked", "session_id": session_id })))
+        Ok(Json(
+            serde_json::json!({ "status": "revoked", "session_id": session_id }),
+        ))
     } else {
         Err(LibvirtError::NotFound("Session not found or already expired".into()).into())
     }
@@ -486,8 +504,12 @@ async fn admin_revoke_session(
 fn pam_authenticate(username: &str, password: &str, pam_service: &str) -> Result<(), String> {
     let mut client = pam::Client::with_password(pam_service)
         .map_err(|e| format!("PAM init failed ({pam_service}): {e}"))?;
-    client.conversation_mut().set_credentials(username, password);
-    client.authenticate().map_err(|e| format!("PAM auth failed: {e}"))?;
+    client
+        .conversation_mut()
+        .set_credentials(username, password);
+    client
+        .authenticate()
+        .map_err(|e| format!("PAM auth failed: {e}"))?;
     // Skip open_session() — pam_loginuid fails under systemd with NoNewPrivileges.
     // We only need credential verification, not a full login session.
     Ok(())

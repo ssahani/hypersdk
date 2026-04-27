@@ -34,8 +34,7 @@ async fn get_console_info(
         })
     })
     .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
-    ?;
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
 
     // Find VNC graphics first, then fall back to any graphics type
     let mut console_type = machina_core::unknown_string();
@@ -71,7 +70,10 @@ async fn get_console_info(
         .get("host")
         .and_then(|v| v.to_str().ok())
         .and_then(|h| h.split(':').next())
-        .filter(|h| h.chars().all(|c| c.is_alphanumeric() || c == '.' || c == '-'))
+        .filter(|h| {
+            h.chars()
+                .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+        })
         .unwrap_or("127.0.0.1")
         .to_string();
 

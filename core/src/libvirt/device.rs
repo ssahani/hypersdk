@@ -10,9 +10,12 @@ pub fn get_domain_flags_pub(domain: &Domain) -> u32 {
 }
 
 pub(crate) fn get_domain_flags(domain: &Domain) -> u32 {
-    domain.get_info()
+    domain
+        .get_info()
         .map(|info| {
-            if info.state == 1 /* VIR_DOMAIN_RUNNING */ {
+            if info.state == 1
+            /* VIR_DOMAIN_RUNNING */
+            {
                 virt::sys::VIR_DOMAIN_AFFECT_LIVE | virt::sys::VIR_DOMAIN_AFFECT_CONFIG
             } else {
                 virt::sys::VIR_DOMAIN_AFFECT_CONFIG
@@ -23,16 +26,26 @@ pub(crate) fn get_domain_flags(domain: &Domain) -> u32 {
 
 const DISK_BUSES: &[&str] = &["virtio", "scsi", "sata", "ide"];
 
-pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Result<(), LibvirtError> {
+pub fn attach_disk(
+    conn: &Connect,
+    vm_name: &str,
+    req: &AttachDiskRequest,
+) -> Result<(), LibvirtError> {
     let source_path = std::path::Path::new(&req.source);
     if !source_path.is_absolute() {
-        return Err(LibvirtError::Invalid("Disk source path must be absolute".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Disk source path must be absolute".to_string(),
+        ));
     }
     // Canonicalize to resolve symlinks and prevent path traversal
-    let resolved = source_path.canonicalize()
+    let resolved = source_path
+        .canonicalize()
         .map_err(|_| LibvirtError::Operation(format!("Disk source not found: {}", req.source)))?;
     if !resolved.is_file() {
-        return Err(LibvirtError::Operation(format!("Disk source is not a file: {}", req.source)));
+        return Err(LibvirtError::Operation(format!(
+            "Disk source is not a file: {}",
+            req.source
+        )));
     }
 
     let bus = req.bus.trim();
@@ -58,7 +71,11 @@ pub fn attach_disk(conn: &Connect, vm_name: &str, req: &AttachDiskRequest) -> Re
     }
     let driver_xml = format!("<driver {} />", driver_attrs.join(" "));
     let ro = if req.readonly { "\n  <readonly/>" } else { "" };
-    let share = if req.shareable { " shareable='yes'" } else { "" };
+    let share = if req.shareable {
+        " shareable='yes'"
+    } else {
+        ""
+    };
 
     let domain = lookup_domain(conn, vm_name)?;
 
@@ -102,24 +119,39 @@ pub fn detach_disk(conn: &Connect, vm_name: &str, target: &str) -> Result<(), Li
 
 /// Resize a block device attached to a VM (in GB).
 /// Note: size_bytes = size_gb * 1024^3, max 10240 GB = ~11 TB, fits in u64.
-pub fn resize_block_device(conn: &Connect, vm_name: &str, target: &str, size_gb: u64) -> Result<(), LibvirtError> {
+pub fn resize_block_device(
+    conn: &Connect,
+    vm_name: &str,
+    target: &str,
+    size_gb: u64,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_disk_gb(size_gb)?;
     let domain = lookup_domain(conn, vm_name)?;
     let size_bytes = size_gb * 1024 * 1024 * 1024;
-    domain
-        .block_resize(target, size_bytes, 0)
-        .map_err(|e| LibvirtError::Operation(format!("Failed to resize disk '{target}' on '{}': {e}", vm_name)))?;
+    domain.block_resize(target, size_bytes, 0).map_err(|e| {
+        LibvirtError::Operation(format!(
+            "Failed to resize disk '{target}' on '{}': {e}",
+            vm_name
+        ))
+    })?;
     Ok(())
 }
 
 const ALLOWED_NIC_MODELS: &[&str] = &["virtio", "e1000", "e1000e", "rtl8139", "vmxnet3"];
 
 /// Attach a network interface to a VM.
-pub fn attach_interface(conn: &Connect, vm_name: &str, network: &str, model: &str) -> Result<(), LibvirtError> {
+pub fn attach_interface(
+    conn: &Connect,
+    vm_name: &str,
+    network: &str,
+    model: &str,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_name(network)?;
     if !ALLOWED_NIC_MODELS.contains(&model) {
         return Err(LibvirtError::Invalid(format!(
-            "Invalid NIC model '{}'. Allowed: {}", model, ALLOWED_NIC_MODELS.join(", ")
+            "Invalid NIC model '{}'. Allowed: {}",
+            model,
+            ALLOWED_NIC_MODELS.join(", ")
         )));
     }
     let domain = lookup_domain(conn, vm_name)?;
@@ -144,8 +176,14 @@ pub fn attach_interface(conn: &Connect, vm_name: &str, network: &str, model: &st
 pub fn detach_interface(conn: &Connect, vm_name: &str, mac: &str) -> Result<(), LibvirtError> {
     // Validate MAC address format (xx:xx:xx:xx:xx:xx)
     let parts: Vec<&str> = mac.split(':').collect();
-    if parts.len() != 6 || !parts.iter().all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_hexdigit())) {
-        return Err(LibvirtError::Invalid(format!("Invalid MAC address format: '{mac}'")));
+    if parts.len() != 6
+        || !parts
+            .iter()
+            .all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_hexdigit()))
+    {
+        return Err(LibvirtError::Invalid(format!(
+            "Invalid MAC address format: '{mac}'"
+        )));
     }
 
     let domain = lookup_domain(conn, vm_name)?;

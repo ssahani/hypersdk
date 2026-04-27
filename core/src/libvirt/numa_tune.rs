@@ -2,7 +2,6 @@
 
 use virt::connect::Connect;
 
-
 use super::domain::lookup_domain;
 use super::resize::domain_affect_flag;
 use crate::LibvirtError;

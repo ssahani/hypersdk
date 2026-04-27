@@ -1,8 +1,8 @@
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::Json;
-use serde_json::json;
 use machina_core::LibvirtError;
+use serde_json::json;
 
 pub fn ok_json(status: &str, name: &str) -> Json<serde_json::Value> {
     Json(json!({ "status": status, "name": name }))

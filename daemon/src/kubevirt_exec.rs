@@ -20,7 +20,10 @@ async fn apply_kubeconfig(cmd: &mut Command, k: &KubeVirtConfig) {
 }
 
 /// Run `kubectl apply -f <yaml>` on the daemon host.
-pub async fn kubectl_apply_yaml(k: &KubeVirtConfig, yaml_path: &Path) -> Result<(i32, String, String), LibvirtError> {
+pub async fn kubectl_apply_yaml(
+    k: &KubeVirtConfig,
+    yaml_path: &Path,
+) -> Result<(i32, String, String), LibvirtError> {
     if !k.exec_enabled {
         return Err(LibvirtError::Forbidden(
             "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
@@ -28,11 +31,14 @@ pub async fn kubectl_apply_yaml(k: &KubeVirtConfig, yaml_path: &Path) -> Result<
     }
     let bin = k.kubectl_binary.trim();
     if bin.is_empty() {
-        return Err(LibvirtError::Invalid("kubevirt.kubectl_binary is empty".into()));
+        return Err(LibvirtError::Invalid(
+            "kubevirt.kubectl_binary is empty".into(),
+        ));
     }
     let mut cmd = Command::new(bin);
     cmd.arg("apply").arg("-f").arg(yaml_path);
-    cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     apply_kubeconfig(&mut cmd, k).await;
     let out = cmd
         .output()
@@ -59,7 +65,9 @@ pub async fn virtctl_image_upload_disk(
     }
     let bin = k.virtctl_binary.trim();
     if bin.is_empty() {
-        return Err(LibvirtError::Invalid("kubevirt.virtctl_binary is empty".into()));
+        return Err(LibvirtError::Invalid(
+            "kubevirt.virtctl_binary is empty".into(),
+        ));
     }
     let timeout_m = k.upload_timeout_minutes.max(1);
     let mut cmd = Command::new(bin);
@@ -77,12 +85,12 @@ pub async fn virtctl_image_upload_disk(
         "--upload-image-timeout",
         &format!("{timeout_m}m"),
     ]);
-    cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     apply_kubeconfig(&mut cmd, k).await;
-    let out = cmd
-        .output()
-        .await
-        .map_err(|e| LibvirtError::Operation(format!("virtctl image-upload: failed to spawn: {e}")))?;
+    let out = cmd.output().await.map_err(|e| {
+        LibvirtError::Operation(format!("virtctl image-upload: failed to spawn: {e}"))
+    })?;
     let code = out.status.code().unwrap_or(-1);
     let stdout = String::from_utf8_lossy(&out.stdout).to_string();
     let stderr = String::from_utf8_lossy(&out.stderr).to_string();
@@ -90,7 +98,11 @@ pub async fn virtctl_image_upload_disk(
 }
 
 /// Run `virtctl start` for the KubeVirt VM.
-pub async fn virtctl_start_vm(k: &KubeVirtConfig, vm_name: &str, namespace: &str) -> Result<(i32, String, String), LibvirtError> {
+pub async fn virtctl_start_vm(
+    k: &KubeVirtConfig,
+    vm_name: &str,
+    namespace: &str,
+) -> Result<(i32, String, String), LibvirtError> {
     if !k.exec_enabled {
         return Err(LibvirtError::Forbidden(
             "kubevirt.exec_enabled is false; set it true in machina config to allow cluster commands.".into(),
@@ -98,11 +110,14 @@ pub async fn virtctl_start_vm(k: &KubeVirtConfig, vm_name: &str, namespace: &str
     }
     let bin = k.virtctl_binary.trim();
     if bin.is_empty() {
-        return Err(LibvirtError::Invalid("kubevirt.virtctl_binary is empty".into()));
+        return Err(LibvirtError::Invalid(
+            "kubevirt.virtctl_binary is empty".into(),
+        ));
     }
     let mut cmd = Command::new(bin);
     cmd.args(["start", vm_name, "-n", namespace]);
-    cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
     apply_kubeconfig(&mut cmd, k).await;
     let out = cmd
         .output()

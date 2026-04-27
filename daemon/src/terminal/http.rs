@@ -3,10 +3,10 @@ use std::time::Duration;
 use axum::extract::Extension;
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use machina_core::{LibvirtError, LibvirtManager, SshTerminalConfig};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::info;
-use machina_core::{LibvirtError, LibvirtManager, SshTerminalConfig};
 
 use crate::auth::RequestActor;
 use crate::error::AppError;
@@ -90,12 +90,16 @@ async fn create_session_handler(
         .into());
     }
 
-    let resolved_host = if let Some(tid) = body.target_id.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty()) {
-        let t = cfg
-            .targets
-            .iter()
-            .find(|t| t.id == tid)
-            .ok_or_else(|| LibvirtError::NotFound(format!("Unknown terminal target_id '{tid}'")))?;
+    let resolved_host = if let Some(tid) = body
+        .target_id
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+    {
+        let t =
+            cfg.targets.iter().find(|t| t.id == tid).ok_or_else(|| {
+                LibvirtError::NotFound(format!("Unknown terminal target_id '{tid}'"))
+            })?;
         if !t.ssh_user.trim().is_empty() {
             resolved_user = t.ssh_user.trim().to_string();
         }
@@ -110,9 +114,7 @@ async fn create_session_handler(
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .ok_or_else(|| {
-                LibvirtError::Invalid(
-                    "Provide host (ad-hoc) or target_id (mapped target)".into(),
-                )
+                LibvirtError::Invalid("Provide host (ad-hoc) or target_id (mapped target)".into())
             })?;
         if !validate_host(h) {
             return Err(LibvirtError::Invalid("Invalid or disallowed host".into()).into());

@@ -163,9 +163,15 @@ fn create_vm_libvirt_xml(
     crate::validate::validate_vcpus(req.vcpus)?;
     crate::validate::validate_memory_mb(req.memory_mb)?;
 
-    let firmware = if req.firmware.is_empty() { "bios" } else { &req.firmware };
+    let firmware = if req.firmware.is_empty() {
+        "bios"
+    } else {
+        &req.firmware
+    };
     if firmware != "bios" && firmware != "uefi" {
-        return Err(LibvirtError::Invalid("Firmware must be 'bios' or 'uefi'".to_string()));
+        return Err(LibvirtError::Invalid(
+            "Firmware must be 'bios' or 'uefi'".to_string(),
+        ));
     }
 
     let gl = req.graphics_listen.trim();
@@ -187,12 +193,18 @@ fn create_vm_libvirt_xml(
     let resolved_iso: Option<std::path::PathBuf> = if !req.iso.is_empty() {
         let iso_path = std::path::Path::new(&req.iso);
         if !iso_path.is_absolute() {
-            return Err(LibvirtError::Invalid("ISO path must be absolute".to_string()));
+            return Err(LibvirtError::Invalid(
+                "ISO path must be absolute".to_string(),
+            ));
         }
-        let iso_path = iso_path.canonicalize()
+        let iso_path = iso_path
+            .canonicalize()
             .map_err(|e| LibvirtError::Invalid(format!("Cannot resolve ISO path: {e}")))?;
         if !iso_path.is_file() {
-            return Err(LibvirtError::Operation(format!("ISO file not found or is not a file: {}", iso_path.display())));
+            return Err(LibvirtError::Operation(format!(
+                "ISO file not found or is not a file: {}",
+                iso_path.display()
+            )));
         }
         Some(iso_path)
     } else {
@@ -206,9 +218,9 @@ fn create_vm_libvirt_xml(
                 "cloud_init_iso path must be absolute".to_string(),
             ));
         }
-        let p = p
-            .canonicalize()
-            .map_err(|e| LibvirtError::Invalid(format!("Cannot resolve cloud_init_iso path: {e}")))?;
+        let p = p.canonicalize().map_err(|e| {
+            LibvirtError::Invalid(format!("Cannot resolve cloud_init_iso path: {e}"))
+        })?;
         if !p.is_file() {
             return Err(LibvirtError::Operation(format!(
                 "cloud_init_iso not found or not a file: {}",
@@ -223,10 +235,15 @@ fn create_vm_libvirt_xml(
     let disk_path = if !req.existing_disk.is_empty() {
         let disk = std::path::Path::new(&req.existing_disk);
         if !disk.is_absolute() {
-            return Err(LibvirtError::Invalid("Existing disk path must be absolute".to_string()));
+            return Err(LibvirtError::Invalid(
+                "Existing disk path must be absolute".to_string(),
+            ));
         }
         if !disk.is_file() {
-            return Err(LibvirtError::Operation(format!("Disk image not found: {}", req.existing_disk)));
+            return Err(LibvirtError::Operation(format!(
+                "Disk image not found: {}",
+                req.existing_disk
+            )));
         }
         req.existing_disk.clone()
     } else {
@@ -242,12 +259,24 @@ fn create_vm_libvirt_xml(
         "qcow2"
     };
 
-    let iso_str = resolved_iso.as_ref().map(|p| p.display().to_string()).unwrap_or_default();
+    let iso_str = resolved_iso
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
     let cloud_str = resolved_cloud_init
         .as_ref()
         .map(|p| p.display().to_string())
         .unwrap_or_default();
-    let xml = generate_domain_xml(req, &disk_path, disk_driver, firmware, &iso_str, &cloud_str, gl, gt);
+    let xml = generate_domain_xml(
+        req,
+        &disk_path,
+        disk_driver,
+        firmware,
+        &iso_str,
+        &cloud_str,
+        gl,
+        gt,
+    );
 
     Domain::define_xml(conn, &xml)
         .map_err(|e| LibvirtError::Operation(format!("Failed to define VM '{}': {e}", req.name)))?;
@@ -401,8 +430,8 @@ fn generate_domain_xml(
     let bios_boot_dev = if !iso_path.is_empty() { "cdrom" } else { "hd" };
 
     let os_xml = if is_uefi {
-        let ovmf_code = find_ovmf_code()
-            .unwrap_or_else(|| "/usr/share/edk2/ovmf/OVMF_CODE.fd".to_string());
+        let ovmf_code =
+            find_ovmf_code().unwrap_or_else(|| "/usr/share/edk2/ovmf/OVMF_CODE.fd".to_string());
         let vars_template = find_ovmf_vars_template();
         let nvram_template_attr = match &vars_template {
             Some(t) => format!(" template='{}'", crate::xml::escape(t)),
@@ -429,10 +458,18 @@ fn generate_domain_xml(
     };
 
     // For UEFI: use per-device boot order so firmware can find the disk/cdrom.
-    let disk_boot_order = if is_uefi { "\n      <boot order='1'/>" } else { "" };
+    let disk_boot_order = if is_uefi {
+        "\n      <boot order='1'/>"
+    } else {
+        ""
+    };
 
     let cdrom_xml = if !iso_path.is_empty() {
-        let cdrom_boot = if is_uefi { "\n      <boot order='2'/>" } else { "" };
+        let cdrom_boot = if is_uefi {
+            "\n      <boot order='2'/>"
+        } else {
+            ""
+        };
         format!(
             r#"
     <disk type='file' device='cdrom'>

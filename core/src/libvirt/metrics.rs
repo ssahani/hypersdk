@@ -1,6 +1,6 @@
+use tracing::warn;
 use virt::connect::Connect;
 use virt::domain::Domain;
-use tracing::warn;
 
 use super::domain::lookup_domain;
 use crate::state::VmMetrics;
@@ -35,7 +35,9 @@ pub fn get_all_vm_metrics(conn: &Connect) -> Result<Vec<VmMetrics>, LibvirtError
         };
 
         // Only collect metrics for running VMs (state 1 = VIR_DOMAIN_RUNNING)
-        if info.state != 1 /* VIR_DOMAIN_RUNNING */ {
+        if info.state != 1
+        /* VIR_DOMAIN_RUNNING */
+        {
             continue;
         }
 
@@ -150,8 +152,12 @@ fn collect_net_stats(domain: &Domain) -> (u64, u64) {
         for block in crate::xml::split_blocks(&xml, "interface") {
             if let Some(target) = crate::xml::extract_attr(&block, "target", "dev") {
                 if let Ok(stats) = domain.interface_stats(&target) {
-                    if stats.rx_bytes > 0 { rx_total += stats.rx_bytes as u64; }
-                    if stats.tx_bytes > 0 { tx_total += stats.tx_bytes as u64; }
+                    if stats.rx_bytes > 0 {
+                        rx_total += stats.rx_bytes as u64;
+                    }
+                    if stats.tx_bytes > 0 {
+                        tx_total += stats.tx_bytes as u64;
+                    }
                 }
             }
         }

@@ -1,4 +1,4 @@
-use axum::extract::{Extension, Query};
+use axum::extract::{DefaultBodyLimit, Extension, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
@@ -17,6 +17,8 @@ use crate::error::AppError;
 
 const KUBECTL_TIMEOUT_SECS: u64 = 30;
 const KUBECTL_PROBE_TIMEOUT_SECS: u64 = 8;
+const KUBECTL_LOGS_TIMEOUT_SECS: u64 = 60;
+const KUBECTL_APPLY_MAX_MANIFEST_BYTES: usize = 512 * 1024;
 const SNIPPET_MAX_BYTES: usize = 18_432;
 
 #[derive(Debug, Serialize)]
@@ -98,7 +100,95 @@ struct K8sEnvironment {
 #[derive(Debug, Deserialize)]
 struct K8sListQuery {
     namespace: Option<String>,
+    #[serde(default)]
     all_namespaces: Option<bool>,
+    /// Optional `kubectl --context` (must match a context name in the merged kubeconfig).
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct K8sOverviewQuery {
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Default)]
+struct K8sContextQuery {
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct K8sLogsQuery {
+    pod: String,
+    namespace: Option<String>,
+    #[serde(default)]
+    container: Option<String>,
+    #[serde(default)]
+    tail_lines: Option<u32>,
+    #[serde(default)]
+    previous: Option<bool>,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct K8sEventsQuery {
+    namespace: Option<String>,
+    #[serde(default)]
+    all_namespaces: Option<bool>,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct K8sApplyRequest {
+    manifest: String,
+    #[serde(default)]
+    dry_run: Option<bool>,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct K8sAuthCanIRequest {
+    verb: String,
+    resource: String,
+    #[serde(default)]
+    namespace: Option<String>,
+    #[serde(default)]
+    resource_name: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct K8sHelmQuery {
+    #[serde(default)]
+    namespace: Option<String>,
+    #[serde(default)]
+    context: Option<String>,
+}
+
+fn ensure_k8s_context_name(ctx: &str) -> Result<(), LibvirtError> {
+    let t = ctx.trim();
+    if t.is_empty() || t.len() > 200 {
+        return Err(LibvirtError::Invalid("invalid kubectl context".into()));
+    }
+    let ok = t.chars().all(|c| {
+        c.is_ascii_alphanumeric()
+            || matches!(
+                c,
+                '.' | '-' | '_' | ':' | '/' | '@' | '#' | '+' | '%' | '[' | ']'
+            )
+    });
+    if !ok {
+        return Err(LibvirtError::Invalid(
+            "kubectl context contains unsupported characters".into(),
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Debug, Deserialize)]
@@ -108,8 +198,12 @@ enum K8sAction {
     NodeUncordon,
     NodeDrain,
     RolloutRestartDeployment,
+    RolloutRestartStatefulSet,
+    RolloutRestartDaemonSet,
     DeletePod,
+    DeleteJob,
     ScaleDeployment,
+    ScaleStatefulSet,
 }
 
 #[derive(Debug, Deserialize)]
@@ -118,6 +212,8 @@ struct K8sActionRequest {
     name: String,
     namespace: Option<String>,
     replicas: Option<u32>,
+    #[serde(default)]
+    context: Option<String>,
 }
 
 fn ensure_safe_name(value: &str, field: &str) -> Result<(), LibvirtError> {
@@ -144,9 +240,18 @@ fn safe_namespace(value: Option<&str>) -> Result<String, LibvirtError> {
 async fn run_kubectl_timeout(
     args: &[String],
     timeout_secs: u64,
+    context: Option<&str>,
 ) -> Result<KubectlResult, LibvirtError> {
     let choice = crate::k8s_kubeconfig::kubectl_kubeconfig_choice().await;
     let mut full = choice.prefix.clone();
+    if let Some(ctx) = context {
+        let t = ctx.trim();
+        if !t.is_empty() {
+            ensure_k8s_context_name(t)?;
+            full.push("--context".into());
+            full.push(t.to_string());
+        }
+    }
     full.extend_from_slice(args);
 
     let mut cmd = Command::new("kubectl");
@@ -172,14 +277,25 @@ async fn run_kubectl_timeout(
 }
 
 async fn run_kubectl(args: &[String]) -> Result<KubectlResult, LibvirtError> {
-    run_kubectl_timeout(args, KUBECTL_TIMEOUT_SECS).await
+    run_kubectl_timeout(args, KUBECTL_TIMEOUT_SECS, None).await
 }
 
-async fn run_kubectl_json_timeout(args: &[String], timeout_secs: u64) -> Result<Value, LibvirtError> {
+async fn run_kubectl_ctx(
+    args: &[String],
+    context: Option<&str>,
+) -> Result<KubectlResult, LibvirtError> {
+    run_kubectl_timeout(args, KUBECTL_TIMEOUT_SECS, context).await
+}
+
+async fn run_kubectl_json_timeout(
+    args: &[String],
+    timeout_secs: u64,
+    context: Option<&str>,
+) -> Result<Value, LibvirtError> {
     let mut full_args = args.to_vec();
     full_args.push("-o".into());
     full_args.push("json".into());
-    let res = run_kubectl_timeout(&full_args, timeout_secs).await?;
+    let res = run_kubectl_timeout(&full_args, timeout_secs, context).await?;
     if !res.ok {
         let msg = if res.stderr.trim().is_empty() {
             "kubectl command failed".to_string()
@@ -193,7 +309,15 @@ async fn run_kubectl_json_timeout(args: &[String], timeout_secs: u64) -> Result<
 }
 
 async fn run_kubectl_json(args: &[String]) -> Result<Value, LibvirtError> {
-    run_kubectl_json_timeout(args, KUBECTL_TIMEOUT_SECS).await
+    run_kubectl_json_timeout(args, KUBECTL_TIMEOUT_SECS, None).await
+}
+
+async fn run_kubectl_json_ctx(
+    args: &[String],
+    timeout_secs: u64,
+    context: Option<&str>,
+) -> Result<Value, LibvirtError> {
+    run_kubectl_json_timeout(args, timeout_secs, context).await
 }
 
 fn truncate_snippet(text: &str) -> String {
@@ -438,9 +562,18 @@ fn infer_cluster_distribution(items: &[Value], host: &K8sHostSignals) -> (String
 }
 
 async fn kubectl_client_version_short() -> Option<String> {
-    let res = run_kubectl_timeout(&["version".into(), "--client=true".into(), "-o".into(), "json".into()], 6)
-        .await
-        .ok()?;
+    let res = run_kubectl_timeout(
+        &[
+            "version".into(),
+            "--client=true".into(),
+            "-o".into(),
+            "json".into(),
+        ],
+        6,
+        None,
+    )
+    .await
+    .ok()?;
     if !res.ok {
         return None;
     }
@@ -458,7 +591,8 @@ async fn k8s_environment(
     require_browser_session_for_host_insight(&actor)?;
 
     let host = collect_host_signals().await;
-    let kubectl_probe = run_kubectl_timeout(&["version".into(), "--client=true".into()], 5).await;
+    let kubectl_probe =
+        run_kubectl_timeout(&["version".into(), "--client=true".into()], 5, None).await;
     let kubectl_on_path = matches!(&kubectl_probe, Ok(r) if r.ok);
 
     let client_ver = if kubectl_on_path {
@@ -467,7 +601,12 @@ async fn k8s_environment(
         None
     };
 
-    let nodes_res = run_kubectl_json_timeout(&["get".into(), "nodes".into()], KUBECTL_PROBE_TIMEOUT_SECS).await;
+    let nodes_res = run_kubectl_json_timeout(
+        &["get".into(), "nodes".into()],
+        KUBECTL_PROBE_TIMEOUT_SECS,
+        None,
+    )
+    .await;
     let server_ok = nodes_res.is_ok();
     let node_items = nodes_res
         .as_ref()
@@ -493,6 +632,7 @@ async fn k8s_environment(
                 "jsonpath={.current-context}".into(),
             ],
             6,
+            None,
         )
         .await
         {
@@ -512,7 +652,9 @@ async fn k8s_environment(
 
     let mut snippets = BTreeMap::new();
     if kubectl_on_path {
-        if let Ok(r) = run_kubectl_timeout(&["cluster-info".into()], KUBECTL_PROBE_TIMEOUT_SECS).await {
+        if let Ok(r) =
+            run_kubectl_timeout(&["cluster-info".into()], KUBECTL_PROBE_TIMEOUT_SECS, None).await
+        {
             snippets.insert(
                 "kubectl_cluster_info".into(),
                 truncate_snippet(&format!(
@@ -526,6 +668,7 @@ async fn k8s_environment(
         if let Ok(r) = run_kubectl_timeout(
             &["get".into(), "nodes".into(), "-o".into(), "wide".into()],
             KUBECTL_PROBE_TIMEOUT_SECS,
+            None,
         )
         .await
         {
@@ -542,6 +685,7 @@ async fn k8s_environment(
         if let Ok(r) = run_kubectl_timeout(
             &["get".into(), "--raw".into(), "/version".into()],
             KUBECTL_PROBE_TIMEOUT_SECS,
+            None,
         )
         .await
         {
@@ -551,11 +695,9 @@ async fn k8s_environment(
             );
         }
         if let Ok(r) = run_kubectl_timeout(
-            &[
-                "config".into(),
-                "get-contexts".into(),
-            ],
+            &["config".into(), "get-contexts".into()],
             KUBECTL_PROBE_TIMEOUT_SECS,
+            None,
         )
         .await
         {
@@ -567,6 +709,7 @@ async fn k8s_environment(
         if let Ok(r) = run_kubectl_timeout(
             &["api-resources".into(), "--verbs=list".into()],
             KUBECTL_PROBE_TIMEOUT_SECS,
+            None,
         )
         .await
         {
@@ -594,9 +737,15 @@ async fn k8s_environment(
 
 async fn k8s_nodes(
     Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sContextQuery>,
 ) -> Result<Json<Vec<K8sNodeInfo>>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
-    let v = run_kubectl_json(&["get".into(), "nodes".into()]).await?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let v =
+        run_kubectl_json_ctx(&["get".into(), "nodes".into()], KUBECTL_TIMEOUT_SECS, ctx).await?;
     let items = v
         .get("items")
         .and_then(|x| x.as_array())
@@ -713,6 +862,10 @@ async fn k8s_resource_list(
     resource: &'static str,
 ) -> Result<Json<Value>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
     if let Some(ns) = q.namespace.as_deref() {
         ensure_safe_name(ns, "namespace")?;
     }
@@ -726,15 +879,25 @@ async fn k8s_resource_list(
         args.push(ns);
     }
 
-    let v = run_kubectl_json(&args).await?;
+    let v = run_kubectl_json_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
     Ok(Json(v))
 }
 
 async fn k8s_namespaces(
     Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sContextQuery>,
 ) -> Result<Json<Value>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
-    let v = run_kubectl_json(&["get".into(), "namespaces".into()]).await?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let v = run_kubectl_json_ctx(
+        &["get".into(), "namespaces".into()],
+        KUBECTL_TIMEOUT_SECS,
+        ctx,
+    )
+    .await?;
     Ok(Json(v))
 }
 
@@ -757,6 +920,303 @@ async fn k8s_services(
     Query(q): Query<K8sListQuery>,
 ) -> Result<Json<Value>, AppError> {
     k8s_resource_list(Extension(actor), Query(q), "services").await
+}
+
+async fn k8s_statefulsets(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    k8s_resource_list(Extension(actor), Query(q), "statefulsets").await
+}
+
+async fn k8s_daemonsets(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    k8s_resource_list(Extension(actor), Query(q), "daemonsets").await
+}
+
+async fn k8s_jobs(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    k8s_resource_list(Extension(actor), Query(q), "jobs").await
+}
+
+async fn k8s_cronjobs(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    k8s_resource_list(Extension(actor), Query(q), "cronjobs").await
+}
+
+async fn k8s_ingresses(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    k8s_resource_list(Extension(actor), Query(q), "ingresses.networking.k8s.io").await
+}
+
+async fn k8s_persistentvolumeclaims(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    k8s_resource_list(Extension(actor), Query(q), "persistentvolumeclaims").await
+}
+
+async fn k8s_persistentvolumes(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sContextQuery>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let args = vec!["get".into(), "persistentvolumes".into()];
+    let v = run_kubectl_json_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+    Ok(Json(v))
+}
+
+async fn k8s_storageclasses(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sContextQuery>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let args = vec!["get".into(), "storageclasses".into()];
+    let v = run_kubectl_json_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+    Ok(Json(v))
+}
+
+async fn k8s_events(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sEventsQuery>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let all_ns = q.all_namespaces.unwrap_or(false);
+    let mut args = vec![
+        "get".into(),
+        "events".into(),
+        "-o".into(),
+        "json".into(),
+        "--sort-by=.metadata.creationTimestamp".into(),
+    ];
+    if all_ns {
+        args.push("-A".into());
+    } else if let Some(ns) = q.namespace.clone() {
+        ensure_safe_name(&ns, "namespace")?;
+        args.push("-n".into());
+        args.push(ns);
+    } else {
+        args.push("-n".into());
+        args.push("default".into());
+    }
+    let v = run_kubectl_json_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+    Ok(Json(v))
+}
+
+async fn k8s_pod_logs(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sLogsQuery>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    ensure_safe_name(&q.pod, "pod")?;
+    let ns = safe_namespace(q.namespace.as_deref())?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let tail = q.tail_lines.unwrap_or(200).clamp(1, 50_000);
+    let mut args = vec![
+        "logs".into(),
+        q.pod.clone(),
+        "-n".into(),
+        ns,
+        format!("--tail={tail}"),
+    ];
+    if let Some(ref c) = q.container {
+        ensure_safe_name(c, "container")?;
+        args.push("-c".into());
+        args.push(c.clone());
+    }
+    if q.previous == Some(true) {
+        args.push("--previous".into());
+    }
+    let res = run_kubectl_timeout(&args, KUBECTL_LOGS_TIMEOUT_SECS, ctx).await?;
+    Ok(Json(res))
+}
+
+fn ensure_safe_k8s_token(s: &str, field: &str) -> Result<(), LibvirtError> {
+    let t = s.trim();
+    if t.is_empty() || t.len() > 80 {
+        return Err(LibvirtError::Invalid(format!("{field} is invalid")));
+    }
+    let ok = t.chars().all(|c| {
+        c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '*' | '/' | '.' | '-')
+    });
+    if !ok {
+        return Err(LibvirtError::Invalid(format!(
+            "{field} has invalid characters"
+        )));
+    }
+    Ok(())
+}
+
+async fn k8s_auth_can_i(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<K8sAuthCanIRequest>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    ensure_safe_k8s_token(&body.verb, "verb")?;
+    ensure_safe_k8s_token(&body.resource, "resource")?;
+    let ctx = body.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let mut args = vec![
+        "auth".into(),
+        "can-i".into(),
+        body.verb.clone(),
+        body.resource.clone(),
+    ];
+    if let Some(ref n) = body.resource_name {
+        ensure_safe_name(n, "resource_name")?;
+        args.push(n.clone());
+    }
+    if let Some(ref ns) = body.namespace {
+        ensure_safe_name(ns, "namespace")?;
+        args.push("-n".into());
+        args.push(ns.clone());
+    }
+    let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
+    Ok(Json(res))
+}
+
+async fn k8s_apply_manifest(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<K8sApplyRequest>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if body.manifest.len() > KUBECTL_APPLY_MAX_MANIFEST_BYTES {
+        return Err(LibvirtError::Invalid(format!(
+            "manifest exceeds {} bytes",
+            KUBECTL_APPLY_MAX_MANIFEST_BYTES
+        ))
+        .into());
+    }
+    let ctx = body.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let path = std::env::temp_dir().join(format!(
+        "machina-k8s-apply-{}.yaml",
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    tokio::fs::write(&path, body.manifest.as_bytes())
+        .await
+        .map_err(|e| LibvirtError::Operation(format!("temp manifest: {e}")))?;
+    let ps = path.to_string_lossy().to_string();
+    let mut args = vec!["apply".into(), "-f".into(), ps.clone()];
+    if body.dry_run == Some(true) {
+        args.push("--dry-run=server".into());
+    }
+    let out = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await;
+    let _ = tokio::fs::remove_file(&path).await;
+    Ok(Json(out?))
+}
+
+async fn k8s_contexts_list(
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let res = run_kubectl_timeout(
+        &[
+            "config".into(),
+            "get-contexts".into(),
+            "-o".into(),
+            "name".into(),
+        ],
+        20,
+        None,
+    )
+    .await?;
+    let contexts: Vec<String> = res
+        .stdout
+        .lines()
+        .map(|l| l.trim().to_string())
+        .filter(|l| !l.is_empty())
+        .collect();
+    Ok(Json(serde_json::json!({ "contexts": contexts })))
+}
+
+async fn run_helm_timeout(
+    args: &[String],
+    timeout_secs: u64,
+) -> Result<KubectlResult, LibvirtError> {
+    let mut cmd = Command::new("helm");
+    cmd.args(args);
+    let command_text = format!("helm {}", args.join(" "));
+    let output = timeout(Duration::from_secs(timeout_secs), cmd.output())
+        .await
+        .map_err(|_| LibvirtError::Operation("helm command timed out".into()))?
+        .map_err(|e| LibvirtError::Operation(format!("failed to start helm: {e}")))?;
+    Ok(KubectlResult {
+        command: command_text,
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        exit_code: output.status.code().unwrap_or(-1),
+        ok: output.status.success(),
+    })
+}
+
+async fn k8s_helm_releases(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sHelmQuery>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+    let mut args: Vec<String> = Vec::new();
+    if let Some(c) = ctx {
+        args.push("--kube-context".into());
+        args.push(c.to_string());
+    }
+    args.extend([
+        "list".into(),
+        "-o".into(),
+        "json".into(),
+        "--max".into(),
+        "200".into(),
+    ]);
+    if q.namespace.as_deref() == Some("all") || q.namespace.as_deref() == Some("*") {
+        args.push("-A".into());
+    } else if let Some(ns) = q.namespace.clone() {
+        ensure_safe_name(&ns, "namespace")?;
+        args.push("-n".into());
+        args.push(ns);
+    } else {
+        args.push("-A".into());
+    }
+    let res = run_helm_timeout(&args, 45).await?;
+    if !res.ok {
+        return Err(LibvirtError::Operation(res.stderr.clone()).into());
+    }
+    let v: Value = serde_json::from_str(&res.stdout)
+        .map_err(|e| LibvirtError::Operation(format!("helm list JSON: {e}")))?;
+    Ok(Json(v))
 }
 
 #[derive(Debug, Serialize)]
@@ -897,6 +1357,10 @@ async fn k8s_kubevirt_virtualmachines(
     Query(q): Query<K8sListQuery>,
 ) -> Result<Json<Value>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
     if let Some(ns) = q.namespace.as_deref() {
         ensure_safe_name(ns, "namespace")?;
     }
@@ -910,7 +1374,7 @@ async fn k8s_kubevirt_virtualmachines(
         args.push(ns);
     }
 
-    match run_kubectl_json(&args).await {
+    match run_kubectl_json_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await {
         Ok(v) => Ok(Json(v)),
         Err(e) if kubevirt_vm_list_unavailable(&e) => {
             warn!("kubevirt VirtualMachine list skipped: {e}");
@@ -931,6 +1395,10 @@ async fn k8s_kubevirt_vm_summary(
     Query(q): Query<K8sListQuery>,
 ) -> Result<Json<Vec<KubeVirtVmSummaryRow>>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
     if let Some(ns) = q.namespace.as_deref() {
         ensure_safe_name(ns, "namespace")?;
     }
@@ -944,7 +1412,7 @@ async fn k8s_kubevirt_vm_summary(
         vm_args.push(ns);
     }
 
-    let vm_json = match run_kubectl_json(&vm_args).await {
+    let vm_json = match run_kubectl_json_timeout(&vm_args, KUBECTL_TIMEOUT_SECS, ctx).await {
         Ok(v) => v,
         Err(e) if kubevirt_vm_list_unavailable(&e) => {
             return Ok(Json(vec![]));
@@ -962,8 +1430,8 @@ async fn k8s_kubevirt_vm_summary(
 
     let args_nodes = vec!["get".into(), "nodes".into()];
     let (vmi_res, nodes_res) = tokio::join!(
-        run_kubectl_json(&vmi_args),
-        run_kubectl_json(&args_nodes),
+        run_kubectl_json_timeout(&vmi_args, KUBECTL_TIMEOUT_SECS, ctx),
+        run_kubectl_json_timeout(&args_nodes, KUBECTL_TIMEOUT_SECS, ctx),
     );
 
     let vmi_items = match vmi_res {
@@ -1020,19 +1488,16 @@ async fn k8s_kubevirt_vm_summary(
             .and_then(|x| x.as_bool());
 
         let key = (ns.to_string(), name.to_string());
-        let (guest_ip, pod_ip, node_name, vmi_phase) =
-            if let Some(vmi) = vmi_index.get(&key) {
-                let guest = vmi_guest_ips(vmi);
-                let pod = vmi_pod_ip_strict(vmi);
-                let (nn, ph) = vmi_node_and_phase(vmi);
-                (guest, pod, nn, ph)
-            } else {
-                (None, None, None, None)
-            };
+        let (guest_ip, pod_ip, node_name, vmi_phase) = if let Some(vmi) = vmi_index.get(&key) {
+            let guest = vmi_guest_ips(vmi);
+            let pod = vmi_pod_ip_strict(vmi);
+            let (nn, ph) = vmi_node_and_phase(vmi);
+            (guest, pod, nn, ph)
+        } else {
+            (None, None, None, None)
+        };
 
-        let node_internal_ip = node_name
-            .as_ref()
-            .and_then(|nn| node_ips.get(nn).cloned());
+        let node_internal_ip = node_name.as_ref().and_then(|nn| node_ips.get(nn).cloned());
 
         let virtctl_console = format!("virtctl console {name} -n {ns}");
         let virtctl_vnc = format!("virtctl vnc {name} -n {ns}");
@@ -1064,10 +1529,15 @@ async fn k8s_kubevirt_vm_summary(
 
 async fn k8s_overview(
     Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sOverviewQuery>,
 ) -> Result<Json<K8sOverview>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
 
     let host = collect_host_signals().await;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
 
     let (
         version_res,
@@ -1100,27 +1570,35 @@ async fn k8s_overview(
         let args_pv = vec!["get".into(), "persistentvolumes".into()];
         let args_pvc = vec!["get".into(), "persistentvolumeclaims".into(), "-A".into()];
         let args_sc = vec!["get".into(), "storageclasses".into()];
-        let args_ing = vec!["get".into(), "ingresses.networking.k8s.io".into(), "-A".into()];
+        let args_ing = vec![
+            "get".into(),
+            "ingresses.networking.k8s.io".into(),
+            "-A".into(),
+        ];
         let args_apisvc = vec!["get".into(), "apiservices".into()];
-        let args_kvvm = vec!["get".into(), "virtualmachines.kubevirt.io".into(), "-A".into()];
+        let args_kvvm = vec![
+            "get".into(),
+            "virtualmachines.kubevirt.io".into(),
+            "-A".into(),
+        ];
 
         tokio::join!(
-            run_kubectl_json(&args_version),
-            run_kubectl_json(&args_nodes),
-            run_kubectl_json(&args_ns),
-            run_kubectl_json(&args_pods),
-            run_kubectl_json(&args_deploy),
-            run_kubectl_json(&args_svc),
-            run_kubectl_json(&args_sts),
-            run_kubectl_json(&args_ds),
-            run_kubectl_json(&args_cj),
-            run_kubectl_json(&args_jobs),
-            run_kubectl_json(&args_pv),
-            run_kubectl_json(&args_pvc),
-            run_kubectl_json(&args_sc),
-            run_kubectl_json(&args_ing),
-            run_kubectl_json(&args_apisvc),
-            run_kubectl_json(&args_kvvm),
+            run_kubectl_json_timeout(&args_version, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_nodes, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_ns, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_pods, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_deploy, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_svc, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_sts, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_ds, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_cj, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_jobs, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_pv, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_pvc, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_sc, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_ing, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_apisvc, KUBECTL_TIMEOUT_SECS, ctx),
+            run_kubectl_json_timeout(&args_kvvm, KUBECTL_TIMEOUT_SECS, ctx),
         )
     };
 
@@ -1140,7 +1618,11 @@ async fn k8s_overview(
     let nodes = nodes_res
         .as_ref()
         .ok()
-        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.to_vec()))
+        .and_then(|v| {
+            v.get("items")
+                .and_then(|x| x.as_array())
+                .map(|a| a.to_vec())
+        })
         .unwrap_or_default();
 
     let ready_nodes = nodes
@@ -1201,6 +1683,10 @@ async fn k8s_action(
 ) -> Result<Json<KubectlResult>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
     ensure_safe_name(&req.name, "name")?;
+    let ctx = req.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
 
     let args = match req.action {
         K8sAction::NodeCordon => vec!["cordon".into(), req.name],
@@ -1222,9 +1708,33 @@ async fn k8s_action(
                 ns,
             ]
         }
+        K8sAction::RolloutRestartStatefulSet => {
+            let ns = safe_namespace(req.namespace.as_deref())?;
+            vec![
+                "rollout".into(),
+                "restart".into(),
+                format!("statefulset/{}", req.name),
+                "-n".into(),
+                ns,
+            ]
+        }
+        K8sAction::RolloutRestartDaemonSet => {
+            let ns = safe_namespace(req.namespace.as_deref())?;
+            vec![
+                "rollout".into(),
+                "restart".into(),
+                format!("daemonset/{}", req.name),
+                "-n".into(),
+                ns,
+            ]
+        }
         K8sAction::DeletePod => {
             let ns = safe_namespace(req.namespace.as_deref())?;
             vec!["delete".into(), "pod".into(), req.name, "-n".into(), ns]
+        }
+        K8sAction::DeleteJob => {
+            let ns = safe_namespace(req.namespace.as_deref())?;
+            vec!["delete".into(), "job".into(), req.name, "-n".into(), ns]
         }
         K8sAction::ScaleDeployment => {
             let ns = safe_namespace(req.namespace.as_deref())?;
@@ -1239,9 +1749,22 @@ async fn k8s_action(
                 ns,
             ]
         }
+        K8sAction::ScaleStatefulSet => {
+            let ns = safe_namespace(req.namespace.as_deref())?;
+            let replicas = req
+                .replicas
+                .ok_or_else(|| LibvirtError::Invalid("replicas is required".into()))?;
+            vec![
+                "scale".into(),
+                format!("statefulset/{}", req.name),
+                format!("--replicas={replicas}"),
+                "-n".into(),
+                ns,
+            ]
+        }
     };
 
-    let res = run_kubectl(&args).await?;
+    let res = run_kubectl_timeout(&args, KUBECTL_TIMEOUT_SECS, ctx).await?;
     if !res.ok {
         let msg = if res.stderr.trim().is_empty() {
             format!("k8s action failed: {}", res.command)
@@ -1254,14 +1777,37 @@ async fn k8s_action(
 }
 
 pub fn k8s_routes() -> Router<LibvirtManager> {
+    let apply = Router::new()
+        .route("/k8s/apply", post(k8s_apply_manifest))
+        .layer(DefaultBodyLimit::max(
+            KUBECTL_APPLY_MAX_MANIFEST_BYTES + 64 * 1024,
+        ));
+
     Router::new()
+        .merge(apply)
         .route("/k8s/overview", get(k8s_overview))
         .route("/k8s/environment", get(k8s_environment))
+        .route("/k8s/contexts", get(k8s_contexts_list))
         .route("/k8s/nodes", get(k8s_nodes))
         .route("/k8s/namespaces", get(k8s_namespaces))
         .route("/k8s/pods", get(k8s_pods))
         .route("/k8s/deployments", get(k8s_deployments))
         .route("/k8s/services", get(k8s_services))
+        .route("/k8s/statefulsets", get(k8s_statefulsets))
+        .route("/k8s/daemonsets", get(k8s_daemonsets))
+        .route("/k8s/jobs", get(k8s_jobs))
+        .route("/k8s/cronjobs", get(k8s_cronjobs))
+        .route("/k8s/ingresses", get(k8s_ingresses))
+        .route(
+            "/k8s/persistentvolumeclaims",
+            get(k8s_persistentvolumeclaims),
+        )
+        .route("/k8s/persistentvolumes", get(k8s_persistentvolumes))
+        .route("/k8s/storageclasses", get(k8s_storageclasses))
+        .route("/k8s/events", get(k8s_events))
+        .route("/k8s/logs", get(k8s_pod_logs))
+        .route("/k8s/auth-can-i", post(k8s_auth_can_i))
+        .route("/k8s/helm/releases", get(k8s_helm_releases))
         .route(
             "/k8s/kubevirt/virtualmachines",
             get(k8s_kubevirt_virtualmachines),

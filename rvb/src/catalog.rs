@@ -30,7 +30,8 @@ struct CatalogFile {
 }
 
 pub fn load_builtin_catalog() -> Result<HashMap<String, Template>> {
-    let f: CatalogFile = serde_yaml::from_str(BUILTIN_CATALOG_YAML).context("parse builtin catalog YAML")?;
+    let f: CatalogFile =
+        serde_yaml::from_str(BUILTIN_CATALOG_YAML).context("parse builtin catalog YAML")?;
     let mut m = HashMap::new();
     for t in f.templates {
         if m.insert(t.id.clone(), t).is_some() {

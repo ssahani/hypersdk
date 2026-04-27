@@ -37,9 +37,16 @@ pub fn block_commit(
     flags: u32,
 ) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
-    let disk_c = CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
-    let base_c = base.map(CString::new).transpose().map_err(|_| LibvirtError::Invalid("base: invalid C string".into()))?;
-    let top_c = top.map(CString::new).transpose().map_err(|_| LibvirtError::Invalid("top: invalid C string".into()))?;
+    let disk_c =
+        CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
+    let base_c = base
+        .map(CString::new)
+        .transpose()
+        .map_err(|_| LibvirtError::Invalid("base: invalid C string".into()))?;
+    let top_c = top
+        .map(CString::new)
+        .transpose()
+        .map_err(|_| LibvirtError::Invalid("top: invalid C string".into()))?;
 
     let base_ptr = base_c.as_ref().map_or(std::ptr::null(), |s| s.as_ptr());
     let top_ptr = top_c.as_ref().map_or(std::ptr::null(), |s| s.as_ptr());
@@ -55,15 +62,25 @@ pub fn block_commit(
         )
     };
     if ret == -1 {
-        return Err(virt_err("virDomainBlockCommit", virt::error::Error::last_error()));
+        return Err(virt_err(
+            "virDomainBlockCommit",
+            virt::error::Error::last_error(),
+        ));
     }
     Ok(())
 }
 
 /// `virDomainBlockPull` — pull data from backing image into the active overlay.
-pub fn block_pull(conn: &Connect, vm_name: &str, disk: &str, bandwidth: u64, flags: u32) -> Result<(), LibvirtError> {
+pub fn block_pull(
+    conn: &Connect,
+    vm_name: &str,
+    disk: &str,
+    bandwidth: u64,
+    flags: u32,
+) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
-    let disk_c = CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
+    let disk_c =
+        CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
     let ret = unsafe {
         sys::virDomainBlockPull(
             domain.as_ptr(),
@@ -73,26 +90,33 @@ pub fn block_pull(conn: &Connect, vm_name: &str, disk: &str, bandwidth: u64, fla
         )
     };
     if ret == -1 {
-        return Err(virt_err("virDomainBlockPull", virt::error::Error::last_error()));
+        return Err(virt_err(
+            "virDomainBlockPull",
+            virt::error::Error::last_error(),
+        ));
     }
     Ok(())
 }
 
 /// Returns `Ok(None)` when no block job is active on `disk`.
-pub fn block_job_info(conn: &Connect, vm_name: &str, disk: &str, flags: u32) -> Result<Option<BlockJobInfo>, LibvirtError> {
+pub fn block_job_info(
+    conn: &Connect,
+    vm_name: &str,
+    disk: &str,
+    flags: u32,
+) -> Result<Option<BlockJobInfo>, LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
-    let disk_c = CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
+    let disk_c =
+        CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
     let mut info = mem::MaybeUninit::<sys::virDomainBlockJobInfo>::uninit();
     let ret = unsafe {
-        sys::virDomainGetBlockJobInfo(
-            domain.as_ptr(),
-            disk_c.as_ptr(),
-            info.as_mut_ptr(),
-            flags,
-        )
+        sys::virDomainGetBlockJobInfo(domain.as_ptr(), disk_c.as_ptr(), info.as_mut_ptr(), flags)
     };
     if ret < 0 {
-        return Err(virt_err("virDomainGetBlockJobInfo", virt::error::Error::last_error()));
+        return Err(virt_err(
+            "virDomainGetBlockJobInfo",
+            virt::error::Error::last_error(),
+        ));
     }
     if ret == 0 {
         return Ok(None);
@@ -107,18 +131,33 @@ pub fn block_job_info(conn: &Connect, vm_name: &str, disk: &str, flags: u32) -> 
 }
 
 /// Abort an active block job on `disk` (`VIR_DOMAIN_BLOCK_JOB_ABORT_*` in `flags`).
-pub fn block_job_abort(conn: &Connect, vm_name: &str, disk: &str, flags: u32) -> Result<(), LibvirtError> {
+pub fn block_job_abort(
+    conn: &Connect,
+    vm_name: &str,
+    disk: &str,
+    flags: u32,
+) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
-    let disk_c = CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
+    let disk_c =
+        CString::new(disk).map_err(|_| LibvirtError::Invalid("disk: invalid C string".into()))?;
     let ret = unsafe { sys::virDomainBlockJobAbort(domain.as_ptr(), disk_c.as_ptr(), flags) };
     if ret == -1 {
-        return Err(virt_err("virDomainBlockJobAbort", virt::error::Error::last_error()));
+        return Err(virt_err(
+            "virDomainBlockJobAbort",
+            virt::error::Error::last_error(),
+        ));
     }
     Ok(())
 }
 
 /// OR together `VIR_DOMAIN_BLOCK_COMMIT_*` bits from common options.
-pub fn block_commit_flags(shallow: bool, delete: bool, active: bool, relative: bool, bandwidth_bytes: bool) -> u32 {
+pub fn block_commit_flags(
+    shallow: bool,
+    delete: bool,
+    active: bool,
+    relative: bool,
+    bandwidth_bytes: bool,
+) -> u32 {
     let mut f = 0u32;
     if shallow {
         f |= sys::VIR_DOMAIN_BLOCK_COMMIT_SHALLOW;

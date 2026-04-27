@@ -83,7 +83,9 @@ fn sysctl_read_n(key: &str) -> Result<String, String> {
             err
         });
     }
-    Ok(String::from_utf8_lossy(&out.stdout).trim().replace('\t', " "))
+    Ok(String::from_utf8_lossy(&out.stdout)
+        .trim()
+        .replace('\t', " "))
 }
 
 /// Build the recommended `/etc/sysctl.d/…` file contents.
@@ -93,9 +95,7 @@ pub fn recommended_sysctl_conf() -> String {
          # Install: sudo install -m 644 … /etc/sysctl.d/",
     );
     s.push_str(DROPIN_FILENAME);
-    s.push_str(
-        "\n# Load: sudo sysctl --system   or   sudo sysctl -p /etc/sysctl.d/",
-    );
+    s.push_str("\n# Load: sudo sysctl --system   or   sudo sysctl -p /etc/sysctl.d/");
     s.push_str(DROPIN_FILENAME);
     s.push_str("\n\n");
 

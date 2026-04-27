@@ -48,8 +48,9 @@ pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 }
 
 fn validate_ip(ip: &str, label: &str) -> Result<std::net::Ipv4Addr, LibvirtError> {
-    ip.parse::<std::net::Ipv4Addr>()
-        .map_err(|_| LibvirtError::Invalid(format!("Invalid {label}: '{ip}' (expected IPv4 address)")))
+    ip.parse::<std::net::Ipv4Addr>().map_err(|_| {
+        LibvirtError::Invalid(format!("Invalid {label}: '{ip}' (expected IPv4 address)"))
+    })
 }
 
 fn validate_subnet_prefix(subnet: &str) -> Result<(), LibvirtError> {
@@ -85,12 +86,18 @@ pub fn create_network(
     if subnet_octets.len() == 3 {
         let start_octets = start.octets();
         let end_octets = end.octets();
-        if start_octets[0] != subnet_octets[0] || start_octets[1] != subnet_octets[1] || start_octets[2] != subnet_octets[2] {
+        if start_octets[0] != subnet_octets[0]
+            || start_octets[1] != subnet_octets[1]
+            || start_octets[2] != subnet_octets[2]
+        {
             return Err(LibvirtError::Invalid(format!(
                 "DHCP start ({dhcp_start}) is not within subnet {subnet}.0/24"
             )));
         }
-        if end_octets[0] != subnet_octets[0] || end_octets[1] != subnet_octets[1] || end_octets[2] != subnet_octets[2] {
+        if end_octets[0] != subnet_octets[0]
+            || end_octets[1] != subnet_octets[1]
+            || end_octets[2] != subnet_octets[2]
+        {
             return Err(LibvirtError::Invalid(format!(
                 "DHCP end ({dhcp_end}) is not within subnet {subnet}.0/24"
             )));
@@ -132,7 +139,11 @@ pub fn delete_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
-pub fn set_network_autostart(conn: &Connect, name: &str, autostart: bool) -> Result<(), LibvirtError> {
+pub fn set_network_autostart(
+    conn: &Connect,
+    name: &str,
+    autostart: bool,
+) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.set_autostart(autostart)
         .map_err(LibvirtError::map_op("Failed to set autostart"))?;

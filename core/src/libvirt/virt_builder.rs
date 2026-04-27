@@ -107,7 +107,8 @@ pub fn materialize_virt_builder_if_requested(
 
     if !cfg.virt_builder_allowed {
         return Err(LibvirtError::Invalid(
-            "virt-builder is disabled on this server ([libvirt] virt_builder_allowed = false)".into(),
+            "virt-builder is disabled on this server ([libvirt] virt_builder_allowed = false)"
+                .into(),
         ));
     }
 
@@ -161,10 +162,12 @@ pub fn materialize_virt_builder_if_requested(
     let parent = dest_pb
         .parent()
         .filter(|p| !p.as_os_str().is_empty())
-        .ok_or_else(|| LibvirtError::Invalid("Could not determine parent directory for new disk".into()))?;
-    let parent_canon = parent.canonicalize().map_err(|e| {
-        LibvirtError::Invalid(format!("Output parent directory inaccessible: {e}"))
-    })?;
+        .ok_or_else(|| {
+            LibvirtError::Invalid("Could not determine parent directory for new disk".into())
+        })?;
+    let parent_canon = parent
+        .canonicalize()
+        .map_err(|e| LibvirtError::Invalid(format!("Output parent directory inaccessible: {e}")))?;
     crate::build_precheck::precheck_virt_builder_host_env(
         &parent_canon,
         cfg.virt_image_build_min_free_parent_bytes,
@@ -347,7 +350,8 @@ impl TempSshKeyFile {
                 .map_err(|e| LibvirtError::Operation(e.to_string()))?
                 .permissions();
             perms.set_mode(0o600);
-            fs::set_permissions(&path, perms).map_err(|e| LibvirtError::Operation(e.to_string()))?;
+            fs::set_permissions(&path, perms)
+                .map_err(|e| LibvirtError::Operation(e.to_string()))?;
         }
         Ok(Self { path })
     }
@@ -561,7 +565,8 @@ mod index_tests {
 
     #[test]
     fn parse_json_templates_strings() {
-        let v: Value = serde_json::from_str(r#"{"version":1,"templates":["debian-12","fedora-40"]}"#).unwrap();
+        let v: Value =
+            serde_json::from_str(r#"{"version":1,"templates":["debian-12","fedora-40"]}"#).unwrap();
         let idx = index_from_json_value(&v);
         assert_eq!(idx.format_version, 1);
         assert_eq!(idx.items.len(), 2);
@@ -584,7 +589,10 @@ mod index_tests {
         let v: Value = serde_json::from_str(raw).unwrap();
         let idx = index_from_json_value(&v);
         assert_eq!(idx.format_version, 2);
-        assert_eq!(idx.source_uri.as_deref(), Some("https://example.invalid/index"));
+        assert_eq!(
+            idx.source_uri.as_deref(),
+            Some("https://example.invalid/index")
+        );
         let u = idx.items.iter().find(|i| i.name == "ubuntu-22.04").unwrap();
         assert_eq!(u.arch.as_deref(), Some("x86_64"));
         assert!(u.summary.as_ref().unwrap().contains("Ubuntu"));

@@ -2,8 +2,8 @@
 //! blob for `/api/tokens`. Used by the optional `libvirt-guac-bridge` binary and `machina-daemon`.
 
 use anyhow::{anyhow, bail, Context, Result};
-use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use chrono::{Duration, Utc};
 use openssl::{
     hash::MessageDigest,

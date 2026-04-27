@@ -27,7 +27,8 @@ pub fn get_capabilities(conn: &Connect) -> Result<HypervisorCapabilities, Libvir
         .map_err(LibvirtError::map_op("Failed to get capabilities"))?;
 
     let host_arch = crate::xml::extract_text(&xml, "arch").unwrap_or_else(crate::unknown_string);
-    let host_cpu_model = crate::xml::extract_text(&xml, "model").unwrap_or_else(crate::unknown_string);
+    let host_cpu_model =
+        crate::xml::extract_text(&xml, "model").unwrap_or_else(crate::unknown_string);
 
     let mut guests = Vec::new();
     for guest_block in crate::xml::split_blocks(&xml, "guest") {
@@ -39,7 +40,11 @@ pub fn get_capabilities(conn: &Connect) -> Result<HypervisorCapabilities, Libvir
                 machines.push(text);
             }
         }
-        guests.push(GuestCapability { os_type, arch, machines });
+        guests.push(GuestCapability {
+            os_type,
+            arch,
+            machines,
+        });
     }
 
     Ok(HypervisorCapabilities {

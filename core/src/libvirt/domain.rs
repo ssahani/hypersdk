@@ -108,7 +108,12 @@ pub fn get_vm_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
         .map_err(LibvirtError::map_op("Failed to get XML"))
 }
 
-fn domain_action(conn: &Connect, name: &str, action: &str, f: impl FnOnce(&Domain) -> Result<(), virt::error::Error>) -> Result<(), LibvirtError> {
+fn domain_action(
+    conn: &Connect,
+    name: &str,
+    action: &str,
+    f: impl FnOnce(&Domain) -> Result<(), virt::error::Error>,
+) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, name)?;
     f(&domain).map_err(|e| LibvirtError::Operation(format!("Failed to {action} VM '{name}': {e}")))
 }
@@ -268,13 +273,11 @@ pub fn delete_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
 pub(crate) fn collect_disk_paths(xml: &str) -> Vec<String> {
     let mut paths = Vec::new();
     for block in xml::split_blocks(xml, "disk") {
-        let device = xml::extract_attr(&block, "disk", "device")
-            .unwrap_or_default();
+        let device = xml::extract_attr(&block, "disk", "device").unwrap_or_default();
         if device != "disk" {
             continue;
         }
-        let disk_type = xml::extract_attr(&block, "disk", "type")
-            .unwrap_or_default();
+        let disk_type = xml::extract_attr(&block, "disk", "type").unwrap_or_default();
         if disk_type != "file" {
             continue;
         }
@@ -288,7 +291,11 @@ pub(crate) fn collect_disk_paths(xml: &str) -> Vec<String> {
 }
 
 /// Stop (if needed) and undefine a VM, optionally passing `virDomainUndefineFlags` bits.
-pub fn delete_vm_with_options(conn: &Connect, name: &str, opts: &UndefineOptions) -> Result<(), LibvirtError> {
+pub fn delete_vm_with_options(
+    conn: &Connect,
+    name: &str,
+    opts: &UndefineOptions,
+) -> Result<(), LibvirtError> {
     let flags_u = opts.to_libvirt_flags()?;
     let flags: u32 = flags_u as u32;
     let domain = match lookup_domain(conn, name) {
@@ -299,7 +306,8 @@ pub fn delete_vm_with_options(conn: &Connect, name: &str, opts: &UndefineOptions
 
     // Collect disk paths before we undefine (XML is gone after).
     let disk_paths: Vec<String> = if opts.delete_disks {
-        domain.get_xml_desc(0)
+        domain
+            .get_xml_desc(0)
             .map(|xml| collect_disk_paths(&xml))
             .unwrap_or_default()
     } else {
@@ -393,13 +401,13 @@ fn parse_os_info(xml_str: &str) -> (String, String) {
 fn parse_interfaces(xml_str: &str) -> Vec<InterfaceInfo> {
     let mut interfaces = Vec::new();
     for iface_block in xml::split_blocks(xml_str, "interface") {
-        let mac = xml::extract_attr(&iface_block, "mac", "address")
-            .unwrap_or_else(crate::unknown_string);
+        let mac =
+            xml::extract_attr(&iface_block, "mac", "address").unwrap_or_else(crate::unknown_string);
         let source = xml::extract_attr(&iface_block, "source", "network")
             .or_else(|| xml::extract_attr(&iface_block, "source", "bridge"))
             .unwrap_or_else(crate::unknown_string);
-        let model = xml::extract_attr(&iface_block, "model", "type")
-            .unwrap_or_else(crate::unknown_string);
+        let model =
+            xml::extract_attr(&iface_block, "model", "type").unwrap_or_else(crate::unknown_string);
         interfaces.push(InterfaceInfo {
             mac_address: mac,
             source,
@@ -412,16 +420,16 @@ fn parse_interfaces(xml_str: &str) -> Vec<InterfaceInfo> {
 fn parse_disks(xml_str: &str) -> Vec<DiskInfo> {
     let mut disks = Vec::new();
     for disk_block in xml::split_blocks(xml_str, "disk") {
-        let device = xml::extract_attr(&disk_block, "disk", "device")
-            .unwrap_or_else(|| "disk".to_string());
+        let device =
+            xml::extract_attr(&disk_block, "disk", "device").unwrap_or_else(|| "disk".to_string());
         let source = xml::extract_attr(&disk_block, "source", "file")
             .or_else(|| xml::extract_attr(&disk_block, "source", "dev"))
             .or_else(|| xml::extract_attr(&disk_block, "source", "volume"))
             .unwrap_or_else(crate::unknown_string);
-        let driver = xml::extract_attr(&disk_block, "driver", "type")
-            .unwrap_or_else(crate::unknown_string);
-        let target = xml::extract_attr(&disk_block, "target", "dev")
-            .unwrap_or_else(crate::unknown_string);
+        let driver =
+            xml::extract_attr(&disk_block, "driver", "type").unwrap_or_else(crate::unknown_string);
+        let target =
+            xml::extract_attr(&disk_block, "target", "dev").unwrap_or_else(crate::unknown_string);
         let bus = xml::extract_attr(&disk_block, "target", "bus").unwrap_or_default();
         let cache = xml::extract_attr(&disk_block, "driver", "cache").unwrap_or_default();
         let readonly = disk_block.contains("<readonly");

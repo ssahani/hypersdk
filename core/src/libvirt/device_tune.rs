@@ -42,7 +42,11 @@ fn replace_driver_element(block: &str, new_driver: &str) -> String {
     }
 }
 
-fn set_disk_readonly_shareable(mut block: String, readonly: Option<bool>, shareable: Option<bool>) -> String {
+fn set_disk_readonly_shareable(
+    mut block: String,
+    readonly: Option<bool>,
+    shareable: Option<bool>,
+) -> String {
     if let Some(ro) = readonly {
         if ro {
             if !block.contains("<readonly") {
@@ -73,19 +77,27 @@ fn set_disk_readonly_shareable(mut block: String, readonly: Option<bool>, sharea
                 }
             }
         } else {
-            block = block.replace(" shareable='yes'", "").replace(" shareable=\"yes\"", "");
+            block = block
+                .replace(" shareable='yes'", "")
+                .replace(" shareable=\"yes\"", "");
         }
     }
     block
 }
 
-fn set_target_bus_on_block(block: &str, target_dev: &str, bus: &str) -> Result<String, LibvirtError> {
+fn set_target_bus_on_block(
+    block: &str,
+    target_dev: &str,
+    bus: &str,
+) -> Result<String, LibvirtError> {
     let needle1 = format!("dev='{target_dev}'");
     let needle2 = format!("dev=\"{target_dev}\"");
     let idx = block
         .find(&needle1)
         .or_else(|| block.find(&needle2))
-        .ok_or_else(|| LibvirtError::NotFound(format!("target dev '{target_dev}' not in disk block")))?;
+        .ok_or_else(|| {
+            LibvirtError::NotFound(format!("target dev '{target_dev}' not in disk block"))
+        })?;
     let before = &block[..idx];
     let tstart = before
         .rfind("<target")
@@ -127,7 +139,11 @@ fn set_target_bus_on_block(block: &str, target_dev: &str, bus: &str) -> Result<S
 }
 
 /// Update disk `<driver>` / `<target bus>` / readonly / shareable for `target` dev (e.g. vda).
-pub fn update_disk_tune(conn: &Connect, vm_name: &str, tune: &DiskTuneRequest) -> Result<(), LibvirtError> {
+pub fn update_disk_tune(
+    conn: &Connect,
+    vm_name: &str,
+    tune: &DiskTuneRequest,
+) -> Result<(), LibvirtError> {
     crate::validate::validate_name(vm_name)?;
     let domain = lookup_domain(conn, vm_name)?;
     let desc = domain
@@ -137,7 +153,8 @@ pub fn update_disk_tune(conn: &Connect, vm_name: &str, tune: &DiskTuneRequest) -
     let mut found: Option<String> = None;
     for block in split_blocks(&desc, "disk") {
         if xml::extract_attr(&block, "target", "dev").as_deref() == Some(tune.target.as_str()) {
-            let driver_type = xml::extract_attr(&block, "driver", "type").unwrap_or_else(|| "qcow2".to_string());
+            let driver_type =
+                xml::extract_attr(&block, "driver", "type").unwrap_or_else(|| "qcow2".to_string());
             let mut parts = vec![
                 "name='qemu'".to_string(),
                 format!("type='{}'", xml::escape(&driver_type)),
@@ -158,7 +175,8 @@ pub fn update_disk_tune(conn: &Connect, vm_name: &str, tune: &DiskTuneRequest) -
             break;
         }
     }
-    let frag = found.ok_or_else(|| LibvirtError::NotFound(format!("No disk with target '{}'", tune.target)))?;
+    let frag = found
+        .ok_or_else(|| LibvirtError::NotFound(format!("No disk with target '{}'", tune.target)))?;
     let flags = get_domain_flags(&domain);
     domain
         .update_device_flags(&frag, flags)
@@ -175,7 +193,11 @@ pub struct NicTuneRequest {
     pub network: Option<String>,
 }
 
-pub fn update_nic_tune(conn: &Connect, vm_name: &str, tune: &NicTuneRequest) -> Result<(), LibvirtError> {
+pub fn update_nic_tune(
+    conn: &Connect,
+    vm_name: &str,
+    tune: &NicTuneRequest,
+) -> Result<(), LibvirtError> {
     let domain = lookup_domain(conn, vm_name)?;
     let desc = domain
         .get_xml_desc(0)
@@ -183,7 +205,9 @@ pub fn update_nic_tune(conn: &Connect, vm_name: &str, tune: &NicTuneRequest) -> 
     let mac = tune.mac_address.to_ascii_lowercase();
     let mut found: Option<String> = None;
     for block in split_blocks(&desc, "interface") {
-        let m = xml::extract_attr(&block, "mac", "address").unwrap_or_default().to_ascii_lowercase();
+        let m = xml::extract_attr(&block, "mac", "address")
+            .unwrap_or_default()
+            .to_ascii_lowercase();
         if m == mac {
             let mut nb = block.clone();
             if let Some(ref model) = tune.model {
@@ -214,7 +238,8 @@ pub fn update_nic_tune(conn: &Connect, vm_name: &str, tune: &NicTuneRequest) -> 
             break;
         }
     }
-    let frag = found.ok_or_else(|| LibvirtError::NotFound(format!("No NIC with MAC '{}'", tune.mac_address)))?;
+    let frag = found
+        .ok_or_else(|| LibvirtError::NotFound(format!("No NIC with MAC '{}'", tune.mac_address)))?;
     let flags = get_domain_flags(&domain);
     domain
         .update_device_flags(&frag, flags)
@@ -246,19 +271,13 @@ pub fn set_video_model(conn: &Connect, vm_name: &str, model: &str) -> Result<(),
             let end = start + rest + 2;
             nb.replace_range(
                 start..end,
-                &format!(
-                    "<model type='{}' heads='1'/>",
-                    xml::escape(model)
-                ),
+                &format!("<model type='{}' heads='1'/>", xml::escape(model)),
             );
         } else if let Some(rest) = nb[start..].find("</model>") {
             let end = start + rest + "</model>".len();
             nb.replace_range(
                 start..end,
-                &format!(
-                    "<model type='{}' heads='1'></model>",
-                    xml::escape(model)
-                ),
+                &format!("<model type='{}' heads='1'></model>", xml::escape(model)),
             );
         }
     }

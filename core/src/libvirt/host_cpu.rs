@@ -12,7 +12,11 @@ pub struct CpuCompareResult {
 }
 
 /// Compare guest CPU XML against this host. `flags` are `virConnectCompareCPUFlags` (often 0).
-pub fn compare_cpu(conn: &Connect, cpu_xml: &str, flags: u32) -> Result<CpuCompareResult, LibvirtError> {
+pub fn compare_cpu(
+    conn: &Connect,
+    cpu_xml: &str,
+    flags: u32,
+) -> Result<CpuCompareResult, LibvirtError> {
     let code = conn
         .compare_cpu(cpu_xml, flags as _)
         .map_err(|e| LibvirtError::Operation(format!("compare_cpu: {e}")))?;
@@ -23,5 +27,8 @@ pub fn compare_cpu(conn: &Connect, cpu_xml: &str, flags: u32) -> Result<CpuCompa
         x if x == virt::sys::VIR_CPU_COMPARE_INCOMPATIBLE as i32 => "incompatible",
         _ => "unknown",
     };
-    Ok(CpuCompareResult { code: code_i, label })
+    Ok(CpuCompareResult {
+        code: code_i,
+        label,
+    })
 }

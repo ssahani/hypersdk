@@ -39,7 +39,9 @@ pub fn get_nwfilter_xml(conn: &Connect, name: &str) -> Result<String, LibvirtErr
 pub fn define_nwfilter(conn: &Connect, xml: &str) -> Result<String, LibvirtError> {
     let filter = NWFilter::define_xml(conn, xml)
         .map_err(|e| LibvirtError::Operation(format!("Failed to define filter: {e}")))?;
-    filter.get_name().map_err(LibvirtError::map_op("Failed to get filter name"))
+    filter
+        .get_name()
+        .map_err(LibvirtError::map_op("Failed to get filter name"))
 }
 
 pub fn delete_nwfilter(conn: &Connect, name: &str) -> Result<(), LibvirtError> {

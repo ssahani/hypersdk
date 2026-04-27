@@ -484,3 +484,16 @@ export interface CpuTuneInfo { shares?: number; period?: number; quota?: number;
 export interface MemTuneInfo { hard_limit_kb?: number; soft_limit_kb?: number; swap_hard_limit_kb?: number }
 export const getCpuTune = (name: string) => apiGet<CpuTuneInfo>(`${API}/vms/${encodeURIComponent(name)}/cputune`)
 export const getMemTune = (name: string) => apiGet<MemTuneInfo>(`${API}/vms/${encodeURIComponent(name)}/memtune`)
+
+export interface NumaTuneState {
+  node_set?: string | null
+  mode?: number | null
+}
+
+export const getNumaTune = (name: string) => apiGet<NumaTuneState>(`${API}/vms/${encodeURIComponent(name)}/numa`)
+
+export const setNumaTune = (name: string, body: { node_set?: string | null; mode?: number | null }) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/numa`, body)
+
+export const pinEmulator = (name: string, cpus: boolean[]) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/emulator/pin`, { cpus })

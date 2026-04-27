@@ -9,19 +9,35 @@ use machina_core::libvirt::{metrics, node};
 use machina_core::LibvirtManager;
 
 fn add_gauge(output: &mut String, name: &str, help: &str, value: impl Display) {
-    output.push_str(&format!("# HELP {name} {help}\n# TYPE {name} gauge\n{name} {value}\n"));
+    output.push_str(&format!(
+        "# HELP {name} {help}\n# TYPE {name} gauge\n{name} {value}\n"
+    ));
 }
 
 fn escape_label(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n")
+    s.replace('\\', "\\\\")
+        .replace('"', "\\\"")
+        .replace('\n', "\\n")
 }
 
 fn add_labeled(output: &mut String, name: &str, label: &str, value: impl Display) {
-    output.push_str(&format!("{name}{{vm=\"{}\"}} {value}\n", escape_label(label)));
+    output.push_str(&format!(
+        "{name}{{vm=\"{}\"}} {value}\n",
+        escape_label(label)
+    ));
 }
 
-fn add_vm_metric(output: &mut String, name: &str, help: &str, metric_type: &str, vm_metrics: &[machina_core::VmMetrics], extract: impl Fn(&machina_core::VmMetrics) -> String) {
-    output.push_str(&format!("# HELP {name} {help}\n# TYPE {name} {metric_type}\n"));
+fn add_vm_metric(
+    output: &mut String,
+    name: &str,
+    help: &str,
+    metric_type: &str,
+    vm_metrics: &[machina_core::VmMetrics],
+    extract: impl Fn(&machina_core::VmMetrics) -> String,
+) {
+    output.push_str(&format!(
+        "# HELP {name} {help}\n# TYPE {name} {metric_type}\n"
+    ));
     for m in vm_metrics {
         add_labeled(output, name, &m.name, extract(m));
     }
@@ -41,30 +57,98 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
     .unwrap_or((None, None));
 
     if let Some(info) = data.0 {
-        add_gauge(&mut output, "machina_node_memory_mb", "Total host memory in MB", info.memory_mb);
-        add_gauge(&mut output, "machina_node_cpus", "Total host CPU cores", info.cpu_cores);
-        add_gauge(&mut output, "machina_vms_active", "Number of active VMs", info.active_vms);
-        add_gauge(&mut output, "machina_vms_defined", "Number of defined VMs", info.defined_vms);
+        add_gauge(
+            &mut output,
+            "machina_node_memory_mb",
+            "Total host memory in MB",
+            info.memory_mb,
+        );
+        add_gauge(
+            &mut output,
+            "machina_node_cpus",
+            "Total host CPU cores",
+            info.cpu_cores,
+        );
+        add_gauge(
+            &mut output,
+            "machina_vms_active",
+            "Number of active VMs",
+            info.active_vms,
+        );
+        add_gauge(
+            &mut output,
+            "machina_vms_defined",
+            "Number of defined VMs",
+            info.defined_vms,
+        );
     }
 
     if let Some(vm_metrics) = data.1 {
-        add_vm_metric(&mut output, "machina_vm_cpu_time_seconds_total", "CPU time in seconds", "counter", &vm_metrics,
-            |m| format!("{:.3}", m.cpu_time_ns as f64 / 1_000_000_000.0));
-        add_vm_metric(&mut output, "machina_vm_memory_used_mb", "Memory used in MB", "gauge", &vm_metrics,
-            |m| m.memory_used_mb.to_string());
-        add_vm_metric(&mut output, "machina_vm_memory_total_mb", "Memory total in MB", "gauge", &vm_metrics,
-            |m| m.memory_total_mb.to_string());
-        add_vm_metric(&mut output, "machina_vm_disk_read_bytes_total", "Disk read bytes", "counter", &vm_metrics,
-            |m| m.disk_rd_bytes.to_string());
-        add_vm_metric(&mut output, "machina_vm_disk_write_bytes_total", "Disk write bytes", "counter", &vm_metrics,
-            |m| m.disk_wr_bytes.to_string());
-        add_vm_metric(&mut output, "machina_vm_net_rx_bytes_total", "Network RX bytes", "counter", &vm_metrics,
-            |m| m.net_rx_bytes.to_string());
-        add_vm_metric(&mut output, "machina_vm_net_tx_bytes_total", "Network TX bytes", "counter", &vm_metrics,
-            |m| m.net_tx_bytes.to_string());
+        add_vm_metric(
+            &mut output,
+            "machina_vm_cpu_time_seconds_total",
+            "CPU time in seconds",
+            "counter",
+            &vm_metrics,
+            |m| format!("{:.3}", m.cpu_time_ns as f64 / 1_000_000_000.0),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_memory_used_mb",
+            "Memory used in MB",
+            "gauge",
+            &vm_metrics,
+            |m| m.memory_used_mb.to_string(),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_memory_total_mb",
+            "Memory total in MB",
+            "gauge",
+            &vm_metrics,
+            |m| m.memory_total_mb.to_string(),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_disk_read_bytes_total",
+            "Disk read bytes",
+            "counter",
+            &vm_metrics,
+            |m| m.disk_rd_bytes.to_string(),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_disk_write_bytes_total",
+            "Disk write bytes",
+            "counter",
+            &vm_metrics,
+            |m| m.disk_wr_bytes.to_string(),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_net_rx_bytes_total",
+            "Network RX bytes",
+            "counter",
+            &vm_metrics,
+            |m| m.net_rx_bytes.to_string(),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_net_tx_bytes_total",
+            "Network TX bytes",
+            "counter",
+            &vm_metrics,
+            |m| m.net_tx_bytes.to_string(),
+        );
     }
 
-    ([(header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")], output)
+    (
+        [(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        output,
+    )
 }
 
 pub fn prometheus_routes() -> Router<LibvirtManager> {

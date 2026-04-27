@@ -7,9 +7,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use libvirt_guac_bridge::{
-    bridge_from_virsh_domdisplay, GuacamoleBridgeParams,
-};
+use libvirt_guac_bridge::{bridge_from_virsh_domdisplay, GuacamoleBridgeParams};
 use std::{net::SocketAddr, sync::Arc};
 
 #[derive(Clone)]
@@ -40,7 +38,8 @@ async fn main() -> anyhow::Result<()> {
             fetch_token: std::env::var("GUAC_FETCH_TOKEN")
                 .map(|v| v == "1" || v.eq_ignore_ascii_case("true"))
                 .unwrap_or(true),
-            username: std::env::var("GUAC_JSON_USERNAME").unwrap_or_else(|_| "libvirt-user".to_string()),
+            username: std::env::var("GUAC_JSON_USERNAME")
+                .unwrap_or_else(|_| "libvirt-user".to_string()),
         },
     });
 
@@ -73,7 +72,10 @@ async fn bridge_vm(
 
     let result = bridge_from_virsh_domdisplay(vm, &params).await;
 
-    result
-        .map(Json)
-        .map_err(|e| (axum::http::StatusCode::INTERNAL_SERVER_ERROR, format!("{e:#}")))
+    result.map(Json).map_err(|e| {
+        (
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+            format!("{e:#}"),
+        )
+    })
 }

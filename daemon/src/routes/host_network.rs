@@ -1,10 +1,11 @@
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
-use serde::Deserialize;
 use machina_core::libvirt::{host_network, host_sysctl};
-use machina_core::LibvirtManager;
+use machina_core::{audit, AuditEvent, LibvirtManager};
+use serde::Deserialize;
 
+use crate::auth::{require_browser_session_for_host_insight, RequestActor};
 use crate::error::AppError;
 
 // ── Host Interfaces ────────────────────────────────────────────────
@@ -26,7 +27,9 @@ async fn get_network_backends(
     })))
 }
 
-async fn get_sysctl_tuning(State(_manager): State<LibvirtManager>) -> Json<host_sysctl::SysctlTuningResponse> {
+async fn get_sysctl_tuning(
+    State(_manager): State<LibvirtManager>,
+) -> Json<host_sysctl::SysctlTuningResponse> {
     Json(host_sysctl::sysctl_tuning_report())
 }
 
@@ -42,7 +45,38 @@ async fn get_systemd_interface_status(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let out = host_network::get_systemd_interface_status(&name)?;
-    Ok(Json(serde_json::json!({ "interface": name, "status": out })))
+    Ok(Json(
+        serde_json::json!({ "interface": name, "status": out }),
+    ))
+}
+
+async fn get_host_routing_tables(
+    State(_manager): State<LibvirtManager>,
+) -> Result<Json<host_network::HostRoutingTables>, AppError> {
+    let out = host_network::get_host_routing_tables()?;
+    Ok(Json(out))
+}
+
+fn log_route_audit(req: &host_network::KernelRouteChangeRequest, result: &str) {
+    let target = format!("{} {} {}", req.family, req.operation, req.destination);
+    let event = AuditEvent {
+        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        action: "host-kernel-route".to_string(),
+        target,
+        result: result.to_string(),
+    };
+    audit::write_audit_event(&event);
+}
+
+async fn post_kernel_route_change(
+    State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Json(req): Json<host_network::KernelRouteChangeRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    host_network::modify_kernel_route(&req).map_err(AppError::from)?;
+    log_route_audit(&req, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok" })))
 }
 
 // ── Bridges ────────────────────────────────────────────────────────
@@ -52,7 +86,9 @@ async fn create_bridge_handler(
     Json(req): Json<host_network::CreateBridgeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     host_network::create_bridge(&req)?;
-    Ok(Json(serde_json::json!({ "status": "created", "name": req.name })))
+    Ok(Json(
+        serde_json::json!({ "status": "created", "name": req.name }),
+    ))
 }
 
 async fn delete_bridge_handler(
@@ -60,7 +96,9 @@ async fn delete_bridge_handler(
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     host_network::delete_bridge(&name)?;
-    Ok(Json(serde_json::json!({ "status": "deleted", "name": name })))
+    Ok(Json(
+        serde_json::json!({ "status": "deleted", "name": name }),
+    ))
 }
 
 // ── Port Forwarding ────────────────────────────────────────────────
@@ -77,7 +115,9 @@ async fn create_port_forward(
     Json(req): Json<host_network::CreatePortForwardRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     host_network::create_port_forward(&req)?;
-    Ok(Json(serde_json::json!({ "status": "created", "host_port": req.host_port, "vm_ip": req.vm_ip, "vm_port": req.vm_port })))
+    Ok(Json(
+        serde_json::json!({ "status": "created", "host_port": req.host_port, "vm_ip": req.vm_ip, "vm_port": req.vm_port }),
+    ))
 }
 
 #[derive(Deserialize)]
@@ -110,7 +150,9 @@ async fn create_firewall_rule(
     Json(req): Json<host_network::CreateFirewallRuleRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     host_network::create_firewall_rule(&req)?;
-    Ok(Json(serde_json::json!({ "status": "created", "vm_ip": req.vm_ip, "action": req.action })))
+    Ok(Json(
+        serde_json::json!({ "status": "created", "vm_ip": req.vm_ip, "action": req.action }),
+    ))
 }
 
 async fn delete_firewall_rule(
@@ -130,14 +172,25 @@ pub fn host_network_routes() -> Router<LibvirtManager> {
         .route("/host/backends", get(get_network_backends))
         .route("/host/sysctl-tuning", get(get_sysctl_tuning))
         .route("/host/network-diag", get(get_systemd_network_diagnostics))
-        .route("/host/network-diag/interface/{name}", get(get_systemd_interface_status))
+        .route(
+            "/host/network-diag/interface/{name}",
+            get(get_systemd_interface_status),
+        )
+        .route("/host/routing-tables", get(get_host_routing_tables))
+        .route("/host/routing", post(post_kernel_route_change))
         // Bridges
         .route("/host/bridges", post(create_bridge_handler))
         .route("/host/bridges/{name}", delete(delete_bridge_handler))
         // Port forwarding
-        .route("/portforward", get(list_port_forwards).post(create_port_forward))
+        .route(
+            "/portforward",
+            get(list_port_forwards).post(create_port_forward),
+        )
         .route("/portforward/delete", post(delete_port_forward))
         // Firewall
-        .route("/firewall", get(list_firewall_rules).post(create_firewall_rule))
+        .route(
+            "/firewall",
+            get(list_firewall_rules).post(create_firewall_rule),
+        )
         .route("/firewall/delete", post(delete_firewall_rule))
 }
