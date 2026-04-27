@@ -1,5 +1,6 @@
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import type { Toast } from '../hooks/useToast'
+import { summarizeK8sClientError } from '../utils/k8sErrors'
 
 const icons = {
   success: <CheckCircle className="w-5 h-5 text-green-400" />,
@@ -23,10 +24,17 @@ export function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: 
       {toasts.map((toast) => (
         <div
           key={toast.id}
-          className={`animate-slide-in flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-[300px] ${bgColors[toast.type]}`}
+          className={`animate-slide-in flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-[300px] max-w-lg ${bgColors[toast.type]}`}
         >
           {icons[toast.type]}
-          <span className="flex-1 text-sm text-white">{toast.message}</span>
+          <span
+            className="flex-1 text-sm text-white whitespace-pre-wrap break-words max-h-40 overflow-y-auto"
+            title={toast.message.length > 220 ? toast.message : undefined}
+          >
+            {toast.type === 'error' && toast.message.length > 280
+              ? summarizeK8sClientError(toast.message).headline
+              : toast.message}
+          </span>
           <button onClick={() => onClose(toast.id)} className="text-slate-400 hover:text-white">
             <X className="w-4 h-4" />
           </button>

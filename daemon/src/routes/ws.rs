@@ -13,7 +13,38 @@ use tracing::{info, warn};
 use machina_core::libvirt::domain;
 use machina_core::{LibvirtManager, SshTerminalConfig};
 
+use crate::kubevirt_k8s_ws_proxy;
 use crate::terminal::{run_ssh_terminal, TerminalSessionStore};
+
+// ── KubeVirt (cluster) VNC / serial console via kubectl proxy ───────
+
+async fn kubevirt_vnc_ws_handler(
+    ws: WebSocketUpgrade,
+    Path((namespace, name)): Path<(String, String)>,
+) -> impl IntoResponse {
+    if !kubevirt_k8s_ws_proxy::validate_k8s_name(&namespace)
+        || !kubevirt_k8s_ws_proxy::validate_k8s_name(&name)
+    {
+        return (StatusCode::BAD_REQUEST, "invalid namespace or VM name").into_response();
+    }
+    ws.on_upgrade(move |socket| {
+        kubevirt_k8s_ws_proxy::proxy_kubevirt_ws(socket, namespace, name, "vnc")
+    })
+}
+
+async fn kubevirt_console_ws_handler(
+    ws: WebSocketUpgrade,
+    Path((namespace, name)): Path<(String, String)>,
+) -> impl IntoResponse {
+    if !kubevirt_k8s_ws_proxy::validate_k8s_name(&namespace)
+        || !kubevirt_k8s_ws_proxy::validate_k8s_name(&name)
+    {
+        return (StatusCode::BAD_REQUEST, "invalid namespace or VM name").into_response();
+    }
+    ws.on_upgrade(move |socket| {
+        kubevirt_k8s_ws_proxy::proxy_kubevirt_ws(socket, namespace, name, "console")
+    })
+}
 
 // ── VM state watch WebSocket ────────────────────────────────────────
 
@@ -592,6 +623,14 @@ async fn handle_ssh_proxy(socket: WebSocket, host: String) {
 pub fn ws_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/watch", get(ws_handler))
+        .route(
+            "/k8s-kubevirt/{namespace}/{name}/vnc",
+            get(kubevirt_vnc_ws_handler),
+        )
+        .route(
+            "/k8s-kubevirt/{namespace}/{name}/console",
+            get(kubevirt_console_ws_handler),
+        )
         .route("/console/{name}", get(console_handler))
         .route("/vnc/{name}", get(vnc_handler))
         .route("/spice/{name}", get(spice_handler))

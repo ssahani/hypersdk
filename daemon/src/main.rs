@@ -1,7 +1,9 @@
 mod auth;
 mod error;
 mod job_registry;
+mod k8s_kubeconfig;
 mod kubevirt_exec;
+mod kubevirt_k8s_ws_proxy;
 mod routes;
 mod virt_image_validate;
 mod server;

@@ -4,6 +4,7 @@ use axum::{Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
+use std::path::Path;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -15,6 +16,8 @@ use crate::auth::{require_browser_session_for_host_insight, RequestActor};
 use crate::error::AppError;
 
 const KUBECTL_TIMEOUT_SECS: u64 = 30;
+const KUBECTL_PROBE_TIMEOUT_SECS: u64 = 8;
+const SNIPPET_MAX_BYTES: usize = 18_432;
 
 #[derive(Debug, Serialize)]
 struct KubectlResult {
@@ -49,6 +52,47 @@ struct K8sOverview {
     pods: usize,
     deployments: usize,
     services: usize,
+    /// Best-effort: `k3s`, `rke2`, `eks`, `gke`, `aks`, `minikube`, `kind`, `generic`, or `unknown`.
+    #[serde(default)]
+    distribution: String,
+    #[serde(default)]
+    distribution_hints: Vec<String>,
+    #[serde(default)]
+    extra_resource_counts: BTreeMap<String, usize>,
+}
+
+#[derive(Debug, Serialize)]
+struct K8sHostSignals {
+    k3s_config_present: bool,
+    k3s_data_dir_present: bool,
+    rke2_config_present: bool,
+    rke2_data_dir_present: bool,
+    k3s_systemd: String,
+    k3s_agent_systemd: String,
+    rke2_server_systemd: String,
+    rke2_agent_systemd: String,
+    k3s_binary_version: Option<String>,
+    rke2_binary_version: Option<String>,
+    helm_version: Option<String>,
+    crictl_version: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct K8sEnvironment {
+    kubectl_on_path: bool,
+    kubectl_client_version: Option<String>,
+    kubectl_server_reachable: bool,
+    kubeconfig_hint: Option<String>,
+    kubeconfig_from_env: bool,
+    /// When set, machina injects `--kubeconfig` with this path for all cluster kubectl calls (auto-detected).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kubeconfig_auto_selected: Option<String>,
+    current_context: Option<String>,
+    cluster_distribution: String,
+    cluster_distribution_hints: Vec<String>,
+    host: K8sHostSignals,
+    /// Truncated command output for quick operator inspection (fixed allowlist only).
+    snippets: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -97,11 +141,18 @@ fn safe_namespace(value: Option<&str>) -> Result<String, LibvirtError> {
     Ok(ns.to_string())
 }
 
-async fn run_kubectl(args: &[String]) -> Result<KubectlResult, LibvirtError> {
+async fn run_kubectl_timeout(
+    args: &[String],
+    timeout_secs: u64,
+) -> Result<KubectlResult, LibvirtError> {
+    let choice = crate::k8s_kubeconfig::kubectl_kubeconfig_choice().await;
+    let mut full = choice.prefix.clone();
+    full.extend_from_slice(args);
+
     let mut cmd = Command::new("kubectl");
-    cmd.args(args);
-    let command_text = format!("kubectl {}", args.join(" "));
-    let output = timeout(Duration::from_secs(KUBECTL_TIMEOUT_SECS), cmd.output())
+    cmd.args(&full);
+    let command_text = format!("kubectl {}", full.join(" "));
+    let output = timeout(Duration::from_secs(timeout_secs), cmd.output())
         .await
         .map_err(|_| LibvirtError::Operation("kubectl command timed out".into()))?
         .map_err(|e| LibvirtError::Operation(format!("failed to start kubectl: {e}")))?;
@@ -120,11 +171,15 @@ async fn run_kubectl(args: &[String]) -> Result<KubectlResult, LibvirtError> {
     })
 }
 
-async fn run_kubectl_json(args: &[String]) -> Result<Value, LibvirtError> {
+async fn run_kubectl(args: &[String]) -> Result<KubectlResult, LibvirtError> {
+    run_kubectl_timeout(args, KUBECTL_TIMEOUT_SECS).await
+}
+
+async fn run_kubectl_json_timeout(args: &[String], timeout_secs: u64) -> Result<Value, LibvirtError> {
     let mut full_args = args.to_vec();
     full_args.push("-o".into());
     full_args.push("json".into());
-    let res = run_kubectl(&full_args).await?;
+    let res = run_kubectl_timeout(&full_args, timeout_secs).await?;
     if !res.ok {
         let msg = if res.stderr.trim().is_empty() {
             "kubectl command failed".to_string()
@@ -135,6 +190,406 @@ async fn run_kubectl_json(args: &[String]) -> Result<Value, LibvirtError> {
     }
     serde_json::from_str::<Value>(&res.stdout)
         .map_err(|e| LibvirtError::Operation(format!("failed to parse kubectl JSON output: {e}")))
+}
+
+async fn run_kubectl_json(args: &[String]) -> Result<Value, LibvirtError> {
+    run_kubectl_json_timeout(args, KUBECTL_TIMEOUT_SECS).await
+}
+
+fn truncate_snippet(text: &str) -> String {
+    let t = text.trim();
+    if t.len() <= SNIPPET_MAX_BYTES {
+        return t.to_string();
+    }
+    format!(
+        "{}\n… ({} more bytes)",
+        &t[..SNIPPET_MAX_BYTES],
+        t.len() - SNIPPET_MAX_BYTES
+    )
+}
+
+async fn path_exists_async(p: &str) -> bool {
+    tokio::fs::metadata(p).await.is_ok()
+}
+
+fn count_list_items(res: &Result<Value, LibvirtError>) -> usize {
+    res.as_ref()
+        .ok()
+        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.len()))
+        .unwrap_or(0)
+}
+
+async fn systemctl_line(unit: &str) -> String {
+    match timeout(
+        Duration::from_secs(3),
+        Command::new("systemctl").args(["is-active", unit]).output(),
+    )
+    .await
+    {
+        Ok(Ok(out)) => {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if out.status.success() && s == "active" {
+                "active".into()
+            } else if s.is_empty() {
+                "inactive".into()
+            } else {
+                s
+            }
+        }
+        _ => "unknown".into(),
+    }
+}
+
+async fn cmd_first_line_timeout(program: &str, args: &[&str], secs: u64) -> Option<String> {
+    let out = timeout(
+        Duration::from_secs(secs),
+        Command::new(program).args(args.iter().copied()).output(),
+    )
+    .await
+    .ok()
+    .and_then(|r| r.ok())?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout);
+    let line = s.lines().next().unwrap_or("").trim();
+    if !line.is_empty() {
+        return Some(line.to_string());
+    }
+    let e = String::from_utf8_lossy(&out.stderr);
+    let el = e.lines().next().unwrap_or("").trim();
+    if el.is_empty() {
+        None
+    } else {
+        Some(el.to_string())
+    }
+}
+
+fn kubeconfig_hint() -> (bool, Option<String>) {
+    if let Ok(p) = std::env::var("KUBECONFIG") {
+        let first = p.split(':').next().unwrap_or(&p).trim();
+        if !first.is_empty() && Path::new(first).is_file() {
+            return (true, Some(first.to_string()));
+        }
+        if !first.is_empty() {
+            return (true, Some(first.to_string()));
+        }
+    }
+    if let Ok(home) = std::env::var("HOME") {
+        let def = format!("{home}/.kube/config");
+        if Path::new(&def).is_file() {
+            return (false, Some(def));
+        }
+    }
+    (false, None)
+}
+
+async fn collect_host_signals() -> K8sHostSignals {
+    let (
+        k3s_cfg,
+        k3s_data,
+        r2_cfg,
+        r2_data,
+        u_k3s,
+        u_k3sa,
+        u_r2s,
+        u_r2a,
+        k3s_ver,
+        r2_ver,
+        helm_v,
+        cri_v,
+    ) = tokio::join!(
+        path_exists_async("/etc/rancher/k3s/k3s.yaml"),
+        path_exists_async("/var/lib/rancher/k3s"),
+        path_exists_async("/etc/rancher/rke2/config.yaml"),
+        path_exists_async("/var/lib/rancher/rke2"),
+        systemctl_line("k3s"),
+        systemctl_line("k3s-agent"),
+        systemctl_line("rke2-server"),
+        systemctl_line("rke2-agent"),
+        cmd_first_line_timeout("k3s", &["--version"], 5),
+        cmd_first_line_timeout("rke2", &["--version"], 5),
+        cmd_first_line_timeout("helm", &["version", "--short"], 5),
+        cmd_first_line_timeout("crictl", &["--version"], 5),
+    );
+    K8sHostSignals {
+        k3s_config_present: k3s_cfg,
+        k3s_data_dir_present: k3s_data,
+        rke2_config_present: r2_cfg,
+        rke2_data_dir_present: r2_data,
+        k3s_systemd: u_k3s,
+        k3s_agent_systemd: u_k3sa,
+        rke2_server_systemd: u_r2s,
+        rke2_agent_systemd: u_r2a,
+        k3s_binary_version: k3s_ver,
+        rke2_binary_version: r2_ver,
+        helm_version: helm_v,
+        crictl_version: cri_v,
+    }
+}
+
+fn infer_cluster_distribution(items: &[Value], host: &K8sHostSignals) -> (String, Vec<String>) {
+    let mut hints = Vec::new();
+
+    for n in items {
+        let ni = n.get("status").and_then(|s| s.get("nodeInfo"));
+        let kubelet = ni
+            .and_then(|x| x.get("kubeletVersion"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        let os_img = ni
+            .and_then(|x| x.get("osImage"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        let crt = ni
+            .and_then(|x| x.get("containerRuntimeVersion"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        let blob = format!("{kubelet} {os_img} {crt}").to_lowercase();
+        if blob.contains("k3s") {
+            hints.push(format!("node kubelet/OS/runtime mentions k3s ({kubelet})"));
+            return ("k3s".to_string(), hints);
+        }
+        if blob.contains("rke2") {
+            hints.push(format!("node kubelet/OS/runtime mentions rke2 ({kubelet})"));
+            return ("rke2".to_string(), hints);
+        }
+    }
+
+    for n in items {
+        let prov = n
+            .get("spec")
+            .and_then(|s| s.get("providerID"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        if prov.starts_with("aws://") {
+            hints.push(format!("providerID {prov}"));
+            return ("eks".to_string(), hints);
+        }
+        if prov.starts_with("gce://") || prov.starts_with("gcp://") {
+            hints.push(format!("providerID {prov}"));
+            return ("gke".to_string(), hints);
+        }
+        if prov.starts_with("azure://") {
+            hints.push(format!("providerID {prov}"));
+            return ("aks".to_string(), hints);
+        }
+    }
+
+    for n in items {
+        let labels = n
+            .get("metadata")
+            .and_then(|m| m.get("labels"))
+            .and_then(|x| x.as_object());
+        if let Some(lab) = labels {
+            if lab.contains_key("minikube.k8s.io/version")
+                || lab.contains_key("minikube.k8s.io/name")
+            {
+                hints.push("minikube node labels".into());
+                return ("minikube".to_string(), hints);
+            }
+            if lab.contains_key("kind.sigs.k8s.io/cluster") {
+                hints.push("kind.sigs.k8s.io/cluster label".into());
+                return ("kind".to_string(), hints);
+            }
+        }
+    }
+
+    for n in items {
+        if let Some(name) = n
+            .get("metadata")
+            .and_then(|m| m.get("name"))
+            .and_then(|x| x.as_str())
+        {
+            if name == "minikube" {
+                hints.push("node named minikube".into());
+                return ("minikube".to_string(), hints);
+            }
+            if name.contains("kind-control-plane") || name.contains("kind-worker") {
+                hints.push(format!("node name suggests kind ({name})"));
+                return ("kind".to_string(), hints);
+            }
+        }
+    }
+
+    if host.k3s_config_present {
+        hints.push("/etc/rancher/k3s/k3s.yaml present on host".into());
+        return ("k3s".to_string(), hints);
+    }
+    if host.k3s_data_dir_present && host.k3s_systemd == "active" {
+        hints.push("k3s data dir + systemd k3s active".into());
+        return ("k3s".to_string(), hints);
+    }
+    if host.rke2_config_present {
+        hints.push("/etc/rancher/rke2/config.yaml present".into());
+        return ("rke2".to_string(), hints);
+    }
+    if host.rke2_server_systemd == "active" {
+        hints.push("rke2-server systemd active".into());
+        return ("rke2".to_string(), hints);
+    }
+
+    if items.is_empty() {
+        ("unknown".to_string(), hints)
+    } else {
+        hints.push("no known distro markers; cluster API reachable".into());
+        ("generic".to_string(), hints)
+    }
+}
+
+async fn kubectl_client_version_short() -> Option<String> {
+    let res = run_kubectl_timeout(&["version".into(), "--client=true".into(), "-o".into(), "json".into()], 6)
+        .await
+        .ok()?;
+    if !res.ok {
+        return None;
+    }
+    let v: Value = serde_json::from_str(&res.stdout).ok()?;
+    let gv = v
+        .get("clientVersion")
+        .and_then(|c| c.get("gitVersion"))
+        .and_then(|x| x.as_str())?;
+    Some(gv.to_string())
+}
+
+async fn k8s_environment(
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<K8sEnvironment>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+
+    let host = collect_host_signals().await;
+    let kubectl_probe = run_kubectl_timeout(&["version".into(), "--client=true".into()], 5).await;
+    let kubectl_on_path = matches!(&kubectl_probe, Ok(r) if r.ok);
+
+    let client_ver = if kubectl_on_path {
+        kubectl_client_version_short().await
+    } else {
+        None
+    };
+
+    let nodes_res = run_kubectl_json_timeout(&["get".into(), "nodes".into()], KUBECTL_PROBE_TIMEOUT_SECS).await;
+    let server_ok = nodes_res.is_ok();
+    let node_items = nodes_res
+        .as_ref()
+        .ok()
+        .and_then(|v| v.get("items").and_then(|x| x.as_array()).cloned())
+        .unwrap_or_default();
+
+    let (dist, hints) = infer_cluster_distribution(&node_items, &host);
+
+    let (kubeconfig_from_env, kubeconfig_hint) = kubeconfig_hint();
+    let kubeconfig_auto_selected = crate::k8s_kubeconfig::kubectl_kubeconfig_choice()
+        .await
+        .auto_selected_path
+        .clone();
+
+    let current_context = if kubectl_on_path {
+        match run_kubectl_timeout(
+            &[
+                "config".into(),
+                "view".into(),
+                "--minify".into(),
+                "-o".into(),
+                "jsonpath={.current-context}".into(),
+            ],
+            6,
+        )
+        .await
+        {
+            Ok(r) if r.ok => {
+                let s = r.stdout.trim();
+                if s.is_empty() {
+                    None
+                } else {
+                    Some(s.to_string())
+                }
+            }
+            _ => None,
+        }
+    } else {
+        None
+    };
+
+    let mut snippets = BTreeMap::new();
+    if kubectl_on_path {
+        if let Ok(r) = run_kubectl_timeout(&["cluster-info".into()], KUBECTL_PROBE_TIMEOUT_SECS).await {
+            snippets.insert(
+                "kubectl_cluster_info".into(),
+                truncate_snippet(&format!(
+                    "exit={} stderr={}\n{}",
+                    r.exit_code,
+                    r.stderr.trim(),
+                    r.stdout
+                )),
+            );
+        }
+        if let Ok(r) = run_kubectl_timeout(
+            &["get".into(), "nodes".into(), "-o".into(), "wide".into()],
+            KUBECTL_PROBE_TIMEOUT_SECS,
+        )
+        .await
+        {
+            snippets.insert(
+                "kubectl_get_nodes_wide".into(),
+                truncate_snippet(&format!(
+                    "exit={} stderr={}\n{}",
+                    r.exit_code,
+                    r.stderr.trim(),
+                    r.stdout
+                )),
+            );
+        }
+        if let Ok(r) = run_kubectl_timeout(
+            &["get".into(), "--raw".into(), "/version".into()],
+            KUBECTL_PROBE_TIMEOUT_SECS,
+        )
+        .await
+        {
+            snippets.insert(
+                "kubectl_get_raw_version".into(),
+                truncate_snippet(&r.stdout),
+            );
+        }
+        if let Ok(r) = run_kubectl_timeout(
+            &[
+                "config".into(),
+                "get-contexts".into(),
+            ],
+            KUBECTL_PROBE_TIMEOUT_SECS,
+        )
+        .await
+        {
+            snippets.insert(
+                "kubectl_config_get_contexts".into(),
+                truncate_snippet(&r.stdout),
+            );
+        }
+        if let Ok(r) = run_kubectl_timeout(
+            &["api-resources".into(), "--verbs=list".into()],
+            KUBECTL_PROBE_TIMEOUT_SECS,
+        )
+        .await
+        {
+            snippets.insert(
+                "kubectl_api_resources_listable".into(),
+                truncate_snippet(&r.stdout),
+            );
+        }
+    }
+
+    Ok(Json(K8sEnvironment {
+        kubectl_on_path,
+        kubectl_client_version: client_ver,
+        kubectl_server_reachable: server_ok,
+        kubeconfig_hint,
+        kubeconfig_from_env,
+        kubeconfig_auto_selected,
+        current_context,
+        cluster_distribution: dist.clone(),
+        cluster_distribution_hints: hints.clone(),
+        host,
+        snippets,
+    }))
 }
 
 async fn k8s_nodes(
@@ -304,17 +759,370 @@ async fn k8s_services(
     k8s_resource_list(Extension(actor), Query(q), "services").await
 }
 
+#[derive(Debug, Serialize)]
+struct KubeVirtVmSummaryRow {
+    name: String,
+    namespace: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    spec_running: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vm_printable_status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vm_ready: Option<bool>,
+    /// Primary guest-visible IP(s) from the VMI `status.interfaces` list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    guest_ip: Option<String>,
+    /// Virt-launcher / pod network IP when reported on the VMI (`status.podIP` or first interface).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pod_ip: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vmi_phase: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node_internal_ip: Option<String>,
+    /// Run on a machine with cluster credentials (often same host as machina).
+    virtctl_console: String,
+    virtctl_vnc: String,
+    /// `virtctl vnc` with SOCKS proxy for browsers / clients that support it.
+    virtctl_vnc_socks: String,
+    /// API path segment (use with `kubectl proxy` + authorized WebSocket client).
+    vnc_subresource_path: String,
+}
+
+fn node_internal_ip_map(nodes: &[Value]) -> BTreeMap<String, String> {
+    let mut m = BTreeMap::new();
+    for n in nodes {
+        let Some(name) = n
+            .get("metadata")
+            .and_then(|x| x.get("name"))
+            .and_then(|x| x.as_str())
+        else {
+            continue;
+        };
+        let Some(addrs) = n
+            .get("status")
+            .and_then(|s| s.get("addresses"))
+            .and_then(|x| x.as_array())
+        else {
+            continue;
+        };
+        for a in addrs {
+            if a.get("type").and_then(|x| x.as_str()) == Some("InternalIP") {
+                if let Some(ip) = a.get("address").and_then(|x| x.as_str()) {
+                    m.insert(name.to_string(), ip.to_string());
+                    break;
+                }
+            }
+        }
+    }
+    m
+}
+
+fn vmi_guest_ips(vmi: &Value) -> Option<String> {
+    let ifs = vmi
+        .get("status")
+        .and_then(|s| s.get("interfaces"))
+        .and_then(|x| x.as_array())?;
+    let mut ips = Vec::new();
+    for i in ifs {
+        if let Some(ip) = i.get("ipAddress").and_then(|x| x.as_str()) {
+            if !ip.is_empty() && !ip.starts_with("127.") && !ips.iter().any(|e| e == ip) {
+                ips.push(ip.to_string());
+            }
+        }
+    }
+    if ips.is_empty() {
+        None
+    } else {
+        Some(ips.join(", "))
+    }
+}
+
+fn vmi_pod_ip_strict(vmi: &Value) -> Option<String> {
+    vmi.get("status")
+        .and_then(|s| s.get("podIP"))
+        .and_then(|x| x.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+}
+
+fn vmi_node_and_phase(vmi: &Value) -> (Option<String>, Option<String>) {
+    let st = vmi.get("status").and_then(|x| x.as_object());
+    let node = st
+        .and_then(|s| s.get("nodeName"))
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string());
+    let phase = st
+        .and_then(|s| s.get("phase"))
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string());
+    (node, phase)
+}
+
+fn index_vmi_by_ns_name(items: &[Value]) -> BTreeMap<(String, String), Value> {
+    let mut m = BTreeMap::new();
+    for item in items {
+        let meta = item.get("metadata").and_then(|x| x.as_object());
+        let Some(ns) = meta
+            .and_then(|x| x.get("namespace"))
+            .and_then(|x| x.as_str())
+        else {
+            continue;
+        };
+        let Some(name) = meta.and_then(|x| x.get("name")).and_then(|x| x.as_str()) else {
+            continue;
+        };
+        m.insert((ns.to_string(), name.to_string()), item.clone());
+    }
+    m
+}
+
+/// True when the API server has no KubeVirt `VirtualMachine` CRD (or similar), so an empty list is OK.
+fn kubevirt_vm_list_unavailable(err: &LibvirtError) -> bool {
+    let LibvirtError::Operation(msg) = err else {
+        return false;
+    };
+    let m = msg.to_lowercase();
+    m.contains("the server doesn't have a resource type")
+        || m.contains("couldn't find resource")
+        || m.contains("no matches for kind")
+        || m.contains("does not support")
+        || m.contains("unable to recognize")
+}
+
+/// `kubectl get virtualmachines.kubevirt.io` (KubeVirt). Returns an empty list when the CRD is not installed.
+async fn k8s_kubevirt_virtualmachines(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if let Some(ns) = q.namespace.as_deref() {
+        ensure_safe_name(ns, "namespace")?;
+    }
+    let all_ns = q.all_namespaces.unwrap_or(false);
+
+    let mut args = vec!["get".into(), "virtualmachines.kubevirt.io".into()];
+    if all_ns {
+        args.push("-A".into());
+    } else if let Some(ns) = q.namespace.clone() {
+        args.push("-n".into());
+        args.push(ns);
+    }
+
+    match run_kubectl_json(&args).await {
+        Ok(v) => Ok(Json(v)),
+        Err(e) if kubevirt_vm_list_unavailable(&e) => {
+            warn!("kubevirt VirtualMachine list skipped: {e}");
+            Ok(Json(serde_json::json!({
+                "apiVersion": "v1",
+                "items": [],
+                "kind": "List",
+                "metadata": {}
+            })))
+        }
+        Err(e) => Err(e.into()),
+    }
+}
+
+/// VirtualMachines merged with VMIs and node InternalIPs, plus copy-paste `virtctl` / VNC API paths.
+async fn k8s_kubevirt_vm_summary(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sListQuery>,
+) -> Result<Json<Vec<KubeVirtVmSummaryRow>>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if let Some(ns) = q.namespace.as_deref() {
+        ensure_safe_name(ns, "namespace")?;
+    }
+    let all_ns = q.all_namespaces.unwrap_or(false);
+
+    let mut vm_args = vec!["get".into(), "virtualmachines.kubevirt.io".into()];
+    if all_ns {
+        vm_args.push("-A".into());
+    } else if let Some(ns) = q.namespace.clone() {
+        vm_args.push("-n".into());
+        vm_args.push(ns);
+    }
+
+    let vm_json = match run_kubectl_json(&vm_args).await {
+        Ok(v) => v,
+        Err(e) if kubevirt_vm_list_unavailable(&e) => {
+            return Ok(Json(vec![]));
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    let mut vmi_args = vec!["get".into(), "virtualmachineinstances.kubevirt.io".into()];
+    if all_ns {
+        vmi_args.push("-A".into());
+    } else if let Some(ns) = q.namespace.clone() {
+        vmi_args.push("-n".into());
+        vmi_args.push(ns);
+    }
+
+    let args_nodes = vec!["get".into(), "nodes".into()];
+    let (vmi_res, nodes_res) = tokio::join!(
+        run_kubectl_json(&vmi_args),
+        run_kubectl_json(&args_nodes),
+    );
+
+    let vmi_items = match vmi_res {
+        Ok(v) => v
+            .get("items")
+            .and_then(|x| x.as_array())
+            .cloned()
+            .unwrap_or_default(),
+        Err(e) if kubevirt_vm_list_unavailable(&e) => {
+            warn!("kubevirt VMI list skipped: {e}");
+            vec![]
+        }
+        Err(e) => return Err(e.into()),
+    };
+
+    let node_items = nodes_res
+        .ok()
+        .and_then(|v| v.get("items").and_then(|x| x.as_array()).cloned())
+        .unwrap_or_default();
+    let node_ips = node_internal_ip_map(&node_items);
+    let vmi_index = index_vmi_by_ns_name(&vmi_items);
+
+    let vm_items = vm_json
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut rows = Vec::with_capacity(vm_items.len());
+    for vm in vm_items {
+        let meta = vm.get("metadata").and_then(|x| x.as_object());
+        let Some(ns) = meta
+            .and_then(|m| m.get("namespace"))
+            .and_then(|x| x.as_str())
+        else {
+            continue;
+        };
+        let Some(name) = meta.and_then(|m| m.get("name")).and_then(|x| x.as_str()) else {
+            continue;
+        };
+
+        let spec_running = vm
+            .get("spec")
+            .and_then(|s| s.get("running"))
+            .and_then(|x| x.as_bool());
+        let vm_printable_status = vm
+            .get("status")
+            .and_then(|s| s.get("printableStatus"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
+        let vm_ready = vm
+            .get("status")
+            .and_then(|s| s.get("ready"))
+            .and_then(|x| x.as_bool());
+
+        let key = (ns.to_string(), name.to_string());
+        let (guest_ip, pod_ip, node_name, vmi_phase) =
+            if let Some(vmi) = vmi_index.get(&key) {
+                let guest = vmi_guest_ips(vmi);
+                let pod = vmi_pod_ip_strict(vmi);
+                let (nn, ph) = vmi_node_and_phase(vmi);
+                (guest, pod, nn, ph)
+            } else {
+                (None, None, None, None)
+            };
+
+        let node_internal_ip = node_name
+            .as_ref()
+            .and_then(|nn| node_ips.get(nn).cloned());
+
+        let virtctl_console = format!("virtctl console {name} -n {ns}");
+        let virtctl_vnc = format!("virtctl vnc {name} -n {ns}");
+        let virtctl_vnc_socks = format!("virtctl vnc {name} -n {ns} --proxy-only");
+        let vnc_subresource_path = format!(
+            "/apis/subresources.kubevirt.io/v1/namespaces/{ns}/virtualmachineinstances/{name}/vnc"
+        );
+
+        rows.push(KubeVirtVmSummaryRow {
+            name: name.to_string(),
+            namespace: ns.to_string(),
+            spec_running,
+            vm_printable_status,
+            vm_ready,
+            guest_ip,
+            pod_ip,
+            vmi_phase,
+            node_name,
+            node_internal_ip,
+            virtctl_console,
+            virtctl_vnc,
+            virtctl_vnc_socks,
+            vnc_subresource_path,
+        });
+    }
+
+    Ok(Json(rows))
+}
+
 async fn k8s_overview(
     Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<K8sOverview>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
 
-    let version_res = run_kubectl_json(&["version".into()]).await;
-    let nodes_res = run_kubectl_json(&["get".into(), "nodes".into()]).await;
-    let ns_res = run_kubectl_json(&["get".into(), "namespaces".into()]).await;
-    let pods_res = run_kubectl_json(&["get".into(), "pods".into(), "-A".into()]).await;
-    let deploys_res = run_kubectl_json(&["get".into(), "deployments".into(), "-A".into()]).await;
-    let svc_res = run_kubectl_json(&["get".into(), "services".into(), "-A".into()]).await;
+    let host = collect_host_signals().await;
+
+    let (
+        version_res,
+        nodes_res,
+        ns_res,
+        pods_res,
+        deploys_res,
+        svc_res,
+        sts_res,
+        ds_res,
+        cj_res,
+        job_res,
+        pv_res,
+        pvc_res,
+        sc_res,
+        ing_res,
+        apisvc_res,
+        kvvm_res,
+    ) = {
+        let args_version = vec!["version".into()];
+        let args_nodes = vec!["get".into(), "nodes".into()];
+        let args_ns = vec!["get".into(), "namespaces".into()];
+        let args_pods = vec!["get".into(), "pods".into(), "-A".into()];
+        let args_deploy = vec!["get".into(), "deployments".into(), "-A".into()];
+        let args_svc = vec!["get".into(), "services".into(), "-A".into()];
+        let args_sts = vec!["get".into(), "statefulsets".into(), "-A".into()];
+        let args_ds = vec!["get".into(), "daemonsets".into(), "-A".into()];
+        let args_cj = vec!["get".into(), "cronjobs".into(), "-A".into()];
+        let args_jobs = vec!["get".into(), "jobs".into(), "-A".into()];
+        let args_pv = vec!["get".into(), "persistentvolumes".into()];
+        let args_pvc = vec!["get".into(), "persistentvolumeclaims".into(), "-A".into()];
+        let args_sc = vec!["get".into(), "storageclasses".into()];
+        let args_ing = vec!["get".into(), "ingresses.networking.k8s.io".into(), "-A".into()];
+        let args_apisvc = vec!["get".into(), "apiservices".into()];
+        let args_kvvm = vec!["get".into(), "virtualmachines.kubevirt.io".into(), "-A".into()];
+
+        tokio::join!(
+            run_kubectl_json(&args_version),
+            run_kubectl_json(&args_nodes),
+            run_kubectl_json(&args_ns),
+            run_kubectl_json(&args_pods),
+            run_kubectl_json(&args_deploy),
+            run_kubectl_json(&args_svc),
+            run_kubectl_json(&args_sts),
+            run_kubectl_json(&args_ds),
+            run_kubectl_json(&args_cj),
+            run_kubectl_json(&args_jobs),
+            run_kubectl_json(&args_pv),
+            run_kubectl_json(&args_pvc),
+            run_kubectl_json(&args_sc),
+            run_kubectl_json(&args_ing),
+            run_kubectl_json(&args_apisvc),
+            run_kubectl_json(&args_kvvm),
+        )
+    };
 
     let version = match version_res {
         Ok(v) => v
@@ -330,12 +1138,9 @@ async fn k8s_overview(
     };
 
     let nodes = nodes_res
+        .as_ref()
         .ok()
-        .and_then(|v| {
-            v.get("items")
-                .and_then(|x| x.as_array())
-                .map(|a| a.to_vec())
-        })
+        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.to_vec()))
         .unwrap_or_default();
 
     let ready_nodes = nodes
@@ -354,22 +1159,27 @@ async fn k8s_overview(
         })
         .count();
 
-    let namespaces = ns_res
-        .ok()
-        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.len()))
-        .unwrap_or(0);
-    let pods = pods_res
-        .ok()
-        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.len()))
-        .unwrap_or(0);
-    let deployments = deploys_res
-        .ok()
-        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.len()))
-        .unwrap_or(0);
-    let services = svc_res
-        .ok()
-        .and_then(|v| v.get("items").and_then(|x| x.as_array()).map(|a| a.len()))
-        .unwrap_or(0);
+    let namespaces = count_list_items(&ns_res);
+    let pods = count_list_items(&pods_res);
+    let deployments = count_list_items(&deploys_res);
+    let services = count_list_items(&svc_res);
+
+    let mut extra_resource_counts = BTreeMap::new();
+    extra_resource_counts.insert("statefulsets".into(), count_list_items(&sts_res));
+    extra_resource_counts.insert("daemonsets".into(), count_list_items(&ds_res));
+    extra_resource_counts.insert("cronjobs".into(), count_list_items(&cj_res));
+    extra_resource_counts.insert("jobs".into(), count_list_items(&job_res));
+    extra_resource_counts.insert("persistentvolumes".into(), count_list_items(&pv_res));
+    extra_resource_counts.insert("persistentvolumeclaims".into(), count_list_items(&pvc_res));
+    extra_resource_counts.insert("storageclasses".into(), count_list_items(&sc_res));
+    extra_resource_counts.insert("ingresses".into(), count_list_items(&ing_res));
+    extra_resource_counts.insert("apiservices".into(), count_list_items(&apisvc_res));
+    extra_resource_counts.insert(
+        "kubevirt_virtualmachines".into(),
+        count_list_items(&kvvm_res),
+    );
+
+    let (distribution, distribution_hints) = infer_cluster_distribution(&nodes, &host);
 
     Ok(Json(K8sOverview {
         version,
@@ -379,6 +1189,9 @@ async fn k8s_overview(
         pods,
         deployments,
         services,
+        distribution,
+        distribution_hints,
+        extra_resource_counts,
     }))
 }
 
@@ -443,10 +1256,16 @@ async fn k8s_action(
 pub fn k8s_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/k8s/overview", get(k8s_overview))
+        .route("/k8s/environment", get(k8s_environment))
         .route("/k8s/nodes", get(k8s_nodes))
         .route("/k8s/namespaces", get(k8s_namespaces))
         .route("/k8s/pods", get(k8s_pods))
         .route("/k8s/deployments", get(k8s_deployments))
         .route("/k8s/services", get(k8s_services))
+        .route(
+            "/k8s/kubevirt/virtualmachines",
+            get(k8s_kubevirt_virtualmachines),
+        )
+        .route("/k8s/kubevirt/vm-summary", get(k8s_kubevirt_vm_summary))
         .route("/k8s/action", post(k8s_action))
 }

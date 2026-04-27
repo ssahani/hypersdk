@@ -3,13 +3,19 @@
 
 use std::path::Path;
 use tokio::process::Command;
+
 use machina_core::config::KubeVirtConfig;
 use machina_core::LibvirtError;
 
-fn apply_kubeconfig(cmd: &mut Command, k: &KubeVirtConfig) {
+async fn apply_kubeconfig(cmd: &mut Command, k: &KubeVirtConfig) {
     let p = k.kubeconfig_path.trim();
     if !p.is_empty() {
         cmd.env("KUBECONFIG", p);
+    } else if let Some(path) = crate::k8s_kubeconfig::kubectl_kubeconfig_choice()
+        .await
+        .auto_selected_path
+    {
+        cmd.env("KUBECONFIG", path);
     }
 }
 
@@ -27,7 +33,7 @@ pub async fn kubectl_apply_yaml(k: &KubeVirtConfig, yaml_path: &Path) -> Result<
     let mut cmd = Command::new(bin);
     cmd.arg("apply").arg("-f").arg(yaml_path);
     cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    apply_kubeconfig(&mut cmd, k);
+    apply_kubeconfig(&mut cmd, k).await;
     let out = cmd
         .output()
         .await
@@ -72,7 +78,7 @@ pub async fn virtctl_image_upload_disk(
         &format!("{timeout_m}m"),
     ]);
     cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    apply_kubeconfig(&mut cmd, k);
+    apply_kubeconfig(&mut cmd, k).await;
     let out = cmd
         .output()
         .await
@@ -97,7 +103,7 @@ pub async fn virtctl_start_vm(k: &KubeVirtConfig, vm_name: &str, namespace: &str
     let mut cmd = Command::new(bin);
     cmd.args(["start", vm_name, "-n", namespace]);
     cmd.stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped());
-    apply_kubeconfig(&mut cmd, k);
+    apply_kubeconfig(&mut cmd, k).await;
     let out = cmd
         .output()
         .await
