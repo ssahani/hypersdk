@@ -170,8 +170,8 @@ pub fn create_vm_virt_install(
     }
 
     if !define_only {
-        args.push("--wait".into());
-        args.push("-1".into());
+        // Cockpit-style behavior: define/start the VM and return immediately.
+        // Waiting for "install completion" is not reliable for interactive ISOs and makes create feel slow.
         args.push("--noautoconsole".into());
     }
 

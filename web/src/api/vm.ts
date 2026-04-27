@@ -21,6 +21,7 @@ export interface VmDetails {
   persistent: boolean
   interfaces: InterfaceInfo[]
   disks: DiskInfo[]
+  filesystems?: FilesystemInfo[]
 }
 
 export interface InterfaceInfo {
@@ -38,6 +39,14 @@ export interface DiskInfo {
   cache?: string
   readonly?: boolean
   shareable?: boolean
+}
+
+export interface FilesystemInfo {
+  source: string
+  mount_tag: string
+  driver?: string
+  accessmode?: string
+  xattr?: boolean
 }
 
 export interface VmMetrics {
@@ -69,6 +78,12 @@ export interface CreateVmRequest {
   graphics_type?: string
   /** Second CD-ROM: cloud-init / seed ISO (install ISO stays in `iso`). */
   cloud_init_iso?: string
+  /** If set (and `cloud_init_iso` is empty), machina generates a NoCloud seed ISO and attaches it. */
+  cloud_init_user?: string
+  /** Plaintext password to pass via cloud-init `chpasswd`. */
+  cloud_init_password?: string
+  /** Single-line OpenSSH public key to inject for the cloud-init user. */
+  cloud_init_ssh_pubkey?: string
   /** Saved template key under `/var/lib/machina/templates/` (server merges + optional golden disk). */
   saved_template?: string
   /** With saved template + `base_image`: `backing` (default) or `copy`. */
@@ -402,6 +417,12 @@ export const getInterfaces = (name: string) => apiGet<GuestIpAddress[]>(`${API}/
 export const getHostname = (name: string) => apiGet<{ hostname: string }>(`${API}/vms/${encodeURIComponent(name)}/hostname`)
 export const insertCdrom = (name: string, isoPath: string, target: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, { iso_path: isoPath, target })
 export const ejectCdrom = (name: string, target: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/cdrom/eject/${encodeURIComponent(target)}`)
+
+export const addShare = (name: string, sourceDir: string, mountTag: string, xattr: boolean) =>
+  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/share`, { source_dir: sourceDir, mount_tag: mountTag, xattr })
+
+export const removeShare = (name: string, mountTag: string) =>
+  apiDelete(`${API}/vms/${encodeURIComponent(name)}/share/${encodeURIComponent(mountTag)}`)
 export const managedSave = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/managed-save`)
 export const managedSaveRemove = (name: string) => apiDelete(`${API}/vms/${encodeURIComponent(name)}/managed-save`)
 export const hasManagedSave = (name: string) => apiGet<ManagedSaveStatus>(`${API}/vms/${encodeURIComponent(name)}/managed-save/status`)

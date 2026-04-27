@@ -13,6 +13,7 @@ import {
   VmDeleteUndefineOpts, BlockJobInfo,
   tuneVmDisk, tuneVmNic, setVmFirmware, attachVmTpm, detachVmTpm,
   attachVmWatchdog, attachVmSound, attachVmSerial, setVmVideoModel,
+  addShare, removeShare,
 } from '../api/vm'
 import {
   attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
@@ -154,6 +155,9 @@ export default function VMDetailsPage() {
   const [newTag, setNewTag] = useState('')
   const [pciDevices, setPciDevices] = useState<PciDevice[]>([])
   const [iommuGroups, setIommuGroups] = useState<IommuGroup[]>([])
+  const [shareSourceDir, setShareSourceDir] = useState('')
+  const [shareMountTag, setShareMountTag] = useState('')
+  const [shareXattr, setShareXattr] = useState(true)
   const [sshIp, setSshIp] = useState('')
   const [sshUser, setSshUser] = useState('root')
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
@@ -1332,6 +1336,104 @@ export default function VMDetailsPage() {
               <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('sound')}>Sound…</button>
               <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('serial')}>Extra serial…</button>
               <button type="button" className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition" onClick={() => openDialog('video')}>Video model…</button>
+            </div>
+          </div>
+
+          {/* Shared directories (virtiofs) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2"><FolderOpen className="w-5 h-5 text-emerald-400" /> Shared directories</h3>
+              <span className="text-xs text-slate-500">virtiofs (Linux guests)</span>
+            </div>
+            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-4">
+              <p className="text-xs text-slate-500">
+                Cockpit-style host directory sharing via <code className="text-slate-300">virtiofs</code>. VM must be <strong>shut off</strong> to add/remove.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Source path (host)</label>
+                  <input value={shareSourceDir} onChange={(e) => setShareSourceDir(e.target.value)} placeholder="/data/share" className="input-field w-full" />
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1">Mount tag</label>
+                  <input value={shareMountTag} onChange={(e) => setShareMountTag(e.target.value)} placeholder="hostshare" className="input-field w-full font-mono text-xs" />
+                </div>
+                <div className="flex items-end gap-3">
+                  <label className="flex items-center gap-2 text-sm text-slate-300 pb-2 cursor-pointer select-none">
+                    <input type="checkbox" className="rounded border-slate-600" checked={shareXattr} onChange={(e) => setShareXattr(e.target.checked)} />
+                    <span>Extended attributes (xattr)</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!name) return
+                      if (!shareSourceDir.trim() || !shareMountTag.trim()) return
+                      try {
+                        await addShare(name, shareSourceDir.trim(), shareMountTag.trim(), shareXattr)
+                        toast.success('Shared directory added')
+                        setShareSourceDir('')
+                        setShareMountTag('')
+                        load()
+                        setVmXml('')
+                      } catch (e: unknown) {
+                        toast.error(e instanceof Error ? e.message : String(e))
+                      }
+                    }}
+                    className="ml-auto px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm transition"
+                  >
+                    Share
+                  </button>
+                </div>
+              </div>
+              <div className="bg-slate-900/40 rounded-lg border border-slate-700/40 overflow-hidden">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-slate-700/50 text-left text-xs text-slate-500">
+                      <th className="px-5 py-2">Mount tag</th>
+                      <th className="px-5 py-2">Source</th>
+                      <th className="px-5 py-2">Driver</th>
+                      <th className="px-5 py-2">xattr</th>
+                      <th className="px-5 py-2 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/30 text-sm">
+                    {(vm?.filesystems || []).length === 0 ? (
+                      <tr><td colSpan={5} className="px-5 py-6 text-center text-slate-500">No shared directories configured.</td></tr>
+                    ) : (
+                      (vm?.filesystems || []).map((fs, i) => (
+                        <tr key={`${fs.mount_tag}-${i}`} className="table-row-hover">
+                          <td className="px-5 py-2 font-mono text-xs text-emerald-200">{fs.mount_tag}</td>
+                          <td className="px-5 py-2 font-mono text-xs text-slate-300 break-all">{fs.source}</td>
+                          <td className="px-5 py-2 text-slate-300">{fs.driver || '-'}</td>
+                          <td className="px-5 py-2 text-slate-300">{fs.xattr ? 'on' : 'off'}</td>
+                          <td className="px-5 py-2 text-right">
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                if (!name) return
+                                try {
+                                  await removeShare(name, fs.mount_tag)
+                                  toast.success('Shared directory removed')
+                                  load()
+                                  setVmXml('')
+                                } catch (e: unknown) {
+                                  toast.error(e instanceof Error ? e.message : String(e))
+                                }
+                              }}
+                              className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-300 transition"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-slate-500">
+                Inside the guest: <code className="text-slate-300">mount -t virtiofs &lt;mount_tag&gt; /mnt</code>
+              </p>
             </div>
           </div>
 

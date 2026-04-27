@@ -5,7 +5,7 @@ use virt::connect::Connect;
 use virt::domain::Domain;
 use virt::sys;
 
-use crate::state::{DiskInfo, InterfaceInfo, VmDetails, VmInfo};
+use crate::state::{DiskInfo, FilesystemInfo, InterfaceInfo, VmDetails, VmInfo};
 use crate::xml;
 use crate::LibvirtError;
 
@@ -85,6 +85,7 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
     let (os_type, arch) = parse_os_info(&xml_str);
     let interfaces = parse_interfaces(&xml_str);
     let disks = parse_disks(&xml_str);
+    let filesystems = parse_filesystems(&xml_str);
 
     Ok(VmDetails {
         name: name.to_string(),
@@ -98,7 +99,38 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
         persistent,
         interfaces,
         disks,
+        filesystems,
     })
+}
+
+fn parse_filesystems(xml_str: &str) -> Vec<FilesystemInfo> {
+    let mut out = Vec::new();
+    for block in crate::xml::split_blocks(xml_str, "filesystem") {
+        // Only surface the common host-dir share case.
+        let fstype = crate::xml::extract_attr(&block, "filesystem", "type").unwrap_or_default();
+        if fstype != "mount" {
+            continue;
+        }
+        let src = crate::xml::extract_attr(&block, "source", "dir").unwrap_or_default();
+        let tag = crate::xml::extract_attr(&block, "target", "dir").unwrap_or_default();
+        if src.is_empty() && tag.is_empty() {
+            continue;
+        }
+        let accessmode =
+            crate::xml::extract_attr(&block, "filesystem", "accessmode").unwrap_or_default();
+        let driver = crate::xml::extract_attr(&block, "driver", "type").unwrap_or_default();
+        let xattr = crate::xml::extract_attr(&block, "binary", "xattr")
+            .map(|v| v.eq_ignore_ascii_case("on") || v == "1" || v.eq_ignore_ascii_case("yes"))
+            .unwrap_or(false);
+        out.push(FilesystemInfo {
+            source: src,
+            mount_tag: tag,
+            driver,
+            accessmode,
+            xattr,
+        });
+    }
+    out
 }
 
 pub fn get_vm_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {

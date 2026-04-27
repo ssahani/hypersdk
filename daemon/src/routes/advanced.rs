@@ -3,8 +3,8 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use machina_core::libvirt::{
-    boot, capabilities, cdrom, domain_job, emulator, guest_agent, host_cpu, hostdev_pci, migrate,
-    node_device, numa_tune, nwfilter, save_restore, secret, storage,
+    boot, capabilities, cdrom, domain_job, emulator, filesystem, guest_agent, host_cpu,
+    hostdev_pci, migrate, node_device, numa_tune, nwfilter, save_restore, secret, storage,
 };
 use machina_core::{LibvirtError, LibvirtManager};
 
@@ -79,6 +79,51 @@ async fn eject_cdrom_handler(
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(
         serde_json::json!({ "status": "ejected", "name": name, "target": target }),
+    ))
+}
+
+// ── Shared directories (virtiofs) ───────────────────────────────────
+
+#[derive(serde::Deserialize)]
+struct ShareRequest {
+    source_dir: String,
+    mount_tag: String,
+    #[serde(default)]
+    xattr: bool,
+}
+
+async fn add_share_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(req): Json<ShareRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let tag = req.mount_tag.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| {
+            filesystem::add_virtiofs_share(conn, &name2, &req.source_dir, &req.mount_tag, req.xattr)
+        })
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "shared", "name": name, "mount_tag": tag }),
+    ))
+}
+
+async fn remove_share_handler(
+    State(manager): State<LibvirtManager>,
+    Path((name, mount_tag)): Path<(String, String)>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let tag2 = mount_tag.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| filesystem::remove_share(conn, &name2, &tag2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(
+        serde_json::json!({ "status": "removed", "name": name, "mount_tag": mount_tag }),
     ))
 }
 
@@ -776,6 +821,12 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route(
             "/vms/{name}/cdrom/eject/{target}",
             post(eject_cdrom_handler),
+        )
+        // Shared directories (virtiofs)
+        .route("/vms/{name}/share", post(add_share_handler))
+        .route(
+            "/vms/{name}/share/{mount_tag}",
+            delete(remove_share_handler),
         )
         // Save/Restore
         .route("/vms/{name}/managed-save", post(managed_save_handler))

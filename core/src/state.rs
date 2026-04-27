@@ -25,6 +25,8 @@ pub struct VmDetails {
     pub persistent: bool,
     pub interfaces: Vec<InterfaceInfo>,
     pub disks: Vec<DiskInfo>,
+    #[serde(default)]
+    pub filesystems: Vec<FilesystemInfo>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -48,6 +50,23 @@ pub struct DiskInfo {
     pub readonly: bool,
     #[serde(default)]
     pub shareable: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilesystemInfo {
+    /// Host directory path for `type='mount'` shares.
+    pub source: String,
+    /// Guest mount tag (libvirt calls this `target dir`, but it's not a guest path).
+    pub mount_tag: String,
+    /// `virtiofs` etc.
+    #[serde(default)]
+    pub driver: String,
+    /// `passthrough` etc.
+    #[serde(default)]
+    pub accessmode: String,
+    /// Whether virtiofs xattr support is enabled (requires libvirt virtiofsd wiring).
+    #[serde(default)]
+    pub xattr: bool,
 }
 
 // ── Snapshot Types ──────────────────────────────────────────────────────
@@ -221,6 +240,15 @@ pub struct CreateVmRequest {
     /// Optional cloud-init / seed ISO (second CD-ROM, hyper2kvm-style). Install/boot ISO stays in `iso`.
     #[serde(default)]
     pub cloud_init_iso: String,
+    /// If set (and `cloud_init_iso` is empty), machina generates a NoCloud seed ISO and attaches it as the second CD-ROM.
+    #[serde(default)]
+    pub cloud_init_user: String,
+    /// Plaintext password to pass via cloud-init `chpasswd`. Avoid for long-lived secrets.
+    #[serde(default)]
+    pub cloud_init_password: String,
+    /// Single-line OpenSSH public key to inject for the cloud-init user.
+    #[serde(default)]
+    pub cloud_init_ssh_pubkey: String,
     /// Saved template name under `/var/lib/machina/templates/{name}.json` (server applies sizing + optional `base_image`).
     #[serde(default)]
     pub saved_template: String,
@@ -345,6 +373,9 @@ impl Default for CreateVmRequest {
             graphics_listen: default_graphics_listen(),
             graphics_type: default_graphics_type(),
             cloud_init_iso: String::new(),
+            cloud_init_user: String::new(),
+            cloud_init_password: String::new(),
+            cloud_init_ssh_pubkey: String::new(),
             saved_template: String::new(),
             template_disk_mode: default_template_disk_mode(),
             create_backend: String::new(),

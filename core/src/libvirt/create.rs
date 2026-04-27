@@ -121,6 +121,7 @@ pub fn create_vm(
     );
     super::mkosi::materialize_mkosi_if_requested(conn, &mut req, libvirt_cfg, log)?;
     super::virt_builder::materialize_virt_builder_if_requested(conn, &mut req, libvirt_cfg, log)?;
+    super::cloud_init::materialize_cloud_init_seed_if_requested(&mut req, log)?;
     let r = match backend {
         VmCreateBackend::VirtInstall => {
             subprocess::log_line(log, "machina", "Defining VM with virt-install…");

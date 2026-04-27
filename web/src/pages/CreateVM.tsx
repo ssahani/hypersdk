@@ -62,6 +62,9 @@ export default function CreateVMPage() {
   const [virtInstallExtraArgs, setVirtInstallExtraArgs] = useState('')
   const [virtInstallPxeNetwork, setVirtInstallPxeNetwork] = useState('')
   const [cloudInitIso, setCloudInitIso] = useState('')
+  const [cloudInitUser, setCloudInitUser] = useState('')
+  const [cloudInitPassword, setCloudInitPassword] = useState('')
+  const [cloudInitSshKey, setCloudInitSshKey] = useState('')
   const [pathCheckOff, setPathCheckOff] = useState(false)
 
   const [storageMode, setStorageMode] = useState<StorageMode>('new')
@@ -258,6 +261,9 @@ export default function CreateVMPage() {
       graphics_type: graphicsType,
       graphics_listen: graphicsListen.trim() || undefined,
       cloud_init_iso: cloudInitIso.trim() || undefined,
+      cloud_init_user: cloudInitUser.trim() || undefined,
+      cloud_init_password: cloudInitPassword || undefined,
+      cloud_init_ssh_pubkey: cloudInitSshKey.trim() || undefined,
       virt_install_path_in_use_check_off: pathCheckOff || undefined,
     }
     if (installSource !== 'pxe' && virtInstallExtraArgs.trim()) {
@@ -788,7 +794,23 @@ export default function CreateVMPage() {
       {/* Optional cloud-init CD */}
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
         <h2 className="text-base font-semibold text-white">Cloud-init / seed ISO (optional)</h2>
-        <p className="text-xs text-slate-500">Second CD-ROM for nocloud / autoinstall seeds — same pattern as Cockpit when attaching user-data.</p>
+        <p className="text-xs text-slate-500">
+          Second CD-ROM for NoCloud/autoinstall. You can either attach an existing seed ISO, or let machina generate one (Cockpit-style).
+        </p>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">User</label>
+            <input value={cloudInitUser} onChange={(e) => setCloudInitUser(e.target.value)} className="input-field" placeholder="ubuntu" />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Password (optional)</label>
+            <input value={cloudInitPassword} onChange={(e) => setCloudInitPassword(e.target.value)} className="input-field" placeholder="(leave blank to skip)" />
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">SSH public key (optional)</label>
+            <input value={cloudInitSshKey} onChange={(e) => setCloudInitSshKey(e.target.value)} className="input-field font-mono text-xs" placeholder="ssh-ed25519 AAAA..." />
+          </div>
+        </div>
         <div className="flex gap-2">
           <input
             type="text"
