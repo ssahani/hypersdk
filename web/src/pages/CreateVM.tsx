@@ -836,7 +836,7 @@ export default function CreateVMPage() {
         disabled={submitting}
         className="w-full sm:w-auto px-8 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm font-medium transition"
       >
-        {submitting ? 'Creating…' : 'Create and install guest'}
+        {submitting ? 'Creating…' : 'Create VM (install continues in Console)'}
       </button>
         </>
       )}
