@@ -19,7 +19,7 @@ import {
   attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
 } from '../api/advanced'
 import { listNetworks, NetworkInfo } from '../api/network'
-import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo } from '../api/snapshot'
+import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo, SnapshotDiskSpec } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
@@ -163,6 +163,14 @@ export default function VMDetailsPage() {
   const [sshDialogOpen, setSshDialogOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [snapDiskOnly, setSnapDiskOnly] = useState(false)
+  const [snapStorageMode, setSnapStorageMode] = useState<'auto' | 'external' | 'internal'>('auto')
+  const [snapAtomic, setSnapAtomic] = useState(true)
+  const [snapReuseExternal, setSnapReuseExternal] = useState(false)
+  const [snapExternalDiskDir, setSnapExternalDiskDir] = useState('')
+  const [snapExternalMemoryDir, setSnapExternalMemoryDir] = useState('')
+  const [snapMemorySnapshot, setSnapMemorySnapshot] = useState<'internal' | 'external' | ''>('')
+  const [snapMemoryFile, setSnapMemoryFile] = useState('')
+  const [snapDisks, setSnapDisks] = useState<SnapshotDiskSpec[]>([])
   const [logsContent, setLogsContent] = useState('')
   const [logsLines, setLogsLines] = useState(500)
   const [cpuTune, setCpuTune] = useState<CpuTuneInfo | null>(null)
@@ -332,6 +340,21 @@ export default function VMDetailsPage() {
       if (d === 'clone') setCloneName(`${vm.name}-clone`)
       if (d === 'rename') setNewName(vm.name)
       if (d === 'save-template') setTemplateName(`${vm.name}-template`)
+      if (d === 'snapshot') {
+        setSnapDiskOnly(false)
+        setSnapStorageMode('auto')
+        setSnapAtomic(true)
+        setSnapReuseExternal(false)
+        setSnapExternalDiskDir('')
+        setSnapExternalMemoryDir('')
+        setSnapMemorySnapshot('')
+        setSnapMemoryFile('')
+        setSnapDisks(
+          (vm.disks || [])
+            .filter((x) => x.device === 'disk')
+            .map((x) => ({ name: x.target, snapshot: 'external', file: '', driver: 'qcow2' })),
+        )
+      }
       if (d === 'scheduler-tune') {
         setSchedShares(cpuTune?.shares != null ? String(cpuTune.shares) : '')
         setSchedPeriod(cpuTune?.period != null ? String(cpuTune.period) : '')
@@ -483,7 +506,29 @@ export default function VMDetailsPage() {
 
   const handleCreateSnapshot = async () => {
     if (!name || !snapName.trim()) return
-    try { await createSnapshot(name, snapName.trim(), snapDesc, snapDiskOnly); toast.success(`Snapshot '${snapName}' created`); setDialog(null); setSnapName(''); setSnapDesc(''); setSnapDiskOnly(false); load() } catch (e: unknown) { toast.error(`Snapshot failed: ${e instanceof Error ? e.message : e}`) }
+    try {
+      await createSnapshot(name, {
+        name: snapName.trim(),
+        description: snapDesc,
+        disk_only: snapDiskOnly,
+        storage_mode: snapStorageMode,
+        memory_snapshot: snapMemorySnapshot || undefined,
+        memory_file: snapMemoryFile.trim() || undefined,
+        external_disk_dir: snapExternalDiskDir.trim() || undefined,
+        external_memory_dir: snapExternalMemoryDir.trim() || undefined,
+        disks: snapDisks,
+        atomic: snapAtomic,
+        reuse_external: snapReuseExternal,
+      })
+      toast.success(`Snapshot '${snapName}' created`)
+      setDialog(null)
+      setSnapName('')
+      setSnapDesc('')
+      setSnapDiskOnly(false)
+      load()
+    } catch (e: unknown) {
+      toast.error(`Snapshot failed: ${e instanceof Error ? e.message : e}`)
+    }
   }
 
   const handleDeleteSnapshot = async (snapN: string) => {
@@ -1728,14 +1773,191 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'snapshot' && (
-            <DialogBox title="Create Snapshot" icon={<Camera className="w-5 h-5 text-green-400" />} onClose={() => { setDialog(null); setSnapDiskOnly(false) }} onConfirm={handleCreateSnapshot} confirmLabel="Create">
+            <DialogBox
+              title="Create Snapshot"
+              icon={<Camera className="w-5 h-5 text-green-400" />}
+              onClose={() => {
+                setDialog(null)
+                setSnapDiskOnly(false)
+                setSnapStorageMode('auto')
+                setSnapAtomic(true)
+                setSnapReuseExternal(false)
+                setSnapExternalDiskDir('')
+                setSnapExternalMemoryDir('')
+                setSnapMemorySnapshot('')
+                setSnapMemoryFile('')
+                setSnapDisks([])
+              }}
+              onConfirm={handleCreateSnapshot}
+              confirmLabel="Create"
+            >
               <label htmlFor="dlg-snap-name" className="block text-sm text-slate-400 mb-1">Snapshot Name</label>
               <input id="dlg-snap-name" type="text" autoFocus value={snapName} onChange={(e) => setSnapName(e.target.value)} className="input-field" placeholder="before-upgrade" />
               <label htmlFor="dlg-snap-desc" className="block text-sm text-slate-400 mb-1 mt-3">Description (optional)</label>
               <input id="dlg-snap-desc" type="text" value={snapDesc} onChange={(e) => setSnapDesc(e.target.value)} className="input-field" placeholder="Snapshot before kernel upgrade" />
+
+              <label htmlFor="dlg-snap-mode" className="block text-sm text-slate-400 mb-1 mt-3">Storage mode</label>
+              <select id="dlg-snap-mode" value={snapStorageMode} onChange={(e) => setSnapStorageMode(e.target.value as 'auto' | 'external' | 'internal')} className="input-field">
+                <option value="auto">Auto (Cockpit-style: external on new libvirt)</option>
+                <option value="external">External (overlay files)</option>
+                <option value="internal">Internal (qcow2 only)</option>
+              </select>
+
               <div className="flex items-center gap-2 mt-3">
                 <input id="dlg-snap-disk-only" type="checkbox" checked={snapDiskOnly} onChange={(e) => setSnapDiskOnly(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
                 <label htmlFor="dlg-snap-disk-only" className="text-sm text-slate-300">Disk-only snapshot (faster, no memory state)</label>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                  <input type="checkbox" checked={snapAtomic} onChange={(e) => setSnapAtomic(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                  Atomic (all-or-nothing)
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-300">
+                  <input type="checkbox" checked={snapReuseExternal} onChange={(e) => setSnapReuseExternal(e.target.checked)} className="rounded border-slate-600 bg-slate-900" />
+                  Reuse existing external files (dangerous)
+                </label>
+              </div>
+
+              {(snapStorageMode === 'external' || snapStorageMode === 'auto') && (
+                <div className="mt-4 space-y-3">
+                  <div>
+                    <label htmlFor="dlg-snap-diskdir" className="block text-sm text-slate-400 mb-1">External disk snapshot directory (optional)</label>
+                    <input
+                      id="dlg-snap-diskdir"
+                      type="text"
+                      value={snapExternalDiskDir}
+                      onChange={(e) => setSnapExternalDiskDir(e.target.value)}
+                      className="input-field"
+                      placeholder="Leave empty to let libvirt auto-generate"
+                    />
+                    <p className="text-xs text-slate-500 mt-1">If set, Machina generates per-disk overlay files under this directory.</p>
+                  </div>
+
+                  {!snapDiskOnly && vm?.state === 'running' && (
+                    <div className="space-y-2">
+                      <div>
+                        <label htmlFor="dlg-snap-mem-mode" className="block text-sm text-slate-400 mb-1">Memory snapshot</label>
+                        <select
+                          id="dlg-snap-mem-mode"
+                          value={snapMemorySnapshot}
+                          onChange={(e) => setSnapMemorySnapshot(e.target.value as 'internal' | 'external' | '')}
+                          className="input-field"
+                        >
+                          <option value="">Default (match storage mode)</option>
+                          <option value="external">External (memory saved to file)</option>
+                          <option value="internal">Internal</option>
+                        </select>
+                      </div>
+
+                      {((snapMemorySnapshot || (snapStorageMode === 'external' ? 'external' : '')) === 'external') && (
+                        <>
+                          <div>
+                            <label htmlFor="dlg-snap-memfile" className="block text-sm text-slate-400 mb-1">Memory file (optional)</label>
+                            <input
+                              id="dlg-snap-memfile"
+                              type="text"
+                              value={snapMemoryFile}
+                              onChange={(e) => setSnapMemoryFile(e.target.value)}
+                              className="input-field"
+                              placeholder="Leave empty to auto-generate under an allowed image directory"
+                            />
+                          </div>
+                          <div>
+                            <label htmlFor="dlg-snap-memdir" className="block text-sm text-slate-400 mb-1">External memory directory (optional)</label>
+                            <input
+                              id="dlg-snap-memdir"
+                              type="text"
+                              value={snapExternalMemoryDir}
+                              onChange={(e) => setSnapExternalMemoryDir(e.target.value)}
+                              className="input-field"
+                              placeholder="If set and memory file is empty, Machina generates memory file here"
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="mt-5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-semibold text-slate-200">Per-disk options</span>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSnapDisks((p) => p.map((d) => ({ ...d, snapshot: 'external', driver: d.driver || 'qcow2' })))}
+                      className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs transition"
+                    >
+                      All external
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSnapDisks((p) => p.map((d) => ({ ...d, snapshot: 'no', file: '' })))}
+                      className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs transition"
+                    >
+                      All no
+                    </button>
+                  </div>
+                </div>
+
+                {snapDisks.length === 0 ? (
+                  <div className="text-xs text-slate-500">No disks detected for this VM.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {snapDisks.map((d, idx) => {
+                      const mode = (d.snapshot || '').toString()
+                      const isExternal = mode === 'external' || mode === ''
+                      return (
+                        <div key={`${d.name}-${idx}`} className="p-3 bg-slate-900/60 border border-slate-700/60 rounded-lg">
+                          <div className="flex flex-wrap items-end gap-2">
+                            <div className="min-w-[90px]">
+                              <label className="block text-xs text-slate-500 mb-1">Disk</label>
+                              <div className="text-sm font-mono text-slate-200">{d.name}</div>
+                            </div>
+                            <div className="min-w-[160px]">
+                              <label className="block text-xs text-slate-500 mb-1">Snapshot</label>
+                              <select
+                                value={d.snapshot || ''}
+                                onChange={(e) => {
+                                  const v = e.target.value
+                                  setSnapDisks((p) => p.map((x, j) => (j === idx ? { ...x, snapshot: v, file: v === 'external' ? x.file : '' } : x)))
+                                }}
+                                className="input-field"
+                              >
+                                <option value="external">external</option>
+                                <option value="internal">internal</option>
+                                <option value="no">no</option>
+                                <option value="manual">manual</option>
+                              </select>
+                            </div>
+                            <div className="flex-1 min-w-[240px]">
+                              <label className="block text-xs text-slate-500 mb-1">External file override (optional)</label>
+                              <input
+                                value={d.file || ''}
+                                onChange={(e) => setSnapDisks((p) => p.map((x, j) => (j === idx ? { ...x, file: e.target.value } : x)))}
+                                className="input-field"
+                                disabled={!isExternal}
+                                placeholder={isExternal ? "Leave empty for auto / dir-based generation" : "Disabled (not external)"}
+                              />
+                            </div>
+                            <div className="min-w-[120px]">
+                              <label className="block text-xs text-slate-500 mb-1">Driver</label>
+                              <input
+                                value={d.driver || ''}
+                                onChange={(e) => setSnapDisks((p) => p.map((x, j) => (j === idx ? { ...x, driver: e.target.value } : x)))}
+                                className="input-field"
+                                disabled={!isExternal}
+                                placeholder="qcow2"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             </DialogBox>
           )}

@@ -1152,7 +1152,39 @@
         "summary": "Create a snapshot for a VM",
         "tags": ["Snapshots"],
         "parameters": [{ "name": "vm_name", "in": "path", "required": true, "schema": { "type": "string" } }],
-        "requestBody": { "content": { "application/json": { "schema": { "type": "object", "properties": { "name": { "type": "string" }, "description": { "type": "string" } } } } } },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "description": { "type": "string" },
+                  "disk_only": { "type": "boolean" },
+                  "storage_mode": { "type": "string", "description": "auto|external|internal" },
+                  "memory_snapshot": { "type": "string", "description": "internal|external (ignored if disk_only=true)" },
+                  "memory_file": { "type": "string", "description": "absolute path for external memory file (optional)" },
+                  "external_disk_dir": { "type": "string", "description": "directory for generated external disk overlay files (optional)" },
+                  "external_memory_dir": { "type": "string", "description": "directory for generated external memory file (optional)" },
+                  "atomic": { "type": "boolean", "description": "all-or-nothing snapshot" },
+                  "reuse_external": { "type": "boolean", "description": "reuse pre-created external files" },
+                  "disks": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": { "type": "string", "description": "disk target dev (e.g. vda/hda)" },
+                        "snapshot": { "type": "string", "description": "no|external|internal|manual" },
+                        "file": { "type": "string", "description": "absolute file path for external snapshot output (optional)" },
+                        "driver": { "type": "string", "description": "external file format (e.g. qcow2)" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
         "responses": { "200": { "description": "Snapshot created" } }
       }
     },

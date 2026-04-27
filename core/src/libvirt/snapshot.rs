@@ -1,9 +1,12 @@
 use tracing::warn;
 use virt::connect::Connect;
 use virt::domain_snapshot::DomainSnapshot;
+use virt::sys;
 
 use super::domain::lookup_domain;
+use super::storage;
 use crate::state::SnapshotInfo;
+use crate::state::{CreateSnapshotRequest, SnapshotDiskSpec};
 use crate::xml;
 use crate::LibvirtError;
 
@@ -75,37 +78,288 @@ pub fn list_all_snapshots(conn: &Connect) -> Result<Vec<SnapshotInfo>, LibvirtEr
     Ok(all_snaps)
 }
 
+fn parse_domain_disks_for_snapshot(xml_str: &str) -> Vec<(String, Option<String>, Option<String>)> {
+    // Returns (target_dev, source_file, source_dev) for device='disk'
+    let mut out = Vec::new();
+    for block in crate::xml::split_blocks(xml_str, "disk") {
+        let device = crate::xml::extract_attr(&block, "disk", "device").unwrap_or_default();
+        if device != "disk" {
+            continue;
+        }
+        let target = crate::xml::extract_attr(&block, "target", "dev").unwrap_or_default();
+        if target.is_empty() {
+            continue;
+        }
+        let file = crate::xml::extract_attr(&block, "source", "file");
+        let dev = crate::xml::extract_attr(&block, "source", "dev");
+        out.push((target, file, dev));
+    }
+    out
+}
+
+fn normalize_mode(s: &str) -> String {
+    s.trim().to_ascii_lowercase()
+}
+
+fn default_storage_mode(conn: &Connect) -> String {
+    // Cockpit uses external snapshots when libvirt >= 9.9.0.
+    match conn.get_lib_version() {
+        Ok(v) if v >= 9_009_000 => "external".into(),
+        _ => "internal".into(),
+    }
+}
+
+fn validate_snapshot_file_output(conn: &Connect, path: &str) -> Result<(), LibvirtError> {
+    if path.trim().is_empty() {
+        return Ok(());
+    }
+    storage::assert_new_disk_output_parent_allowed(conn, path)?;
+    Ok(())
+}
+
+fn join_dir_file(dir: &str, file: &str) -> String {
+    let d = dir.trim_end_matches('/');
+    format!("{d}/{file}")
+}
+
+fn safe_name_component(s: &str) -> String {
+    s.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
 pub fn create_snapshot(
     conn: &Connect,
     vm_name: &str,
-    snap_name: &str,
-    description: &str,
-    disk_only: bool,
+    req: &CreateSnapshotRequest,
 ) -> Result<(), LibvirtError> {
+    if req.name.trim().is_empty() {
+        return Err(LibvirtError::Invalid("snapshot name is required".into()));
+    }
     let domain = lookup_domain(conn, vm_name)?;
+    let is_active = domain.is_active().unwrap_or(false);
+    let dom_xml = domain.get_xml_desc(0).unwrap_or_default();
+    let dom_disks = parse_domain_disks_for_snapshot(&dom_xml);
 
-    let memory_line = if disk_only {
-        "\n  <memory snapshot='no'/>"
-    } else {
-        ""
+    let disk_only = req.disk_only;
+    let storage_mode = {
+        let m = normalize_mode(&req.storage_mode);
+        if m.is_empty() || m == "auto" {
+            default_storage_mode(conn)
+        } else {
+            m
+        }
     };
+    if storage_mode != "external" && storage_mode != "internal" {
+        return Err(LibvirtError::Invalid(
+            "storage_mode must be 'auto', 'external', or 'internal'".into(),
+        ));
+    }
+
+    let mut flags: u32 = 0;
+    if disk_only {
+        flags |= sys::VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY;
+    }
+    if req.atomic {
+        flags |= sys::VIR_DOMAIN_SNAPSHOT_CREATE_ATOMIC;
+    }
+    if req.reuse_external {
+        flags |= sys::VIR_DOMAIN_SNAPSHOT_CREATE_REUSE_EXT;
+    }
+
+    // Memory settings (only meaningful when not disk-only)
+    let mut memory_xml = String::new();
+    if disk_only {
+        memory_xml.push_str("\n  <memory snapshot='no'/>");
+    } else {
+        if !is_active {
+            // Offline snapshots cannot include VM memory state.
+            memory_xml.push_str("\n  <memory snapshot='no'/>");
+        } else {
+            let mm = normalize_mode(&req.memory_snapshot);
+            let mm = if mm.is_empty() {
+                // Cockpit-style: match storage mode
+                storage_mode.clone()
+            } else {
+                mm
+            };
+            if mm != "internal" && mm != "external" {
+                return Err(LibvirtError::Invalid(
+                    "memory_snapshot must be 'internal' or 'external' (or empty for default)"
+                        .into(),
+                ));
+            }
+            if mm == "external" {
+                let mut mem_file = req.memory_file.trim().to_string();
+                if mem_file.is_empty() {
+                    // Default under primary VM disk dir (pool target)
+                    let base = super::storage::primary_vm_disk_base_dir(conn)
+                        .unwrap_or_else(|| "/var/lib/libvirt/images".to_string());
+                    let dir = if !req.external_memory_dir.trim().is_empty() {
+                        req.external_memory_dir.trim().to_string()
+                    } else {
+                        base
+                    };
+                    let f = format!(
+                        "{}-{}-mem.save",
+                        safe_name_component(vm_name),
+                        safe_name_component(req.name.trim())
+                    );
+                    mem_file = join_dir_file(&dir, &f);
+                }
+                validate_snapshot_file_output(conn, &mem_file)?;
+                memory_xml.push_str(&format!(
+                    "\n  <memory snapshot='external' file='{}'/>",
+                    crate::xml::escape(&mem_file)
+                ));
+            } else {
+                memory_xml.push_str("\n  <memory snapshot='internal'/>");
+            }
+        }
+    }
+
+    // Disk specs
+    let mut disk_specs: Vec<SnapshotDiskSpec> = req.disks.clone();
+    // Normalize empty snapshot strings to default by storage_mode
+    for d in &mut disk_specs {
+        if d.snapshot.trim().is_empty() {
+            d.snapshot = storage_mode.clone();
+        }
+    }
+
+    let mut disks_xml = String::new();
+    if !disk_specs.is_empty() || storage_mode == "external" || disk_only {
+        let mut lines: Vec<String> = Vec::new();
+        // Build desired map: name -> spec
+        let mut map: std::collections::HashMap<String, SnapshotDiskSpec> =
+            std::collections::HashMap::new();
+        for d in disk_specs {
+            map.insert(d.name.trim().to_string(), d);
+        }
+        // For each domain disk, decide snapshot mode
+        for (target, src_file, src_dev) in dom_disks.iter() {
+            let spec = map.get(target);
+            let mode = spec
+                .map(|s| normalize_mode(&s.snapshot))
+                .filter(|s| !s.is_empty())
+                .unwrap_or_else(|| {
+                    // Default: snapshot all disks with requested storage mode when disk-only, else leave unspecified
+                    if disk_only {
+                        storage_mode.clone()
+                    } else {
+                        storage_mode.clone()
+                    }
+                });
+
+            let mode = if mode == "yes" {
+                "external".to_string()
+            } else {
+                mode
+            };
+            if mode != "no" && mode != "external" && mode != "internal" && mode != "manual" {
+                return Err(LibvirtError::Invalid(format!(
+                    "invalid disk snapshot mode for {target}: {mode} (use no|external|internal|manual)"
+                )));
+            }
+
+            if mode == "no" {
+                lines.push(format!(
+                    "    <disk name='{}' snapshot='no'/>",
+                    crate::xml::escape(target)
+                ));
+                continue;
+            }
+
+            if mode == "internal" && storage_mode == "internal" {
+                // Best-effort check: internal snapshots generally require qcow2; libvirt will error if unsupported.
+                // We avoid over-validating here.
+                lines.push(format!(
+                    "    <disk name='{}' snapshot='internal'/>",
+                    crate::xml::escape(target)
+                ));
+                continue;
+            }
+
+            if mode == "manual" {
+                lines.push(format!(
+                    "    <disk name='{}' snapshot='manual'/>",
+                    crate::xml::escape(target)
+                ));
+                continue;
+            }
+
+            // external
+            let mut file = spec.map(|s| s.file.trim().to_string()).unwrap_or_default();
+            let driver = spec
+                .and_then(|s| {
+                    let t = s.driver.trim();
+                    if t.is_empty() {
+                        None
+                    } else {
+                        Some(t.to_string())
+                    }
+                })
+                .unwrap_or_else(|| "qcow2".to_string());
+
+            if file.is_empty() && !req.external_disk_dir.trim().is_empty() {
+                let f = format!(
+                    "{}-{}-{}.qcow2",
+                    safe_name_component(vm_name),
+                    safe_name_component(req.name.trim()),
+                    safe_name_component(target)
+                );
+                file = join_dir_file(req.external_disk_dir.trim(), &f);
+            }
+
+            if file.is_empty() {
+                // For file-backed disks libvirt can auto-generate; for block disks it cannot.
+                if src_file.is_none() && src_dev.is_some() {
+                    return Err(LibvirtError::Invalid(format!(
+                        "disk '{target}' is a block device; external snapshots require an explicit file path"
+                    )));
+                }
+                // omit <source> to let libvirt generate
+                lines.push(format!(
+                    "    <disk name='{}' snapshot='external'><driver type='{}'/></disk>",
+                    crate::xml::escape(target),
+                    crate::xml::escape(&driver),
+                ));
+            } else {
+                validate_snapshot_file_output(conn, &file)?;
+                lines.push(format!(
+                    "    <disk name='{}' snapshot='external'>\n      <driver type='{}'/>\n      <source file='{}'/>\n    </disk>",
+                    crate::xml::escape(target),
+                    crate::xml::escape(&driver),
+                    crate::xml::escape(&file),
+                ));
+            }
+        }
+        if !lines.is_empty() {
+            disks_xml.push_str("\n  <disks>\n");
+            disks_xml.push_str(&lines.join("\n"));
+            disks_xml.push_str("\n  </disks>");
+        }
+    }
 
     let xml_str = format!(
         r#"<domainsnapshot>
   <name>{}</name>
-  <description>{}</description>{}
+  <description>{}</description>{}{} 
 </domainsnapshot>"#,
-        crate::xml::escape(snap_name),
-        crate::xml::escape(description),
-        memory_line,
+        crate::xml::escape(req.name.trim()),
+        crate::xml::escape(req.description.trim()),
+        memory_xml,
+        disks_xml,
     );
-
-    // VIR_DOMAIN_SNAPSHOT_CREATE_DISK_ONLY = 16
-    let flags: u32 = if disk_only { 16 } else { 0 };
 
     DomainSnapshot::create_xml(&domain, &xml_str, flags)
         .map_err(LibvirtError::map_op("Failed to create snapshot"))?;
-
     Ok(())
 }
 
@@ -115,7 +369,19 @@ pub fn delete_snapshot(conn: &Connect, vm_name: &str, snap_name: &str) -> Result
     let snap = DomainSnapshot::lookup_by_name(&domain, snap_name, 0)
         .map_err(|e| LibvirtError::NotFound(format!("Snapshot '{snap_name}' not found: {e}")))?;
 
-    snap.delete(0)
+    let mut flags: u32 = 0;
+    // Libvirt may attempt block-commit when deleting external snapshots, which often fails on active domains
+    // with "write lock" errors. Cockpit typically avoids destructive/merging deletes on running guests.
+    if domain.is_active().unwrap_or(false) {
+        let xml = snap.get_xml_desc(0).unwrap_or_default();
+        let looks_external =
+            xml.contains("snapshot='external'") || xml.contains("snapshot=\"external\"");
+        if looks_external {
+            flags |= sys::VIR_DOMAIN_SNAPSHOT_DELETE_METADATA_ONLY;
+        }
+    }
+
+    snap.delete(flags)
         .map_err(LibvirtError::map_op("Failed to delete snapshot"))?;
 
     Ok(())

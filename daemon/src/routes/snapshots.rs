@@ -37,9 +37,7 @@ async fn create_snapshot_handler(
     let vm2 = vm_name.clone();
     let snap_name = req.name.clone();
     tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
-            snapshot::create_snapshot(conn, &vm2, &req.name, &req.description, req.disk_only)
-        })
+        manager.with_conn(|conn| snapshot::create_snapshot(conn, &vm2, &req))
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;

@@ -89,6 +89,49 @@ pub struct CreateSnapshotRequest {
     pub description: String,
     #[serde(default)]
     pub disk_only: bool,
+    /// `auto` (default), `external`, or `internal`.
+    #[serde(default)]
+    pub storage_mode: String,
+    /// `internal` or `external` (ignored when disk_only=true).
+    #[serde(default)]
+    pub memory_snapshot: String,
+    /// Absolute path for external memory snapshot file (optional; server may auto-generate).
+    #[serde(default)]
+    pub memory_file: String,
+    /// When set, generate external disk snapshot files under this directory.
+    #[serde(default)]
+    pub external_disk_dir: String,
+    /// When set, generate external memory snapshot file under this directory.
+    #[serde(default)]
+    pub external_memory_dir: String,
+    /// Per-disk snapshot overrides (by disk target, e.g. vda).
+    #[serde(default)]
+    pub disks: Vec<SnapshotDiskSpec>,
+    /// Use libvirt atomic snapshot flag (recommended).
+    #[serde(default = "default_true")]
+    pub atomic: bool,
+    /// Allow reuse of pre-created external snapshot files.
+    #[serde(default)]
+    pub reuse_external: bool,
+}
+
+fn default_true() -> bool {
+    true
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SnapshotDiskSpec {
+    /// Disk identifier: target dev name like `vda` (recommended).
+    pub name: String,
+    /// `no`, `external`, `internal`, or `manual` (see libvirt formatsnapshot).
+    #[serde(default)]
+    pub snapshot: String,
+    /// Optional output file for `snapshot=external` (absolute path). When empty, libvirt may auto-generate.
+    #[serde(default)]
+    pub file: String,
+    /// Optional driver type for the external file (e.g. `qcow2`).
+    #[serde(default)]
+    pub driver: String,
 }
 
 // ── Network Types ───────────────────────────────────────────────────────

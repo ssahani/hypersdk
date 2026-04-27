@@ -245,6 +245,14 @@ impl DaemonClient {
             name: snap_name.to_string(),
             description: desc.to_string(),
             disk_only: false,
+            storage_mode: String::new(),
+            memory_snapshot: String::new(),
+            memory_file: String::new(),
+            external_disk_dir: String::new(),
+            external_memory_dir: String::new(),
+            disks: Vec::new(),
+            atomic: true,
+            reuse_external: false,
         };
         self.post_json(&format!("/api/v1/vms/{vm_name}/snapshots"), &req)
             .await

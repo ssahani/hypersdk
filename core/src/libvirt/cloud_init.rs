@@ -24,15 +24,22 @@ fn pick_seed_dir() -> PathBuf {
 }
 
 fn ensure_dir(p: &Path) -> Result<(), LibvirtError> {
-    fs::create_dir_all(p)
-        .map_err(|e| LibvirtError::Operation(format!("create cloud-init dir {}: {e}", p.display())))?;
+    fs::create_dir_all(p).map_err(|e| {
+        LibvirtError::Operation(format!("create cloud-init dir {}: {e}", p.display()))
+    })?;
     Ok(())
 }
 
 fn sanitize_vm_name_for_file(name: &str) -> String {
     // VM names are already validated elsewhere, but keep filenames conservative.
     name.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
@@ -141,4 +148,3 @@ pub fn materialize_cloud_init_seed_if_requested(
     );
     Ok(())
 }
-
