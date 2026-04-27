@@ -29,8 +29,8 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace }: Prop
   const [status, setStatus] = useState<'loading' | 'connecting' | 'connected' | 'disconnected'>('loading')
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
   const [showDotCursor, setShowDotCursor] = useState(true)
-  /** Scaling to fit blurs and adds decode work; native 1:1 + scroll is sharper and often feels snappier. */
-  const [scaledFit, setScaledFit] = useState(true)
+  /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
+  const [scaledFit, setScaledFit] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean } | null>(null)
 
