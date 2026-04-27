@@ -220,9 +220,10 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace }: Prop
             )
           : (
               <>
-                VNC sends whole-screen bitmaps; Windows often feels slow until VirtIO/QXL drivers are installed.
-                Turn off <strong className="text-slate-400">Scale to fit</strong> for sharper 1:1 pixels (scroll the panel).
-                Use <strong className="text-slate-400">SPICE</strong> when the VM offers it for smoother graphics.
+                Graphical installers stream full-screen bitmaps over VNC — pointer movement can lag behind display updates,
+                especially at high resolutions. Leave <strong className="text-slate-400">Scale to fit</strong> off for 1:1
+                mapping (scroll the panel), keep <strong className="text-slate-400">Local cursor</strong> on for immediate
+                feedback, and use <strong className="text-slate-400">SPICE</strong> when the VM offers it.
               </>
             )}
       </p>
@@ -230,7 +231,7 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace }: Prop
         ref={containerRef}
         className={`w-full bg-black ${fullscreen ? 'flex-1 min-h-0' : ''}`}
         style={{
-          height: fullscreen ? undefined : '600px',
+          height: fullscreen ? undefined : 'min(900px, calc(100vh - 13rem))',
           backgroundColor: '#000',
         }}
       />

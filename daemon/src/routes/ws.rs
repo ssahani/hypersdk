@@ -333,6 +333,13 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, host: String, port: u
         }
     };
 
+    if let Err(e) = tcp.set_nodelay(true) {
+        warn!(
+            "VNC TCP set_nodelay failed for {}:{} VM '{}': {}",
+            host, port, name, e
+        );
+    }
+
     info!("VNC TCP connected to {}:{} for VM '{}'", host, port, name);
 
     let (mut tcp_read, mut tcp_write) = tcp.into_split();
@@ -436,6 +443,13 @@ async fn handle_spice_proxy(socket: WebSocket, name: String, port: u16) {
             return;
         }
     };
+
+    if let Err(e) = tcp.set_nodelay(true) {
+        warn!(
+            "SPICE TCP set_nodelay failed for port {} VM '{}': {}",
+            port, name, e
+        );
+    }
 
     info!("SPICE TCP connected to port {} for VM '{}'", port, name);
 
