@@ -11,6 +11,39 @@ use crate::LibvirtError;
 
 use super::subprocess::{self, VmCreateLogSink};
 
+fn is_windows_profile(req: &CreateVmRequest) -> bool {
+    let gp = req.guest_profile.trim().to_ascii_lowercase();
+    if gp == "windows" {
+        return true;
+    }
+    if gp == "linux" {
+        return false;
+    }
+    // auto / empty: infer from os_variant when provided
+    let osv = req.os_variant.trim().to_ascii_lowercase();
+    osv.starts_with("win") || osv.starts_with("windows")
+}
+
+fn has_spice() -> bool {
+    // Best-effort: if the SPICE server library isn't present, `virt-install --graphics spice`
+    // will fail on many distros/builds.
+    let lib_dirs = ["/usr/lib64", "/usr/lib/x86_64-linux-gnu", "/usr/lib"];
+    for dir in &lib_dirs {
+        let dir_path = Path::new(dir);
+        if dir_path.is_dir() {
+            if let Ok(entries) = std::fs::read_dir(dir_path) {
+                for entry in entries.flatten() {
+                    let name = entry.file_name();
+                    if name.to_string_lossy().starts_with("libspice-server.so") {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
 fn validate_virt_install_field(s: &str, label: &str) -> Result<(), LibvirtError> {
     if s.is_empty() {
         return Ok(());
@@ -66,6 +99,7 @@ pub fn create_vm_virt_install(
     libvirt_uri: &str,
     log: Option<&VmCreateLogSink>,
 ) -> Result<(), LibvirtError> {
+    let win = is_windows_profile(req);
     crate::validate::validate_vcpus(req.vcpus)?;
     crate::validate::validate_memory_mb(req.memory_mb)?;
     let net = if req.network.trim().is_empty() {
@@ -97,7 +131,21 @@ pub fn create_vm_virt_install(
     crate::validate::validate_graphics_listen(gl)?;
 
     let gt = req.graphics_type.trim();
-    let gt = if gt.is_empty() { "vnc" } else { gt };
+    let gt = if gt.is_empty() {
+        if win {
+            "spice"
+        } else {
+            "vnc"
+        }
+    } else {
+        gt
+    };
+    // If SPICE isn't available on this host/QEMU build, fall back to VNC (Cockpit-compatible).
+    let gt = if gt.eq_ignore_ascii_case("spice") && !has_spice() {
+        "vnc"
+    } else {
+        gt
+    };
     crate::validate::validate_graphics_type(gt)?;
 
     let define_only = req.virt_install_define_only;
@@ -134,6 +182,14 @@ pub fn create_vm_virt_install(
         if !p.is_absolute() || !p.is_file() {
             return Err(LibvirtError::Invalid(
                 "cloud_init_iso must be an absolute path to an existing file".into(),
+            ));
+        }
+    }
+    if !req.virtio_win_iso.is_empty() {
+        let p = Path::new(&req.virtio_win_iso);
+        if !p.is_absolute() || !p.is_file() {
+            return Err(LibvirtError::Invalid(
+                "virtio_win_iso must be an absolute path to an existing file".into(),
             ));
         }
     }
@@ -182,14 +238,19 @@ pub fn create_vm_virt_install(
 
     // NIC (always one libvirt network; PXE adds a second `--network` below.)
     args.push("--network".into());
-    args.push(format!("network={net}"));
+    if win {
+        args.push(format!("network={net},model=virtio"));
+    } else {
+        args.push(format!("network={net}"));
+    }
 
     // Graphics
     if gt.eq_ignore_ascii_case("spice") {
         args.push("--graphics".into());
         args.push(format!("spice,listen={gl}"));
+        // qxl is not always available (minimal qemu builds); vga is widely supported.
         args.push("--video".into());
-        args.push("qxl".into());
+        args.push("vga".into());
     } else {
         args.push("--graphics".into());
         args.push(format!("vnc,listen={gl}"));
@@ -206,7 +267,8 @@ pub fn create_vm_virt_install(
         } else {
             crate::validate::validate_disk_gb(req.disk_gb)?;
             args.push("--disk".into());
-            args.push(format!("size={},format=qcow2", req.disk_gb));
+            let bus = if win { ",bus=virtio" } else { "" };
+            args.push(format!("size={},format=qcow2{bus}", req.disk_gb));
         }
     } else if !pool.is_empty() {
         args.push("--disk".into());
@@ -236,9 +298,10 @@ pub fn create_vm_virt_install(
     } else if !backing.is_empty() {
         crate::validate::validate_disk_gb(req.disk_gb)?;
         args.push("--disk".into());
+        let bus = if win { ",bus=virtio" } else { "" };
         args.push(format!(
-            "size={},format=qcow2,backing_store={}",
-            req.disk_gb, backing
+            "size={},format=qcow2,backing_store={}{}",
+            req.disk_gb, backing, bus
         ));
         if !req.iso.is_empty() {
             args.push("--cdrom".into());
@@ -248,7 +311,8 @@ pub fn create_vm_virt_install(
     } else {
         crate::validate::validate_disk_gb(req.disk_gb)?;
         args.push("--disk".into());
-        args.push(format!("size={},format=qcow2", req.disk_gb));
+        let bus = if win { ",bus=virtio" } else { "" };
+        args.push(format!("size={},format=qcow2{bus}", req.disk_gb));
         if !req.iso.is_empty() {
             args.push("--cdrom".into());
             args.push(req.iso.clone());
@@ -269,6 +333,14 @@ pub fn create_vm_virt_install(
         args.push(format!(
             "path={},device=cdrom,bus=sata,readonly=on",
             req.cloud_init_iso
+        ));
+    }
+
+    if !req.virtio_win_iso.is_empty() {
+        args.push("--disk".into());
+        args.push(format!(
+            "path={},device=cdrom,bus=sata,readonly=on",
+            req.virtio_win_iso
         ));
     }
 

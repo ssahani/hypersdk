@@ -41,6 +41,7 @@ type InstallSource = 'iso' | 'url' | 'pxe' | 'download'
 type StorageMode = 'new' | 'volume'
 type PageFlow = 'install' | 'golden'
 type GoldenKind = 'template' | 'backing'
+type GuestProfile = 'auto' | 'linux' | 'windows'
 
 export default function CreateVMPage() {
   const navigate = useNavigate()
@@ -57,6 +58,8 @@ export default function CreateVMPage() {
   const [firmware, setFirmware] = useState('bios')
   const [osVariant, setOsVariant] = useState('')
   const [iso, setIso] = useState('')
+  const [guestProfile, setGuestProfile] = useState<GuestProfile>('auto')
+  const [virtioWinIso, setVirtioWinIso] = useState('')
   const [virtInstallLocation, setVirtInstallLocation] = useState('')
   const [virtInstallInstallOs, setVirtInstallInstallOs] = useState('')
   const [virtInstallExtraArgs, setVirtInstallExtraArgs] = useState('')
@@ -82,6 +85,7 @@ export default function CreateVMPage() {
   const [createLog, setCreateLog] = useState<string[]>([])
   const [isoBrowseOpen, setIsoBrowseOpen] = useState(false)
   const [cloudBrowseOpen, setCloudBrowseOpen] = useState(false)
+  const [virtioBrowseOpen, setVirtioBrowseOpen] = useState(false)
 
   const [pageFlow, setPageFlow] = useState<PageFlow>('install')
   const [goldenKind, setGoldenKind] = useState<GoldenKind>('template')
@@ -178,6 +182,13 @@ export default function CreateVMPage() {
     }
   }
 
+  useEffect(() => {
+    if (guestProfile !== 'windows') return
+    // Windows installs generally feel best with SPICE/QXL and UEFI.
+    setGraphicsType('spice')
+    setFirmware('uefi')
+  }, [guestProfile])
+
   const runPackerGoldenBuild = async () => {
     const gid = packerGuestId.trim()
     if (!gid) {
@@ -258,6 +269,8 @@ export default function CreateVMPage() {
       firmware,
       create_backend: 'virt_install',
       os_variant: osVariant.trim() || undefined,
+      guest_profile: guestProfile !== 'auto' ? guestProfile : undefined,
+      virtio_win_iso: virtioWinIso.trim() || undefined,
       graphics_type: graphicsType,
       graphics_listen: graphicsListen.trim() || undefined,
       cloud_init_iso: cloudInitIso.trim() || undefined,
@@ -636,6 +649,24 @@ export default function CreateVMPage() {
               <option value="uefi">UEFI</option>
             </select>
           </div>
+          <div>
+            <label htmlFor="guest-profile" className="block text-sm text-slate-400 mb-1">
+              Guest profile
+            </label>
+            <select
+              id="guest-profile"
+              value={guestProfile}
+              onChange={(e) => setGuestProfile(e.target.value as GuestProfile)}
+              className="input-field"
+            >
+              <option value="auto">Auto</option>
+              <option value="linux">Linux</option>
+              <option value="windows">Windows (SPICE + virtio)</option>
+            </select>
+            <p className="text-xs text-slate-500 mt-1">
+              Windows profile enables SPICE/QXL and virtio disk/NIC defaults on the server. Attach a virtio-win ISO below if your Windows installer needs drivers.
+            </p>
+          </div>
           {installSource === 'download' ? (
             <div>
               <label className="block text-sm text-slate-400 mb-1">
@@ -789,6 +820,32 @@ export default function CreateVMPage() {
             </select>
           </div>
         </div>
+
+        {guestProfile === 'windows' && (
+          <div className="pt-2 border-t border-slate-700/50 space-y-2">
+            <label className="block text-sm text-slate-400 mb-1">virtio-win drivers ISO (recommended for Windows installs)</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={virtioWinIso}
+                onChange={(e) => setVirtioWinIso(e.target.value)}
+                className="input-field flex-1 font-mono text-sm"
+                placeholder="/var/lib/libvirt/images/virtio-win.iso"
+              />
+              <button
+                type="button"
+                onClick={() => setVirtioBrowseOpen(true)}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 shrink-0"
+              >
+                <FolderOpen className="w-4 h-4" />
+                Browse
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              This is attached as an extra CD-ROM so Windows Setup can load virtio storage/network drivers (Win10/11/Server 2019/2022).
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Optional cloud-init CD */}
@@ -1220,6 +1277,16 @@ export default function CreateVMPage() {
         onSelectPath={(p) => {
           setCloudInitIso(p)
           setCloudBrowseOpen(false)
+        }}
+      />
+      <BrowseHostPathModal
+        open={virtioBrowseOpen}
+        onClose={() => setVirtioBrowseOpen(false)}
+        title="Browse for virtio-win ISO"
+        canSelectFile={isIsoFileName}
+        onSelectPath={(p) => {
+          setVirtioWinIso(p)
+          setVirtioBrowseOpen(false)
         }}
       />
       <BrowseHostPathModal

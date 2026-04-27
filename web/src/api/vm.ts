@@ -70,6 +70,10 @@ export interface CreateVmRequest {
   iso?: string
   network?: string
   os_variant?: string
+  /** `auto` (default) | `linux` | `windows` */
+  guest_profile?: string
+  /** Optional virtio-win driver ISO to attach as extra CD-ROM (Windows installs). */
+  virtio_win_iso?: string
   existing_disk?: string
   firmware?: string
   /** Libvirt VNC listen IP (default 127.0.0.1). Use 0.0.0.0 for all interfaces (remote display; still use machina’s console proxy where applicable). */

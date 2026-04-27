@@ -233,6 +233,27 @@ fn create_vm_libvirt_xml(
         None
     };
 
+    let resolved_virtio_win: Option<std::path::PathBuf> = if !req.virtio_win_iso.is_empty() {
+        let p = std::path::Path::new(&req.virtio_win_iso);
+        if !p.is_absolute() {
+            return Err(LibvirtError::Invalid(
+                "virtio_win_iso path must be absolute".to_string(),
+            ));
+        }
+        let p = p.canonicalize().map_err(|e| {
+            LibvirtError::Invalid(format!("Cannot resolve virtio_win_iso path: {e}"))
+        })?;
+        if !p.is_file() {
+            return Err(LibvirtError::Operation(format!(
+                "virtio_win_iso not found or not a file: {}",
+                p.display()
+            )));
+        }
+        Some(p)
+    } else {
+        None
+    };
+
     let disk_path = if !req.existing_disk.is_empty() {
         let disk = std::path::Path::new(&req.existing_disk);
         if !disk.is_absolute() {
@@ -268,6 +289,10 @@ fn create_vm_libvirt_xml(
         .as_ref()
         .map(|p| p.display().to_string())
         .unwrap_or_default();
+    let virtio_win_str = resolved_virtio_win
+        .as_ref()
+        .map(|p| p.display().to_string())
+        .unwrap_or_default();
     let xml = generate_domain_xml(
         req,
         &disk_path,
@@ -275,6 +300,7 @@ fn create_vm_libvirt_xml(
         firmware,
         &iso_str,
         &cloud_str,
+        &virtio_win_str,
         gl,
         gt,
     );
@@ -406,6 +432,7 @@ fn generate_domain_xml(
     firmware: &str,
     iso_path: &str,
     cloud_init_iso_path: &str,
+    virtio_win_iso_path: &str,
     graphics_listen: &str,
     graphics_type: &str,
 ) -> String {
@@ -424,7 +451,8 @@ fn generate_domain_xml(
     } else {
         "vnc"
     };
-    let video_model = if gtype == "spice" { "qxl" } else { "virtio" };
+    // qxl is not always available (minimal qemu builds); vga is widely supported.
+    let video_model = "vga";
 
     // BIOS: boot device in OS block.  UEFI: boot order on devices instead.
     let is_uefi = firmware == "uefi";
@@ -501,6 +529,21 @@ fn generate_domain_xml(
         String::new()
     };
 
+    let virtio_win_cdrom_xml = if !virtio_win_iso_path.is_empty() {
+        format!(
+            r#"
+    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw' cache='none'/>
+      <source file='{}'/>
+      <target dev='sdb' bus='sata'/>
+      <readonly/>
+    </disk>"#,
+            crate::xml::escape(virtio_win_iso_path)
+        )
+    } else {
+        String::new()
+    };
+
     let emulator = find_qemu_binary();
     format!(
         r#"<domain type='kvm'>
@@ -529,7 +572,7 @@ fn generate_domain_xml(
       <driver name='qemu' type='{disk_driver}'/>
       <source file='{disk_path}'/>
       <target dev='vda' bus='virtio'/>{disk_boot_order}
-    </disk>{cdrom_xml}{cloud_init_cdrom_xml}
+    </disk>{cdrom_xml}{virtio_win_cdrom_xml}{cloud_init_cdrom_xml}
     <interface type='network'>
       <source network='{network}'/>
       <model type='virtio'/>
@@ -564,6 +607,7 @@ fn generate_domain_xml(
         disk_path = disk_path_esc,
         disk_boot_order = disk_boot_order,
         cdrom_xml = cdrom_xml,
+        virtio_win_cdrom_xml = virtio_win_cdrom_xml,
         cloud_init_cdrom_xml = cloud_init_cdrom_xml,
         network = network,
         graphics_listen = graphics_listen_esc,

@@ -268,6 +268,13 @@ pub struct CreateVmRequest {
     pub network: String,
     #[serde(default = "default_os_variant")]
     pub os_variant: String,
+    /// Guest tuning profile: `""`/`auto`, `linux`, or `windows`.
+    /// Used to pick better defaults for Windows (SPICE/QXL, virtio disk+NIC, virtio-win driver ISO).
+    #[serde(default)]
+    pub guest_profile: String,
+    /// Optional virtio-win driver ISO (additional CD-ROM) for Windows installs.
+    #[serde(default)]
+    pub virtio_win_iso: String,
     /// Use an existing disk image instead of creating a new one
     #[serde(default)]
     pub existing_disk: String,
@@ -411,6 +418,8 @@ impl Default for CreateVmRequest {
             iso: String::new(),
             network: default_network(),
             os_variant: default_os_variant(),
+            guest_profile: String::new(),
+            virtio_win_iso: String::new(),
             existing_disk: String::new(),
             firmware: default_firmware(),
             graphics_listen: default_graphics_listen(),
