@@ -47,6 +47,12 @@ pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
+pub fn get_network_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
+    let net = lookup_network(conn, name)?;
+    net.get_xml_desc(0)
+        .map_err(|e| LibvirtError::Operation(format!("get_xml network '{name}': {e}")))
+}
+
 fn validate_ip(ip: &str, label: &str) -> Result<std::net::Ipv4Addr, LibvirtError> {
     ip.parse::<std::net::Ipv4Addr>().map_err(|_| {
         LibvirtError::Invalid(format!("Invalid {label}: '{ip}' (expected IPv4 address)"))
@@ -148,10 +154,4 @@ pub fn set_network_autostart(
     net.set_autostart(autostart)
         .map_err(LibvirtError::map_op("Failed to set autostart"))?;
     Ok(())
-}
-
-pub fn get_network_xml(conn: &Connect, name: &str) -> Result<String, LibvirtError> {
-    let net = lookup_network(conn, name)?;
-    net.get_xml_desc(0)
-        .map_err(LibvirtError::map_op("Failed to get network XML"))
 }

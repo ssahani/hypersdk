@@ -1069,6 +1069,7 @@ export default function NodeInfoPage() {
           <ChoiceLinkCard to="/host-networking" icon={<Network className="w-4 h-4" />} title="Host networking" description="Bridges, routes, DNS, and firewall context." />
           <ChoiceLinkCard to="/k8s" icon={<Server className="w-4 h-4" />} title="Kubernetes cluster" description="Control-plane and worker node status with click actions." />
           <ChoiceLinkCard to="/k8s/workloads" icon={<Activity className="w-4 h-4" />} title="K8s workloads" description="Deployments, pods, services, and rollout/scale/delete actions." />
+          <ChoiceLinkCard to="/k8s/kata" icon={<Package className="w-4 h-4" />} title="Kata / Cloud Hypervisor" description="Install kata-deploy and use runtimeClassName kata-clh on your cluster." />
         </ChoiceCardGrid>
       </div>
     </div>

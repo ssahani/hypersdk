@@ -1,3 +1,5 @@
+import { apiGet, apiPut } from './client'
+
 const API = '/api/v1'
 
 export interface OsUserCapability {
@@ -39,10 +41,10 @@ export async function createOsUser(
     body: JSON.stringify({ username, password, add_to_libvirt_group: addToLibvirtGroup }),
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string }
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error || `HTTP ${res.status}`)
   }
-  const body = await res.json().catch(() => ({})) as {
+  const body = (await res.json().catch(() => ({}))) as {
     libvirt_group_attached?: boolean
     account_backend?: string
   }
@@ -59,7 +61,16 @@ export async function deleteOsUser(username: string): Promise<void> {
     credentials: 'same-origin',
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({})) as { error?: string }
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(body.error || `HTTP ${res.status}`)
   }
+}
+
+/** Server-wide Create VM form defaults (`/var/lib/machina/create-vm-defaults.json`). */
+export async function getServerCreateVmDefaults(): Promise<Record<string, unknown>> {
+  return apiGet(`${API}/system/create-vm-defaults`)
+}
+
+export async function putServerCreateVmDefaults(body: Record<string, unknown>): Promise<{ status?: string }> {
+  return apiPut(`${API}/system/create-vm-defaults`, body)
 }

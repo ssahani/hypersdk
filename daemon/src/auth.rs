@@ -5,6 +5,7 @@ use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
+use machina_core::libvirt::automation::{get_user_role, Role};
 use machina_core::{AuthConfig, LibvirtError, LibvirtManager};
 use rand::Rng;
 use serde::Deserialize;
@@ -22,6 +23,8 @@ pub struct RequestActor {
     pub username: String,
     /// API tokens must not perform sensitive host administration (e.g. OS user creation).
     pub from_api_token: bool,
+    /// Effective RBAC role (from `api-tokens.json` or `roles.json` for browser sessions).
+    pub role: Role,
 }
 
 /// Host insight that reads passwd-like data, runs package managers, or sleeps on `/proc/net/dev`.
@@ -255,9 +258,11 @@ pub async fn auth_middleware(
     // Check session cookie
     if let Some(token) = extract_token(&req) {
         if let Some(username) = store.validate_session(&token) {
+            let role = get_user_role(&username);
             req.extensions_mut().insert(RequestActor {
                 username,
                 from_api_token: false,
+                role,
             });
             return next.run(req).await;
         }
@@ -274,6 +279,7 @@ pub async fn auth_middleware(
                 req.extensions_mut().insert(RequestActor {
                     username: api.username,
                     from_api_token: true,
+                    role: api.role,
                 });
                 return next.run(req).await;
             }
@@ -427,12 +433,14 @@ async fn session_handler(
     if let Some(token) = extract_token(&req) {
         if let Some(username) = store.validate_session(&token) {
             let session_id = store.session_public_id(&token);
+            let role = get_user_role(&username);
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "authenticated": true,
                     "username": username,
                     "session_id": session_id,
+                    "role": role,
                 })),
             )
                 .into_response();
@@ -443,6 +451,36 @@ async fn session_handler(
         Json(serde_json::json!({ "authenticated": false })),
     )
         .into_response()
+}
+
+pub fn require_destroy_vm(actor: &RequestActor) -> Result<(), AppError> {
+    if actor.role.can_destroy_vm() {
+        Ok(())
+    } else {
+        Err(AppError::from(LibvirtError::Forbidden(
+            "Destroying or undefining VMs requires the admin role.".into(),
+        )))
+    }
+}
+
+pub fn require_usb_pci(actor: &RequestActor) -> Result<(), AppError> {
+    if actor.role.can_usb_pci() {
+        Ok(())
+    } else {
+        Err(AppError::from(LibvirtError::Forbidden(
+            "USB and PCI passthrough require the operator or admin role.".into(),
+        )))
+    }
+}
+
+pub fn require_browse_host_paths(actor: &RequestActor) -> Result<(), AppError> {
+    if actor.role.can_browse_host_paths() {
+        Ok(())
+    } else {
+        Err(AppError::from(LibvirtError::Forbidden(
+            "Browsing host paths requires the admin role.".into(),
+        )))
+    }
 }
 
 fn require_root_session(actor: &RequestActor) -> Result<(), LibvirtError> {

@@ -7,59 +7,99 @@ import { downloadJSON, downloadCSV } from '../utils/export'
 export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [actionInp, setActionInp] = useState('')
+  const [actorInp, setActorInp] = useState('')
+  const [qInp, setQInp] = useState('')
   const toast = useToastContext()
 
-  const load = useCallback(async () => {
+  const fetchLog = useCallback(async () => {
     try {
-      setEvents(await getAuditLog())
+      setLoading(true)
+      setEvents(
+        await getAuditLog({
+          action: actionInp.trim() || undefined,
+          actor: actorInp.trim() || undefined,
+          q: qInp.trim() || undefined,
+          limit: 8000,
+        }),
+      )
     } catch (e: unknown) {
       toast.error(`Failed to load audit log: ${e instanceof Error ? e.message : e}`)
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [toast, actionInp, actorInp, qInp])
 
-  useEffect(() => { load() }, [load])
-
-  const filtered = events.filter(e =>
-    e.action.toLowerCase().includes(search.toLowerCase()) ||
-    e.target.toLowerCase().includes(search.toLowerCase()) ||
-    e.result.toLowerCase().includes(search.toLowerCase())
-  )
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      void fetchLog()
+    }, 450)
+    return () => clearTimeout(t)
+  }, [fetchLog])
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-blue-400" /> Audit Log</h1>
-          <p className="text-sm text-slate-400 mt-0.5">{events.length} events</p>
+          <p className="text-sm text-slate-400 mt-0.5">{events.length} events (server-filtered)</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => downloadJSON(filtered, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON"><Download className="w-4 h-4" /></button>
-          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
-          <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+          <button type="button" onClick={() => void fetchLog()} className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200 transition flex items-center gap-1.5">
+            <RefreshCw className="w-3.5 h-3.5" /> Refresh now
+          </button>
+          <button type="button" onClick={() => downloadJSON(events, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON"><Download className="w-4 h-4" /></button>
+          <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
         </div>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-        <input type="text" placeholder="Filter events..." value={search} onChange={e => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500" />
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Action contains…"
+            value={actionInp}
+            onChange={(e) => setActionInp(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Actor contains…"
+            value={actorInp}
+            onChange={(e) => setActorInp(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Any field (action, target, result, actor)…"
+            value={qInp}
+            onChange={(e) => setQInp(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500"
+          />
+        </div>
       </div>
+      <p className="text-xs text-slate-500">Filters reload after a short pause (debounced).</p>
 
       {loading ? (
         <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
       ) : (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          <table className="w-full">
-            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Result</th></tr></thead>
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden overflow-x-auto">
+          <table className="w-full min-w-[56rem]">
+            <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Time</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Target</th><th className="px-6 py-3">Actor</th><th className="px-6 py-3">Result</th></tr></thead>
             <tbody className="divide-y divide-slate-700/30">
-              {filtered.map((e, i) => (
+              {events.map((e, i) => (
                 <tr key={i} className="table-row-hover">
                   <td className="px-6 py-2 text-xs text-slate-400 font-mono whitespace-nowrap">{e.timestamp}</td>
                   <td className="px-6 py-2 text-sm font-medium">{e.action}</td>
                   <td className="px-6 py-2 text-sm text-slate-300">{e.target}</td>
+                  <td className="px-6 py-2 text-sm text-slate-400 font-mono">{e.actor?.trim() ? e.actor : '—'}</td>
                   <td className="px-6 py-2 text-sm">
                     {e.result.includes('ok') || e.result.includes('success')
                       ? <span className="flex items-center gap-1 text-green-400"><CheckCircle className="w-3 h-3" />{e.result}</span>
@@ -68,7 +108,7 @@ export default function AuditLogPage() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">{search ? 'No matching events' : 'No audit events recorded yet'}</td></tr>}
+              {events.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No audit events match these filters</td></tr>}
             </tbody>
           </table>
         </div>

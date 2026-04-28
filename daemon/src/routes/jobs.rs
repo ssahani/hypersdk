@@ -30,6 +30,7 @@ fn log_audit(action: &str, target: &str, result: &str) {
         action: action.to_string(),
         target: target.to_string(),
         result: result.to_string(),
+        actor: String::new(),
     };
     audit::write_audit_event(&event);
 }

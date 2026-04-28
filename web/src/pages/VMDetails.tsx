@@ -23,7 +23,8 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
-import { predictedIpv4Gateway } from '../utils/predictedRoute'
+import { guestIpv4GatewayHints } from '../utils/guestIpv4GatewayHints'
+import { getSession, type SessionRole } from '../api/auth'
 import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -99,7 +100,9 @@ export default function VMDetailsPage() {
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [guestIps, setGuestIps] = useState<GuestIpAddress[]>([])
+  const [networkGateways, setNetworkGateways] = useState<Record<string, string>>({})
   const [guestIfQueriedAt, setGuestIfQueriedAt] = useState<string | null>(null)
+  const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [bootConfig, setBootConfig] = useState<BootConfig | null>(null)
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [hasSave, setHasSave] = useState(false)
@@ -236,6 +239,19 @@ export default function VMDetailsPage() {
 
   const snapshotRoots = useMemo(() => snapshotForest(snapshots), [snapshots])
 
+  const canDestroyVm = sessionRole === 'admin'
+  const canUsbPci = sessionRole === 'admin' || sessionRole === 'operator'
+  const canBrowseHost = sessionRole === 'admin'
+
+  useEffect(() => {
+    getSession()
+      .then((s) => {
+        if (s.authenticated) setSessionRole(s.role ?? 'admin')
+        else setSessionRole(null)
+      })
+      .catch(() => setSessionRole(null))
+  }, [])
+
   const load = useCallback(async () => {
     if (!name) return
     try {
@@ -248,11 +264,17 @@ export default function VMDetailsPage() {
         try {
           const gi = await getInterfaces(name, conn)
           setGuestIps(gi.addresses)
+          setNetworkGateways(gi.network_gateways ?? {})
           setGuestIfQueriedAt(gi.queried_at)
-        } catch { /* no addresses */ setGuestIfQueriedAt(null) }
+        } catch {
+          /* no addresses */
+          setGuestIfQueriedAt(null)
+          setNetworkGateways({})
+        }
       } else {
         setMetrics(null)
         setGuestIps([])
+        setNetworkGateways({})
         setGuestIfQueriedAt(null)
       }
       try { setBootConfig(await getBootConfig(name, conn)) } catch { /* optional */ }
@@ -351,6 +373,10 @@ export default function VMDetailsPage() {
   }
 
   const openDialog = (d: Dialog) => {
+    if (d === 'delete-vm' && !canDestroyVm) {
+      toast.error('Destroying guests requires the admin role')
+      return
+    }
     if (vm) {
       if (d === 'vcpus') setEditVcpus(vm.vcpus)
       if (d === 'memory') setEditMemory(vm.memory_mb)
@@ -714,7 +740,7 @@ export default function VMDetailsPage() {
   }
 
   const handleAttachUsb = async (vendorId?: string, productId?: string) => {
-    if (!name) return
+    if (!name || !canUsbPci) return
     const vid = vendorId ?? selectedUsb.split(':')[0]
     const pid = productId ?? selectedUsb.split(':')[1]
     if (!vid || !pid) return
@@ -722,7 +748,7 @@ export default function VMDetailsPage() {
   }
 
   const handleDetachUsb = async (vid: string, pid: string) => {
-    if (!name) return
+    if (!name || !canUsbPci) return
     try { await detachUsb(name, vid, pid); toast.success('USB device detached'); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
   }
 
@@ -1144,8 +1170,11 @@ export default function VMDetailsPage() {
                 Rows merge libvirt DHCP <strong className="text-slate-400">lease</strong>, kernel <strong className="text-slate-400">ARP</strong>, then QEMU guest <strong className="text-slate-400">agent</strong>; first hit wins per address. When libvirt exposes DHCP leases, machina adds hostname/expiry; PTR (reverse DNS) is resolved on the hypervisor when possible.
               </p>
               {guestIps.map((ip, i) => {
-                const gw =
-                  ip.ip_type === 'ipv4' ? predictedIpv4Gateway(ip.address, ip.prefix) : null
+                const { xmlGateway, heuristicGateway } = guestIpv4GatewayHints(
+                  ip,
+                  vm,
+                  networkGateways,
+                )
                 const leaseHint =
                   ip.lease_seconds_remaining != null
                     ? ip.lease_seconds_remaining < 0
@@ -1184,10 +1213,29 @@ export default function VMDetailsPage() {
                           PTR: <span className="font-mono text-slate-300">{ip.dns_ptr}</span>
                         </div>
                       ) : null}
-                      {gw ? (
+                      {xmlGateway ? (
                         <div>
-                          Typical default gateway (subnet +1 guess):{' '}
-                          <code className="text-slate-300">{gw}</code>
+                          Gateway from libvirt network XML:{' '}
+                          <code className="text-slate-300">{xmlGateway}</code>
+                        </div>
+                      ) : null}
+                      {heuristicGateway ? (
+                        <div>
+                          {xmlGateway && xmlGateway !== heuristicGateway ? (
+                            <>
+                              Heuristic (.1 on subnet):{' '}
+                              <code className="text-slate-300">{heuristicGateway}</code>
+                            </>
+                          ) : !xmlGateway ? (
+                            <>
+                              Typical default gateway (subnet +1 guess):{' '}
+                              <code className="text-slate-300">{heuristicGateway}</code>
+                            </>
+                          ) : (
+                            <span className="text-slate-500">
+                              Matches common .1 heuristic on this subnet.
+                            </span>
+                          )}
                         </div>
                       ) : null}
                       {ip.source === 'arp' ? (
@@ -1413,18 +1461,29 @@ export default function VMDetailsPage() {
                     {guestIps
                       .filter((g) => g.ip_type === 'ipv4')
                       .map((g) => {
-                        const gw = predictedIpv4Gateway(g.address, g.prefix)
+                        const { xmlGateway, heuristicGateway } = guestIpv4GatewayHints(
+                          g,
+                          vm,
+                          networkGateways,
+                        )
+                        const showHeuristic = heuristicGateway && (!xmlGateway || xmlGateway !== heuristicGateway)
                         return (
                           <li key={`${g.address}-${g.prefix}`}>
                             <span className="font-mono text-slate-300">{g.address}/{g.prefix}</span>
-                            {gw ? (
+                            {xmlGateway ? (
                               <>
                                 {' '}
-                                → try gateway <code className="text-slate-300">{gw}</code>
+                                → libvirt XML gateway <code className="text-slate-300">{xmlGateway}</code>
                               </>
-                            ) : (
+                            ) : null}
+                            {showHeuristic ? (
+                              <>
+                                {xmlGateway ? ' · ' : ' '}
+                                heuristic <code className="text-slate-300">{heuristicGateway}</code>
+                              </>
+                            ) : !xmlGateway && !heuristicGateway ? (
                               <span className="text-slate-500"> (prefix unsupported for guess)</span>
-                            )}
+                            ) : null}
                           </li>
                         )
                       })}
@@ -1639,7 +1698,15 @@ export default function VMDetailsPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold flex items-center gap-2"><Usb className="w-5 h-5 text-blue-400" /> USB Devices</h3>
-              <button onClick={() => setDialog('attach-usb')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach USB</button>
+              <button
+                type="button"
+                onClick={() => setDialog('attach-usb')}
+                disabled={!canUsbPci}
+                title={!canUsbPci ? 'USB passthrough requires operator or admin' : undefined}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm transition flex items-center gap-1"
+              >
+                <Plus className="w-4 h-4" /> Attach USB
+              </button>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
               <table className="w-full">
@@ -1652,7 +1719,15 @@ export default function VMDetailsPage() {
                       <td className="px-6 py-2 font-mono text-blue-400">{d.vendor_id}:{d.product_id}</td>
                       <td className="px-6 py-2 text-slate-300">{d.description}</td>
                       <td className="px-6 py-2 text-right">
-                        <button onClick={() => handleAttachUsb(d.vendor_id, d.product_id)} className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 rounded text-xs text-blue-400 transition">Attach</button>
+                        <button
+                          type="button"
+                          onClick={() => void handleAttachUsb(d.vendor_id, d.product_id)}
+                          disabled={!canUsbPci}
+                          title={!canUsbPci ? 'USB passthrough requires operator or admin' : undefined}
+                          className="px-2 py-0.5 bg-blue-600/20 hover:bg-blue-600/30 disabled:opacity-50 rounded text-xs text-blue-400 transition"
+                        >
+                          Attach
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -1759,7 +1834,18 @@ export default function VMDetailsPage() {
               UEFI: if libvirt returns “cannot undefine domain with nvram”, enable <strong>Delete UEFI NVRAM file</strong> (same as{' '}
               <code className="text-amber-100/80">virsh undefine --nvram</code>). On delete failure the UI may enable this checkbox once so you can confirm again—uncheck if you need to keep NVRAM.
             </p>
-            <button type="button" onClick={() => openDialog('delete-vm')} className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg text-sm font-medium transition">Delete this VM…</button>
+            <button
+              type="button"
+              onClick={() => openDialog('delete-vm')}
+              disabled={!canDestroyVm}
+              title={!canDestroyVm ? 'Destroying VMs requires the admin role' : undefined}
+              className="px-4 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-sm font-medium transition"
+            >
+              Delete this VM…
+            </button>
+            {!canDestroyVm && (
+              <p className="text-xs text-slate-500">Your role cannot destroy guests. Ask an admin to grant the admin role in machina&apos;s roles map.</p>
+            )}
           </div>
 
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
@@ -1801,8 +1887,44 @@ export default function VMDetailsPage() {
             <p className="text-xs text-slate-400">BDF like <code className="text-slate-300">0000:03:00.0</code>. Detach the node device from the host first when required.</p>
             <div className="flex flex-wrap gap-2 items-end">
               <input value={pciBdf} onChange={(e) => setPciBdf(e.target.value)} placeholder="0000:03:00.0" className="input-field flex-1 min-w-[200px]" />
-              <button type="button" onClick={async () => { if (!name || !pciBdf.trim()) return; try { await attachPciHostdev(name, pciBdf.trim()); toast.success('PCI attach requested'); load(); setVmXml('') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition">Attach</button>
-              <button type="button" onClick={async () => { if (!name || !pciBdf.trim()) return; try { await detachPciHostdev(name, pciBdf.trim()); toast.success('PCI detach requested'); load(); setVmXml('') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm transition">Detach</button>
+              <button
+                type="button"
+                disabled={!canUsbPci}
+                title={!canUsbPci ? 'PCI passthrough requires operator or admin' : undefined}
+                onClick={async () => {
+                  if (!canUsbPci || !name || !pciBdf.trim()) return
+                  try {
+                    await attachPciHostdev(name, pciBdf.trim())
+                    toast.success('PCI attach requested')
+                    load()
+                    setVmXml('')
+                  } catch (e: unknown) {
+                    toast.error(`${e instanceof Error ? e.message : e}`)
+                  }
+                }}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm transition"
+              >
+                Attach
+              </button>
+              <button
+                type="button"
+                disabled={!canUsbPci}
+                title={!canUsbPci ? 'PCI passthrough requires operator or admin' : undefined}
+                onClick={async () => {
+                  if (!canUsbPci || !name || !pciBdf.trim()) return
+                  try {
+                    await detachPciHostdev(name, pciBdf.trim())
+                    toast.success('PCI detach requested')
+                    load()
+                    setVmXml('')
+                  } catch (e: unknown) {
+                    toast.error(`${e instanceof Error ? e.message : e}`)
+                  }
+                }}
+                className="px-3 py-2 bg-slate-600 hover:bg-slate-500 disabled:opacity-50 rounded-lg text-sm transition"
+              >
+                Detach
+              </button>
             </div>
           </div>
 
@@ -1811,8 +1933,40 @@ export default function VMDetailsPage() {
             <p className="text-xs text-slate-400">Name from <strong className="text-slate-300">Devices</strong> page or <code className="text-slate-300">pci_0000_03_00_0</code> style libvirt id.</p>
             <div className="flex flex-wrap gap-2 items-end">
               <input value={nodedevName} onChange={(e) => setNodedevName(e.target.value)} placeholder="pci_0000_03_00_0" className="input-field flex-1 min-w-[220px]" />
-              <button type="button" onClick={async () => { if (!nodedevName.trim()) return; try { await detachNodeDevice(nodedevName.trim()); toast.success('Node device detached') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-orange-700 hover:bg-orange-600 rounded-lg text-sm transition">Detach from host</button>
-              <button type="button" onClick={async () => { if (!nodedevName.trim()) return; try { await reattachNodeDevice(nodedevName.trim()); toast.success('Node device reattached') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm transition">Reattach to host</button>
+              <button
+                type="button"
+                disabled={!canUsbPci}
+                title={!canUsbPci ? 'Node device ops require operator or admin' : undefined}
+                onClick={async () => {
+                  if (!canUsbPci || !nodedevName.trim()) return
+                  try {
+                    await detachNodeDevice(nodedevName.trim())
+                    toast.success('Node device detached')
+                  } catch (e: unknown) {
+                    toast.error(`${e instanceof Error ? e.message : e}`)
+                  }
+                }}
+                className="px-3 py-2 bg-orange-700 hover:bg-orange-600 disabled:opacity-50 rounded-lg text-sm transition"
+              >
+                Detach from host
+              </button>
+              <button
+                type="button"
+                disabled={!canUsbPci}
+                title={!canUsbPci ? 'Node device ops require operator or admin' : undefined}
+                onClick={async () => {
+                  if (!canUsbPci || !nodedevName.trim()) return
+                  try {
+                    await reattachNodeDevice(nodedevName.trim())
+                    toast.success('Node device reattached')
+                  } catch (e: unknown) {
+                    toast.error(`${e instanceof Error ? e.message : e}`)
+                  }
+                }}
+                className="px-3 py-2 bg-slate-600 hover:bg-slate-500 disabled:opacity-50 rounded-lg text-sm transition"
+              >
+                Reattach to host
+              </button>
             </div>
           </div>
         </div>
@@ -2182,8 +2336,12 @@ export default function VMDetailsPage() {
                   />
                   <button
                     type="button"
-                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
-                    onClick={() => setCdromBrowseOpen(true)}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 text-sm text-slate-200 transition"
+                    onClick={() => {
+                      if (canBrowseHost) setCdromBrowseOpen(true)
+                    }}
+                    disabled={!canBrowseHost}
+                    title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
                   >
                     <FolderOpen className="w-4 h-4" aria-hidden />
                     Browse
@@ -2217,8 +2375,12 @@ export default function VMDetailsPage() {
                 />
                 <button
                   type="button"
-                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 text-sm text-slate-200 transition"
-                  onClick={() => setAttachDiskBrowseOpen(true)}
+                  className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-600 bg-slate-700/50 hover:bg-slate-700 disabled:opacity-50 text-sm text-slate-200 transition"
+                  onClick={() => {
+                    if (canBrowseHost) setAttachDiskBrowseOpen(true)
+                  }}
+                  disabled={!canBrowseHost}
+                  title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
                 >
                   <FolderOpen className="w-4 h-4" aria-hidden />
                   Browse

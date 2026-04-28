@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router'
 import { listVMs, getMetrics, startVM, shutdownVM, VmInfo, VmMetrics, vmDetailRoute, vmConsoleRoute, vmScopeKey } from '../api/vm'
-import { getHostVirtualization, getLibvirtSummary } from '../api/host'
+import { getHostVirtualization, getLibvirtSummary, getHealthProblems, type HealthProblemItem } from '../api/host'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [virtBannerDismissed, setVirtBannerDismissed] = useState(
     () => typeof localStorage !== 'undefined' && localStorage.getItem('machina_virt_banner_dismiss') === '1',
   )
+  const [healthProblems, setHealthProblems] = useState<HealthProblemItem[]>([])
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const { subscribe, events } = useWebSocketContext()
   const toast = useToastContext()
@@ -51,6 +52,12 @@ export default function Dashboard() {
       try { setHostStats(await getHostStats()) } catch { /* optional */ }
       try { setVirtHost(await getHostVirtualization()) } catch { setVirtHost(null) }
       try { setLibSummary(await getLibvirtSummary()) } catch { setLibSummary(null) }
+      try {
+        const hp = await getHealthProblems()
+        setHealthProblems(Array.isArray(hp.items) ? hp.items : [])
+      } catch {
+        setHealthProblems([])
+      }
     } catch (error) { console.error('Failed to load data:', error) } finally { setLoading(false) }
   }, [])
 
@@ -103,6 +110,35 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in min-w-0">
       {/* Header */}
+      {healthProblems.length > 0 && (
+        <div className="rounded-xl border border-rose-500/35 bg-rose-950/25 px-4 py-3 space-y-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-rose-100">
+            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" aria-hidden />
+            Host checklist ({healthProblems.length})
+          </div>
+          <ul className="space-y-2 text-sm text-rose-50/95">
+            {healthProblems.map((p) => (
+              <li key={p.id} className="border-l-2 border-rose-500/40 pl-3">
+                <span className={p.severity === 'critical' ? 'text-red-300 font-medium' : 'text-amber-100/95'}>
+                  {p.title}
+                </span>
+                {p.detail ? <p className="text-xs text-rose-200/75 mt-0.5">{p.detail}</p> : null}
+                {p.doc_url ? (
+                  <a
+                    href={p.doc_url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-xs text-blue-400 hover:underline mt-0.5 inline-block"
+                  >
+                    Documentation
+                  </a>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {!virtBannerDismissed && virtHost && (!virtHost.cpu_virt_supported || !virtHost.kvm_device_present || (!virtHost.libvirt_system_socket_present && !virtHost.libvirt_session_socket_present)) && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex gap-3 min-w-0">

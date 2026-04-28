@@ -10,7 +10,10 @@ use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
-use crate::auth::{require_browser_session_for_host_insight, RequestActor};
+use crate::auth::{
+    require_browser_session_for_host_insight, require_browse_host_paths, require_destroy_vm,
+    require_usb_pci, RequestActor,
+};
 use crate::error::AppError;
 
 /// Caps concurrent blocking host probes (`package-updates`, `net-rates`) that can stall the default pool.
@@ -35,6 +38,7 @@ fn log_audit(action: &str, target: &str, result: &str) {
         action: action.to_string(),
         target: target.to_string(),
         result: result.to_string(),
+        actor: String::new(),
     };
     audit::write_audit_event(&event);
 }
@@ -68,9 +72,11 @@ struct BrowseDirQuery {
 }
 
 async fn browse_directory_handler(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Query(q): Query<BrowseDirQuery>,
 ) -> Result<Json<extras::BrowseDirResponse>, AppError> {
+    require_browse_host_paths(&actor)?;
     let path = q.path.unwrap_or_default();
     let mgr = manager.clone();
     let res =
@@ -86,9 +92,11 @@ struct DeleteImageQuery {
 }
 
 async fn delete_disk_image(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Query(q): Query<DeleteImageQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_destroy_vm(&actor)?;
     let path = q.path.trim().to_string();
     if path.is_empty() {
         return Err(AppError::from(LibvirtError::Invalid(
@@ -448,13 +456,17 @@ struct UsbRequest {
 }
 
 async fn attach_usb_handler(
+    Extension(actor): Extension<RequestActor>,
     State(m): State<LibvirtManager>,
     Path(name): Path<String>,
     Json(req): Json<UsbRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
+    let vid = req.vendor_id.clone();
+    let pid = req.product_id.clone();
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || {
-        m.with_conn(|conn| extras::attach_usb(conn, &name2, &req.vendor_id, &req.product_id))
+        m.with_conn(|conn| extras::attach_usb(conn, &name2, &vid, &pid))
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
@@ -464,13 +476,17 @@ async fn attach_usb_handler(
 }
 
 async fn detach_usb_handler(
+    Extension(actor): Extension<RequestActor>,
     State(m): State<LibvirtManager>,
     Path(name): Path<String>,
     Json(req): Json<UsbRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
+    let vid = req.vendor_id.clone();
+    let pid = req.product_id.clone();
     let name2 = name.clone();
     tokio::task::spawn_blocking(move || {
-        m.with_conn(|conn| extras::detach_usb(conn, &name2, &req.vendor_id, &req.product_id))
+        m.with_conn(|conn| extras::detach_usb(conn, &name2, &vid, &pid))
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
@@ -876,10 +892,48 @@ async fn save_template_handler(
 
 // ── Audit Log ──────────────────────────────────────────────────────
 
+#[derive(Deserialize, Default)]
+struct AuditLogQuery {
+    #[serde(default)]
+    action: Option<String>,
+    #[serde(default)]
+    actor: Option<String>,
+    #[serde(default)]
+    q: Option<String>,
+    #[serde(default)]
+    limit: Option<usize>,
+}
+
 async fn get_audit_log(
     State(_m): State<LibvirtManager>,
+    Query(q): Query<AuditLogQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let events = audit::load_audit_events(500);
+    let mut events = audit::load_audit_events(10_000);
+    if let Some(ref a) = q.action {
+        let a = a.to_lowercase();
+        events.retain(|e| e.action.to_lowercase().contains(&a));
+    }
+    if let Some(ref ac) = q.actor {
+        let ac = ac.to_lowercase();
+        events.retain(|e| e.actor.to_lowercase().contains(&ac));
+    }
+    if let Some(ref s) = q.q {
+        let s = s.to_lowercase();
+        events.retain(|e| {
+            e.action.to_lowercase().contains(&s)
+                || e.target.to_lowercase().contains(&s)
+                || e.result.to_lowercase().contains(&s)
+                || e.actor.to_lowercase().contains(&s)
+        });
+    }
+    if let Some(lim) = q.limit {
+        let lim = lim.max(1).min(10_000);
+        if events.len() > lim {
+            events.truncate(lim);
+        }
+    } else if events.len() > 500 {
+        events.truncate(500);
+    }
     Ok(Json(serde_json::json!(events)))
 }
 

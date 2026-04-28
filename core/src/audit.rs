@@ -14,10 +14,17 @@ pub fn write_audit_event(event: &AuditEvent) {
         let _ = fs::create_dir_all(parent);
     }
 
-    let line = format!(
-        "{}\t{}\t{}\t{}\n",
-        event.timestamp, event.action, event.target, event.result
-    );
+    let line = if event.actor.is_empty() {
+        format!(
+            "{}\t{}\t{}\t{}\n",
+            event.timestamp, event.action, event.target, event.result
+        )
+    } else {
+        format!(
+            "{}\t{}\t{}\t{}\t{}\n",
+            event.timestamp, event.action, event.target, event.result, event.actor
+        )
+    };
 
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
         let _ = file.write_all(line.as_bytes());
@@ -36,17 +43,26 @@ pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {
         .rev()
         .take(max)
         .filter_map(|line| {
-            let parts: Vec<&str> = line.splitn(4, '\t').collect();
-            if parts.len() == 4 {
-                Some(AuditEvent {
+            let parts: Vec<&str> = line.split('\t').collect();
+            match parts.len() {
+                4 => Some(AuditEvent {
                     timestamp: parts[0].to_string(),
                     action: parts[1].to_string(),
                     target: parts[2].to_string(),
                     result: parts[3].to_string(),
-                })
-            } else {
-                tracing::debug!("Skipping malformed audit line: {}", line);
-                None
+                    actor: String::new(),
+                }),
+                n if n >= 5 => Some(AuditEvent {
+                    timestamp: parts[0].to_string(),
+                    action: parts[1].to_string(),
+                    target: parts[2].to_string(),
+                    result: parts[3].to_string(),
+                    actor: parts[4].to_string(),
+                }),
+                _ => {
+                    tracing::debug!("Skipping malformed audit line: {}", line);
+                    None
+                }
             }
         })
         .collect::<Vec<_>>()

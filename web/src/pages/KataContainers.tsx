@@ -1,0 +1,445 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import {
+  Copy,
+  ExternalLink,
+  Loader2,
+  Package,
+  Play,
+  RefreshCw,
+  Server,
+  Terminal,
+} from 'lucide-react'
+import { useToastContext } from '../contexts/ToastContext'
+import { getSession, type SessionRole } from '../api/auth'
+import { getK8sContexts, getK8sEnvironment, postKataDeploy, type KataDeployAction, type K8sActionResult } from '../api/k8s'
+
+const KATA_DEPLOY_BASE =
+  'https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy'
+const KATA_EXAMPLES = `${KATA_DEPLOY_BASE}/examples`
+
+const CMD_INSTALL = `kubectl apply -f ${KATA_DEPLOY_BASE}/kata-rbac/base/kata-rbac.yaml
+kubectl apply -f ${KATA_DEPLOY_BASE}/kata-deploy/base/kata-deploy.yaml`
+
+const CMD_WAIT = `kubectl -n kube-system wait --timeout=10m --for=condition=Ready -l name=kata-deploy pod`
+
+const CMD_RUNTIME_CLASSES = `kubectl apply -f ${KATA_DEPLOY_BASE}/runtimeclasses/kata-runtimeClasses.yaml`
+
+function CopyBlock({ label, text }: { label: string; text: string }) {
+  const toast = useToastContext()
+  return (
+    <div className="relative group rounded-lg border border-slate-700 bg-slate-900/80 overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-slate-700/80 bg-slate-800/60">
+        <span className="text-xs text-slate-400">{label}</span>
+        <button
+          type="button"
+          onClick={() =>
+            void navigator.clipboard.writeText(text.trim()).then(
+              () => toast.success('Copied'),
+              () => toast.error('Copy failed'),
+            )
+          }
+          className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300"
+        >
+          <Copy className="w-3 h-3" /> Copy
+        </button>
+      </div>
+      <pre className="p-3 text-xs font-mono text-slate-200 overflow-x-auto whitespace-pre-wrap break-all">{text.trim()}</pre>
+    </div>
+  )
+}
+
+function KataAutomateSection() {
+  const toast = useToastContext()
+  const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
+  const [kubectlOk, setKubectlOk] = useState<boolean | null>(null)
+  const [kubeReachable, setKubeReachable] = useState<boolean | null>(null)
+  const [ctx, setCtx] = useState('')
+  const [ctxChoices, setCtxChoices] = useState<string[]>([])
+  const [dryRun, setDryRun] = useState(false)
+  const [busy, setBusy] = useState<KataDeployAction | 'core_three' | null>(null)
+  const [lastOut, setLastOut] = useState<K8sActionResult | null>(null)
+
+  const ctxTrim = ctx.trim()
+
+  useEffect(() => {
+    getSession()
+      .then((s) => setSessionRole(s.authenticated ? (s.role ?? 'admin') : null))
+      .catch(() => setSessionRole(null))
+  }, [])
+
+  useEffect(() => {
+    getK8sEnvironment()
+      .then((e) => {
+        setKubectlOk(e.kubectl_on_path)
+        setKubeReachable(e.kubectl_server_reachable)
+      })
+      .catch(() => {
+        setKubectlOk(false)
+        setKubeReachable(false)
+      })
+  }, [])
+
+  const canWrite = sessionRole === 'admin' || sessionRole === 'operator'
+  const canRun = canWrite && kubectlOk === true && kubeReachable === true
+
+  const runOne = useCallback(
+    async (action: KataDeployAction) => {
+      if (!canRun) return
+      if (action === 'wait_kata_deploy_pod' && dryRun) {
+        toast.warning('Turn off server dry-run before running wait (wait has no dry-run mode).')
+        return
+      }
+      setBusy(action)
+      setLastOut(null)
+      try {
+        const r = await postKataDeploy({
+          action,
+          context: ctxTrim || undefined,
+          dry_run: action === 'wait_kata_deploy_pod' ? undefined : dryRun || undefined,
+        })
+        setLastOut(r)
+        if (r.ok) toast.success(`Step finished: ${action.replace(/_/g, ' ')}`)
+        else toast.error(r.stderr.trim() || `kubectl exit ${r.exit_code}`)
+      } catch (e: unknown) {
+        toast.error(e instanceof Error ? e.message : String(e))
+      } finally {
+        setBusy(null)
+      }
+    },
+    [canRun, ctxTrim, dryRun, toast],
+  )
+
+  const runCoreThree = useCallback(async () => {
+    if (!canRun) return
+    const steps: KataDeployAction[] = ['rbac', 'kata_deploy', 'runtime_classes']
+    setBusy('core_three')
+    setLastOut(null)
+    try {
+      for (const action of steps) {
+        const r = await postKataDeploy({
+          action,
+          context: ctxTrim || undefined,
+          dry_run: dryRun || undefined,
+        })
+        setLastOut(r)
+        if (!r.ok) {
+          toast.error(`${action}: ${r.stderr.trim() || `exit ${r.exit_code}`}`)
+          return
+        }
+      }
+      toast.success('RBAC + kata-deploy + RuntimeClasses applied')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }, [canRun, ctxTrim, dryRun, toast])
+
+  const loadContexts = useCallback(() => {
+    void getK8sContexts()
+      .then((r) => {
+        setCtxChoices(r.contexts ?? [])
+        toast.success(`Loaded ${(r.contexts ?? []).length} kubectl context(s)`)
+      })
+      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+  }, [toast])
+
+  const btnClass =
+    'px-3 py-2 rounded-lg text-sm font-medium transition border disabled:opacity-45 disabled:cursor-not-allowed border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-100 inline-flex items-center justify-center gap-2 min-h-[2.5rem]'
+
+  return (
+    <section className="rounded-xl border border-cyan-800/40 bg-cyan-950/20 p-5 space-y-4">
+      <div className="flex flex-wrap items-start gap-3 justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+            <Terminal className="w-5 h-5 text-cyan-400" /> Automate from the machina daemon host
+          </h2>
+          <p className="text-sm text-slate-400 mt-1 max-w-prose">
+            Runs allowlisted <code className="text-slate-300">kubectl</code> on whatever machine runs <strong className="text-slate-300">machina-daemon</strong> — that is <strong className="text-slate-300">not</strong> automatically a Kubernetes
+            control-plane node. It is often a lab workstation with kubeconfig, or the same box as your libvirt hypervisor; in an all-in-one setup it can coincide with the control plane, but the API only
+            needs <code className="text-slate-300">kubectl</code> + network reachability to the cluster (same as the Kubernetes pages). Requires <strong className="text-slate-300">operator or admin</strong> session role.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-xs">
+        <span
+          className={`px-2 py-1 rounded-md border ${kubectlOk ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/15 border-amber-500/40 text-amber-200'}`}
+        >
+          kubectl {kubectlOk === null ? '…' : kubectlOk ? 'found' : 'missing'}
+        </span>
+        <span
+          className={`px-2 py-1 rounded-md border ${kubeReachable ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-400'}`}
+        >
+          API {kubeReachable === null ? '…' : kubeReachable ? 'reachable' : 'unreachable'}
+        </span>
+        <span
+          className={`px-2 py-1 rounded-md border ${canWrite ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-rose-500/15 border-rose-500/35 text-rose-200'}`}
+        >
+          Role {sessionRole ?? '…'} {!canWrite ? '(need operator/admin)' : ''}
+        </span>
+      </div>
+
+      {!canWrite && sessionRole !== null && (
+        <p className="text-xs text-amber-200/90">Read-only users can copy commands below but cannot run automation.</p>
+      )}
+
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[12rem]">
+          <label htmlFor="kata-ctx" className="block text-xs text-slate-500 mb-1">
+            kubectl context (optional)
+          </label>
+          <input
+            id="kata-ctx"
+            value={ctx}
+            onChange={(e) => setCtx(e.target.value)}
+            placeholder="default context if empty"
+            className="input-field w-full text-sm font-mono"
+            list="kata-ctx-list"
+          />
+          <datalist id="kata-ctx-list">
+            {ctxChoices.map((c) => (
+              <option key={c} value={c} />
+            ))}
+          </datalist>
+        </div>
+        <button type="button" className={btnClass} onClick={loadContexts}>
+          <RefreshCw className="w-4 h-4" /> List contexts
+        </button>
+        <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer shrink-0">
+          <input type="checkbox" className="rounded border-slate-600" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
+          Server dry-run (apply only)
+        </label>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Install sequence</p>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            className={`${btnClass} border-cyan-700/50 bg-cyan-950/40 hover:bg-cyan-900/50`}
+            disabled={!canRun || busy !== null}
+            onClick={() => void runCoreThree()}
+          >
+            {busy === 'core_three' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            Apply RBAC + kata-deploy + RuntimeClasses
+          </button>
+          <button type="button" className={btnClass} disabled={!canRun || busy !== null} onClick={() => void runOne('rbac')}>
+            {busy === 'rbac' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} RBAC only
+          </button>
+          <button type="button" className={btnClass} disabled={!canRun || busy !== null} onClick={() => void runOne('kata_deploy')}>
+            {busy === 'kata_deploy' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} kata-deploy DS
+          </button>
+          <button type="button" className={btnClass} disabled={!canRun || busy !== null} onClick={() => void runOne('runtime_classes')}>
+            {busy === 'runtime_classes' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} RuntimeClasses
+          </button>
+          <button
+            type="button"
+            title="Blocks up to ~11 minutes"
+            className={btnClass}
+            disabled={!canRun || busy !== null || dryRun}
+            onClick={() => void runOne('wait_kata_deploy_pod')}
+          >
+            {busy === 'wait_kata_deploy_pod' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Wait kata-deploy pod
+          </button>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Upstream examples (default namespace)</p>
+        <div className="flex flex-wrap gap-2">
+          {(
+            [
+              ['example_clh', 'Cloud Hypervisor sample'],
+              ['example_dragonball', 'Dragonball sample'],
+              ['example_stratovirt', 'StratoVirt sample'],
+              ['example_qemu', 'QEMU sample'],
+            ] as const
+          ).map(([action, label]) => (
+            <button
+              key={action}
+              type="button"
+              className={btnClass}
+              disabled={!canRun || busy !== null}
+              onClick={() => void runOne(action)}
+            >
+              {busy === action ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {lastOut && (
+        <details open className="rounded-lg border border-slate-700 bg-slate-900/60 overflow-hidden">
+          <summary className="px-3 py-2 text-xs text-slate-400 cursor-pointer select-none">Last kubectl result</summary>
+          <div className="px-3 pb-3 space-y-2 text-xs">
+            <div className="font-mono text-slate-500 break-all">{lastOut.command}</div>
+            <div className={lastOut.ok ? 'text-emerald-400' : 'text-rose-400'}>exit {lastOut.exit_code}</div>
+            {lastOut.stdout.trim() ? (
+              <pre className="text-slate-300 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">{lastOut.stdout}</pre>
+            ) : null}
+            {lastOut.stderr.trim() ? (
+              <pre className="text-amber-200/90 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">{lastOut.stderr}</pre>
+            ) : null}
+          </div>
+        </details>
+      )}
+    </section>
+  )
+}
+
+export default function KataContainersPage() {
+  return (
+    <div className="space-y-8 animate-fade-in max-w-4xl">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Package className="w-7 h-7 text-cyan-400" /> Kata Containers on Kubernetes
+        </h1>
+        <p className="text-sm text-slate-400 mt-1">
+          Install <strong className="text-slate-300">kata-deploy</strong> on a running cluster, then run pods with{' '}
+          <code className="text-slate-300">runtimeClassName</code> — for example{' '}
+          <code className="text-slate-300">kata-clh</code> for{' '}
+          <a
+            href="https://github.com/cloud-hypervisor/cloud-hypervisor"
+            target="_blank"
+            rel="noreferrer"
+            className="text-blue-400 hover:underline inline-flex items-center gap-0.5"
+          >
+            Cloud Hypervisor <ExternalLink className="w-3 h-3" />
+          </a>
+          . Manual commands below match what automation runs on the daemon host (see panel above — not necessarily the cluster control plane).
+        </p>
+        <p className="text-xs text-slate-500 mt-2">
+          Upstream manifests track the{' '}
+          <a href="https://github.com/kata-containers/kata-containers/tree/main/tools/packaging/kata-deploy" className="text-blue-400 hover:underline" target="_blank" rel="noreferrer">
+            kata-containers/kata-containers
+          </a>{' '}
+          repo; pin to a release tag in production instead of <code className="text-slate-500">main</code> if you need stability.
+        </p>
+      </div>
+
+      <KataAutomateSection />
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+          <Server className="w-5 h-5 text-blue-400" /> 1. Install kata-deploy
+        </h2>
+        <p className="text-sm text-slate-400">
+          Applies RBAC and the kata-deploy DaemonSet (installs Kata binaries and artifacts on nodes).
+        </p>
+        <CopyBlock label="kubectl" text={CMD_INSTALL} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-white">2. Wait for the installer pod</h2>
+        <CopyBlock label="kubectl wait" text={CMD_WAIT} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-white">3. Apply RuntimeClass objects</h2>
+        <p className="text-sm text-slate-400">
+          Official RuntimeClasses include selectors so workloads land on nodes labeled{' '}
+          <code className="text-slate-300">katacontainers.io/kata-runtime=true</code> (set by kata-deploy on capable nodes).
+        </p>
+        <CopyBlock label="kubectl apply" text={CMD_RUNTIME_CLASSES} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-white">4. Choose a runtime in your Pod spec</h2>
+        <p className="text-sm text-slate-400">
+          Set <code className="text-slate-300">spec.runtimeClassName</code> on the Pod (or Deployment template).
+        </p>
+        <div className="rounded-xl border border-slate-700/50 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700/50 text-left text-slate-400">
+                <th className="px-4 py-2">RuntimeClass</th>
+                <th className="px-4 py-2">VMM / notes</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-700/40 text-slate-200">
+              <tr>
+                <td className="px-4 py-2 font-mono text-cyan-300">kata-clh</td>
+                <td className="px-4 py-2 text-slate-400">Cloud Hypervisor (Rust, lightweight)</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2 font-mono">kata-dragonball</td>
+                <td className="px-4 py-2 text-slate-400">Dragonball (Rust, integrated in Kata)</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2 font-mono">kata-stratovirt</td>
+                <td className="px-4 py-2 text-slate-400">StratoVirt</td>
+              </tr>
+              <tr>
+                <td className="px-4 py-2 font-mono">kata-qemu</td>
+                <td className="px-4 py-2 text-slate-400">QEMU (traditional, feature-rich)</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <CopyBlock
+          label="Deployment snippet — Cloud Hypervisor (kata-clh)"
+          text={`spec:
+  template:
+    spec:
+      runtimeClassName: kata-clh`}
+        />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-lg font-semibold text-white">5. Example workloads (upstream)</h2>
+        <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
+          <li>
+            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-clh.yaml`} target="_blank" rel="noreferrer">
+              test-deploy-kata-clh.yaml
+            </a>{' '}
+            — sample Deployment + Service using <code className="text-slate-400">kata-clh</code>
+          </li>
+          <li>
+            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-dragonball.yaml`} target="_blank" rel="noreferrer">
+              test-deploy-kata-dragonball.yaml
+            </a>
+          </li>
+          <li>
+            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-stratovirt.yaml`} target="_blank" rel="noreferrer">
+              test-deploy-kata-stratovirt.yaml
+            </a>
+          </li>
+          <li>
+            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-qemu.yaml`} target="_blank" rel="noreferrer">
+              test-deploy-kata-qemu.yaml
+            </a>
+          </li>
+        </ul>
+        <p className="text-xs text-slate-500">
+          Apply with e.g.{' '}
+          <code className="text-slate-400">kubectl apply -f &lt;url&gt;</code>. Verify with{' '}
+          <code className="text-slate-400">kubectl describe pod &lt;pod&gt;</code> — expect{' '}
+          <span className="text-slate-300">Runtime Class Name: kata-clh</span> and scheduling to a Kata-labeled node.
+        </p>
+      </section>
+
+      <section className="bg-slate-800/40 border border-slate-700/50 rounded-xl p-5 space-y-2">
+        <h2 className="text-base font-semibold text-white">Why Cloud Hypervisor with Kata?</h2>
+        <ul className="text-sm text-slate-400 space-y-1.5 list-disc list-inside">
+          <li>Small VMM attack surface and fast startup vs full QEMU for many tenant-isolation cases.</li>
+          <li>Modern virtio stack (e.g. virtio-fs), optional hotplug, KVM-backed — good fit for sandboxed Kubernetes pods.</li>
+          <li>Rust implementation — aligns with other Rust components in the Kata ecosystem.</li>
+        </ul>
+        <p className="text-xs text-slate-500 pt-1">
+          Tune paths and hypervisor choice in Kata&apos;s <code className="text-slate-400">configuration.toml</code> on the node when you need stricter defaults; the RuntimeClass selects which Kata &quot;stack&quot; the kubelet passes to containerd.
+        </p>
+      </section>
+
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link to="/k8s" className="text-blue-400 hover:text-blue-300">
+          ← Kubernetes overview
+        </Link>
+        <Link to="/k8s/workloads" className="text-blue-400 hover:text-blue-300">
+          K8s workloads
+        </Link>
+      </div>
+    </div>
+  )
+}

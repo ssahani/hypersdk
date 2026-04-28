@@ -1,9 +1,10 @@
 use axum::extract::{Extension, Path};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use machina_core::system_accounts;
 use machina_core::{LibvirtError, LibvirtManager};
 use serde::Deserialize;
+use serde_json::json;
 use tracing::info;
 
 use crate::auth::RequestActor;
@@ -120,9 +121,49 @@ async fn delete_os_user(
     })))
 }
 
+const CREATE_VM_DEFAULTS_PATH: &str = "/var/lib/machina/create-vm-defaults.json";
+
+fn load_create_vm_defaults_json() -> serde_json::Value {
+    std::fs::read_to_string(CREATE_VM_DEFAULTS_PATH)
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or(json!({}))
+}
+
+async fn get_create_vm_defaults(
+    Extension(_actor): Extension<RequestActor>,
+) -> Json<serde_json::Value> {
+    Json(load_create_vm_defaults_json())
+}
+
+async fn put_create_vm_defaults(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<serde_json::Value>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Saving hypervisor defaults requires operator or admin.".into(),
+        )
+        .into());
+    }
+    std::fs::create_dir_all("/var/lib/machina").map_err(|e| {
+        AppError::from(LibvirtError::Operation(format!("create /var/lib/machina: {e}")))
+    })?;
+    let data = serde_json::to_string_pretty(&body)
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("serialize defaults: {e}"))))?;
+    std::fs::write(CREATE_VM_DEFAULTS_PATH, data).map_err(|e| {
+        AppError::from(LibvirtError::Operation(format!("write defaults: {e}")))
+    })?;
+    Ok(Json(json!({ "status": "saved" })))
+}
+
 pub fn system_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/system/os-users/capability", get(os_users_capability))
         .route("/system/os-users", post(create_os_user))
         .route("/system/os-users/{username}", delete(delete_os_user))
+        .route(
+            "/system/create-vm-defaults",
+            get(get_create_vm_defaults).put(put_create_vm_defaults),
+        )
 }

@@ -22,3 +22,15 @@ export async function getLibvirtSummary(): Promise<{
 }> {
   return apiGet(`${API}/libvirt/summary`)
 }
+
+export interface HealthProblemItem {
+  id: string
+  severity: 'critical' | 'warning'
+  title: string
+  detail: string
+  doc_url: string | null
+}
+
+export async function getHealthProblems(): Promise<{ items: HealthProblemItem[] }> {
+  return apiGet(`${API}/health/problems`)
+}

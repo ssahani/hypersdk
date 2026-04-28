@@ -338,3 +338,17 @@ export const getK8sKubevirtVmSummary = (namespace?: string, context?: string) =>
   )
 
 export const runK8sAction = (body: K8sActionRequest) => apiPost<K8sActionResult>(`${API}/k8s/action`, body)
+
+/** Allowlisted steps run on the **daemon host** via `kubectl` (operator/admin only). */
+export type KataDeployAction =
+  | 'rbac'
+  | 'kata_deploy'
+  | 'runtime_classes'
+  | 'wait_kata_deploy_pod'
+  | 'example_clh'
+  | 'example_dragonball'
+  | 'example_stratovirt'
+  | 'example_qemu'
+
+export const postKataDeploy = (body: { action: KataDeployAction; context?: string; dry_run?: boolean }) =>
+  apiPost<K8sActionResult>(`${API}/k8s/kata-deploy`, body)

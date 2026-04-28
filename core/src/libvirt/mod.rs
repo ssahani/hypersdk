@@ -26,6 +26,7 @@ pub mod hostdev_pci;
 pub mod metrics;
 pub mod migrate;
 pub mod mkosi;
+pub mod net_xml;
 pub mod network;
 pub mod node;
 pub mod node_device;

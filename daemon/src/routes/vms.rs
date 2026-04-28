@@ -20,6 +20,7 @@ use machina_core::{
     RenameVmRequest, VmCreateBackend, VmDetails, VmInfo,
 };
 
+use crate::auth::{require_destroy_vm, RequestActor};
 use crate::conn_query::{connection_label, spawn_libvirt, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 use crate::job_registry::JobRegistry;
@@ -50,11 +51,16 @@ fn validate_create_vm_payload(req: &CreateVmRequest) -> Result<(), AppError> {
 }
 
 fn log_audit(action: &str, target: &str, result: &str) {
+    log_audit_with_actor(None, action, target, result);
+}
+
+fn log_audit_with_actor(actor: Option<&str>, action: &str, target: &str, result: &str) {
     let event = AuditEvent {
         timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         action: action.to_string(),
         target: target.to_string(),
         result: result.to_string(),
+        actor: actor.unwrap_or("").to_string(),
     };
     audit::write_audit_event(&event);
 }
@@ -374,11 +380,13 @@ struct DeleteVmQuery {
 }
 
 async fn delete_vm_handler(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Query(q): Query<DeleteVmQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_destroy_vm(&actor)?;
     let opts = UndefineOptions {
         managed_save: q.undefine_managed_save,
         snapshots_metadata: q.undefine_snapshots_metadata,
@@ -394,7 +402,7 @@ async fn delete_vm_handler(
         domain::delete_vm_with_options(conn, &name2, &opts)
     })
     .await?;
-    log_audit("delete", &name, "ok");
+    log_audit_with_actor(Some(&actor.username), "delete", &name, "ok");
     Ok(ok_json("deleted", &name))
 }
 

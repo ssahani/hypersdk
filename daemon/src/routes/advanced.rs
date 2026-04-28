@@ -1,14 +1,18 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
+use std::collections::HashMap;
+
 use machina_core::libvirt::guest_agent::GuestIpAddress;
 use machina_core::libvirt::{
-    boot, capabilities, cdrom, domain_job, emulator, extras, filesystem, guest_agent, host_cpu,
-    hostdev_pci, migrate, node_device, numa_tune, nwfilter, save_restore, secret, storage,
+    boot, capabilities, cdrom, domain, domain_job, emulator, extras, filesystem, guest_agent,
+    host_cpu, hostdev_pci, migrate, net_xml, network, node_device, numa_tune, nwfilter, save_restore,
+    secret, storage,
 };
 use machina_core::{LibvirtError, LibvirtManager};
 
+use crate::auth::{require_usb_pci, RequestActor};
 use crate::conn_query::{spawn_libvirt, ConnQuery};
 use crate::error::{AppError, Xml};
 
@@ -45,12 +49,27 @@ async fn get_interfaces(
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let addrs = spawn_libvirt(manager, conn_q, move |conn| {
-        let addrs = guest_agent::get_guest_interfaces(conn, &name2)?;
-        let leases = extras::list_dhcp_leases(conn).unwrap_or_default();
-        Ok(guest_agent::enrich_with_dhcp_leases(addrs, &leases))
-    })
-    .await?;
+    let (addrs, net_gw): (Vec<GuestIpAddress>, HashMap<String, String>) =
+        spawn_libvirt(manager, conn_q, move |conn| {
+            let mut addrs = guest_agent::get_guest_interfaces(conn, &name2)?;
+            let leases = extras::list_dhcp_leases(conn).unwrap_or_default();
+            addrs = guest_agent::enrich_with_dhcp_leases(addrs, &leases);
+            let mut gateways: HashMap<String, String> = HashMap::new();
+            if let Ok(dom_xml) = domain::get_vm_xml(conn, &name2) {
+                for n in net_xml::network_names_from_domain_xml(&dom_xml) {
+                    if gateways.contains_key(&n) {
+                        continue;
+                    }
+                    if let Ok(nxml) = network::get_network_xml(conn, &n) {
+                        if let Some(gw) = net_xml::ipv4_gateway_from_network_xml(&nxml) {
+                            gateways.insert(n, gw);
+                        }
+                    }
+                }
+            }
+            Ok((addrs, gateways))
+        })
+        .await?;
 
     let addrs = tokio::task::spawn_blocking(move || enrich_dns_ptr(addrs))
         .await
@@ -59,6 +78,7 @@ async fn get_interfaces(
     Ok(Json(serde_json::json!({
         "addresses": addrs,
         "queried_at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+        "network_gateways": net_gw,
     })))
 }
 
@@ -653,10 +673,12 @@ struct PciHostdevBody {
 }
 
 async fn attach_pci_hostdev_handler(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
     Json(req): Json<PciHostdevBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
     let pci = req.pci.clone();
     let pci_for_task = pci.clone();
     let name2 = name.clone();
@@ -671,10 +693,12 @@ async fn attach_pci_hostdev_handler(
 }
 
 async fn detach_pci_hostdev_handler(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
     Json(req): Json<PciHostdevBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
     let pci = req.pci.clone();
     let pci_for_task = pci.clone();
     let name2 = name.clone();
@@ -689,9 +713,11 @@ async fn detach_pci_hostdev_handler(
 }
 
 async fn detach_nodedev_handler(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Path(devname): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
     let dev = devname.clone();
     tokio::task::spawn_blocking(move || {
         manager.with_conn(|conn| node_device::detach_node_device(conn, &dev))
@@ -704,9 +730,11 @@ async fn detach_nodedev_handler(
 }
 
 async fn reattach_nodedev_handler(
+    Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
     Path(devname): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
+    require_usb_pci(&actor)?;
     let dev = devname.clone();
     tokio::task::spawn_blocking(move || {
         manager.with_conn(|conn| node_device::reattach_node_device(conn, &dev))

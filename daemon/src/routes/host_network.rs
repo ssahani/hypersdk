@@ -64,6 +64,7 @@ fn log_route_audit(req: &host_network::KernelRouteChangeRequest, result: &str) {
         action: "host-kernel-route".to_string(),
         target,
         result: result.to_string(),
+        actor: String::new(),
     };
     audit::write_audit_event(&event);
 }

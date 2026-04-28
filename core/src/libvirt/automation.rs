@@ -42,6 +42,18 @@ impl Role {
     pub fn can_manage_users(&self) -> bool {
         matches!(self, Role::Admin)
     }
+    /// Undefine/destroy guests and remove host disk images from browse API.
+    pub fn can_destroy_vm(&self) -> bool {
+        self.can_delete()
+    }
+    /// USB and PCI passthrough onto a guest.
+    pub fn can_usb_pci(&self) -> bool {
+        matches!(self, Role::Admin | Role::Operator)
+    }
+    /// Browse arbitrary host directories from the UI/API (hypervisor filesystem).
+    pub fn can_browse_host_paths(&self) -> bool {
+        matches!(self, Role::Admin)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -74,7 +86,14 @@ pub fn save_roles(roles: &RoleMap) -> Result<(), LibvirtError> {
 
 pub fn get_user_role(username: &str) -> Role {
     let roles = load_roles();
-    roles.get(username).cloned().unwrap_or(Role::ReadOnly) // default: least privilege
+    if roles.is_empty() {
+        // No roles.json yet — treat browser/PAM users as admin until an admin creates the map.
+        return Role::Admin;
+    }
+    roles
+        .get(username)
+        .cloned()
+        .unwrap_or(Role::ReadOnly)
 }
 
 pub fn set_user_role(username: &str, role: Role) -> Result<(), LibvirtError> {

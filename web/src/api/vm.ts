@@ -481,6 +481,8 @@ export interface GuestInterfacesResponse {
   addresses: GuestIpAddress[]
   /** ISO-8601 — when the hypervisor collected this snapshot. */
   queried_at: string
+  /** libvirt network name → IPv4 gateway from network XML (when resolvable). */
+  network_gateways?: Record<string, string>
 }
 
 export interface BootConfig {

@@ -6,8 +6,16 @@ import { getLibvirtSummary } from '../api/host'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listIsos, listSavedTemplates, ImageFile } from '../api/extras'
 import { listPools, listVolumes, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
-import { guestOsDetect } from '../api/guestImages'
-import { createVmDefaultsStorageKey, loadCreateVmDefaults, saveCreateVmDefaults } from '../utils/createVmDefaults'
+import { guestOsDetect, guestOsList, type GuestOsRow } from '../api/guestImages'
+import {
+  createVmDefaultsStorageKey,
+  loadCreateVmDefaults,
+  saveCreateVmDefaults,
+  type CreateVmDefaultsPayload,
+} from '../utils/createVmDefaults'
+import { getServerCreateVmDefaults, putServerCreateVmDefaults } from '../api/system'
+import { getSession, type SessionRole } from '../api/auth'
+import { parseOsinfoDetectVariant } from '../utils/osinfoDetect'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { BuildStepTimeline } from '../components/BuildStepTimeline'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
@@ -121,7 +129,9 @@ export default function CreateVMPage() {
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
     return createVmDefaultsStorageKey(libSummary?.configured_uri, host)
   }, [libSummary?.configured_uri])
-  const createDefaultsLoadedKey = useRef<string | null>(null)
+
+  const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
+  const [guestOsRows, setGuestOsRows] = useState<GuestOsRow[]>([])
 
   const vmCreateTimeline = useMemo(
     () => computeVmCreateTimeline(createLog, submitting, createProgressOk, createProgressFailed),
@@ -191,30 +201,60 @@ export default function CreateVMPage() {
   }, [pageFlow])
 
   useEffect(() => {
-    if (createDefaultsLoadedKey.current === createDefaultsKey) return
-    createDefaultsLoadedKey.current = createDefaultsKey
-    const d = loadCreateVmDefaults(createDefaultsKey)
-    if (!d) return
-    if (d.vcpus != null) setVcpus(d.vcpus)
-    if (d.memory_mb != null) setMemoryMb(d.memory_mb)
-    if (d.disk_gb != null) setDiskGb(d.disk_gb)
-    if (d.network) setNetwork(d.network)
-    if (d.firmware) setFirmware(d.firmware)
-    if (d.graphics_type === 'vnc' || d.graphics_type === 'spice') setGraphicsType(d.graphics_type)
-    if (d.graphics_listen) setGraphicsListen(d.graphics_listen)
-    if (d.guest_profile === 'auto' || d.guest_profile === 'linux' || d.guest_profile === 'windows') {
-      setGuestProfile(d.guest_profile)
+    getSession()
+      .then((s) => {
+        if (s.authenticated) setSessionRole(s.role ?? 'admin')
+        else setSessionRole(null)
+      })
+      .catch(() => setSessionRole(null))
+  }, [])
+
+  useEffect(() => {
+    guestOsList()
+      .then((r) => setGuestOsRows(r.oses ?? []))
+      .catch(() => setGuestOsRows([]))
+  }, [])
+
+  useEffect(() => {
+    const key = createDefaultsKey
+    let cancelled = false
+    ;(async () => {
+      let server: Record<string, unknown> = {}
+      try {
+        server = await getServerCreateVmDefaults()
+      } catch {
+        /* daemon offline or endpoint missing */
+      }
+      if (cancelled) return
+      const localRaw = loadCreateVmDefaults(key) ?? {}
+      const local = Object.fromEntries(
+        Object.entries(localRaw).filter(([, v]) => v !== undefined),
+      ) as Record<string, unknown>
+      const d: Record<string, unknown> = { ...server, ...local }
+      if (typeof d.vcpus === 'number') setVcpus(d.vcpus)
+      if (typeof d.memory_mb === 'number') setMemoryMb(d.memory_mb)
+      if (typeof d.disk_gb === 'number') setDiskGb(d.disk_gb)
+      if (typeof d.network === 'string' && d.network) setNetwork(d.network)
+      if (typeof d.firmware === 'string' && d.firmware) setFirmware(d.firmware)
+      if (d.graphics_type === 'vnc' || d.graphics_type === 'spice') setGraphicsType(d.graphics_type)
+      if (typeof d.graphics_listen === 'string' && d.graphics_listen) setGraphicsListen(d.graphics_listen)
+      if (d.guest_profile === 'auto' || d.guest_profile === 'linux' || d.guest_profile === 'windows') {
+        setGuestProfile(d.guest_profile)
+      }
+      if (typeof d.os_variant === 'string') setOsVariant(d.os_variant)
+      if (typeof d.virt_install_extra_args === 'string') setVirtInstallExtraArgs(d.virt_install_extra_args)
+      if (d.install_source === 'iso' || d.install_source === 'url' || d.install_source === 'pxe' || d.install_source === 'download') {
+        setInstallSource(d.install_source)
+      }
+      if (d.storage_mode === 'new' || d.storage_mode === 'volume') setStorageMode(d.storage_mode)
+      if (typeof d.disk_pool === 'string' && d.disk_pool) setDiskPool(d.disk_pool)
+      if (typeof d.cloud_init_user === 'string') setCloudInitUser(d.cloud_init_user)
+      if (typeof d.cloud_init_ssh_pubkey === 'string') setCloudInitSshKey(d.cloud_init_ssh_pubkey)
+      if (typeof d.virtio_win_iso === 'string') setVirtioWinIso(d.virtio_win_iso)
+    })()
+    return () => {
+      cancelled = true
     }
-    if (d.os_variant != null) setOsVariant(d.os_variant)
-    if (d.virt_install_extra_args != null) setVirtInstallExtraArgs(d.virt_install_extra_args)
-    if (d.install_source === 'iso' || d.install_source === 'url' || d.install_source === 'pxe' || d.install_source === 'download') {
-      setInstallSource(d.install_source)
-    }
-    if (d.storage_mode === 'new' || d.storage_mode === 'volume') setStorageMode(d.storage_mode)
-    if (d.disk_pool) setDiskPool(d.disk_pool)
-    if (d.cloud_init_user != null) setCloudInitUser(d.cloud_init_user)
-    if (d.cloud_init_ssh_pubkey != null) setCloudInitSshKey(d.cloud_init_ssh_pubkey)
-    if (d.virtio_win_iso != null) setVirtioWinIso(d.virtio_win_iso)
   }, [createDefaultsKey])
 
   const setSource = (src: InstallSource) => {
@@ -283,6 +323,49 @@ export default function CreateVMPage() {
     }
   }
 
+  const canBrowseHost = sessionRole === 'admin'
+
+  const buildDefaultsPayload = (): Record<string, unknown> => ({
+    vcpus,
+    memory_mb: memoryMb,
+    disk_gb: diskGb,
+    network,
+    firmware,
+    graphics_type: graphicsType,
+    graphics_listen: graphicsListen,
+    guest_profile: guestProfile,
+    os_variant: osVariant.trim() || undefined,
+    virt_install_extra_args: virtInstallExtraArgs.trim() || undefined,
+    install_source: installSource,
+    storage_mode: storageMode,
+    disk_pool: diskPool || undefined,
+    cloud_init_user: cloudInitUser.trim() || undefined,
+    cloud_init_ssh_pubkey: cloudInitSshKey.trim() || undefined,
+    virtio_win_iso: virtioWinIso.trim() || undefined,
+  })
+
+  const saveBrowserDefaults = () => {
+    try {
+      saveCreateVmDefaults(createDefaultsKey, buildDefaultsPayload() as Partial<CreateVmDefaultsPayload>)
+      toast.success('Defaults saved in this browser')
+    } catch {
+      toast.error('Could not save defaults')
+    }
+  }
+
+  const saveServerDefaults = async () => {
+    if (sessionRole !== 'admin' && sessionRole !== 'operator') {
+      toast.warning('Saving hypervisor defaults requires operator or admin')
+      return
+    }
+    try {
+      await putServerCreateVmDefaults(buildDefaultsPayload())
+      toast.success('Defaults saved on hypervisor')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   const runOsDetect = async () => {
     const url = virtInstallLocation.trim()
     if (!url) {
@@ -293,13 +376,12 @@ export default function CreateVMPage() {
     try {
       const r = await guestOsDetect(url)
       if (r.exit_code === 0 && r.stdout) {
-        const first = r.stdout.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? ''
-        const token = first.split(/\s+/)[0] ?? ''
-        if (token) {
-          setOsVariant(token)
-          toast.success('osinfo-detect: applied first token to OS variant (verify against libosinfo)')
+        const parsed = parseOsinfoDetectVariant(r.stdout)
+        if (parsed) {
+          setOsVariant(parsed)
+          toast.success(`osinfo-detect: applied “${parsed}” (verify against libosinfo)`)
         } else {
-          toast.warning('osinfo-detect returned empty stdout')
+          toast.warning('Could not parse osinfo-detect stdout — tools missing or unknown format')
         }
       } else {
         toast.warning(r.stderr || 'osinfo-detect failed — install osinfo-tools on the hypervisor')
@@ -672,8 +754,12 @@ export default function CreateVMPage() {
                 />
                 <button
                   type="button"
-                  onClick={() => setIsoBrowseOpen(true)}
-                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 shrink-0"
+                  onClick={() => {
+                    if (canBrowseHost) setIsoBrowseOpen(true)
+                  }}
+                  disabled={!canBrowseHost}
+                  title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
+                  className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm flex items-center gap-2 shrink-0"
                 >
                   <FolderOpen className="w-4 h-4" />
                   Browse
@@ -861,6 +947,13 @@ export default function CreateVMPage() {
               <label htmlFor="osv" className="block text-sm text-slate-400 mb-1">
                 Operating system (optional)
               </label>
+              <datalist id="machina-os-variant-list">
+                {guestOsRows.map((o) => (
+                  <option key={o.short_id} value={o.short_id}>
+                    {o.name} {o.version}
+                  </option>
+                ))}
+              </datalist>
               <input
                 id="osv"
                 type="text"
@@ -868,9 +961,32 @@ export default function CreateVMPage() {
                 onChange={(e) => setOsVariant(e.target.value)}
                 className="input-field"
                 placeholder="libosinfo id — empty = generic"
+                list="machina-os-variant-list"
               />
+              <p className="text-xs text-slate-500 mt-1">
+                Pick from libvirt/osinfo suggestions or type a short id (see also Detect OS for URL installs).
+              </p>
             </div>
           )}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 pt-4 mt-2 border-t border-slate-700/50">
+          <button
+            type="button"
+            className="text-xs px-3 py-1.5 rounded-lg border border-slate-600 bg-slate-800/80 hover:bg-slate-700 text-slate-200 transition"
+            onClick={saveBrowserDefaults}
+          >
+            Save defaults (browser)
+          </button>
+          {(sessionRole === 'admin' || sessionRole === 'operator') && (
+            <button
+              type="button"
+              className="text-xs px-3 py-1.5 rounded-lg border border-cyan-700/50 bg-cyan-950/30 hover:bg-cyan-900/40 text-cyan-200 transition"
+              onClick={() => void saveServerDefaults()}
+            >
+              Save defaults (hypervisor)
+            </button>
+          )}
+          <span className="text-xs text-slate-500">On load: server defaults, then browser overrides.</span>
         </div>
       </div>
       </>
@@ -1021,8 +1137,12 @@ export default function CreateVMPage() {
               />
               <button
                 type="button"
-                onClick={() => setVirtioBrowseOpen(true)}
-                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 shrink-0"
+                onClick={() => {
+                  if (canBrowseHost) setVirtioBrowseOpen(true)
+                }}
+                disabled={!canBrowseHost}
+                title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm flex items-center gap-2 shrink-0"
               >
                 <FolderOpen className="w-4 h-4" />
                 Browse
@@ -1065,7 +1185,15 @@ export default function CreateVMPage() {
             className="input-field flex-1 font-mono text-sm"
             placeholder="Absolute path on hypervisor"
           />
-          <button type="button" onClick={() => setCloudBrowseOpen(true)} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              if (canBrowseHost) setCloudBrowseOpen(true)
+            }}
+            disabled={!canBrowseHost}
+            title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
+            className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm flex items-center gap-2 shrink-0"
+          >
             <FolderOpen className="w-4 h-4" />
             Browse
           </button>
@@ -1267,8 +1395,12 @@ export default function CreateVMPage() {
                   />
                   <button
                     type="button"
-                    onClick={() => setBackingBrowseOpen(true)}
-                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm flex items-center gap-2 shrink-0"
+                    onClick={() => {
+                      if (canBrowseHost) setBackingBrowseOpen(true)
+                    }}
+                    disabled={!canBrowseHost}
+                    title={!canBrowseHost ? 'Browsing host paths requires the admin role' : undefined}
+                    className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm flex items-center gap-2 shrink-0"
                   >
                     <FolderOpen className="w-4 h-4" />
                     Browse

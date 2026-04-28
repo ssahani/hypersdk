@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { CheckCircle2, RefreshCw, ShieldAlert, Server } from 'lucide-react'
+import { CheckCircle2, RefreshCw, ShieldAlert, Server, Package } from 'lucide-react'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import {
@@ -203,6 +203,13 @@ export default function K8sOverviewPage() {
         )}
         <Link to="/k8s/workloads" className="text-sm text-blue-300 hover:text-blue-200 underline underline-offset-4">
           Open workloads view
+        </Link>
+        <Link
+          to="/k8s/kata"
+          className="text-sm text-cyan-300 hover:text-cyan-200 underline underline-offset-4 inline-flex items-center gap-1"
+        >
+          <Package className="w-3.5 h-3.5" aria-hidden />
+          Kata Containers / Cloud Hypervisor
         </Link>
       </div>
 

@@ -1,10 +1,15 @@
 const API = '/api/v1'
 
+/** RBAC role from session or API token (daemon `roles.json` / token metadata). */
+export type SessionRole = 'admin' | 'operator' | 'readonly'
+
 export interface AuthSession {
   authenticated: boolean
   username?: string
   /** Opaque id for this browser tab session (root-only admin UI). */
   session_id?: string | null
+  /** Present when authenticated via cookie or token-aware session. */
+  role?: SessionRole
 }
 
 export async function login(username: string, password: string): Promise<{ status: string; username: string }> {

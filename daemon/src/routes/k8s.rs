@@ -20,6 +20,12 @@ const KUBECTL_PROBE_TIMEOUT_SECS: u64 = 8;
 const KUBECTL_LOGS_TIMEOUT_SECS: u64 = 60;
 const KUBECTL_APPLY_MAX_MANIFEST_BYTES: usize = 512 * 1024;
 const SNIPPET_MAX_BYTES: usize = 18_432;
+/// `kubectl apply -f https://…` for kata-deploy manifests (network fetch).
+const KATA_APPLY_TIMEOUT_SECS: u64 = 180;
+/// `kubectl wait` can block up to 10m for kata-deploy pods.
+const KATA_WAIT_TIMEOUT_SECS: u64 = 660;
+/// Fixed upstream tree — only these URLs are passed to kubectl (no user-controlled URLs).
+const KATA_DEPLOY_MANIFEST_BASE: &str = "https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy";
 
 #[derive(Debug, Serialize)]
 struct KubectlResult {
@@ -149,6 +155,32 @@ struct K8sApplyRequest {
     dry_run: Option<bool>,
     #[serde(default)]
     context: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum KataDeployAction {
+    /// `kubectl apply -f …/kata-rbac/base/kata-rbac.yaml`
+    Rbac,
+    /// `kubectl apply -f …/kata-deploy/base/kata-deploy.yaml`
+    KataDeploy,
+    /// `kubectl apply -f …/runtimeclasses/kata-runtimeClasses.yaml`
+    RuntimeClasses,
+    /// `kubectl -n kube-system wait … -l name=kata-deploy pod`
+    WaitKataDeployPod,
+    ExampleClh,
+    ExampleDragonball,
+    ExampleStratovirt,
+    ExampleQemu,
+}
+
+#[derive(Debug, Deserialize)]
+struct KataDeployRequest {
+    action: KataDeployAction,
+    #[serde(default)]
+    context: Option<String>,
+    #[serde(default)]
+    dry_run: Option<bool>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -1136,6 +1168,100 @@ async fn k8s_apply_manifest(
     Ok(Json(out?))
 }
 
+/// Allowlisted `kubectl` steps for upstream kata-deploy (URLs fixed to kata-containers `main` tree).
+async fn k8s_kata_deploy(
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<KataDeployRequest>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "Kata deploy automation requires the operator or admin role.".into(),
+        )
+        .into());
+    }
+    let ctx = body.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+
+    let build_apply = |suffix: &str, dry: bool| -> Vec<String> {
+        let url = format!("{KATA_DEPLOY_MANIFEST_BASE}{suffix}");
+        let mut a = vec!["apply".into(), "-f".into(), url];
+        if dry {
+            a.push("--dry-run=server".into());
+        }
+        a
+    };
+
+    let dry = body.dry_run == Some(true);
+    let (args, timeout_secs): (Vec<String>, u64) = match body.action {
+        KataDeployAction::Rbac => (
+            build_apply("/kata-rbac/base/kata-rbac.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+        KataDeployAction::KataDeploy => (
+            build_apply("/kata-deploy/base/kata-deploy.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+        KataDeployAction::RuntimeClasses => (
+            build_apply("/runtimeclasses/kata-runtimeClasses.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+        KataDeployAction::WaitKataDeployPod => {
+            if dry {
+                return Err(LibvirtError::Invalid(
+                    "dry_run is not supported for wait_kata_deploy_pod".into(),
+                )
+                .into());
+            }
+            (
+                vec![
+                    "-n".into(),
+                    "kube-system".into(),
+                    "wait".into(),
+                    "--timeout=10m".into(),
+                    "--for=condition=Ready".into(),
+                    "-l".into(),
+                    "name=kata-deploy".into(),
+                    "pod".into(),
+                ],
+                KATA_WAIT_TIMEOUT_SECS,
+            )
+        }
+        KataDeployAction::ExampleClh => (
+            build_apply("/examples/test-deploy-kata-clh.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+        KataDeployAction::ExampleDragonball => (
+            build_apply("/examples/test-deploy-kata-dragonball.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+        KataDeployAction::ExampleStratovirt => (
+            build_apply("/examples/test-deploy-kata-stratovirt.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+        KataDeployAction::ExampleQemu => (
+            build_apply("/examples/test-deploy-kata-qemu.yaml", dry),
+            KATA_APPLY_TIMEOUT_SECS,
+        ),
+    };
+
+    let res = run_kubectl_timeout(&args, timeout_secs, ctx).await?;
+    if !res.ok {
+        let msg = if res.stderr.trim().is_empty() {
+            format!(
+                "kubectl failed (exit {}): {}",
+                res.exit_code, res.command
+            )
+        } else {
+            res.stderr.clone()
+        };
+        return Err(LibvirtError::Operation(msg).into());
+    }
+    Ok(Json(res))
+}
+
 async fn k8s_contexts_list(
     Extension(actor): Extension<RequestActor>,
 ) -> Result<Json<Value>, AppError> {
@@ -1814,4 +1940,5 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         )
         .route("/k8s/kubevirt/vm-summary", get(k8s_kubevirt_vm_summary))
         .route("/k8s/action", post(k8s_action))
+        .route("/k8s/kata-deploy", post(k8s_kata_deploy))
 }

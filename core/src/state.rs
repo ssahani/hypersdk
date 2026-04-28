@@ -250,6 +250,8 @@ pub struct AuditEvent {
     pub action: String,
     pub target: String,
     pub result: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub actor: String,
 }
 
 // ── Clone Request ───────────────────────────────────────────────────────
@@ -1035,6 +1037,7 @@ impl AppState {
             action: action.to_string(),
             target: target.to_string(),
             result: result.to_string(),
+            actor: String::new(),
         };
         crate::audit::write_audit_event(&event);
         push_bounded(&mut self.audit_events, event, 500);

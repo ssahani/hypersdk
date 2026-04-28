@@ -4,6 +4,7 @@ import {
   Cpu, Activity, MonitorCog, Usb, Cog, ScrollText, FileText, Key, Users, Database, Terminal,
   ClipboardList,
   Boxes,
+  Package,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -43,6 +44,7 @@ export const navGroups: NavGroup[] = [
       { to: '/host-ssh', icon: React.createElement(Terminal, { className: 'w-4 h-4' }), label: 'Host SSH' },
       { to: '/k8s', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Kubernetes' },
       { to: '/k8s/workloads', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'K8s Workloads' },
+      { to: '/k8s/kata', icon: React.createElement(Package, { className: 'w-4 h-4' }), label: 'Kata + Cloud Hypervisor' },
     ],
   },
   {
@@ -82,6 +84,7 @@ export const routeLabels: Record<string, string> = {
   '/host-ssh': 'Host SSH',
   '/k8s': 'Kubernetes',
   '/k8s/workloads': 'K8s Workloads',
+  '/k8s/kata': 'Kata Containers',
   '/audit': 'Audit Log',
   '/import': 'Import VM',
   '/api-docs': 'API Docs',

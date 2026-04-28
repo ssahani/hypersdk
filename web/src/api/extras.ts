@@ -43,6 +43,15 @@ export interface AuditEvent {
   action: string
   target: string
   result: string
+  /** UNIX user or token label when recorded by the daemon. */
+  actor?: string
+}
+
+export interface GetAuditLogParams {
+  action?: string
+  actor?: string
+  q?: string
+  limit?: number
 }
 
 // ISO/Disk browser
@@ -156,7 +165,15 @@ export const liveSetVcpus = (vm: string, count: number) => apiPostVoid(`${API}/v
 export const liveSetMemory = (vm: string, mb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/live/memory/${mb}`)
 
 // Audit
-export const getAuditLog = () => apiGet<AuditEvent[]>(`${API}/audit`)
+export const getAuditLog = (params?: GetAuditLogParams) => {
+  const sp = new URLSearchParams()
+  if (params?.action?.trim()) sp.set('action', params.action.trim())
+  if (params?.actor?.trim()) sp.set('actor', params.actor.trim())
+  if (params?.q?.trim()) sp.set('q', params.q.trim())
+  if (params?.limit != null) sp.set('limit', String(params.limit))
+  const qs = sp.toString()
+  return apiGet<AuditEvent[]>(`${API}/audit${qs ? `?${qs}` : ''}`)
+}
 
 // Tags
 export const getVmTags = (vm: string) => apiGet<{ tags: string[] }>(`${API}/vms/${encodeURIComponent(vm)}/tags`)
