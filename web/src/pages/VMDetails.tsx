@@ -98,6 +98,7 @@ export default function VMDetailsPage() {
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [guestIps, setGuestIps] = useState<GuestIpAddress[]>([])
+  const [guestIfQueriedAt, setGuestIfQueriedAt] = useState<string | null>(null)
   const [bootConfig, setBootConfig] = useState<BootConfig | null>(null)
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [hasSave, setHasSave] = useState(false)
@@ -243,10 +244,15 @@ export default function VMDetailsPage() {
       addRecentVM(name)
       if (vmData.state === 'running') {
         try { setMetrics(await getVMMetrics(name, conn)) } catch { /* no metrics */ }
-        try { setGuestIps(await getInterfaces(name, conn)) } catch { /* no guest agent */ }
+        try {
+          const gi = await getInterfaces(name, conn)
+          setGuestIps(gi.addresses)
+          setGuestIfQueriedAt(gi.queried_at)
+        } catch { /* no addresses */ setGuestIfQueriedAt(null) }
       } else {
         setMetrics(null)
         setGuestIps([])
+        setGuestIfQueriedAt(null)
       }
       try { setBootConfig(await getBootConfig(name, conn)) } catch { /* optional */ }
       try { const s = await hasManagedSave(name, conn); setHasSave(s.has_managed_save) } catch { /* optional */ }
@@ -1125,16 +1131,27 @@ export default function VMDetailsPage() {
 
           {guestIps.length > 0 && (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-              <h3 className="text-lg font-semibold">Guest IP Addresses</h3>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-lg font-semibold">Guest IP addresses</h3>
+                {guestIfQueriedAt && (
+                  <span className="text-xs text-slate-500 font-mono" title="Hypervisor-side snapshot time">
+                    Snapshot: {new Date(guestIfQueriedAt).toLocaleString()}
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500">
+                Rows merge libvirt DHCP <strong className="text-slate-400">lease</strong>, kernel <strong className="text-slate-400">ARP</strong>, then QEMU guest <strong className="text-slate-400">agent</strong>; first hit wins per address (same idea as Cockpit Machines).
+              </p>
               {guestIps.map((ip, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/30">
+                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/30 gap-4">
                   <div>
                     <span className="text-sm font-medium text-blue-400">{ip.address}/{ip.prefix}</span>
                     <span className="text-xs text-slate-500 ml-2">{ip.ip_type}</span>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs font-mono text-slate-400">{ip.mac}</div>
-                    <div className="text-xs text-slate-500">{ip.name}</div>
+                  <span className="text-xs uppercase tracking-wide px-2 py-0.5 rounded bg-slate-700/80 text-slate-300 shrink-0" title="Discovery source">{ip.source || '—'}</span>
+                  <div className="text-right min-w-0">
+                    <div className="text-xs font-mono text-slate-400 truncate">{ip.mac}</div>
+                    <div className="text-xs text-slate-500 truncate">{ip.name}</div>
                   </div>
                 </div>
               ))}
@@ -1315,6 +1332,23 @@ export default function VMDetailsPage() {
 
       {tab === 'network' && (
         <div className="space-y-4">
+          <details className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-4 group">
+            <summary className="cursor-pointer text-sm font-medium text-slate-200 list-none flex items-center gap-2 [&::-webkit-details-marker]:hidden">
+              <span className="text-slate-400 group-open:rotate-90 transition">▸</span>
+              Guest networking basics (NAT vs bridge, no DHCP)
+            </summary>
+            <div className="mt-3 text-xs text-slate-400 space-y-2 pl-1 border-l-2 border-slate-600/50 ml-1">
+              <p>
+                <strong className="text-slate-300">NAT (default network)</strong>: libvirt&apos;s virtual router gives guests private IPs (usually DHCP). Outbound traffic is masqueraded on the host; inbound needs port forwards or host hooks.
+              </p>
+              <p>
+                <strong className="text-slate-300">Bridged / macvtap</strong>: the VM sits on the same L2 segment as a physical NIC or bridge—DHCP often comes from your LAN router. Misconfigured firewall or Spanning Tree can still block traffic.
+              </p>
+              <p>
+                <strong className="text-slate-300">No DHCP</strong>: check the NIC is attached to an active libvirt network, guest OS has a driver (virtio), and cloud-init / NetworkManager aren&apos;t pinning a wrong config. Use the Overview &quot;Guest IP addresses&quot; panel to see whether libvirt sees a lease, ARP, or agent-reported address.
+              </p>
+            </div>
+          </details>
           <div className="flex justify-end">
             <button onClick={() => { setNicNetwork(networks[0]?.name || 'default'); setDialog('attach-nic') }} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Add NIC</button>
           </div>

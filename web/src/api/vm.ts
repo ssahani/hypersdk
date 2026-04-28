@@ -465,6 +465,14 @@ export interface GuestIpAddress {
   ip_type: string
   address: string
   prefix: number
+  /** `lease` | `arp` | `agent` — libvirt source for this row (deduped; first source wins). */
+  source: string
+}
+
+export interface GuestInterfacesResponse {
+  addresses: GuestIpAddress[]
+  /** ISO-8601 — when the hypervisor collected this snapshot. */
+  queried_at: string
 }
 
 export interface BootConfig {
@@ -482,7 +490,7 @@ export interface ManagedSaveStatus {
 }
 
 export const getInterfaces = (name: string, connection?: string | null) =>
-  apiGet<GuestIpAddress[]>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/interfaces`, connection))
+  apiGet<GuestInterfacesResponse>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/interfaces`, connection))
 export const getHostname = (name: string, connection?: string | null) =>
   apiGet<{ hostname: string }>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/hostname`, connection))
 export const insertCdrom = (name: string, isoPath: string, target: string, connection?: string | null) =>

@@ -8,6 +8,7 @@ use machina_core::libvirt::{
 };
 use machina_core::{LibvirtError, LibvirtManager};
 
+use crate::conn_query::{spawn_libvirt, ConnQuery};
 use crate::error::{AppError, Xml};
 
 // ── Guest Agent ─────────────────────────────────────────────────────
@@ -15,25 +16,30 @@ use crate::error::{AppError, Xml};
 async fn get_interfaces(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| guest_agent::get_guest_interfaces(conn, &name))
+    let name2 = name.clone();
+    let addrs = spawn_libvirt(manager, conn_q, move |conn| {
+        guest_agent::get_guest_interfaces(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!(result?)))
+    .await?;
+    Ok(Json(serde_json::json!({
+        "addresses": addrs,
+        "queried_at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
+    })))
 }
 
 async fn get_hostname(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| guest_agent::get_guest_hostname(conn, &name))
+    let name2 = name.clone();
+    let h = spawn_libvirt(manager, conn_q, move |conn| {
+        guest_agent::get_guest_hostname(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!({ "hostname": result? })))
+    .await?;
+    Ok(Json(serde_json::json!({ "hostname": h })))
 }
 
 // ── CD-ROM ──────────────────────────────────────────────────────────

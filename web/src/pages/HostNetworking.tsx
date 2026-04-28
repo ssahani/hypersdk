@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { listVMs, VmInfo, getInterfaces, GuestIpAddress } from '../api/vm'
+import { listVMs, VmInfo, getInterfaces, GuestIpAddress, vmScopeKey } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import {
   listHostInterfaces, listPortForwards, listFirewallRules,
@@ -154,8 +154,11 @@ export default function HostNetworkingPage() {
       // Fetch guest IPs for running VMs
       if (v.status === 'fulfilled') {
         const ips: Record<string, GuestIpAddress[]> = {}
-        for (const vm of v.value.filter(vm => vm.state === 'running')) {
-          try { ips[vm.name] = await getInterfaces(vm.name) } catch { /* no agent */ }
+        for (const vm of v.value.filter((vm) => vm.state === 'running')) {
+          try {
+            const r = await getInterfaces(vm.name, vm.libvirt_connection)
+            ips[vmScopeKey(vm)] = r.addresses
+          } catch { /* no addresses */ }
         }
         setVmIps(ips)
       }
@@ -265,12 +268,12 @@ export default function HostNetworkingPage() {
 
     // VMs
     for (const vm of vms) {
-      const ips = vmIps[vm.name] || []
+      const ips = vmIps[vmScopeKey(vm)] || []
       const ipStr = ips.map(i => i.address).join(', ')
-      nodes.push({ id: `vm-${vm.name}`, label: vm.name, type: 'vm', x: COL_VM, y: vmY, state: vm.state, extra: ipStr })
+      nodes.push({ id: `vm-${vmScopeKey(vm)}`, label: vm.name, type: 'vm', x: COL_VM, y: vmY, state: vm.state, extra: ipStr })
       // Connect VM to its network (simplified - connect to default or first)
       if (networks.length > 0) {
-        edges.push({ from: `vm-${vm.name}`, to: `net-${networks[0].name}` })
+        edges.push({ from: `vm-${vmScopeKey(vm)}`, to: `net-${networks[0].name}` })
       }
       vmY += 80
     }
@@ -320,7 +323,10 @@ export default function HostNetworkingPage() {
   }
 
   // Collect all known VM IPs for dropdowns
-  const allVmIps = Object.entries(vmIps).flatMap(([name, ips]) => ips.map(ip => ({ name, ip: ip.address })))
+  const allVmIps = vms.flatMap((vm) => {
+    const ips = vmIps[vmScopeKey(vm)] || []
+    return ips.map((ip) => ({ name: vm.name, ip: ip.address }))
+  })
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'topology', label: 'Topology', icon: <Globe className="w-4 h-4" /> },

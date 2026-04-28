@@ -24,6 +24,9 @@ pub struct GuestIpAddress {
     pub ip_type: String,
     pub address: String,
     pub prefix: u32,
+    /// Which [`virDomainInterfaceAddresses`] source produced this row when merging (first wins).
+    /// `lease` → DHCP lease file; `arp` → kernel ARP; `agent` → qemu-guest-agent.
+    pub source: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -43,6 +46,7 @@ fn push_ifaces(
     out: &mut Vec<GuestIpAddress>,
     seen: &mut HashSet<(String, String, String)>,
     ifaces: &[virt::domain::Interface],
+    source: &'static str,
 ) {
     for iface in ifaces {
         for addr in &iface.addrs {
@@ -62,6 +66,7 @@ fn push_ifaces(
                     },
                     address: addr.addr.clone(),
                     prefix: addr.prefix as u32,
+                    source: source.to_string(),
                 });
             }
         }
@@ -81,16 +86,19 @@ pub fn get_guest_interfaces(
         &mut result,
         &mut seen,
         &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE),
+        "lease",
     );
     push_ifaces(
         &mut result,
         &mut seen,
         &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_ARP),
+        "arp",
     );
     push_ifaces(
         &mut result,
         &mut seen,
         &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT),
+        "agent",
     );
 
     Ok(result)
