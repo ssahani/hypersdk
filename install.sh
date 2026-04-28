@@ -254,6 +254,7 @@ install_deps() {
     ensure_node_18
     ensure_mkosi
     ensure_packer
+    ensure_helm
 }
 
 # HashiCorp Packer (for contrib/packer/build-linux-image.sh). Override version: PACKER_VERSION=1.11.2 sudo ./install.sh
@@ -283,6 +284,38 @@ ensure_packer() {
     install -Dm755 /tmp/packer /usr/local/bin/packer
     rm -f "$zipf" /tmp/packer
     ok "Packer ${ver} -> /usr/local/bin/packer"
+}
+
+# Helm 3 — required for Machina's Kata kata-deploy UI (`helm upgrade --install` on the daemon host).
+ensure_helm() {
+    if command -v helm &>/dev/null; then
+        info "Helm: $(command -v helm) ($(helm version --short 2>/dev/null | head -n1 || echo ok))"
+        return 0
+    fi
+    step "Installing Helm 3 (Kata / Kubernetes — used by machina-daemon for kata-deploy)"
+    case "$OS_FAMILY" in
+        fedora|rhel)
+            log_cmd $PKG_MANAGER install -y helm 2>>"$LOG_FILE" && { ok "Helm installed via $PKG_MANAGER"; return 0; }
+            ;;
+        debian)
+            DEBIAN_FRONTEND=noninteractive log_cmd $PKG_MANAGER install -y helm 2>>"$LOG_FILE" && { ok "Helm installed via apt"; return 0; }
+            ;;
+        suse)
+            log_cmd $PKG_MANAGER install -y helm 2>>"$LOG_FILE" && { ok "Helm installed via zypper"; return 0; }
+            ;;
+        arch)
+            log_cmd pacman -S --noconfirm --needed helm 2>>"$LOG_FILE" && { ok "Helm installed via pacman"; return 0; }
+            ;;
+    esac
+    if ! command -v curl &>/dev/null; then
+        fail "Helm: package install failed and curl is missing; install helm or curl manually. See https://helm.sh/docs/intro/install/"
+    fi
+    info "Trying official get-helm-3 installer…"
+    curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash >>"$LOG_FILE" 2>&1 || \
+        fail "Helm install failed. See https://helm.sh/docs/intro/install/ and log $LOG_FILE"
+    hash -r 2>/dev/null || true
+    command -v helm &>/dev/null || fail "Helm still not on PATH after get-helm-3"
+    ok "Helm installed ($(helm version --short 2>/dev/null | head -n1))"
 }
 
 # Host tools required for mkosi image builds.

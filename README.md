@@ -1,8 +1,26 @@
 # Machina
 
-**Linux hypervisor host management** for **bare-metal worker nodes** you use as compute: VMs, networks, storage, snapshots, host networking, and day-two operations from one control plane. Virtualization is **libvirt** with QEMU/KVM. For **Kubernetes**-style VM platforms (for example **KubeVirt**), machina offers optional workflow support—YAML bundles and `kubectl` / `virtctl` helpers—so libvirt-managed guests fit cluster migration and operations. See [docs/kubevirt-migration.md](docs/kubevirt-migration.md).
+**Enterprise Linux Hypervisor Management Platform** for bare-metal worker nodes — unified control plane for VMs, networks, storage, snapshots, and day-two operations from a single dashboard and REST API.
+
+Built on **libvirt** with QEMU/KVM. Optional **Kubernetes** integration via YAML workflows and `kubectl`/`virtctl` helpers allows libvirt guests to participate in **KubeVirt** clusters and migrations. See [docs/kubevirt-migration.md](docs/kubevirt-migration.md).
 
 A **Rust daemon** exposes REST and WebSocket APIs; a **web UI** delivers VNC, SPICE, serial, and SSH consoles; a **terminal UI** covers keyboard-first workflows. PAM authentication with RBAC, live metrics, Prometheus, alerts, webhooks, scheduled actions, and more run through that single daemon.
+
+**Perfect for:** Infrastructure teams managing bare-metal hypervisors, edge computing, private data centers, and organizations wanting unified VM management without vendor lock-in.
+
+---
+
+## Why Machina?
+
+| | |
+|---|---|
+| 🎯 **Unified Management** | VMs, networks, storage, snapshots, host info — all from one dashboard and REST API |
+| 🔐 **Enterprise Security** | PAM authentication, RBAC roles, API tokens, session management, optional TLS |
+| 🖥️ **Multiple Interfaces** | Web UI with console access, Terminal UI (vim-style), REST API + webhooks, or raw libvirt commands |
+| ⚡ **Live Operations** | Real-time metrics, console proxies (VNC/SPICE/Serial/SSH), batch operations, job timelines |
+| 📊 **Observability** | Prometheus metrics, alerting, webhooks, audit logs, systemd journal browser |
+| 🚀 **Automation Ready** | Scheduled actions, cron-based operations, API-first design, `machinactl` CLI for remote ops |
+| 🔗 **Kubernetes-Ready** | Optional KubeVirt integration, YAML bundles, `kubectl` support for cluster migration |
 
 ---
 

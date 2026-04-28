@@ -101,15 +101,15 @@ export default function SettingsPage() {
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="w-6 h-6 text-blue-400" /> Settings</h1>
-          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">RBAC, tokens, alerts, and schedules for the hypervisor control plane on this host.</p>
+    <div className="w-full min-w-0 max-w-full space-y-6 animate-fade-in">
+      <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="w-6 h-6 shrink-0 text-blue-400" /> Settings</h1>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl break-words">RBAC, tokens, alerts, and schedules for the hypervisor control plane on this host.</p>
         </div>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
+        <button type="button" onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition self-start shrink-0" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
-      <p className="text-xs text-slate-500">
+      <p className="text-xs text-slate-500 break-words">
         Libvirt secrets (Ceph, iSCSI, TLS, …) are managed on the{' '}
         <Link to="/secrets" className="text-blue-400 hover:text-blue-300 underline">Secrets</Link> page (define XML + optional base64 value).
       </p>
@@ -134,17 +134,17 @@ export default function SettingsPage() {
       {/* ── Roles ──────────────────────────────────────────── */}
       {tab === 'roles' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <input value={newRoleUser} onChange={e => setNewRoleUser(e.target.value)} className="input-field flex-1" placeholder="Username" />
-            <select value={newRoleVal} onChange={e => setNewRoleVal(e.target.value)} className="input-field w-40">
+          <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
+            <input value={newRoleUser} onChange={e => setNewRoleUser(e.target.value)} className="input-field flex-1 min-w-0 sm:min-w-[12rem]" placeholder="Username" />
+            <select value={newRoleVal} onChange={e => setNewRoleVal(e.target.value)} className="input-field w-full sm:w-40 shrink-0">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[28rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Permissions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {roles.map(r => (
@@ -162,8 +162,8 @@ export default function SettingsPage() {
           {osUserCap && (
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-400" /> System users (PAM / UNIX)</h3>
-              <p className="text-xs text-slate-500">
-                Adds or removes a UNIX account on the machina host. When <strong className="text-slate-400">systemd-homed</strong> is active and <code className="bg-slate-900/80 px-1 rounded">homectl</code> is available, new users are created with <code className="bg-slate-900/80 px-1 rounded">homectl create</code> (directory storage, <strong className="text-slate-400">wheel</strong>/<strong className="text-slate-400">sudo</strong> membership); otherwise <code className="bg-slate-900/80 px-1 rounded">useradd</code> / <code className="bg-slate-900/80 px-1 rounded">usermod</code>. Password is set with <code className="bg-slate-900/80 px-1 rounded">chpasswd</code>. Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded">newgrp libvirt</code>). Removal uses <code className="bg-slate-900/80 px-1 rounded">homectl remove</code> for homed-managed users, else <code className="bg-slate-900/80 px-1 rounded">userdel -r</code>. The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
+              <p className="text-xs text-slate-500 break-words hyphens-auto">
+                Adds or removes a UNIX account on the machina host. When <strong className="text-slate-400">systemd-homed</strong> is active and <code className="bg-slate-900/80 px-1 rounded break-all">homectl</code> is available, new users are created with <code className="bg-slate-900/80 px-1 rounded break-all">homectl create</code> (directory storage, <strong className="text-slate-400">wheel</strong>/<strong className="text-slate-400">sudo</strong> membership); otherwise <code className="bg-slate-900/80 px-1 rounded break-all">useradd</code> / <code className="bg-slate-900/80 px-1 rounded break-all">usermod</code>. Password is set with <code className="bg-slate-900/80 px-1 rounded break-all">chpasswd</code>. Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded break-all">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded break-all">newgrp libvirt</code>). Removal uses <code className="bg-slate-900/80 px-1 rounded break-all">homectl remove</code> for homed-managed users, else <code className="bg-slate-900/80 px-1 rounded break-all">userdel -r</code>. The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
               </p>
               {osUserCap.userAccountBackend && (
                 <p className="text-xs text-slate-400">
@@ -253,15 +253,15 @@ export default function SettingsPage() {
       {/* ── Tokens ─────────────────────────────────────────── */}
       {tab === 'tokens' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <input value={newTokenName} onChange={e => setNewTokenName(e.target.value)} className="input-field flex-1" placeholder="Token name" />
-            <input value={newTokenUser} onChange={e => setNewTokenUser(e.target.value)} className="input-field w-32" placeholder="User" />
-            <select value={newTokenRole} onChange={e => setNewTokenRole(e.target.value)} className="input-field w-32">
+          <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
+            <input value={newTokenName} onChange={e => setNewTokenName(e.target.value)} className="input-field flex-1 min-w-0" placeholder="Token name" />
+            <input value={newTokenUser} onChange={e => setNewTokenUser(e.target.value)} className="input-field w-full sm:w-32 shrink-0" placeholder="User" />
+            <select value={newTokenRole} onChange={e => setNewTokenRole(e.target.value)} className="input-field w-full sm:w-32 shrink-0">
               <option value="admin">Admin</option>
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           {createdToken && (
             <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
@@ -269,8 +269,8 @@ export default function SettingsPage() {
               <div className="font-mono text-sm text-green-300 mt-1 break-all">{createdToken}</div>
             </div>
           )}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[36rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Token</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Created</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {tokens.map(t => (
@@ -287,7 +287,7 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-xs text-slate-500">Use tokens with: <code className="bg-slate-800 px-1 rounded">curl -k -H "Authorization: Bearer mach_xxx..." https://host:5092/api/v1/vms</code> (older installs may still have <code className="bg-slate-800 px-1 rounded">vs_</code> tokens until rotated)</p>
+          <p className="text-xs text-slate-500 break-words">Use tokens with: <code className="bg-slate-800 px-1 rounded break-all">curl -k -H &quot;Authorization: Bearer mach_xxx...&quot; https://host:5092/api/v1/vms</code> (older installs may still have <code className="bg-slate-800 px-1 rounded">vs_</code> tokens until rotated)</p>
         </div>
       )}
 
@@ -295,8 +295,8 @@ export default function SettingsPage() {
       {tab === 'alerts' && (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-300">Alert Rules</h3>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[32rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Rule</th><th className="px-6 py-3">Condition</th><th className="px-6 py-3">Threshold</th><th className="px-6 py-3">Enabled</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {alertRules.map((r, i) => (
@@ -332,12 +332,12 @@ export default function SettingsPage() {
       {/* ── Webhooks ───────────────────────────────────────── */}
       {tab === 'webhooks' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <input value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1" placeholder="https://example.com/webhook" />
-            <button onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+          <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-center">
+            <input value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1 min-w-0" placeholder="https://example.com/webhook" />
+            <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[28rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">URL</th><th className="px-6 py-3">Events</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {webhooks.map((h, i) => (
@@ -359,23 +359,23 @@ export default function SettingsPage() {
       {/* ── Schedules ──────────────────────────────────────── */}
       {tab === 'schedules' && (
         <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <select value={newSchedVm} onChange={e => setNewSchedVm(e.target.value)} className="input-field flex-1">
+          <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:flex-wrap sm:items-center">
+            <select value={newSchedVm} onChange={e => setNewSchedVm(e.target.value)} className="input-field flex-1 min-w-0">
               <option value="">Select VM...</option>
               {vms.map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
             </select>
-            <select value={newSchedAction} onChange={e => setNewSchedAction(e.target.value)} className="input-field w-32">
+            <select value={newSchedAction} onChange={e => setNewSchedAction(e.target.value)} className="input-field w-full shrink-0 sm:w-32">
               <option value="start">Start</option>
               <option value="shutdown">Shutdown</option>
               <option value="stop">Force Stop</option>
               <option value="reboot">Reboot</option>
               <option value="snapshot">Snapshot</option>
             </select>
-            <input type="time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-28" />
-            <button onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <input type="time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-full shrink-0 sm:w-28" />
+            <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[40rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Schedule</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {schedules.map((s, i) => (
@@ -408,8 +408,8 @@ export default function SettingsPage() {
             <input value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
             <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[28rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Type</th><th className="px-6 py-3">Config</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {notificationChannels.map((ch, i) => (
@@ -448,8 +448,8 @@ export default function SettingsPage() {
             <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} className="input-field w-24" placeholder="Retain" min="1" max="100" />
             <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-            <table className="w-full">
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+            <table className="w-full min-w-[36rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Interval</th><th className="px-6 py-3">Retain</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
                 {snapshotSchedules.map((s, i) => (

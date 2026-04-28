@@ -8,7 +8,7 @@ use std::path::Path;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
-use tracing::warn;
+use tracing::{info, warn};
 
 use machina_core::{LibvirtError, LibvirtManager};
 
@@ -20,12 +20,21 @@ const KUBECTL_PROBE_TIMEOUT_SECS: u64 = 8;
 const KUBECTL_LOGS_TIMEOUT_SECS: u64 = 60;
 const KUBECTL_APPLY_MAX_MANIFEST_BYTES: usize = 512 * 1024;
 const SNIPPET_MAX_BYTES: usize = 18_432;
-/// `kubectl apply -f https://…` for kata-deploy manifests (network fetch).
+/// `kubectl apply -f https://…` for kata example manifests (network fetch).
 const KATA_APPLY_TIMEOUT_SECS: u64 = 180;
+/// `helm upgrade --install` pulling OCI chart + GitHub `releases/latest` probe.
+const KATA_HELM_TIMEOUT_SECS: u64 = 300;
 /// `kubectl wait` can block up to 10m for kata-deploy pods.
 const KATA_WAIT_TIMEOUT_SECS: u64 = 660;
-/// Fixed upstream tree — only these URLs are passed to kubectl (no user-controlled URLs).
-const KATA_DEPLOY_MANIFEST_BASE: &str = "https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy";
+const KATA_HELM_RELEASE_NAME: &str = "kata-deploy";
+const KATA_HELM_NAMESPACE: &str = "kube-system";
+const KATA_HELM_CHART: &str = "oci://ghcr.io/kata-containers/kata-deploy-charts/kata-deploy";
+const KATA_GITHUB_LATEST: &str = "https://api.github.com/repos/kata-containers/kata-containers/releases/latest";
+/// When `curl` cannot reach GitHub, pin chart version (bump when kata ships a new major you care about).
+const KATA_HELM_VERSION_FALLBACK: &str = "3.29.0";
+/// Sample workloads only — fixed upstream path on `main` (allowlisted for `kubectl apply -f`).
+const KATA_EXAMPLE_MANIFEST_BASE: &str =
+    "https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy/examples";
 
 #[derive(Debug, Serialize)]
 struct KubectlResult {
@@ -160,12 +169,8 @@ struct K8sApplyRequest {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 enum KataDeployAction {
-    /// `kubectl apply -f …/kata-rbac/base/kata-rbac.yaml`
-    Rbac,
-    /// `kubectl apply -f …/kata-deploy/base/kata-deploy.yaml`
-    KataDeploy,
-    /// `kubectl apply -f …/runtimeclasses/kata-runtimeClasses.yaml`
-    RuntimeClasses,
+    /// `helm upgrade --install` official OCI chart; chart `--version` from GitHub latest (fallback if probe fails).
+    HelmInstall,
     /// `kubectl -n kube-system wait … -l name=kata-deploy pod`
     WaitKataDeployPod,
     ExampleClh,
@@ -590,6 +595,26 @@ fn infer_cluster_distribution(items: &[Value], host: &K8sHostSignals) -> (String
     } else {
         hints.push("no known distro markers; cluster API reachable".into());
         ("generic".to_string(), hints)
+    }
+}
+
+/// Helm chart value `k8sDistribution` — without this, kata-deploy looks for `/etc/containerd/config.toml`
+/// inside the pod; k3s/rke2 keep config under `/var/lib/rancher/...` and need matching host mounts.
+async fn kata_helm_k8s_distribution(ctx: Option<&str>) -> Option<&'static str> {
+    let host = collect_host_signals().await;
+    let Ok(v) = run_kubectl_json_timeout(&["get".into(), "nodes".into()], 15, ctx).await else {
+        return None;
+    };
+    let items = v
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let (dist, _) = infer_cluster_distribution(&items, &host);
+    match dist.as_str() {
+        "k3s" => Some("k3s"),
+        "rke2" => Some("rke2"),
+        _ => None,
     }
 }
 
@@ -1168,7 +1193,7 @@ async fn k8s_apply_manifest(
     Ok(Json(out?))
 }
 
-/// Allowlisted `kubectl` steps for upstream kata-deploy (URLs fixed to kata-containers `main` tree).
+/// Allowlisted Helm / `kubectl` steps for upstream kata-deploy (fixed chart URL + example manifest URLs).
 async fn k8s_kata_deploy(
     Extension(actor): Extension<RequestActor>,
     Json(body): Json<KataDeployRequest>,
@@ -1185,29 +1210,57 @@ async fn k8s_kata_deploy(
         ensure_k8s_context_name(c)?;
     }
 
-    let build_apply = |suffix: &str, dry: bool| -> Vec<String> {
-        let url = format!("{KATA_DEPLOY_MANIFEST_BASE}{suffix}");
+    let build_example_apply = |suffix: &str, dry_run_apply: bool| -> Vec<String> {
+        let url = format!("{KATA_EXAMPLE_MANIFEST_BASE}{suffix}");
         let mut a = vec!["apply".into(), "-f".into(), url];
-        if dry {
+        if dry_run_apply {
             a.push("--dry-run=server".into());
         }
         a
     };
 
     let dry = body.dry_run == Some(true);
-    let (args, timeout_secs): (Vec<String>, u64) = match body.action {
-        KataDeployAction::Rbac => (
-            build_apply("/kata-rbac/base/kata-rbac.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
-        KataDeployAction::KataDeploy => (
-            build_apply("/kata-deploy/base/kata-deploy.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
-        KataDeployAction::RuntimeClasses => (
-            build_apply("/runtimeclasses/kata-runtimeClasses.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
+    let (res, tool): (KubectlResult, &'static str) = match body.action {
+        KataDeployAction::HelmInstall => {
+            let version = match kata_containers_latest_release_tag().await {
+                Ok(t) => t,
+                Err(e) => {
+                    warn!(
+                        target: "machina_k8s",
+                        error = %e,
+                        "kata GitHub latest tag fetch failed; using fallback chart version {}",
+                        KATA_HELM_VERSION_FALLBACK
+                    );
+                    KATA_HELM_VERSION_FALLBACK.to_string()
+                }
+            };
+            let mut args = vec![
+                "upgrade".into(),
+                "--install".into(),
+                KATA_HELM_RELEASE_NAME.into(),
+                KATA_HELM_CHART.into(),
+            ];
+            if let Some(d) = kata_helm_k8s_distribution(ctx).await {
+                info!(
+                    target: "machina_k8s",
+                    "kata-deploy helm: setting k8sDistribution={d} (k3s/rke2 containerd paths)"
+                );
+                args.push("--set".into());
+                args.push(format!("k8sDistribution={d}"));
+            }
+            args.extend([
+                "--version".into(),
+                version,
+                "-n".into(),
+                KATA_HELM_NAMESPACE.into(),
+                "--create-namespace".into(),
+            ]);
+            if dry {
+                args.push("--dry-run".into());
+            }
+            let out = run_helm_timeout_kube(&args, KATA_HELM_TIMEOUT_SECS, ctx).await?;
+            (out, "helm")
+        }
         KataDeployAction::WaitKataDeployPod => {
             if dry {
                 return Err(LibvirtError::Invalid(
@@ -1215,43 +1268,45 @@ async fn k8s_kata_deploy(
                 )
                 .into());
             }
-            (
-                vec![
-                    "-n".into(),
-                    "kube-system".into(),
-                    "wait".into(),
-                    "--timeout=10m".into(),
-                    "--for=condition=Ready".into(),
-                    "-l".into(),
-                    "name=kata-deploy".into(),
-                    "pod".into(),
-                ],
-                KATA_WAIT_TIMEOUT_SECS,
-            )
+            let args = vec![
+                "-n".into(),
+                "kube-system".into(),
+                "wait".into(),
+                "--timeout=10m".into(),
+                "--for=condition=Ready".into(),
+                "-l".into(),
+                "name=kata-deploy".into(),
+                "pod".into(),
+            ];
+            let out = run_kubectl_timeout(&args, KATA_WAIT_TIMEOUT_SECS, ctx).await?;
+            (out, "kubectl")
         }
-        KataDeployAction::ExampleClh => (
-            build_apply("/examples/test-deploy-kata-clh.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
-        KataDeployAction::ExampleDragonball => (
-            build_apply("/examples/test-deploy-kata-dragonball.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
-        KataDeployAction::ExampleStratovirt => (
-            build_apply("/examples/test-deploy-kata-stratovirt.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
-        KataDeployAction::ExampleQemu => (
-            build_apply("/examples/test-deploy-kata-qemu.yaml", dry),
-            KATA_APPLY_TIMEOUT_SECS,
-        ),
+        KataDeployAction::ExampleClh => {
+            let args = build_example_apply("/test-deploy-kata-clh.yaml", dry);
+            let out = run_kubectl_timeout(&args, KATA_APPLY_TIMEOUT_SECS, ctx).await?;
+            (out, "kubectl")
+        }
+        KataDeployAction::ExampleDragonball => {
+            let args = build_example_apply("/test-deploy-kata-dragonball.yaml", dry);
+            let out = run_kubectl_timeout(&args, KATA_APPLY_TIMEOUT_SECS, ctx).await?;
+            (out, "kubectl")
+        }
+        KataDeployAction::ExampleStratovirt => {
+            let args = build_example_apply("/test-deploy-kata-stratovirt.yaml", dry);
+            let out = run_kubectl_timeout(&args, KATA_APPLY_TIMEOUT_SECS, ctx).await?;
+            (out, "kubectl")
+        }
+        KataDeployAction::ExampleQemu => {
+            let args = build_example_apply("/test-deploy-kata-qemu.yaml", dry);
+            let out = run_kubectl_timeout(&args, KATA_APPLY_TIMEOUT_SECS, ctx).await?;
+            (out, "kubectl")
+        }
     };
 
-    let res = run_kubectl_timeout(&args, timeout_secs, ctx).await?;
     if !res.ok {
         let msg = if res.stderr.trim().is_empty() {
             format!(
-                "kubectl failed (exit {}): {}",
+                "{tool} failed (exit {}): {}",
                 res.exit_code, res.command
             )
         } else {
@@ -1306,6 +1361,67 @@ async fn run_helm_timeout(
     })
 }
 
+/// Same kubeconfig auto-selection as `kubectl` (k3s/rke2 admin files) + optional `--kube-context`.
+async fn run_helm_timeout_kube(
+    subcommand_and_args: &[String],
+    timeout_secs: u64,
+    context: Option<&str>,
+) -> Result<KubectlResult, LibvirtError> {
+    let choice = crate::k8s_kubeconfig::kubectl_kubeconfig_choice().await;
+    let mut full = choice.prefix.clone();
+    if let Some(ctx) = context {
+        let t = ctx.trim();
+        if !t.is_empty() {
+            ensure_k8s_context_name(t)?;
+            full.push("--kube-context".into());
+            full.push(t.to_string());
+        }
+    }
+    full.extend_from_slice(subcommand_and_args);
+    run_helm_timeout(&full, timeout_secs).await
+}
+
+async fn kata_containers_latest_release_tag() -> Result<String, LibvirtError> {
+    let output = timeout(
+        Duration::from_secs(25),
+        Command::new("curl")
+            .args([
+                "-fsSL",
+                "-H",
+                "User-Agent: machina-daemon",
+                KATA_GITHUB_LATEST,
+            ])
+            .output(),
+    )
+    .await
+    .map_err(|_| {
+        LibvirtError::Operation("curl GitHub releases/latest timed out (is curl installed?)".into())
+    })?
+    .map_err(|e| LibvirtError::Operation(format!("failed to start curl: {e}")))?;
+    if !output.status.success() {
+        return Err(LibvirtError::Operation(format!(
+            "curl GitHub API exit {} (install curl for latest chart version, or chart version falls back in code path only for helm — check stderr)",
+            output.status.code().unwrap_or(-1)
+        )));
+    }
+    let v: Value = serde_json::from_slice(&output.stdout)
+        .map_err(|e| LibvirtError::Operation(format!("GitHub API JSON: {e}")))?;
+    let tag = v
+        .get("tag_name")
+        .and_then(|t| t.as_str())
+        .ok_or_else(|| LibvirtError::Operation("GitHub API missing tag_name".into()))?;
+    if tag.is_empty() || tag.len() > 64 {
+        return Err(LibvirtError::Operation("refusing empty or oversized release tag".into()));
+    }
+    if !tag
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
+    {
+        return Err(LibvirtError::Operation("refusing odd release tag characters".into()));
+    }
+    Ok(tag.to_string())
+}
+
 async fn k8s_helm_releases(
     Extension(actor): Extension<RequestActor>,
     Query(q): Query<K8sHelmQuery>,
@@ -1315,28 +1431,23 @@ async fn k8s_helm_releases(
     if let Some(c) = ctx {
         ensure_k8s_context_name(c)?;
     }
-    let mut args: Vec<String> = Vec::new();
-    if let Some(c) = ctx {
-        args.push("--kube-context".into());
-        args.push(c.to_string());
-    }
-    args.extend([
+    let mut inner: Vec<String> = vec![
         "list".into(),
         "-o".into(),
         "json".into(),
         "--max".into(),
         "200".into(),
-    ]);
+    ];
     if q.namespace.as_deref() == Some("all") || q.namespace.as_deref() == Some("*") {
-        args.push("-A".into());
+        inner.push("-A".into());
     } else if let Some(ns) = q.namespace.clone() {
         ensure_safe_name(&ns, "namespace")?;
-        args.push("-n".into());
-        args.push(ns);
+        inner.push("-n".into());
+        inner.push(ns);
     } else {
-        args.push("-A".into());
+        inner.push("-A".into());
     }
-    let res = run_helm_timeout(&args, 45).await?;
+    let res = run_helm_timeout_kube(&inner, 45, ctx).await?;
     if !res.ok {
         return Err(LibvirtError::Operation(res.stderr.clone()).into());
     }

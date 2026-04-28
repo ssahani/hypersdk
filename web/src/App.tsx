@@ -104,7 +104,7 @@ function AuthenticatedApp() {
           <Navbar />
           <CommandPalette />
           <GlobalShortcuts />
-          <main className={`app-shell flex-1 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
+          <main className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
             <Breadcrumb />
             <Suspense fallback={<PageSkeleton />}>
               <Routes>

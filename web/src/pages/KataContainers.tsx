@@ -14,16 +14,22 @@ import { useToastContext } from '../contexts/ToastContext'
 import { getSession, type SessionRole } from '../api/auth'
 import { getK8sContexts, getK8sEnvironment, postKataDeploy, type KataDeployAction, type K8sActionResult } from '../api/k8s'
 
-const KATA_DEPLOY_BASE =
-  'https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy'
-const KATA_EXAMPLES = `${KATA_DEPLOY_BASE}/examples`
+const KATA_EXAMPLES =
+  'https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy/examples'
 
-const CMD_INSTALL = `kubectl apply -f ${KATA_DEPLOY_BASE}/kata-rbac/base/kata-rbac.yaml
-kubectl apply -f ${KATA_DEPLOY_BASE}/kata-deploy/base/kata-deploy.yaml`
+/** `k8s` / generic clusters. Machina’s **Helm upgrade/install** button also probes the API and adds `--set k8sDistribution=k3s` or `=rke2` when the cluster matches. */
+const CMD_HELM = `export KATA_VERSION=$(curl -fsSL -H "User-Agent: machina" \\
+  https://api.github.com/repos/kata-containers/kata-containers/releases/latest | jq -r .tag_name)
+helm upgrade --install kata-deploy oci://ghcr.io/kata-containers/kata-deploy-charts/kata-deploy \\
+  --version "$KATA_VERSION" -n kube-system --create-namespace`
+
+/** Required on **k3s** (and RKE2): chart mounts the distro-specific containerd config path — without this, kata-deploy crashes reading `/etc/containerd/config.toml`. */
+const CMD_HELM_K3S = `export KATA_VERSION=$(curl -fsSL -H "User-Agent: machina" \\
+  https://api.github.com/repos/kata-containers/kata-containers/releases/latest | jq -r .tag_name)
+helm upgrade --install kata-deploy oci://ghcr.io/kata-containers/kata-deploy-charts/kata-deploy \\
+  --version "$KATA_VERSION" --set k8sDistribution=k3s -n kube-system --create-namespace`
 
 const CMD_WAIT = `kubectl -n kube-system wait --timeout=10m --for=condition=Ready -l name=kata-deploy pod`
-
-const CMD_RUNTIME_CLASSES = `kubectl apply -f ${KATA_DEPLOY_BASE}/runtimeclasses/kata-runtimeClasses.yaml`
 
 function CopyBlock({ label, text }: { label: string; text: string }) {
   const toast = useToastContext()
@@ -53,11 +59,12 @@ function KataAutomateSection() {
   const toast = useToastContext()
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [kubectlOk, setKubectlOk] = useState<boolean | null>(null)
+  const [helmOk, setHelmOk] = useState<boolean | null>(null)
   const [kubeReachable, setKubeReachable] = useState<boolean | null>(null)
   const [ctx, setCtx] = useState('')
   const [ctxChoices, setCtxChoices] = useState<string[]>([])
   const [dryRun, setDryRun] = useState(false)
-  const [busy, setBusy] = useState<KataDeployAction | 'core_three' | null>(null)
+  const [busy, setBusy] = useState<KataDeployAction | null>(null)
   const [lastOut, setLastOut] = useState<K8sActionResult | null>(null)
 
   const ctxTrim = ctx.trim()
@@ -72,22 +79,29 @@ function KataAutomateSection() {
     getK8sEnvironment()
       .then((e) => {
         setKubectlOk(e.kubectl_on_path)
+        setHelmOk(e.host.helm_version != null && e.host.helm_version !== '')
         setKubeReachable(e.kubectl_server_reachable)
       })
       .catch(() => {
         setKubectlOk(false)
+        setHelmOk(false)
         setKubeReachable(false)
       })
   }, [])
 
   const canWrite = sessionRole === 'admin' || sessionRole === 'operator'
-  const canRun = canWrite && kubectlOk === true && kubeReachable === true
+  const canRunKubectl = canWrite && kubectlOk === true && kubeReachable === true
+  const canRunHelm = canRunKubectl && helmOk === true
 
   const runOne = useCallback(
     async (action: KataDeployAction) => {
-      if (!canRun) return
+      if (action === 'helm_install') {
+        if (!canRunHelm) return
+      } else if (!canRunKubectl) {
+        return
+      }
       if (action === 'wait_kata_deploy_pod' && dryRun) {
-        toast.warning('Turn off server dry-run before running wait (wait has no dry-run mode).')
+        toast.warning('Turn off dry-run before running wait (wait has no dry-run mode).')
         return
       }
       setBusy(action)
@@ -100,41 +114,15 @@ function KataAutomateSection() {
         })
         setLastOut(r)
         if (r.ok) toast.success(`Step finished: ${action.replace(/_/g, ' ')}`)
-        else toast.error(r.stderr.trim() || `kubectl exit ${r.exit_code}`)
+        else toast.error(r.stderr.trim() || `exit ${r.exit_code}`)
       } catch (e: unknown) {
         toast.error(e instanceof Error ? e.message : String(e))
       } finally {
         setBusy(null)
       }
     },
-    [canRun, ctxTrim, dryRun, toast],
+    [canRunHelm, canRunKubectl, ctxTrim, dryRun, toast],
   )
-
-  const runCoreThree = useCallback(async () => {
-    if (!canRun) return
-    const steps: KataDeployAction[] = ['rbac', 'kata_deploy', 'runtime_classes']
-    setBusy('core_three')
-    setLastOut(null)
-    try {
-      for (const action of steps) {
-        const r = await postKataDeploy({
-          action,
-          context: ctxTrim || undefined,
-          dry_run: dryRun || undefined,
-        })
-        setLastOut(r)
-        if (!r.ok) {
-          toast.error(`${action}: ${r.stderr.trim() || `exit ${r.exit_code}`}`)
-          return
-        }
-      }
-      toast.success('RBAC + kata-deploy + RuntimeClasses applied')
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
-    } finally {
-      setBusy(null)
-    }
-  }, [canRun, ctxTrim, dryRun, toast])
 
   const loadContexts = useCallback(() => {
     void getK8sContexts()
@@ -156,9 +144,9 @@ function KataAutomateSection() {
             <Terminal className="w-5 h-5 text-cyan-400" /> Automate from the machina daemon host
           </h2>
           <p className="text-sm text-slate-400 mt-1 max-w-prose">
-            Runs allowlisted <code className="text-slate-300">kubectl</code> on whatever machine runs <strong className="text-slate-300">machina-daemon</strong> — that is <strong className="text-slate-300">not</strong> automatically a Kubernetes
-            control-plane node. It is often a lab workstation with kubeconfig, or the same box as your libvirt hypervisor; in an all-in-one setup it can coincide with the control plane, but the API only
-            needs <code className="text-slate-300">kubectl</code> + network reachability to the cluster (same as the Kubernetes pages). Requires <strong className="text-slate-300">operator or admin</strong> session role.
+            Runs allowlisted <code className="text-slate-300">helm</code> / <code className="text-slate-300">kubectl</code> on whatever machine runs <strong className="text-slate-300">machina-daemon</strong> — that is <strong className="text-slate-300">not</strong> automatically a Kubernetes
+            control-plane node. It is often a lab workstation with kubeconfig, or the same box as your libvirt hypervisor. Needs kube API reachability (same as other Kubernetes pages). Requires{' '}
+            <strong className="text-slate-300">operator or admin</strong> session role. Install Machina with <code className="text-slate-400">install.sh</code> to get Helm on the host if it was missing.
           </p>
         </div>
       </div>
@@ -168,6 +156,11 @@ function KataAutomateSection() {
           className={`px-2 py-1 rounded-md border ${kubectlOk ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/15 border-amber-500/40 text-amber-200'}`}
         >
           kubectl {kubectlOk === null ? '…' : kubectlOk ? 'found' : 'missing'}
+        </span>
+        <span
+          className={`px-2 py-1 rounded-md border ${helmOk ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/15 border-amber-500/40 text-amber-200'}`}
+        >
+          helm {helmOk === null ? '…' : helmOk ? 'found' : 'missing'}
         </span>
         <span
           className={`px-2 py-1 rounded-md border ${kubeReachable ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-400'}`}
@@ -209,36 +202,31 @@ function KataAutomateSection() {
         </button>
         <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer shrink-0">
           <input type="checkbox" className="rounded border-slate-600" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />
-          Server dry-run (apply only)
+          Dry-run (Helm: render only; kubectl apply: server dry-run)
         </label>
       </div>
 
       <div className="space-y-2">
+        <p className="text-xs text-slate-500">
+          <strong className="text-slate-400">Helm install</strong> uses the official OCI chart; chart version follows the latest <code className="text-slate-400">kata-containers</code> GitHub release (with a daemon fallback if <code className="text-slate-400">curl</code> fails). For <strong className="text-slate-300">k3s</strong> / <strong className="text-slate-300">RKE2</strong> clusters, the daemon adds <code className="text-slate-400">--set k8sDistribution=…</code> so containerd config paths match the node. Sample workloads still use allowlisted <code className="text-slate-400">kubectl apply -f</code> URLs.
+        </p>
         <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Install sequence</p>
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
             className={`${btnClass} border-cyan-700/50 bg-cyan-950/40 hover:bg-cyan-900/50`}
-            disabled={!canRun || busy !== null}
-            onClick={() => void runCoreThree()}
+            disabled={!canRunHelm || busy !== null}
+            onClick={() => void runOne('helm_install')}
+            title={!canRunHelm && canWrite ? 'Requires kubectl, API reachability, and helm on PATH' : undefined}
           >
-            {busy === 'core_three' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            Apply RBAC + kata-deploy + RuntimeClasses
-          </button>
-          <button type="button" className={btnClass} disabled={!canRun || busy !== null} onClick={() => void runOne('rbac')}>
-            {busy === 'rbac' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} RBAC only
-          </button>
-          <button type="button" className={btnClass} disabled={!canRun || busy !== null} onClick={() => void runOne('kata_deploy')}>
-            {busy === 'kata_deploy' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} kata-deploy DS
-          </button>
-          <button type="button" className={btnClass} disabled={!canRun || busy !== null} onClick={() => void runOne('runtime_classes')}>
-            {busy === 'runtime_classes' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} RuntimeClasses
+            {busy === 'helm_install' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+            Helm upgrade/install kata-deploy
           </button>
           <button
             type="button"
             title="Blocks up to ~11 minutes"
             className={btnClass}
-            disabled={!canRun || busy !== null || dryRun}
+            disabled={!canRunKubectl || busy !== null || dryRun}
             onClick={() => void runOne('wait_kata_deploy_pod')}
           >
             {busy === 'wait_kata_deploy_pod' ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Wait kata-deploy pod
@@ -261,7 +249,7 @@ function KataAutomateSection() {
               key={action}
               type="button"
               className={btnClass}
-              disabled={!canRun || busy !== null}
+              disabled={!canRunKubectl || busy !== null}
               onClick={() => void runOne(action)}
             >
               {busy === action ? <Loader2 className="w-4 h-4 animate-spin" /> : null} {label}
@@ -272,7 +260,7 @@ function KataAutomateSection() {
 
       {lastOut && (
         <details open className="rounded-lg border border-slate-700 bg-slate-900/60 overflow-hidden">
-          <summary className="px-3 py-2 text-xs text-slate-400 cursor-pointer select-none">Last kubectl result</summary>
+          <summary className="px-3 py-2 text-xs text-slate-400 cursor-pointer select-none">Last command result</summary>
           <div className="px-3 pb-3 space-y-2 text-xs">
             <div className="font-mono text-slate-500 break-all">{lastOut.command}</div>
             <div className={lastOut.ok ? 'text-emerald-400' : 'text-rose-400'}>exit {lastOut.exit_code}</div>
@@ -297,9 +285,11 @@ export default function KataContainersPage() {
           <Package className="w-7 h-7 text-cyan-400" /> Kata Containers on Kubernetes
         </h1>
         <p className="text-sm text-slate-400 mt-1">
-          Install <strong className="text-slate-300">kata-deploy</strong> on a running cluster, then run pods with{' '}
-          <code className="text-slate-300">runtimeClassName</code> — for example{' '}
-          <code className="text-slate-300">kata-clh</code> for{' '}
+          Install <strong className="text-slate-300">kata-deploy</strong> with the{' '}
+          <a href="https://kata-containers.github.io/kata-containers/installation/" className="text-blue-400 hover:underline" target="_blank" rel="noreferrer">
+            upstream Helm chart
+          </a>
+          , then run pods with <code className="text-slate-300">runtimeClassName</code> — for example <code className="text-slate-300">kata-clh</code> for{' '}
           <a
             href="https://github.com/cloud-hypervisor/cloud-hypervisor"
             target="_blank"
@@ -308,14 +298,7 @@ export default function KataContainersPage() {
           >
             Cloud Hypervisor <ExternalLink className="w-3 h-3" />
           </a>
-          . Manual commands below match what automation runs on the daemon host (see panel above — not necessarily the cluster control plane).
-        </p>
-        <p className="text-xs text-slate-500 mt-2">
-          Upstream manifests track the{' '}
-          <a href="https://github.com/kata-containers/kata-containers/tree/main/tools/packaging/kata-deploy" className="text-blue-400 hover:underline" target="_blank" rel="noreferrer">
-            kata-containers/kata-containers
-          </a>{' '}
-          repo; pin to a release tag in production instead of <code className="text-slate-500">main</code> if you need stability.
+          . The automation panel runs the same allowlisted <code className="text-slate-500">helm</code> / <code className="text-slate-500">kubectl</code> commands on the daemon host.
         </p>
       </div>
 
@@ -323,12 +306,19 @@ export default function KataContainersPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Server className="w-5 h-5 text-blue-400" /> 1. Install kata-deploy
+          <Server className="w-5 h-5 text-emerald-400" /> 1. Helm — install or upgrade kata-deploy
         </h2>
         <p className="text-sm text-slate-400">
-          Applies RBAC and the kata-deploy DaemonSet (installs Kata binaries and artifacts on nodes).
+          Installs RBAC, DaemonSet, RuntimeClasses, and related objects via the OCI chart on <code className="text-slate-400">ghcr.io</code>. Requires Helm 3.8+, <code className="text-slate-400">curl</code> (to read the latest release tag), and cluster pull access to the registry.
         </p>
-        <CopyBlock label="kubectl" text={CMD_INSTALL} />
+        <p className="text-xs text-amber-200/85 rounded-lg border border-amber-900/40 bg-amber-950/25 px-3 py-2">
+          <strong className="text-amber-100">k3s / RKE2:</strong> If kata-deploy logs say it cannot read{' '}
+          <code className="text-amber-100/90">/etc/containerd/config.toml</code>, reinstall with{' '}
+          <code className="text-amber-100/90">--set k8sDistribution=k3s</code> (or <code className="text-amber-100/90">rke2</code>). Plain Kubernetes keeps config under{' '}
+          <code className="text-amber-100/90">/etc/containerd/</code>; k3s uses paths under <code className="text-amber-100/90">/var/lib/rancher/k3s/...</code>.
+        </p>
+        <CopyBlock label="helm (Kubernetes)" text={CMD_HELM} />
+        <CopyBlock label="helm (k3s — sets chart distro)" text={CMD_HELM_K3S} />
       </section>
 
       <section className="space-y-3">
@@ -337,12 +327,11 @@ export default function KataContainersPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">3. Apply RuntimeClass objects</h2>
+        <h2 className="text-lg font-semibold text-white">3. RuntimeClass objects</h2>
         <p className="text-sm text-slate-400">
-          Official RuntimeClasses include selectors so workloads land on nodes labeled{' '}
+          The chart applies official RuntimeClasses with selectors so workloads land on nodes labeled{' '}
           <code className="text-slate-300">katacontainers.io/kata-runtime=true</code> (set by kata-deploy on capable nodes).
         </p>
-        <CopyBlock label="kubectl apply" text={CMD_RUNTIME_CLASSES} />
       </section>
 
       <section className="space-y-3">
@@ -388,7 +377,7 @@ export default function KataContainersPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold text-white">5. Example workloads (upstream)</h2>
+        <h2 className="text-lg font-semibold text-white">5. Example workloads (upstream YAML)</h2>
         <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
           <li>
             <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-clh.yaml`} target="_blank" rel="noreferrer">
