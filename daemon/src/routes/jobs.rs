@@ -54,7 +54,7 @@ async fn get_job_handler(
 }
 
 async fn post_virt_image_build_job(
-    State(manager): State<LibvirtManager>,
+    State(_manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Extension(vib_slots): Extension<Arc<Semaphore>>,
     Json(mut req): Json<BuildDiskRequest>,

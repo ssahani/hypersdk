@@ -49,4 +49,5 @@ where
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?
+    .map_err(AppError::from)
 }
