@@ -5,11 +5,17 @@ import '@xterm/xterm/css/xterm.css'
 import { RefreshCw, Trash2, Maximize, Minimize } from 'lucide-react'
 import { getWsToken } from '../api/client'
 
-interface Props {
-  vmName: string
+function wsConnQs(libvirtConnection?: string | null): string {
+  if (!libvirtConnection || libvirtConnection === 'system') return ''
+  return `&connection=${encodeURIComponent(libvirtConnection)}`
 }
 
-export default function SerialConsole({ vmName }: Props) {
+interface Props {
+  vmName: string
+  libvirtConnection?: string | null
+}
+
+export default function SerialConsole({ vmName, libvirtConnection }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -54,7 +60,7 @@ export default function SerialConsole({ vmName }: Props) {
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/console/${vmName}?token=${encodeURIComponent(token)}`)
+    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/console/${vmName}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`)
     wsRef.current = ws
 
     ws.onopen = () => {
@@ -72,7 +78,7 @@ export default function SerialConsole({ vmName }: Props) {
     term.onData((data) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(data)
     })
-  }, [vmName])
+  }, [vmName, libvirtConnection])
 
   useEffect(() => {
     connect()

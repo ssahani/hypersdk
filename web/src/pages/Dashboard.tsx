@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router'
-import { listVMs, getMetrics, startVM, shutdownVM, VmInfo, VmMetrics } from '../api/vm'
+import { listVMs, getMetrics, startVM, shutdownVM, VmInfo, VmMetrics, vmDetailRoute, vmConsoleRoute, vmScopeKey } from '../api/vm'
+import { getHostVirtualization, getLibvirtSummary } from '../api/host'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
 import { getNodeInfo, NodeInfo } from '../api/node'
@@ -8,7 +9,7 @@ import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { timeAgo } from '../utils/time'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2 } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
@@ -27,13 +28,18 @@ export default function Dashboard() {
   const [node, setNode] = useState<NodeInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [hostStats, setHostStats] = useState<HostStats | null>(null)
+  const [virtHost, setVirtHost] = useState<Awaited<ReturnType<typeof getHostVirtualization>> | null>(null)
+  const [libSummary, setLibSummary] = useState<Awaited<ReturnType<typeof getLibvirtSummary>> | null>(null)
+  const [virtBannerDismissed, setVirtBannerDismissed] = useState(
+    () => typeof localStorage !== 'undefined' && localStorage.getItem('machina_virt_banner_dismiss') === '1',
+  )
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const { subscribe, events } = useWebSocketContext()
   const toast = useToastContext()
 
-  const vmAction = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
-    try { await fn(name); toast.success(`${label} '${name}' OK`); loadData() }
-    catch (e: unknown) { toast.error(`${label} '${name}' failed: ${e instanceof Error ? e.message : e}`) }
+  const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
+    try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
+    catch (e: unknown) { toast.error(`${label} '${vm.name}' failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const loadData = useCallback(async () => {
@@ -43,6 +49,8 @@ export default function Dashboard() {
       ])
       setVMs(vmData); setNetworks(netData); setPools(poolData); setNode(nodeData)
       try { setHostStats(await getHostStats()) } catch { /* optional */ }
+      try { setVirtHost(await getHostVirtualization()) } catch { setVirtHost(null) }
+      try { setLibSummary(await getLibvirtSummary()) } catch { setLibSummary(null) }
     } catch (error) { console.error('Failed to load data:', error) } finally { setLoading(false) }
   }, [])
 
@@ -95,6 +103,34 @@ export default function Dashboard() {
   return (
     <div className="space-y-6 animate-fade-in min-w-0">
       {/* Header */}
+      {!virtBannerDismissed && virtHost && (!virtHost.cpu_virt_supported || !virtHost.kvm_device_present || (!virtHost.libvirt_system_socket_present && !virtHost.libvirt_session_socket_present)) && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex gap-3 min-w-0">
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden />
+            <div className="min-w-0 text-sm text-amber-100/95">
+              <p className="font-medium text-amber-50">Virtualization readiness</p>
+              <p className="mt-1 text-amber-100/80">{virtHost.hint}</p>
+              {libSummary?.dual_connection && (
+                <p className="mt-2 text-xs text-amber-200/70">
+                  Dual libvirt: system {libSummary.qemu_system_connected ? 'connected' : 'down'}, session {libSummary.qemu_session_connected ? 'connected' : 'down'} (configured URI: {libSummary.configured_uri}).
+                </p>
+              )}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              localStorage.setItem('machina_virt_banner_dismiss', '1')
+              setVirtBannerDismissed(true)
+            }}
+            className="shrink-0 self-start p-1.5 rounded-lg hover:bg-amber-500/20 text-amber-200/90"
+            aria-label="Dismiss"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between min-w-0">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold text-white">Dashboard</h1>
@@ -202,32 +238,37 @@ export default function Dashboard() {
             </div>
           ) : (
             vms.slice(0, 10).map((vm) => (
-              <div key={vm.name} className="flex items-center justify-between px-6 py-3.5 table-row-hover group">
-                <Link to={`/vms/${vm.name}`} className="flex items-center gap-4 flex-1 min-w-0">
+              <div key={vmScopeKey(vm)} className="flex items-center justify-between px-6 py-3.5 table-row-hover group">
+                <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="flex items-center gap-4 flex-1 min-w-0">
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${getStateColor(vm.state)} ${vm.state === 'running' ? 'animate-pulse-dot' : ''}`} />
                   <div className="min-w-0">
-                    <div className="font-medium text-white group-hover:text-blue-400 transition truncate">{vm.name}</div>
+                    <div className="font-medium text-white group-hover:text-blue-400 transition truncate flex items-center gap-2">
+                      {vm.name}
+                      {vm.libvirt_connection === 'session' && (
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20 font-normal">session</span>
+                      )}
+                    </div>
                     <div className="text-xs text-slate-500 mt-0.5">{vm.vcpus} vCPU · {vm.memory_mb} MB</div>
                   </div>
                 </Link>
                 <div className="flex items-center gap-2 shrink-0">
                   {vm.state === 'running' && (
                     <>
-                      <Link to={`/vms/${vm.name}/console`} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
+                      <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
                         <Terminal className="w-3.5 h-3.5 text-slate-400" />
                       </Link>
-                      <button onClick={() => vmAction(vm.name, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
+                      <button onClick={() => vmAction(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
                         <Power className="w-3.5 h-3.5 text-yellow-400" />
                       </button>
                     </>
                   )}
                   {vm.state === 'shutoff' && (
-                    <button onClick={() => vmAction(vm.name, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
+                    <button onClick={() => vmAction(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
                       <Play className="w-3.5 h-3.5 text-green-400" />
                     </button>
                   )}
                   <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
-                  <Link to={`/vms/${vm.name}`} className="p-1">
+                  <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="p-1">
                     <ChevronRight className="w-4 h-4 text-slate-600 group-hover:text-slate-400 transition" />
                   </Link>
                 </div>

@@ -4,6 +4,7 @@ mod job_registry;
 mod k8s_kubeconfig;
 mod kubevirt_exec;
 mod kubevirt_k8s_ws_proxy;
+mod conn_query;
 mod routes;
 mod server;
 mod systemd;
@@ -76,9 +77,9 @@ async fn main() -> anyhow::Result<()> {
         config.libvirt.uri = uri;
     }
 
-    let manager = LibvirtManager::new(&config.libvirt.uri).map_err(|e| anyhow::anyhow!("{e}"))?;
+    let manager = LibvirtManager::new(&config.libvirt).map_err(|e| anyhow::anyhow!("{e}"))?;
 
-    info!("Connected to libvirt ({})", config.libvirt.uri);
+    info!("Connected to libvirt ({})", manager.primary_uri_display());
     info!(
         "PAM service for web login: /etc/pam.d/{}",
         config.auth.pam_service

@@ -10,6 +10,9 @@ pub struct VmInfo {
     pub state: String,
     pub vcpus: u32,
     pub memory_mb: u64,
+    /// `system` / `session` when `[libvirt] dual_connection` is enabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub libvirt_connection: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +30,9 @@ pub struct VmDetails {
     pub disks: Vec<DiskInfo>,
     #[serde(default)]
     pub filesystems: Vec<FilesystemInfo>,
+    /// `system` / `session` when bound to a specific libvirt scope.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub libvirt_connection: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,6 +238,8 @@ pub struct VmMetrics {
     pub disk_wr_bytes: u64,
     pub net_rx_bytes: u64,
     pub net_tx_bytes: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub libvirt_connection: Option<String>,
 }
 
 // ── Audit / Event Types ─────────────────────────────────────────────────
@@ -374,6 +382,9 @@ pub struct CreateVmRequest {
     /// New overlay disk with `backing_store=` (cloud / golden image on host); implies `--import`.
     #[serde(default)]
     pub virt_install_disk_backing_store: String,
+    /// When `[libvirt] dual_connection`: `system` or `session` — which libvirt URI defines this guest.
+    #[serde(default)]
+    pub libvirt_connection: String,
 }
 
 fn default_graphics_listen() -> String {
@@ -453,6 +464,7 @@ impl Default for CreateVmRequest {
             root_disk_storage_volume: String::new(),
             virt_install_path_in_use_check_off: false,
             virt_install_disk_backing_store: String::new(),
+            libvirt_connection: String::new(),
         }
     }
 }
@@ -1404,12 +1416,14 @@ mod tests {
                 state: "running".into(),
                 vcpus: 1,
                 memory_mb: 512,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "bravo".into(),
                 state: "shutoff".into(),
                 vcpus: 2,
                 memory_mb: 1024,
+                libvirt_connection: None,
             },
         ];
         state.search_query = "zzzznotfound".into();
@@ -1427,6 +1441,7 @@ mod tests {
             state: "running".into(),
             vcpus: 1,
             memory_mb: 512,
+            libvirt_connection: None,
         }];
         state.search_query.clear();
         state.apply_search_filter();
@@ -1444,18 +1459,21 @@ mod tests {
                 state: "running".into(),
                 vcpus: 1,
                 memory_mb: 512,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "bravo".into(),
                 state: "shutoff".into(),
                 vcpus: 2,
                 memory_mb: 1024,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "charlie".into(),
                 state: "running".into(),
                 vcpus: 1,
                 memory_mb: 512,
+                libvirt_connection: None,
             },
         ];
         state.search_query = "alpha".into();
@@ -1473,18 +1491,21 @@ mod tests {
                 state: "running".into(),
                 vcpus: 2,
                 memory_mb: 1024,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "b".into(),
                 state: "shutoff".into(),
                 vcpus: 1,
                 memory_mb: 512,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "c".into(),
                 state: "paused".into(),
                 vcpus: 4,
                 memory_mb: 2048,
+                libvirt_connection: None,
             },
         ];
         state.compute_dashboard();
@@ -1505,18 +1526,21 @@ mod tests {
                 state: "running".into(),
                 vcpus: 1,
                 memory_mb: 512,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "alpha".into(),
                 state: "shutoff".into(),
                 vcpus: 2,
                 memory_mb: 1024,
+                libvirt_connection: None,
             },
             VmInfo {
                 name: "bravo".into(),
                 state: "paused".into(),
                 vcpus: 4,
                 memory_mb: 256,
+                libvirt_connection: None,
             },
         ];
         state.sort_column = SortColumn::Name;

@@ -11,9 +11,10 @@ export async function deleteVmWithNvramRetry(
   name: string,
   opts?: VmDeleteUndefineOpts,
   onBeforeNvramRetry?: (merged: VmDeleteUndefineOpts) => void,
+  connection?: string | null,
 ): Promise<void> {
   try {
-    await deleteVM(name, opts)
+    await deleteVM(name, opts, connection)
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : String(e)
     const m = msg.toLowerCase()
@@ -23,7 +24,7 @@ export async function deleteVmWithNvramRetry(
     if (looksLikeNvramUndefineConflict && !opts?.undefine_nvram) {
       const merged: VmDeleteUndefineOpts = { ...opts, undefine_nvram: true }
       onBeforeNvramRetry?.(merged)
-      await deleteVM(name, merged)
+      await deleteVM(name, merged, connection)
       return
     }
     throw e

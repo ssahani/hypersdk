@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { startPackerGoldenBuildJob, streamJobLogs } from '../api/jobs'
-import { createVMWithProgress, CreateVmRequest, VmTemplate } from '../api/vm'
+import { createVMWithProgress, CreateVmRequest, VmTemplate, vmDetailRoute } from '../api/vm'
+import { getLibvirtSummary } from '../api/host'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listIsos, listSavedTemplates, ImageFile } from '../api/extras'
 import { listPools, listVolumes, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
@@ -98,6 +99,10 @@ export default function CreateVMPage() {
 
   const [packerGuestId, setPackerGuestId] = useState(MACHINA_PACKER_SCRIPT_GUESTS[0]?.id ?? '')
   const [packerRunning, setPackerRunning] = useState(false)
+
+  const [libSummary, setLibSummary] = useState<Awaited<ReturnType<typeof getLibvirtSummary>> | null>(null)
+  /** When daemon has dual libvirt: where to define the new domain. */
+  const [createLibvirtTarget, setCreateLibvirtTarget] = useState<'default' | 'system' | 'session'>('default')
   const [packerLog, setPackerLog] = useState<string[]>([])
   const [createProgressOk, setCreateProgressOk] = useState(false)
   const [createProgressFailed, setCreateProgressFailed] = useState(false)
@@ -128,6 +133,10 @@ export default function CreateVMPage() {
       setVolumes([])
       setDiskVol('')
     }
+  }, [])
+
+  useEffect(() => {
+    getLibvirtSummary().then(setLibSummary).catch(() => setLibSummary(null))
   }, [])
 
   useEffect(() => {
@@ -283,6 +292,11 @@ export default function CreateVMPage() {
       req.virt_install_extra_args = virtInstallExtraArgs.trim()
     }
 
+    if (libSummary?.dual_connection) {
+      if (createLibvirtTarget === 'session') req.libvirt_connection = 'session'
+      else if (createLibvirtTarget === 'system') req.libvirt_connection = 'system'
+    }
+
     if (storageMode === 'volume') {
       req.root_disk_storage_pool = diskPool.trim()
       req.root_disk_storage_volume = diskVol.trim()
@@ -307,7 +321,7 @@ export default function CreateVMPage() {
       await createVMWithProgress(req, (line) => setCreateLog((prev) => [...prev, line]))
       setCreateProgressOk(true)
       toast.success(`VM '${name}' created — open Console to finish install (same idea as Cockpit Machines).`)
-      navigate('/vms')
+      navigate(vmDetailRoute(name, createLibvirtTarget === 'session' ? 'session' : undefined))
     } catch (e: unknown) {
       setCreateProgressFailed(true)
       toast.error(`Create failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -363,6 +377,11 @@ export default function CreateVMPage() {
       req.virt_install_disk_backing_store = backingGoldenPath.trim()
     }
 
+    if (libSummary?.dual_connection) {
+      if (createLibvirtTarget === 'session') req.libvirt_connection = 'session'
+      else if (createLibvirtTarget === 'system') req.libvirt_connection = 'system'
+    }
+
     setSubmitting(true)
     setCreateProgressOk(false)
     setCreateProgressFailed(false)
@@ -371,7 +390,7 @@ export default function CreateVMPage() {
       await createVMWithProgress(req, (line) => setCreateLog((prev) => [...prev, line]))
       setCreateProgressOk(true)
       toast.success(`VM '${name}' created from golden image — start it from the VM list.`)
-      navigate('/vms')
+      navigate(vmDetailRoute(name, createLibvirtTarget === 'session' ? 'session' : undefined))
     } catch (e: unknown) {
       setCreateProgressFailed(true)
       toast.error(`Create failed: ${e instanceof Error ? e.message : String(e)}`)
@@ -443,6 +462,27 @@ export default function CreateVMPage() {
           />
         </ChoiceCardGrid>
       </div>
+
+      {libSummary?.dual_connection && (
+        <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 space-y-3">
+          <h3 className="text-sm font-semibold text-white">Hypervisor scope</h3>
+          <p className="text-xs text-slate-400">Daemon is merging system + session libvirt (same pattern as Cockpit Machines). Choose where this domain should be defined.</p>
+          <div className="flex flex-wrap gap-4 text-sm text-slate-300">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="machina-lv-scope" checked={createLibvirtTarget === 'default'} onChange={() => setCreateLibvirtTarget('default')} />
+              Default
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="machina-lv-scope" checked={createLibvirtTarget === 'system'} onChange={() => setCreateLibvirtTarget('system')} />
+              qemu:///system
+            </label>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="radio" name="machina-lv-scope" checked={createLibvirtTarget === 'session'} onChange={() => setCreateLibvirtTarget('session')} />
+              qemu:///session
+            </label>
+          </div>
+        </div>
+      )}
 
       {pageFlow === 'install' && (
         <>

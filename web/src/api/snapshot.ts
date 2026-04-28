@@ -1,4 +1,5 @@
 import { apiGet, apiPostVoid, apiDelete } from './client'
+import { appendVmConnection } from './vm'
 
 const API = '/api/v1'
 
@@ -13,7 +14,10 @@ export interface SnapshotInfo {
 }
 
 export const listAllSnapshots = () => apiGet<SnapshotInfo[]>(`${API}/snapshots`)
-export const listSnapshots = (vm: string) => apiGet<SnapshotInfo[]>(`${API}/vms/${encodeURIComponent(vm)}/snapshots`)
+export const listSnapshots = (vm: string, connection?: string | null) =>
+  apiGet<SnapshotInfo[]>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(vm)}/snapshots`, connection),
+  )
 
 export interface SnapshotDiskSpec {
   name: string
@@ -36,7 +40,13 @@ export interface CreateSnapshotRequest {
   reuse_external?: boolean
 }
 
-export const createSnapshot = (vm: string, body: CreateSnapshotRequest) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/snapshots`, body)
-export const deleteSnapshot = (vm: string, snap: string) => apiDelete(`${API}/vms/${encodeURIComponent(vm)}/snapshots/${encodeURIComponent(snap)}`)
-export const revertSnapshot = (vm: string, snap: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(vm)}/snapshots/${encodeURIComponent(snap)}/revert`)
+export const createSnapshot = (vm: string, body: CreateSnapshotRequest, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(vm)}/snapshots`, connection), body)
+export const deleteSnapshot = (vm: string, snap: string, connection?: string | null) =>
+  apiDelete(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(vm)}/snapshots/${encodeURIComponent(snap)}`, connection),
+  )
+export const revertSnapshot = (vm: string, snap: string, connection?: string | null) =>
+  apiPostVoid(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(vm)}/snapshots/${encodeURIComponent(snap)}/revert`, connection),
+  )

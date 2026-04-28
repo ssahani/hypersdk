@@ -5,7 +5,7 @@ use axum::routing::get;
 use axum::Router;
 use std::fmt::Display;
 
-use machina_core::libvirt::{metrics, node};
+use machina_core::libvirt::node;
 use machina_core::LibvirtManager;
 
 fn add_gauge(output: &mut String, name: &str, help: &str, value: impl Display) {
@@ -27,6 +27,13 @@ fn add_labeled(output: &mut String, name: &str, label: &str, value: impl Display
     ));
 }
 
+fn vm_prom_label(m: &machina_core::VmMetrics) -> String {
+    match &m.libvirt_connection {
+        Some(c) => format!("{c}/{}", m.name),
+        None => m.name.clone(),
+    }
+}
+
 fn add_vm_metric(
     output: &mut String,
     name: &str,
@@ -39,7 +46,7 @@ fn add_vm_metric(
         "# HELP {name} {help}\n# TYPE {name} {metric_type}\n"
     ));
     for m in vm_metrics {
-        add_labeled(output, name, &m.name, extract(m));
+        add_labeled(output, name, &vm_prom_label(m), extract(m));
     }
 }
 
@@ -50,7 +57,7 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
     let m = manager.clone();
     let data = tokio::task::spawn_blocking(move || {
         let node_info = m.with_conn(node::get_node_info).ok();
-        let vm_metrics = m.with_conn(metrics::get_all_vm_metrics).ok();
+        let vm_metrics = m.merge_all_metrics().ok();
         (node_info, vm_metrics)
     })
     .await

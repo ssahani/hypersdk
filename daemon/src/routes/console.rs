@@ -1,5 +1,7 @@
-use axum::extract::{Path, State};
-use axum::http::HeaderMap;
+use axum::extract::{Path, Query, State};
+use axum::http::header::HeaderValue;
+use axum::http::{header, HeaderMap};
+use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
@@ -8,6 +10,7 @@ use machina_core::libvirt::vnc;
 use machina_core::xml::{extract_attr, split_blocks};
 use machina_core::{LibvirtError, LibvirtManager};
 
+use crate::conn_query::ConnQuery;
 use crate::error::AppError;
 
 #[derive(serde::Serialize)]
@@ -23,11 +26,14 @@ async fn get_console_info(
     State(manager): State<LibvirtManager>,
     headers: HeaderMap,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<ConsoleInfo>, AppError> {
     let name2 = name.clone();
+    let cq = conn_q.connection.clone();
     let manager2 = manager.clone();
     let (xml, vnc_resolved) = tokio::task::spawn_blocking(move || {
-        manager2.with_conn(|conn| {
+        let t = manager2.resolve_query(cq.as_deref());
+        manager2.with_conn_target(t, |conn| {
             let xml = domain::get_vm_xml(conn, &name2)?;
             let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
             Ok((xml, vnc))
@@ -93,6 +99,85 @@ async fn get_console_info(
     }))
 }
 
+/// Download a `virt-viewer` / Remote Desktop `.vv` file (same idea as Cockpit-machines).
+async fn viewer_vv_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, AppError> {
+    let name2 = name.clone();
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let (xml, vnc_resolved) = tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(t, |conn| {
+            let xml = domain::get_vm_xml(conn, &name2)?;
+            let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
+            Ok((xml, vnc))
+        })
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+
+    let mut console_type = machina_core::unknown_string();
+    let mut port: i32 = -1;
+
+    for block in split_blocks(&xml, "graphics") {
+        let gtype = extract_attr(&block, "graphics", "type").unwrap_or_default();
+        let gport = extract_attr(&block, "graphics", "port")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(-1);
+        if gtype == "vnc" {
+            console_type = gtype;
+            port = gport;
+            break;
+        }
+        if console_type == "unknown" {
+            console_type = gtype;
+            port = gport;
+        }
+    }
+
+    let mut listen_host = headers
+        .get("host")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|h| h.split(':').next())
+        .filter(|h| {
+            h.chars()
+                .all(|c| c.is_alphanumeric() || c == '.' || c == '-')
+        })
+        .unwrap_or("127.0.0.1")
+        .to_string();
+
+    if console_type == "vnc" {
+        if let Some((h, p)) = vnc_resolved {
+            listen_host = h;
+            port = i32::from(p);
+        }
+    }
+
+    let vv = format!(
+        "[virt-viewer]\ntype={console_type}\nhost={listen_host}\nport={port}\ndelete-this-file=1\nfullscreen=0\n"
+    );
+
+    Ok((
+        [
+            (
+                header::CONTENT_TYPE,
+                HeaderValue::from_static("application/x-virt-viewer"),
+            ),
+            (
+                header::CONTENT_DISPOSITION,
+                HeaderValue::from_static("attachment; filename=\"console.vv\""),
+            ),
+        ],
+        vv,
+    ))
+}
+
 pub fn console_routes() -> Router<LibvirtManager> {
-    Router::new().route("/vms/console-info/{name}", get(get_console_info))
+    Router::new()
+        .route("/vms/console-info/{name}", get(get_console_info))
+        .route("/vms/{name}/viewer.vv", get(viewer_vv_handler))
 }

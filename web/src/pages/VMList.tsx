@@ -1,6 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router'
-import { listVMs, startVM, stopVM, shutdownVM, pauseVM, resumeVM, VmInfo } from '../api/vm'
+import {
+  listVMs, startVM, stopVM, shutdownVM, pauseVM, resumeVM,
+  VmInfo, vmDetailRoute, vmConsoleRoute, vmScopeKey,
+} from '../api/vm'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import { getStateBadgeClasses } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
@@ -16,7 +19,7 @@ export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ name: string; libvirt_connection?: string } | null>(null)
   const [vmTagsMap, setVmTagsMap] = useState<Record<string, string[]>>({})
   const [allTagNames, setAllTagNames] = useState<string[]>([])
   const [tagFilter, setTagFilter] = useState('')
@@ -35,7 +38,10 @@ export default function VMList() {
       // Load tags for all VMs
       const tagMap: Record<string, string[]> = {}
       await Promise.all(vmList.map(async (vm) => {
-        try { const t = await getVmTags(vm.name); tagMap[vm.name] = t.tags } catch { /* optional */ }
+        try {
+          const t = await getVmTags(vm.name)
+          tagMap[vmScopeKey(vm)] = t.tags
+        } catch { /* optional */ }
       }))
       setVmTagsMap(tagMap)
       // Load all unique tag names
@@ -57,51 +63,67 @@ export default function VMList() {
     return () => unsubscribe()
   }, [subscribe, load])
 
-  const action = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
+  const action = async (
+    vm: VmInfo,
+    fn: (n: string, c?: string | null) => Promise<void>,
+    label: string,
+  ) => {
     try {
-      await fn(name)
-      toast.success(`${label} '${name}' OK`)
+      await fn(vm.name, vm.libvirt_connection)
+      toast.success(`${label} '${vm.name}' OK`)
       load()
     } catch (e: unknown) {
-      toast.error(`${label} '${name}' failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`${label} '${vm.name}' failed: ${e instanceof Error ? e.message : e}`)
     }
   }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    const name = deleteTarget
+    const t = deleteTarget
     setDeleteTarget(null)
-    await action(name, deleteVmWithNvramRetry, 'Delete')
+    try {
+      await deleteVmWithNvramRetry(t.name, undefined, undefined, t.libvirt_connection)
+      toast.success(`Deleted '${t.name}'`)
+      load()
+    } catch (e: unknown) {
+      toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
+    }
   }
 
   const filtered = vms.filter((v) => {
     const matchesSearch = v.name.toLowerCase().includes(search.toLowerCase()) || v.state.includes(search.toLowerCase())
-    const matchesTag = !tagFilter || (vmTagsMap[v.name] || []).includes(tagFilter)
+    const matchesTag = !tagFilter || (vmTagsMap[vmScopeKey(v)] || []).includes(tagFilter)
     return matchesSearch && matchesTag
   })
 
   const sorted = [...filtered].sort((a, b) => {
-    const ap = isPinned(a.name) ? 0 : 1
-    const bp = isPinned(b.name) ? 0 : 1
+    const ap = isPinned(vmScopeKey(a)) ? 0 : 1
+    const bp = isPinned(vmScopeKey(b)) ? 0 : 1
     return ap - bp
   })
 
-  const toggleSelect = (name: string) => {
+  const toggleSelect = (key: string) => {
     setSelectedVMs(prev => {
       const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
       return next
     })
   }
 
   const toggleAll = () => {
     if (selectedVMs.size === filtered.length) setSelectedVMs(new Set())
-    else setSelectedVMs(new Set(filtered.map(v => v.name)))
+    else setSelectedVMs(new Set(filtered.map(vmScopeKey)))
   }
 
-  const batchRun = async (fn: (name: string) => Promise<void>, label: string) => {
-    const results = await Promise.allSettled(Array.from(selectedVMs).map(name => fn(name)))
+  const batchRun = async (fn: (name: string, c?: string | null) => Promise<void>, label: string) => {
+    const results = await Promise.allSettled(
+      Array.from(selectedVMs).map((key) => {
+        const vm = vms.find((v) => vmScopeKey(v) === key)
+        if (!vm) return Promise.reject(new Error('VM not found'))
+        return fn(vm.name, vm.libvirt_connection)
+      }),
+    )
     const ok = results.filter(r => r.status === 'fulfilled').length
     const fail = results.filter(r => r.status === 'rejected').length
     if (ok > 0) toast.success(`${label}: ${ok} succeeded`)
@@ -112,7 +134,19 @@ export default function VMList() {
 
   const handleBatchDelete = async () => {
     setBatchDeleteConfirm(false)
-    await batchRun(deleteVmWithNvramRetry, 'Delete')
+    const results = await Promise.allSettled(
+      Array.from(selectedVMs).map((key) => {
+        const vm = vms.find((v) => vmScopeKey(v) === key)
+        if (!vm) return Promise.reject(new Error('VM not found'))
+        return deleteVmWithNvramRetry(vm.name, undefined, undefined, vm.libvirt_connection)
+      }),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const fail = results.filter((r) => r.status === 'rejected').length
+    if (ok > 0) toast.success(`Delete: ${ok} succeeded`)
+    if (fail > 0) toast.error(`Delete: ${fail} failed`)
+    setSelectedVMs(new Set())
+    load()
   }
 
   useEffect(() => { setSelectedVMs(new Set()) }, [search, tagFilter])
@@ -204,17 +238,20 @@ export default function VMList() {
             </thead>
             <tbody className="divide-y divide-slate-700/50">
               {sorted.map((vm) => (
-                <tr key={vm.name} className="hover:bg-slate-700/50 transition">
+                <tr key={vmScopeKey(vm)} className="hover:bg-slate-700/50 transition">
                   <td className="px-3 py-4">
-                    <input type="checkbox" checked={selectedVMs.has(vm.name)} onChange={() => toggleSelect(vm.name)} className="rounded border-slate-600 bg-slate-900" />
+                    <input type="checkbox" checked={selectedVMs.has(vmScopeKey(vm))} onChange={() => toggleSelect(vmScopeKey(vm))} className="rounded border-slate-600 bg-slate-900" />
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <button onClick={(e) => { e.preventDefault(); togglePin(vm.name); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vm.name) ? 'Unpin' : 'Pin'}>
-                        <Star className={`w-3.5 h-3.5 ${isPinned(vm.name) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
+                      <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
+                        <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
                       </button>
-                      <Link to={`/vms/${vm.name}`} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
-                      {(vmTagsMap[vm.name] || []).map(t => (
+                      <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
+                      {vm.libvirt_connection === 'session' && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20">session</span>
+                      )}
+                      {(vmTagsMap[vmScopeKey(vm)] || []).map(t => (
                         <span key={t} className="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-[10px] font-medium">{t}</span>
                       ))}
                     </div>
@@ -227,34 +264,34 @@ export default function VMList() {
                   <td className="px-6 py-4">
                     <div className="flex items-center justify-end gap-1">
                       {vm.state === 'running' && (
-                        <Link to={`/vms/${vm.name}/console`} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
+                        <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console">
                           <Terminal className="w-4 h-4 text-slate-300" />
                         </Link>
                       )}
                       {vm.state === 'shutoff' && (
-                        <button onClick={() => action(vm.name, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
+                        <button onClick={() => action(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
                           <Play className="w-4 h-4 text-green-400" />
                         </button>
                       )}
                       {vm.state === 'running' && (
                         <>
-                          <button onClick={() => action(vm.name, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
+                          <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
                             <Power className="w-4 h-4 text-yellow-400" />
                           </button>
-                          <button onClick={() => action(vm.name, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop">
+                          <button onClick={() => action(vm, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop">
                             <Square className="w-4 h-4 text-red-400" />
                           </button>
-                          <button onClick={() => action(vm.name, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause">
+                          <button onClick={() => action(vm, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause">
                             <Pause className="w-4 h-4 text-blue-400" />
                           </button>
                         </>
                       )}
                       {vm.state === 'paused' && (
-                        <button onClick={() => action(vm.name, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume">
+                        <button onClick={() => action(vm, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume">
                           <RotateCcw className="w-4 h-4 text-green-400" />
                         </button>
                       )}
-                      <button onClick={() => setDeleteTarget(vm.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete">
+                      <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete">
                         <Trash2 className="w-4 h-4 text-red-400" />
                       </button>
                     </div>
@@ -267,14 +304,17 @@ export default function VMList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sorted.map((vm) => (
-            <div key={vm.name} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all">
+            <div key={vmScopeKey(vm)} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  <input type="checkbox" checked={selectedVMs.has(vm.name)} onChange={() => toggleSelect(vm.name)} className="rounded border-slate-600 bg-slate-900 shrink-0" />
-                  <button onClick={(e) => { e.preventDefault(); togglePin(vm.name); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vm.name) ? 'Unpin' : 'Pin'}>
-                    <Star className={`w-3.5 h-3.5 ${isPinned(vm.name) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
+                  <input type="checkbox" checked={selectedVMs.has(vmScopeKey(vm))} onChange={() => toggleSelect(vmScopeKey(vm))} className="rounded border-slate-600 bg-slate-900 shrink-0" />
+                  <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
+                    <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
                   </button>
-                  <Link to={`/vms/${vm.name}`} className="font-semibold text-blue-400 hover:text-blue-300 truncate">{vm.name}</Link>
+                  <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="font-semibold text-blue-400 hover:text-blue-300 truncate">{vm.name}</Link>
+                  {vm.libvirt_connection === 'session' && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">session</span>
+                  )}
                 </div>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
               </div>
@@ -282,9 +322,9 @@ export default function VMList() {
                 <div className="flex justify-between"><span className="text-slate-500">vCPUs</span><span>{vm.vcpus}</span></div>
                 <div className="flex justify-between"><span className="text-slate-500">Memory</span><span>{vm.memory_mb} MB</span></div>
               </div>
-              {(vmTagsMap[vm.name] || []).length > 0 && (
+              {(vmTagsMap[vmScopeKey(vm)] || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-3">
-                  {(vmTagsMap[vm.name] || []).map(t => (
+                  {(vmTagsMap[vmScopeKey(vm)] || []).map(t => (
                     <span key={t} className="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-[10px] font-medium">{t}</span>
                   ))}
                 </div>
@@ -292,20 +332,20 @@ export default function VMList() {
               <div className="flex items-center gap-1 pt-3 border-t border-slate-700/50">
                 {vm.state === 'running' && (
                   <>
-                    <Link to={`/vms/${vm.name}/console`} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console"><Terminal className="w-4 h-4 text-slate-300" /></Link>
-                    <button onClick={() => action(vm.name, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown"><Power className="w-4 h-4 text-yellow-400" /></button>
-                    <button onClick={() => action(vm.name, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop"><Square className="w-4 h-4 text-red-400" /></button>
-                    <button onClick={() => action(vm.name, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause"><Pause className="w-4 h-4 text-blue-400" /></button>
+                    <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console"><Terminal className="w-4 h-4 text-slate-300" /></Link>
+                    <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown"><Power className="w-4 h-4 text-yellow-400" /></button>
+                    <button onClick={() => action(vm, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop"><Square className="w-4 h-4 text-red-400" /></button>
+                    <button onClick={() => action(vm, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause"><Pause className="w-4 h-4 text-blue-400" /></button>
                   </>
                 )}
                 {vm.state === 'shutoff' && (
-                  <button onClick={() => action(vm.name, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className="w-4 h-4 text-green-400" /></button>
+                  <button onClick={() => action(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className="w-4 h-4 text-green-400" /></button>
                 )}
                 {vm.state === 'paused' && (
-                  <button onClick={() => action(vm.name, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume"><RotateCcw className="w-4 h-4 text-green-400" /></button>
+                  <button onClick={() => action(vm, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume"><RotateCcw className="w-4 h-4 text-green-400" /></button>
                 )}
                 <div className="flex-1" />
-                <button onClick={() => setDeleteTarget(vm.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
               </div>
             </div>
           ))}
@@ -327,9 +367,9 @@ export default function VMList() {
       <ConfirmDialog
         open={!!deleteTarget}
         title="Delete VM"
-        message={`This will stop '${deleteTarget}' if it is running, then remove its libvirt definition. If you already deleted disk files on the host, the server still drops the VM record. Disks under libvirt storage are not removed unless you use separate storage tools.`}
+        message={`This will stop '${deleteTarget?.name ?? ''}' if it is running, then remove its libvirt definition. If you already deleted disk files on the host, the server still drops the VM record. Disks under libvirt storage are not removed unless you use separate storage tools.`}
         confirmLabel="Delete"
-        typeToMatch={deleteTarget ?? ''}
+        typeToMatch={deleteTarget?.name ?? ''}
         onConfirm={handleDelete}
         onCancel={() => setDeleteTarget(null)}
       />

@@ -1,4 +1,7 @@
+use std::collections::HashSet;
+
 use virt::connect::Connect;
+use virt::domain::Domain;
 
 use super::domain::lookup_domain;
 use crate::LibvirtError;
@@ -32,34 +35,64 @@ pub struct GuestFilesystem {
     pub used_bytes: u64,
 }
 
+fn iface_addrs(domain: &Domain, src: u32) -> Vec<virt::domain::Interface> {
+    domain.interface_addresses(src, 0).unwrap_or_default()
+}
+
+fn push_ifaces(
+    out: &mut Vec<GuestIpAddress>,
+    seen: &mut HashSet<(String, String, String)>,
+    ifaces: &[virt::domain::Interface],
+) {
+    for iface in ifaces {
+        for addr in &iface.addrs {
+            let key = (
+                iface.name.clone(),
+                iface.hwaddr.clone(),
+                addr.addr.clone(),
+            );
+            if seen.insert(key) {
+                out.push(GuestIpAddress {
+                    name: iface.name.clone(),
+                    mac: iface.hwaddr.clone(),
+                    ip_type: if addr.typed == 0 {
+                        "ipv4".to_string()
+                    } else {
+                        "ipv6".to_string()
+                    },
+                    address: addr.addr.clone(),
+                    prefix: addr.prefix as u32,
+                });
+            }
+        }
+    }
+}
+
+/// DHCP lease first, then ARP table, then QEMU guest agent (Cockpit-machines order).
 pub fn get_guest_interfaces(
     conn: &Connect,
     name: &str,
 ) -> Result<Vec<GuestIpAddress>, LibvirtError> {
     let domain = lookup_domain(conn, name)?;
-    let ifaces = domain
-        .interface_addresses(virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE, 0)
-        .or_else(|_| {
-            domain.interface_addresses(virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT, 0)
-        })
-        .unwrap_or_default();
-
     let mut result = Vec::new();
-    for iface in &ifaces {
-        for addr in &iface.addrs {
-            result.push(GuestIpAddress {
-                name: iface.name.clone(),
-                mac: iface.hwaddr.clone(),
-                ip_type: if addr.typed == 0 {
-                    "ipv4".to_string()
-                } else {
-                    "ipv6".to_string()
-                },
-                address: addr.addr.clone(),
-                prefix: addr.prefix as u32,
-            });
-        }
-    }
+    let mut seen = HashSet::new();
+
+    push_ifaces(
+        &mut result,
+        &mut seen,
+        &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_LEASE),
+    );
+    push_ifaces(
+        &mut result,
+        &mut seen,
+        &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_ARP),
+    );
+    push_ifaces(
+        &mut result,
+        &mut seen,
+        &iface_addrs(&domain, virt::sys::VIR_DOMAIN_INTERFACE_ADDRESSES_SRC_AGENT),
+    );
+
     Ok(result)
 }
 

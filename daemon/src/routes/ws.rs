@@ -1,18 +1,26 @@
 use std::collections::HashMap;
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{Extension, Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use machina_core::libvirt::domain;
-use machina_core::{LibvirtManager, SshTerminalConfig};
+use machina_core::{LibvirtManager, SshTerminalConfig, VmInfo};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::{interval, Duration};
 use tracing::{info, warn};
 
+fn vm_watch_key(vm: &VmInfo) -> String {
+    match &vm.libvirt_connection {
+        Some(c) => format!("{c}/{}", vm.name),
+        None => vm.name.clone(),
+    }
+}
+
+use crate::conn_query::ConnQuery;
 use crate::kubevirt_k8s_ws_proxy;
 use crate::terminal::{run_ssh_terminal, TerminalSessionStore};
 
@@ -69,7 +77,7 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
         // the executor starves HTTP/WebSocket work and can look like a daemon "crash".
         let manager2 = manager.clone();
         let current =
-            match tokio::task::spawn_blocking(move || manager2.with_conn(domain::list_vms)).await {
+            match tokio::task::spawn_blocking(move || manager2.list_all_vms()).await {
                 Ok(Ok(vms)) => vms,
                 Ok(Err(e)) => {
                     warn!("Failed to list VMs for watch: {}", e);
@@ -85,11 +93,13 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
         let mut current_names: HashMap<String, String> = HashMap::with_capacity(current.len());
 
         for vm in &current {
-            match prev_states.get(&vm.name) {
+            let key = vm_watch_key(vm);
+            match prev_states.get(&key) {
                 Some(old_state) if *old_state != vm.state => {
                     changes.push(serde_json::json!({
                         "event": "state_change",
                         "name": vm.name,
+                        "libvirt_connection": vm.libvirt_connection,
                         "old_state": old_state,
                         "new_state": vm.state,
                     }));
@@ -98,12 +108,13 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
                     changes.push(serde_json::json!({
                         "event": "vm_added",
                         "name": vm.name,
+                        "libvirt_connection": vm.libvirt_connection,
                         "state": vm.state,
                     }));
                 }
                 _ => {}
             }
-            current_names.insert(vm.name.clone(), vm.state.clone());
+            current_names.insert(key, vm.state.clone());
         }
 
         for name in prev_states.keys() {
@@ -139,29 +150,40 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
 async fn console_handler(
     ws: WebSocketUpgrade,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    // Get the PTY path from VM XML
-    let pty_path = match manager.with_conn(|conn| {
-        let xml = domain::get_vm_xml(conn, &name)?;
-        let path = machina_core::xml::extract_attr(&xml, "console", "tty")
-            .filter(|s| !s.is_empty())
-            .or_else(|| {
-                // Look for <source path='...' /> inside <console>
-                for block in machina_core::xml::split_blocks(&xml, "console") {
-                    if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
-                        if !p.is_empty() {
-                            return Some(p);
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name_xml = name.clone();
+    let pty_path = match tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(t, |conn| {
+            let xml = domain::get_vm_xml(conn, &name_xml)?;
+            let path = machina_core::xml::extract_attr(&xml, "console", "tty")
+                .filter(|s| !s.is_empty())
+                .or_else(|| {
+                    for block in machina_core::xml::split_blocks(&xml, "console") {
+                        if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
+                            if !p.is_empty() {
+                                return Some(p);
+                            }
                         }
                     }
-                }
-                None
-            });
-        Ok(path)
-    }) {
-        Ok(path) => path,
-        Err(e) => {
+                    None
+                });
+            Ok(path)
+        })
+    })
+    .await
+    {
+        Ok(Ok(path)) => path,
+        Ok(Err(e)) => {
             warn!("Failed to get console info for VM '{}': {}", name, e);
+            None
+        }
+        Err(e) => {
+            warn!("Console task join for VM '{}': {}", name, e);
             None
         }
     };
@@ -297,11 +319,25 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
 async fn vnc_handler(
     ws: WebSocketUpgrade,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    // hyper2kvm-style: use `virsh vncdisplay` when domain XML still has autoport (-1).
-    let resolved =
-        manager.with_conn(|conn| machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name));
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name2 = name.clone();
+    let resolved = tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(t, |conn| machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name2))
+    })
+    .await;
+
+    let resolved = match resolved {
+        Ok(r) => r,
+        Err(e) => {
+            warn!("VNC join failed for VM '{}': {}", name, e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "task join failed").into_response();
+        }
+    };
 
     let (host, port) = match resolved {
         Ok((h, p)) if p > 0 => (h, p),
@@ -398,11 +434,16 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, host: String, port: u
 async fn spice_handler(
     ws: WebSocketUpgrade,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let port = manager
-        .with_conn(|conn| {
-            let xml = domain::get_vm_xml(conn, &name)?;
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name2 = name.clone();
+    let port = match tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(t, |conn| {
+            let xml = domain::get_vm_xml(conn, &name2)?;
             let mut port = 0u16;
             for block in machina_core::xml::split_blocks(&xml, "graphics") {
                 let gtype =
@@ -416,7 +457,19 @@ async fn spice_handler(
             }
             Ok(port)
         })
-        .unwrap_or(0);
+    })
+    .await
+    {
+        Ok(Ok(p)) => p,
+        Ok(Err(e)) => {
+            warn!("SPICE port for VM '{}': {}", name, e);
+            0u16
+        }
+        Err(e) => {
+            warn!("SPICE task join for VM '{}': {}", name, e);
+            0u16
+        }
+    };
 
     ws.on_upgrade(move |socket| handle_spice_proxy(socket, name, port))
 }

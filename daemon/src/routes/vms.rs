@@ -20,6 +20,7 @@ use machina_core::{
     RenameVmRequest, VmCreateBackend, VmDetails, VmInfo,
 };
 
+use crate::conn_query::{connection_label, spawn_libvirt, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 use crate::job_registry::JobRegistry;
 use crate::kubevirt_exec;
@@ -59,7 +60,7 @@ fn log_audit(action: &str, target: &str, result: &str) {
 }
 
 async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmInfo>>, AppError> {
-    let result = tokio::task::spawn_blocking(move || manager.with_conn(domain::list_vms))
+    let result = tokio::task::spawn_blocking(move || manager.list_all_vms())
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Json(result?))
@@ -68,9 +69,20 @@ async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmIn
 async fn get_vm_details(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<VmDetails>, AppError> {
+    let dual = manager.dual_enabled();
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name2 = name.clone();
     let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::get_vm_details(conn, &name))
+        let target = mgr.resolve_query(cq.as_deref());
+        let label = connection_label(dual, target);
+        mgr.with_conn_target(target, |conn| {
+            let mut d = domain::get_vm_details(conn, &name2)?;
+            d.libvirt_connection = label.clone();
+            Ok(d)
+        })
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
@@ -80,9 +92,14 @@ async fn get_vm_details(
 async fn get_vm_xml(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Xml, AppError> {
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name2 = name.clone();
     let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::get_vm_xml(conn, &name))
+        let target = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(target, |conn| domain::get_vm_xml(conn, &name2))
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
@@ -109,6 +126,9 @@ struct KubeVirtBundleParams {
     /// When false, omit virtio-win `containerDisk` CDROM.
     #[serde(default = "default_true")]
     include_virtio_cdrom: bool,
+    /// `system` / `session` when `[libvirt] dual_connection` is enabled.
+    #[serde(default)]
+    connection: Option<String>,
 }
 
 async fn kubevirt_bundle_handler(
@@ -117,10 +137,14 @@ async fn kubevirt_bundle_handler(
     Query(q): Query<KubeVirtBundleParams>,
 ) -> Result<Json<KubeVirtBundle>, AppError> {
     let cfg = MachinaConfig::load();
+    let cq = q.connection.clone();
     let mgr = manager.clone();
     let name2 = name.clone();
     let details =
-        tokio::task::spawn_blocking(move || mgr.with_conn(|c| domain::get_vm_details(c, &name2)))
+        tokio::task::spawn_blocking(move || {
+            let t = mgr.resolve_query(cq.as_deref());
+            mgr.with_conn_target(t, |c| domain::get_vm_details(c, &name2))
+        })
             .await
             .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
 
@@ -145,7 +169,9 @@ fn kubevirt_bundle_for_deploy(
     kv: &KubeVirtConfig,
     p: &KubeVirtBundleParams,
 ) -> Result<KubeVirtBundle, AppError> {
-    let details = manager.with_conn(|c| domain::get_vm_details(c, libvirt_name))?;
+    let t = manager.resolve_query(p.connection.as_deref());
+    let details =
+        manager.with_conn_target(t, |c| domain::get_vm_details(c, libvirt_name))?;
     Ok(kubevirt_bundle_from_libvirt_vm(
         &details,
         libvirt_name,
@@ -266,11 +292,10 @@ async fn kubevirt_start_handler(
 async fn start_vm(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| domain::start_vm(conn, &name2)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::start_vm(conn, &name2)).await?;
     log_audit("start", &name, "ok");
     Ok(ok_json("started", &name))
 }
@@ -278,11 +303,10 @@ async fn start_vm(
 async fn stop_vm(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| domain::stop_vm(conn, &name2)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::stop_vm(conn, &name2)).await?;
     log_audit("stop", &name, "ok");
     Ok(ok_json("stopped", &name))
 }
@@ -290,13 +314,10 @@ async fn stop_vm(
 async fn shutdown_vm(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::shutdown_vm(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::shutdown_vm(conn, &name2)).await?;
     log_audit("shutdown", &name, "ok");
     Ok(ok_json("shutting down", &name))
 }
@@ -304,33 +325,30 @@ async fn shutdown_vm(
 async fn reboot_vm(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| domain::reboot_vm(conn, &name2)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::reboot_vm(conn, &name2)).await?;
     Ok(ok_json("rebooting", &name))
 }
 
 async fn pause_vm(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| domain::pause_vm(conn, &name2)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::pause_vm(conn, &name2)).await?;
     Ok(ok_json("paused", &name))
 }
 
 async fn resume_vm(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || manager.with_conn(|conn| domain::resume_vm(conn, &name2)))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::resume_vm(conn, &name2)).await?;
     Ok(ok_json("resumed", &name))
 }
 
@@ -358,6 +376,7 @@ struct DeleteVmQuery {
 async fn delete_vm_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Query(q): Query<DeleteVmQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let opts = UndefineOptions {
@@ -371,11 +390,10 @@ async fn delete_vm_handler(
         delete_disks: q.delete_disks,
     };
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::delete_vm_with_options(conn, &name2, &opts))
+    spawn_libvirt(manager, conn_q, move |conn| {
+        domain::delete_vm_with_options(conn, &name2, &opts)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     log_audit("delete", &name, "ok");
     Ok(ok_json("deleted", &name))
 }
@@ -404,6 +422,7 @@ struct BlockCommitBody {
 async fn block_commit_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockCommitBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let flags = block_jobs::block_commit_flags(
@@ -418,21 +437,18 @@ async fn block_commit_handler(
     let top = req.top.clone();
     let bandwidth = req.bandwidth;
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
-            block_jobs::block_commit(
-                conn,
-                &name2,
-                &disk,
-                base.as_deref(),
-                top.as_deref(),
-                bandwidth,
-                flags,
-            )
-        })
+    spawn_libvirt(manager, conn_q, move |conn| {
+        block_jobs::block_commit(
+            conn,
+            &name2,
+            &disk,
+            base.as_deref(),
+            top.as_deref(),
+            bandwidth,
+            flags,
+        )
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "block_commit_started", "name": name }),
     ))
@@ -450,17 +466,17 @@ struct BlockPullBody {
 async fn block_pull_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockPullBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let flags = block_jobs::block_pull_flags(req.bandwidth_bytes);
     let disk = req.disk.clone();
     let bandwidth = req.bandwidth;
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| block_jobs::block_pull(conn, &name2, &disk, bandwidth, flags))
+    spawn_libvirt(manager, conn_q, move |conn| {
+        block_jobs::block_pull(conn, &name2, &disk, bandwidth, flags)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "block_pull_started", "name": name }),
     ))
@@ -476,17 +492,17 @@ struct BlockJobQuery {
 async fn block_job_info_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Query(q): Query<BlockJobQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let disk = q.disk.clone();
     let flags = block_jobs::block_job_info_flags(q.bandwidth_bytes);
     let name2 = name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| block_jobs::block_job_info(conn, &name2, &disk, flags))
+    let result = spawn_libvirt(manager, conn_q, move |conn| {
+        block_jobs::block_job_info(conn, &name2, &disk, flags)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!({ "name": name, "job": result? })))
+    .await?;
+    Ok(Json(serde_json::json!({ "name": name, "job": result })))
 }
 
 #[derive(Deserialize)]
@@ -501,16 +517,16 @@ struct BlockJobAbortBody {
 async fn block_job_abort_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockJobAbortBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let flags = block_jobs::block_job_abort_flags(req.r#async, req.pivot);
     let disk = req.disk.clone();
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| block_jobs::block_job_abort(conn, &name2, &disk, flags))
+    spawn_libvirt(manager, conn_q, move |conn| {
+        block_jobs::block_job_abort(conn, &name2, &disk, flags)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "block_job_abort", "name": name }),
     ))
@@ -519,15 +535,13 @@ async fn block_job_abort_handler(
 async fn set_memtune_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<MemTuneInfo>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let req2 = req.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| resize::set_memtune_kb(conn, &name2, &req2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| resize::set_memtune_kb(conn, &name2, &req2))
+        .await?;
     Ok(Json(
         serde_json::json!({ "status": "memtune_updated", "name": name }),
     ))
@@ -546,19 +560,17 @@ struct SchedulerTuneBody {
 async fn set_scheduler_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<SchedulerTuneBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let cpu_shares = req.cpu_shares;
     let vcpu_period = req.vcpu_period;
     let vcpu_quota = req.vcpu_quota;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
-            resize::set_cpu_scheduler_partial(conn, &name2, cpu_shares, vcpu_period, vcpu_quota)
-        })
+    spawn_libvirt(manager, conn_q, move |conn| {
+        resize::set_cpu_scheduler_partial(conn, &name2, cpu_shares, vcpu_period, vcpu_quota)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "scheduler_updated", "name": name }),
     ))
@@ -572,15 +584,13 @@ struct PinVcpuBody {
 async fn pin_vcpu_handler(
     State(manager): State<LibvirtManager>,
     Path((name, vcpu)): Path<(String, u32)>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<PinVcpuBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let cpus = req.cpus.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| resize::pin_vcpu(conn, &name2, vcpu, &cpus))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| resize::pin_vcpu(conn, &name2, vcpu, &cpus))
+        .await?;
     Ok(Json(
         serde_json::json!({ "status": "vcpu_pinned", "name": name, "vcpu": vcpu }),
     ))
@@ -589,14 +599,12 @@ async fn pin_vcpu_handler(
 async fn set_autostart(
     State(manager): State<LibvirtManager>,
     Path((name, enabled)): Path<(String, String)>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let autostart = enabled == "true" || enabled == "1";
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::set_autostart(conn, &name2, autostart))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::set_autostart(conn, &name2, autostart))
+        .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "autostart": autostart }),
     ))
@@ -605,19 +613,28 @@ async fn set_autostart(
 async fn clone_vm_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CloneVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| clone::clone_vm(conn, &name2, &new_name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| clone::clone_vm(conn, &name2, &new_name)).await?;
     log_audit("clone", &format!("{name} -> {}", req.new_name), "ok");
     Ok(Json(
         serde_json::json!({ "status": "cloned", "source": name, "clone": req.new_name }),
     ))
+}
+
+fn libvirt_uri_for_create(cfg: &MachinaConfig, req: &CreateVmRequest) -> String {
+    if cfg.libvirt.dual_connection {
+        if req.libvirt_connection.trim() == "session" {
+            "qemu:///session".into()
+        } else {
+            "qemu:///system".into()
+        }
+    } else {
+        cfg.libvirt.uri.clone()
+    }
 }
 
 async fn create_vm_handler(
@@ -632,7 +649,7 @@ async fn create_vm_handler(
         "libvirt_xml" => VmCreateBackend::LibvirtXml,
         _ => cfg.libvirt.create_backend,
     };
-    let libvirt_uri = cfg.libvirt.uri.clone();
+    let libvirt_uri = libvirt_uri_for_create(&cfg, &req);
     let libvirt_cfg = cfg.libvirt.clone();
     let join_res = tokio::task::spawn_blocking(move || {
         // IMPORTANT: do NOT use LibvirtManager::with_conn here.
@@ -691,7 +708,7 @@ async fn create_vm_stream_handler(
         "libvirt_xml" => VmCreateBackend::LibvirtXml,
         _ => cfg.libvirt.create_backend,
     };
-    let libvirt_uri = cfg.libvirt.uri.clone();
+    let libvirt_uri = libvirt_uri_for_create(&cfg, &req);
     let libvirt_cfg = cfg.libvirt.clone();
 
     let (tok_tx, tok_rx) = tokio::sync::mpsc::channel::<String>(CREATE_LOG_SSE_CAP);
@@ -777,14 +794,11 @@ async fn create_vm_stream_handler(
 async fn set_vcpus(
     State(manager): State<LibvirtManager>,
     Path((name, count)): Path<(String, u32)>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     machina_core::validate::validate_vcpus(count)?;
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| resize::set_vcpus(conn, &name2, count))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| resize::set_vcpus(conn, &name2, count)).await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "vcpus": count }),
     ))
@@ -793,14 +807,11 @@ async fn set_vcpus(
 async fn set_memory(
     State(manager): State<LibvirtManager>,
     Path((name, mb)): Path<(String, u64)>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     machina_core::validate::validate_memory_mb(mb)?;
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| resize::set_memory(conn, &name2, mb))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| resize::set_memory(conn, &name2, mb)).await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb }),
     ))
@@ -809,15 +820,13 @@ async fn set_memory(
 async fn attach_disk_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<AttachDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target = req.target.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device::attach_disk(conn, &name2, &req))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let req2 = req.clone();
+    spawn_libvirt(manager, conn_q, move |conn| device::attach_disk(conn, &name2, &req2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "attached", "name": name, "target": target }),
     ))
@@ -826,14 +835,12 @@ async fn attach_disk_handler(
 async fn detach_disk_handler(
     State(manager): State<LibvirtManager>,
     Path((name, target)): Path<(String, String)>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target2 = target.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device::detach_disk(conn, &name2, &target2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| device::detach_disk(conn, &name2, &target2))
+        .await?;
     Ok(Json(
         serde_json::json!({ "status": "detached", "name": name, "target": target }),
     ))
@@ -842,15 +849,12 @@ async fn detach_disk_handler(
 async fn rename_vm_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<RenameVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain::rename_vm(conn, &name2, &new_name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| domain::rename_vm(conn, &name2, &new_name)).await?;
     Ok(Json(
         serde_json::json!({ "status": "renamed", "old_name": name, "new_name": req.new_name }),
     ))
@@ -864,15 +868,16 @@ struct ResizeDiskRequest {
 async fn resize_disk_handler(
     State(manager): State<LibvirtManager>,
     Path((name, target)): Path<(String, String)>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<ResizeDiskRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target2 = target.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device::resize_block_device(conn, &name2, &target2, req.size_gb))
+    let size_gb = req.size_gb;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        device::resize_block_device(conn, &name2, &target2, size_gb)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "resized", "name": name, "target": target, "size_gb": req.size_gb }),
     ))
@@ -891,15 +896,17 @@ fn default_nic_model() -> String {
 async fn attach_interface_handler(
     State(manager): State<LibvirtManager>,
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<AttachInterfaceRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let network = req.network.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device::attach_interface(conn, &name2, &req.network, &req.model))
+    let model = req.model.clone();
+    let net = req.network.clone();
+    spawn_libvirt(manager, conn_q, move |conn| {
+        device::attach_interface(conn, &name2, &net, &model)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "attached", "name": name, "network": network }),
     ))
@@ -908,14 +915,12 @@ async fn attach_interface_handler(
 async fn detach_interface_handler(
     State(manager): State<LibvirtManager>,
     Path((name, mac)): Path<(String, String)>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let mac2 = mac.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device::detach_interface(conn, &name2, &mac2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    spawn_libvirt(manager, conn_q, move |conn| device::detach_interface(conn, &name2, &mac2))
+        .await?;
     Ok(Json(
         serde_json::json!({ "status": "detached", "name": name, "mac": mac }),
     ))
@@ -979,24 +984,44 @@ async fn get_vm_logs(
 
 async fn get_cputune_handler(
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<CpuTuneInfo>, AppError> {
-    let result =
-        tokio::task::spawn_blocking(move || manager.with_conn(|c| resize::get_cputune(c, &name)))
-            .await
-            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(result?))
+    let name2 = name.clone();
+    let result = spawn_libvirt(manager, conn_q, move |c| resize::get_cputune(c, &name2)).await?;
+    Ok(Json(result))
 }
 
 async fn get_memtune_handler(
     Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<MemTuneInfo>, AppError> {
-    let result =
-        tokio::task::spawn_blocking(move || manager.with_conn(|c| resize::get_memtune(c, &name)))
-            .await
-            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(result?))
+    let name2 = name.clone();
+    let result = spawn_libvirt(manager, conn_q, move |c| resize::get_memtune(c, &name2)).await?;
+    Ok(Json(result))
+}
+
+async fn convert_spice_to_vnc_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name2 = name.clone();
+    let out = tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        let uri = mgr.virt_uri_for_target(t);
+        machina_core::libvirt::graphics_convert::virt_xml_convert_spice_to_vnc(&uri, &name2)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "name": name,
+        "virt_xml_stdout": out
+    })))
 }
 
 pub fn vm_routes() -> Router<LibvirtManager> {
@@ -1052,4 +1077,8 @@ pub fn vm_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/block/pull", post(block_pull_handler))
         .route("/vms/{name}/block/job", get(block_job_info_handler))
         .route("/vms/{name}/block/job/abort", post(block_job_abort_handler))
+        .route(
+            "/vms/{name}/graphics/convert-to-vnc",
+            post(convert_spice_to_vnc_handler),
+        )
 }

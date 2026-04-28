@@ -278,6 +278,8 @@ mod tests {
                     shareable: false,
                 },
             ],
+            filesystems: vec![],
+            libvirt_connection: None,
         };
         let disk = pick_root_disk(&d).unwrap();
         assert!(disk.source.ends_with(".qcow2"));

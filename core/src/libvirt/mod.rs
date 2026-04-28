@@ -16,6 +16,7 @@ pub mod extra_devices;
 pub mod extras;
 pub mod filesystem;
 pub mod firmware;
+pub mod graphics_convert;
 pub mod guest_agent;
 pub mod guest_input;
 pub mod host_cpu;
@@ -41,4 +42,4 @@ pub mod virt_builder;
 pub mod virt_install;
 pub mod vnc;
 
-pub use connection::LibvirtManager;
+pub use connection::{LibvirtManager, LibvirtTarget};

@@ -117,6 +117,7 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
         disk_wr_bytes,
         net_rx_bytes,
         net_tx_bytes,
+        libvirt_connection: None,
     })
 }
 

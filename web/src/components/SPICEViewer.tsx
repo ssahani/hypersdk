@@ -3,12 +3,18 @@ import { Maximize, Minimize, Monitor } from 'lucide-react'
 import { getWsToken } from '../api/client'
 import { DEFAULT_DAEMON_PORT } from '../constants'
 
+function wsConnQs(libvirtConnection?: string | null): string {
+  if (!libvirtConnection || libvirtConnection === 'system') return ''
+  return `&connection=${encodeURIComponent(libvirtConnection)}`
+}
+
 interface Props {
   vmName: string
   port?: number
+  libvirtConnection?: string | null
 }
 
-export default function SPICEViewer({ vmName, port = -1 }: Props) {
+export default function SPICEViewer({ vmName, port = -1, libvirtConnection }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
   const [token, setToken] = useState<string | null>(null)
   const [tokenError, setTokenError] = useState(false)
@@ -57,7 +63,7 @@ export default function SPICEViewer({ vmName, port = -1 }: Props) {
   const wsPort =
     window.location.port ||
     (window.location.protocol === 'https:' ? '443' : String(DEFAULT_DAEMON_PORT))
-  const wsProxyPath = `ws/v1/spice/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}`
+  const wsProxyPath = `ws/v1/spice/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`
   const spiceUrl = `/spice-html5/spice_auto.html?host=${wsHost}&port=${wsPort}&path=${encodeURIComponent(wsProxyPath)}`
 
   return (

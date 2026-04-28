@@ -7,6 +7,8 @@ export interface VmInfo {
   state: string
   vcpus: number
   memory_mb: number
+  /** Present when daemon uses dual `qemu:///system` + `qemu:///session`. */
+  libvirt_connection?: string
 }
 
 export interface VmDetails {
@@ -22,6 +24,34 @@ export interface VmDetails {
   interfaces: InterfaceInfo[]
   disks: DiskInfo[]
   filesystems?: FilesystemInfo[]
+  libvirt_connection?: string
+}
+
+/** Append `?connection=` for dual-hypervisor APIs when scoped to session. */
+export function vmConnectionQs(connection?: string | null): string {
+  if (!connection || connection === 'system') return ''
+  return `?connection=${encodeURIComponent(connection)}`
+}
+
+/** Append `connection=` to a path or full URL that may already have a `?…` query string. */
+export function appendVmConnection(url: string, connection?: string | null): string {
+  if (!connection || connection === 'system') return url
+  const sep = url.includes('?') ? '&' : '?'
+  return `${url}${sep}connection=${encodeURIComponent(connection)}`
+}
+
+/** In-app routes for a guest, with optional `?connection=session` when using dual libvirt. */
+export function vmDetailRoute(name: string, connection?: string | null): string {
+  return appendVmConnection(`/vms/${encodeURIComponent(name)}`, connection)
+}
+
+export function vmConsoleRoute(name: string, connection?: string | null): string {
+  return appendVmConnection(`/vms/${encodeURIComponent(name)}/console`, connection)
+}
+
+/** Row / selection key when system and session guests can share the same name. */
+export function vmScopeKey(vm: Pick<VmInfo, 'name' | 'libvirt_connection'>): string {
+  return `${vm.libvirt_connection ?? 'system'}::${vm.name}`
 }
 
 export interface InterfaceInfo {
@@ -129,6 +159,8 @@ export interface CreateVmRequest {
   virt_install_path_in_use_check_off?: boolean
   /** New overlay root disk with `backing_store=` + `--import`. */
   virt_install_disk_backing_store?: string
+  /** When `[libvirt] dual_connection`: `system` (default) or `session` — where the domain is defined. */
+  libvirt_connection?: string
 }
 
 export interface VmTemplate {
@@ -144,8 +176,10 @@ export interface VmTemplate {
 }
 
 export const listVMs = () => apiGet<VmInfo[]>(`${API}/vms`)
-export const getVM = (name: string) => apiGet<VmDetails>(`${API}/vms/${encodeURIComponent(name)}`)
-export const getVMXml = (name: string) => apiGet<string>(`${API}/vms/${encodeURIComponent(name)}/xml`)
+export const getVM = (name: string, connection?: string | null) =>
+  apiGet<VmDetails>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}`, connection))
+export const getVMXml = (name: string, connection?: string | null) =>
+  apiGet<string>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/xml`, connection))
 
 /** CDI DataVolume (upload) + KubeVirt VM YAML; virtio-win CDROM via containerDisk (post-migrate driver disk pattern). */
 export interface KubeVirtBundle {
@@ -177,6 +211,8 @@ export type KubeVirtBundleQuery = {
   storage_class?: string
   /** Default true: attach virtio-win as containerDisk CDROM. */
   include_virtio_cdrom?: boolean
+  /** `session` when dual libvirt — domain lives on qemu:///session. */
+  connection?: string
 }
 
 export function getKubeVirtBundle(name: string, q?: KubeVirtBundleQuery) {
@@ -187,6 +223,7 @@ export function getKubeVirtBundle(name: string, q?: KubeVirtBundleQuery) {
   if (q?.storage_gi != null) p.set('storage_gi', String(q.storage_gi))
   if (q?.storage_class) p.set('storage_class', q.storage_class)
   if (q?.include_virtio_cdrom === false) p.set('include_virtio_cdrom', 'false')
+  if (q?.connection) p.set('connection', q.connection)
   const qs = p.toString()
   return apiGet<KubeVirtBundle>(
     `${API}/vms/${encodeURIComponent(name)}/kubevirt-bundle${qs ? `?${qs}` : ''}`,
@@ -198,21 +235,21 @@ export type KubeVirtBundleBody = KubeVirtBundleQuery
 
 export function postKubeVirtApply(name: string, body: KubeVirtBundleBody = {}) {
   return apiPost<KubeVirtClusterExecResult>(
-    `${API}/vms/${encodeURIComponent(name)}/kubevirt/apply`,
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/kubevirt/apply`, body.connection),
     body,
   )
 }
 
 export function postKubeVirtUpload(name: string, body: KubeVirtBundleBody = {}) {
   return apiPost<KubeVirtClusterExecResult>(
-    `${API}/vms/${encodeURIComponent(name)}/kubevirt/upload`,
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/kubevirt/upload`, body.connection),
     body,
   )
 }
 
 export function postKubeVirtStart(name: string, body: KubeVirtBundleBody = {}) {
   return apiPost<KubeVirtClusterExecResult>(
-    `${API}/vms/${encodeURIComponent(name)}/kubevirt/start`,
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/kubevirt/start`, body.connection),
     body,
   )
 }
@@ -320,8 +357,10 @@ function deleteVmQuery(opts?: VmDeleteUndefineOpts): string {
   return s ? `?${s}` : ''
 }
 
-export const deleteVM = (name: string, undefine?: VmDeleteUndefineOpts) =>
-  apiDelete(`${API}/vms/${encodeURIComponent(name)}${deleteVmQuery(undefine)}`)
+export const deleteVM = (name: string, undefine?: VmDeleteUndefineOpts, connection?: string | null) =>
+  apiDelete(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}${deleteVmQuery(undefine)}`, connection),
+  )
 
 /** Response from `GET /api/v1/vms/{name}/guacamole-auth` when `[guacamole]` is enabled on the daemon. */
 export interface GuacamoleAuthResponse {
@@ -334,8 +373,10 @@ export interface GuacamoleAuthResponse {
 }
 
 /** Optional Apache Guacamole encrypted JSON auth; requires server config `[guacamole]`. */
-export const getGuacamoleAuth = (name: string) =>
-  apiGet<GuacamoleAuthResponse>(`${API}/vms/${encodeURIComponent(name)}/guacamole-auth`)
+export const getGuacamoleAuth = (name: string, connection?: string | null) =>
+  apiGet<GuacamoleAuthResponse>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guacamole-auth`, connection),
+  )
 
 export interface BlockJobInfo {
   job_type: number
@@ -344,9 +385,12 @@ export interface BlockJobInfo {
   end: number
 }
 
-export const getBlockJobInfo = (name: string, disk: string, bandwidthBytes = false) =>
+export const getBlockJobInfo = (name: string, disk: string, bandwidthBytes = false, connection?: string | null) =>
   apiGet<{ name: string; job: BlockJobInfo | null }>(
-    `${API}/vms/${encodeURIComponent(name)}/block/job?disk=${encodeURIComponent(disk)}${bandwidthBytes ? '&bandwidth_bytes=true' : ''}`
+    appendVmConnection(
+      `${API}/vms/${encodeURIComponent(name)}/block/job?disk=${encodeURIComponent(disk)}${bandwidthBytes ? '&bandwidth_bytes=true' : ''}`,
+      connection,
+    ),
   )
 
 export const blockCommit = (
@@ -361,38 +405,58 @@ export const blockCommit = (
     active?: boolean
     relative?: boolean
     bandwidth_bytes?: boolean
-  }
-) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/block/commit`, body)
+  },
+  connection?: string | null,
+) => apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/block/commit`, connection), body)
 
-export const blockPull = (name: string, body: { disk: string; bandwidth?: number; bandwidth_bytes?: boolean }) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/block/pull`, body)
+export const blockPull = (
+  name: string,
+  body: { disk: string; bandwidth?: number; bandwidth_bytes?: boolean },
+  connection?: string | null,
+) => apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/block/pull`, connection), body)
 
-export const blockJobAbort = (name: string, body: { disk: string; async?: boolean; pivot?: boolean }) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/block/job/abort`, body)
+export const blockJobAbort = (
+  name: string,
+  body: { disk: string; async?: boolean; pivot?: boolean },
+  connection?: string | null,
+) => apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/block/job/abort`, connection), body)
 
-export const setMemTune = (name: string, body: MemTuneInfo) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/memtune`, body)
+export const setMemTune = (name: string, body: MemTuneInfo, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/memtune`, connection), body)
 
 export const setSchedulerTune = (
   name: string,
-  body: { cpu_shares?: number; vcpu_period?: number; vcpu_quota?: number }
-) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/scheduler`, body)
+  body: { cpu_shares?: number; vcpu_period?: number; vcpu_quota?: number },
+  connection?: string | null,
+) => apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/scheduler`, connection), body)
 
-export const pinVcpu = (name: string, vcpu: number, cpus: boolean[]) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/vcpu/${vcpu}/pin`, { cpus })
-export const startVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/start`)
-export const stopVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/stop`)
-export const shutdownVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/shutdown`)
-export const rebootVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/reboot`)
-export const pauseVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/pause`)
-export const resumeVM = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/resume`)
-export const cloneVM = (name: string, newName: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/clone`, { new_name: newName })
-export const setAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/autostart/${enabled}`)
-export const setVcpus = (name: string, count: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/vcpus/${count}`)
-export const setMemory = (name: string, mb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/memory/${mb}`)
-export const renameVM = (name: string, newName: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/rename`, { new_name: newName })
+export const pinVcpu = (name: string, vcpu: number, cpus: boolean[], connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/vcpu/${vcpu}/pin`, connection), { cpus })
+export const startVM = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/start`, connection))
+export const stopVM = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/stop`, connection))
+export const shutdownVM = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/shutdown`, connection))
+export const rebootVM = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/reboot`, connection))
+export const pauseVM = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/pause`, connection))
+export const resumeVM = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/resume`, connection))
+export const cloneVM = (name: string, newName: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/clone`, connection), { new_name: newName })
+export const setAutostart = (name: string, enabled: boolean, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/autostart/${enabled}`, connection))
+export const setVcpus = (name: string, count: number, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/vcpus/${count}`, connection))
+export const setMemory = (name: string, mb: number, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/memory/${mb}`, connection))
+export const renameVM = (name: string, newName: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/rename`, connection), { new_name: newName })
 export const getMetrics = () => apiGet<VmMetrics[]>(`${API}/metrics`)
-export const getVMMetrics = (name: string) => apiGet<VmMetrics>(`${API}/metrics/${encodeURIComponent(name)}`)
+export const getVMMetrics = (name: string, connection?: string | null) =>
+  apiGet<VmMetrics>(appendVmConnection(`${API}/metrics/${encodeURIComponent(name)}`, connection))
 export const getTemplates = () => apiGet<VmTemplate[]>(`${API}/templates`)
 
 export interface GuestIpAddress {
@@ -417,21 +481,43 @@ export interface ManagedSaveStatus {
   has_managed_save: boolean
 }
 
-export const getInterfaces = (name: string) => apiGet<GuestIpAddress[]>(`${API}/vms/${encodeURIComponent(name)}/interfaces`)
-export const getHostname = (name: string) => apiGet<{ hostname: string }>(`${API}/vms/${encodeURIComponent(name)}/hostname`)
-export const insertCdrom = (name: string, isoPath: string, target: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, { iso_path: isoPath, target })
-export const ejectCdrom = (name: string, target: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/cdrom/eject/${encodeURIComponent(target)}`)
+export const getInterfaces = (name: string, connection?: string | null) =>
+  apiGet<GuestIpAddress[]>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/interfaces`, connection))
+export const getHostname = (name: string, connection?: string | null) =>
+  apiGet<{ hostname: string }>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/hostname`, connection))
+export const insertCdrom = (name: string, isoPath: string, target: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, connection), {
+    iso_path: isoPath,
+    target,
+  })
+export const ejectCdrom = (name: string, target: string, connection?: string | null) =>
+  apiPostVoid(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/eject/${encodeURIComponent(target)}`, connection),
+  )
 
-export const addShare = (name: string, sourceDir: string, mountTag: string, xattr: boolean) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/share`, { source_dir: sourceDir, mount_tag: mountTag, xattr })
+export const addShare = (name: string, sourceDir: string, mountTag: string, xattr: boolean, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/share`, connection), {
+    source_dir: sourceDir,
+    mount_tag: mountTag,
+    xattr,
+  })
 
-export const removeShare = (name: string, mountTag: string) =>
-  apiDelete(`${API}/vms/${encodeURIComponent(name)}/share/${encodeURIComponent(mountTag)}`)
-export const managedSave = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/managed-save`)
-export const managedSaveRemove = (name: string) => apiDelete(`${API}/vms/${encodeURIComponent(name)}/managed-save`)
-export const hasManagedSave = (name: string) => apiGet<ManagedSaveStatus>(`${API}/vms/${encodeURIComponent(name)}/managed-save/status`)
-export const getBootConfig = (name: string) => apiGet<BootConfig>(`${API}/vms/${encodeURIComponent(name)}/boot`)
-export const setBootOrder = (name: string, devices: string[]) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/boot`, { devices })
+export const removeShare = (name: string, mountTag: string, connection?: string | null) =>
+  apiDelete(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/share/${encodeURIComponent(mountTag)}`, connection),
+  )
+export const managedSave = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/managed-save`, connection))
+export const managedSaveRemove = (name: string, connection?: string | null) =>
+  apiDelete(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/managed-save`, connection))
+export const hasManagedSave = (name: string, connection?: string | null) =>
+  apiGet<ManagedSaveStatus>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/managed-save/status`, connection),
+  )
+export const getBootConfig = (name: string, connection?: string | null) =>
+  apiGet<BootConfig>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/boot`, connection))
+export const setBootOrder = (name: string, devices: string[], connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/boot`, connection), { devices })
 export interface MigrateOptions {
   parameters?: { bandwidth?: number; bandwidth_postcopy?: number; parallel_connections?: number }
   extra_flags?: number
@@ -442,8 +528,8 @@ export interface MigrateOptions {
   paused?: boolean
 }
 
-export const migrateVM = (name: string, destUri: string, live: boolean, opts?: MigrateOptions) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/migrate`, {
+export const migrateVM = (name: string, destUri: string, live: boolean, opts?: MigrateOptions, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/migrate`, connection), {
     dest_uri: destUri,
     live,
     ...opts,
@@ -451,29 +537,39 @@ export const migrateVM = (name: string, destUri: string, live: boolean, opts?: M
 
 export type GuestKeyPreset = 'ctrl_alt_del' | 'esc' | 'alt_tab'
 
-export const sendGuestKey = (name: string, body: { preset?: GuestKeyPreset; keycodes?: number[]; holdtime_ms?: number }) =>
-  apiPost(`${API}/vms/${encodeURIComponent(name)}/guest/send-key`, body)
+export const sendGuestKey = (
+  name: string,
+  body: { preset?: GuestKeyPreset; keycodes?: number[]; holdtime_ms?: number },
+  connection?: string | null,
+) => apiPost(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest/send-key`, connection), body)
 
-export const getGuestScreenshotBlob = (name: string, screen = 0) =>
-  apiGetBlob(`${API}/vms/${encodeURIComponent(name)}/guest/screenshot?screen=${screen}`)
+export const getGuestScreenshotBlob = (name: string, screen = 0, connection?: string | null) =>
+  apiGetBlob(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest/screenshot?screen=${screen}`, connection),
+  )
 
-export const setVmFirmware = (name: string, uefi: boolean) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/firmware`, { uefi })
+export const setVmFirmware = (name: string, uefi: boolean, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/firmware`, connection), { uefi })
 
-export const attachVmTpm = (name: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/tpm`)
-export const detachVmTpm = (name: string) => apiDelete(`${API}/vms/${encodeURIComponent(name)}/devices/tpm`)
+export const attachVmTpm = (name: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/devices/tpm`, connection))
+export const detachVmTpm = (name: string, connection?: string | null) =>
+  apiDelete(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/devices/tpm`, connection))
 
-export const attachVmWatchdog = (name: string, model: string, action: string) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/watchdog`, { model, action })
+export const attachVmWatchdog = (name: string, model: string, action: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/devices/watchdog`, connection), {
+    model,
+    action,
+  })
 
-export const attachVmSound = (name: string, model: string) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/sound`, { model })
+export const attachVmSound = (name: string, model: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/devices/sound`, connection), { model })
 
-export const attachVmSerial = (name: string, port: number) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/serial`, { port })
+export const attachVmSerial = (name: string, port: number, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/devices/serial`, connection), { port })
 
-export const setVmVideoModel = (name: string, model: string) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/devices/video-model`, { model })
+export const setVmVideoModel = (name: string, model: string, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/devices/video-model`, connection), { model })
 
 export interface DiskTuneBody {
   target: string
@@ -484,8 +580,8 @@ export interface DiskTuneBody {
   shareable?: boolean
 }
 
-export const tuneVmDisk = (name: string, body: DiskTuneBody) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/disk/tune`, body)
+export const tuneVmDisk = (name: string, body: DiskTuneBody, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/disk/tune`, connection), body)
 
 export interface NicTuneBody {
   mac_address: string
@@ -493,32 +589,58 @@ export interface NicTuneBody {
   network?: string
 }
 
-export const tuneVmNic = (name: string, body: NicTuneBody) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/tune`, body)
+export const tuneVmNic = (name: string, body: NicTuneBody, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/nic/tune`, connection), body)
 
-export const virtViewerVvUrl = (name: string) =>
-  `${API}/vms/${encodeURIComponent(name)}/virt-viewer.vv`
-export const setMemoryBalloon = (name: string, mb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/balloon/${mb}`)
-export const resizeDisk = (name: string, target: string, sizeGb: number) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/disk/resize/${encodeURIComponent(target)}`, { size_gb: sizeGb })
-export const attachInterface = (name: string, network: string, model: string = 'virtio') => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/attach`, { network, model })
-export const detachInterface = (name: string, mac: string) => apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/nic/detach/${encodeURIComponent(mac)}`)
-export const getVMLogs = (name: string, lines = 500) =>
-  apiGet<{ vm_name: string; log_path: string; content: string }>(`${API}/vms/${encodeURIComponent(name)}/logs?lines=${lines}`)
+/** Absolute URL path for Remote Viewer (`virt-viewer`) connection file download. */
+export const virtViewerVvUrl = (name: string, connection?: string | null) =>
+  appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/viewer.vv`, connection)
+
+/** Run `virt-xml --convert-to-vnc` for this domain (requires virt-xml on the host). */
+export const convertGraphicsSpiceToVnc = (name: string, connection?: string | null) =>
+  apiPost<unknown>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/graphics/convert-to-vnc`, connection),
+    {},
+  )
+
+export const setMemoryBalloon = (name: string, mb: number, connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/balloon/${mb}`, connection))
+export const resizeDisk = (name: string, target: string, sizeGb: number, connection?: string | null) =>
+  apiPostVoid(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/disk/resize/${encodeURIComponent(target)}`, connection),
+    { size_gb: sizeGb },
+  )
+export const attachInterface = (name: string, network: string, model: string = 'virtio', connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/nic/attach`, connection), { network, model })
+export const detachInterface = (name: string, mac: string, connection?: string | null) =>
+  apiPostVoid(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/nic/detach/${encodeURIComponent(mac)}`, connection),
+  )
+export const getVMLogs = (name: string, lines = 500, connection?: string | null) =>
+  apiGet<{ vm_name: string; log_path: string; content: string }>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/logs?lines=${lines}`, connection),
+  )
 
 export interface CpuTuneInfo { shares?: number; period?: number; quota?: number; vcpupin: { vcpu: number; cpuset: string }[] }
 export interface MemTuneInfo { hard_limit_kb?: number; soft_limit_kb?: number; swap_hard_limit_kb?: number }
-export const getCpuTune = (name: string) => apiGet<CpuTuneInfo>(`${API}/vms/${encodeURIComponent(name)}/cputune`)
-export const getMemTune = (name: string) => apiGet<MemTuneInfo>(`${API}/vms/${encodeURIComponent(name)}/memtune`)
+export const getCpuTune = (name: string, connection?: string | null) =>
+  apiGet<CpuTuneInfo>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cputune`, connection))
+export const getMemTune = (name: string, connection?: string | null) =>
+  apiGet<MemTuneInfo>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/memtune`, connection))
 
 export interface NumaTuneState {
   node_set?: string | null
   mode?: number | null
 }
 
-export const getNumaTune = (name: string) => apiGet<NumaTuneState>(`${API}/vms/${encodeURIComponent(name)}/numa`)
+export const getNumaTune = (name: string, connection?: string | null) =>
+  apiGet<NumaTuneState>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/numa`, connection))
 
-export const setNumaTune = (name: string, body: { node_set?: string | null; mode?: number | null }) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/numa`, body)
+export const setNumaTune = (
+  name: string,
+  body: { node_set?: string | null; mode?: number | null },
+  connection?: string | null,
+) => apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/numa`, connection), body)
 
-export const pinEmulator = (name: string, cpus: boolean[]) =>
-  apiPostVoid(`${API}/vms/${encodeURIComponent(name)}/emulator/pin`, { cpus })
+export const pinEmulator = (name: string, cpus: boolean[], connection?: string | null) =>
+  apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/emulator/pin`, connection), { cpus })

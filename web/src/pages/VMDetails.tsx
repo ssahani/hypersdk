@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, useRef, useMemo, Fragment } from 'react'
-import { useParams, Link, useNavigate } from 'react-router'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router'
 import {
   getVM, getVMMetrics, getVMXml, startVM, stopVM, shutdownVM, rebootVM, pauseVM, resumeVM,
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
@@ -7,7 +7,7 @@ import {
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
-  getBlockJobInfo, blockCommit, blockPull, blockJobAbort,
+  getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, convertGraphicsSpiceToVnc, appendVmConnection,
   setMemTune as applyMemTuneApi, setSchedulerTune, pinVcpu, getNumaTune, setNumaTune, pinEmulator,
   VmDetails, VmMetrics, GuestIpAddress, BootConfig, CpuTuneInfo, MemTuneInfo,
   VmDeleteUndefineOpts, BlockJobInfo,
@@ -92,6 +92,7 @@ type Dialog = null | 'cdrom' | 'clone' | 'rename' | 'migrate' | 'snapshot' | 'bo
 export default function VMDetailsPage() {
   const { name } = useParams<{ name: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [vm, setVM] = useState<VmDetails | null>(null)
   const [metrics, setMetrics] = useState<VmMetrics | null>(null)
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
@@ -107,6 +108,17 @@ export default function VMDetailsPage() {
   const [dialog, setDialog] = useState<Dialog>(null)
   const toast = useToastContext()
   const prevMetricsRef = useRef<VmMetrics | null>(null)
+
+  const conn = useMemo(
+    () => searchParams.get('connection') ?? vm?.libvirt_connection ?? undefined,
+    [searchParams, vm?.libvirt_connection],
+  )
+
+  useEffect(() => {
+    if (!vm?.libvirt_connection || vm.libvirt_connection === 'system') return
+    if (!searchParams.get('connection'))
+      navigate(vmDetailRoute(vm.name, vm.libvirt_connection), { replace: true })
+  }, [vm, searchParams, navigate])
 
   // Dialog form state
   const [cdromPath, setCdromPath] = useState('')
@@ -225,28 +237,28 @@ export default function VMDetailsPage() {
   const load = useCallback(async () => {
     if (!name) return
     try {
-      const [vmData, snapData] = await Promise.all([getVM(name), listSnapshots(name).catch(() => [])])
+      const [vmData, snapData] = await Promise.all([getVM(name, conn), listSnapshots(name, conn).catch(() => [])])
       setVM(vmData)
       setSnapshots(snapData)
       addRecentVM(name)
       if (vmData.state === 'running') {
-        try { setMetrics(await getVMMetrics(name)) } catch { /* no metrics */ }
-        try { setGuestIps(await getInterfaces(name)) } catch { /* no guest agent */ }
+        try { setMetrics(await getVMMetrics(name, conn)) } catch { /* no metrics */ }
+        try { setGuestIps(await getInterfaces(name, conn)) } catch { /* no guest agent */ }
       } else {
         setMetrics(null)
         setGuestIps([])
       }
-      try { setBootConfig(await getBootConfig(name)) } catch { /* optional */ }
-      try { const s = await hasManagedSave(name); setHasSave(s.has_managed_save) } catch { /* optional */ }
+      try { setBootConfig(await getBootConfig(name, conn)) } catch { /* optional */ }
+      try { const s = await hasManagedSave(name, conn); setHasSave(s.has_managed_save) } catch { /* optional */ }
       try { const t = await getVmTags(name); setVmTags(t.tags) } catch { /* optional */ }
-      try { setCpuTune(await getCpuTune(name)) } catch { /* optional */ }
-      try { setMemTune(await getMemTune(name)) } catch { /* optional */ }
+      try { setCpuTune(await getCpuTune(name, conn)) } catch { /* optional */ }
+      try { setMemTune(await getMemTune(name, conn)) } catch { /* optional */ }
     } catch (e: unknown) {
       toast.error(`Failed to load VM: ${e instanceof Error ? e.message : e}`)
     } finally {
       setLoading(false)
     }
-  }, [name, toast])
+  }, [name, toast, conn])
 
   useEffect(() => { load() }, [load])
 
@@ -269,7 +281,7 @@ export default function VMDetailsPage() {
     if (!name) return
     const poll = async () => {
       try {
-        const m = await getVMMetrics(name)
+        const m = await getVMMetrics(name, conn)
         setMetrics(m)
         const prev = prevMetricsRef.current
         const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -289,25 +301,25 @@ export default function VMDetailsPage() {
     poll()
     const interval = setInterval(poll, 5000)
     return () => clearInterval(interval)
-  }, [name])
+  }, [name, conn])
 
   // Load XML when tab switches to xml
   useEffect(() => {
     if (tab === 'xml' && name && !vmXml) {
-      getVMXml(name).then(setVmXml).catch(() => setVmXml('Failed to load XML'))
+      getVMXml(name, conn).then(setVmXml).catch(() => setVmXml('Failed to load XML'))
     }
-  }, [tab, name, vmXml])
+  }, [tab, name, vmXml, conn])
 
   // Load logs when tab switches to logs
   useEffect(() => {
     if (tab === 'logs' && name) {
-      getVMLogs(name, logsLines).then((r) => setLogsContent(r.content)).catch(() => setLogsContent('Failed to load logs'))
+      getVMLogs(name, logsLines, conn).then((r) => setLogsContent(r.content)).catch(() => setLogsContent('Failed to load logs'))
     }
-  }, [tab, name, logsLines])
+  }, [tab, name, logsLines, conn])
 
   useEffect(() => {
     if (dialog === 'numa-tune' && name) {
-      void getNumaTune(name)
+      void getNumaTune(name, conn)
         .then((n) => {
           setNumaNodeSet(n.node_set ?? '')
           setNumaModeInput(n.mode != null ? String(n.mode) : '')
@@ -317,7 +329,7 @@ export default function VMDetailsPage() {
           setNumaModeInput('')
         })
     }
-  }, [dialog, name])
+  }, [dialog, name, conn])
 
   useEffect(() => {
     if (tab === 'advanced' && vm?.disks?.length && !blockDisk) {
@@ -326,9 +338,9 @@ export default function VMDetailsPage() {
     }
   }, [tab, vm, blockDisk])
 
-  const action = async (fn: (n: string) => Promise<void>, label: string) => {
+  const action = async (fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     if (!name) return
-    try { await fn(name); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`) }
+    try { await fn(name, conn); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const openDialog = (d: Dialog) => {
@@ -397,7 +409,7 @@ export default function VMDetailsPage() {
           : kind === 'upload'
             ? postKubeVirtUpload
             : postKubeVirtStart
-      const r = await fn(name, {})
+      const r = await fn(name, { connection: conn })
       setKubevirtExecLast(r)
       if (r.exit_code !== 0) {
         const hint = r.stderr?.trim() || r.stdout?.trim() || ''
@@ -421,7 +433,7 @@ export default function VMDetailsPage() {
     setKubevirtDoneStart(false)
     setKubevirtExecLast(null)
     try {
-      const b = await getKubeVirtBundle(name)
+      const b = await getKubeVirtBundle(name, { connection: conn })
       setKubevirtBundle(b)
       setKubevirtOpen(true)
     } catch (e: unknown) {
@@ -435,12 +447,17 @@ export default function VMDetailsPage() {
 
   const handleClone = async () => {
     if (!name || !cloneName.trim()) return
-    try { await cloneVM(name, cloneName.trim()); toast.success(`Cloned to '${cloneName}'`); setDialog(null); load() } catch (e: unknown) { toast.error(`Clone failed: ${e instanceof Error ? e.message : e}`) }
+    try { await cloneVM(name, cloneName.trim(), conn); toast.success(`Cloned to '${cloneName}'`); setDialog(null); load() } catch (e: unknown) { toast.error(`Clone failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleRename = async () => {
     if (!name || !newName.trim() || newName === name) return
-    try { await renameVM(name, newName.trim()); toast.success(`Renamed to '${newName}'`); setDialog(null); navigate(`/vms/${newName.trim()}`) } catch (e: unknown) { toast.error(`Rename failed: ${e instanceof Error ? e.message : e}`) }
+    try {
+      await renameVM(name, newName.trim(), conn)
+      toast.success(`Renamed to '${newName}'`)
+      setDialog(null)
+      navigate(vmDetailRoute(newName.trim(), conn))
+    } catch (e: unknown) { toast.error(`Rename failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleMigrate = async () => {
@@ -453,7 +470,7 @@ export default function VMDetailsPage() {
         postcopy: migratePostcopy,
         tunnelled: migrateTunnelled,
         parameters: !Number.isNaN(bw) && bw > 0 ? { bandwidth: bw } : undefined,
-      })
+      }, conn)
       toast.success('Migration completed')
       setDialog(null)
     } catch (e: unknown) {
@@ -468,7 +485,7 @@ export default function VMDetailsPage() {
         await liveSetVcpus(name, editVcpus)
         toast.success(`vCPUs live-set to ${editVcpus}`)
       } else {
-        await setVcpus(name, editVcpus)
+        await setVcpus(name, editVcpus, conn)
         toast.success(`vCPUs set to ${editVcpus} (effective on next boot)`)
       }
       setDialog(null); load()
@@ -482,7 +499,7 @@ export default function VMDetailsPage() {
         await liveSetMemory(name, editMemory)
         toast.success(`Memory live-set to ${editMemory} MB`)
       } else {
-        await setMemory(name, editMemory)
+        await setMemory(name, editMemory, conn)
         toast.success(`Memory set to ${editMemory} MB (effective on next boot)`)
       }
       setDialog(null); load()
@@ -491,17 +508,17 @@ export default function VMDetailsPage() {
 
   const handleBalloon = async () => {
     if (!name) return
-    try { await setMemoryBalloon(name, balloonMb); toast.success(`Memory ballooned to ${balloonMb} MB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try { await setMemoryBalloon(name, balloonMb, conn); toast.success(`Memory ballooned to ${balloonMb} MB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleSetBootOrder = async () => {
     if (!name) return
-    try { await setBootOrder(name, bootDevices); toast.success('Boot order updated'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try { await setBootOrder(name, bootDevices, conn); toast.success('Boot order updated'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleInsertCdrom = async () => {
     if (!name || !cdromPath) return
-    try { await insertCdrom(name, cdromPath, cdromTarget); toast.success('CD-ROM inserted'); setDialog(null); setCdromPath(''); load(); setVmXml('') } catch (e: unknown) { toast.error(`Insert failed: ${e instanceof Error ? e.message : e}`) }
+    try { await insertCdrom(name, cdromPath, cdromTarget, conn); toast.success('CD-ROM inserted'); setDialog(null); setCdromPath(''); load(); setVmXml('') } catch (e: unknown) { toast.error(`Insert failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleCreateSnapshot = async () => {
@@ -519,7 +536,7 @@ export default function VMDetailsPage() {
         disks: snapDisks,
         atomic: snapAtomic,
         reuse_external: snapReuseExternal,
-      })
+      }, conn)
       toast.success(`Snapshot '${snapName}' created`)
       setDialog(null)
       setSnapName('')
@@ -533,12 +550,12 @@ export default function VMDetailsPage() {
 
   const handleDeleteSnapshot = async (snapN: string) => {
     if (!name) return
-    try { await deleteSnapshot(name, snapN); toast.success(`Snapshot '${snapN}' deleted`); load() } catch (e: unknown) { toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`) }
+    try { await deleteSnapshot(name, snapN, conn); toast.success(`Snapshot '${snapN}' deleted`); load() } catch (e: unknown) { toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleRevertSnapshot = async (snapN: string) => {
     if (!name) return
-    try { await revertSnapshot(name, snapN); toast.success(`Reverted to '${snapN}'`); load() } catch (e: unknown) { toast.error(`Revert failed: ${e instanceof Error ? e.message : e}`) }
+    try { await revertSnapshot(name, snapN, conn); toast.success(`Reverted to '${snapN}'`); load() } catch (e: unknown) { toast.error(`Revert failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleAttachDisk = async () => {
@@ -555,7 +572,7 @@ export default function VMDetailsPage() {
       if (attachDiscard.trim()) body.discard = attachDiscard.trim()
       if (attachReadonly) body.readonly = true
       if (attachShareable) body.shareable = true
-      await apiPostVoid(`/api/v1/vms/${encodeURIComponent(name)}/disk/attach`, body)
+      await apiPostVoid(appendVmConnection(`/api/v1/vms/${encodeURIComponent(name)}/disk/attach`, conn), body)
       toast.success('Disk attached'); setDialog(null); setAttachSource(''); load(); setVmXml('')
     } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
   }
@@ -578,7 +595,7 @@ export default function VMDetailsPage() {
       if (tuneRo === 'false') body.readonly = false
       if (tuneShare === 'true') body.shareable = true
       if (tuneShare === 'false') body.shareable = false
-      await tuneVmDisk(name, body)
+      await tuneVmDisk(name, body, conn)
       toast.success('Disk updated')
       setDialog(null)
       load()
@@ -595,7 +612,7 @@ export default function VMDetailsPage() {
         mac_address: tuneMac.trim(),
         ...(tuneNicModel.trim() ? { model: tuneNicModel.trim() } : {}),
         ...(tuneNicNet.trim() ? { network: tuneNicNet.trim() } : {}),
-      })
+      }, conn)
       toast.success('NIC updated')
       setDialog(null)
       load()
@@ -608,7 +625,7 @@ export default function VMDetailsPage() {
   const handleFirmwareSet = async () => {
     if (!name) return
     try {
-      await setVmFirmware(name, fwChoice === 'uefi')
+      await setVmFirmware(name, fwChoice === 'uefi', conn)
       toast.success(`Firmware set to ${fwChoice.toUpperCase()} (may require reboot / guest support)`)
       setDialog(null)
       load()
@@ -621,7 +638,7 @@ export default function VMDetailsPage() {
   const handleWatchdogAttach = async () => {
     if (!name) return
     try {
-      await attachVmWatchdog(name, wdModel, wdAction)
+      await attachVmWatchdog(name, wdModel, wdAction, conn)
       toast.success('Watchdog attached')
       setDialog(null)
       load()
@@ -634,7 +651,7 @@ export default function VMDetailsPage() {
   const handleSoundAttach = async () => {
     if (!name) return
     try {
-      await attachVmSound(name, sndModel)
+      await attachVmSound(name, sndModel, conn)
       toast.success('Sound card attached')
       setDialog(null)
       load()
@@ -647,7 +664,7 @@ export default function VMDetailsPage() {
   const handleSerialAttach = async () => {
     if (!name) return
     try {
-      await attachVmSerial(name, serPort)
+      await attachVmSerial(name, serPort, conn)
       toast.success(`Serial port ${serPort} attached`)
       setDialog(null)
       load()
@@ -660,7 +677,7 @@ export default function VMDetailsPage() {
   const handleVideoSet = async () => {
     if (!name) return
     try {
-      await setVmVideoModel(name, vidModel)
+      await setVmVideoModel(name, vidModel, conn)
       toast.success('Video model updated')
       setDialog(null)
       load()
@@ -674,19 +691,19 @@ export default function VMDetailsPage() {
     if (!name) return
     try {
       const { apiPostVoid } = await import('../api/client')
-      await apiPostVoid(`/api/v1/vms/${encodeURIComponent(name)}/disk/detach/${encodeURIComponent(targetDev)}`)
+      await apiPostVoid(appendVmConnection(`/api/v1/vms/${encodeURIComponent(name)}/disk/detach/${encodeURIComponent(targetDev)}`, conn))
       toast.success(`Disk '${targetDev}' detached`); load(); setVmXml('')
     } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleResizeDisk = async () => {
     if (!name || !resizeTarget) return
-    try { await resizeDisk(name, resizeTarget, resizeGb); toast.success(`Disk '${resizeTarget}' resized to ${resizeGb} GB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Resize failed: ${e instanceof Error ? e.message : e}`) }
+    try { await resizeDisk(name, resizeTarget, resizeGb, conn); toast.success(`Disk '${resizeTarget}' resized to ${resizeGb} GB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Resize failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleAttachNic = async () => {
     if (!name || !nicNetwork.trim()) return
-    try { await attachInterface(name, nicNetwork.trim(), nicModel); toast.success(`NIC attached to '${nicNetwork}'`); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
+    try { await attachInterface(name, nicNetwork.trim(), nicModel, conn); toast.success(`NIC attached to '${nicNetwork}'`); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleAttachUsb = async (vendorId?: string, productId?: string) => {
@@ -704,7 +721,7 @@ export default function VMDetailsPage() {
 
   const handleDetachNic = async (mac: string) => {
     if (!name) return
-    try { await detachInterface(name, mac); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
+    try { await detachInterface(name, mac, conn); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
   }
 
   const handleSaveTemplate = async () => {
@@ -726,7 +743,7 @@ export default function VMDetailsPage() {
         nvramRetried = true
         setDeleteUndefine(merged)
         toast.info('Retrying delete with UEFI NVRAM removal (same as virsh undefine --nvram)…')
-      })
+      }, conn)
       toast.success(
         nvramRetried
           ? 'VM deleted (UEFI NVRAM removed as required by libvirt)'
@@ -750,7 +767,7 @@ export default function VMDetailsPage() {
         toast.warning('Enter at least one value')
         return
       }
-      await setSchedulerTune(name, body)
+      await setSchedulerTune(name, body, conn)
       toast.success('Scheduler updated')
       setDialog(null)
       load()
@@ -770,7 +787,7 @@ export default function VMDetailsPage() {
         toast.warning('Enter at least one limit (KiB)')
         return
       }
-      await applyMemTuneApi(name, body)
+      await applyMemTuneApi(name, body, conn)
       toast.success('Memory tuning updated')
       setDialog(null)
       load()
@@ -800,7 +817,7 @@ export default function VMDetailsPage() {
       await setNumaTune(name, {
         node_set: ns === '' ? null : ns,
         mode,
-      })
+      }, conn)
       toast.success('NUMA tuning updated')
       setDialog(null)
       load()
@@ -812,7 +829,7 @@ export default function VMDetailsPage() {
   const handleEmulatorPinSave = async () => {
     if (!name) return
     try {
-      await pinEmulator(name, emuPinMap)
+      await pinEmulator(name, emuPinMap, conn)
       toast.success('Emulator threads pinned')
       setDialog(null)
       load()
@@ -824,7 +841,7 @@ export default function VMDetailsPage() {
   const handlePinSave = async () => {
     if (!name) return
     try {
-      await pinVcpu(name, pinVcpuN, pinMap)
+      await pinVcpu(name, pinVcpuN, pinMap, conn)
       toast.success(`vCPU ${pinVcpuN} pinning updated`)
       setDialog(null)
       load()
@@ -839,7 +856,7 @@ export default function VMDetailsPage() {
       return
     }
     try {
-      const r = await getBlockJobInfo(name, blockDisk.trim(), true)
+      const r = await getBlockJobInfo(name, blockDisk.trim(), true, conn)
       setBlockJob(r.job ?? null)
       toast.success(r.job ? 'Active block job' : 'No block job on this disk')
     } catch (e: unknown) {
@@ -860,7 +877,7 @@ export default function VMDetailsPage() {
         active: blockActive,
         relative: false,
         bandwidth_bytes: true,
-      })
+      }, conn)
       toast.success('Block commit started')
       setDialog(null)
     } catch (e: unknown) {
@@ -871,7 +888,7 @@ export default function VMDetailsPage() {
   const handleBlockPull = async () => {
     if (!name || !blockDisk.trim()) return
     try {
-      await blockPull(name, { disk: blockDisk.trim(), bandwidth: 0, bandwidth_bytes: true })
+      await blockPull(name, { disk: blockDisk.trim(), bandwidth: 0, bandwidth_bytes: true }, conn)
       toast.success('Block pull started')
     } catch (e: unknown) {
       toast.error(`${e instanceof Error ? e.message : e}`)
@@ -881,7 +898,7 @@ export default function VMDetailsPage() {
   const handleBlockAbort = async (asyncAbort: boolean, pivot: boolean) => {
     if (!name || !blockDisk.trim()) return
     try {
-      await blockJobAbort(name, { disk: blockDisk.trim(), async: asyncAbort, pivot })
+      await blockJobAbort(name, { disk: blockDisk.trim(), async: asyncAbort, pivot }, conn)
       toast.success('Block job abort requested')
       setBlockJob(undefined)
     } catch (e: unknown) {
@@ -915,7 +932,7 @@ export default function VMDetailsPage() {
 
   const toggleAutostart = async () => {
     if (!name || !vm) return
-    try { await setAutostart(name, !vm.autostart); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await setAutostart(name, !vm.autostart, conn); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
   /** Open SSH dialog: guest IP from agent first, else last-saved IP; SSH user from last successful connect (defaults to root). */
@@ -970,6 +987,11 @@ export default function VMDetailsPage() {
           <h1 className="text-2xl font-bold">{vm.name}</h1>
           <div className="flex items-center gap-3 mt-1">
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
+            {vm.libvirt_connection === 'session' && (
+              <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25" title="Domain on qemu:///session">
+                session
+              </span>
+            )}
             <span className="text-sm text-slate-500 font-mono">{vm.uuid}</span>
           </div>
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
@@ -985,7 +1007,20 @@ export default function VMDetailsPage() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
-          <Link to={`/vms/${vm.name}/console`} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
+          <Link to={vmConsoleRoute(vm.name, conn)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
+          <button
+            type="button"
+            title="virt-xml --convert-to-vnc (requires virt-xml on host; may change live graphics)"
+            className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 border border-slate-600 rounded-lg text-sm transition flex items-center gap-1 text-slate-300"
+            onClick={() => {
+              if (!name || !window.confirm('Convert SPICE graphics to VNC via virt-xml? The guest may briefly lose display.')) return
+              void convertGraphicsSpiceToVnc(name, conn)
+                .then(() => { toast.success('virt-xml convert-to-vnc completed — check Console / XML'); load(); setVmXml('') })
+                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+            }}
+          >
+            SPICE→VNC
+          </button>
           <button type="button" onClick={openVmSshDialog} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1">
             <Terminal className="w-4 h-4" /> SSH
           </button>
@@ -1362,7 +1397,7 @@ export default function VMDetailsPage() {
                 className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
                 onClick={() => {
                   if (!name) return
-                  void attachVmTpm(name).then(() => { toast.success('TPM 2.0 attached'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                  void attachVmTpm(name, conn).then(() => { toast.success('TPM 2.0 attached'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
                 }}
               >
                 Add TPM 2.0
@@ -1372,7 +1407,7 @@ export default function VMDetailsPage() {
                 className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
                 onClick={() => {
                   if (!name) return
-                  void detachVmTpm(name).then(() => { toast.success('TPM removed'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                  void detachVmTpm(name, conn).then(() => { toast.success('TPM removed'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
                 }}
               >
                 Remove TPM
@@ -1414,7 +1449,7 @@ export default function VMDetailsPage() {
                       if (!name) return
                       if (!shareSourceDir.trim() || !shareMountTag.trim()) return
                       try {
-                        await addShare(name, shareSourceDir.trim(), shareMountTag.trim(), shareXattr)
+                        await addShare(name, shareSourceDir.trim(), shareMountTag.trim(), shareXattr, conn)
                         toast.success('Shared directory added')
                         setShareSourceDir('')
                         setShareMountTag('')
@@ -1457,7 +1492,7 @@ export default function VMDetailsPage() {
                               onClick={async () => {
                                 if (!name) return
                                 try {
-                                  await removeShare(name, fs.mount_tag)
+                                  await removeShare(name, fs.mount_tag, conn)
                                   toast.success('Shared directory removed')
                                   load()
                                   setVmXml('')
@@ -1693,7 +1728,7 @@ export default function VMDetailsPage() {
                 <option value={2000}>2000 lines</option>
                 <option value={5000}>5000 lines</option>
               </select>
-              <button onClick={() => { if (name) getVMLogs(name, logsLines).then((r) => setLogsContent(r.content)).catch(() => setLogsContent('Failed to load logs')) }} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Refresh</button>
+              <button onClick={() => { if (name) getVMLogs(name, logsLines, conn).then((r) => setLogsContent(r.content)).catch(() => setLogsContent('Failed to load logs')) }} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><RefreshCw className="w-3 h-3" /> Refresh</button>
             </div>
           </div>
           <pre className="p-6 text-xs font-mono text-slate-300 overflow-x-auto max-h-[600px] overflow-y-auto whitespace-pre">{logsContent || 'No log content available.'}</pre>
@@ -1995,7 +2030,7 @@ export default function VMDetailsPage() {
                   {cdromDisks.map((d, i) => (
                     <div key={i} className="flex items-center justify-between py-1">
                       <span className="text-sm"><span className="font-mono text-blue-400">{d.target}</span> {d.source ? <span className="text-slate-400 text-xs ml-2">{d.source.split('/').pop()}</span> : <span className="text-slate-500 text-xs ml-2">(empty)</span>}</span>
-                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${e instanceof Error ? e.message : e}`)) } }} className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-400 transition">Eject</button>}
+                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target, conn).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${e instanceof Error ? e.message : e}`)) } }} className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-400 transition">Eject</button>}
                     </div>
                   ))}
                 </div>

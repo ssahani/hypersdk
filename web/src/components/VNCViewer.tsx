@@ -2,11 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { Keyboard, Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 import { getWsToken } from '../api/client'
 
+function wsConnQs(libvirtConnection?: string | null): string {
+  if (!libvirtConnection || libvirtConnection === 'system') return ''
+  return `&connection=${encodeURIComponent(libvirtConnection)}`
+}
+
 interface Props {
   vmName: string
   port?: number
   /** When set, connect to KubeVirt VNC via machina (kubectl proxy + API subresource) instead of libvirt. */
   kubeVirtNamespace?: string
+  /** `session` when the domain is on qemu:///session (dual libvirt). */
+  libvirtConnection?: string | null
 }
 
 /** Apply scale vs native resolution (scroll) — affects perceived sharpness and pointer mapping. */
@@ -24,7 +31,7 @@ function applyViewportMode(
   window.dispatchEvent(new Event('resize'))
 }
 
-export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace }: Props) {
+export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvirtConnection }: Props) {
   const [fullscreen, setFullscreen] = useState(false)
   const [status, setStatus] = useState<'loading' | 'connecting' | 'connected' | 'disconnected'>('loading')
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
@@ -60,9 +67,10 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace }: Prop
         return
       }
       if (cancelled) return
+      const cq = wsConnQs(libvirtConnection)
       const wsUrl = kube && kubeVirtNamespace
         ? `${protocol}//${window.location.host}/ws/v1/k8s-kubevirt/${encodeURIComponent(kubeVirtNamespace)}/${encodeURIComponent(vmName)}/vnc?token=${encodeURIComponent(token)}`
-        : `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}`
+        : `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${cq}`
 
       const wireCommon = (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -127,7 +135,7 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace }: Prop
       rfbRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect only when VM/port changes; viewport toggled via effect below
-  }, [vmName, port, kubeVirtNamespace])
+  }, [vmName, port, kubeVirtNamespace, libvirtConnection])
 
   useEffect(() => {
     const rfb = rfbRef.current

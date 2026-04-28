@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
-import { useParams, Link } from 'react-router'
+import { useParams, Link, useSearchParams } from 'react-router'
 import { ArrowLeft, Terminal as TerminalIcon, Monitor, Keyboard, Camera, Download } from 'lucide-react'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { apiGet } from '../api/client'
 import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
 import SPICEViewer from '../components/SPICEViewer'
-import { sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl } from '../api/vm'
+import {
+  sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl, appendVmConnection, vmDetailRoute,
+} from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 
 interface ConsoleInfo {
@@ -19,6 +21,8 @@ interface ConsoleInfo {
 
 export default function ConsolePage() {
   const { name } = useParams<{ name: string }>()
+  const [searchParams] = useSearchParams()
+  const conn = searchParams.get('connection') ?? undefined
   const toast = useToastContext()
   const [mode, setMode] = useState<'serial' | 'vnc' | 'spice'>('serial')
   const [consoleInfo, setConsoleInfo] = useState<ConsoleInfo | null>(null)
@@ -26,7 +30,9 @@ export default function ConsolePage() {
 
   useEffect(() => {
     if (!name) return
-    apiGet<ConsoleInfo>(`/api/v1/vms/console-info/${encodeURIComponent(name)}`)
+    apiGet<ConsoleInfo>(
+      appendVmConnection(`/api/v1/vms/console-info/${encodeURIComponent(name)}`, conn),
+    )
       .then((info) => {
         setConsoleInfo(info)
         if (info.console_type === 'vnc' && info.port > 0) {
@@ -38,7 +44,7 @@ export default function ConsolePage() {
         }
       })
       .catch((e) => console.error('Failed to load console info:', e))
-  }, [name])
+  }, [name, conn])
 
   if (!name) return null
 
@@ -49,7 +55,7 @@ export default function ConsolePage() {
     <div className="space-y-4 animate-fade-in">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Link to={`/vms/${name}`} className="p-2 hover:bg-slate-700 rounded transition">
+          <Link to={conn ? `/vms/${encodeURIComponent(name)}?connection=${encodeURIComponent(conn)}` : `/vms/${encodeURIComponent(name)}`} className="p-2 hover:bg-slate-700 rounded transition">
             <ArrowLeft className="w-5 h-5" />
           </Link>
           <h1 className="text-2xl font-bold">Console: {name}</h1>
@@ -104,7 +110,7 @@ export default function ConsolePage() {
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 transition"
             onClick={() => {
               if (!name) return
-              void sendGuestKey(name, { preset: 'ctrl_alt_del' })
+              void sendGuestKey(name, { preset: 'ctrl_alt_del' }, conn)
                 .then(() => toast.success('Sent Ctrl+Alt+Del'))
                 .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
             }}
@@ -119,7 +125,7 @@ export default function ConsolePage() {
             onClick={() => {
               if (!name) return
               setShotBusy(true)
-              void getGuestScreenshotBlob(name, 0)
+              void getGuestScreenshotBlob(name, 0, conn)
                 .then((blob) => {
                   const u = URL.createObjectURL(blob)
                   window.open(u, '_blank', 'noopener,noreferrer')
@@ -134,7 +140,7 @@ export default function ConsolePage() {
             {shotBusy ? 'Screenshot…' : 'Screenshot'}
           </button>
           <a
-            href={virtViewerVvUrl(name)}
+            href={virtViewerVvUrl(name, conn)}
             download={`${name}.vv`}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/60 hover:bg-emerald-700/70 text-sm text-emerald-100 transition"
           >
@@ -147,11 +153,11 @@ export default function ConsolePage() {
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         {mode === 'vnc' ? (
-          <VNCViewer vmName={name} port={vncPort} />
+          <VNCViewer vmName={name} port={vncPort} libvirtConnection={conn} />
         ) : mode === 'spice' ? (
-          <SPICEViewer vmName={name} port={spicePort} />
+          <SPICEViewer vmName={name} port={spicePort} libvirtConnection={conn} />
         ) : (
-          <SerialConsole vmName={name} />
+          <SerialConsole vmName={name} libvirtConnection={conn} />
         )}
       </div>
     </div>

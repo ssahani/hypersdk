@@ -58,6 +58,7 @@ pub fn list_vms(conn: &Connect) -> Result<Vec<VmInfo>, LibvirtError> {
             state: state_to_string(info.state),
             vcpus: info.nr_virt_cpu,
             memory_mb: info.memory / 1024,
+            libvirt_connection: None,
         });
     }
 
@@ -100,6 +101,7 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
         interfaces,
         disks,
         filesystems,
+        libvirt_connection: None,
     })
 }
 

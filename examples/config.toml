@@ -40,6 +40,9 @@ port = 5092
 #   "qemu+ssh://user@host/system" — remote host over SSH
 #   "qemu+tcp://host/system"      — remote host over TCP
 uri = "qemu:///system"
+# When true, the daemon and UI merge qemu:///system + qemu:///session (same idea as Cockpit Machines).
+# dual_connection = false
+
 # VM create engine when the client omits `create_backend`: virt_install (default) or libvirt_xml.
 # create_backend = "virt_install"
 # Optional image builds via mkosi (`mkosi_workspace` API field). virt-builder stays off unless enabled.

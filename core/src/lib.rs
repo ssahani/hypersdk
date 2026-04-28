@@ -3,6 +3,7 @@ pub mod build_precheck;
 pub mod config;
 pub mod fmt;
 pub mod host_platform;
+pub mod host_virt;
 pub mod kubevirt;
 pub mod libvirt;
 pub mod state;
@@ -15,7 +16,7 @@ pub use config::{
     VmCreateBackend, DEFAULT_DAEMON_PORT,
 };
 pub use kubevirt::{kubevirt_bundle_from_libvirt_vm, KubeVirtBundle};
-pub use libvirt::LibvirtManager;
+pub use libvirt::{LibvirtManager, LibvirtTarget};
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, BackupInfo, BackupRequest, CloneVmRequest,
     ConfirmationDialog, CreateNetworkRequest, CreateSnapshotRequest, CreateVmRequest,

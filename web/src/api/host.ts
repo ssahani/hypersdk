@@ -1,0 +1,24 @@
+import { apiGet } from './client'
+
+const API = '/api/v1'
+
+export interface VirtualizationHostStatus {
+  cpu_virt_supported: boolean
+  kvm_device_present: boolean
+  libvirt_system_socket_present: boolean
+  libvirt_session_socket_present: boolean
+  hint: string
+}
+
+export async function getHostVirtualization(): Promise<VirtualizationHostStatus> {
+  return apiGet(`${API}/host/virtualization`)
+}
+
+export async function getLibvirtSummary(): Promise<{
+  dual_connection: boolean
+  qemu_system_connected: boolean
+  qemu_session_connected: boolean
+  configured_uri: string
+}> {
+  return apiGet(`${API}/libvirt/summary`)
+}

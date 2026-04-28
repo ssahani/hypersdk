@@ -295,6 +295,9 @@ pub struct LibvirtConfig {
     /// Allow `CreateVmRequest.mkosi_workspace` → `mkosi build` (optional image builds; requires mkosi on host; see install.sh).
     #[serde(default = "default_true")]
     pub mkosi_allowed: bool,
+    /// Connect to **both** `qemu:///system` and `qemu:///session` (Cockpit-style); ignores `uri` when true.
+    #[serde(default)]
+    pub dual_connection: bool,
 }
 
 fn default_virt_image_build_max_concurrent() -> usize {
@@ -396,6 +399,7 @@ impl Default for LibvirtConfig {
             ),
             virt_image_build_min_free_tmp_bytes: default_virt_image_build_min_free_tmp_bytes(),
             mkosi_allowed: true,
+            dual_connection: false,
         }
     }
 }
