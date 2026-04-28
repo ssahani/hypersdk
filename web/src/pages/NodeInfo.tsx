@@ -10,6 +10,7 @@ import {
   SystemInfo,
   getHostFilesystems,
   getHostTopProcesses,
+  postHostKillProcess,
   getHostPackageUpdates,
   postHostPackageUpgrade,
   postHostPackageInstall,
@@ -31,12 +32,115 @@ import {
   HostSecuritySummary,
 } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, Package, Shield, Network, Users, UserSquare, Activity, ScrollText, ArrowUpCircle, PlusCircle, MinusCircle } from 'lucide-react'
-import { ChoiceCardGrid, ChoiceLinkCard } from '../components/ChoiceCards'
+import { Cpu, HardDrive, Server, CheckCircle, XCircle, Clock, Gauge, RefreshCw, MemoryStick, Database, Monitor, Pencil, Check, X, FolderTree, ListOrdered, Package, Shield, Network, Users, UserSquare, Activity, ScrollText, ArrowUpCircle, PlusCircle, MinusCircle, Ban } from 'lucide-react'
 import { formatBytes } from '../utils/vm'
+import { ChoiceCardGrid, ChoiceLinkCard } from '../components/ChoiceCards'
 import { useToastContext } from '../contexts/ToastContext'
+import { getSession, type SessionRole } from '../api/auth'
 
 interface StatsPoint { time: string; cpu: number; mem: number; disk: number; load: number }
+
+function HostProcessTableBlock({
+  variant,
+  processes,
+  canKillHostProcess,
+  killBusyPid,
+  onKill,
+}: {
+  variant: 'memory' | 'cpu'
+  processes: HostProcess[]
+  canKillHostProcess: boolean
+  killBusyPid: number | null
+  onKill: (p: HostProcess, signal: 'TERM' | 'KILL') => void
+}) {
+  const title =
+    variant === 'memory' ? 'Top processes by memory' : 'Top processes by CPU'
+  const hintLead =
+    variant === 'memory'
+      ? 'Highest RSS from ps; full argv from /proc (all Linux distros).'
+      : 'Highest %CPU from ps; full argv from /proc (same columns as the memory list).'
+  const headCpu = variant === 'cpu' ? 'text-cyan-200/95 font-semibold' : ''
+  const headRss = variant === 'memory' ? 'text-cyan-200/95 font-semibold' : ''
+  const cellCpu = variant === 'cpu' ? 'text-cyan-100' : 'text-slate-200'
+  const cellRss = variant === 'memory' ? 'text-slate-100' : 'text-slate-200'
+  const headerIcon =
+    variant === 'memory' ? (
+      <ListOrdered className="w-5 h-5 text-cyan-400" />
+    ) : (
+      <Cpu className="w-5 h-5 text-amber-400" />
+    )
+
+  return (
+    <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+      <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
+        <h3 className="text-lg font-semibold flex items-center gap-2">
+          {headerIcon}
+          {title}
+        </h3>
+        <span className="text-xs text-slate-500">
+          {hintLead}
+          {canKillHostProcess
+            ? ' Term / Kill send signals as the daemon user (root).'
+            : ' Ending processes requires an admin session.'}
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-slate-400 border-b border-slate-700/50">
+              <th className="px-6 py-3 font-medium">PID</th>
+              <th className="px-6 py-3 font-medium">User</th>
+              <th className={`px-6 py-3 font-medium text-right ${headCpu}`}>CPU%</th>
+              <th className={`px-6 py-3 font-medium text-right ${headRss}`}>RSS</th>
+              <th className="px-6 py-3 font-medium">Comm</th>
+              <th className="px-6 py-3 font-medium hidden xl:table-cell">Command line</th>
+              {canKillHostProcess && (
+                <th className="px-6 py-3 font-medium text-right">Actions</th>
+              )}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-700/50">
+            {processes.map((p) => (
+              <tr key={`${variant}-${p.pid}`} className="hover:bg-slate-700/30">
+                <td className="px-6 py-3 font-mono text-slate-300">{p.pid}</td>
+                <td className="px-6 py-3 text-slate-300">{p.user}</td>
+                <td className={`px-6 py-3 text-right ${cellCpu}`}>{p.cpu_percent.toFixed(1)}</td>
+                <td className={`px-6 py-3 text-right ${cellRss}`}>{formatBytes(p.rss_kb * 1024)}</td>
+                <td className="px-6 py-3 font-mono text-xs text-slate-400 truncate max-w-[10rem]" title={p.command}>{p.command}</td>
+                <td className="px-6 py-3 font-mono text-xs text-slate-500 truncate max-w-xl hidden xl:table-cell" title={p.args || ''}>{p.args || '—'}</td>
+                {canKillHostProcess && (
+                  <td className="px-6 py-3 text-right whitespace-nowrap">
+                    <div className="inline-flex flex-wrap items-center justify-end gap-1">
+                      <button
+                        type="button"
+                        title="Send SIGTERM"
+                        disabled={killBusyPid !== null}
+                        onClick={() => void onKill(p, 'TERM')}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-slate-600/30 text-slate-200 border border-slate-500/40 hover:bg-slate-600/45 disabled:opacity-50 transition"
+                      >
+                        Term
+                      </button>
+                      <button
+                        type="button"
+                        title="Send SIGKILL"
+                        disabled={killBusyPid !== null}
+                        onClick={() => void onKill(p, 'KILL')}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-red-900/25 text-red-200 border border-red-600/40 hover:bg-red-900/40 disabled:opacity-50 transition"
+                      >
+                        <Ban className="w-3.5 h-3.5 shrink-0" />
+                        Kill
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
 
 export default function NodeInfoPage() {
   const toast = useToastContext()
@@ -48,6 +152,7 @@ export default function NodeInfoPage() {
   const [sysInfo, setSysInfo] = useState<SystemInfo | null>(null)
   const [filesystems, setFilesystems] = useState<HostFilesystem[]>([])
   const [topProcesses, setTopProcesses] = useState<HostProcess[]>([])
+  const [topProcessesByCpu, setTopProcessesByCpu] = useState<HostProcess[]>([])
   const [pkgUpdates, setPkgUpdates] = useState<PackageUpdateCheck | null>(null)
   const [pkgMutBusy, setPkgMutBusy] = useState(false)
   const [pkgInstallInput, setPkgInstallInput] = useState('')
@@ -66,6 +171,10 @@ export default function NodeInfoPage() {
   const [editingTimezone, setEditingTimezone] = useState(false)
   const [hostnameInput, setHostnameInput] = useState('')
   const [timezoneInput, setTimezoneInput] = useState('')
+  const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
+  const [killBusyPid, setKillBusyPid] = useState<number | null>(null)
+
+  const canKillHostProcess = sessionRole === 'admin'
 
   const load = useCallback(() => {
     Promise.allSettled([
@@ -74,14 +183,15 @@ export default function NodeInfoPage() {
       getHostStats(),
       getSystemInfo(),
       getHostFilesystems(),
-      getHostTopProcesses(20),
+      getHostTopProcesses(20, { sort: 'rss' }),
+      getHostTopProcesses(20, { sort: 'cpu' }),
       getHostPackageUpdates(),
       getHostNetCounters(),
       getHostPasswdUsers(200),
       getHostGroups(200),
       getHostSecuritySummary(),
     ])
-      .then(([n, h, s, si, fs, tp, pk, nc, pw, gr, sec]) => {
+      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec]) => {
         if (n.status === 'fulfilled') setNode(n.value)
         if (h.status === 'fulfilled') setHealth(h.value)
         if (si.status === 'fulfilled') setSysInfo(si.value)
@@ -89,6 +199,8 @@ export default function NodeInfoPage() {
         else setFilesystems([])
         if (tp.status === 'fulfilled') setTopProcesses(tp.value)
         else setTopProcesses([])
+        if (tpc.status === 'fulfilled') setTopProcessesByCpu(tpc.value)
+        else setTopProcessesByCpu([])
         if (pk.status === 'fulfilled') {
           setPkgUpdates(pk.value)
         } else {
@@ -274,6 +386,48 @@ export default function NodeInfoPage() {
       setNetRatesLoading(false)
     }
   }, [rateSampleMs, toast])
+
+  const killHostProcess = useCallback(
+    async (p: HostProcess, signal: 'TERM' | 'KILL') => {
+      if (!canKillHostProcess) return
+      const warn =
+        signal === 'KILL'
+          ? `Force-kill PID ${p.pid} (${p.command}) with SIGKILL? The application cannot catch this signal.`
+          : `Send SIGTERM to PID ${p.pid} (${p.command})? The process should exit gracefully if it handles the signal.`
+      if (!window.confirm(warn)) return
+      setKillBusyPid(p.pid)
+      try {
+        await postHostKillProcess(p.pid, { signal })
+        toast.success(
+          signal === 'KILL' ? `SIGKILL sent to PID ${p.pid}` : `SIGTERM sent to PID ${p.pid}`,
+        )
+        try {
+          const [mem, cpu] = await Promise.all([
+            getHostTopProcesses(20, { sort: 'rss' }),
+            getHostTopProcesses(20, { sort: 'cpu' }),
+          ])
+          setTopProcesses(mem)
+          setTopProcessesByCpu(cpu)
+        } catch {
+          /* ignore refresh failure */
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : String(e))
+      } finally {
+        setKillBusyPid(null)
+      }
+    },
+    [canKillHostProcess, toast],
+  )
+
+  useEffect(() => {
+    getSession()
+      .then((s) => {
+        if (s.authenticated) setSessionRole(s.role ?? 'admin')
+        else setSessionRole(null)
+      })
+      .catch(() => setSessionRole(null))
+  }, [])
 
   useEffect(() => {
     load()
@@ -717,40 +871,24 @@ export default function NodeInfoPage() {
         </div>
       )}
 
-      {/* Top processes by RSS */}
+      {/* Top processes: highest memory (RSS) and highest CPU */}
       {topProcesses.length > 0 && (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><ListOrdered className="w-5 h-5 text-cyan-400" /> Top processes by memory</h3>
-            <span className="text-xs text-slate-500">RSS from ps; full argv from /proc (all Linux distros)</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-slate-400 border-b border-slate-700/50">
-                  <th className="px-6 py-3 font-medium">PID</th>
-                  <th className="px-6 py-3 font-medium">User</th>
-                  <th className="px-6 py-3 font-medium text-right">CPU%</th>
-                  <th className="px-6 py-3 font-medium text-right">RSS</th>
-                  <th className="px-6 py-3 font-medium">Comm</th>
-                  <th className="px-6 py-3 font-medium hidden xl:table-cell">Command line</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-700/50">
-                {topProcesses.map((p) => (
-                  <tr key={p.pid} className="hover:bg-slate-700/30">
-                    <td className="px-6 py-3 font-mono text-slate-300">{p.pid}</td>
-                    <td className="px-6 py-3 text-slate-300">{p.user}</td>
-                    <td className="px-6 py-3 text-right text-slate-200">{p.cpu_percent.toFixed(1)}</td>
-                    <td className="px-6 py-3 text-right text-slate-200">{formatBytes(p.rss_kb * 1024)}</td>
-                    <td className="px-6 py-3 font-mono text-xs text-slate-400 truncate max-w-[10rem]" title={p.command}>{p.command}</td>
-                    <td className="px-6 py-3 font-mono text-xs text-slate-500 truncate max-w-xl hidden xl:table-cell" title={p.args || ''}>{p.args || '—'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <HostProcessTableBlock
+          variant="memory"
+          processes={topProcesses}
+          canKillHostProcess={canKillHostProcess}
+          killBusyPid={killBusyPid}
+          onKill={killHostProcess}
+        />
+      )}
+      {topProcessesByCpu.length > 0 && (
+        <HostProcessTableBlock
+          variant="cpu"
+          processes={topProcessesByCpu}
+          canKillHostProcess={canKillHostProcess}
+          killBusyPid={killBusyPid}
+          onKill={killHostProcess}
+        />
       )}
 
       <div className="rounded-lg border border-slate-700/40 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 leading-relaxed">
@@ -758,6 +896,7 @@ export default function NodeInfoPage() {
         Updates use apt on Debian/Ubuntu (before dnf so WSL/mixed installs stay correct), then microdnf/dnf, yum, Alpine <code className="text-slate-500">apk</code>, pacman, zypper.
         User and group tables prefer <code className="text-slate-500">getent</code> (honours LDAP/NIS), falling back to <code className="text-slate-500">/etc/passwd</code> / <code className="text-slate-500">/etc/group</code>.
         Network totals are cumulative since boot from <code className="text-slate-500">/proc/net/dev</code>; live throughput uses two samples on demand (blocks the chosen interval on the daemon). Firewall detection matches Host networking (ufw vs firewalld vs iptables).
+        Process tables use <code className="text-slate-500">ps</code> sorted by <code className="text-slate-500">-rss</code> or <code className="text-slate-500">-pcpu</code> (two separate snapshots).
       </div>
 
       {!loading && pkgUpdates && (

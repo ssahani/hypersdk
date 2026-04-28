@@ -1126,6 +1126,11 @@ export default function VMDetailsPage() {
                 <span className={vm.autostart ? 'text-green-400' : 'text-slate-500'}>{vm.autostart ? 'Enabled' : 'Disabled'}</span>
               </button>
             </div>
+            <p className="text-xs text-slate-500 leading-snug">
+              Starts this VM when libvirt starts (after boot). Requires systemd to enable libvirt at boot (
+              <code className="text-slate-500">libvirtd</code> or <code className="text-slate-500">virtqemud</code>
+              ). NAT networks should autostart too so guests get DHCP.
+            </p>
           </div>
 
           {bootConfig && (

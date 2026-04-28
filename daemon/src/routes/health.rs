@@ -92,6 +92,15 @@ async fn host_problems() -> Json<serde_json::Value> {
             "doc_url": null,
         }));
     }
+    if let Some(detail) = host_virt::libvirt_boot_autostart_problem_detail() {
+        items.push(json!({
+            "id": "libvirt_systemd_boot",
+            "severity": "warning",
+            "title": "Libvirt may not start automatically on host reboot",
+            "detail": detail,
+            "doc_url": null,
+        }));
+    }
     for path in ["/var/lib/libvirt", "/var/lib/machina", "/"] {
         if let Some(pct) = df_use_percent(path) {
             if pct >= 90 {

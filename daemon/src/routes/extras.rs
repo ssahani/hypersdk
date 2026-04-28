@@ -43,6 +43,17 @@ fn log_audit(action: &str, target: &str, result: &str) {
     audit::write_audit_event(&event);
 }
 
+fn log_audit_with_actor(actor: &RequestActor, action: &str, target: &str, result: &str) {
+    let event = AuditEvent {
+        timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        action: action.to_string(),
+        target: target.to_string(),
+        result: result.to_string(),
+        actor: actor.username.clone(),
+    };
+    audit::write_audit_event(&event);
+}
+
 // ── ISO / Disk Browser ─────────────────────────────────────────────
 
 async fn list_isos(
@@ -632,6 +643,21 @@ struct HostProcessesQuery {
     /// Max rows to return (1–100, default 20).
     #[serde(default)]
     limit: Option<u32>,
+    /// `rss` (default) = highest memory; `cpu` = highest %CPU.
+    #[serde(default)]
+    sort: Option<String>,
+}
+
+fn host_top_process_order(q: &HostProcessesQuery) -> extras::HostTopProcessOrder {
+    match q
+        .sort
+        .as_deref()
+        .map(|s| s.trim().to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("cpu" | "pcpu") => extras::HostTopProcessOrder::Cpu,
+        _ => extras::HostTopProcessOrder::Rss,
+    }
 }
 
 async fn get_host_processes(
@@ -639,10 +665,56 @@ async fn get_host_processes(
     Query(q): Query<HostProcessesQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let limit = q.limit.unwrap_or(20);
-    let rows = tokio::task::spawn_blocking(move || extras::list_host_top_processes(limit))
+    let order = host_top_process_order(&q);
+    let rows = tokio::task::spawn_blocking(move || extras::list_host_top_processes(limit, order))
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
     Ok(Json(serde_json::json!(rows)))
+}
+
+#[derive(Deserialize)]
+struct HostKillProcessBody {
+    pid: u32,
+    /// `TERM` (default) or `KILL`.
+    #[serde(default)]
+    signal: Option<String>,
+}
+
+async fn post_host_kill_process(
+    State(_m): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Json(body): Json<HostKillProcessBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_browser_session_for_host_insight(&actor).map_err(AppError::from)?;
+    require_browse_host_paths(&actor)?;
+    let pid = body.pid;
+    let sig = body
+        .signal
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .unwrap_or("TERM")
+        .to_string();
+    let target = format!("pid={pid} signal={sig}");
+    let sig_for_block = sig.clone();
+    let res = tokio::task::spawn_blocking(move || extras::kill_host_process(pid, &sig_for_block))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    match res {
+        Ok(()) => {
+            log_audit_with_actor(&actor, "host-process-kill", &target, "ok");
+            Ok(Json(serde_json::json!({
+                "ok": true,
+                "pid": pid,
+                "signal": sig,
+            })))
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            log_audit_with_actor(&actor, "host-process-kill", &target, &msg);
+            Err(AppError::from(e))
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -1143,6 +1215,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/host/stats", get(get_host_stats))
         .route("/host/filesystems", get(get_host_filesystems))
         .route("/host/processes", get(get_host_processes))
+        .route("/host/processes/kill", post(post_host_kill_process))
         .route("/host/package-updates", get(get_host_package_updates))
         .route("/host/package-upgrade", post(post_host_package_upgrade))
         .route(

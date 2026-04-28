@@ -234,8 +234,22 @@ export interface HostProcess {
   args?: string
 }
 
-export const getHostTopProcesses = (limit = 20) =>
-  apiGet<HostProcess[]>(`${API}/host/processes?limit=${encodeURIComponent(String(limit))}`)
+/** `sort`: `rss` (default) = highest memory first; `cpu` = highest %CPU first. */
+export type HostTopProcessSort = 'rss' | 'cpu'
+
+export const getHostTopProcesses = (limit = 20, opts?: { sort?: HostTopProcessSort }) => {
+  const sp = new URLSearchParams()
+  sp.set('limit', String(limit))
+  if (opts?.sort && opts.sort !== 'rss') sp.set('sort', opts.sort)
+  return apiGet<HostProcess[]>(`${API}/host/processes?${sp.toString()}`)
+}
+
+/** Send SIGTERM or SIGKILL to a process on the hypervisor (admin browser session only). */
+export const postHostKillProcess = (pid: number, opts?: { signal?: 'TERM' | 'KILL' }) =>
+  apiPost<{ ok: boolean; pid: number; signal: string }>(`${API}/host/processes/kill`, {
+    pid,
+    ...(opts?.signal ? { signal: opts.signal } : {}),
+  })
 
 /** Distro-specific read-only update probe (apt/dnf/yum/pacman/zypper). */
 export interface PackageUpdateCheck {

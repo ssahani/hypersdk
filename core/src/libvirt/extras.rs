@@ -926,16 +926,29 @@ fn parse_df_bt_output(stdout: &str) -> Result<Vec<HostFilesystem>, LibvirtError>
     Ok(out)
 }
 
-/// Top processes by resident memory (`ps` from procps). Non-Linux returns an empty list.
-pub fn list_host_top_processes(limit: u32) -> Result<Vec<HostProcess>, LibvirtError> {
+/// How to order rows for [`list_host_top_processes`].
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum HostTopProcessOrder {
+    /// Resident set size (highest memory first).
+    #[default]
+    Rss,
+    /// `ps` %CPU (highest CPU first).
+    Cpu,
+}
+
+/// Top processes from `ps` (procps): by RSS or by CPU%. Non-Linux returns an empty list.
+pub fn list_host_top_processes(
+    limit: u32,
+    order: HostTopProcessOrder,
+) -> Result<Vec<HostProcess>, LibvirtError> {
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = limit;
+        let _ = (limit, order);
         Ok(Vec::new())
     }
     #[cfg(target_os = "linux")]
     {
-        list_host_top_processes_linux(limit)
+        list_host_top_processes_linux(limit, order)
     }
 }
 
@@ -958,13 +971,20 @@ fn read_proc_cmdline(pid: u32) -> String {
 }
 
 #[cfg(target_os = "linux")]
-fn list_host_top_processes_linux(limit: u32) -> Result<Vec<HostProcess>, LibvirtError> {
+fn list_host_top_processes_linux(
+    limit: u32,
+    order: HostTopProcessOrder,
+) -> Result<Vec<HostProcess>, LibvirtError> {
     let lim = limit.clamp(1, 100) as usize;
+    let sort_key: &str = match order {
+        HostTopProcessOrder::Rss => "--sort=-rss",
+        HostTopProcessOrder::Cpu => "--sort=-pcpu",
+    };
     let output = Command::new("ps")
         .args([
             "-eo",
             "pid=,user=,pcpu=,rss=,comm=",
-            "--sort=-rss",
+            sort_key,
             "--no-headers",
         ])
         .output()
@@ -1017,6 +1037,55 @@ fn list_host_top_processes_linux(limit: u32) -> Result<Vec<HostProcess>, Libvirt
         });
     }
     Ok(rows)
+}
+
+/// Send `SIGTERM` or `SIGKILL` to a host process (`signal`: `TERM`, `KILL`, optional `SIG*` prefix). Linux only.
+///
+/// Refuses PID ≤ 1, the current process (daemon), and unreasonably large PIDs. Runs as the daemon user (root), so
+/// this can terminate processes owned by other users.
+#[cfg(target_os = "linux")]
+pub fn kill_host_process(pid: u32, signal: &str) -> Result<(), LibvirtError> {
+    let sig = parse_kill_signal(signal)?;
+    if pid <= 1 {
+        return Err(LibvirtError::Operation(
+            "Refusing to signal init or kernel threads (PID ≤ 1)".into(),
+        ));
+    }
+    let own = std::process::id();
+    if pid == own {
+        return Err(LibvirtError::Operation(
+            "Refusing to signal the machina daemon process".into(),
+        ));
+    }
+    if pid > 4_194_304 {
+        return Err(LibvirtError::Operation("PID out of range".into()));
+    }
+    let rc = unsafe { libc::kill(pid as libc::pid_t, sig) };
+    if rc != 0 {
+        let err = std::io::Error::last_os_error();
+        return Err(LibvirtError::Operation(format!("kill: {err}")));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn parse_kill_signal(signal: &str) -> Result<i32, LibvirtError> {
+    let s = signal.trim();
+    let s = s.strip_prefix("SIG").unwrap_or(s);
+    match s.to_ascii_uppercase().as_str() {
+        "TERM" => Ok(libc::SIGTERM),
+        "KILL" => Ok(libc::SIGKILL),
+        _ => Err(LibvirtError::Operation(
+            "signal must be TERM or KILL (SIGTERM / SIGKILL accepted)".into(),
+        )),
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn kill_host_process(_pid: u32, _signal: &str) -> Result<(), LibvirtError> {
+    Err(LibvirtError::Operation(
+        "Killing host processes is only supported on Linux".into(),
+    ))
 }
 
 #[cfg(all(test, target_os = "linux"))]

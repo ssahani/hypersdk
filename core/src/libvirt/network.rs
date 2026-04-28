@@ -153,5 +153,12 @@ pub fn set_network_autostart(
     let net = lookup_network(conn, name)?;
     net.set_autostart(autostart)
         .map_err(LibvirtError::map_op("Failed to set autostart"))?;
+    if autostart && !net.is_active().unwrap_or(false) {
+        net.create().map_err(|e| {
+            LibvirtError::Operation(format!(
+                "Failed to start network '{name}' after enabling autostart: {e}"
+            ))
+        })?;
+    }
     Ok(())
 }

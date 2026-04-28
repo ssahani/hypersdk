@@ -63,6 +63,17 @@ export default function NetworksPage() {
         </div>
       </div>
 
+      <div className="rounded-lg border border-slate-600/40 bg-slate-900/40 px-4 py-3 text-sm text-slate-300 leading-relaxed">
+        <span className="font-medium text-slate-200">Autostart after a host reboot </span>
+        requires systemd to start libvirt when the machine boots (for example{' '}
+        <code className="text-slate-400">sudo systemctl enable --now libvirtd</code>
+        ). The toggle here only registers the network with libvirt; it does not replace that step.
+        On some distributions libvirt is split into{' '}
+        <code className="text-slate-400">virtnetworkd</code> and{' '}
+        <code className="text-slate-400">virtqemud</code> — enable those if your OS uses them.
+        For guests, turn on <strong className="text-slate-200">Autostart</strong> per VM on its detail page.
+      </div>
+
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <table className="w-full">
           <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Active</th><th className="px-6 py-3 hidden md:table-cell">Bridge</th><th className="px-6 py-3 hidden md:table-cell">Autostart</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
