@@ -2,14 +2,40 @@ use axum::extract::{Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
+use machina_core::libvirt::guest_agent::GuestIpAddress;
 use machina_core::libvirt::{
-    boot, capabilities, cdrom, domain_job, emulator, filesystem, guest_agent, host_cpu,
+    boot, capabilities, cdrom, domain_job, emulator, extras, filesystem, guest_agent, host_cpu,
     hostdev_pci, migrate, node_device, numa_tune, nwfilter, save_restore, secret, storage,
 };
 use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::conn_query::{spawn_libvirt, ConnQuery};
 use crate::error::{AppError, Xml};
+
+fn enrich_dns_ptr(mut addrs: Vec<GuestIpAddress>) -> Vec<GuestIpAddress> {
+    use std::net::IpAddr;
+    for a in &mut addrs {
+        if a.ip_type != "ipv4" {
+            continue;
+        }
+        let Ok(ip) = a.address.parse::<IpAddr>() else {
+            continue;
+        };
+        if ip.is_loopback() {
+            continue;
+        }
+        if let IpAddr::V4(v4) = ip {
+            if v4.is_link_local() || v4.is_broadcast() {
+                continue;
+            }
+        }
+        match dns_lookup::lookup_addr(&ip) {
+            Ok(name) if name != a.address => a.dns_ptr = Some(name),
+            _ => {}
+        }
+    }
+    addrs
+}
 
 // ── Guest Agent ─────────────────────────────────────────────────────
 
@@ -20,9 +46,16 @@ async fn get_interfaces(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let addrs = spawn_libvirt(manager, conn_q, move |conn| {
-        guest_agent::get_guest_interfaces(conn, &name2)
+        let addrs = guest_agent::get_guest_interfaces(conn, &name2)?;
+        let leases = extras::list_dhcp_leases(conn).unwrap_or_default();
+        Ok(guest_agent::enrich_with_dhcp_leases(addrs, &leases))
     })
     .await?;
+
+    let addrs = tokio::task::spawn_blocking(move || enrich_dns_ptr(addrs))
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+
     Ok(Json(serde_json::json!({
         "addresses": addrs,
         "queried_at": chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true),

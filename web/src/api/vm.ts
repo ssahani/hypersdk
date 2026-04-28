@@ -467,6 +467,14 @@ export interface GuestIpAddress {
   prefix: number
   /** `lease` | `arp` | `agent` — libvirt source for this row (deduped; first source wins). */
   source: string
+  /** From libvirt DHCP lease table (matched by IP/MAC). */
+  dhcp_hostname?: string
+  /** RFC3339 when matched from `virsh net-dhcp-leases`. */
+  dhcp_expires_at?: string
+  /** Relative to `queried_at` / server time. */
+  lease_seconds_remaining?: number
+  /** Reverse DNS (PTR) from the hypervisor when resolvable. */
+  dns_ptr?: string
 }
 
 export interface GuestInterfacesResponse {

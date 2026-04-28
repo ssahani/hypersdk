@@ -23,6 +23,7 @@ import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, Snapshot
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
+import { predictedIpv4Gateway } from '../utils/predictedRoute'
 import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -1140,21 +1141,75 @@ export default function VMDetailsPage() {
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                Rows merge libvirt DHCP <strong className="text-slate-400">lease</strong>, kernel <strong className="text-slate-400">ARP</strong>, then QEMU guest <strong className="text-slate-400">agent</strong>; first hit wins per address (same idea as Cockpit Machines).
+                Rows merge libvirt DHCP <strong className="text-slate-400">lease</strong>, kernel <strong className="text-slate-400">ARP</strong>, then QEMU guest <strong className="text-slate-400">agent</strong>; first hit wins per address. When libvirt exposes DHCP leases, machina adds hostname/expiry; PTR (reverse DNS) is resolved on the hypervisor when possible.
               </p>
-              {guestIps.map((ip, i) => (
-                <div key={i} className="flex items-center justify-between py-2 border-b border-slate-700/30 gap-4">
-                  <div>
-                    <span className="text-sm font-medium text-blue-400">{ip.address}/{ip.prefix}</span>
-                    <span className="text-xs text-slate-500 ml-2">{ip.ip_type}</span>
+              {guestIps.map((ip, i) => {
+                const gw =
+                  ip.ip_type === 'ipv4' ? predictedIpv4Gateway(ip.address, ip.prefix) : null
+                const leaseHint =
+                  ip.lease_seconds_remaining != null
+                    ? ip.lease_seconds_remaining < 0
+                      ? 'DHCP lease expired — renew guest NIC or check dnsmasq.'
+                      : `DHCP expires in ~${Math.max(1, Math.round(ip.lease_seconds_remaining / 60))} min`
+                    : null
+                return (
+                  <div key={i} className="py-3 border-b border-slate-700/30 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <span className="text-sm font-medium text-blue-400">
+                          {ip.address}/{ip.prefix}
+                        </span>
+                        <span className="text-xs text-slate-500 ml-2">{ip.ip_type}</span>
+                      </div>
+                      <span
+                        className="text-xs uppercase tracking-wide px-2 py-0.5 rounded bg-slate-700/80 text-slate-300 shrink-0"
+                        title="Discovery source"
+                      >
+                        {ip.source || '—'}
+                      </span>
+                      <div className="text-right min-w-0">
+                        <div className="text-xs font-mono text-slate-400 truncate">{ip.mac}</div>
+                        <div className="text-xs text-slate-500 truncate">{ip.name}</div>
+                      </div>
+                    </div>
+                    <div className="text-xs text-slate-500 space-y-1 pl-0.5 border-l border-slate-600/40">
+                      {ip.dhcp_hostname ? (
+                        <div>
+                          DHCP name:{' '}
+                          <span className="text-slate-300">{ip.dhcp_hostname}</span>
+                        </div>
+                      ) : null}
+                      {ip.dns_ptr ? (
+                        <div>
+                          PTR: <span className="font-mono text-slate-300">{ip.dns_ptr}</span>
+                        </div>
+                      ) : null}
+                      {gw ? (
+                        <div>
+                          Typical default gateway (subnet +1 guess):{' '}
+                          <code className="text-slate-300">{gw}</code>
+                        </div>
+                      ) : null}
+                      {ip.source === 'arp' ? (
+                        <div className="text-amber-400/90">
+                          ARP-derived — kernel cache; can be stale vs guest reality.
+                        </div>
+                      ) : null}
+                      {leaseHint ? (
+                        <div
+                          className={
+                            ip.lease_seconds_remaining != null && ip.lease_seconds_remaining < 0
+                              ? 'text-red-400/90'
+                              : 'text-slate-400'
+                          }
+                        >
+                          {leaseHint}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
-                  <span className="text-xs uppercase tracking-wide px-2 py-0.5 rounded bg-slate-700/80 text-slate-300 shrink-0" title="Discovery source">{ip.source || '—'}</span>
-                  <div className="text-right min-w-0">
-                    <div className="text-xs font-mono text-slate-400 truncate">{ip.mac}</div>
-                    <div className="text-xs text-slate-500 truncate">{ip.name}</div>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
 
@@ -1347,6 +1402,35 @@ export default function VMDetailsPage() {
               <p>
                 <strong className="text-slate-300">No DHCP</strong>: check the NIC is attached to an active libvirt network, guest OS has a driver (virtio), and cloud-init / NetworkManager aren&apos;t pinning a wrong config. Use the Overview &quot;Guest IP addresses&quot; panel to see whether libvirt sees a lease, ARP, or agent-reported address.
               </p>
+              <p>
+                <strong className="text-slate-300">Routing</strong>: many libvirt NAT networks use{' '}
+                <code className="text-slate-400">.1</code> as the default gateway on the guest subnet (e.g. 192.168.122.1 for 192.168.122.0/24). Bridged guests usually take the same gateway as other LAN hosts. If ping fails, verify firewall/NFT on the host and that the guest actually obtained an address.
+              </p>
+              {guestIps.filter((g) => g.ip_type === 'ipv4').length > 0 && (
+                <div className="pt-1">
+                  <span className="text-slate-300 font-medium">Snapshot predicted gateways</span>
+                  <ul className="list-disc list-inside mt-1 space-y-0.5">
+                    {guestIps
+                      .filter((g) => g.ip_type === 'ipv4')
+                      .map((g) => {
+                        const gw = predictedIpv4Gateway(g.address, g.prefix)
+                        return (
+                          <li key={`${g.address}-${g.prefix}`}>
+                            <span className="font-mono text-slate-300">{g.address}/{g.prefix}</span>
+                            {gw ? (
+                              <>
+                                {' '}
+                                → try gateway <code className="text-slate-300">{gw}</code>
+                              </>
+                            ) : (
+                              <span className="text-slate-500"> (prefix unsupported for guess)</span>
+                            )}
+                          </li>
+                        )
+                      })}
+                  </ul>
+                </div>
+              )}
             </div>
           </details>
           <div className="flex justify-end">

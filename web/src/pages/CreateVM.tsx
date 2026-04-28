@@ -6,6 +6,8 @@ import { getLibvirtSummary } from '../api/host'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listIsos, listSavedTemplates, ImageFile } from '../api/extras'
 import { listPools, listVolumes, StoragePoolInfo, StorageVolumeInfo } from '../api/storage'
+import { guestOsDetect } from '../api/guestImages'
+import { createVmDefaultsStorageKey, loadCreateVmDefaults, saveCreateVmDefaults } from '../utils/createVmDefaults'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { BuildStepTimeline } from '../components/BuildStepTimeline'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
@@ -43,6 +45,8 @@ type StorageMode = 'new' | 'volume'
 type PageFlow = 'install' | 'golden'
 type GoldenKind = 'template' | 'backing'
 type GuestProfile = 'auto' | 'linux' | 'windows'
+
+const INSTALL_WIZARD_STEPS = ['Source & OS', 'Disk', 'Network & display', 'Cloud-init', 'Review'] as const
 
 export default function CreateVMPage() {
   const navigate = useNavigate()
@@ -108,6 +112,16 @@ export default function CreateVMPage() {
   const [createProgressFailed, setCreateProgressFailed] = useState(false)
   const [packerProgressOk, setPackerProgressOk] = useState(false)
   const [packerProgressFailed, setPackerProgressFailed] = useState(false)
+
+  const [useInstallWizard, setUseInstallWizard] = useState(true)
+  const [installWizardStep, setInstallWizardStep] = useState(0)
+  const [osDetectBusy, setOsDetectBusy] = useState(false)
+
+  const createDefaultsKey = useMemo(() => {
+    const host = typeof window !== 'undefined' ? window.location.hostname : ''
+    return createVmDefaultsStorageKey(libSummary?.configured_uri, host)
+  }, [libSummary?.configured_uri])
+  const createDefaultsLoadedKey = useRef<string | null>(null)
 
   const vmCreateTimeline = useMemo(
     () => computeVmCreateTimeline(createLog, submitting, createProgressOk, createProgressFailed),
@@ -176,6 +190,33 @@ export default function CreateVMPage() {
       .catch(() => setSavedTemplates([]))
   }, [pageFlow])
 
+  useEffect(() => {
+    if (createDefaultsLoadedKey.current === createDefaultsKey) return
+    createDefaultsLoadedKey.current = createDefaultsKey
+    const d = loadCreateVmDefaults(createDefaultsKey)
+    if (!d) return
+    if (d.vcpus != null) setVcpus(d.vcpus)
+    if (d.memory_mb != null) setMemoryMb(d.memory_mb)
+    if (d.disk_gb != null) setDiskGb(d.disk_gb)
+    if (d.network) setNetwork(d.network)
+    if (d.firmware) setFirmware(d.firmware)
+    if (d.graphics_type === 'vnc' || d.graphics_type === 'spice') setGraphicsType(d.graphics_type)
+    if (d.graphics_listen) setGraphicsListen(d.graphics_listen)
+    if (d.guest_profile === 'auto' || d.guest_profile === 'linux' || d.guest_profile === 'windows') {
+      setGuestProfile(d.guest_profile)
+    }
+    if (d.os_variant != null) setOsVariant(d.os_variant)
+    if (d.virt_install_extra_args != null) setVirtInstallExtraArgs(d.virt_install_extra_args)
+    if (d.install_source === 'iso' || d.install_source === 'url' || d.install_source === 'pxe' || d.install_source === 'download') {
+      setInstallSource(d.install_source)
+    }
+    if (d.storage_mode === 'new' || d.storage_mode === 'volume') setStorageMode(d.storage_mode)
+    if (d.disk_pool) setDiskPool(d.disk_pool)
+    if (d.cloud_init_user != null) setCloudInitUser(d.cloud_init_user)
+    if (d.cloud_init_ssh_pubkey != null) setCloudInitSshKey(d.cloud_init_ssh_pubkey)
+    if (d.virtio_win_iso != null) setVirtioWinIso(d.virtio_win_iso)
+  }, [createDefaultsKey])
+
   const setSource = (src: InstallSource) => {
     setInstallSource(src)
     if (src !== 'iso') setIso('')
@@ -239,6 +280,34 @@ export default function CreateVMPage() {
       setPackerProgressFailed(true)
       toast.error(e instanceof Error ? e.message : String(e))
       setPackerRunning(false)
+    }
+  }
+
+  const runOsDetect = async () => {
+    const url = virtInstallLocation.trim()
+    if (!url) {
+      toast.warning('Enter an install tree URL first')
+      return
+    }
+    setOsDetectBusy(true)
+    try {
+      const r = await guestOsDetect(url)
+      if (r.exit_code === 0 && r.stdout) {
+        const first = r.stdout.split('\n').map((l) => l.trim()).find((l) => l.length > 0) ?? ''
+        const token = first.split(/\s+/)[0] ?? ''
+        if (token) {
+          setOsVariant(token)
+          toast.success('osinfo-detect: applied first token to OS variant (verify against libosinfo)')
+        } else {
+          toast.warning('osinfo-detect returned empty stdout')
+        }
+      } else {
+        toast.warning(r.stderr || 'osinfo-detect failed — install osinfo-tools on the hypervisor')
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setOsDetectBusy(false)
     }
   }
 
@@ -320,6 +389,24 @@ export default function CreateVMPage() {
     try {
       await createVMWithProgress(req, (line) => setCreateLog((prev) => [...prev, line]))
       setCreateProgressOk(true)
+      saveCreateVmDefaults(createDefaultsKey, {
+        vcpus,
+        memory_mb: memoryMb,
+        disk_gb: diskGb,
+        network,
+        firmware,
+        graphics_type: graphicsType,
+        graphics_listen: graphicsListen,
+        guest_profile: guestProfile,
+        os_variant: osVariant.trim() || undefined,
+        virt_install_extra_args: virtInstallExtraArgs.trim() || undefined,
+        install_source: installSource,
+        storage_mode: storageMode,
+        disk_pool: diskPool || undefined,
+        cloud_init_user: cloudInitUser.trim() || undefined,
+        cloud_init_ssh_pubkey: cloudInitSshKey.trim() || undefined,
+        virtio_win_iso: virtioWinIso.trim() || undefined,
+      })
       toast.success(`VM '${name}' created — open Console to finish install (same idea as Cockpit Machines).`)
       navigate(vmDetailRoute(name, createLibvirtTarget === 'session' ? 'session' : undefined))
     } catch (e: unknown) {
@@ -486,7 +573,49 @@ export default function CreateVMPage() {
 
       {pageFlow === 'install' && (
         <>
+      {useInstallWizard && (
+        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-2">
+            {INSTALL_WIZARD_STEPS.map((label, i) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setInstallWizardStep(i)}
+                className={`text-xs px-2 py-1.5 rounded-lg transition ${
+                  i === installWizardStep ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                {i + 1}. {label}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className="text-xs text-slate-400 hover:text-slate-200 underline"
+            onClick={() => setUseInstallWizard(false)}
+          >
+            Single-page form
+          </button>
+        </div>
+      )}
+      {!useInstallWizard && (
+        <div className="text-right mb-2">
+          <button
+            type="button"
+            className="text-xs text-cyan-400 hover:underline"
+            onClick={() => {
+              setUseInstallWizard(true)
+              setInstallWizardStep(0)
+            }}
+          >
+            Use guided steps
+          </button>
+        </div>
+      )}
+
       {/* Installation source (Cockpit-style) */}
+      {(!useInstallWizard || installWizardStep === 0) && (
+      <>
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
           <Disc className="w-5 h-5 text-amber-400" />
@@ -559,14 +688,27 @@ export default function CreateVMPage() {
             <label htmlFor="loc-url" className="block text-sm text-slate-400 mb-1">
               Install URL or directory tree *
             </label>
-            <input
-              id="loc-url"
-              type="text"
-              value={virtInstallLocation}
-              onChange={(e) => setVirtInstallLocation(e.target.value)}
-              className="input-field font-mono text-sm"
-              placeholder="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/os/"
-            />
+            <div className="flex flex-wrap gap-2 items-end">
+              <input
+                id="loc-url"
+                type="text"
+                value={virtInstallLocation}
+                onChange={(e) => setVirtInstallLocation(e.target.value)}
+                className="input-field font-mono text-sm flex-1 min-w-[min(100%,16rem)]"
+                placeholder="https://download.fedoraproject.org/pub/fedora/linux/releases/40/Server/x86_64/os/"
+              />
+              <button
+                type="button"
+                onClick={() => void runOsDetect()}
+                disabled={osDetectBusy}
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded-lg text-sm shrink-0"
+              >
+                {osDetectBusy ? 'Detecting…' : 'Detect OS'}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Runs <code className="text-slate-400">osinfo-detect --type=tree</code> on the hypervisor; first stdout token fills OS variant when it succeeds.
+            </p>
           </div>
         )}
 
@@ -731,8 +873,11 @@ export default function CreateVMPage() {
           )}
         </div>
       </div>
+      </>
+      )}
 
       {/* Storage — Cockpit: new image vs existing volume */}
+      {(!useInstallWizard || installWizardStep === 1) && (
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
           <HardDrive className="w-5 h-5 text-sky-400" />
@@ -815,8 +960,10 @@ export default function CreateVMPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Network + console */}
+      {(!useInstallWizard || installWizardStep === 2) && (
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
           <Network className="w-5 h-5 text-emerald-400" />
@@ -887,8 +1034,10 @@ export default function CreateVMPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* Optional cloud-init CD */}
+      {(!useInstallWizard || installWizardStep === 3) && (
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
         <h2 className="text-base font-semibold text-white">Cloud-init / seed ISO (optional)</h2>
         <p className="text-xs text-slate-500">
@@ -926,15 +1075,79 @@ export default function CreateVMPage() {
           Ignore path-in-use check (busy images / volumes)
         </label>
       </div>
+      )}
 
-      <button
-        type="button"
-        onClick={handleCreate}
-        disabled={submitting}
-        className="w-full sm:w-auto px-8 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm font-medium transition"
-      >
-        {submitting ? 'Creating…' : 'Create VM (install continues in Console)'}
-      </button>
+      {useInstallWizard && (
+        <div className="flex flex-wrap justify-between items-center gap-2 bg-slate-800/30 rounded-lg px-3 py-2 border border-slate-700/40">
+          <button
+            type="button"
+            disabled={installWizardStep === 0}
+            onClick={() => setInstallWizardStep((s) => Math.max(0, s - 1))}
+            className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 disabled:opacity-40 text-sm"
+          >
+            Back
+          </button>
+          <span className="text-sm text-slate-500">
+            Step {installWizardStep + 1} of {INSTALL_WIZARD_STEPS.length}
+          </span>
+          {installWizardStep < 4 ? (
+            <button
+              type="button"
+              onClick={() => setInstallWizardStep((s) => Math.min(4, s + 1))}
+              className="px-4 py-2 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-sm"
+            >
+              Next
+            </button>
+          ) : (
+            <span className="w-20 sm:w-24" aria-hidden />
+          )}
+        </div>
+      )}
+
+      {useInstallWizard && installWizardStep === 4 && (
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-cyan-800/50 space-y-2 text-sm text-slate-300">
+          <h2 className="text-lg font-semibold text-white">Review</h2>
+          <p>
+            <span className="text-slate-500">Name:</span> {vmName.trim() || '—'}
+          </p>
+          <p>
+            <span className="text-slate-500">Install source:</span> {installSource}
+          </p>
+          <p>
+            <span className="text-slate-500">CPU / RAM / disk:</span> {vcpus} vCPU — {memoryMb} MiB —{' '}
+            {storageMode === 'new' ? (
+              <span>new {diskGb} GiB</span>
+            ) : (
+              <span>
+                pool <code className="text-slate-300">{diskPool || '—'}</code> / vol{' '}
+                <code className="text-slate-300">{diskVol || '—'}</code>
+              </span>
+            )}
+          </p>
+          <p>
+            <span className="text-slate-500">Network / console:</span> {network} — {graphicsType} @ {graphicsListen}
+          </p>
+          <p>
+            <span className="text-slate-500">Cloud-init user:</span> {cloudInitUser.trim() || '—'}
+          </p>
+          <p className="text-xs text-slate-500 pt-1">
+            Sane defaults for this browser + hypervisor (
+            <code className="text-slate-400">{libSummary?.configured_uri ?? 'default'}</code>
+            ) are saved to local storage after a successful create.
+          </p>
+        </div>
+      )}
+
+      {(!useInstallWizard || installWizardStep === 4) && (
+        <button
+          type="button"
+          onClick={handleCreate}
+          disabled={submitting}
+          className="w-full sm:w-auto px-8 py-3 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg text-sm font-medium transition"
+        >
+          {submitting ? 'Creating…' : 'Create VM (install continues in Console)'}
+        </button>
+      )}
         </>
       )}
 
