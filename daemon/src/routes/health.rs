@@ -92,15 +92,6 @@ async fn host_problems() -> Json<serde_json::Value> {
             "doc_url": null,
         }));
     }
-    if let Some(detail) = host_virt::libvirt_boot_autostart_problem_detail() {
-        items.push(json!({
-            "id": "libvirt_systemd_boot",
-            "severity": "warning",
-            "title": "Libvirt may not start automatically on host reboot",
-            "detail": detail,
-            "doc_url": null,
-        }));
-    }
     for path in ["/var/lib/libvirt", "/var/lib/machina", "/"] {
         if let Some(pct) = df_use_percent(path) {
             if pct >= 90 {
@@ -118,10 +109,27 @@ async fn host_problems() -> Json<serde_json::Value> {
     Json(json!({ "items": items }))
 }
 
+async fn host_libvirt_boot_status() -> Json<serde_json::Value> {
+    let issue = host_virt::libvirt_boot_autostart_issue();
+    Json(match issue {
+        Some(i) => json!({
+            "needs_attention": true,
+            "detail": i.detail,
+            "systemd_unit": i.systemd_unit,
+        }),
+        None => json!({
+            "needs_attention": false,
+            "detail": null,
+            "systemd_unit": null,
+        }),
+    })
+}
+
 pub fn health_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/health", get(health_check))
         .route("/health/problems", get(host_problems))
         .route("/host/virtualization", get(host_virtualization))
+        .route("/host/libvirt-boot", get(host_libvirt_boot_status))
         .route("/libvirt/summary", get(libvirt_summary))
 }

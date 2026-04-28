@@ -1,6 +1,7 @@
 use axum::extract::{Path, State};
-use axum::routing::{delete, get, post};
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
+use serde::Deserialize;
 
 use machina_core::libvirt::network;
 use machina_core::{CreateNetworkRequest, LibvirtError, LibvirtManager, NetworkInfo};
@@ -82,6 +83,26 @@ async fn get_network_xml(
     Ok(Xml(result?))
 }
 
+#[derive(Deserialize)]
+struct UpdateNetworkXmlBody {
+    xml: String,
+}
+
+async fn update_network_xml(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Json(body): Json<UpdateNetworkXmlBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let xml = body.xml;
+    let name2 = name.clone();
+    tokio::task::spawn_blocking(move || {
+        manager.with_conn(|conn| network::update_network_xml(conn, &name2, &xml))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(ok_json("updated", &name))
+}
+
 async fn set_network_autostart(
     State(manager): State<LibvirtManager>,
     Path((name, enabled)): Path<(String, String)>,
@@ -104,7 +125,10 @@ pub fn network_routes() -> Router<LibvirtManager> {
         .route("/networks/{name}", delete(delete_network_handler))
         .route("/networks/{name}/start", post(start_network))
         .route("/networks/{name}/stop", post(stop_network))
-        .route("/networks/{name}/xml", get(get_network_xml))
+        .route(
+            "/networks/{name}/xml",
+            get(get_network_xml).put(update_network_xml),
+        )
         .route(
             "/networks/{name}/autostart/{enabled}",
             post(set_network_autostart),

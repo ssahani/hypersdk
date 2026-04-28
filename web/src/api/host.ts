@@ -34,3 +34,12 @@ export interface HealthProblemItem {
 export async function getHealthProblems(): Promise<{ items: HealthProblemItem[] }> {
   return apiGet(`${API}/health/problems`)
 }
+
+/** Libvirt-related systemd units needed for NAT/QEMU autostart after host reboot (Host overview). */
+export interface LibvirtBootStatus {
+  needs_attention: boolean
+  detail: string | null
+  systemd_unit: string | null
+}
+
+export const getHostLibvirtBoot = () => apiGet<LibvirtBootStatus>(`${API}/host/libvirt-boot`)

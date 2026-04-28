@@ -37,6 +37,8 @@ import { formatBytes } from '../utils/vm'
 import { ChoiceCardGrid, ChoiceLinkCard } from '../components/ChoiceCards'
 import { useToastContext } from '../contexts/ToastContext'
 import { getSession, type SessionRole } from '../api/auth'
+import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
+import { serviceAction } from '../api/extras'
 
 interface StatsPoint { time: string; cpu: number; mem: number; disk: number; load: number }
 
@@ -173,6 +175,8 @@ export default function NodeInfoPage() {
   const [timezoneInput, setTimezoneInput] = useState('')
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [killBusyPid, setKillBusyPid] = useState<number | null>(null)
+  const [libvirtBoot, setLibvirtBoot] = useState<LibvirtBootStatus | null>(null)
+  const [libvirtBootBusy, setLibvirtBootBusy] = useState(false)
 
   const canKillHostProcess = sessionRole === 'admin'
 
@@ -190,8 +194,9 @@ export default function NodeInfoPage() {
       getHostPasswdUsers(200),
       getHostGroups(200),
       getHostSecuritySummary(),
+      getHostLibvirtBoot(),
     ])
-      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec]) => {
+      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb]) => {
         if (n.status === 'fulfilled') setNode(n.value)
         if (h.status === 'fulfilled') setHealth(h.value)
         if (si.status === 'fulfilled') setSysInfo(si.value)
@@ -222,6 +227,8 @@ export default function NodeInfoPage() {
         else setGroups([])
         if (sec.status === 'fulfilled') setSecuritySummary(sec.value)
         else setSecuritySummary(null)
+        if (lb.status === 'fulfilled') setLibvirtBoot(lb.value)
+        else setLibvirtBoot(null)
         if (s.status === 'fulfilled') {
           setStats(s.value)
           const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -420,6 +427,26 @@ export default function NodeInfoPage() {
     [canKillHostProcess, toast],
   )
 
+  const enableLibvirtBootUnit = useCallback(async () => {
+    if (!libvirtBoot?.needs_attention || !libvirtBoot.systemd_unit) return
+    setLibvirtBootBusy(true)
+    try {
+      await serviceAction(libvirtBoot.systemd_unit, 'enable_now')
+      toast.success(
+        `Enabled and started ${libvirtBoot.systemd_unit}. If other tabs stall briefly, libvirt is reconnecting — wait a few seconds or refresh.`,
+      )
+      try {
+        setLibvirtBoot(await getHostLibvirtBoot())
+      } catch {
+        setLibvirtBoot(null)
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLibvirtBootBusy(false)
+    }
+  }, [libvirtBoot, toast])
+
   useEffect(() => {
     getSession()
       .then((s) => {
@@ -454,6 +481,25 @@ export default function NodeInfoPage() {
         </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
       </div>
+
+      {libvirtBoot?.needs_attention && libvirtBoot.detail && (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-amber-100">Libvirt at host boot</p>
+            <p className="text-xs text-amber-100/85 mt-1 leading-relaxed">{libvirtBoot.detail}</p>
+          </div>
+          {libvirtBoot.systemd_unit ? (
+            <button
+              type="button"
+              disabled={libvirtBootBusy}
+              onClick={() => void enableLibvirtBootUnit()}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/25 text-amber-100 border border-amber-500/40 hover:bg-amber-600/40 disabled:opacity-50 transition"
+            >
+              {libvirtBootBusy ? 'Running…' : `Enable at boot (${libvirtBoot.systemd_unit})`}
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {/* Health Status */}
       {health && (

@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback } from 'react'
-import { listNetworks, createNetwork, startNetwork, stopNetwork, deleteNetwork, setNetworkAutostart, NetworkInfo } from '../api/network'
-import { listDhcpLeases, DhcpLease } from '../api/extras'
+import { listNetworks, createNetwork, startNetwork, stopNetwork, deleteNetwork, setNetworkAutostart, getNetworkXml, setNetworkXml, NetworkInfo } from '../api/network'
+import { listDhcpLeases, DhcpLease, serviceAction } from '../api/extras'
+import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X } from 'lucide-react'
+import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X, Pencil } from 'lucide-react'
 
 export default function NetworksPage() {
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
@@ -15,13 +16,25 @@ export default function NetworksPage() {
   const [newSubnet, setNewSubnet] = useState('192.168.100')
   const [newDhcpStart, setNewDhcpStart] = useState('192.168.100.100')
   const [newDhcpEnd, setNewDhcpEnd] = useState('192.168.100.254')
+  const [libvirtBoot, setLibvirtBoot] = useState<LibvirtBootStatus | null>(null)
+  const [libvirtBootBusy, setLibvirtBootBusy] = useState(false)
+  const [editTarget, setEditTarget] = useState<NetworkInfo | null>(null)
+  const [editXml, setEditXml] = useState('')
+  const [editXmlLoading, setEditXmlLoading] = useState(false)
+  const [editXmlSaving, setEditXmlSaving] = useState(false)
   const toast = useToastContext()
 
   const load = useCallback(async () => {
     try {
-      const [nets, dhcp] = await Promise.allSettled([listNetworks(), listDhcpLeases()])
+      const [nets, dhcp, lb] = await Promise.allSettled([
+        listNetworks(),
+        listDhcpLeases(),
+        getHostLibvirtBoot(),
+      ])
       if (nets.status === 'fulfilled') setNetworks(nets.value)
       if (dhcp.status === 'fulfilled') setLeases(dhcp.value)
+      if (lb.status === 'fulfilled') setLibvirtBoot(lb.value)
+      else setLibvirtBoot(null)
     } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
     finally { setLoading(false) }
   }, [toast])
@@ -51,6 +64,56 @@ export default function NetworksPage() {
     } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
   }
 
+  const openEditXml = async (net: NetworkInfo) => {
+    setEditTarget(net)
+    setEditXml('')
+    setEditXmlLoading(true)
+    try {
+      const xml = await getNetworkXml(net.name)
+      setEditXml(xml)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+      setEditTarget(null)
+    } finally {
+      setEditXmlLoading(false)
+    }
+  }
+
+  const saveEditXml = async () => {
+    if (!editTarget) return
+    setEditXmlSaving(true)
+    try {
+      await setNetworkXml(editTarget.name, editXml)
+      toast.success(`Updated network '${editTarget.name}'`)
+      setEditTarget(null)
+      load()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setEditXmlSaving(false)
+    }
+  }
+
+  const enableLibvirtBootUnit = async () => {
+    if (!libvirtBoot?.needs_attention || !libvirtBoot.systemd_unit) return
+    setLibvirtBootBusy(true)
+    try {
+      await serviceAction(libvirtBoot.systemd_unit, 'enable_now')
+      toast.success(
+        `Enabled and started ${libvirtBoot.systemd_unit}. If the dashboard stalls briefly, libvirt is reconnecting — wait or refresh.`,
+      )
+      try {
+        setLibvirtBoot(await getHostLibvirtBoot())
+      } catch {
+        setLibvirtBoot(null)
+      }
+    } catch (e: unknown) {
+      toast.error(`${e instanceof Error ? e.message : e}`)
+    } finally {
+      setLibvirtBootBusy(false)
+    }
+  }
+
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
 
   return (
@@ -63,16 +126,27 @@ export default function NetworksPage() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-slate-600/40 bg-slate-900/40 px-4 py-3 text-sm text-slate-300 leading-relaxed">
-        <span className="font-medium text-slate-200">Autostart after a host reboot </span>
-        requires systemd to start libvirt when the machine boots (for example{' '}
-        <code className="text-slate-400">sudo systemctl enable --now libvirtd</code>
-        ). The toggle here only registers the network with libvirt; it does not replace that step.
-        On some distributions libvirt is split into{' '}
-        <code className="text-slate-400">virtnetworkd</code> and{' '}
-        <code className="text-slate-400">virtqemud</code> — enable those if your OS uses them.
-        For guests, turn on <strong className="text-slate-200">Autostart</strong> per VM on its detail page.
-      </div>
+      {libvirtBoot?.needs_attention && libvirtBoot.detail && (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-amber-100">Libvirt networks after host reboot</p>
+            <p className="text-xs text-amber-100/85 mt-1 leading-relaxed">{libvirtBoot.detail}</p>
+            <p className="text-xs text-slate-500 mt-1.5">
+              Per-network Autostart below only applies once the libvirt daemon for NAT (<code className="text-slate-400">virtnetworkd</code> or <code className="text-slate-400">libvirtd</code>) starts at boot.
+            </p>
+          </div>
+          {libvirtBoot.systemd_unit ? (
+            <button
+              type="button"
+              disabled={libvirtBootBusy}
+              onClick={() => void enableLibvirtBootUnit()}
+              className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/25 text-amber-100 border border-amber-500/40 hover:bg-amber-600/40 disabled:opacity-50 transition"
+            >
+              {libvirtBootBusy ? 'Running…' : `Enable at boot (${libvirtBoot.systemd_unit})`}
+            </button>
+          ) : null}
+        </div>
+      )}
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <table className="w-full">
@@ -90,6 +164,7 @@ export default function NetworksPage() {
                 </td>
                 <td className="px-6 py-3">
                   <div className="flex items-center justify-end gap-1">
+                    <button type="button" onClick={() => void openEditXml(net)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Edit XML"><Pencil className="w-4 h-4 text-slate-300" /></button>
                     {!net.active && <button onClick={() => action(net.name, startNetwork, 'Start network')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className="w-4 h-4 text-green-400" /></button>}
                     {net.active && <button onClick={() => action(net.name, stopNetwork, 'Stop network')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Stop"><Square className="w-4 h-4 text-red-400" /></button>}
                     <button onClick={() => setDeleteTarget(net.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
@@ -120,6 +195,54 @@ export default function NetworksPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Edit network XML */}
+      {editTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" role="dialog" aria-modal="true" onClick={() => !editXmlSaving && setEditTarget(null)}>
+          <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-5 border-b border-slate-700/50 flex items-center justify-between shrink-0">
+              <div>
+                <span className="text-lg font-semibold flex items-center gap-2"><Network className="w-5 h-5 text-blue-400" /> Edit network XML</span>
+                <p className="text-xs text-slate-500 mt-1 font-mono">{editTarget.name}</p>
+              </div>
+              <button type="button" onClick={() => !editXmlSaving && setEditTarget(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
+            </div>
+            <div className="p-5 flex-1 min-h-0 flex flex-col gap-3">
+              {editTarget.active && (
+                <p className="text-xs text-amber-200/90 bg-amber-950/40 border border-amber-600/30 rounded-lg px-3 py-2">
+                  This network is active. Saving applies the new definition and briefly restarts the network (guest NICs may drop traffic for a moment).
+                </p>
+              )}
+              {editXmlLoading ? (
+                <div className="flex justify-center py-12 text-slate-400 text-sm">Loading XML…</div>
+              ) : (
+                <>
+                  <label htmlFor="net-xml-edit" className="text-sm text-slate-400">Libvirt network XML (keep <code className="text-slate-500">&lt;name&gt;</code> equal to <span className="font-mono text-slate-300">{editTarget.name}</span>)</label>
+                  <textarea
+                    id="net-xml-edit"
+                    value={editXml}
+                    onChange={e => setEditXml(e.target.value)}
+                    spellCheck={false}
+                    className="w-full min-h-[280px] flex-1 font-mono text-xs bg-slate-900/80 border border-slate-600/50 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/40 resize-y"
+                    disabled={editXmlSaving}
+                  />
+                </>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 px-5 pb-5 shrink-0 border-t border-slate-700/50 pt-4">
+              <button type="button" onClick={() => !editXmlSaving && setEditTarget(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm font-medium transition">Cancel</button>
+              <button
+                type="button"
+                disabled={editXmlSaving || editXmlLoading || !editXml.trim()}
+                onClick={() => void saveEditXml()}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm text-white font-medium transition disabled:opacity-50"
+              >
+                {editXmlSaving ? 'Saving…' : 'Save definition'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

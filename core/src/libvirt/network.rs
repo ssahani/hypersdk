@@ -53,6 +53,80 @@ pub fn get_network_xml(conn: &Connect, name: &str) -> Result<String, LibvirtErro
         .map_err(|e| LibvirtError::Operation(format!("get_xml network '{name}': {e}")))
 }
 
+/// Maximum accepted size for a network XML document (bytes).
+const MAX_NETWORK_XML_BYTES: usize = 512 * 1024;
+
+/// Extract `<name>...</name>` from a libvirt network XML document (first occurrence).
+fn parse_network_name_from_xml(xml: &str) -> Option<String> {
+    let lower = xml.to_ascii_lowercase();
+    let key = "<name>";
+    let start = lower.find(key)?;
+    let rest = xml.get(start + key.len()..)?;
+    let close = rest.to_ascii_lowercase().find("</name>")?;
+    let inner = rest.get(..close)?.trim();
+    if inner.is_empty() {
+        return None;
+    }
+    Some(inner.to_string())
+}
+
+/// Replace persistent network definition from XML. The `<name>` in XML must match `name`.
+///
+/// If the network was active, it is destroyed and started again so the running instance matches
+/// the new definition (brief disconnect for attached guests).
+pub fn update_network_xml(conn: &Connect, name: &str, xml: &str) -> Result<(), LibvirtError> {
+    crate::validate::validate_name(name)?;
+
+    let xml = xml.trim();
+    if xml.is_empty() {
+        return Err(LibvirtError::Invalid("Network XML is empty".into()));
+    }
+    if xml.len() > MAX_NETWORK_XML_BYTES {
+        return Err(LibvirtError::Invalid(format!(
+            "Network XML exceeds {} bytes",
+            MAX_NETWORK_XML_BYTES
+        )));
+    }
+    if !xml.to_ascii_lowercase().contains("<network") {
+        return Err(LibvirtError::Invalid(
+            "Network XML must contain a <network> root element".into(),
+        ));
+    }
+
+    let xml_name = parse_network_name_from_xml(xml).ok_or_else(|| {
+        LibvirtError::Invalid("Network XML must contain a <name>...</name> element".into())
+    })?;
+    if xml_name != name {
+        return Err(LibvirtError::Invalid(format!(
+            "XML <name> must match the network being edited (expected '{name}', got '{xml_name}')"
+        )));
+    }
+
+    let net = lookup_network(conn, name)?;
+    let was_active = net.is_active().unwrap_or(false);
+
+    Network::define_xml(conn, xml).map_err(|e| {
+        LibvirtError::Operation(format!("Failed to update network '{name}' definition: {e}"))
+    })?;
+
+    if was_active {
+        let net = lookup_network(conn, name)?;
+        net.destroy().map_err(|e| {
+            LibvirtError::Operation(format!(
+                "Updated definition but failed to stop network '{name}' to apply changes: {e}"
+            ))
+        })?;
+        let net = lookup_network(conn, name)?;
+        net.create().map_err(|e| {
+            LibvirtError::Operation(format!(
+                "Updated definition but failed to restart network '{name}': {e}. Start it manually from the UI."
+            ))
+        })?;
+    }
+
+    Ok(())
+}
+
 fn validate_ip(ip: &str, label: &str) -> Result<std::net::Ipv4Addr, LibvirtError> {
     ip.parse::<std::net::Ipv4Addr>().map_err(|_| {
         LibvirtError::Invalid(format!("Invalid {label}: '{ip}' (expected IPv4 address)"))

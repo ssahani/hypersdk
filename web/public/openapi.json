@@ -1269,6 +1269,27 @@
         "tags": ["Networks"],
         "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
         "responses": { "200": { "description": "Network XML" } }
+      },
+      "put": {
+        "summary": "Replace virtual network XML (persistent definition). Active networks are restarted to apply.",
+        "tags": ["Networks"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["xml"],
+                "properties": { "xml": { "type": "string", "description": "Full libvirt network XML; <name> must match path name" } }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Definition updated" },
+          "400": { "description": "Invalid XML or name mismatch" }
+        }
       }
     },
     "/networks/{name}/autostart/{enabled}": {

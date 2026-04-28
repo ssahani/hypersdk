@@ -10,7 +10,7 @@ export default function ConnectionStatus() {
   const title = isLive
     ? 'Real-time VM updates connected (/ws/v1/watch)'
     : isConnecting
-      ? 'Connecting to real-time updates… If this never turns Live, your proxy may be blocking WebSockets (see README).'
+      ? 'Connecting to real-time updates… Can stay here briefly after libvirt or the daemon restarts. If it never turns Live, check WebSockets through your proxy (see README).'
       : 'Could not obtain a WebSocket token (try refreshing after sign-in).'
 
   return (

@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPostVoid, apiDelete } from './client'
+import { apiGet, apiPost, apiPostVoid, apiDelete, apiPut } from './client'
 
 const API = '/api/v1'
 
@@ -24,4 +24,9 @@ export const deleteNetwork = (name: string) => apiDelete(`${API}/networks/${enco
 export const startNetwork = (name: string) => apiPostVoid(`${API}/networks/${encodeURIComponent(name)}/start`)
 export const stopNetwork = (name: string) => apiPostVoid(`${API}/networks/${encodeURIComponent(name)}/stop`)
 export const getNetworkXml = (name: string) => apiGet<string>(`${API}/networks/${encodeURIComponent(name)}/xml`)
+
+/** Replace persistent network definition. `<name>` in XML must match `name`. Active networks are restarted to apply. */
+export const setNetworkXml = (name: string, xml: string) =>
+  apiPut<{ status: string; name: string }>(`${API}/networks/${encodeURIComponent(name)}/xml`, { xml })
+
 export const setNetworkAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/networks/${encodeURIComponent(name)}/autostart/${enabled}`)

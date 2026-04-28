@@ -1546,26 +1546,38 @@ fn validate_service_name(name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
-/// Perform a systemctl action (start/stop/restart/enable/disable) on a service.
+/// Perform a systemctl action (start/stop/restart/enable/disable/enable_now) on a service.
+/// `enable_now` runs `systemctl enable --now` (enable at boot and start now).
 pub fn service_action(name: &str, action: &str) -> Result<(), LibvirtError> {
     validate_service_name(name)?;
 
-    let valid_actions = ["start", "stop", "restart", "enable", "disable"];
+    let valid_actions = [
+        "start", "stop", "restart", "enable", "disable", "enable_now",
+    ];
     if !valid_actions.contains(&action) {
         return Err(LibvirtError::Invalid(format!(
-            "Invalid action: {action}. Must be one of: start, stop, restart, enable, disable"
+            "Invalid action: {action}. Must be one of: start, stop, restart, enable, disable, enable_now"
         )));
     }
 
-    let output = Command::new("systemctl")
-        .args([action, name])
-        .output()
-        .map_err(LibvirtError::map_op("Failed to run systemctl"))?;
+    let output = if action == "enable_now" {
+        Command::new("systemctl")
+            .args(["enable", "--now", name])
+            .output()
+    } else {
+        Command::new("systemctl").args([action, name]).output()
+    }
+    .map_err(LibvirtError::map_op("Failed to run systemctl"))?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
+        let label = if action == "enable_now" {
+            "enable --now"
+        } else {
+            action
+        };
         return Err(LibvirtError::Operation(format!(
-            "systemctl {action} {name} failed: {stderr}"
+            "systemctl {label} {name} failed: {stderr}"
         )));
     }
 

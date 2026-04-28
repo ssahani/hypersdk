@@ -9,7 +9,7 @@ import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { timeAgo } from '../utils/time'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
@@ -44,21 +44,28 @@ export default function Dashboard() {
   }
 
   const loadData = useCallback(async () => {
+    const [vmR, netR, poolR, nodeR] = await Promise.allSettled([
+      listVMs(),
+      listNetworks(),
+      listPools(),
+      getNodeInfo(),
+    ])
+    if (vmR.status === 'fulfilled') setVMs(vmR.value)
+    if (netR.status === 'fulfilled') setNetworks(netR.value)
+    if (poolR.status === 'fulfilled') setPools(poolR.value)
+    if (nodeR.status === 'fulfilled') setNode(nodeR.value)
+    else if (import.meta.env.DEV) console.warn('Dashboard: getNodeInfo failed', nodeR.reason)
+
+    try { setHostStats(await getHostStats()) } catch { /* optional */ }
+    try { setVirtHost(await getHostVirtualization()) } catch { setVirtHost(null) }
+    try { setLibSummary(await getLibvirtSummary()) } catch { setLibSummary(null) }
     try {
-      const [vmData, netData, poolData, nodeData] = await Promise.all([
-        listVMs(), listNetworks(), listPools(), getNodeInfo(),
-      ])
-      setVMs(vmData); setNetworks(netData); setPools(poolData); setNode(nodeData)
-      try { setHostStats(await getHostStats()) } catch { /* optional */ }
-      try { setVirtHost(await getHostVirtualization()) } catch { setVirtHost(null) }
-      try { setLibSummary(await getLibvirtSummary()) } catch { setLibSummary(null) }
-      try {
-        const hp = await getHealthProblems()
-        setHealthProblems(Array.isArray(hp.items) ? hp.items : [])
-      } catch {
-        setHealthProblems([])
-      }
-    } catch (error) { console.error('Failed to load data:', error) } finally { setLoading(false) }
+      const hp = await getHealthProblems()
+      setHealthProblems(Array.isArray(hp.items) ? hp.items : [])
+    } catch {
+      setHealthProblems([])
+    }
+    setLoading(false)
   }, [])
 
   const loadMetrics = useCallback(async () => {
@@ -173,10 +180,18 @@ export default function Dashboard() {
           <p className="text-sm text-slate-400 mt-0.5 break-words">
             {node
               ? `${node.hostname} — ${node.hypervisor} ${node.hypervisor_version} · hypervisor host (QEMU/KVM + libvirt)`
-              : 'Loading host info...'}
+              : 'Host details unavailable — libvirt or the API may be reconnecting (e.g. after enabling a systemd unit). Wait a few seconds and refresh this page if needed.'}
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => void loadData().then(() => loadMetrics())}
+            className="flex items-center gap-1.5 px-3 py-2 bg-slate-700/50 hover:bg-slate-600/50 border border-slate-600/40 rounded-lg text-sm font-medium text-slate-200 transition-all"
+            title="Reload dashboard data"
+          >
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
           <button onClick={() => setShowRebootConfirm(true)} className="flex items-center gap-1.5 px-3 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/30 rounded-lg text-sm font-medium text-yellow-400 transition-all" title="Reboot host">
             <RotateCcw className="w-4 h-4" /> Reboot
           </button>

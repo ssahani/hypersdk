@@ -1127,9 +1127,7 @@ export default function VMDetailsPage() {
               </button>
             </div>
             <p className="text-xs text-slate-500 leading-snug">
-              Starts this VM when libvirt starts (after boot). Requires systemd to enable libvirt at boot (
-              <code className="text-slate-500">libvirtd</code> or <code className="text-slate-500">virtqemud</code>
-              ). NAT networks should autostart too so guests get DHCP.
+              Starts when libvirt starts. If guests do not come up after a host reboot, check Host overview for systemd/libvirt boot settings.
             </p>
           </div>
 
