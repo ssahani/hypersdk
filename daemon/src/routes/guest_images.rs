@@ -49,8 +49,9 @@ async fn os_list_handler() -> Result<Json<serde_json::Value>, AppError> {
             "osinfo-query failed: {}",
             String::from_utf8_lossy(&out.stderr)
         );
+        let empty: Vec<serde_json::Value> = Vec::new();
         return Ok(Json(json!({
-            "oses": [] as Vec<serde_json::Value>,
+            "oses": empty,
             "hint": "Install libosinfo (`osinfo-db` / `libosinfo`) for a full OS list."
         })));
     }
