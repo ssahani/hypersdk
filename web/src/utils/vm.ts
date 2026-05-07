@@ -32,3 +32,8 @@ export function formatBytes(bytes: number): string {
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${bytes} B`
 }
+
+/** Bytes per second for throughput / I/O rates from cumulative counters. */
+export function formatThroughput(bytesPerSec: number): string {
+  return `${formatBytes(bytesPerSec)}/s`
+}

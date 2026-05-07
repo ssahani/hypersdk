@@ -139,6 +139,8 @@ export interface VmMetrics {
   disk_wr_bytes: number
   net_rx_bytes: number
   net_tx_bytes: number
+  /** When dual libvirt is enabled (`system` | `session`). */
+  libvirt_connection?: string | null
 }
 
 export interface CreateVmRequest {
