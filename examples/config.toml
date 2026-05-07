@@ -80,3 +80,22 @@ uri = "qemu:///system"
 # virtctl_binary = "virtctl"
 # kubeconfig_path = "/root/.kube/config"
 # upload_timeout_minutes = 120
+
+# Web UI login: PAM by default, with optional OpenID Connect for browser SSO.
+# [auth]
+# pam_service = "sshd"
+# [auth.oidc]
+# enabled = true
+# issuer_url = "https://sso.example.com/realms/machina"
+# client_id = "machina-web"
+# client_secret = "replace-me"
+# redirect_url = "https://machina.example.com/api/v1/auth/oidc/callback"
+# scopes = ["openid", "profile", "email"]
+# username_claim = "preferred_username"
+# groups_claim = "groups"
+# linux_username_claim = "preferred_username"
+# admin_groups = ["machina-admins"]
+# operator_groups = ["machina-operators"]
+# default_role = "readonly"
+# button_label = "Sign in with SSO"
+# require_local_user_for_session_libvirt = true

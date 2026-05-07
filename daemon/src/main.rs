@@ -1,10 +1,10 @@
 mod auth;
+mod conn_query;
 mod error;
 mod job_registry;
 mod k8s_kubeconfig;
 mod kubevirt_exec;
 mod kubevirt_k8s_ws_proxy;
-mod conn_query;
 mod routes;
 mod server;
 mod systemd;
@@ -84,6 +84,16 @@ async fn main() -> anyhow::Result<()> {
         "PAM service for web login: /etc/pam.d/{}",
         config.auth.pam_service
     );
+    if config.auth.oidc.is_enabled() {
+        info!(
+            "OIDC browser login enabled: issuer={} redirect={}",
+            config.auth.oidc.issuer_url, config.auth.oidc.redirect_url
+        );
+    } else if config.auth.oidc.enabled {
+        tracing::warn!(
+            "OIDC marked enabled but missing issuer_url/client_id/redirect_url; browser SSO is disabled"
+        );
+    }
 
     let bind_addr = config.bind_addr();
     let tls_enabled =

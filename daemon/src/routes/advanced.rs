@@ -7,8 +7,8 @@ use std::collections::HashMap;
 use machina_core::libvirt::guest_agent::GuestIpAddress;
 use machina_core::libvirt::{
     boot, capabilities, cdrom, domain, domain_job, emulator, extras, filesystem, guest_agent,
-    host_cpu, hostdev_pci, migrate, net_xml, network, node_device, numa_tune, nwfilter, save_restore,
-    secret, storage,
+    host_cpu, hostdev_pci, migrate, net_xml, network, node_device, numa_tune, nwfilter,
+    save_restore, secret, storage,
 };
 use machina_core::{LibvirtError, LibvirtManager};
 

@@ -68,9 +68,10 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
       }
       if (cancelled) return
       const cq = wsConnQs(libvirtConnection)
+      const encVm = encodeURIComponent(vmName)
       const wsUrl = kube && kubeVirtNamespace
-        ? `${protocol}//${window.location.host}/ws/v1/k8s-kubevirt/${encodeURIComponent(kubeVirtNamespace)}/${encodeURIComponent(vmName)}/vnc?token=${encodeURIComponent(token)}`
-        : `${protocol}//${window.location.host}/ws/v1/vnc/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${cq}`
+        ? `${protocol}//${window.location.host}/ws/v1/k8s-kubevirt/${encodeURIComponent(kubeVirtNamespace)}/${encVm}/vnc?token=${encodeURIComponent(token)}`
+        : `${protocol}//${window.location.host}/ws/v1/vnc/${encVm}?token=${encodeURIComponent(token)}${cq}`
 
       const wireCommon = (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

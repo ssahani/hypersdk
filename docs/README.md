@@ -29,6 +29,7 @@
 | [Installation](../install.sh) | Automated installer for Fedora/RHEL/Ubuntu/Debian/openSUSE/Arch |
 | [KubeVirt Migration](kubevirt-migration.md) | Optional Kubernetes integration guide |
 | [Guacamole Integration](guacamole-integration.md) | HTML5 gateway integration (optional) |
+| [OIDC & local Linux user](oidc-effective-linux-user.md) | Session vs NSS mapping, defaults, run-as-user boundary |
 
 ---
 

@@ -36,9 +36,8 @@ async fn health_check(State(manager): State<LibvirtManager>) -> impl IntoRespons
 
 async fn host_virtualization() -> Json<serde_json::Value> {
     Json(
-        serde_json::to_value(host_virt::virtualization_status()).unwrap_or_else(|_| {
-            serde_json::json!({ "error": "serialization_failed" })
-        }),
+        serde_json::to_value(host_virt::virtualization_status())
+            .unwrap_or_else(|_| serde_json::json!({ "error": "serialization_failed" })),
     )
 }
 
@@ -54,7 +53,10 @@ fn df_use_percent(path: &str) -> Option<u32> {
     if !out.status.success() {
         return None;
     }
-    let line = String::from_utf8_lossy(&out.stdout).lines().nth(1)?.to_string();
+    let line = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .nth(1)?
+        .to_string();
     let cols: Vec<&str> = line.split_whitespace().collect();
     if cols.len() < 5 {
         return None;

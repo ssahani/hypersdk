@@ -76,18 +76,17 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
         // (e.g. while another thread holds the connection mutex during destroy/undefine). Blocking
         // the executor starves HTTP/WebSocket work and can look like a daemon "crash".
         let manager2 = manager.clone();
-        let current =
-            match tokio::task::spawn_blocking(move || manager2.list_all_vms()).await {
-                Ok(Ok(vms)) => vms,
-                Ok(Err(e)) => {
-                    warn!("Failed to list VMs for watch: {}", e);
-                    Vec::new()
-                }
-                Err(e) => {
-                    warn!("Watch list_vms task join error: {}", e);
-                    Vec::new()
-                }
-            };
+        let current = match tokio::task::spawn_blocking(move || manager2.list_all_vms()).await {
+            Ok(Ok(vms)) => vms,
+            Ok(Err(e)) => {
+                warn!("Failed to list VMs for watch: {}", e);
+                Vec::new()
+            }
+            Err(e) => {
+                warn!("Watch list_vms task join error: {}", e);
+                Vec::new()
+            }
+        };
 
         let mut changes = Vec::new();
         let mut current_names: HashMap<String, String> = HashMap::with_capacity(current.len());
@@ -327,7 +326,9 @@ async fn vnc_handler(
     let name2 = name.clone();
     let resolved = tokio::task::spawn_blocking(move || {
         let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |conn| machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name2))
+        mgr.with_conn_target(t, |conn| {
+            machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name2)
+        })
     })
     .await;
 

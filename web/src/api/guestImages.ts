@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client'
+import { readJsonObject, apiPost } from './client'
 
 const API = '/api/v1'
 
@@ -9,7 +9,11 @@ export interface GuestOsRow {
 }
 
 export async function guestOsList(): Promise<{ oses: GuestOsRow[]; hint?: string }> {
-  return apiGet(`${API}/guest-images/os-list`)
+  const o = await readJsonObject<{ oses?: unknown; hint?: unknown }>(`${API}/guest-images/os-list`)
+  return {
+    oses: Array.isArray(o.oses) ? (o.oses as GuestOsRow[]) : [],
+    hint: typeof o.hint === 'string' ? o.hint : undefined,
+  }
 }
 
 export async function guestOsDetect(url: string): Promise<{

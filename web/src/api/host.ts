@@ -1,4 +1,4 @@
-import { apiGet } from './client'
+import { readJsonObject, readJsonItemsList } from './client'
 
 const API = '/api/v1'
 
@@ -11,7 +11,7 @@ export interface VirtualizationHostStatus {
 }
 
 export async function getHostVirtualization(): Promise<VirtualizationHostStatus> {
-  return apiGet(`${API}/host/virtualization`)
+  return readJsonObject<VirtualizationHostStatus>(`${API}/host/virtualization`)
 }
 
 export async function getLibvirtSummary(): Promise<{
@@ -20,7 +20,12 @@ export async function getLibvirtSummary(): Promise<{
   qemu_session_connected: boolean
   configured_uri: string
 }> {
-  return apiGet(`${API}/libvirt/summary`)
+  return readJsonObject<{
+    dual_connection: boolean
+    qemu_system_connected: boolean
+    qemu_session_connected: boolean
+    configured_uri: string
+  }>(`${API}/libvirt/summary`)
 }
 
 export interface HealthProblemItem {
@@ -32,7 +37,7 @@ export interface HealthProblemItem {
 }
 
 export async function getHealthProblems(): Promise<{ items: HealthProblemItem[] }> {
-  return apiGet(`${API}/health/problems`)
+  return readJsonItemsList<HealthProblemItem>(`${API}/health/problems`)
 }
 
 /** Libvirt-related systemd units needed for NAT/QEMU autostart after host reboot (Host overview). */
@@ -42,4 +47,4 @@ export interface LibvirtBootStatus {
   systemd_unit: string | null
 }
 
-export const getHostLibvirtBoot = () => apiGet<LibvirtBootStatus>(`${API}/host/libvirt-boot`)
+export const getHostLibvirtBoot = () => readJsonObject<LibvirtBootStatus>(`${API}/host/libvirt-boot`)

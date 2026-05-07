@@ -1,4 +1,4 @@
-import { apiGet, apiPostVoid, apiDelete } from './client'
+import { readJsonArray, apiPostVoid, apiDelete } from './client'
 import { appendVmConnection } from './vm'
 
 const API = '/api/v1'
@@ -13,9 +13,9 @@ export interface SnapshotInfo {
   is_current: boolean
 }
 
-export const listAllSnapshots = () => apiGet<SnapshotInfo[]>(`${API}/snapshots`)
+export const listAllSnapshots = () => readJsonArray<SnapshotInfo>(`${API}/snapshots`)
 export const listSnapshots = (vm: string, connection?: string | null) =>
-  apiGet<SnapshotInfo[]>(
+  readJsonArray<SnapshotInfo>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(vm)}/snapshots`, connection),
   )
 

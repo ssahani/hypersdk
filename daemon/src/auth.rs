@@ -1,12 +1,15 @@
 use axum::body::Body;
+use axum::extract::Query;
 use axum::extract::State;
 use axum::http::{header, Request, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
-use machina_core::libvirt::automation::{get_user_role, Role};
-use machina_core::{AuthConfig, LibvirtError, LibvirtManager};
+use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
+use machina_core::libvirt::automation::{get_user_role, load_roles, Role};
+use machina_core::{AuthConfig, LibvirtError, LibvirtManager, OidcConfig, OidcDefaultRole};
 use rand::Rng;
 use serde::Deserialize;
 use serde::Serialize;
@@ -21,10 +24,22 @@ use crate::error::AppError;
 #[derive(Clone, Debug)]
 pub struct RequestActor {
     pub username: String,
+    /// Local Linux account used for sudo/libvirt session policy when present.
+    pub effective_linux_user: Option<String>,
     /// API tokens must not perform sensitive host administration (e.g. OS user creation).
     pub from_api_token: bool,
     /// Effective RBAC role (from `api-tokens.json` or `roles.json` for browser sessions).
     pub role: Role,
+    /// Where the request identity came from.
+    pub auth_source: AuthSource,
+}
+
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AuthSource {
+    Pam,
+    Oidc,
+    ApiToken,
 }
 
 /// Host insight that reads passwd-like data, runs package managers, or sleeps on `/proc/net/dev`.
@@ -44,10 +59,11 @@ pub fn require_browser_session_for_host_insight(actor: &RequestActor) -> Result<
 pub struct SessionStore {
     sessions: Arc<Mutex<HashMap<String, SessionData>>>,
     ws_tokens: Arc<Mutex<HashMap<String, WsTokenData>>>,
+    oidc_states: Arc<Mutex<HashMap<String, OidcStateData>>>,
 }
 
 struct SessionData {
-    username: String,
+    actor: RequestActor,
     created_at: Instant,
     /// Opaque id for admin revoke (never the secret cookie token).
     public_id: String,
@@ -58,6 +74,7 @@ struct SessionData {
 pub struct SessionListEntry {
     pub session_id: String,
     pub username: String,
+    pub auth_source: AuthSource,
     pub age_secs: u64,
     pub expires_in_secs: u64,
     pub is_current: bool,
@@ -72,15 +89,23 @@ struct WsTokenData {
     created_at: Instant,
 }
 
+struct OidcStateData {
+    nonce: String,
+    created_at: Instant,
+}
+
+const OIDC_STATE_TTL_SECS: u64 = 300;
+
 impl SessionStore {
     pub fn new() -> Self {
         Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             ws_tokens: Arc::new(Mutex::new(HashMap::new())),
+            oidc_states: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
-    fn create_session(&self, username: &str) -> String {
+    fn create_session(&self, actor: RequestActor) -> String {
         let mut rng = rand::thread_rng();
         let token_bytes: [u8; 32] = rng.gen();
         let token = hex::encode(token_bytes);
@@ -106,7 +131,7 @@ impl SessionStore {
         // Enforce MAX_SESSIONS_PER_USER: if over for this user, remove the oldest
         let user_sessions: Vec<String> = sessions
             .iter()
-            .filter(|(_, data)| data.username == username)
+            .filter(|(_, data)| data.actor.username == actor.username)
             .map(|(tok, _)| tok.clone())
             .collect();
         if user_sessions.len() >= MAX_SESSIONS_PER_USER {
@@ -122,7 +147,7 @@ impl SessionStore {
         sessions.insert(
             token.clone(),
             SessionData {
-                username: username.to_string(),
+                actor,
                 created_at: Instant::now(),
                 public_id,
             },
@@ -130,11 +155,11 @@ impl SessionStore {
         token
     }
 
-    fn validate_session(&self, token: &str) -> Option<String> {
+    fn validate_session(&self, token: &str) -> Option<RequestActor> {
         let mut sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(data) = sessions.get(token) {
             if data.created_at.elapsed().as_secs() < SESSION_TTL_SECS {
-                return Some(data.username.clone());
+                return Some(data.actor.clone());
             }
             // Session expired — remove it
             sessions.remove(token);
@@ -164,7 +189,8 @@ impl SessionStore {
                 let age = data.created_at.elapsed().as_secs();
                 SessionListEntry {
                     session_id: data.public_id.clone(),
-                    username: data.username.clone(),
+                    username: data.actor.username.clone(),
+                    auth_source: data.actor.auth_source,
                     age_secs: age,
                     expires_in_secs: SESSION_TTL_SECS.saturating_sub(age),
                     is_current: current_public_id == Some(data.public_id.as_str()),
@@ -224,6 +250,253 @@ impl SessionStore {
         }
         None
     }
+
+    pub fn create_oidc_state(&self, nonce: String) -> String {
+        let mut rng = rand::thread_rng();
+        let state_bytes: [u8; 32] = rng.gen();
+        let state = hex::encode(state_bytes);
+        let mut states = self.oidc_states.lock().unwrap_or_else(|e| e.into_inner());
+        states.retain(|_, data| data.created_at.elapsed().as_secs() < OIDC_STATE_TTL_SECS);
+        states.insert(
+            state.clone(),
+            OidcStateData {
+                nonce,
+                created_at: Instant::now(),
+            },
+        );
+        state
+    }
+
+    pub fn take_oidc_state(&self, state: &str) -> Option<String> {
+        let mut states = self.oidc_states.lock().unwrap_or_else(|e| e.into_inner());
+        states.retain(|_, data| data.created_at.elapsed().as_secs() < OIDC_STATE_TTL_SECS);
+        states.remove(state).and_then(|data| {
+            if data.created_at.elapsed().as_secs() < OIDC_STATE_TTL_SECS {
+                Some(data.nonce)
+            } else {
+                None
+            }
+        })
+    }
+}
+
+fn browser_actor(
+    username: String,
+    effective_linux_user: Option<String>,
+    role: Role,
+    auth_source: AuthSource,
+) -> RequestActor {
+    RequestActor {
+        username,
+        effective_linux_user,
+        from_api_token: false,
+        role,
+        auth_source,
+    }
+}
+
+pub fn effective_linux_user(actor: &RequestActor) -> Option<&str> {
+    actor.effective_linux_user.as_deref()
+}
+
+fn resolve_oidc_role(username: &str, groups: &[String], cfg: &OidcConfig) -> Role {
+    if groups
+        .iter()
+        .any(|g| cfg.admin_groups.iter().any(|want| want == g))
+    {
+        return Role::Admin;
+    }
+    if groups
+        .iter()
+        .any(|g| cfg.operator_groups.iter().any(|want| want == g))
+    {
+        return Role::Operator;
+    }
+    let roles = load_roles();
+    if let Some(local_role) = roles.get(username) {
+        return local_role.clone();
+    }
+    match cfg.default_role {
+        OidcDefaultRole::Admin => Role::Admin,
+        OidcDefaultRole::Operator => Role::Operator,
+        OidcDefaultRole::ReadOnly => Role::ReadOnly,
+    }
+}
+
+#[derive(Clone)]
+pub struct OidcAuth(pub std::sync::Arc<AuthConfig>);
+
+#[derive(Debug, Deserialize, Serialize)]
+struct OidcProviderMetadata {
+    enabled: bool,
+    button_label: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OidcDiscoveryDocument {
+    authorization_endpoint: String,
+    token_endpoint: String,
+    jwks_uri: String,
+    issuer: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OidcCallbackQuery {
+    code: Option<String>,
+    state: Option<String>,
+    error: Option<String>,
+    error_description: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OidcTokenResponse {
+    id_token: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OidcClaims {
+    sub: String,
+    exp: usize,
+    #[serde(default)]
+    nbf: Option<usize>,
+    #[serde(default)]
+    iss: Option<String>,
+    #[serde(default)]
+    aud: Option<serde_json::Value>,
+    #[serde(default)]
+    nonce: Option<String>,
+    #[serde(flatten)]
+    extra: HashMap<String, serde_json::Value>,
+}
+
+async fn fetch_oidc_discovery(cfg: &OidcConfig) -> Result<OidcDiscoveryDocument, AppError> {
+    let base = cfg.issuer_url.trim_end_matches('/');
+    let url = format!("{base}/.well-known/openid-configuration");
+    let res = reqwest::get(&url)
+        .await
+        .map_err(|e| LibvirtError::Operation(format!("Fetch OIDC discovery: {e}")))?;
+    if !res.status().is_success() {
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "Fetch OIDC discovery: HTTP {}",
+            res.status()
+        ))));
+    }
+    res.json::<OidcDiscoveryDocument>().await.map_err(|e| {
+        AppError::from(LibvirtError::Operation(format!(
+            "Decode OIDC discovery document: {e}"
+        )))
+    })
+}
+
+async fn fetch_oidc_jwks(url: &str) -> Result<JwkSet, AppError> {
+    let res = reqwest::get(url)
+        .await
+        .map_err(|e| LibvirtError::Operation(format!("Fetch OIDC JWKS: {e}")))?;
+    if !res.status().is_success() {
+        return Err(AppError::from(LibvirtError::Operation(format!(
+            "Fetch OIDC JWKS: HTTP {}",
+            res.status()
+        ))));
+    }
+    res.json::<JwkSet>()
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("Decode OIDC JWKS: {e}"))))
+}
+
+fn claim_strings(value: Option<&serde_json::Value>) -> Vec<String> {
+    match value {
+        Some(serde_json::Value::String(s)) => vec![s.clone()],
+        Some(serde_json::Value::Array(arr)) => arr
+            .iter()
+            .filter_map(|v| match v {
+                serde_json::Value::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn claim_string(value: Option<&serde_json::Value>) -> Option<String> {
+    match value {
+        Some(serde_json::Value::String(s)) if !s.trim().is_empty() => Some(s.clone()),
+        _ => None,
+    }
+}
+
+fn resolve_effective_linux_user(
+    username: &str,
+    claims: &HashMap<String, serde_json::Value>,
+    cfg: &OidcConfig,
+) -> Option<String> {
+    let claimed = claim_string(claims.get(&cfg.linux_username_claim))
+        .or_else(|| claim_string(claims.get(&cfg.username_claim)))
+        .or_else(|| Some(username.to_string()))?;
+    if machina_core::system_accounts::unix_user_exists(&claimed) {
+        Some(claimed)
+    } else {
+        None
+    }
+}
+
+fn validate_oidc_id_token(
+    id_token: &str,
+    jwks: &JwkSet,
+    discovery: &OidcDiscoveryDocument,
+    cfg: &OidcConfig,
+    expected_nonce: &str,
+) -> Result<(String, Option<String>, Role), AppError> {
+    let header = decode_header(id_token).map_err(|e| {
+        AppError::from(LibvirtError::Forbidden(format!(
+            "Decode OIDC token header: {e}"
+        )))
+    })?;
+    let kid = header.kid.ok_or_else(|| {
+        AppError::from(LibvirtError::Forbidden(
+            "OIDC id_token is missing key id".into(),
+        ))
+    })?;
+    let jwk = jwks.find(&kid).ok_or_else(|| {
+        AppError::from(LibvirtError::Forbidden(format!(
+            "OIDC signing key '{kid}' not found in JWKS"
+        )))
+    })?;
+    let key = DecodingKey::from_jwk(jwk).map_err(|e| {
+        AppError::from(LibvirtError::Forbidden(format!(
+            "Build OIDC decoding key from JWKS: {e}"
+        )))
+    })?;
+
+    let mut validation = Validation::new(header.alg);
+    validation.set_audience(&[cfg.client_id.as_str()]);
+    validation.set_issuer(&[discovery.issuer.as_str()]);
+    validation.set_required_spec_claims(&["exp", "iss", "aud", "sub"]);
+    validation.validate_nbf = true;
+
+    let token = decode::<OidcClaims>(id_token, &key, &validation).map_err(|e| {
+        AppError::from(LibvirtError::Forbidden(format!(
+            "Validate OIDC id_token: {e}"
+        )))
+    })?;
+    let claims = token.claims;
+    let _ = claims.exp;
+    let _ = &claims.aud;
+    let _ = &claims.iss;
+    let _ = claims.nbf;
+
+    if claims.nonce.as_deref() != Some(expected_nonce) {
+        return Err(AppError::from(LibvirtError::Forbidden(
+            "OIDC nonce mismatch".into(),
+        )));
+    }
+
+    let username = claim_string(claims.extra.get(&cfg.username_claim))
+        .or_else(|| claim_string(claims.extra.get("email")))
+        .unwrap_or(claims.sub);
+    let effective_linux_user = resolve_effective_linux_user(&username, &claims.extra, cfg);
+    let groups = claim_strings(claims.extra.get(&cfg.groups_claim));
+    let role = resolve_oidc_role(&username, &groups, cfg);
+    Ok((username, effective_linux_user, role))
 }
 
 /// Extract session token from cookie header.
@@ -257,13 +530,8 @@ pub async fn auth_middleware(
 
     // Check session cookie
     if let Some(token) = extract_token(&req) {
-        if let Some(username) = store.validate_session(&token) {
-            let role = get_user_role(&username);
-            req.extensions_mut().insert(RequestActor {
-                username,
-                from_api_token: false,
-                role,
-            });
+        if let Some(actor) = store.validate_session(&token) {
+            req.extensions_mut().insert(actor);
             return next.run(req).await;
         }
     }
@@ -278,8 +546,10 @@ pub async fn auth_middleware(
             if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
                 req.extensions_mut().insert(RequestActor {
                     username: api.username,
+                    effective_linux_user: None,
                     from_api_token: true,
                     role: api.role,
+                    auth_source: AuthSource::ApiToken,
                 });
                 return next.run(req).await;
             }
@@ -312,7 +582,7 @@ pub async fn ws_token_handler(
                 if let Some(value) = part.strip_prefix("machina_session=") {
                     let token = value.trim();
                     if !token.is_empty() {
-                        return sessions.validate_session(token);
+                        return sessions.validate_session(token).map(|actor| actor.username);
                     }
                 }
             }
@@ -374,12 +644,9 @@ struct LoginRequest {
     password: String,
 }
 
-#[derive(Clone)]
-pub struct PamAuth(pub std::sync::Arc<AuthConfig>);
-
 async fn login_handler(
     Extension(store): Extension<SessionStore>,
-    Extension(auth): Extension<PamAuth>,
+    Extension(auth): Extension<OidcAuth>,
     Json(req): Json<LoginRequest>,
 ) -> Response {
     if req.username.is_empty() || req.password.is_empty() {
@@ -397,12 +664,21 @@ async fn login_handler(
     match pam_authenticate(&req.username, &req.password, &auth.0.pam_service) {
         Ok(()) => {
             info!("PAM login successful for user '{}'", req.username);
-            let token = store.create_session(&req.username);
+            let token = store.create_session(browser_actor(
+                req.username.clone(),
+                Some(req.username.clone()),
+                get_user_role(&req.username),
+                AuthSource::Pam,
+            ));
             let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
             (
                 StatusCode::OK,
                 [(header::SET_COOKIE, cookie)],
-                Json(serde_json::json!({ "status": "ok", "username": req.username })),
+                Json(serde_json::json!({
+                    "status": "ok",
+                    "username": req.username,
+                    "auth_source": "pam"
+                })),
             )
                 .into_response()
         }
@@ -431,16 +707,17 @@ async fn session_handler(
     req: Request<Body>,
 ) -> Response {
     if let Some(token) = extract_token(&req) {
-        if let Some(username) = store.validate_session(&token) {
+        if let Some(actor) = store.validate_session(&token) {
             let session_id = store.session_public_id(&token);
-            let role = get_user_role(&username);
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
                     "authenticated": true,
-                    "username": username,
+                    "username": actor.username,
+                    "effective_linux_user": actor.effective_linux_user,
                     "session_id": session_id,
-                    "role": role,
+                    "role": actor.role,
+                    "auth_source": actor.auth_source,
                 })),
             )
                 .into_response();
@@ -449,6 +726,190 @@ async fn session_handler(
     (
         StatusCode::UNAUTHORIZED,
         Json(serde_json::json!({ "authenticated": false })),
+    )
+        .into_response()
+}
+
+async fn auth_providers_handler(Extension(auth): Extension<OidcAuth>) -> Response {
+    let oidc = &auth.0.oidc;
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({
+            "pam": { "enabled": true },
+            "oidc": OidcProviderMetadata {
+                enabled: oidc.is_enabled(),
+                button_label: oidc.button_label.clone(),
+            }
+        })),
+    )
+        .into_response()
+}
+
+async fn oidc_login_handler(
+    Extension(store): Extension<SessionStore>,
+    Extension(auth): Extension<OidcAuth>,
+) -> Response {
+    let cfg = &auth.0.oidc;
+    if !cfg.is_enabled() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "OIDC login is not enabled" })),
+        )
+            .into_response();
+    }
+
+    let discovery = match fetch_oidc_discovery(cfg).await {
+        Ok(doc) => doc,
+        Err(e) => return e.into_response(),
+    };
+
+    let mut rng = rand::thread_rng();
+    let nonce_bytes: [u8; 32] = rng.gen();
+    let nonce = hex::encode(nonce_bytes);
+    let state = store.create_oidc_state(nonce.clone());
+    let mut url = match reqwest::Url::parse(&discovery.authorization_endpoint) {
+        Ok(url) => url,
+        Err(e) => {
+            return AppError::from(LibvirtError::Operation(format!(
+                "Invalid OIDC authorization endpoint: {e}"
+            )))
+            .into_response();
+        }
+    };
+    let scope = if cfg.scopes.is_empty() {
+        "openid profile email".to_string()
+    } else {
+        cfg.scopes.join(" ")
+    };
+    url.query_pairs_mut()
+        .append_pair("response_type", "code")
+        .append_pair("client_id", cfg.client_id.trim())
+        .append_pair("redirect_uri", cfg.redirect_url.trim())
+        .append_pair("scope", &scope)
+        .append_pair("state", &state)
+        .append_pair("nonce", &nonce);
+
+    axum::response::Redirect::temporary(url.as_ref()).into_response()
+}
+
+async fn oidc_callback_handler(
+    Extension(store): Extension<SessionStore>,
+    Extension(auth): Extension<OidcAuth>,
+    Query(query): Query<OidcCallbackQuery>,
+) -> Response {
+    let cfg = &auth.0.oidc;
+    if !cfg.is_enabled() {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(serde_json::json!({ "error": "OIDC login is not enabled" })),
+        )
+            .into_response();
+    }
+    if let Some(err) = query.error {
+        let msg = query
+            .error_description
+            .unwrap_or_else(|| "OIDC provider rejected the login".to_string());
+        warn!("OIDC callback error '{}': {}", err, msg);
+        return axum::response::Redirect::temporary("/login?error=oidc").into_response();
+    }
+
+    let state = match query.state {
+        Some(state) if !state.is_empty() => state,
+        _ => {
+            return AppError::from(LibvirtError::Forbidden(
+                "OIDC callback missing state".into(),
+            ))
+            .into_response();
+        }
+    };
+    let expected_nonce = match store.take_oidc_state(&state) {
+        Some(nonce) => nonce,
+        None => {
+            return AppError::from(LibvirtError::Forbidden(
+                "OIDC state is invalid or expired".into(),
+            ))
+            .into_response();
+        }
+    };
+    let code = match query.code {
+        Some(code) if !code.is_empty() => code,
+        _ => {
+            return AppError::from(LibvirtError::Forbidden("OIDC callback missing code".into()))
+                .into_response();
+        }
+    };
+
+    let discovery = match fetch_oidc_discovery(cfg).await {
+        Ok(doc) => doc,
+        Err(e) => return e.into_response(),
+    };
+    let client = reqwest::Client::new();
+    let token_res = match client
+        .post(&discovery.token_endpoint)
+        .form(&[
+            ("grant_type", "authorization_code"),
+            ("code", code.as_str()),
+            ("redirect_uri", cfg.redirect_url.as_str()),
+            ("client_id", cfg.client_id.as_str()),
+            ("client_secret", cfg.client_secret.as_str()),
+        ])
+        .send()
+        .await
+    {
+        Ok(res) => res,
+        Err(e) => {
+            return AppError::from(LibvirtError::Operation(format!(
+                "Exchange OIDC authorization code: {e}"
+            )))
+            .into_response();
+        }
+    };
+    if !token_res.status().is_success() {
+        return AppError::from(LibvirtError::Forbidden(format!(
+            "OIDC token endpoint returned HTTP {}",
+            token_res.status()
+        )))
+        .into_response();
+    }
+    let token_body = match token_res.json::<OidcTokenResponse>().await {
+        Ok(body) => body,
+        Err(e) => {
+            return AppError::from(LibvirtError::Operation(format!(
+                "Decode OIDC token response: {e}"
+            )))
+            .into_response();
+        }
+    };
+    let id_token = match token_body.id_token {
+        Some(token) if !token.is_empty() => token,
+        _ => {
+            return AppError::from(LibvirtError::Forbidden(
+                "OIDC token response did not include id_token".into(),
+            ))
+            .into_response();
+        }
+    };
+    let jwks = match fetch_oidc_jwks(&discovery.jwks_uri).await {
+        Ok(set) => set,
+        Err(e) => return e.into_response(),
+    };
+    let (username, effective_linux_user, role) =
+        match validate_oidc_id_token(&id_token, &jwks, &discovery, cfg, &expected_nonce) {
+            Ok(actor) => actor,
+            Err(e) => return e.into_response(),
+        };
+
+    let token = store.create_session(browser_actor(
+        username.clone(),
+        effective_linux_user,
+        role,
+        AuthSource::Oidc,
+    ));
+    let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+    info!("OIDC login successful for user '{}'", username);
+    (
+        StatusCode::TEMPORARY_REDIRECT,
+        [(header::SET_COOKIE, cookie), (header::LOCATION, "/".to_string())],
     )
         .into_response()
 }
@@ -557,12 +1018,15 @@ fn pam_authenticate(username: &str, password: &str, pam_service: &str) -> Result
 /// into Router<LibvirtManager> without state conflicts.
 pub fn auth_routes(session_store: SessionStore, auth_cfg: AuthConfig) -> Router<LibvirtManager> {
     Router::new()
+        .route("/auth/providers", get(auth_providers_handler))
         .route("/auth/login", post(login_handler))
+        .route("/auth/oidc/login", get(oidc_login_handler))
+        .route("/auth/oidc/callback", get(oidc_callback_handler))
         .route("/auth/logout", post(logout_handler))
         .route("/auth/session", get(session_handler))
         .route("/ws-token", post(ws_token_handler))
         .route("/admin/sessions", get(admin_list_sessions))
         .route("/admin/sessions/{session_id}", delete(admin_revoke_session))
         .layer(Extension(session_store))
-        .layer(Extension(PamAuth(std::sync::Arc::new(auth_cfg))))
+        .layer(Extension(OidcAuth(std::sync::Arc::new(auth_cfg))))
 }

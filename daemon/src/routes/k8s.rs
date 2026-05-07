@@ -29,7 +29,8 @@ const KATA_WAIT_TIMEOUT_SECS: u64 = 660;
 const KATA_HELM_RELEASE_NAME: &str = "kata-deploy";
 const KATA_HELM_NAMESPACE: &str = "kube-system";
 const KATA_HELM_CHART: &str = "oci://ghcr.io/kata-containers/kata-deploy-charts/kata-deploy";
-const KATA_GITHUB_LATEST: &str = "https://api.github.com/repos/kata-containers/kata-containers/releases/latest";
+const KATA_GITHUB_LATEST: &str =
+    "https://api.github.com/repos/kata-containers/kata-containers/releases/latest";
 /// When `curl` cannot reach GitHub, pin chart version (bump when kata ships a new major you care about).
 const KATA_HELM_VERSION_FALLBACK: &str = "3.29.0";
 /// Sample workloads only — fixed upstream path on `main` (allowlisted for `kubectl apply -f`).
@@ -1305,10 +1306,7 @@ async fn k8s_kata_deploy(
 
     if !res.ok {
         let msg = if res.stderr.trim().is_empty() {
-            format!(
-                "{tool} failed (exit {}): {}",
-                res.exit_code, res.command
-            )
+            format!("{tool} failed (exit {}): {}", res.exit_code, res.command)
         } else {
             res.stderr.clone()
         };
@@ -1411,13 +1409,17 @@ async fn kata_containers_latest_release_tag() -> Result<String, LibvirtError> {
         .and_then(|t| t.as_str())
         .ok_or_else(|| LibvirtError::Operation("GitHub API missing tag_name".into()))?;
     if tag.is_empty() || tag.len() > 64 {
-        return Err(LibvirtError::Operation("refusing empty or oversized release tag".into()));
+        return Err(LibvirtError::Operation(
+            "refusing empty or oversized release tag".into(),
+        ));
     }
     if !tag
         .chars()
         .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-')
     {
-        return Err(LibvirtError::Operation("refusing odd release tag characters".into()));
+        return Err(LibvirtError::Operation(
+            "refusing odd release tag characters".into(),
+        ));
     }
     Ok(tag.to_string())
 }

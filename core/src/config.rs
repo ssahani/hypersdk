@@ -176,16 +176,135 @@ pub struct AuthConfig {
     /// for local TTY and can block `root` or fail without a TTY.
     #[serde(default = "default_pam_service")]
     pub pam_service: String,
+    /// Optional OpenID Connect login backend. When enabled, the web UI can redirect users to an external IdP.
+    #[serde(default)]
+    pub oidc: OidcConfig,
 }
 
 fn default_pam_service() -> String {
     "sshd".to_string()
 }
 
+fn default_oidc_scopes() -> Vec<String> {
+    vec![
+        "openid".to_string(),
+        "profile".to_string(),
+        "email".to_string(),
+    ]
+}
+
+fn default_oidc_username_claim() -> String {
+    "preferred_username".to_string()
+}
+
+fn default_oidc_groups_claim() -> String {
+    "groups".to_string()
+}
+
+fn default_oidc_button_label() -> String {
+    "Sign in with SSO".to_string()
+}
+
+fn default_oidc_linux_username_claim() -> String {
+    "preferred_username".to_string()
+}
+
+/// Optional OpenID Connect / OAuth 2.0 Authorization Code flow for browser login.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OidcConfig {
+    /// Enable OIDC login in addition to PAM.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Issuer URL, e.g. `https://sso.example.com/realms/machina`.
+    #[serde(default)]
+    pub issuer_url: String,
+    /// OAuth client id registered with the IdP.
+    #[serde(default)]
+    pub client_id: String,
+    /// OAuth client secret for confidential clients.
+    #[serde(default)]
+    pub client_secret: String,
+    /// Absolute callback URL served by machina, e.g. `https://host:5092/api/v1/auth/oidc/callback`.
+    #[serde(default)]
+    pub redirect_url: String,
+    /// Scopes requested during login. Must include `openid`.
+    #[serde(default = "default_oidc_scopes")]
+    pub scopes: Vec<String>,
+    /// Claim used for the session username / RBAC lookup when present.
+    #[serde(default = "default_oidc_username_claim")]
+    pub username_claim: String,
+    /// Claim containing group memberships for RBAC mapping.
+    #[serde(default = "default_oidc_groups_claim")]
+    pub groups_claim: String,
+    /// Claim used to map an OIDC identity onto a local Linux user for sudo-gated host operations.
+    #[serde(default = "default_oidc_linux_username_claim")]
+    pub linux_username_claim: String,
+    /// Groups that map to the admin role.
+    #[serde(default)]
+    pub admin_groups: Vec<String>,
+    /// Groups that map to the operator role.
+    #[serde(default)]
+    pub operator_groups: Vec<String>,
+    /// Role used when no configured group matches and no local role mapping exists.
+    #[serde(default)]
+    pub default_role: OidcDefaultRole,
+    /// Login button text shown by the web UI.
+    #[serde(default = "default_oidc_button_label")]
+    pub button_label: String,
+    /// When true, `qemu:///session` VM creation requires a mapped local Linux user to exist on the host.
+    #[serde(default)]
+    pub require_local_user_for_session_libvirt: bool,
+}
+
+impl OidcConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.enabled
+            && !self.issuer_url.trim().is_empty()
+            && !self.client_id.trim().is_empty()
+            && !self.redirect_url.trim().is_empty()
+    }
+}
+
+impl Default for OidcConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            issuer_url: String::new(),
+            client_id: String::new(),
+            client_secret: String::new(),
+            redirect_url: String::new(),
+            scopes: default_oidc_scopes(),
+            username_claim: default_oidc_username_claim(),
+            groups_claim: default_oidc_groups_claim(),
+            linux_username_claim: default_oidc_linux_username_claim(),
+            admin_groups: Vec::new(),
+            operator_groups: Vec::new(),
+            default_role: OidcDefaultRole::ReadOnly,
+            button_label: default_oidc_button_label(),
+            require_local_user_for_session_libvirt: false,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OidcDefaultRole {
+    Admin,
+    Operator,
+    ReadOnly,
+}
+
+impl Default for OidcDefaultRole {
+    fn default() -> Self {
+        Self::ReadOnly
+    }
+}
+
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
             pam_service: default_pam_service(),
+            oidc: OidcConfig::default(),
         }
     }
 }
@@ -517,5 +636,13 @@ mod tests {
         c.tls.cert_path = "/etc/machina/ssl/cert.pem".into();
         c.tls.key_path = "/etc/machina/ssl/key.pem".into();
         assert!(c.daemon_url().starts_with("https://"));
+    }
+
+    #[test]
+    fn oidc_default_claims_and_session_libvirt_gate() {
+        let o = OidcConfig::default();
+        assert_eq!(o.username_claim, "preferred_username");
+        assert_eq!(o.linux_username_claim, "preferred_username");
+        assert!(!o.require_local_user_for_session_libvirt);
     }
 }

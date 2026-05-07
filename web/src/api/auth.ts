@@ -2,14 +2,104 @@ const API = '/api/v1'
 
 /** RBAC role from session or API token (daemon `roles.json` / token metadata). */
 export type SessionRole = 'admin' | 'operator' | 'readonly'
+export type SessionAuthSource = 'pam' | 'oidc' | 'api_token'
 
 export interface AuthSession {
   authenticated: boolean
   username?: string
+  effective_linux_user?: string | null
   /** Opaque id for this browser tab session (root-only admin UI). */
   session_id?: string | null
   /** Present when authenticated via cookie or token-aware session. */
   role?: SessionRole
+  auth_source?: SessionAuthSource
+}
+
+export interface AuthProviders {
+  pam: { enabled: boolean }
+  oidc: { enabled: boolean; button_label: string }
+}
+
+const DEFAULT_PROVIDERS: AuthProviders = {
+  pam: { enabled: true },
+  oidc: { enabled: false, button_label: 'Sign in with SSO' },
+}
+
+/** Map daemon JSON (OIDC/PAM) to a known role; unknown shapes become `undefined` so callers can apply `?? fallback`. */
+export function parseSessionRole(value: unknown): SessionRole | undefined {
+  if (value === 'admin' || value === 'operator' || value === 'readonly') return value
+  if (typeof value !== 'string') return undefined
+  const x = value.trim().toLowerCase()
+  if (x === 'admin' || x === 'operator' || x === 'readonly') return x as SessionRole
+  return undefined
+}
+
+function parseAuthSource(value: unknown): SessionAuthSource | undefined {
+  if (value === 'pam' || value === 'oidc' || value === 'api_token') return value
+  if (typeof value !== 'string') return undefined
+  const x = value.trim().toLowerCase()
+  if (x === 'pam' || x === 'oidc' || x === 'api_token') return x as SessionAuthSource
+  return undefined
+}
+
+/**
+ * Normalize `/auth/session` JSON so UI never crashes on missing fields (proxies, partial responses, OIDC edge cases).
+ */
+export function normalizeAuthSession(raw: unknown): AuthSession {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { authenticated: false }
+  }
+  const o = raw as Record<string, unknown>
+  if (o.authenticated !== true) {
+    return { authenticated: false }
+  }
+
+  const username = o.username == null ? '' : String(o.username)
+  const eff = o.effective_linux_user
+  const effective_linux_user =
+    eff === undefined || eff === null || eff === ''
+      ? null
+      : String(eff)
+
+  const sid = o.session_id
+  let session_id: string | null | undefined
+  if (sid === undefined || sid === null) session_id = sid as undefined | null
+  else if (typeof sid === 'string') session_id = sid
+  else session_id = String(sid)
+
+  return {
+    authenticated: true,
+    username,
+    effective_linux_user,
+    session_id,
+    role: parseSessionRole(o.role),
+    auth_source: parseAuthSource(o.auth_source),
+  }
+}
+
+function normalizeAuthProviders(raw: unknown): AuthProviders {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return DEFAULT_PROVIDERS
+  const o = raw as Record<string, unknown>
+  const pamIn = o.pam
+  const oidcIn = o.oidc
+
+  const pamEnabled =
+    typeof pamIn === 'object' && pamIn !== null && 'enabled' in pamIn
+      ? Boolean((pamIn as { enabled?: unknown }).enabled)
+      : true
+
+  let oidcEnabled = false
+  let buttonLabel = DEFAULT_PROVIDERS.oidc.button_label
+  if (typeof oidcIn === 'object' && oidcIn !== null) {
+    oidcEnabled = Boolean((oidcIn as { enabled?: unknown }).enabled)
+    const bl = (oidcIn as { button_label?: unknown }).button_label
+    if (typeof bl === 'string' && bl.trim()) buttonLabel = bl
+  }
+
+  return {
+    pam: { enabled: pamEnabled },
+    oidc: { enabled: oidcEnabled, button_label: buttonLabel },
+  }
 }
 
 export async function login(username: string, password: string): Promise<{ status: string; username: string }> {
@@ -20,10 +110,32 @@ export async function login(username: string, password: string): Promise<{ statu
     credentials: 'same-origin',
   })
   if (!res.ok) {
-    const body = await res.json().catch(() => ({ error: res.statusText }))
-    throw new Error(body.error || `HTTP ${res.status}`)
+    let body: unknown
+    try {
+      body = await res.json()
+    } catch {
+      body = null
+    }
+    const msg =
+      body !== null && typeof body === 'object' && !Array.isArray(body) && 'error' in body
+        ? (body as { error?: unknown }).error
+        : undefined
+    const errStr = typeof msg === 'string' && msg.length > 0 ? msg : `HTTP ${res.status}`
+    throw new Error(errStr)
   }
-  return res.json()
+  let raw: unknown
+  try {
+    raw = await res.json()
+  } catch {
+    return { status: 'ok', username }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    return { status: 'ok', username }
+  }
+  const ro = raw as Record<string, unknown>
+  const status = typeof ro.status === 'string' && ro.status ? ro.status : 'ok'
+  const u = typeof ro.username === 'string' ? ro.username : username
+  return { status, username: u }
 }
 
 export async function logout(): Promise<void> {
@@ -36,5 +148,27 @@ export async function logout(): Promise<void> {
 export async function getSession(): Promise<AuthSession> {
   const res = await fetch(`${API}/auth/session`, { credentials: 'same-origin' })
   if (!res.ok) return { authenticated: false }
-  return res.json()
+  let raw: unknown
+  try {
+    raw = await res.json()
+  } catch {
+    return { authenticated: false }
+  }
+  return normalizeAuthSession(raw)
+}
+
+export async function getAuthProviders(): Promise<AuthProviders> {
+  const res = await fetch(`${API}/auth/providers`, { credentials: 'same-origin' })
+  if (!res.ok) return DEFAULT_PROVIDERS
+  let raw: unknown
+  try {
+    raw = await res.json()
+  } catch {
+    return DEFAULT_PROVIDERS
+  }
+  return normalizeAuthProviders(raw)
+}
+
+export function beginOidcLogin(): void {
+  window.location.assign(`${API}/auth/oidc/login`)
 }

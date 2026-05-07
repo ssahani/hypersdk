@@ -35,6 +35,91 @@ async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
   }
 }
 
+/**
+ * Successful GET whose body must be JSON (stricter than `apiGet`, which can return plain text).
+ * Used by {@link readJsonArray}, {@link readJsonObject}, etc.
+ */
+async function fetchJsonBody(url: string): Promise<unknown> {
+  const res = await fetchApi(url, defaultOpts)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, body))
+  }
+  const contentType = res.headers.get('content-type') || ''
+  if (!contentType.includes('application/json')) {
+    const text = await res.text().catch(() => '')
+    const hint = text.trim().slice(0, 240)
+    throw new Error(
+      hint
+        ? `Expected JSON from ${url} (${contentType || 'no Content-Type'}): ${hint}`
+        : `Expected JSON from ${url} (${contentType || 'no Content-Type'})`,
+    )
+  }
+  try {
+    return await res.json()
+  } catch {
+    throw new Error(`Invalid JSON from ${url}`)
+  }
+}
+
+/** JSON array responses (`GET /metrics`, `GET /k8s/nodes`, …). Wrong shape → `[]` + dev warning. */
+export async function readJsonArray<T>(url: string): Promise<T[]> {
+  const raw = await fetchJsonBody(url)
+  if (!Array.isArray(raw)) {
+    if (import.meta.env.DEV) {
+      console.warn(`machina: expected JSON array from ${url}`)
+    }
+    return []
+  }
+  return raw as T[]
+}
+
+/** JSON object responses (maps, overview payloads, …). Wrong shape → `{}` + dev warning. */
+export async function readJsonObject<T extends object>(url: string): Promise<T> {
+  const raw = await fetchJsonBody(url)
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    if (import.meta.env.DEV) {
+      console.warn(`machina: expected JSON object from ${url}`)
+    }
+    return {} as T
+  }
+  return raw as T
+}
+
+/** Kubernetes-style `{ items: T[] }`. Missing/invalid `items` → `{ items: [] }`. */
+export async function readJsonItemsList<T>(url: string): Promise<{ items: T[] }> {
+  const raw = await fetchJsonBody(url)
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    if (import.meta.env.DEV) {
+      console.warn(`machina: expected JSON object with items from ${url}`)
+    }
+    return { items: [] }
+  }
+  const items = (raw as { items?: unknown }).items
+  if (!Array.isArray(items)) {
+    return { items: [] }
+  }
+  return { items: items as T[] }
+}
+
+/**
+ * GET 2xx — body as plain text (libvirt XML, `/sysinfo`, …). Does not parse JSON.
+ * Prefer {@link readJsonArray} / {@link readJsonObject} for JSON endpoints.
+ */
+export async function apiGetText(url: string): Promise<string> {
+  const res = await fetchApi(url, defaultOpts)
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(formatHttpErrorBody(res.status, res.statusText, body))
+  }
+  return res.text()
+}
+
+/**
+ * Legacy GET: JSON when `Content-Type` is JSON, otherwise raw text typed as `T`.
+ * Prefer {@link readJsonArray}, {@link readJsonObject}, {@link readJsonItemsList}, or {@link apiGetText}.
+ * Kept for ad-hoc callers outside the API modules.
+ */
 export async function apiGet<T>(url: string): Promise<T> {
   const res = await fetchApi(url, defaultOpts)
   if (!res.ok) {
@@ -122,6 +207,18 @@ export async function getWsToken(): Promise<string> {
     cache: 'no-store',
   })
   if (!res.ok) throw new Error('Failed to get WebSocket token')
-  const data = await res.json()
-  return data.token
+  let data: unknown
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error('Failed to get WebSocket token')
+  }
+  const tok =
+    data !== null && typeof data === 'object' && !Array.isArray(data) && 'token' in data
+      ? (data as { token?: unknown }).token
+      : undefined
+  if (typeof tok !== 'string' || !tok) {
+    throw new Error('Failed to get WebSocket token')
+  }
+  return tok
 }

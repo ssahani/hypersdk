@@ -43,7 +43,8 @@ async fn os_list_handler() -> Result<Json<serde_json::Value>, AppError> {
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(e.to_string())))?;
 
-    let out = join.map_err(|e| AppError::from(LibvirtError::Operation(format!("osinfo-query: {e}"))))?;
+    let out =
+        join.map_err(|e| AppError::from(LibvirtError::Operation(format!("osinfo-query: {e}"))))?;
     if !out.status.success() {
         warn!(
             "osinfo-query failed: {}",
@@ -72,7 +73,9 @@ async fn os_list_handler() -> Result<Json<serde_json::Value>, AppError> {
 }
 
 /// Run `osinfo-detect --type=tree <url>` (HTTP install tree).
-async fn os_detect_handler(Json(body): Json<OsDetectBody>) -> Result<Json<serde_json::Value>, AppError> {
+async fn os_detect_handler(
+    Json(body): Json<OsDetectBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let url = body.url.clone();
     let join = tokio::task::spawn_blocking(move || {
         Command::new("osinfo-detect")
@@ -82,7 +85,8 @@ async fn os_detect_handler(Json(body): Json<OsDetectBody>) -> Result<Json<serde_
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(e.to_string())))?;
 
-    let out = join.map_err(|e| AppError::from(LibvirtError::Operation(format!("osinfo-detect: {e}"))))?;
+    let out =
+        join.map_err(|e| AppError::from(LibvirtError::Operation(format!("osinfo-detect: {e}"))))?;
     Ok(Json(json!({
         "exit_code": out.status.code(),
         "stdout": String::from_utf8_lossy(&out.stdout).trim(),
@@ -91,7 +95,9 @@ async fn os_detect_handler(Json(body): Json<OsDetectBody>) -> Result<Json<serde_
 }
 
 /// Resolve RHEL KVM guest image URL via Red Hat API ( bearer token ).
-async fn rhel_image_url_handler(Json(body): Json<RhelUrlBody>) -> Result<Json<serde_json::Value>, AppError> {
+async fn rhel_image_url_handler(
+    Json(body): Json<RhelUrlBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
     let api = format!(
         "https://api.access.redhat.com/management/v1/images/rhel/{}/{}/",
         body.rhel_version, body.arch

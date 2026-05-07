@@ -72,14 +72,7 @@ pub fn virtualization_status() -> VirtualizationHostStatus {
 #[cfg(target_os = "linux")]
 fn systemctl_unit_file_state(unit: &str) -> Option<String> {
     let output = std::process::Command::new("systemctl")
-        .args([
-            "show",
-            unit,
-            "-p",
-            "UnitFileState",
-            "--value",
-            "--no-pager",
-        ])
+        .args(["show", unit, "-p", "UnitFileState", "--value", "--no-pager"])
         .output()
         .ok()?;
     if !output.status.success() {

@@ -1552,7 +1552,12 @@ pub fn service_action(name: &str, action: &str) -> Result<(), LibvirtError> {
     validate_service_name(name)?;
 
     let valid_actions = [
-        "start", "stop", "restart", "enable", "disable", "enable_now",
+        "start",
+        "stop",
+        "restart",
+        "enable",
+        "disable",
+        "enable_now",
     ];
     if !valid_actions.contains(&action) {
         return Err(LibvirtError::Invalid(format!(

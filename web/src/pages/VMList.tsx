@@ -91,7 +91,11 @@ export default function VMList() {
   }
 
   const filtered = vms.filter((v) => {
-    const matchesSearch = v.name.toLowerCase().includes(search.toLowerCase()) || v.state.includes(search.toLowerCase())
+    const name = (v.name ?? '').toString()
+    const state = (v.state ?? 'unknown').toString()
+    const q = search.toLowerCase()
+    const matchesSearch =
+      name.toLowerCase().includes(q) || state.toLowerCase().includes(q)
     const matchesTag = !tagFilter || (vmTagsMap[vmScopeKey(v)] || []).includes(tagFilter)
     return matchesSearch && matchesTag
   })

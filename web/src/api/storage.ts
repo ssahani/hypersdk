@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPostVoid, apiDelete } from './client'
+import { readJsonArray, apiPost, apiPostVoid, apiDelete } from './client'
 
 const API = '/api/v1'
 
@@ -27,11 +27,12 @@ export interface CreateVolumeRequest {
   format: string
 }
 
-export const listPools = () => apiGet<StoragePoolInfo[]>(`${API}/storage/pools`)
+export const listPools = () => readJsonArray<StoragePoolInfo>(`${API}/storage/pools`)
 export const startPool = (name: string) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/start`)
 export const stopPool = (name: string) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/stop`)
 export const refreshPool = (name: string) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/refresh`)
 export const setPoolAutostart = (name: string, enabled: boolean) => apiPostVoid(`${API}/storage/pools/${encodeURIComponent(name)}/autostart/${enabled}`)
-export const listVolumes = (pool: string) => apiGet<StorageVolumeInfo[]>(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes`)
+export const listVolumes = (pool: string) =>
+  readJsonArray<StorageVolumeInfo>(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes`)
 export const createVolume = (pool: string, req: CreateVolumeRequest) => apiPost<unknown>(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes`, req)
 export const deleteVolume = (pool: string, vol: string) => apiDelete(`${API}/storage/pools/${encodeURIComponent(pool)}/volumes/${encodeURIComponent(vol)}`)

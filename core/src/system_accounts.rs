@@ -109,6 +109,14 @@ fn getent_line(db: &str, key: &str) -> Option<String> {
     }
 }
 
+/// Whether a local/NSS UNIX account exists for `username`.
+pub fn unix_user_exists(username: &str) -> bool {
+    if validate_login_username(username).is_err() {
+        return false;
+    }
+    getent_line("passwd", username).is_some()
+}
+
 /// Primary group name for `username` via `getent passwd` + `getent group <gid>`.
 fn passwd_primary_group_name(username: &str) -> Option<String> {
     let line = getent_line("passwd", username)?;

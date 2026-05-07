@@ -12,8 +12,8 @@ pub mod validate;
 pub mod xml;
 
 pub use config::{
-    AuthConfig, KubeVirtConfig, MachinaConfig, SshTerminalConfig, SshTerminalTarget,
-    VmCreateBackend, DEFAULT_DAEMON_PORT,
+    AuthConfig, KubeVirtConfig, MachinaConfig, OidcConfig, OidcDefaultRole, SshTerminalConfig,
+    SshTerminalTarget, VmCreateBackend, DEFAULT_DAEMON_PORT,
 };
 pub use kubevirt::{kubevirt_bundle_from_libvirt_vm, KubeVirtBundle};
 pub use libvirt::{LibvirtManager, LibvirtTarget};

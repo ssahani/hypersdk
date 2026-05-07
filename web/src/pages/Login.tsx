@@ -1,6 +1,7 @@
-import { useState, FormEvent } from 'react'
+import { useEffect, useState, FormEvent } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { useTheme, type AppTheme } from '../contexts/ThemeContext'
+import { useTheme } from '../contexts/ThemeContext'
+import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
 import { Lock, User, AlertCircle, Server, Network, Activity, Zap, Moon, Cloud, Sun, Boxes } from 'lucide-react'
 
 const features = [
@@ -35,9 +36,21 @@ export default function LoginPage() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [providers, setProviders] = useState<AuthProviders>({
+    pam: { enabled: true },
+    oidc: { enabled: false, button_label: 'Sign in with SSO' },
+  })
   const { login } = useAuth()
   const { theme, setTheme } = useTheme()
   const isLight = theme === 'light'
+
+  useEffect(() => {
+    void getAuthProviders().then(setProviders).catch(() => {})
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('error') === 'oidc') {
+      setError('SSO login failed')
+    }
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -254,12 +267,32 @@ export default function LoginPage() {
             >
               {submitting ? 'Signing in...' : 'Sign In'}
             </button>
+
+            {providers.oidc.enabled && (
+              <>
+                <div className={`relative py-1 text-center text-xs uppercase tracking-[0.22em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <span className={`relative px-2 ${isLight ? 'bg-white' : 'bg-slate-800/50'}`}>or</span>
+                  <div className={`absolute inset-x-0 top-1/2 -translate-y-1/2 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/60'}`} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => beginOidcLogin()}
+                  className={`w-full py-3 rounded-xl text-sm font-semibold transition-all duration-200 border ${
+                    isLight
+                      ? 'bg-slate-100 hover:bg-slate-200 border-slate-200 text-slate-800'
+                      : 'bg-slate-900/80 hover:bg-slate-900 border-slate-700/50 text-slate-100'
+                  }`}
+                >
+                  {providers.oidc.button_label}
+                </button>
+              </>
+            )}
           </form>
 
           <p className={`text-xs text-center mt-4 max-w-sm mx-auto leading-relaxed ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-            Same username and password as SSH (PAM stack <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>sshd</code> by default). Not a separate Machina password — if you only use SSH keys, run{' '}
-            <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>passwd</code>{' '}
-            on the server first.
+            {providers.oidc.enabled
+              ? 'Use your system account or your organization SSO provider, depending on how this daemon is configured.'
+              : <>Same username and password as SSH (PAM stack <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>sshd</code> by default). Not a separate Machina password — if you only use SSH keys, run <code className={`text-[11px] px-1 rounded ${isLight ? 'bg-slate-200' : 'bg-slate-800'}`}>passwd</code> on the server first.</>}
           </p>
         </div>
       </div>

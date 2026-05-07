@@ -20,7 +20,7 @@ use machina_core::{
     RenameVmRequest, VmCreateBackend, VmDetails, VmInfo,
 };
 
-use crate::auth::{require_destroy_vm, RequestActor};
+use crate::auth::{effective_linux_user, require_destroy_vm, RequestActor};
 use crate::conn_query::{connection_label, spawn_libvirt, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 use crate::job_registry::JobRegistry;
@@ -146,13 +146,12 @@ async fn kubevirt_bundle_handler(
     let cq = q.connection.clone();
     let mgr = manager.clone();
     let name2 = name.clone();
-    let details =
-        tokio::task::spawn_blocking(move || {
-            let t = mgr.resolve_query(cq.as_deref());
-            mgr.with_conn_target(t, |c| domain::get_vm_details(c, &name2))
-        })
-            .await
-            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let details = tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(t, |c| domain::get_vm_details(c, &name2))
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
 
     let bundle = kubevirt_bundle_from_libvirt_vm(
         &details,
@@ -176,8 +175,7 @@ fn kubevirt_bundle_for_deploy(
     p: &KubeVirtBundleParams,
 ) -> Result<KubeVirtBundle, AppError> {
     let t = manager.resolve_query(p.connection.as_deref());
-    let details =
-        manager.with_conn_target(t, |c| domain::get_vm_details(c, libvirt_name))?;
+    let details = manager.with_conn_target(t, |c| domain::get_vm_details(c, libvirt_name))?;
     Ok(kubevirt_bundle_from_libvirt_vm(
         &details,
         libvirt_name,
@@ -323,7 +321,10 @@ async fn shutdown_vm(
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::shutdown_vm(conn, &name2)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        domain::shutdown_vm(conn, &name2)
+    })
+    .await?;
     log_audit("shutdown", &name, "ok");
     Ok(ok_json("shutting down", &name))
 }
@@ -548,8 +549,10 @@ async fn set_memtune_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let req2 = req.clone();
-    spawn_libvirt(manager, conn_q, move |conn| resize::set_memtune_kb(conn, &name2, &req2))
-        .await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        resize::set_memtune_kb(conn, &name2, &req2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "memtune_updated", "name": name }),
     ))
@@ -597,8 +600,10 @@ async fn pin_vcpu_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let cpus = req.cpus.clone();
-    spawn_libvirt(manager, conn_q, move |conn| resize::pin_vcpu(conn, &name2, vcpu, &cpus))
-        .await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        resize::pin_vcpu(conn, &name2, vcpu, &cpus)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "vcpu_pinned", "name": name, "vcpu": vcpu }),
     ))
@@ -611,8 +616,10 @@ async fn set_autostart(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let autostart = enabled == "true" || enabled == "1";
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::set_autostart(conn, &name2, autostart))
-        .await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        domain::set_autostart(conn, &name2, autostart)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "autostart": autostart }),
     ))
@@ -626,7 +633,10 @@ async fn clone_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| clone::clone_vm(conn, &name2, &new_name)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        clone::clone_vm(conn, &name2, &new_name)
+    })
+    .await?;
     log_audit("clone", &format!("{name} -> {}", req.new_name), "ok");
     Ok(Json(
         serde_json::json!({ "status": "cloned", "source": name, "clone": req.new_name }),
@@ -645,13 +655,36 @@ fn libvirt_uri_for_create(cfg: &MachinaConfig, req: &CreateVmRequest) -> String 
     }
 }
 
+fn ensure_session_libvirt_identity(
+    actor: &RequestActor,
+    cfg: &MachinaConfig,
+    req: &CreateVmRequest,
+) -> Result<(), AppError> {
+    let wants_session = if cfg.libvirt.dual_connection {
+        req.libvirt_connection.trim() == "session"
+    } else {
+        cfg.libvirt.uri.trim() == "qemu:///session"
+    };
+    if !wants_session || !cfg.auth.oidc.require_local_user_for_session_libvirt {
+        return Ok(());
+    }
+    if effective_linux_user(actor).is_some() {
+        return Ok(());
+    }
+    Err(AppError::from(LibvirtError::Forbidden(
+        "qemu:///session VM creation requires a mapped local Linux user for this identity".into(),
+    )))
+}
+
 async fn create_vm_handler(
     State(_manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<CreateVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     validate_create_vm_payload(&req)?;
     let name = req.name.clone();
     let cfg = MachinaConfig::load();
+    ensure_session_libvirt_identity(&actor, &cfg, &req)?;
     let backend = match req.create_backend.trim() {
         "virt_install" => VmCreateBackend::VirtInstall,
         "libvirt_xml" => VmCreateBackend::LibvirtXml,
@@ -705,12 +738,14 @@ async fn create_vm_handler(
 async fn create_vm_stream_handler(
     State(_manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
+    Extension(actor): Extension<RequestActor>,
     Json(req): Json<CreateVmRequest>,
 ) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>> + Send>, AppError> {
     validate_create_vm_payload(&req)?;
 
     let name = req.name.clone();
     let cfg = MachinaConfig::load();
+    ensure_session_libvirt_identity(&actor, &cfg, &req)?;
     let backend = match req.create_backend.trim() {
         "virt_install" => VmCreateBackend::VirtInstall,
         "libvirt_xml" => VmCreateBackend::LibvirtXml,
@@ -806,7 +841,10 @@ async fn set_vcpus(
 ) -> Result<Json<serde_json::Value>, AppError> {
     machina_core::validate::validate_vcpus(count)?;
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| resize::set_vcpus(conn, &name2, count)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        resize::set_vcpus(conn, &name2, count)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "vcpus": count }),
     ))
@@ -819,7 +857,10 @@ async fn set_memory(
 ) -> Result<Json<serde_json::Value>, AppError> {
     machina_core::validate::validate_memory_mb(mb)?;
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| resize::set_memory(conn, &name2, mb)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        resize::set_memory(conn, &name2, mb)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "memory_mb": mb }),
     ))
@@ -834,7 +875,10 @@ async fn attach_disk_handler(
     let name2 = name.clone();
     let target = req.target.clone();
     let req2 = req.clone();
-    spawn_libvirt(manager, conn_q, move |conn| device::attach_disk(conn, &name2, &req2)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        device::attach_disk(conn, &name2, &req2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "attached", "name": name, "target": target }),
     ))
@@ -847,8 +891,10 @@ async fn detach_disk_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target2 = target.clone();
-    spawn_libvirt(manager, conn_q, move |conn| device::detach_disk(conn, &name2, &target2))
-        .await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        device::detach_disk(conn, &name2, &target2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "detached", "name": name, "target": target }),
     ))
@@ -862,7 +908,10 @@ async fn rename_vm_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::rename_vm(conn, &name2, &new_name)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        domain::rename_vm(conn, &name2, &new_name)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "renamed", "old_name": name, "new_name": req.new_name }),
     ))
@@ -927,8 +976,10 @@ async fn detach_interface_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let mac2 = mac.clone();
-    spawn_libvirt(manager, conn_q, move |conn| device::detach_interface(conn, &name2, &mac2))
-        .await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        device::detach_interface(conn, &name2, &mac2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "detached", "name": name, "mac": mac }),
     ))

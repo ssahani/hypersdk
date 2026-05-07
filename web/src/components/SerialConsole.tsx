@@ -60,7 +60,9 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
     }
 
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws/v1/console/${vmName}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`)
+    const ws = new WebSocket(
+      `${protocol}//${window.location.host}/ws/v1/console/${encodeURIComponent(vmName)}?token=${encodeURIComponent(token)}${wsConnQs(libvirtConnection)}`,
+    )
     wsRef.current = ws
 
     ws.onopen = () => {

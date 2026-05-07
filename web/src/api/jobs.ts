@@ -1,3 +1,4 @@
+import { readJsonArray, readJsonObject } from './client'
 import { VirtImageBuildRequest } from './extras'
 
 const API = '/api/v1'
@@ -21,19 +22,10 @@ export interface JobDetail extends JobSummary {
   logs: string[]
 }
 
-export const listJobs = () => apiGetJobs<JobSummary[]>(`${API}/jobs`)
-
-async function apiGetJobs<T>(url: string): Promise<T> {
-  const res = await fetch(url, { credentials: 'same-origin' })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || res.statusText)
-  }
-  return res.json() as Promise<T>
-}
+export const listJobs = () => readJsonArray<JobSummary>(`${API}/jobs`)
 
 export const getJob = (id: string) =>
-  apiGetJobs<JobDetail>(`${API}/jobs/${encodeURIComponent(id)}`)
+  readJsonObject<JobDetail>(`${API}/jobs/${encodeURIComponent(id)}`)
 
 /** Start async virt-image-build; poll `getJob` or open `streamJobLogs`. */
 export interface PackerGoldenBuildRequest {

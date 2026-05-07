@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router'
 import { ArrowLeft, Terminal as TerminalIcon, Monitor, Keyboard, Camera, Download } from 'lucide-react'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
-import { apiGet } from '../api/client'
+import { readJsonObject } from '../api/client'
 import SerialConsole from '../components/SerialConsole'
 import VNCViewer from '../components/VNCViewer'
 import SPICEViewer from '../components/SPICEViewer'
@@ -19,6 +19,27 @@ interface ConsoleInfo {
   websocket_port: number
 }
 
+function normalizeConsoleInfo(raw: ConsoleInfo): ConsoleInfo {
+  const port =
+    typeof raw.port === 'number' && Number.isFinite(raw.port)
+      ? raw.port
+      : Number(raw.port)
+  const websocket_port =
+    typeof raw.websocket_port === 'number' && Number.isFinite(raw.websocket_port)
+      ? raw.websocket_port
+      : Number(raw.websocket_port)
+  return {
+    name: typeof raw.name === 'string' ? raw.name : String(raw.name ?? ''),
+    console_type:
+      typeof raw.console_type === 'string'
+        ? raw.console_type
+        : String(raw.console_type ?? 'unknown'),
+    host: typeof raw.host === 'string' ? raw.host : String(raw.host ?? ''),
+    port: Number.isFinite(port) ? Math.trunc(port) : -1,
+    websocket_port: Number.isFinite(websocket_port) ? Math.trunc(websocket_port) : -1,
+  }
+}
+
 export default function ConsolePage() {
   const { name } = useParams<{ name: string }>()
   const [searchParams] = useSearchParams()
@@ -30,14 +51,15 @@ export default function ConsolePage() {
 
   useEffect(() => {
     if (!name) return
-    apiGet<ConsoleInfo>(
+    readJsonObject<ConsoleInfo>(
       appendVmConnection(`/api/v1/vms/console-info/${encodeURIComponent(name)}`, conn),
     )
       .then((info) => {
-        setConsoleInfo(info)
-        if (info.console_type === 'vnc' && info.port > 0) {
+        const n = normalizeConsoleInfo(info)
+        setConsoleInfo(n)
+        if (n.console_type === 'vnc' && n.port > 0) {
           setMode('vnc')
-        } else if (info.console_type === 'spice' && info.port > 0) {
+        } else if (n.console_type === 'spice' && n.port > 0) {
           setMode('spice')
         } else {
           setMode('serial')
@@ -64,7 +86,7 @@ export default function ConsolePage() {
         <div className="flex flex-col items-stretch sm:items-end gap-2 min-w-0 max-w-xl">
           {consoleInfo && consoleInfo.port > 0 && (
             <span className="text-xs text-slate-500 sm:text-right">
-              {consoleInfo.console_type.toUpperCase()} port {consoleInfo.port}
+              {(consoleInfo.console_type ?? 'unknown').toUpperCase()} port {consoleInfo.port}
             </span>
           )}
           <ChoiceCardGrid className="sm:max-w-lg">

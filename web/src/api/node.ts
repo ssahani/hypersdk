@@ -1,4 +1,4 @@
-import { apiGet } from './client'
+import { readJsonObject } from './client'
 
 const API = '/api/v1'
 
@@ -22,5 +22,5 @@ export interface HealthStatus {
   libvirt: boolean
 }
 
-export const getNodeInfo = () => apiGet<NodeInfo>(`${API}/node`)
-export const getHealth = () => apiGet<HealthStatus>(`${API}/health`)
+export const getNodeInfo = () => readJsonObject<NodeInfo>(`${API}/node`)
+export const getHealth = () => readJsonObject<HealthStatus>(`${API}/health`)

@@ -1,4 +1,4 @@
-import { apiGet, apiPut } from './client'
+import { readJsonObject, apiPut } from './client'
 
 const API = '/api/v1'
 
@@ -24,9 +24,7 @@ export interface CreateOsUserResult {
 }
 
 export async function getOsUserCapability(): Promise<OsUserCapability> {
-  const res = await fetch(`${API}/system/os-users/capability`, { credentials: 'same-origin' })
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+  return readJsonObject<OsUserCapability>(`${API}/system/os-users/capability`)
 }
 
 export async function createOsUser(
@@ -68,7 +66,7 @@ export async function deleteOsUser(username: string): Promise<void> {
 
 /** Server-wide Create VM form defaults (`/var/lib/machina/create-vm-defaults.json`). */
 export async function getServerCreateVmDefaults(): Promise<Record<string, unknown>> {
-  return apiGet(`${API}/system/create-vm-defaults`)
+  return readJsonObject<Record<string, unknown>>(`${API}/system/create-vm-defaults`)
 }
 
 export async function putServerCreateVmDefaults(body: Record<string, unknown>): Promise<{ status?: string }> {

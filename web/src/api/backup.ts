@@ -1,4 +1,4 @@
-import { apiGet, apiPost, apiPostVoid, apiDelete } from './client'
+import { readJsonArray, readJsonObject, apiPost, apiPostVoid, apiDelete } from './client'
 
 const API = '/api/v1'
 
@@ -55,7 +55,7 @@ export interface ScheduleInfo {
   last_run: string
 }
 
-export const fetchBackups = () => apiGet<BackupInfo[]>(`${API}/backups`)
+export const fetchBackups = () => readJsonArray<BackupInfo>(`${API}/backups`)
 
 export const triggerBackup = (req: BackupRequest) =>
   apiPost<{ status: string; backup_id: string }>(`${API}/backups`, req)
@@ -67,7 +67,7 @@ export const deleteBackup = (id: string) =>
   apiDelete(`${API}/backups/${encodeURIComponent(id)}`)
 
 export const getBackupStatus = (id: string) =>
-  apiGet<BackupStatus>(`${API}/backups/${encodeURIComponent(id)}/status`)
+  readJsonObject<BackupStatus>(`${API}/backups/${encodeURIComponent(id)}/status`)
 
 export const verifyBackup = (id: string) =>
   apiPost<VerifyResult>(`${API}/backups/${encodeURIComponent(id)}/verify`)
@@ -75,7 +75,7 @@ export const verifyBackup = (id: string) =>
 export const downloadBackupUrl = (id: string) =>
   `${API}/backups/${encodeURIComponent(id)}/download`
 
-export const getSchedule = () => apiGet<ScheduleInfo>(`${API}/backups/schedule`)
+export const getSchedule = () => readJsonObject<ScheduleInfo>(`${API}/backups/schedule`)
 
 export const setSchedule = (enabled: boolean) =>
   apiPost<{ status: string; enabled: boolean }>(`${API}/backups/schedule`, { enabled })

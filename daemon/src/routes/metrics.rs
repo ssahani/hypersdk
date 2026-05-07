@@ -11,10 +11,9 @@ use crate::error::AppError;
 async fn get_all_metrics(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Vec<VmMetrics>>, AppError> {
-    let result =
-        tokio::task::spawn_blocking(move || manager.merge_all_metrics())
-            .await
-            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = tokio::task::spawn_blocking(move || manager.merge_all_metrics())
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
     Ok(Json(result?))
 }
 

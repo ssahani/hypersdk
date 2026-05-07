@@ -1,4 +1,4 @@
-import { apiGet, apiPost } from './client'
+import { apiPost, readJsonArray, readJsonObject, readJsonItemsList } from './client'
 
 const API = '/api/v1'
 
@@ -173,20 +173,25 @@ function withK8sContext(base: string, context?: string): string {
 }
 
 export const getK8sOverview = (context?: string) =>
-  apiGet<K8sOverview>(withK8sContext(`${API}/k8s/overview`, context))
+  readJsonObject<K8sOverview>(withK8sContext(`${API}/k8s/overview`, context))
 
-export const getK8sEnvironment = () => apiGet<K8sEnvironment>(`${API}/k8s/environment`)
+export const getK8sEnvironment = () => readJsonObject<K8sEnvironment>(`${API}/k8s/environment`)
 
-export const getK8sContexts = () => apiGet<{ contexts: string[] }>(`${API}/k8s/contexts`)
+export const getK8sContexts = () =>
+  readJsonObject<{ contexts?: unknown }>(`${API}/k8s/contexts`).then((o) => ({
+    contexts: Array.isArray(o.contexts)
+      ? (o.contexts as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [],
+  }))
 
 export const getK8sNodes = (context?: string) =>
-  apiGet<K8sNodeInfo[]>(withK8sContext(`${API}/k8s/nodes`, context))
+  readJsonArray<K8sNodeInfo>(withK8sContext(`${API}/k8s/nodes`, context))
 
 export const getK8sNamespaces = (context?: string) =>
-  apiGet<K8sNamespaceList>(withK8sContext(`${API}/k8s/namespaces`, context))
+  readJsonItemsList<K8sMetadataName>(withK8sContext(`${API}/k8s/namespaces`, context))
 
 export const getK8sPods = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sPod>>(
+  readJsonItemsList<K8sPod>(
     withK8sContext(
       namespace ? `${API}/k8s/pods?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/pods?all_namespaces=true`,
       context,
@@ -194,7 +199,7 @@ export const getK8sPods = (namespace?: string, context?: string) =>
   )
 
 export const getK8sDeployments = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sDeployment>>(
+  readJsonItemsList<K8sDeployment>(
     withK8sContext(
       namespace
         ? `${API}/k8s/deployments?namespace=${encodeURIComponent(namespace)}`
@@ -204,7 +209,7 @@ export const getK8sDeployments = (namespace?: string, context?: string) =>
   )
 
 export const getK8sServices = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sService>>(
+  readJsonItemsList<K8sService>(
     withK8sContext(
       namespace ? `${API}/k8s/services?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/services?all_namespaces=true`,
       context,
@@ -212,7 +217,7 @@ export const getK8sServices = (namespace?: string, context?: string) =>
   )
 
 export const getK8sStatefulSets = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sDeployment>>(
+  readJsonItemsList<K8sDeployment>(
     withK8sContext(
       namespace
         ? `${API}/k8s/statefulsets?namespace=${encodeURIComponent(namespace)}`
@@ -222,7 +227,7 @@ export const getK8sStatefulSets = (namespace?: string, context?: string) =>
   )
 
 export const getK8sDaemonSets = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sDeployment>>(
+  readJsonItemsList<K8sDeployment>(
     withK8sContext(
       namespace ? `${API}/k8s/daemonsets?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/daemonsets?all_namespaces=true`,
       context,
@@ -230,7 +235,7 @@ export const getK8sDaemonSets = (namespace?: string, context?: string) =>
   )
 
 export const getK8sJobs = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sMetadataName>>(
+  readJsonItemsList<K8sMetadataName>(
     withK8sContext(
       namespace ? `${API}/k8s/jobs?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/jobs?all_namespaces=true`,
       context,
@@ -238,7 +243,7 @@ export const getK8sJobs = (namespace?: string, context?: string) =>
   )
 
 export const getK8sCronJobs = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sMetadataName>>(
+  readJsonItemsList<K8sMetadataName>(
     withK8sContext(
       namespace ? `${API}/k8s/cronjobs?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/cronjobs?all_namespaces=true`,
       context,
@@ -246,7 +251,7 @@ export const getK8sCronJobs = (namespace?: string, context?: string) =>
   )
 
 export const getK8sIngresses = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sMetadataName>>(
+  readJsonItemsList<K8sMetadataName>(
     withK8sContext(
       namespace ? `${API}/k8s/ingresses?namespace=${encodeURIComponent(namespace)}` : `${API}/k8s/ingresses?all_namespaces=true`,
       context,
@@ -254,7 +259,7 @@ export const getK8sIngresses = (namespace?: string, context?: string) =>
   )
 
 export const getK8sPersistentVolumeClaims = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sMetadataName>>(
+  readJsonItemsList<K8sMetadataName>(
     withK8sContext(
       namespace
         ? `${API}/k8s/persistentvolumeclaims?namespace=${encodeURIComponent(namespace)}`
@@ -264,10 +269,10 @@ export const getK8sPersistentVolumeClaims = (namespace?: string, context?: strin
   )
 
 export const getK8sPersistentVolumes = (context?: string) =>
-  apiGet<{ items: unknown[] }>(withK8sContext(`${API}/k8s/persistentvolumes`, context))
+  readJsonItemsList<unknown>(withK8sContext(`${API}/k8s/persistentvolumes`, context))
 
 export const getK8sStorageClasses = (context?: string) =>
-  apiGet<{ items: unknown[] }>(withK8sContext(`${API}/k8s/storageclasses`, context))
+  readJsonItemsList<unknown>(withK8sContext(`${API}/k8s/storageclasses`, context))
 
 export const getK8sEvents = (opts: { namespace?: string; allNamespaces?: boolean; context?: string }) => {
   const q: string[] = []
@@ -276,7 +281,7 @@ export const getK8sEvents = (opts: { namespace?: string; allNamespaces?: boolean
   else q.push('namespace=default')
   let url = `${API}/k8s/events?${q.join('&')}`
   url = withK8sContext(url, opts.context)
-  return apiGet<{ items: unknown[] }>(url)
+  return readJsonItemsList<unknown>(url)
 }
 
 export const getK8sPodLogs = (opts: {
@@ -295,7 +300,7 @@ export const getK8sPodLogs = (opts: {
   if (opts.previous) q.set('previous', 'true')
   let url = `${API}/k8s/logs?${q.toString()}`
   url = withK8sContext(url, opts.context)
-  return apiGet<K8sActionResult>(url)
+  return readJsonObject<K8sActionResult>(url)
 }
 
 export const postK8sApply = (manifest: string, dryRun?: boolean, context?: string) =>
@@ -314,11 +319,11 @@ export const getK8sHelmReleases = (namespace?: string, context?: string) => {
   if (namespace) q.set('namespace', namespace === '*' ? 'all' : namespace)
   let url = `${API}/k8s/helm/releases${q.toString() ? `?${q}` : ''}`
   url = withK8sContext(url, context)
-  return apiGet<unknown>(url)
+  return readJsonObject<Record<string, unknown>>(url)
 }
 
 export const getK8sKubevirtVirtualMachines = (namespace?: string, context?: string) =>
-  apiGet<K8sListResponse<K8sKubeVirtVM>>(
+  readJsonItemsList<K8sKubeVirtVM>(
     withK8sContext(
       namespace
         ? `${API}/k8s/kubevirt/virtualmachines?namespace=${encodeURIComponent(namespace)}`
@@ -328,7 +333,7 @@ export const getK8sKubevirtVirtualMachines = (namespace?: string, context?: stri
   )
 
 export const getK8sKubevirtVmSummary = (namespace?: string, context?: string) =>
-  apiGet<KubeVirtVmSummaryRow[]>(
+  readJsonArray<KubeVirtVmSummaryRow>(
     withK8sContext(
       namespace
         ? `${API}/k8s/kubevirt/vm-summary?namespace=${encodeURIComponent(namespace)}`

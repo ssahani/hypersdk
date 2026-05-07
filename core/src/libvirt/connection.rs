@@ -136,7 +136,9 @@ impl LibvirtManager {
 
     fn slot_for(&self, target: LibvirtTarget) -> Result<&UriSlot, LibvirtError> {
         match (self.dual, target) {
-            (false, LibvirtTarget::Primary) | (false, LibvirtTarget::System) => self.primary.as_ref(),
+            (false, LibvirtTarget::Primary) | (false, LibvirtTarget::System) => {
+                self.primary.as_ref()
+            }
             (false, LibvirtTarget::Session) => None,
             (true, LibvirtTarget::Primary) | (true, LibvirtTarget::System) => self.system.as_ref(),
             (true, LibvirtTarget::Session) => self.session.as_ref(),

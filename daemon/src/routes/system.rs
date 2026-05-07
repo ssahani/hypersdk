@@ -1,5 +1,5 @@
 use axum::extract::{Extension, Path};
-use axum::routing::{delete, get, post, put};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::system_accounts;
 use machina_core::{LibvirtError, LibvirtManager};
@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::json;
 use tracing::info;
 
-use crate::auth::RequestActor;
+use crate::auth::{effective_linux_user, RequestActor};
 use crate::error::AppError;
 
 fn os_user_capability_json(actor: &RequestActor) -> serde_json::Value {
@@ -30,12 +30,18 @@ fn os_user_capability_json(actor: &RequestActor) -> serde_json::Value {
             "sudoSupplementaryGroup": sudo_g,
         });
     }
-    let ok = system_accounts::unix_user_may_use_sudo(&actor.username);
+    let effective = effective_linux_user(actor);
+    let ok = effective
+        .map(system_accounts::unix_user_may_use_sudo)
+        .unwrap_or(false);
     serde_json::json!({
         "canCreateOsUsers": ok,
         "canDeleteOsUsers": ok,
+        "effectiveLinuxUser": effective,
         "reason": if ok {
             serde_json::Value::Null
+        } else if effective.is_none() {
+            serde_json::json!("Signed-in identity is not mapped to a local Linux user on this host")
         } else {
             serde_json::json!("Signed-in user is not in wheel, sudo, or admin (required to create or delete accounts)")
         },
@@ -72,7 +78,13 @@ async fn create_os_user(
     if actor.from_api_token {
         return Err(LibvirtError::Forbidden("API tokens cannot create system users".into()).into());
     }
-    if !system_accounts::unix_user_may_use_sudo(&actor.username) {
+    let Some(effective_user) = effective_linux_user(&actor) else {
+        return Err(LibvirtError::Forbidden(
+            "This identity is not mapped to a local Linux user on this host".into(),
+        )
+        .into());
+    };
+    if !system_accounts::unix_user_may_use_sudo(effective_user) {
         return Err(LibvirtError::Forbidden(
             "Only users in wheel, sudo, or admin may create system accounts".into(),
         )
@@ -81,8 +93,8 @@ async fn create_os_user(
     let outcome =
         system_accounts::create_local_user(&req.username, &req.password, req.add_to_libvirt_group)?;
     info!(
-        "OS user '{}' created via machina by session user '{}' (libvirt group: {})",
-        req.username, actor.username, outcome.libvirt_group_attached
+        "OS user '{}' created via machina by session user '{}' (effective linux user '{}', libvirt group: {})",
+        req.username, actor.username, effective_user, outcome.libvirt_group_attached
     );
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -99,21 +111,27 @@ async fn delete_os_user(
     if actor.from_api_token {
         return Err(LibvirtError::Forbidden("API tokens cannot delete system users".into()).into());
     }
-    if !system_accounts::unix_user_may_use_sudo(&actor.username) {
+    let Some(effective_user) = effective_linux_user(&actor) else {
+        return Err(LibvirtError::Forbidden(
+            "This identity is not mapped to a local Linux user on this host".into(),
+        )
+        .into());
+    };
+    if !system_accounts::unix_user_may_use_sudo(effective_user) {
         return Err(LibvirtError::Forbidden(
             "Only users in wheel, sudo, or admin may delete system accounts".into(),
         )
         .into());
     }
-    if username == actor.username {
+    if username == effective_user {
         return Err(
             LibvirtError::Forbidden("Cannot delete the signed-in UNIX account".into()).into(),
         );
     }
     system_accounts::delete_local_user(&username)?;
     info!(
-        "OS user '{}' removed via machina by session user '{}'",
-        username, actor.username,
+        "OS user '{}' removed via machina by session user '{}' (effective linux user '{}')",
+        username, actor.username, effective_user,
     );
     Ok(Json(serde_json::json!({
         "status": "ok",
@@ -147,13 +165,14 @@ async fn put_create_vm_defaults(
         .into());
     }
     std::fs::create_dir_all("/var/lib/machina").map_err(|e| {
-        AppError::from(LibvirtError::Operation(format!("create /var/lib/machina: {e}")))
+        AppError::from(LibvirtError::Operation(format!(
+            "create /var/lib/machina: {e}"
+        )))
     })?;
     let data = serde_json::to_string_pretty(&body)
         .map_err(|e| AppError::from(LibvirtError::Operation(format!("serialize defaults: {e}"))))?;
-    std::fs::write(CREATE_VM_DEFAULTS_PATH, data).map_err(|e| {
-        AppError::from(LibvirtError::Operation(format!("write defaults: {e}")))
-    })?;
+    std::fs::write(CREATE_VM_DEFAULTS_PATH, data)
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("write defaults: {e}"))))?;
     Ok(Json(json!({ "status": "saved" })))
 }
 

@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
 use crate::auth::{
-    require_browser_session_for_host_insight, require_browse_host_paths, require_destroy_vm,
+    require_browse_host_paths, require_browser_session_for_host_insight, require_destroy_vm,
     require_usb_pci, RequestActor,
 };
 use crate::error::AppError;

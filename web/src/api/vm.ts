@@ -1,4 +1,12 @@
-import { apiGet, apiGetBlob, apiPost, apiPostVoid, apiDelete } from './client'
+import {
+  apiGetBlob,
+  apiPost,
+  apiPostVoid,
+  apiDelete,
+  readJsonArray,
+  readJsonObject,
+  apiGetText,
+} from './client'
 
 const API = '/api/v1'
 
@@ -9,6 +17,47 @@ export interface VmInfo {
   memory_mb: number
   /** Present when daemon uses dual `qemu:///system` + `qemu:///session`. */
   libvirt_connection?: string
+}
+
+/** Best-effort parse so list UIs never throw if `/vms` returns unexpected shapes (proxy bugs, partial JSON). */
+function sanitizeVmInfo(row: unknown): VmInfo | null {
+  if (!row || typeof row !== 'object') return null
+  const r = row as Record<string, unknown>
+  const nameRaw = r.name
+  const name =
+    typeof nameRaw === 'string'
+      ? nameRaw
+      : nameRaw != null && String(nameRaw).trim() !== ''
+        ? String(nameRaw)
+        : ''
+  if (!name.trim()) return null
+  const stateRaw = r.state
+  const state =
+    typeof stateRaw === 'string'
+      ? stateRaw
+      : stateRaw != null
+        ? String(stateRaw)
+        : 'unknown'
+  let vcpus = 0
+  if (typeof r.vcpus === 'number' && Number.isFinite(r.vcpus)) {
+    vcpus = Math.max(0, Math.floor(r.vcpus))
+  } else if (r.vcpus != null) {
+    const n = Number(r.vcpus)
+    if (Number.isFinite(n)) vcpus = Math.max(0, Math.floor(n))
+  }
+  let memory_mb = 0
+  if (typeof r.memory_mb === 'number' && Number.isFinite(r.memory_mb)) {
+    memory_mb = Math.max(0, Math.floor(r.memory_mb))
+  } else if (r.memory_mb != null) {
+    const n = Number(r.memory_mb)
+    if (Number.isFinite(n)) memory_mb = Math.max(0, Math.floor(n))
+  }
+  const conn = r.libvirt_connection
+  const libvirt_connection =
+    typeof conn === 'string' && conn.length > 0 ? conn : undefined
+  const vm: VmInfo = { name, state, vcpus, memory_mb }
+  if (libvirt_connection) vm.libvirt_connection = libvirt_connection
+  return vm
 }
 
 export interface VmDetails {
@@ -175,11 +224,23 @@ export interface VmTemplate {
   template_disk_mode?: string
 }
 
-export const listVMs = () => apiGet<VmInfo[]>(`${API}/vms`)
+export async function listVMs(): Promise<VmInfo[]> {
+  const raw = await readJsonArray<unknown>(`${API}/vms`)
+  if (!Array.isArray(raw)) {
+    console.warn('machina: GET /api/v1/vms expected a JSON array')
+    return []
+  }
+  const out: VmInfo[] = []
+  for (const row of raw) {
+    const vm = sanitizeVmInfo(row)
+    if (vm) out.push(vm)
+  }
+  return out
+}
 export const getVM = (name: string, connection?: string | null) =>
-  apiGet<VmDetails>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}`, connection))
+  readJsonObject<VmDetails>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}`, connection))
 export const getVMXml = (name: string, connection?: string | null) =>
-  apiGet<string>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/xml`, connection))
+  apiGetText(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/xml`, connection))
 
 /** CDI DataVolume (upload) + KubeVirt VM YAML; virtio-win CDROM via containerDisk (post-migrate driver disk pattern). */
 export interface KubeVirtBundle {
@@ -225,7 +286,7 @@ export function getKubeVirtBundle(name: string, q?: KubeVirtBundleQuery) {
   if (q?.include_virtio_cdrom === false) p.set('include_virtio_cdrom', 'false')
   if (q?.connection) p.set('connection', q.connection)
   const qs = p.toString()
-  return apiGet<KubeVirtBundle>(
+  return readJsonObject<KubeVirtBundle>(
     `${API}/vms/${encodeURIComponent(name)}/kubevirt-bundle${qs ? `?${qs}` : ''}`,
   )
 }
@@ -374,7 +435,7 @@ export interface GuacamoleAuthResponse {
 
 /** Optional Apache Guacamole encrypted JSON auth; requires server config `[guacamole]`. */
 export const getGuacamoleAuth = (name: string, connection?: string | null) =>
-  apiGet<GuacamoleAuthResponse>(
+  readJsonObject<GuacamoleAuthResponse>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guacamole-auth`, connection),
   )
 
@@ -386,7 +447,7 @@ export interface BlockJobInfo {
 }
 
 export const getBlockJobInfo = (name: string, disk: string, bandwidthBytes = false, connection?: string | null) =>
-  apiGet<{ name: string; job: BlockJobInfo | null }>(
+  readJsonObject<{ name: string; job: BlockJobInfo | null }>(
     appendVmConnection(
       `${API}/vms/${encodeURIComponent(name)}/block/job?disk=${encodeURIComponent(disk)}${bandwidthBytes ? '&bandwidth_bytes=true' : ''}`,
       connection,
@@ -454,10 +515,10 @@ export const setMemory = (name: string, mb: number, connection?: string | null) 
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/memory/${mb}`, connection))
 export const renameVM = (name: string, newName: string, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/rename`, connection), { new_name: newName })
-export const getMetrics = () => apiGet<VmMetrics[]>(`${API}/metrics`)
+export const getMetrics = () => readJsonArray<VmMetrics>(`${API}/metrics`)
 export const getVMMetrics = (name: string, connection?: string | null) =>
-  apiGet<VmMetrics>(appendVmConnection(`${API}/metrics/${encodeURIComponent(name)}`, connection))
-export const getTemplates = () => apiGet<VmTemplate[]>(`${API}/templates`)
+  readJsonObject<VmMetrics>(appendVmConnection(`${API}/metrics/${encodeURIComponent(name)}`, connection))
+export const getTemplates = () => readJsonArray<VmTemplate>(`${API}/templates`)
 
 export interface GuestIpAddress {
   name: string
@@ -500,9 +561,13 @@ export interface ManagedSaveStatus {
 }
 
 export const getInterfaces = (name: string, connection?: string | null) =>
-  apiGet<GuestInterfacesResponse>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/interfaces`, connection))
+  readJsonObject<GuestInterfacesResponse>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/interfaces`, connection),
+  )
 export const getHostname = (name: string, connection?: string | null) =>
-  apiGet<{ hostname: string }>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/hostname`, connection))
+  readJsonObject<{ hostname: string }>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/hostname`, connection),
+  )
 export const insertCdrom = (name: string, isoPath: string, target: string, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, connection), {
     iso_path: isoPath,
@@ -529,11 +594,11 @@ export const managedSave = (name: string, connection?: string | null) =>
 export const managedSaveRemove = (name: string, connection?: string | null) =>
   apiDelete(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/managed-save`, connection))
 export const hasManagedSave = (name: string, connection?: string | null) =>
-  apiGet<ManagedSaveStatus>(
+  readJsonObject<ManagedSaveStatus>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/managed-save/status`, connection),
   )
 export const getBootConfig = (name: string, connection?: string | null) =>
-  apiGet<BootConfig>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/boot`, connection))
+  readJsonObject<BootConfig>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/boot`, connection))
 export const setBootOrder = (name: string, devices: string[], connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/boot`, connection), { devices })
 export interface MigrateOptions {
@@ -635,16 +700,16 @@ export const detachInterface = (name: string, mac: string, connection?: string |
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/nic/detach/${encodeURIComponent(mac)}`, connection),
   )
 export const getVMLogs = (name: string, lines = 500, connection?: string | null) =>
-  apiGet<{ vm_name: string; log_path: string; content: string }>(
+  readJsonObject<{ vm_name: string; log_path: string; content: string }>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/logs?lines=${lines}`, connection),
   )
 
 export interface CpuTuneInfo { shares?: number; period?: number; quota?: number; vcpupin: { vcpu: number; cpuset: string }[] }
 export interface MemTuneInfo { hard_limit_kb?: number; soft_limit_kb?: number; swap_hard_limit_kb?: number }
 export const getCpuTune = (name: string, connection?: string | null) =>
-  apiGet<CpuTuneInfo>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cputune`, connection))
+  readJsonObject<CpuTuneInfo>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cputune`, connection))
 export const getMemTune = (name: string, connection?: string | null) =>
-  apiGet<MemTuneInfo>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/memtune`, connection))
+  readJsonObject<MemTuneInfo>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/memtune`, connection))
 
 export interface NumaTuneState {
   node_set?: string | null
@@ -652,7 +717,7 @@ export interface NumaTuneState {
 }
 
 export const getNumaTune = (name: string, connection?: string | null) =>
-  apiGet<NumaTuneState>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/numa`, connection))
+  readJsonObject<NumaTuneState>(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/numa`, connection))
 
 export const setNumaTune = (
   name: string,

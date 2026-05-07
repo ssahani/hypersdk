@@ -90,10 +90,7 @@ pub fn get_user_role(username: &str) -> Role {
         // No roles.json yet — treat browser/PAM users as admin until an admin creates the map.
         return Role::Admin;
     }
-    roles
-        .get(username)
-        .cloned()
-        .unwrap_or(Role::ReadOnly)
+    roles.get(username).cloned().unwrap_or(Role::ReadOnly)
 }
 
 pub fn set_user_role(username: &str, role: Role) -> Result<(), LibvirtError> {

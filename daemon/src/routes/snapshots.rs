@@ -24,7 +24,10 @@ async fn list_vm_snapshots(
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<Vec<SnapshotInfo>>, AppError> {
     let vm2 = vm_name.clone();
-    let rows = spawn_libvirt(manager, conn_q, move |conn| snapshot::list_snapshots(conn, &vm2)).await?;
+    let rows = spawn_libvirt(manager, conn_q, move |conn| {
+        snapshot::list_snapshots(conn, &vm2)
+    })
+    .await?;
     Ok(Json(rows))
 }
 
@@ -37,7 +40,10 @@ async fn create_snapshot_handler(
     let vm2 = vm_name.clone();
     let snap_name = req.name.clone();
     let req2 = req.clone();
-    spawn_libvirt(manager, conn_q, move |conn| snapshot::create_snapshot(conn, &vm2, &req2)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        snapshot::create_snapshot(conn, &vm2, &req2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "created", "vm": vm_name, "snapshot": snap_name }),
     ))
@@ -50,7 +56,10 @@ async fn delete_snapshot_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let vm2 = vm_name.clone();
     let snap2 = snap_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| snapshot::delete_snapshot(conn, &vm2, &snap2)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        snapshot::delete_snapshot(conn, &vm2, &snap2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "deleted", "vm": vm_name, "snapshot": snap_name }),
     ))
@@ -63,7 +72,10 @@ async fn revert_snapshot_handler(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let vm2 = vm_name.clone();
     let snap2 = snap_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| snapshot::revert_snapshot(conn, &vm2, &snap2)).await?;
+    spawn_libvirt(manager, conn_q, move |conn| {
+        snapshot::revert_snapshot(conn, &vm2, &snap2)
+    })
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "reverted", "vm": vm_name, "snapshot": snap_name }),
     ))
