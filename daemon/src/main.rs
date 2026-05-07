@@ -1,6 +1,7 @@
 mod auth;
 mod conn_query;
 mod error;
+mod inventory_history;
 mod job_registry;
 mod k8s_kubeconfig;
 mod kubevirt_exec;
@@ -94,6 +95,8 @@ async fn main() -> anyhow::Result<()> {
             "OIDC marked enabled but missing issuer_url/client_id/redirect_url; browser SSO is disabled"
         );
     }
+
+    inventory_history::spawn_inventory_history_worker(manager.clone(), config.inventory_history.clone());
 
     let bind_addr = config.bind_addr();
     let tls_enabled =

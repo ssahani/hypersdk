@@ -2,7 +2,12 @@ use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::build_precheck;
+use machina_core::host_inventory::{
+    gather_hardware_inventory_report, inventory_history_jsonl_path, load_inventory_history_entries,
+    HardwareInventoryReport,
+};
 use machina_core::host_platform;
+use machina_core::libvirt::node;
 use machina_core::libvirt::{extras, storage, virt_builder};
 use machina_core::{audit, AuditEvent, LibvirtError, LibvirtManager, MachinaConfig};
 use serde::Deserialize;
@@ -1126,6 +1131,38 @@ async fn host_reboot_handler(
 
 // ── Host System Info ──────────────────────────────────────────────
 
+/// Linux sysfs + DMI + `/proc/cpuinfo`, merged with libvirt node caps (inventory / audit).
+async fn get_hardware_inventory_handler(
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<HardwareInventoryReport>, AppError> {
+    let mgr = manager.clone();
+    let report = tokio::task::spawn_blocking(move || {
+        let libvirt = mgr.with_conn(node::get_node_info).ok();
+        gather_hardware_inventory_report(libvirt)
+    })
+    .await
+    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(report))
+}
+
+#[derive(Deserialize)]
+struct InventoryHistoryQuery {
+    limit: Option<usize>,
+}
+
+/// Newest JSON Lines from `/var/lib/machina/hardware-inventory.jsonl` (written by the periodic inventory task).
+async fn get_hardware_inventory_history_handler(
+    State(_manager): State<LibvirtManager>,
+    Query(q): Query<InventoryHistoryQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let limit = q.limit.unwrap_or(80).min(5000).max(1);
+    let entries = load_inventory_history_entries(limit)?;
+    Ok(Json(serde_json::json!({
+        "path": inventory_history_jsonl_path().display().to_string(),
+        "entries": entries,
+    })))
+}
+
 async fn get_system_info_handler(
     State(_m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -1242,6 +1279,8 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/host/shutdown", post(host_shutdown_handler))
         .route("/host/reboot", post(host_reboot_handler))
         // Host system info
+        .route("/host/hardware-inventory/history", get(get_hardware_inventory_history_handler))
+        .route("/host/hardware-inventory", get(get_hardware_inventory_handler))
         .route("/host/system-info", get(get_system_info_handler))
         .route("/host/hostname", post(set_hostname_handler))
         .route("/host/timezone", post(set_timezone_handler))

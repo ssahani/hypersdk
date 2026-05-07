@@ -2,6 +2,7 @@ pub mod audit;
 pub mod build_precheck;
 pub mod config;
 pub mod fmt;
+pub mod host_inventory;
 pub mod host_platform;
 pub mod host_virt;
 pub mod kubevirt;

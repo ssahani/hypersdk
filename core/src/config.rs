@@ -26,6 +26,45 @@ pub struct MachinaConfig {
     /// Defaults for `GET /api/v1/vms/{name}/kubevirt-bundle` (libvirt qcow2 → KubeVirt manifest generation).
     #[serde(default)]
     pub kubevirt: KubeVirtConfig,
+    /// Periodic snapshots of host hardware inventory (JSON Lines under `/var/lib/machina/hardware-inventory.jsonl`).
+    #[serde(default)]
+    pub inventory_history: InventoryHistoryConfig,
+}
+
+/// Append-only hardware inventory history on disk (vCenter-style audit trail of platform identity / topology).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InventoryHistoryConfig {
+    /// When true, the daemon appends a full JSON snapshot on each interval.
+    #[serde(default = "default_inventory_history_enabled")]
+    pub enabled: bool,
+    /// Wall time between snapshots. Minimum 60 seconds when `enabled` is true.
+    #[serde(default = "default_inventory_history_interval_secs")]
+    pub interval_secs: u64,
+    /// When the JSONL file exceeds this size, the oldest lines are dropped (roughly 85% of this budget is kept).
+    #[serde(default = "default_inventory_history_max_file_mb")]
+    pub max_file_mb: u64,
+}
+
+fn default_inventory_history_enabled() -> bool {
+    true
+}
+
+fn default_inventory_history_interval_secs() -> u64 {
+    3600
+}
+
+fn default_inventory_history_max_file_mb() -> u64 {
+    64
+}
+
+impl Default for InventoryHistoryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_inventory_history_enabled(),
+            interval_secs: default_inventory_history_interval_secs(),
+            max_file_mb: default_inventory_history_max_file_mb(),
+        }
+    }
 }
 
 /// Tuning for generated KubeVirt + CDI YAML ([`crate::kubevirt`]) and optional `kubectl` / `virtctl` execution.
@@ -644,5 +683,13 @@ mod tests {
         assert_eq!(o.username_claim, "preferred_username");
         assert_eq!(o.linux_username_claim, "preferred_username");
         assert!(!o.require_local_user_for_session_libvirt);
+    }
+
+    #[test]
+    fn inventory_history_defaults() {
+        let i = InventoryHistoryConfig::default();
+        assert!(i.enabled);
+        assert_eq!(i.interval_secs, 3600);
+        assert_eq!(i.max_file_mb, 64);
     }
 }

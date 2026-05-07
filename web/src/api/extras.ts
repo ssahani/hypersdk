@@ -526,3 +526,65 @@ export interface SystemInfo {
 export const getSystemInfo = () => readJsonObject<SystemInfo>(`${API}/host/system-info`)
 export const setHostname = (hostname: string) => apiPost<{ status: string }>(`${API}/host/hostname`, { hostname })
 export const setTimezone = (timezone: string) => apiPost<{ status: string }>(`${API}/host/timezone`, { timezone })
+
+/** Sysfs + SMBIOS/DMI + libvirt caps — VMware-style platform inventory for audits. */
+export interface DmiInventory {
+  product_uuid: string | null
+  product_serial: string
+  sys_vendor: string
+  product_name: string
+  board_vendor: string
+  board_name: string
+  bios_version: string
+  bios_date: string
+}
+
+export interface CpuTopologySysfs {
+  logical_cpus: number
+  sockets: number
+  socket_package_ids: number[]
+  physical_cores: number
+  threads_per_core_max: number
+  cores_per_socket: number[]
+}
+
+export interface NumaNodeInventory {
+  node_id: number
+  cpu_list: string
+  memory_total_kb: number
+}
+
+export interface LibvirtCpuCapsule {
+  cpu_model: string
+  cpu_sockets: number
+  cpu_cores: number
+  cpu_threads: number
+  numa_nodes: number
+  memory_mb: number
+}
+
+export interface HardwareInventoryReport {
+  collected_at_rfc3339: string
+  sources: string[]
+  dmi: DmiInventory
+  cpu_topology: CpuTopologySysfs
+  numa_nodes: NumaNodeInventory[]
+  cpuinfo_vendor_id: string | null
+  cpuinfo_model_name: string | null
+  libvirt: LibvirtCpuCapsule | null
+  libvirt_logical_cpus_derived: number | null
+  consistency_notes: string[]
+}
+
+export const getHardwareInventory = () =>
+  readJsonObject<HardwareInventoryReport>(`${API}/host/hardware-inventory`)
+
+export interface HardwareInventoryHistoryResponse {
+  path: string
+  entries: HardwareInventoryReport[]
+}
+
+export const getHardwareInventoryHistory = (limit = 80) =>
+  readJsonObject<HardwareInventoryHistoryResponse>(
+    `${API}/host/hardware-inventory/history?limit=${encodeURIComponent(String(limit))}`,
+  )

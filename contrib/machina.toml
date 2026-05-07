@@ -7,6 +7,12 @@
 [general]
 refresh_interval_secs = 5
 
+# Periodic hardware inventory JSON Lines under /var/lib/machina/hardware-inventory.jsonl (VMware-style audit trail).
+# [inventory_history]
+# enabled = true
+# interval_secs = 3600
+# max_file_mb = 64
+
 [daemon]
 host = "0.0.0.0"
 # Omit `port` to use default 5092 (see DEFAULT_DAEMON_PORT in core)

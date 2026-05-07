@@ -21,6 +21,10 @@ import {
   getHostPasswdUsers,
   getHostGroups,
   getHostSecuritySummary,
+  getHardwareInventory,
+  getHardwareInventoryHistory,
+  type HardwareInventoryHistoryResponse,
+  type HardwareInventoryReport,
   HostFilesystem,
   HostProcess,
   PackageUpdateCheck,
@@ -177,6 +181,9 @@ export default function NodeInfoPage() {
   const [killBusyPid, setKillBusyPid] = useState<number | null>(null)
   const [libvirtBoot, setLibvirtBoot] = useState<LibvirtBootStatus | null>(null)
   const [libvirtBootBusy, setLibvirtBootBusy] = useState(false)
+  const [hardwareInventory, setHardwareInventory] = useState<HardwareInventoryReport | null>(null)
+  const [hardwareInventoryHistory, setHardwareInventoryHistory] =
+    useState<HardwareInventoryHistoryResponse | null>(null)
 
   const canKillHostProcess = sessionRole === 'admin'
 
@@ -195,8 +202,10 @@ export default function NodeInfoPage() {
       getHostGroups(200),
       getHostSecuritySummary(),
       getHostLibvirtBoot(),
+      getHardwareInventory(),
+      getHardwareInventoryHistory(48),
     ])
-      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb]) => {
+      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb, hi, hh]) => {
         if (n.status === 'fulfilled') setNode(n.value)
         if (h.status === 'fulfilled') setHealth(h.value)
         if (si.status === 'fulfilled') setSysInfo(si.value)
@@ -229,6 +238,10 @@ export default function NodeInfoPage() {
         else setSecuritySummary(null)
         if (lb.status === 'fulfilled') setLibvirtBoot(lb.value)
         else setLibvirtBoot(null)
+        if (hi.status === 'fulfilled') setHardwareInventory(hi.value)
+        else setHardwareInventory(null)
+        if (hh.status === 'fulfilled') setHardwareInventoryHistory(hh.value)
+        else setHardwareInventoryHistory(null)
         if (s.status === 'fulfilled') {
           setStats(s.value)
           const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -849,6 +862,204 @@ export default function NodeInfoPage() {
           )}
         </div>
       </div>
+
+      {/* Platform inventory — sysfs CPU topology + DMI + libvirt reconciliation */}
+      {hardwareInventory && (
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <FolderTree className="w-5 h-5 text-cyan-400" /> Platform inventory
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-3xl">
+                Kernel-exposed CPU topology and SMBIOS/DMI tables (same conceptual sources as proprietary hypervisors use for sockets/cores/threads/NUMA),
+                cross-checked with libvirt&apos;s node caps for audit-style reconciliation.
+              </p>
+            </div>
+            <span className="text-[10px] text-slate-500 font-mono whitespace-nowrap">
+              {hardwareInventory.collected_at_rfc3339}
+            </span>
+          </div>
+
+          {hardwareInventory.consistency_notes.length > 0 && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 space-y-1">
+              {hardwareInventory.consistency_notes.map((note, i) => (
+                <p key={i}>{note}</p>
+              ))}
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-slate-300">Firmware / chassis (DMI)</h4>
+              <InfoRow label="Hardware UUID" value={hardwareInventory.dmi.product_uuid ?? '—'} />
+              <InfoRow label="Serial / tag" value={hardwareInventory.dmi.product_serial || '—'} />
+              <InfoRow label="Vendor" value={hardwareInventory.dmi.sys_vendor || '—'} />
+              <InfoRow label="Product" value={hardwareInventory.dmi.product_name || '—'} />
+              <InfoRow label="Board" value={[hardwareInventory.dmi.board_vendor, hardwareInventory.dmi.board_name].filter(Boolean).join(' ') || '—'} />
+              <InfoRow label="BIOS" value={[hardwareInventory.dmi.bios_version, hardwareInventory.dmi.bios_date].filter(Boolean).join(' · ') || '—'} />
+            </div>
+            <div className="space-y-2">
+              <h4 className="text-sm font-medium text-slate-300">CPU identity (/proc/cpuinfo)</h4>
+              <InfoRow label="Vendor" value={hardwareInventory.cpuinfo_vendor_id ?? '—'} />
+              <InfoRow label="Model" value={hardwareInventory.cpuinfo_model_name ?? '—'} />
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-medium text-slate-300 mb-2">Topology (sysfs)</h4>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="rounded-lg bg-slate-900/40 border border-slate-700/40 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Online CPUs</div>
+                <div className="text-xl font-semibold text-white">{hardwareInventory.cpu_topology.logical_cpus}</div>
+              </div>
+              <div className="rounded-lg bg-slate-900/40 border border-slate-700/40 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Sockets</div>
+                <div className="text-xl font-semibold text-white">{hardwareInventory.cpu_topology.sockets}</div>
+              </div>
+              <div className="rounded-lg bg-slate-900/40 border border-slate-700/40 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Physical cores</div>
+                <div className="text-xl font-semibold text-white">{hardwareInventory.cpu_topology.physical_cores}</div>
+              </div>
+              <div className="rounded-lg bg-slate-900/40 border border-slate-700/40 px-3 py-2">
+                <div className="text-[10px] uppercase tracking-wide text-slate-500">Threads / core (max)</div>
+                <div className="text-xl font-semibold text-white">{hardwareInventory.cpu_topology.threads_per_core_max}</div>
+              </div>
+            </div>
+            <div className="rounded-lg bg-slate-900/50 border border-slate-700/40 p-4 font-mono text-xs text-slate-300 leading-relaxed">
+              <div className="text-slate-400 mb-3 select-none">
+                {(hardwareInventory.dmi.sys_vendor || 'Host').trim() || 'Host'} · {(hardwareInventory.dmi.product_name || 'platform').trim() || 'platform'}
+              </div>
+              {hardwareInventory.cpu_topology.socket_package_ids.length === 0 ? (
+                <p className="text-slate-500">No sysfs topology (non-Linux host or cpus offline).</p>
+              ) : (
+                hardwareInventory.cpu_topology.socket_package_ids.map((pkgId, i) => (
+                  <div key={`${pkgId}-${i}`} className="border-l border-slate-600 ml-1 pl-3 pb-2 last:pb-0">
+                    <span className="text-emerald-400/90">Socket</span>{' '}
+                    <span className="text-white">{pkgId}</span>
+                    <span className="text-slate-500"> — </span>
+                    <span>{hardwareInventory.cpu_topology.cores_per_socket[i] ?? 0} cores</span>
+                    <span className="text-slate-500"> × </span>
+                    <span>≤{hardwareInventory.cpu_topology.threads_per_core_max} threads/core</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {hardwareInventory.numa_nodes.length > 0 && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-300 mb-2">NUMA (sysfs)</h4>
+              <div className="overflow-x-auto rounded-lg border border-slate-700/40">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-400 border-b border-slate-700/50">
+                      <th className="px-4 py-2">Node</th>
+                      <th className="px-4 py-2">CPUs</th>
+                      <th className="px-4 py-2">Memory</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/40">
+                    {hardwareInventory.numa_nodes.map((nn) => (
+                      <tr key={nn.node_id}>
+                        <td className="px-4 py-2 font-mono">{nn.node_id}</td>
+                        <td className="px-4 py-2 font-mono text-xs text-slate-300">{nn.cpu_list || '—'}</td>
+                        <td className="px-4 py-2">{formatBytes(nn.memory_total_kb * 1024)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {hardwareInventory.libvirt && (
+            <div>
+              <h4 className="text-sm font-medium text-slate-300 mb-2">Libvirt node caps (reconciliation)</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+                <InfoRow label="libvirt model" value={hardwareInventory.libvirt.cpu_model} />
+                <InfoRow label="NUMA cells (libvirt)" value={hardwareInventory.libvirt.numa_nodes} />
+                <InfoRow label="Sockets × cores × threads" value={`${hardwareInventory.libvirt.cpu_sockets} × ${hardwareInventory.libvirt.cpu_cores} × ${hardwareInventory.libvirt.cpu_threads}`} />
+                <InfoRow label="Derived logical CPUs" value={hardwareInventory.libvirt_logical_cpus_derived ?? '—'} />
+                <InfoRow label="RAM (libvirt)" value={`${(hardwareInventory.libvirt.memory_mb / 1024).toFixed(1)} GB`} />
+              </div>
+            </div>
+          )}
+
+          <details className="rounded-lg border border-slate-700/40 bg-slate-900/30">
+            <summary className="px-3 py-2 text-xs text-slate-400 cursor-pointer hover:text-slate-300">Data sources</summary>
+            <ul className="px-4 pb-3 text-[11px] font-mono text-slate-500 space-y-0.5">
+              {hardwareInventory.sources.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
+
+      {hardwareInventoryHistory && (
+        <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
+          <div className="flex flex-wrap justify-between gap-2 items-start">
+            <div>
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <ScrollText className="w-5 h-5 text-slate-400" /> Inventory history
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 max-w-3xl">
+                JSON Lines on the hypervisor (daemon appends on a schedule; default hourly). Newest snapshots first — useful for spotting UUID / topology drift over time.
+              </p>
+            </div>
+            <span
+              className="text-[10px] text-slate-500 font-mono truncate max-w-[min(100%,28rem)] text-right"
+              title={hardwareInventoryHistory.path}
+            >
+              {hardwareInventoryHistory.path}
+            </span>
+          </div>
+          {hardwareInventoryHistory.entries.length === 0 ? (
+            <p className="text-sm text-slate-500">
+              No snapshots yet. Tune <code className="text-slate-400">[inventory_history]</code> in{' '}
+              <code className="text-slate-400">config.toml</code> (enable, interval, max file size).
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border border-slate-700/40">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-400 border-b border-slate-700/50">
+                    <th className="px-4 py-2 whitespace-nowrap">Collected (UTC)</th>
+                    <th className="px-4 py-2">CPUs</th>
+                    <th className="px-4 py-2">Sockets</th>
+                    <th className="px-4 py-2">Phys. cores</th>
+                    <th className="px-4 py-2 hidden md:table-cell">HW UUID</th>
+                    <th className="px-4 py-2">Alerts</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-700/40">
+                  {hardwareInventoryHistory.entries.map((e, idx) => (
+                    <tr key={`${e.collected_at_rfc3339}-${idx}`} className="hover:bg-slate-700/25">
+                      <td className="px-4 py-2 font-mono text-xs whitespace-nowrap text-slate-300">{e.collected_at_rfc3339}</td>
+                      <td className="px-4 py-2 tabular-nums">{e.cpu_topology.logical_cpus}</td>
+                      <td className="px-4 py-2 tabular-nums">{e.cpu_topology.sockets}</td>
+                      <td className="px-4 py-2 tabular-nums">{e.cpu_topology.physical_cores}</td>
+                      <td className="px-4 py-2 font-mono text-xs max-w-[160px] truncate hidden md:table-cell" title={e.dmi.product_uuid ?? ''}>
+                        {e.dmi.product_uuid ? `${e.dmi.product_uuid.slice(0, 10)}…` : '—'}
+                      </td>
+                      <td className="px-4 py-2 text-xs">
+                        {e.consistency_notes.length > 0 ? (
+                          <span className="text-amber-300/95" title={e.consistency_notes.join('\n')}>
+                            {e.consistency_notes.length} note{e.consistency_notes.length === 1 ? '' : 's'}
+                          </span>
+                        ) : (
+                          <span className="text-slate-500">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Storage Overview (root aggregate) */}
       {stats && (
