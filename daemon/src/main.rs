@@ -2,6 +2,7 @@ mod auth;
 mod conn_query;
 mod error;
 mod inventory_history;
+mod k8s_quantity;
 mod job_registry;
 mod k8s_kubeconfig;
 mod kubevirt_exec;

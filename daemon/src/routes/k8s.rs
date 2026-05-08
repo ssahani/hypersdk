@@ -13,10 +13,14 @@ use tracing::{info, warn};
 use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::auth::{require_browser_session_for_host_insight, RequestActor};
+use crate::k8s_quantity::{parse_cpu_to_millicores, parse_memory_to_bytes};
 use crate::error::AppError;
 
 const KUBECTL_TIMEOUT_SECS: u64 = 30;
 const KUBECTL_PROBE_TIMEOUT_SECS: u64 = 8;
+/// Kubernetes version skew: kubelet must not be newer than `kube-apiserver`, and may be at most
+/// this many **minor** versions older (see upstream "Kubernetes version skew policy").
+const MAX_KUBELET_MINOR_VERSIONS_BELOW_APISERVER: u32 = 3;
 const KUBECTL_LOGS_TIMEOUT_SECS: u64 = 60;
 const KUBECTL_APPLY_MAX_MANIFEST_BYTES: usize = 512 * 1024;
 const SNIPPET_MAX_BYTES: usize = 18_432;
@@ -46,7 +50,15 @@ struct KubectlResult {
     ok: bool,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Clone)]
+struct K8sNodeTaint {
+    key: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    value: Option<String>,
+    effect: String,
+}
+
+#[derive(Debug, Serialize, Clone)]
 struct K8sNodeInfo {
     name: String,
     roles: Vec<String>,
@@ -59,6 +71,168 @@ struct K8sNodeInfo {
     capacity: BTreeMap<String, String>,
     allocatable: BTreeMap<String, String>,
     labels: BTreeMap<String, String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata_uid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    system_uuid: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_id: Option<String>,
+    /// `control_plane` | `worker` | `mixed` — from `node-role.kubernetes.io/*` labels only.
+    plane: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cpu_capacity_millicores: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    cpu_allocatable_millicores: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    memory_capacity_bytes: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    memory_allocatable_bytes: Option<i64>,
+    /// Zone/region/instance-type and optional NFD CPU labels when present.
+    topology_hints: BTreeMap<String, String>,
+    /// Set when `spec.unschedulable` is true (cordoned).
+    #[serde(default)]
+    unschedulable: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    taints: Vec<K8sNodeTaint>,
+    /// Node condition `status == True` for pressure / unavailable types.
+    #[serde(default)]
+    memory_pressure: bool,
+    #[serde(default)]
+    disk_pressure: bool,
+    #[serde(default)]
+    pid_pressure: bool,
+    #[serde(default)]
+    network_unavailable: bool,
+    /// Populated in cluster inventory when API server gitVersion parses cleanly.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    kubelet_minor_matches_apiserver: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Default, Clone)]
+struct K8sPlaneRollup {
+    node_count: usize,
+    ready_node_count: usize,
+    cpu_capacity_millicores: i64,
+    cpu_allocatable_millicores: i64,
+    memory_capacity_bytes: i64,
+    memory_allocatable_bytes: i64,
+}
+
+#[derive(Debug, Serialize, Default, Clone)]
+struct K8sTaintPlaneRollup {
+    nodes_total: usize,
+    /// Nodes carrying at least one `NoSchedule` or `NoExecute` taint.
+    nodes_with_scheduling_taints: usize,
+}
+
+#[derive(Debug, Serialize)]
+struct K8sClusterInventoryResponse {
+    collected_at_rfc3339: String,
+    /// Kubernetes reports **schedulable** cpu/memory from kubelet, not physical sockets/cores unless mirrored in labels (NFD, cloud).
+    disclaimer: String,
+    totals_all_nodes: K8sPlaneRollup,
+    /// Single bucket per plane (`control_plane`, `worker`, `mixed`); each node counted once.
+    by_plane: BTreeMap<String, K8sPlaneRollup>,
+    /// Control-plane & etcd footprint style view: control_plane nodes + mixed-role nodes.
+    combined_control_plane_and_mixed: K8sPlaneRollup,
+    /// Workload / data-plane scheduling view: worker nodes + mixed-role nodes (mixed counted in both combined views).
+    combined_worker_dataplane_and_mixed: K8sPlaneRollup,
+    nodes: Vec<K8sNodeInfo>,
+    /// From `kubectl version -o json` → `serverVersion.gitVersion`.
+    #[serde(default)]
+    apiserver_git_version: String,
+    /// `major.minor` parsed from `apiserver_git_version` when possible.
+    #[serde(default)]
+    apiserver_major_minor: String,
+    /// Best-effort `kubectl get --raw /livez` (RBAC or endpoint gaps may report false).
+    #[serde(default)]
+    cluster_livez_ok: bool,
+    #[serde(default)]
+    cluster_readyz_ok: bool,
+    #[serde(default)]
+    cluster_health_notes: Vec<String>,
+    /// Nodes whose kubelet **minor** does not match API server **minor** (upgrade hygiene).
+    #[serde(default)]
+    nodes_with_kubelet_minor_skew: usize,
+    /// Node counts by `topology.kubernetes.io/zone` (and beta zone when zone missing).
+    #[serde(default)]
+    topology_nodes_by_zone: BTreeMap<String, usize>,
+    /// Node counts by region labels (`topology.kubernetes.io/region` or failure-domain beta).
+    #[serde(default)]
+    topology_nodes_by_region: BTreeMap<String, usize>,
+    /// Per-plane taint footprint (`NoSchedule` / `NoExecute`).
+    #[serde(default)]
+    taints_by_plane: BTreeMap<String, K8sTaintPlaneRollup>,
+    /// Running pods (`phase == Running`) grouped by node plane label bucket.
+    #[serde(default)]
+    running_pods_by_plane: BTreeMap<String, usize>,
+    #[serde(default)]
+    running_pods_total: usize,
+    /// Running pods with no `nodeName` (unusual; included for completeness).
+    #[serde(default)]
+    running_pods_without_node: usize,
+    /// `Pending` pods with no `nodeName` (not yet scheduled to a node).
+    #[serde(default)]
+    pending_pods_unscheduled: usize,
+    /// Pods resembling etcd (name/image heuristics). Not true Raft membership; stacked clusters often show one pod per member.
+    #[serde(default)]
+    etcd_placement_pods: Vec<K8sCpStackPod>,
+    /// Other control-plane static/mirror pods (apiserver, controller-manager, scheduler, …).
+    #[serde(default)]
+    control_plane_stack_pods: Vec<K8sCpStackPod>,
+    #[serde(default)]
+    upgrade_insights: K8sUpgradeInsights,
+}
+
+#[derive(Debug, Serialize, Clone)]
+struct K8sCpStackPod {
+    /// `etcd`, `kube-apiserver`, `kube-controller-manager`, `kube-scheduler`, or `unknown`.
+    component: String,
+    namespace: String,
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node_name: Option<String>,
+    /// Plane segment for `node_name` when known (`control_plane`, `worker`, `mixed`, …).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    node_plane: Option<String>,
+    phase: String,
+    #[serde(default)]
+    container_images: Vec<String>,
+    /// Best-effort semver-like tag parsed from an image ref (`:v1.29.x`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    inferred_k8s_semver_tag: Option<String>,
+}
+
+#[derive(Debug, Serialize, Default, Clone)]
+struct K8sUpgradeInsights {
+    #[serde(default)]
+    disclaimer: String,
+    /// Number of **Running** pods classified as etcd by heuristics (often ≈ stacked etcd members).
+    #[serde(default)]
+    inferred_etcd_member_pods_running: usize,
+    /// Greatest kubelet minor lag behind API server among nodes with parseable versions (same major).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    max_kubelet_minor_lag_behind_apiserver: Option<u32>,
+    /// Nodes whose kubelet is **newer** than the API server minor (unsupported skew).
+    #[serde(default)]
+    nodes_kubelet_newer_than_apiserver: Vec<String>,
+    /// Same Kubernetes **major** as API server, but kubelet minor lag exceeds supported policy.
+    #[serde(default)]
+    nodes_kubelet_minor_lag_exceeds_policy: Vec<String>,
+    /// Kubelet **major** is older than API server (`kubelet < apiserver` major).
+    #[serde(default)]
+    nodes_kubelet_major_behind_apiserver: Vec<String>,
+    /// Distinct `major.minor` strings parsed from `kube-apiserver` pod images.
+    #[serde(default)]
+    kube_apiserver_pod_image_minors: Vec<String>,
+    /// Distinct `major.minor` from `etcd` pod images when parseable.
+    #[serde(default)]
+    etcd_pod_image_minors: Vec<String>,
+    #[serde(default)]
+    upgrade_warnings: Vec<String>,
+    /// Generic safe ordering hints (distro still wins).
+    #[serde(default)]
+    suggested_upgrade_order: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -793,6 +967,729 @@ async fn k8s_environment(
     }))
 }
 
+fn classify_node_plane(roles: &[String]) -> &'static str {
+    let cp = roles.iter().any(|r| r == "control-plane" || r == "master");
+    let wr = roles.iter().any(|r| r == "worker");
+    match (cp, wr) {
+        (true, true) => "mixed",
+        (true, false) => "control_plane",
+        (false, _) => "worker",
+    }
+}
+
+fn topology_hints_from_labels(labels: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    const KEYS: &[&str] = &[
+        "node.kubernetes.io/instance-type",
+        "beta.kubernetes.io/instance-type",
+        "topology.kubernetes.io/region",
+        "topology.kubernetes.io/zone",
+        "failure-domain.beta.kubernetes.io/region",
+        "failure-domain.beta.kubernetes.io/zone",
+        "kubernetes.io/arch",
+        "kubernetes.io/os",
+    ];
+    for k in KEYS {
+        if let Some(v) = labels.get(*k) {
+            out.insert((*k).to_string(), v.clone());
+        }
+    }
+    for (k, v) in labels {
+        if k.starts_with("feature.node.kubernetes.io/cpu") && out.len() < 48 {
+            out.insert(k.clone(), v.clone());
+        }
+    }
+    out
+}
+
+fn parse_k8s_node_item(item: &Value) -> Option<K8sNodeInfo> {
+    let metadata = item.get("metadata").and_then(|x| x.as_object())?;
+    let status = item.get("status").and_then(|x| x.as_object());
+    let spec = item.get("spec").and_then(|x| x.as_object());
+    let node_info = status
+        .and_then(|s| s.get("nodeInfo"))
+        .and_then(|x| x.as_object());
+
+    let labels_obj = metadata
+        .get("labels")
+        .and_then(|x| x.as_object())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut roles = Vec::new();
+    let mut safe_labels = BTreeMap::new();
+    for (k, v) in labels_obj {
+        if let Some(s) = v.as_str() {
+            safe_labels.insert(k.clone(), s.to_string());
+            if let Some(role) = k.strip_prefix("node-role.kubernetes.io/") {
+                if !role.is_empty() {
+                    roles.push(role.to_string());
+                }
+            }
+        }
+    }
+    if roles.is_empty() {
+        roles.push("worker".to_string());
+    }
+
+    let plane = classify_node_plane(&roles).to_string();
+    let topology_hints = topology_hints_from_labels(&safe_labels);
+
+    let conditions = status
+        .and_then(|s| s.get("conditions"))
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let ready = conditions.iter().any(|c| {
+        c.get("type").and_then(|x| x.as_str()) == Some("Ready")
+            && c.get("status").and_then(|x| x.as_str()) == Some("True")
+    });
+    let memory_pressure = node_condition_true(&conditions, "MemoryPressure");
+    let disk_pressure = node_condition_true(&conditions, "DiskPressure");
+    let pid_pressure = node_condition_true(&conditions, "PIDPressure");
+    let network_unavailable = node_condition_true(&conditions, "NetworkUnavailable");
+
+    let unschedulable = spec
+        .and_then(|sp| sp.get("unschedulable"))
+        .and_then(|x| x.as_bool())
+        .unwrap_or(false);
+
+    let mut taints = Vec::new();
+    if let Some(arr) = spec.and_then(|sp| sp.get("taints")).and_then(|x| x.as_array()) {
+        for t in arr {
+            let key = t
+                .get("key")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let effect = t
+                .get("effect")
+                .and_then(|x| x.as_str())
+                .unwrap_or("")
+                .trim()
+                .to_string();
+            let value = t
+                .get("value")
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string());
+            if !key.is_empty() && !effect.is_empty() {
+                taints.push(K8sNodeTaint { key, value, effect });
+            }
+        }
+    }
+
+    let capacity_map = status
+        .and_then(|s| s.get("capacity"))
+        .and_then(|x| x.as_object())
+        .cloned()
+        .unwrap_or_default();
+    let alloc_map = status
+        .and_then(|s| s.get("allocatable"))
+        .and_then(|x| x.as_object())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut capacity = BTreeMap::new();
+    for (k, v) in capacity_map {
+        if let Some(s) = v.as_str() {
+            capacity.insert(k, s.to_string());
+        }
+    }
+    let mut allocatable = BTreeMap::new();
+    for (k, v) in alloc_map {
+        if let Some(s) = v.as_str() {
+            allocatable.insert(k, s.to_string());
+        }
+    }
+
+    let cpu_cap = capacity.get("cpu").and_then(|s| parse_cpu_to_millicores(s));
+    let cpu_alloc = allocatable.get("cpu").and_then(|s| parse_cpu_to_millicores(s));
+    let mem_cap = capacity.get("memory").and_then(|s| parse_memory_to_bytes(s));
+    let mem_alloc = allocatable.get("memory").and_then(|s| parse_memory_to_bytes(s));
+
+    let metadata_uid = metadata
+        .get("uid")
+        .and_then(|x| x.as_str())
+        .map(|s| s.to_string());
+    let system_uuid = node_info
+        .and_then(|n| n.get("systemUUID"))
+        .and_then(|x| x.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+    let provider_id = spec
+        .and_then(|sp| sp.get("providerID"))
+        .and_then(|x| x.as_str())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string());
+
+    Some(K8sNodeInfo {
+        name: metadata
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        roles,
+        ready,
+        kubelet_version: node_info
+            .and_then(|n| n.get("kubeletVersion"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        os_image: node_info
+            .and_then(|n| n.get("osImage"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        kernel_version: node_info
+            .and_then(|n| n.get("kernelVersion"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        container_runtime: node_info
+            .and_then(|n| n.get("containerRuntimeVersion"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        architecture: node_info
+            .and_then(|n| n.get("architecture"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("unknown")
+            .to_string(),
+        capacity,
+        allocatable,
+        labels: safe_labels,
+        metadata_uid,
+        system_uuid,
+        provider_id,
+        plane,
+        cpu_capacity_millicores: cpu_cap,
+        cpu_allocatable_millicores: cpu_alloc,
+        memory_capacity_bytes: mem_cap,
+        memory_allocatable_bytes: mem_alloc,
+        topology_hints,
+        unschedulable,
+        taints,
+        memory_pressure,
+        disk_pressure,
+        pid_pressure,
+        network_unavailable,
+        kubelet_minor_matches_apiserver: None,
+    })
+}
+
+fn node_condition_true(conditions: &[Value], typ: &str) -> bool {
+    conditions.iter().any(|c| {
+        c.get("type").and_then(|x| x.as_str()) == Some(typ)
+            && c.get("status").and_then(|x| x.as_str()) == Some("True")
+    })
+}
+
+fn k8s_git_major_minor_tuple(git: &str) -> Option<(u32, u32)> {
+    let s = git.trim();
+    let s = s.strip_prefix('v').unwrap_or(s);
+    let (maj_s, rest) = s.split_once('.')?;
+    let major: u32 = maj_s.parse().ok()?;
+    let minor_digits: String = rest.chars().take_while(|c| c.is_ascii_digit()).collect();
+    let minor: u32 = minor_digits.parse().ok()?;
+    Some((major, minor))
+}
+
+fn enrich_kubelet_apiserver_skew(nodes: &mut [K8sNodeInfo], server_git: &str) {
+    let srv = k8s_git_major_minor_tuple(server_git);
+    for n in nodes.iter_mut() {
+        n.kubelet_minor_matches_apiserver = match srv {
+            Some((maj, min)) => {
+                let kv = k8s_git_major_minor_tuple(&n.kubelet_version);
+                Some(kv.map(|(km, kn)| km == maj && kn == min).unwrap_or(false))
+            }
+            None => None,
+        };
+    }
+}
+
+fn rollup_topology_zones_regions(
+    nodes: &[K8sNodeInfo],
+) -> (BTreeMap<String, usize>, BTreeMap<String, usize>) {
+    let mut zones = BTreeMap::new();
+    let mut regions = BTreeMap::new();
+    for n in nodes {
+        let z = n
+            .topology_hints
+            .get("topology.kubernetes.io/zone")
+            .or_else(|| n.topology_hints.get("failure-domain.beta.kubernetes.io/zone"));
+        if let Some(z) = z {
+            *zones.entry(z.clone()).or_insert(0) += 1;
+        }
+        let r = n
+            .topology_hints
+            .get("topology.kubernetes.io/region")
+            .or_else(|| n.topology_hints.get("failure-domain.beta.kubernetes.io/region"));
+        if let Some(r) = r {
+            *regions.entry(r.clone()).or_insert(0) += 1;
+        }
+    }
+    (zones, regions)
+}
+
+fn taints_summary_by_plane(nodes: &[K8sNodeInfo]) -> BTreeMap<String, K8sTaintPlaneRollup> {
+    let mut m: BTreeMap<String, K8sTaintPlaneRollup> = BTreeMap::new();
+    for n in nodes {
+        let e = m.entry(n.plane.clone()).or_default();
+        e.nodes_total += 1;
+        let harsh = n
+            .taints
+            .iter()
+            .any(|t| t.effect == "NoSchedule" || t.effect == "NoExecute");
+        if harsh {
+            e.nodes_with_scheduling_taints += 1;
+        }
+    }
+    m
+}
+
+fn rollup_pods_for_inventory(
+    pods: &Value,
+    node_to_plane: &BTreeMap<String, String>,
+) -> (
+    BTreeMap<String, usize>,
+    usize,
+    usize,
+    usize,
+) {
+    let mut by_plane: BTreeMap<String, usize> = BTreeMap::new();
+    let mut running_total = 0usize;
+    let mut running_no_node = 0usize;
+    let mut pending_unsched = 0usize;
+
+    let items = pods
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    for item in items {
+        let phase = item
+            .get("status")
+            .and_then(|s| s.get("phase"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("");
+        let node_name = item
+            .get("spec")
+            .and_then(|s| s.get("nodeName"))
+            .and_then(|x| x.as_str());
+
+        if phase == "Pending" && node_name.is_none() {
+            pending_unsched += 1;
+            continue;
+        }
+
+        if phase != "Running" {
+            continue;
+        }
+
+        running_total += 1;
+        let Some(nn) = node_name else {
+            running_no_node += 1;
+            continue;
+        };
+        let plane = node_to_plane
+            .get(nn)
+            .cloned()
+            .unwrap_or_else(|| "unknown".to_string());
+        *by_plane.entry(plane).or_insert(0) += 1;
+    }
+
+    (by_plane, running_total, running_no_node, pending_unsched)
+}
+
+/// Image reference tag after the last `:`, ignoring `@sha256:` digests (returns None for digests-only).
+fn container_image_tag(image: &str) -> Option<&str> {
+    let t = image.trim();
+    if t.is_empty() {
+        return None;
+    }
+    if t.contains('@') {
+        return None;
+    }
+    t.rsplit_once(':')
+        .map(|(_, tag)| tag)
+        .filter(|tag| !tag.contains('/') && *tag != "latest")
+}
+
+fn infer_k8s_semver_tag_from_images(images: &[String]) -> Option<String> {
+    for img in images {
+        let tag = container_image_tag(img)?;
+        if k8s_git_major_minor_tuple(tag).is_some() {
+            return Some(tag.trim().to_string());
+        }
+    }
+    None
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CpPodKind {
+    Etcd,
+    KubeApiserver,
+    KubeControllerManager,
+    KubeScheduler,
+    Unknown,
+}
+
+/// Etcd: strong signal from image ref, or stacked static-pod style name in known control-plane namespaces.
+fn is_likely_etcd_pod(ns: &str, pod_name: &str, images_lower: &str) -> bool {
+    if images_lower.contains("/etcd:")
+        || images_lower.contains("etcd:v")
+        || images_lower.contains("coreos/etcd")
+    {
+        return true;
+    }
+    let ns_ok = ns == "kube-system" || ns == "openshift-etcd";
+    if !ns_ok {
+        return false;
+    }
+    let n = pod_name.to_lowercase();
+    n.starts_with("etcd-") || n == "etcd"
+}
+
+fn classify_control_plane_pod_kind(ns: &str, pod_name: &str, images_lower: &str) -> CpPodKind {
+    let n = pod_name.to_lowercase();
+    if is_likely_etcd_pod(ns, pod_name, images_lower) {
+        return CpPodKind::Etcd;
+    }
+    if n.contains("kube-apiserver") || images_lower.contains("kube-apiserver") {
+        return CpPodKind::KubeApiserver;
+    }
+    if n.contains("kube-controller-manager") || images_lower.contains("kube-controller-manager") {
+        return CpPodKind::KubeControllerManager;
+    }
+    if n.contains("kube-scheduler") || images_lower.contains("kube-scheduler") {
+        return CpPodKind::KubeScheduler;
+    }
+    CpPodKind::Unknown
+}
+
+fn cp_kind_as_str(k: CpPodKind) -> &'static str {
+    match k {
+        CpPodKind::Etcd => "etcd",
+        CpPodKind::KubeApiserver => "kube-apiserver",
+        CpPodKind::KubeControllerManager => "kube-controller-manager",
+        CpPodKind::KubeScheduler => "kube-scheduler",
+        CpPodKind::Unknown => "unknown",
+    }
+}
+
+fn collect_pod_container_images(pod: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    let spec = pod.get("spec").and_then(|x| x.as_object());
+    let Some(spec) = spec else {
+        return out;
+    };
+    if let Some(arr) = spec.get("containers").and_then(|x| x.as_array()) {
+        for c in arr {
+            if let Some(im) = c.get("image").and_then(|x| x.as_str()) {
+                out.push(im.to_string());
+            }
+        }
+    }
+    if let Some(arr) = spec.get("initContainers").and_then(|x| x.as_array()) {
+        for c in arr {
+            if let Some(im) = c.get("image").and_then(|x| x.as_str()) {
+                out.push(im.to_string());
+            }
+        }
+    }
+    out
+}
+
+fn scan_control_plane_stack(
+    pods: &Value,
+    node_to_plane: &BTreeMap<String, String>,
+) -> (Vec<K8sCpStackPod>, Vec<K8sCpStackPod>) {
+    let mut etcd_pods = Vec::new();
+    let mut other_cp = Vec::new();
+
+    let items = pods
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    for pod in items {
+        let meta = pod.get("metadata").and_then(|x| x.as_object());
+        let Some(meta) = meta else {
+            continue;
+        };
+        let name = meta
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let ns = meta
+            .get("namespace")
+            .and_then(|x| x.as_str())
+            .unwrap_or("default")
+            .to_string();
+
+        let images = collect_pod_container_images(&pod);
+        let images_lower = images.join(" ").to_lowercase();
+        let kind = classify_control_plane_pod_kind(&ns, &name, &images_lower);
+        if kind == CpPodKind::Unknown {
+            continue;
+        }
+
+        let phase = pod
+            .get("status")
+            .and_then(|s| s.get("phase"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let node_name = pod
+            .get("spec")
+            .and_then(|s| s.get("nodeName"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
+
+        let node_plane = node_name
+            .as_ref()
+            .and_then(|nn| node_to_plane.get(nn).cloned());
+
+        let inferred = infer_k8s_semver_tag_from_images(&images);
+
+        let row = K8sCpStackPod {
+            component: cp_kind_as_str(kind).to_string(),
+            namespace: ns,
+            name,
+            node_name,
+            node_plane,
+            phase,
+            container_images: images,
+            inferred_k8s_semver_tag: inferred,
+        };
+
+        if kind == CpPodKind::Etcd {
+            etcd_pods.push(row);
+        } else {
+            other_cp.push(row);
+        }
+    }
+
+    etcd_pods.sort_by(|a, b| a.name.cmp(&b.name));
+    other_cp.sort_by(|a, b| a.name.cmp(&b.name));
+    (etcd_pods, other_cp)
+}
+
+fn kubelet_version_skew_lists(
+    nodes: &[K8sNodeInfo],
+    apiserver_git: &str,
+) -> (
+    Option<u32>,
+    Vec<String>,
+    Vec<String>,
+    Vec<String>,
+) {
+    let Some((am, im)) = k8s_git_major_minor_tuple(apiserver_git) else {
+        return (None, Vec::new(), Vec::new(), Vec::new());
+    };
+
+    let mut max_lag = 0u32;
+    let mut newer = Vec::new();
+    let mut minor_lag_exceeds = Vec::new();
+    let mut major_behind = Vec::new();
+
+    for n in nodes {
+        let Some((km, kn)) = k8s_git_major_minor_tuple(&n.kubelet_version) else {
+            continue;
+        };
+
+        if km > am || (km == am && kn > im) {
+            newer.push(n.name.clone());
+            continue;
+        }
+
+        if km < am {
+            major_behind.push(format!(
+                "{} (kubelet {}.{}, API {}.{})",
+                n.name, km, kn, am, im
+            ));
+            continue;
+        }
+
+        if kn < im {
+            let lag = im - kn;
+            if lag > max_lag {
+                max_lag = lag;
+            }
+            if lag > MAX_KUBELET_MINOR_VERSIONS_BELOW_APISERVER {
+                minor_lag_exceeds.push(n.name.clone());
+            }
+        }
+    }
+
+    (Some(max_lag), newer, minor_lag_exceeds, major_behind)
+}
+
+fn minor_string_from_tag(tag: &str) -> Option<String> {
+    k8s_git_major_minor_tuple(tag).map(|(a, b)| format!("{a}.{b}"))
+}
+
+fn build_upgrade_insights(
+    nodes: &[K8sNodeInfo],
+    apiserver_git: &str,
+    etcd_pods: &[K8sCpStackPod],
+    cp_pods: &[K8sCpStackPod],
+    pods_inventory_available: bool,
+) -> K8sUpgradeInsights {
+    let mut ins = K8sUpgradeInsights {
+        disclaimer: "etcd Raft membership is not read from the etcd API here — we infer likely members from pods (stacked kubeadm-style). Managed clouds (EKS, GKE, AKS) often expose no etcd pods; k3s/kubeadm may embed etcd without pod visibility.".to_string(),
+        inferred_etcd_member_pods_running: etcd_pods.iter().filter(|p| p.phase == "Running").count(),
+        ..Default::default()
+    };
+
+    let (max_lag, newer, minor_lag_exceeds, major_behind) =
+        kubelet_version_skew_lists(nodes, apiserver_git);
+    ins.max_kubelet_minor_lag_behind_apiserver = max_lag;
+    ins.nodes_kubelet_newer_than_apiserver = newer;
+    ins.nodes_kubelet_minor_lag_exceeds_policy = minor_lag_exceeds;
+    ins.nodes_kubelet_major_behind_apiserver = major_behind;
+
+    let mut api_minors = std::collections::BTreeSet::new();
+    let mut etcd_minors = std::collections::BTreeSet::new();
+
+    for p in cp_pods.iter().chain(etcd_pods.iter()) {
+        if p.component == "kube-apiserver" {
+            if let Some(ref tag) = p.inferred_k8s_semver_tag {
+                if let Some(m) = minor_string_from_tag(tag) {
+                    api_minors.insert(m);
+                }
+            }
+        }
+        if p.component == "etcd" {
+            if let Some(ref tag) = p.inferred_k8s_semver_tag {
+                if let Some(m) = minor_string_from_tag(tag) {
+                    etcd_minors.insert(m);
+                }
+            }
+        }
+    }
+
+    ins.kube_apiserver_pod_image_minors = api_minors.into_iter().collect();
+    ins.etcd_pod_image_minors = etcd_minors.into_iter().collect();
+
+    if ins.kube_apiserver_pod_image_minors.len() > 1 {
+        ins.upgrade_warnings.push(format!(
+            "Multiple distinct kube-apiserver image minors observed: {} — control plane may be mid-upgrade or misconfigured.",
+            ins.kube_apiserver_pod_image_minors.join(", ")
+        ));
+    }
+    if ins.etcd_pod_image_minors.len() > 1 {
+        ins.upgrade_warnings.push(format!(
+            "Multiple distinct etcd image minors observed: {} — verify HA etcd rollout state.",
+            ins.etcd_pod_image_minors.join(", ")
+        ));
+    }
+
+    if let Some((am, im)) = k8s_git_major_minor_tuple(apiserver_git) {
+        let api_mm = format!("{am}.{im}");
+        for m in &ins.kube_apiserver_pod_image_minors {
+            if m != &api_mm {
+                ins.upgrade_warnings.push(format!(
+                    "kube-apiserver pod image minor ({m}) differs from kubectl API gitVersion minor ({api_mm}). Images may lag behind the live apiserver."
+                ));
+            }
+        }
+    }
+
+    for p in etcd_pods {
+        if p.phase == "Running" {
+            if let Some(ref pl) = p.node_plane {
+                if pl == "worker" {
+                    ins.upgrade_warnings.push(format!(
+                        "etcd pod `{}` in namespace `{}` runs on a node labeled worker-only — verify node roles (unusual for kubeadm HA).",
+                        p.name, p.namespace
+                    ));
+                }
+            }
+        }
+    }
+
+    if !pods_inventory_available {
+        ins.upgrade_warnings.push(
+            "Pod list was unavailable — etcd/control-plane pod discovery was skipped.".into(),
+        );
+    } else if etcd_pods.is_empty() {
+        ins.upgrade_warnings.push(
+            "No etcd pods matched heuristics — cluster may use external/etcdless control plane (k3s, managed Kubernetes, etc.)."
+                .into(),
+        );
+    } else if ins.inferred_etcd_member_pods_running > 0 {
+        ins.suggested_upgrade_order.push(
+            format!(
+                "Observed {} running etcd-like pod(s); upgrade etcd before kube-apiserver when following kubeadm-style ordering.",
+                ins.inferred_etcd_member_pods_running
+            ),
+        );
+    }
+
+    ins.suggested_upgrade_order.extend([
+        "Follow your distribution's docs for control plane upgrades (order often: etcd → kube-apiserver → controller-manager → scheduler).".into(),
+        format!(
+            "Keep kubelets within supported skew: at most {MAX_KUBELET_MINOR_VERSIONS_BELOW_APISERVER} minor version(s) below the API server, and never newer than the API server."
+        ),
+        "After control plane upgrade, roll worker nodes / kubelets to match before widening the minor gap.".into(),
+        "Check CNI/CSI and admission webhooks for compatibility with the target Kubernetes minor.".into(),
+    ]);
+
+    ins
+}
+
+fn add_node_rollup(r: &mut K8sPlaneRollup, n: &K8sNodeInfo) {
+    r.node_count += 1;
+    if n.ready {
+        r.ready_node_count += 1;
+    }
+    r.cpu_capacity_millicores += n.cpu_capacity_millicores.unwrap_or(0);
+    r.cpu_allocatable_millicores += n.cpu_allocatable_millicores.unwrap_or(0);
+    r.memory_capacity_bytes += n.memory_capacity_bytes.unwrap_or(0);
+    r.memory_allocatable_bytes += n.memory_allocatable_bytes.unwrap_or(0);
+}
+
+fn rollup_cluster_views(
+    nodes: &[K8sNodeInfo],
+) -> (
+    K8sPlaneRollup,
+    BTreeMap<String, K8sPlaneRollup>,
+    K8sPlaneRollup,
+    K8sPlaneRollup,
+) {
+    let mut totals = K8sPlaneRollup::default();
+    let mut by_plane: BTreeMap<String, K8sPlaneRollup> = BTreeMap::new();
+    let mut combined_control_plane_and_mixed = K8sPlaneRollup::default();
+    let mut combined_worker_dataplane_and_mixed = K8sPlaneRollup::default();
+
+    for n in nodes {
+        add_node_rollup(&mut totals, n);
+        add_node_rollup(by_plane.entry(n.plane.clone()).or_default(), n);
+
+        if n.plane == "control_plane" || n.plane == "mixed" {
+            add_node_rollup(&mut combined_control_plane_and_mixed, n);
+        }
+        if n.plane == "worker" || n.plane == "mixed" {
+            add_node_rollup(&mut combined_worker_dataplane_and_mixed, n);
+        }
+    }
+
+    (
+        totals,
+        by_plane,
+        combined_control_plane_and_mixed,
+        combined_worker_dataplane_and_mixed,
+    )
+}
+
 async fn k8s_nodes(
     Extension(actor): Extension<RequestActor>,
     Query(q): Query<K8sContextQuery>,
@@ -812,106 +1709,169 @@ async fn k8s_nodes(
 
     let mut out = Vec::with_capacity(items.len());
     for item in items {
-        let metadata = item.get("metadata").and_then(|x| x.as_object());
-        let status = item.get("status").and_then(|x| x.as_object());
-        let node_info = status
-            .and_then(|s| s.get("nodeInfo"))
-            .and_then(|x| x.as_object());
-        let labels = metadata
-            .and_then(|m| m.get("labels"))
-            .and_then(|x| x.as_object())
-            .cloned()
-            .unwrap_or_default();
-
-        let mut roles = Vec::new();
-        let mut safe_labels = BTreeMap::new();
-        for (k, v) in labels {
-            if let Some(s) = v.as_str() {
-                safe_labels.insert(k.clone(), s.to_string());
-                if let Some(role) = k.strip_prefix("node-role.kubernetes.io/") {
-                    if !role.is_empty() {
-                        roles.push(role.to_string());
-                    }
-                }
-            }
+        if let Some(n) = parse_k8s_node_item(&item) {
+            out.push(n);
         }
-        if roles.is_empty() {
-            roles.push("worker".to_string());
-        }
-
-        let conditions = status
-            .and_then(|s| s.get("conditions"))
-            .and_then(|x| x.as_array())
-            .cloned()
-            .unwrap_or_default();
-        let ready = conditions.iter().any(|c| {
-            c.get("type").and_then(|x| x.as_str()) == Some("Ready")
-                && c.get("status").and_then(|x| x.as_str()) == Some("True")
-        });
-
-        let capacity_map = status
-            .and_then(|s| s.get("capacity"))
-            .and_then(|x| x.as_object())
-            .cloned()
-            .unwrap_or_default();
-        let alloc_map = status
-            .and_then(|s| s.get("allocatable"))
-            .and_then(|x| x.as_object())
-            .cloned()
-            .unwrap_or_default();
-
-        let mut capacity = BTreeMap::new();
-        for (k, v) in capacity_map {
-            if let Some(s) = v.as_str() {
-                capacity.insert(k, s.to_string());
-            }
-        }
-        let mut allocatable = BTreeMap::new();
-        for (k, v) in alloc_map {
-            if let Some(s) = v.as_str() {
-                allocatable.insert(k, s.to_string());
-            }
-        }
-
-        out.push(K8sNodeInfo {
-            name: metadata
-                .and_then(|m| m.get("name"))
-                .and_then(|x| x.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            roles,
-            ready,
-            kubelet_version: node_info
-                .and_then(|n| n.get("kubeletVersion"))
-                .and_then(|x| x.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            os_image: node_info
-                .and_then(|n| n.get("osImage"))
-                .and_then(|x| x.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            kernel_version: node_info
-                .and_then(|n| n.get("kernelVersion"))
-                .and_then(|x| x.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            container_runtime: node_info
-                .and_then(|n| n.get("containerRuntimeVersion"))
-                .and_then(|x| x.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            architecture: node_info
-                .and_then(|n| n.get("architecture"))
-                .and_then(|x| x.as_str())
-                .unwrap_or("unknown")
-                .to_string(),
-            capacity,
-            allocatable,
-            labels: safe_labels,
-        });
     }
     Ok(Json(out))
+}
+
+async fn k8s_cluster_inventory(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sContextQuery>,
+) -> Result<Json<K8sClusterInventoryResponse>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let ctx = q.context.as_deref();
+    if let Some(c) = ctx {
+        ensure_k8s_context_name(c)?;
+    }
+
+    let args_nodes = vec!["get".into(), "nodes".into()];
+    let args_ver = vec!["version".into()];
+    let args_pods = vec!["get".into(), "pods".into(), "-A".into()];
+    let args_livez = vec!["get".into(), "--raw".into(), "/livez".into()];
+    let args_readyz = vec!["get".into(), "--raw".into(), "/readyz".into()];
+
+    let (nodes_res, ver_res, pods_res, livez_res, readyz_res) = tokio::join!(
+        run_kubectl_json_ctx(&args_nodes, KUBECTL_TIMEOUT_SECS, ctx),
+        run_kubectl_json_ctx(&args_ver, KUBECTL_TIMEOUT_SECS, ctx),
+        run_kubectl_json_ctx(&args_pods, KUBECTL_TIMEOUT_SECS, ctx),
+        run_kubectl_timeout(&args_livez, KUBECTL_PROBE_TIMEOUT_SECS, ctx),
+        run_kubectl_timeout(&args_readyz, KUBECTL_PROBE_TIMEOUT_SECS, ctx),
+    );
+
+    let v = nodes_res?;
+    let items = v
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+
+    let mut nodes = Vec::with_capacity(items.len());
+    for item in items {
+        if let Some(n) = parse_k8s_node_item(&item) {
+            nodes.push(n);
+        }
+    }
+
+    let apiserver_git_version = ver_res
+        .ok()
+        .and_then(|json| {
+            json.get("serverVersion")
+                .and_then(|s| s.get("gitVersion"))
+                .and_then(|x| x.as_str())
+                .map(|s| s.to_string())
+        })
+        .unwrap_or_default();
+    let apiserver_major_minor = k8s_git_major_minor_tuple(&apiserver_git_version)
+        .map(|(a, b)| format!("{a}.{b}"))
+        .unwrap_or_default();
+
+    if !apiserver_git_version.is_empty() {
+        enrich_kubelet_apiserver_skew(&mut nodes, &apiserver_git_version);
+    }
+
+    let nodes_with_kubelet_minor_skew = nodes
+        .iter()
+        .filter(|n| n.kubelet_minor_matches_apiserver == Some(false))
+        .count();
+
+    let cluster_livez_ok = livez_res.as_ref().map(|r| r.ok).unwrap_or(false);
+    let cluster_readyz_ok = readyz_res.as_ref().map(|r| r.ok).unwrap_or(false);
+
+    let mut cluster_health_notes = Vec::new();
+    if livez_res.as_ref().map(|r| !r.ok).unwrap_or(true) {
+        if let Ok(r) = &livez_res {
+            let hint = if !r.stderr.trim().is_empty() {
+                r.stderr.trim()
+            } else if !r.stdout.trim().is_empty() {
+                r.stdout.trim()
+            } else {
+                "livez probe failed"
+            };
+            cluster_health_notes.push(format!("livez: {}", truncate_snippet(hint)));
+        } else {
+            cluster_health_notes.push("livez: kubectl error".to_string());
+        }
+    }
+    if readyz_res.as_ref().map(|r| !r.ok).unwrap_or(true) {
+        if let Ok(r) = &readyz_res {
+            let hint = if !r.stderr.trim().is_empty() {
+                r.stderr.trim()
+            } else if !r.stdout.trim().is_empty() {
+                r.stdout.trim()
+            } else {
+                "readyz probe failed"
+            };
+            cluster_health_notes.push(format!("readyz: {}", truncate_snippet(hint)));
+        } else {
+            cluster_health_notes.push("readyz: kubectl error".to_string());
+        }
+    }
+
+    let node_to_plane: BTreeMap<String, String> =
+        nodes.iter().map(|n| (n.name.clone(), n.plane.clone())).collect();
+
+    let (
+        running_pods_by_plane,
+        running_pods_total,
+        running_pods_without_node,
+        pending_pods_unscheduled,
+    ) = match &pods_res {
+        Ok(pj) => rollup_pods_for_inventory(pj, &node_to_plane),
+        Err(_) => (BTreeMap::new(), 0, 0, 0),
+    };
+    if pods_res.is_err() {
+        cluster_health_notes
+            .push("Pods list failed — running pod counts by plane omitted.".to_string());
+    }
+
+    let (topology_nodes_by_zone, topology_nodes_by_region) = rollup_topology_zones_regions(&nodes);
+    let taints_by_plane = taints_summary_by_plane(&nodes);
+
+    let (etcd_placement_pods, control_plane_stack_pods, upgrade_insights) =
+        match pods_res.as_ref() {
+            Ok(pj) => {
+                let (etcd, cp) = scan_control_plane_stack(pj, &node_to_plane);
+                let insights =
+                    build_upgrade_insights(&nodes, &apiserver_git_version, &etcd, &cp, true);
+                (etcd, cp, insights)
+            }
+            Err(_) => (
+                Vec::new(),
+                Vec::new(),
+                build_upgrade_insights(&nodes, &apiserver_git_version, &[], &[], false),
+            ),
+        };
+
+    let (totals_all_nodes, by_plane, combined_control_plane_and_mixed, combined_worker_dataplane_and_mixed) =
+        rollup_cluster_views(&nodes);
+
+    Ok(Json(K8sClusterInventoryResponse {
+        collected_at_rfc3339: chrono::Utc::now().to_rfc3339(),
+        disclaimer: "Kubernetes Node objects expose kubelet-reported capacity/allocatable cpu and memory, not physical CPU sockets/cores/hyperthreads. Those appear only if mirrored by labels (e.g. cloud instance-type, Node Feature Discovery) or custom operators. This is inventory visibility, not VMware-style subscription licensing.".to_string(),
+        totals_all_nodes,
+        by_plane,
+        combined_control_plane_and_mixed,
+        combined_worker_dataplane_and_mixed,
+        nodes,
+        apiserver_git_version,
+        apiserver_major_minor,
+        cluster_livez_ok,
+        cluster_readyz_ok,
+        cluster_health_notes,
+        nodes_with_kubelet_minor_skew,
+        topology_nodes_by_zone,
+        topology_nodes_by_region,
+        taints_by_plane,
+        running_pods_by_plane,
+        running_pods_total,
+        running_pods_without_node,
+        pending_pods_unscheduled,
+        etcd_placement_pods,
+        control_plane_stack_pods,
+        upgrade_insights,
+    }))
 }
 
 async fn k8s_resource_list(
@@ -2027,6 +2987,7 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         .route("/k8s/overview", get(k8s_overview))
         .route("/k8s/environment", get(k8s_environment))
         .route("/k8s/contexts", get(k8s_contexts_list))
+        .route("/k8s/cluster-inventory", get(k8s_cluster_inventory))
         .route("/k8s/nodes", get(k8s_nodes))
         .route("/k8s/namespaces", get(k8s_namespaces))
         .route("/k8s/pods", get(k8s_pods))

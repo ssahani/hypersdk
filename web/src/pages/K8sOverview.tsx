@@ -1,19 +1,244 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { CheckCircle2, RefreshCw, ShieldAlert, Server, Package } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Download,
+  RefreshCw,
+  ShieldAlert,
+  Server,
+  Package,
+} from 'lucide-react'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import {
   getK8sEnvironment,
-  getK8sNodes,
+  getK8sClusterInventory,
   getK8sOverview,
+  K8sClusterInventoryResponse,
   K8sEnvironment,
   K8sNodeInfo,
+  K8sPlaneRollup,
   runK8sAction,
 } from '../api/k8s'
+import { formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 
 type NodeAction = 'node_cordon' | 'node_uncordon' | 'node_drain'
+
+function fmtMilliCpu(mc: number | null | undefined): string {
+  if (mc == null || !Number.isFinite(mc)) return '—'
+  const cores = mc / 1000
+  return `${cores % 1 === 0 ? cores.toFixed(0) : cores.toFixed(1)} cores`
+}
+
+function topologyHintText(h: Record<string, string> | undefined): string {
+  if (!h || Object.keys(h).length === 0) return '—'
+  const inst =
+    h['node.kubernetes.io/instance-type'] ?? h['beta.kubernetes.io/instance-type']
+  if (inst) return inst
+  const zone = h['topology.kubernetes.io/zone']
+  if (zone) return zone
+  const first = Object.entries(h)[0]
+  return first ? `${first[0]}=${first[1]}` : '—'
+}
+
+/** Maps API `plane` to operator-facing control vs data plane language. */
+function nodePlaneUi(plane: string | undefined): { label: string; title: string; className: string } {
+  switch (plane) {
+    case 'control_plane':
+      return {
+        label: 'Control plane',
+        title:
+          'Has node-role.kubernetes.io/control-plane or /master (API/etcd scheduling).',
+        className: 'bg-violet-500/20 text-violet-100 border-violet-500/40',
+      }
+    case 'worker':
+      return {
+        label: 'Data plane',
+        title: 'Worker role only — primary workload / pod scheduling pool.',
+        className: 'bg-cyan-500/15 text-cyan-100 border-cyan-500/35',
+      }
+    case 'mixed':
+      return {
+        label: 'Mixed',
+        title:
+          'Both control-plane and worker roles (e.g. k3s server). Contributes to control- and data-plane rollups below.',
+        className: 'bg-amber-500/15 text-amber-100 border-amber-500/35',
+      }
+    default:
+      return {
+        label: 'Unknown',
+        title: 'Could not infer from node-role labels (expect control-plane, master, or worker).',
+        className: 'bg-slate-600/50 text-slate-200 border-slate-500/40',
+      }
+  }
+}
+
+function NodePlaneBadge({ plane }: { plane: string | undefined }) {
+  const ui = nodePlaneUi(plane)
+  return (
+    <span
+      title={ui.title}
+      className={`inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border max-w-full ${ui.className}`}
+    >
+      {ui.label}
+    </span>
+  )
+}
+
+function planeSegmentRollupTitle(plane: string): string {
+  switch (plane) {
+    case 'control_plane':
+      return 'Control plane nodes'
+    case 'worker':
+      return 'Data plane nodes'
+    case 'mixed':
+      return 'Mixed (control + data plane)'
+    default:
+      return plane
+  }
+}
+
+function zoneFromHints(h: Record<string, string> | undefined): string {
+  if (!h) return ''
+  return (
+    h['topology.kubernetes.io/zone'] ??
+    h['failure-domain.beta.kubernetes.io/zone'] ??
+    ''
+  )
+}
+
+function instanceFromHints(h: Record<string, string> | undefined): string {
+  if (!h) return ''
+  return h['node.kubernetes.io/instance-type'] ?? h['beta.kubernetes.io/instance-type'] ?? ''
+}
+
+function csvEscapeCell(v: string | number | boolean | null | undefined): string {
+  const s = v === null || v === undefined ? '' : String(v)
+  if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  return s
+}
+
+function buildNodesInventoryCsv(nodes: K8sNodeInfo[]): string {
+  const headers = [
+    'name',
+    'roles',
+    'plane',
+    'ready',
+    'cordoned',
+    'memory_pressure',
+    'disk_pressure',
+    'pid_pressure',
+    'network_unavailable',
+    'kubelet_matches_apiserver_minor',
+    'taints',
+    'zone',
+    'instance_type',
+    'kubelet_version',
+    'cpu_capacity_millicores',
+    'cpu_allocatable_millicores',
+    'memory_capacity_bytes',
+    'memory_allocatable_bytes',
+  ]
+  const lines = [headers.join(',')]
+  for (const n of nodes) {
+    const taintStr =
+      n.taints?.map((t) => `${t.key}${t.value != null ? `=${t.value}` : ''}:${t.effect}`).join('; ') ??
+      ''
+    lines.push(
+      [
+        csvEscapeCell(n.name),
+        csvEscapeCell(n.roles.join(';')),
+        csvEscapeCell(n.plane ?? ''),
+        csvEscapeCell(n.ready),
+        csvEscapeCell(Boolean(n.unschedulable)),
+        csvEscapeCell(Boolean(n.memory_pressure)),
+        csvEscapeCell(Boolean(n.disk_pressure)),
+        csvEscapeCell(Boolean(n.pid_pressure)),
+        csvEscapeCell(Boolean(n.network_unavailable)),
+        csvEscapeCell(
+          n.kubelet_minor_matches_apiserver === null || n.kubelet_minor_matches_apiserver === undefined
+            ? ''
+            : n.kubelet_minor_matches_apiserver,
+        ),
+        csvEscapeCell(taintStr),
+        csvEscapeCell(zoneFromHints(n.topology_hints)),
+        csvEscapeCell(instanceFromHints(n.topology_hints)),
+        csvEscapeCell(n.kubelet_version),
+        csvEscapeCell(n.cpu_capacity_millicores ?? ''),
+        csvEscapeCell(n.cpu_allocatable_millicores ?? ''),
+        csvEscapeCell(n.memory_capacity_bytes ?? ''),
+        csvEscapeCell(n.memory_allocatable_bytes ?? ''),
+      ].join(','),
+    )
+  }
+  return lines.join('\n')
+}
+
+function downloadTextFile(filename: string, text: string, mime: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function PressureChips({ n }: { n: K8sNodeInfo }) {
+  const chips: { k: string; on: boolean; title: string }[] = [
+    { k: 'M', on: Boolean(n.memory_pressure), title: 'MemoryPressure' },
+    { k: 'D', on: Boolean(n.disk_pressure), title: 'DiskPressure' },
+    { k: 'P', on: Boolean(n.pid_pressure), title: 'PIDPressure' },
+    { k: 'N', on: Boolean(n.network_unavailable), title: 'NetworkUnavailable' },
+  ]
+  return (
+    <div className="flex flex-wrap gap-1" title="Condition is True (resource pressure or unavailable)">
+      {chips.map((c) => (
+        <span
+          key={c.k}
+          title={c.title}
+          className={`px-1 rounded text-[10px] font-bold border ${
+            c.on
+              ? 'bg-rose-500/25 text-rose-200 border-rose-500/40'
+              : 'bg-slate-800/80 text-slate-500 border-slate-600/50'
+          }`}
+        >
+          {c.k}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function RollupStrip({ title, r }: { title: string; r: K8sPlaneRollup }) {
+  return (
+    <div className="rounded-xl border border-slate-700/50 bg-slate-900/40 px-4 py-3">
+      <div className="text-xs text-slate-500 mb-2">{title}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+        <div>
+          <span className="text-slate-500 text-xs">Nodes</span>
+          <div className="font-semibold text-white">{r.node_count}</div>
+          <div className="text-[10px] text-slate-500">{r.ready_node_count} ready</div>
+        </div>
+        <div>
+          <span className="text-slate-500 text-xs">CPU cap / alloc</span>
+          <div className="text-slate-200 font-mono text-xs">
+            {fmtMilliCpu(r.cpu_capacity_millicores)} / {fmtMilliCpu(r.cpu_allocatable_millicores)}
+          </div>
+        </div>
+        <div className="col-span-2 sm:col-span-1">
+          <span className="text-slate-500 text-xs">Memory cap / alloc</span>
+          <div className="text-slate-200 font-mono text-xs">
+            {formatBytes(Math.max(0, r.memory_capacity_bytes))} /{' '}
+            {formatBytes(Math.max(0, r.memory_allocatable_bytes))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 export default function K8sOverviewPage() {
   const toast = useToastContext()
@@ -22,16 +247,22 @@ export default function K8sOverviewPage() {
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getK8sOverview>> | null>(null)
   const [environment, setEnvironment] = useState<K8sEnvironment | null>(null)
   const [nodes, setNodes] = useState<K8sNodeInfo[]>([])
+  const [clusterInventory, setClusterInventory] = useState<K8sClusterInventoryResponse | null>(null)
   const [acting, setActing] = useState<string | null>(null)
   const [lastCommand, setLastCommand] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [filterPlane, setFilterPlane] = useState<string>('all')
+  const [filterReady, setFilterReady] = useState<'all' | 'ready' | 'not_ready'>('all')
+  const [filterZone, setFilterZone] = useState<string>('all')
+  const [filterInstance, setFilterInstance] = useState<string>('all')
 
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
     try {
-      const [ov, n] = await Promise.all([getK8sOverview(), getK8sNodes()])
+      const [ov, inv] = await Promise.all([getK8sOverview(), getK8sClusterInventory()])
       setOverview(ov)
-      setNodes(n)
+      setClusterInventory(inv)
+      setNodes(inv.nodes)
       setLoadError(null)
       try {
         setEnvironment(await getK8sEnvironment())
@@ -42,6 +273,7 @@ export default function K8sOverviewPage() {
       const msg = e instanceof Error ? e.message : String(e)
       setLoadError(msg)
       setOverview(null)
+      setClusterInventory(null)
       setNodes([])
       try {
         setEnvironment(await getK8sEnvironment())
@@ -72,6 +304,43 @@ export default function K8sOverviewPage() {
       setActing(null)
     }
   }, [load, toast])
+
+  const zoneOptions = useMemo(() => {
+    const z = new Set<string>()
+    for (const n of nodes) {
+      const zz = zoneFromHints(n.topology_hints)
+      if (zz) z.add(zz)
+    }
+    return Array.from(z).sort()
+  }, [nodes])
+
+  const instanceOptions = useMemo(() => {
+    const z = new Set<string>()
+    for (const n of nodes) {
+      const ii = instanceFromHints(n.topology_hints)
+      if (ii) z.add(ii)
+    }
+    return Array.from(z).sort()
+  }, [nodes])
+
+  const filteredNodes = useMemo(() => {
+    return nodes.filter((n) => {
+      if (filterPlane !== 'all' && (n.plane ?? 'unknown') !== filterPlane) return false
+      if (filterReady === 'ready' && !n.ready) return false
+      if (filterReady === 'not_ready' && n.ready) return false
+      if (filterZone !== 'all' && zoneFromHints(n.topology_hints) !== filterZone) return false
+      if (filterInstance !== 'all' && instanceFromHints(n.topology_hints) !== filterInstance)
+        return false
+      return true
+    })
+  }, [nodes, filterPlane, filterReady, filterZone, filterInstance])
+
+  const exportCsv = useCallback(() => {
+    const csv = buildNodesInventoryCsv(filteredNodes)
+    const stamp = clusterInventory?.collected_at_rfc3339?.replace(/[:.]/g, '-') ?? 'export'
+    downloadTextFile(`machina-k8s-nodes-${stamp}.csv`, csv, 'text/csv;charset=utf-8')
+    toast.success(`Exported ${filteredNodes.length} row(s)`)
+  }, [filteredNodes, clusterInventory?.collected_at_rfc3339, toast])
 
   const counts = useMemo(() => {
     const extra = overview?.extra_resource_counts ?? {}
@@ -134,6 +403,333 @@ export default function K8sOverviewPage() {
           </div>
         ))}
       </div>
+
+      {clusterInventory && (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Cluster hardware inventory</h2>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{clusterInventory.disclaimer}</p>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            <RollupStrip title="All nodes (each counted once)" r={clusterInventory.totals_all_nodes} />
+            <RollupStrip
+              title="Control plane capacity (control-plane + mixed nodes)"
+              r={clusterInventory.combined_control_plane_and_mixed}
+            />
+            <RollupStrip
+              title="Data plane capacity (workers + mixed nodes)"
+              r={clusterInventory.combined_worker_dataplane_and_mixed}
+            />
+          </div>
+          {Object.keys(clusterInventory.by_plane).length > 0 && (
+            <details className="rounded-lg border border-slate-700/40 bg-slate-900/30">
+              <summary className="cursor-pointer px-3 py-2 text-xs text-slate-400 hover:text-slate-300">
+                By segment (each node appears in exactly one bucket)
+              </summary>
+              <div className="px-3 pb-3 grid grid-cols-1 md:grid-cols-3 gap-2">
+                {Object.entries(clusterInventory.by_plane).map(([plane, r]) => (
+                  <RollupStrip key={plane} title={planeSegmentRollupTitle(plane)} r={r} />
+                ))}
+              </div>
+            </details>
+          )}
+
+          <div className="rounded-xl border border-slate-700/40 bg-slate-900/35 px-4 py-3 space-y-2">
+              <div className="text-xs font-medium text-slate-400 uppercase tracking-wide">
+                API server &amp; control-plane health probes
+              </div>
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span
+                  className={`px-2 py-1 rounded-md border ${
+                    clusterInventory?.cluster_livez_ok
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
+                  }`}
+                  title="kubectl get --raw /livez"
+                >
+                  livez {clusterInventory?.cluster_livez_ok ? 'ok' : 'fail'}
+                </span>
+                <span
+                  className={`px-2 py-1 rounded-md border ${
+                    clusterInventory?.cluster_readyz_ok
+                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
+                      : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
+                  }`}
+                  title="kubectl get --raw /readyz"
+                >
+                  readyz {clusterInventory?.cluster_readyz_ok ? 'ok' : 'fail'}
+                </span>
+                {clusterInventory?.apiserver_git_version && (
+                  <span className="px-2 py-1 rounded-md bg-slate-800 border border-slate-600 text-slate-200">
+                    API {clusterInventory.apiserver_major_minor || '—'} ({clusterInventory.apiserver_git_version})
+                  </span>
+                )}
+                {(clusterInventory?.nodes_with_kubelet_minor_skew ?? 0) > 0 && (
+                  <span
+                    className="px-2 py-1 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-100 inline-flex items-center gap-1"
+                    title="Kubelet minor version differs from API server minor (patch skew still allowed)"
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5" aria-hidden />
+                    Kubelet minor skew: {clusterInventory?.nodes_with_kubelet_minor_skew} node(s)
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                livez/readyz use aggregated API health checks (RBAC or endpoint availability may show fail even when workloads run).
+                Version skew compares kubelet vs API server minor only.
+              </p>
+              {(clusterInventory?.cluster_health_notes?.length ?? 0) > 0 && (
+                <ul className="text-[11px] text-slate-400 list-disc pl-5 space-y-0.5">
+                  {clusterInventory?.cluster_health_notes?.map((note, i) => (
+                    <li key={i}>{note}</li>
+                  ))}
+                </ul>
+              )}
+          </div>
+
+          {clusterInventory &&
+            ((clusterInventory.topology_nodes_by_zone &&
+              Object.keys(clusterInventory.topology_nodes_by_zone).length > 0) ||
+              (clusterInventory.topology_nodes_by_region &&
+                Object.keys(clusterInventory.topology_nodes_by_region).length > 0)) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {clusterInventory.topology_nodes_by_zone &&
+                  Object.keys(clusterInventory.topology_nodes_by_zone).length > 0 && (
+                    <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2">
+                      <div className="text-xs text-slate-500 mb-2">Nodes by zone</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(clusterInventory.topology_nodes_by_zone).map(([z, c]) => (
+                          <span
+                            key={z}
+                            className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-600/50 text-slate-200"
+                          >
+                            {z}: <span className="font-semibold text-white">{c}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                {clusterInventory.topology_nodes_by_region &&
+                  Object.keys(clusterInventory.topology_nodes_by_region).length > 0 && (
+                    <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2">
+                      <div className="text-xs text-slate-500 mb-2">Nodes by region</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {Object.entries(clusterInventory.topology_nodes_by_region).map(([r, c]) => (
+                          <span
+                            key={r}
+                            className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-600/50 text-slate-200"
+                          >
+                            {r}: <span className="font-semibold text-white">{c}</span>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+              </div>
+            )}
+
+          {clusterInventory?.taints_by_plane && Object.keys(clusterInventory.taints_by_plane).length > 0 && (
+            <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-3">
+              <div className="text-xs text-slate-500 mb-2">
+                Taints (NoSchedule / NoExecute) footprint by plane segment
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {Object.entries(clusterInventory.taints_by_plane).map(([plane, t]) => (
+                  <div
+                    key={plane}
+                    className="rounded-lg border border-slate-700/50 bg-slate-900/40 px-3 py-2 text-xs"
+                  >
+                    <div className="text-slate-400 capitalize mb-1">{plane.replace(/_/g, ' ')}</div>
+                    <div className="text-slate-200">
+                      <span className="text-slate-500">nodes </span>
+                      {t.nodes_total}
+                      <span className="text-slate-500"> · with harsh taints </span>
+                      <span className="text-amber-200/90">{t.nodes_with_scheduling_taints}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {clusterInventory &&
+            ((clusterInventory.running_pods_total ?? 0) > 0 ||
+              (clusterInventory.pending_pods_unscheduled ?? 0) > 0) && (
+              <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-3 space-y-2">
+                <div className="text-xs text-slate-500">
+                  Running pods by plane (assigned node&apos;s role segment){' '}
+                  <span className="text-slate-600">
+                    · total running {clusterInventory.running_pods_total ?? 0}
+                    {(clusterInventory.pending_pods_unscheduled ?? 0) > 0 && (
+                      <>
+                        {' '}
+                        · Pending (no node) {clusterInventory.pending_pods_unscheduled}
+                      </>
+                    )}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {clusterInventory.running_pods_by_plane &&
+                    Object.entries(clusterInventory.running_pods_by_plane).map(([plane, c]) => (
+                      <span
+                        key={plane}
+                        className="text-[11px] px-2 py-0.5 rounded-md bg-cyan-950/40 border border-cyan-800/40 text-cyan-100"
+                      >
+                        {planeSegmentRollupTitle(plane)}: <span className="font-semibold">{c}</span>
+                      </span>
+                    ))}
+                </div>
+              </div>
+            )}
+
+          <div className="rounded-xl border border-violet-700/35 bg-violet-950/20 px-4 py-4 space-y-3">
+              <h3 className="text-sm font-semibold text-violet-100">Upgrade windows &amp; version skew</h3>
+              <p className="text-[11px] text-slate-400 leading-relaxed">
+                {clusterInventory.upgrade_insights?.disclaimer ??
+                  'Version skew and etcd visibility depend on cluster style (stacked kubeadm vs managed vs embedded etcd).'}
+              </p>
+              <div className="flex flex-wrap gap-2 text-xs">
+                {(clusterInventory.upgrade_insights?.inferred_etcd_member_pods_running ?? 0) > 0 && (
+                  <span className="px-2 py-1 rounded-md bg-violet-500/15 border border-violet-500/35 text-violet-100">
+                    etcd-like pods running:{' '}
+                    {clusterInventory.upgrade_insights?.inferred_etcd_member_pods_running}
+                  </span>
+                )}
+                {clusterInventory.upgrade_insights?.max_kubelet_minor_lag_behind_apiserver != null && (
+                  <span className="px-2 py-1 rounded-md bg-slate-800 border border-slate-600 text-slate-200">
+                    max kubelet minor lag (behind API):{' '}
+                    {clusterInventory.upgrade_insights.max_kubelet_minor_lag_behind_apiserver}
+                  </span>
+                )}
+                {(clusterInventory.upgrade_insights?.kube_apiserver_pod_image_minors?.length ?? 0) > 0 && (
+                  <span className="px-2 py-1 rounded-md bg-slate-800 border border-slate-600 text-slate-200 font-mono text-[11px]">
+                    apiserver image minor(s):{' '}
+                    {clusterInventory.upgrade_insights?.kube_apiserver_pod_image_minors?.join(', ')}
+                  </span>
+                )}
+                {(clusterInventory.upgrade_insights?.etcd_pod_image_minors?.length ?? 0) > 0 && (
+                  <span className="px-2 py-1 rounded-md bg-slate-800 border border-slate-600 text-slate-200 font-mono text-[11px]">
+                    etcd image minor(s):{' '}
+                    {clusterInventory.upgrade_insights?.etcd_pod_image_minors?.join(', ')}
+                  </span>
+                )}
+              </div>
+              {(clusterInventory.upgrade_insights?.nodes_kubelet_newer_than_apiserver?.length ?? 0) > 0 && (
+                <div className="text-xs">
+                  <span className="text-rose-400">Kubelet newer than API server (unsupported): </span>
+                  <span className="text-slate-300 font-mono">
+                    {clusterInventory.upgrade_insights?.nodes_kubelet_newer_than_apiserver?.join(', ')}
+                  </span>
+                </div>
+              )}
+              {(clusterInventory.upgrade_insights?.nodes_kubelet_minor_lag_exceeds_policy?.length ?? 0) > 0 && (
+                <div className="text-xs">
+                  <span className="text-amber-300">
+                    Same major, kubelet minor lag exceeds supported skew (3 minors):{' '}
+                  </span>
+                  <span className="text-slate-300 font-mono">
+                    {clusterInventory.upgrade_insights?.nodes_kubelet_minor_lag_exceeds_policy?.join(', ')}
+                  </span>
+                </div>
+              )}
+              {(clusterInventory.upgrade_insights?.nodes_kubelet_major_behind_apiserver?.length ?? 0) > 0 && (
+                <div className="text-xs">
+                  <span className="text-rose-300/90">Kubelet major older than API server: </span>
+                  <span className="text-slate-300 font-mono text-[11px] break-words">
+                    {clusterInventory.upgrade_insights?.nodes_kubelet_major_behind_apiserver?.join(' · ')}
+                  </span>
+                </div>
+              )}
+              {(clusterInventory.upgrade_insights?.upgrade_warnings?.length ?? 0) > 0 && (
+                <ul className="text-[11px] text-amber-200/90 list-disc pl-5 space-y-1">
+                  {clusterInventory.upgrade_insights?.upgrade_warnings?.map((w, i) => (
+                    <li key={i}>{w}</li>
+                  ))}
+                </ul>
+              )}
+              {(clusterInventory.upgrade_insights?.suggested_upgrade_order?.length ?? 0) > 0 && (
+                <details className="rounded-lg border border-slate-700/50 bg-slate-900/40">
+                  <summary className="cursor-pointer px-3 py-2 text-xs text-slate-400 hover:text-slate-300">
+                    Suggested upgrade order (generic)
+                  </summary>
+                  <ol className="list-decimal pl-8 pr-3 pb-3 text-[11px] text-slate-400 space-y-1">
+                    {clusterInventory.upgrade_insights?.suggested_upgrade_order?.map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ol>
+                </details>
+              )}
+          </div>
+
+          {(clusterInventory?.etcd_placement_pods?.length ?? 0) > 0 && (
+            <div className="rounded-xl border border-slate-700/40 bg-slate-900/25 overflow-hidden">
+              <div className="px-3 py-2 border-b border-slate-700/40 text-xs text-slate-500">
+                etcd placement (inferred from pods — not Raft membership API)
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b border-slate-700/40">
+                      <th className="px-3 py-2">Pod</th>
+                      <th className="px-3 py-2">Node</th>
+                      <th className="px-3 py-2">Plane</th>
+                      <th className="px-3 py-2">Phase</th>
+                      <th className="px-3 py-2">Tag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/30 text-slate-300">
+                    {clusterInventory.etcd_placement_pods?.map((p) => (
+                      <tr key={`${p.namespace}/${p.name}`}>
+                        <td className="px-3 py-2 font-mono">
+                          {p.namespace}/{p.name}
+                        </td>
+                        <td className="px-3 py-2">{p.node_name ?? '—'}</td>
+                        <td className="px-3 py-2 capitalize">{p.node_plane?.replace(/_/g, ' ') ?? '—'}</td>
+                        <td className="px-3 py-2">{p.phase}</td>
+                        <td className="px-3 py-2 font-mono text-[10px]">{p.inferred_k8s_semver_tag ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {(clusterInventory?.control_plane_stack_pods?.length ?? 0) > 0 && (
+            <details className="rounded-xl border border-slate-700/40 bg-slate-900/25">
+              <summary className="cursor-pointer px-3 py-2 text-xs text-slate-400 hover:text-slate-300">
+                Control plane static pods ({clusterInventory.control_plane_stack_pods?.length})
+              </summary>
+              <div className="overflow-x-auto border-t border-slate-700/40">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-slate-500 border-b border-slate-700/40">
+                      <th className="px-3 py-2">Component</th>
+                      <th className="px-3 py-2">Pod</th>
+                      <th className="px-3 py-2">Node</th>
+                      <th className="px-3 py-2">Phase</th>
+                      <th className="px-3 py-2">Tag</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/30 text-slate-300">
+                    {clusterInventory.control_plane_stack_pods?.map((p) => (
+                      <tr key={`${p.namespace}/${p.name}`}>
+                        <td className="px-3 py-2">{p.component}</td>
+                        <td className="px-3 py-2 font-mono">
+                          {p.namespace}/{p.name}
+                        </td>
+                        <td className="px-3 py-2">{p.node_name ?? '—'}</td>
+                        <td className="px-3 py-2">{p.phase}</td>
+                        <td className="px-3 py-2 font-mono text-[10px]">{p.inferred_k8s_semver_tag ?? '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          )}
+        </div>
+      )}
 
       {environment && (
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
@@ -214,9 +810,75 @@ export default function K8sOverviewPage() {
       </div>
 
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-700/50">
-          <h2 className="text-lg font-semibold">Nodes</h2>
-          <p className="text-xs text-slate-500 mt-1">Actions are allowlisted: cordon, uncordon, drain.</p>
+        <div className="px-6 py-4 border-b border-slate-700/50 space-y-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Nodes</h2>
+              <p className="text-xs text-slate-500 mt-1">
+                <span className="text-slate-400">Control vs data plane</span> is inferred from{' '}
+                <code className="text-[10px] bg-slate-900/80 px-1 rounded">node-role.kubernetes.io/*</code>{' '}
+                labels. Pressure chips use Node conditions (M/D/P/N). Actions: cordon, uncordon, drain.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => exportCsv()}
+              className="inline-flex items-center gap-2 self-start px-3 py-2 rounded-lg text-xs font-medium bg-slate-700/80 border border-slate-600 text-slate-100 hover:bg-slate-600/80"
+            >
+              <Download className="w-4 h-4" aria-hidden />
+              Export CSV ({filteredNodes.length})
+            </button>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-500">Filters</span>
+            <select
+              value={filterPlane}
+              onChange={(e) => setFilterPlane(e.target.value)}
+              className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200"
+            >
+              <option value="all">All planes</option>
+              <option value="control_plane">Control plane</option>
+              <option value="worker">Data plane</option>
+              <option value="mixed">Mixed</option>
+              <option value="unknown">Unknown</option>
+            </select>
+            <select
+              value={filterReady}
+              onChange={(e) => {
+                const v = e.target.value
+                if (v === 'ready' || v === 'not_ready' || v === 'all') setFilterReady(v)
+              }}
+              className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200"
+            >
+              <option value="all">Ready: any</option>
+              <option value="ready">Ready only</option>
+              <option value="not_ready">Not ready</option>
+            </select>
+            <select
+              value={filterZone}
+              onChange={(e) => setFilterZone(e.target.value)}
+              className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 max-w-[12rem]"
+            >
+              <option value="all">Zone: any</option>
+              {zoneOptions.map((z) => (
+                <option key={z} value={z}>
+                  Zone: {z}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterInstance}
+              onChange={(e) => setFilterInstance(e.target.value)}
+              className="bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 max-w-[14rem]"
+            >
+              <option value="all">Instance type: any</option>
+              {instanceOptions.map((z) => (
+                <option key={z} value={z}>
+                  {z}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -224,17 +886,99 @@ export default function K8sOverviewPage() {
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Node</th>
                 <th className="text-left px-4 py-3">Role</th>
+                <th
+                  className="text-left px-4 py-3 min-w-[9rem]"
+                  title="Control plane (API/etcd) vs data plane (workloads), from node-role labels"
+                >
+                  Control / data plane
+                </th>
+                <th className="text-left px-4 py-3 hidden md:table-cell">CPU cap / alloc</th>
+                <th className="text-left px-4 py-3 hidden lg:table-cell">Mem cap / alloc</th>
+                <th className="text-left px-4 py-3 hidden xl:table-cell">Topology hints</th>
+                <th
+                  className="text-left px-4 py-3 hidden lg:table-cell min-w-[5rem]"
+                  title="Memory / Disk / PID pressure &amp; NetworkUnavailable"
+                >
+                  Pressure
+                </th>
+                <th className="text-left px-4 py-3 hidden md:table-cell" title="spec.unschedulable (cordon)">
+                  Schedule
+                </th>
+                <th className="text-left px-4 py-3 hidden xl:table-cell" title="Kubelet minor vs API server minor">
+                  Ver skew
+                </th>
+                <th className="text-left px-4 py-3 hidden 2xl:table-cell max-w-[14rem]">Taints</th>
                 <th className="text-left px-4 py-3">Status</th>
                 <th className="text-left px-4 py-3 hidden lg:table-cell">Kubelet</th>
-                <th className="text-left px-4 py-3 hidden xl:table-cell">OS</th>
+                <th className="text-left px-4 py-3 hidden 2xl:table-cell">OS</th>
                 <th className="text-center px-4 py-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">
-              {nodes.map((n) => (
+              {filteredNodes.map((n) => (
                 <tr key={n.name} className="hover:bg-slate-700/30">
-                  <td className="px-4 py-3 font-medium text-white">{n.name}</td>
+                  <td className="px-4 py-3">
+                    <div className="font-medium text-white">{n.name}</div>
+                    <div className="mt-1.5 sm:hidden">
+                      <NodePlaneBadge plane={n.plane} />
+                    </div>
+                  </td>
                   <td className="px-4 py-3 text-slate-300">{n.roles.join(', ')}</td>
+                  <td className="px-4 py-3 align-top hidden sm:table-cell">
+                    <NodePlaneBadge plane={n.plane} />
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400 font-mono hidden md:table-cell">
+                    {fmtMilliCpu(n.cpu_capacity_millicores)} / {fmtMilliCpu(n.cpu_allocatable_millicores)}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-400 font-mono hidden lg:table-cell">
+                    {n.memory_capacity_bytes != null ? formatBytes(n.memory_capacity_bytes) : '—'} /{' '}
+                    {n.memory_allocatable_bytes != null ? formatBytes(n.memory_allocatable_bytes) : '—'}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-xs text-slate-400 max-w-[12rem] truncate hidden xl:table-cell"
+                    title={topologyHintText(n.topology_hints)}
+                  >
+                    {topologyHintText(n.topology_hints)}
+                  </td>
+                  <td className="px-4 py-3 hidden lg:table-cell align-top">
+                    <PressureChips n={n} />
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-xs">
+                    {n.unschedulable ? (
+                      <span className="text-amber-300" title="Cordoned (unschedulable)">
+                        Cordoned
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">Schedulable</span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 hidden xl:table-cell text-xs">
+                    {n.kubelet_minor_matches_apiserver === false ? (
+                      <span
+                        className="inline-flex items-center gap-1 text-amber-300"
+                        title="Kubelet minor differs from API server minor"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                        Skew
+                      </span>
+                    ) : n.kubelet_minor_matches_apiserver === true ? (
+                      <span className="text-emerald-400/90">Match</span>
+                    ) : (
+                      <span className="text-slate-500">—</span>
+                    )}
+                  </td>
+                  <td
+                    className="px-4 py-3 text-[11px] text-slate-400 font-mono max-w-[14rem] truncate hidden 2xl:table-cell"
+                    title={
+                      n.taints?.length
+                        ? n.taints.map((t) => `${t.key}${t.value != null ? `=${t.value}` : ''}:${t.effect}`).join('; ')
+                        : ''
+                    }
+                  >
+                    {n.taints?.length
+                      ? n.taints.map((t) => `${t.key}:${t.effect}`).join(', ')
+                      : '—'}
+                  </td>
                   <td className="px-4 py-3">
                     <span className={`inline-flex items-center gap-1.5 ${n.ready ? 'text-emerald-400' : 'text-amber-400'}`}>
                       {n.ready ? <CheckCircle2 className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
@@ -242,7 +986,7 @@ export default function K8sOverviewPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-slate-400 hidden lg:table-cell">{n.kubelet_version}</td>
-                  <td className="px-4 py-3 text-slate-400 hidden xl:table-cell">{n.os_image}</td>
+                  <td className="px-4 py-3 text-slate-400 hidden 2xl:table-cell">{n.os_image}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-2">
                       <button
@@ -274,6 +1018,9 @@ export default function K8sOverviewPage() {
           </table>
         </div>
         {nodes.length === 0 && <div className="p-8 text-center text-slate-500">No nodes found</div>}
+        {nodes.length > 0 && filteredNodes.length === 0 && (
+          <div className="p-8 text-center text-slate-500">No nodes match filters</div>
+        )}
       </div>
 
       {lastCommand && (

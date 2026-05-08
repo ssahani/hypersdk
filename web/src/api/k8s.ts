@@ -46,6 +46,12 @@ export interface K8sEnvironment {
   snippets: Record<string, string>
 }
 
+export interface K8sNodeTaint {
+  key: string
+  value?: string | null
+  effect: string
+}
+
 export interface K8sNodeInfo {
   name: string
   roles: string[]
@@ -58,6 +64,91 @@ export interface K8sNodeInfo {
   capacity: Record<string, string>
   allocatable: Record<string, string>
   labels: Record<string, string>
+  metadata_uid?: string | null
+  system_uuid?: string | null
+  provider_id?: string | null
+  /** From node-role labels: control_plane | worker | mixed */
+  plane?: string
+  cpu_capacity_millicores?: number | null
+  cpu_allocatable_millicores?: number | null
+  memory_capacity_bytes?: number | null
+  memory_allocatable_bytes?: number | null
+  topology_hints?: Record<string, string>
+  unschedulable?: boolean
+  taints?: K8sNodeTaint[]
+  memory_pressure?: boolean
+  disk_pressure?: boolean
+  pid_pressure?: boolean
+  network_unavailable?: boolean
+  /** Set on cluster-inventory when API gitVersion parses; compares kubelet vs apiserver major.minor */
+  kubelet_minor_matches_apiserver?: boolean | null
+}
+
+/** Rolled-up cpu/memory from Node capacity (kubernetes-style inventory). */
+export interface K8sPlaneRollup {
+  node_count: number
+  ready_node_count: number
+  cpu_capacity_millicores: number
+  cpu_allocatable_millicores: number
+  memory_capacity_bytes: number
+  memory_allocatable_bytes: number
+}
+
+export interface K8sTaintPlaneRollup {
+  nodes_total: number
+  nodes_with_scheduling_taints: number
+}
+
+export interface K8sCpStackPod {
+  component: string
+  namespace: string
+  name: string
+  node_name?: string | null
+  node_plane?: string | null
+  phase: string
+  container_images?: string[]
+  inferred_k8s_semver_tag?: string | null
+}
+
+export interface K8sUpgradeInsights {
+  disclaimer?: string
+  inferred_etcd_member_pods_running?: number
+  max_kubelet_minor_lag_behind_apiserver?: number | null
+  nodes_kubelet_newer_than_apiserver?: string[]
+  /** Same API major; kubelet minor lag > policy */
+  nodes_kubelet_minor_lag_exceeds_policy?: string[]
+  /** Kubelet major older than API server */
+  nodes_kubelet_major_behind_apiserver?: string[]
+  kube_apiserver_pod_image_minors?: string[]
+  etcd_pod_image_minors?: string[]
+  upgrade_warnings?: string[]
+  suggested_upgrade_order?: string[]
+}
+
+export interface K8sClusterInventoryResponse {
+  collected_at_rfc3339: string
+  disclaimer: string
+  totals_all_nodes: K8sPlaneRollup
+  by_plane: Record<string, K8sPlaneRollup>
+  combined_control_plane_and_mixed: K8sPlaneRollup
+  combined_worker_dataplane_and_mixed: K8sPlaneRollup
+  nodes: K8sNodeInfo[]
+  apiserver_git_version?: string
+  apiserver_major_minor?: string
+  cluster_livez_ok?: boolean
+  cluster_readyz_ok?: boolean
+  cluster_health_notes?: string[]
+  nodes_with_kubelet_minor_skew?: number
+  topology_nodes_by_zone?: Record<string, number>
+  topology_nodes_by_region?: Record<string, number>
+  taints_by_plane?: Record<string, K8sTaintPlaneRollup>
+  running_pods_by_plane?: Record<string, number>
+  running_pods_total?: number
+  running_pods_without_node?: number
+  pending_pods_unscheduled?: number
+  etcd_placement_pods?: K8sCpStackPod[]
+  control_plane_stack_pods?: K8sCpStackPod[]
+  upgrade_insights?: K8sUpgradeInsights
 }
 
 export interface K8sObjectMeta {
@@ -186,6 +277,11 @@ export const getK8sContexts = () =>
 
 export const getK8sNodes = (context?: string) =>
   readJsonArray<K8sNodeInfo>(withK8sContext(`${API}/k8s/nodes`, context))
+
+export const getK8sClusterInventory = (context?: string) =>
+  readJsonObject<K8sClusterInventoryResponse>(
+    withK8sContext(`${API}/k8s/cluster-inventory`, context),
+  )
 
 export const getK8sNamespaces = (context?: string) =>
   readJsonItemsList<K8sMetadataName>(withK8sContext(`${API}/k8s/namespaces`, context))
