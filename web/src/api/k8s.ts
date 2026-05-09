@@ -82,6 +82,30 @@ export interface K8sNodeInfo {
   network_unavailable?: boolean
   /** Set on cluster-inventory when API gitVersion parses; compares kubelet vs apiserver major.minor */
   kubelet_minor_matches_apiserver?: boolean | null
+  /** Daemon host DMI UUID matches Node systemUUID */
+  daemon_matches_this_machine?: boolean | null
+}
+
+export interface K8sWebhookSummaryRow {
+  name: string
+  webhook_rules_count: number
+}
+
+export interface K8sAddonDaemonSetRow {
+  namespace: string
+  name: string
+  primary_image: string
+}
+
+export interface K8sExtendedClusterInsights {
+  validating_webhooks?: K8sWebhookSummaryRow[]
+  mutating_webhooks?: K8sWebhookSummaryRow[]
+  addon_daemonsets?: K8sAddonDaemonSetRow[]
+  gpu_allocatable_cluster_totals?: Record<string, string>
+  daemon_machine_product_uuid?: string | null
+  etcd_member_list_stdout?: string | null
+  etcd_member_list_stderr?: string | null
+  operator_alerts?: string[]
 }
 
 /** Rolled-up cpu/memory from Node capacity (kubernetes-style inventory). */
@@ -149,6 +173,7 @@ export interface K8sClusterInventoryResponse {
   etcd_placement_pods?: K8sCpStackPod[]
   control_plane_stack_pods?: K8sCpStackPod[]
   upgrade_insights?: K8sUpgradeInsights
+  extended?: K8sExtendedClusterInsights
 }
 
 export interface K8sObjectMeta {
@@ -282,6 +307,47 @@ export const getK8sClusterInventory = (context?: string) =>
   readJsonObject<K8sClusterInventoryResponse>(
     withK8sContext(`${API}/k8s/cluster-inventory`, context),
   )
+
+export interface K8sClusterInventoryHistoryResponse {
+  path: string
+  entries: Record<string, unknown>[]
+}
+
+export const getK8sClusterInventoryHistory = (limit?: number, context?: string) => {
+  const q = limit != null ? `?limit=${encodeURIComponent(String(limit))}` : ''
+  let url = `${API}/k8s/cluster-inventory/history${q}`
+  url = withK8sContext(url, context)
+  return readJsonObject<K8sClusterInventoryHistoryResponse>(url)
+}
+
+/** Single JSON file for audits: overview + cluster inventory + environment (client-side merge). */
+export async function buildK8sAuditBundleJson(context?: string): Promise<string> {
+  const [inventory, overview, environment] = await Promise.all([
+    getK8sClusterInventory(context),
+    getK8sOverview(context),
+    getK8sEnvironment(),
+  ])
+  return JSON.stringify(
+    {
+      exported_at_rfc3339: new Date().toISOString(),
+      cluster_inventory: inventory,
+      k8s_overview: overview,
+      k8s_environment: environment,
+    },
+    null,
+    2,
+  )
+}
+
+export function downloadTextAsFile(filename: string, text: string, mime: string) {
+  const blob = new Blob([text], { type: mime })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export const getK8sNamespaces = (context?: string) =>
   readJsonItemsList<K8sMetadataName>(withK8sContext(`${API}/k8s/namespaces`, context))

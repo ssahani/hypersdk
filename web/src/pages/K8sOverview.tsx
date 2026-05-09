@@ -12,15 +12,21 @@ import {
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import {
+  buildK8sAuditBundleJson,
+  downloadTextAsFile,
   getK8sEnvironment,
   getK8sClusterInventory,
+  getK8sClusterInventoryHistory,
   getK8sOverview,
+  K8sClusterInventoryHistoryResponse,
   K8sClusterInventoryResponse,
   K8sEnvironment,
+  K8sExtendedClusterInsights,
   K8sNodeInfo,
   K8sPlaneRollup,
   runK8sAction,
 } from '../api/k8s'
+import { useK8sContext } from '../hooks/useK8sContext'
 import { formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
 
@@ -140,6 +146,7 @@ function buildNodesInventoryCsv(nodes: K8sNodeInfo[]): string {
     'cpu_allocatable_millicores',
     'memory_capacity_bytes',
     'memory_allocatable_bytes',
+    'daemon_matches_this_machine',
   ]
   const lines = [headers.join(',')]
   for (const n of nodes) {
@@ -170,10 +177,29 @@ function buildNodesInventoryCsv(nodes: K8sNodeInfo[]): string {
         csvEscapeCell(n.cpu_allocatable_millicores ?? ''),
         csvEscapeCell(n.memory_capacity_bytes ?? ''),
         csvEscapeCell(n.memory_allocatable_bytes ?? ''),
+        csvEscapeCell(
+          n.daemon_matches_this_machine === null || n.daemon_matches_this_machine === undefined
+            ? ''
+            : n.daemon_matches_this_machine,
+        ),
       ].join(','),
     )
   }
   return lines.join('\n')
+}
+
+function extendedInsightsHasContent(ext: K8sExtendedClusterInsights | undefined): boolean {
+  if (!ext) return false
+  return (
+    (ext.validating_webhooks?.length ?? 0) > 0 ||
+    (ext.mutating_webhooks?.length ?? 0) > 0 ||
+    (ext.addon_daemonsets?.length ?? 0) > 0 ||
+    (ext.gpu_allocatable_cluster_totals && Object.keys(ext.gpu_allocatable_cluster_totals).length > 0) ||
+    (ext.daemon_machine_product_uuid != null && ext.daemon_machine_product_uuid !== '') ||
+    (ext.etcd_member_list_stdout != null && ext.etcd_member_list_stdout !== '') ||
+    (ext.etcd_member_list_stderr != null && ext.etcd_member_list_stderr !== '') ||
+    (ext.operator_alerts?.length ?? 0) > 0
+  )
 }
 
 function downloadTextFile(filename: string, text: string, mime: string) {
@@ -242,6 +268,7 @@ function RollupStrip({ title, r }: { title: string; r: K8sPlaneRollup }) {
 
 export default function K8sOverviewPage() {
   const toast = useToastContext()
+  const { context, setContext, choices: contextChoices, ctxTrim } = useK8sContext()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getK8sOverview>> | null>(null)
@@ -255,11 +282,14 @@ export default function K8sOverviewPage() {
   const [filterReady, setFilterReady] = useState<'all' | 'ready' | 'not_ready'>('all')
   const [filterZone, setFilterZone] = useState<string>('all')
   const [filterInstance, setFilterInstance] = useState<string>('all')
+  const [invHist, setInvHist] = useState<K8sClusterInventoryHistoryResponse | null>(null)
+  const [invHistLoading, setInvHistLoading] = useState(false)
+  const [invHistErr, setInvHistErr] = useState<string | null>(null)
 
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
     try {
-      const [ov, inv] = await Promise.all([getK8sOverview(), getK8sClusterInventory()])
+      const [ov, inv] = await Promise.all([getK8sOverview(ctxTrim), getK8sClusterInventory(ctxTrim)])
       setOverview(ov)
       setClusterInventory(inv)
       setNodes(inv.nodes)
@@ -284,16 +314,35 @@ export default function K8sOverviewPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [ctxTrim])
+
+  useEffect(() => {
+    setInvHist(null)
+    setInvHistErr(null)
+  }, [ctxTrim])
 
   useEffect(() => {
     void load()
   }, [load])
 
+  const loadInventoryHistory = useCallback(async () => {
+    setInvHistLoading(true)
+    setInvHistErr(null)
+    try {
+      const r = await getK8sClusterInventoryHistory(100, ctxTrim)
+      setInvHist(r)
+    } catch (e: unknown) {
+      setInvHist(null)
+      setInvHistErr(e instanceof Error ? e.message : String(e))
+    } finally {
+      setInvHistLoading(false)
+    }
+  }, [ctxTrim])
+
   const runNodeAction = useCallback(async (name: string, action: NodeAction) => {
     setActing(`${action}:${name}`)
     try {
-      const result = await runK8sAction({ action, name })
+      const result = await runK8sAction({ action, name, context: ctxTrim })
       setLastCommand(result.command)
       toast.success(result.stdout.trim() || `${action} succeeded for ${name}`)
       await load(true)
@@ -303,7 +352,7 @@ export default function K8sOverviewPage() {
     } finally {
       setActing(null)
     }
-  }, [load, toast])
+  }, [load, toast, ctxTrim])
 
   const zoneOptions = useMemo(() => {
     const z = new Set<string>()
@@ -342,6 +391,17 @@ export default function K8sOverviewPage() {
     toast.success(`Exported ${filteredNodes.length} row(s)`)
   }, [filteredNodes, clusterInventory?.collected_at_rfc3339, toast])
 
+  const exportAuditJson = useCallback(async () => {
+    try {
+      const j = await buildK8sAuditBundleJson(ctxTrim)
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      downloadTextAsFile(`machina-k8s-audit-${stamp}.json`, j, 'application/json')
+      toast.success('Audit bundle downloaded')
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }, [ctxTrim, toast])
+
   const counts = useMemo(() => {
     const extra = overview?.extra_resource_counts ?? {}
     const base = [
@@ -373,16 +433,38 @@ export default function K8sOverviewPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Server className="w-6 h-6 text-blue-400" /> Kubernetes Cluster</h1>
           <p className="text-sm text-slate-400 mt-0.5">
             Auto-detects distro (k3s, RKE2, cloud, kind, …), host agents, and expands resource counts. Safe kubectl node actions below.
           </p>
         </div>
-        <button onClick={() => void load(true)} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh">
-          <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <select
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            className="bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 max-w-[18rem]"
+            title="kubectl --context"
+          >
+            <option value="">Default kubeconfig context</option>
+            {contextChoices.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={() => void exportAuditJson()}
+            className="px-3 py-2 rounded-lg text-xs font-medium bg-slate-700/80 border border-slate-600 text-slate-100 hover:bg-slate-600/80"
+          >
+            Audit JSON
+          </button>
+          <button onClick={() => void load(true)} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh">
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
       </div>
 
       {loadError && (
@@ -728,6 +810,178 @@ export default function K8sOverviewPage() {
               </div>
             </details>
           )}
+
+          {extendedInsightsHasContent(clusterInventory.extended) && (
+            <details
+              open
+              className="rounded-xl border border-cyan-800/35 bg-slate-900/25"
+            >
+              <summary className="cursor-pointer px-3 py-2 text-xs text-cyan-200/90 hover:text-cyan-100">
+                Admission webhooks, addons, GPUs, etcd snapshot, operator alerts
+              </summary>
+              <div className="border-t border-cyan-900/30 p-3 space-y-4 text-xs text-slate-300">
+                {clusterInventory.extended?.daemon_machine_product_uuid != null &&
+                  clusterInventory.extended.daemon_machine_product_uuid !== '' && (
+                    <div>
+                      <div className="text-[11px] text-slate-500 mb-1">Machina host product UUID (DMI)</div>
+                      <code className="text-[11px] bg-slate-950/80 px-2 py-1 rounded border border-slate-700/60 break-all">
+                        {clusterInventory.extended.daemon_machine_product_uuid}
+                      </code>
+                    </div>
+                  )}
+                {(clusterInventory.extended?.validating_webhooks?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="text-[11px] text-slate-500 mb-2">ValidatingWebhookConfiguration (summary)</div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-700/40">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-slate-500 border-b border-slate-700/40">
+                            <th className="px-3 py-2">Name</th>
+                            <th className="px-3 py-2">Webhook rules</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/30">
+                          {clusterInventory.extended?.validating_webhooks?.map((w) => (
+                            <tr key={w.name}>
+                              <td className="px-3 py-2 font-mono">{w.name}</td>
+                              <td className="px-3 py-2">{w.webhook_rules_count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {(clusterInventory.extended?.mutating_webhooks?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="text-[11px] text-slate-500 mb-2">MutatingWebhookConfiguration (summary)</div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-700/40">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-slate-500 border-b border-slate-700/40">
+                            <th className="px-3 py-2">Name</th>
+                            <th className="px-3 py-2">Webhook rules</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/30">
+                          {clusterInventory.extended?.mutating_webhooks?.map((w) => (
+                            <tr key={w.name}>
+                              <td className="px-3 py-2 font-mono">{w.name}</td>
+                              <td className="px-3 py-2">{w.webhook_rules_count}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {(clusterInventory.extended?.addon_daemonsets?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="text-[11px] text-slate-500 mb-2">Notable addon DaemonSets</div>
+                    <div className="overflow-x-auto rounded-lg border border-slate-700/40">
+                      <table className="w-full text-xs">
+                        <thead>
+                          <tr className="text-left text-slate-500 border-b border-slate-700/40">
+                            <th className="px-3 py-2">Namespace</th>
+                            <th className="px-3 py-2">Name</th>
+                            <th className="px-3 py-2">Primary image</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-700/30">
+                          {clusterInventory.extended?.addon_daemonsets?.map((d) => (
+                            <tr key={`${d.namespace}/${d.name}`}>
+                              <td className="px-3 py-2 font-mono">{d.namespace}</td>
+                              <td className="px-3 py-2 font-mono">{d.name}</td>
+                              <td className="px-3 py-2 font-mono text-[10px] break-all">{d.primary_image}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+                {clusterInventory.extended?.gpu_allocatable_cluster_totals &&
+                  Object.keys(clusterInventory.extended.gpu_allocatable_cluster_totals).length > 0 && (
+                    <div>
+                      <div className="text-[11px] text-slate-500 mb-2">GPU allocatable (cluster rollup)</div>
+                      <div className="flex flex-wrap gap-2">
+                        {Object.entries(clusterInventory.extended.gpu_allocatable_cluster_totals).map(([k, v]) => (
+                          <span
+                            key={k}
+                            className="text-[11px] px-2 py-1 rounded-md bg-indigo-950/50 border border-indigo-800/40 text-indigo-100 font-mono"
+                          >
+                            {k}: {v}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                {(clusterInventory.extended?.etcd_member_list_stdout != null &&
+                  clusterInventory.extended.etcd_member_list_stdout !== '') ||
+                (clusterInventory.extended?.etcd_member_list_stderr != null &&
+                  clusterInventory.extended.etcd_member_list_stderr !== '') ? (
+                  <details className="rounded-lg border border-slate-700/50 bg-slate-950/40">
+                    <summary className="cursor-pointer px-3 py-2 text-[11px] text-slate-400 hover:text-slate-300">
+                      etcdctl member list (from etcd pod exec, when available)
+                    </summary>
+                    <div className="px-3 pb-3 space-y-2">
+                      {clusterInventory.extended?.etcd_member_list_stderr &&
+                        clusterInventory.extended.etcd_member_list_stderr.trim() !== '' && (
+                          <pre className="text-[10px] text-amber-200/90 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
+                            {clusterInventory.extended.etcd_member_list_stderr}
+                          </pre>
+                        )}
+                      <pre className="text-[10px] text-slate-400 whitespace-pre-wrap break-words max-h-56 overflow-y-auto">
+                        {clusterInventory.extended?.etcd_member_list_stdout ?? '—'}
+                      </pre>
+                    </div>
+                  </details>
+                ) : null}
+                {(clusterInventory.extended?.operator_alerts?.length ?? 0) > 0 && (
+                  <div>
+                    <div className="text-[11px] text-slate-500 mb-1">Operator-style alerts</div>
+                    <ul className="text-[11px] text-amber-200/90 list-disc pl-5 space-y-1">
+                      {clusterInventory.extended?.operator_alerts?.map((a, i) => (
+                        <li key={i}>{a}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </details>
+          )}
+
+          <details className="rounded-xl border border-slate-700/40 bg-slate-900/20">
+            <summary className="cursor-pointer px-3 py-2 text-xs text-slate-400 hover:text-slate-300">
+              Cluster inventory history (JSONL on daemon host)
+            </summary>
+            <div className="border-t border-slate-700/40 p-3 space-y-2">
+              <p className="text-[11px] text-slate-500 leading-relaxed">
+                Requires <code className="text-slate-400">[k8s_inventory_history]</code> with{' '}
+                <code className="text-slate-400">enabled = true</code> in machina config; reads append-only lines from the daemon.
+              </p>
+              <button
+                type="button"
+                disabled={invHistLoading}
+                onClick={() => void loadInventoryHistory()}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-slate-700/80 border border-slate-600 text-slate-100 hover:bg-slate-600/80 disabled:opacity-50"
+              >
+                {invHistLoading ? 'Loading…' : 'Load recent snapshots'}
+              </button>
+              {invHistErr && <div className="text-[11px] text-rose-300">{invHistErr}</div>}
+              {invHist && (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-slate-500">
+                    Path: <code className="text-slate-400 break-all">{invHist.path}</code>
+                  </div>
+                  <div className="text-[11px] text-slate-400">{invHist.entries.length} snapshot(s)</div>
+                  <pre className="text-[10px] text-slate-400 bg-slate-950/60 border border-slate-700/50 rounded-lg p-3 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words">
+                    {JSON.stringify(invHist.entries, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          </details>
         </div>
       )}
 
@@ -885,6 +1139,12 @@ export default function K8sOverviewPage() {
             <thead>
               <tr className="border-b border-slate-700/50 text-slate-400 text-xs uppercase tracking-wider">
                 <th className="text-left px-4 py-3">Node</th>
+                <th
+                  className="text-left px-4 py-3 hidden md:table-cell"
+                  title="Machina daemon host system UUID matches this node"
+                >
+                  This host
+                </th>
                 <th className="text-left px-4 py-3">Role</th>
                 <th
                   className="text-left px-4 py-3 min-w-[9rem]"
@@ -922,6 +1182,15 @@ export default function K8sOverviewPage() {
                     <div className="mt-1.5 sm:hidden">
                       <NodePlaneBadge plane={n.plane} />
                     </div>
+                  </td>
+                  <td className="px-4 py-3 hidden md:table-cell text-xs">
+                    {n.daemon_matches_this_machine === true ? (
+                      <span className="text-emerald-400/90 font-medium" title="Node system UUID matches this Machina host">
+                        Match
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-slate-300">{n.roles.join(', ')}</td>
                   <td className="px-4 py-3 align-top hidden sm:table-cell">

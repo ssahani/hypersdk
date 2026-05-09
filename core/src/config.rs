@@ -29,6 +29,35 @@ pub struct MachinaConfig {
     /// Periodic snapshots of host hardware inventory (JSON Lines under `/var/lib/machina/hardware-inventory.jsonl`).
     #[serde(default)]
     pub inventory_history: InventoryHistoryConfig,
+    /// Optional append-only JSON Lines of Kubernetes cluster inventory (`/var/lib/machina/k8s-cluster-inventory.jsonl`).
+    #[serde(default)]
+    pub k8s_inventory_history: K8sInventoryHistoryConfig,
+}
+
+/// Snapshots from `GET /k8s/cluster-inventory` for drift / audit (same machine as other Machina state).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct K8sInventoryHistoryConfig {
+    #[serde(default = "default_k8s_inv_hist_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_k8s_inv_hist_max_mb")]
+    pub max_file_mb: u64,
+}
+
+fn default_k8s_inv_hist_enabled() -> bool {
+    false
+}
+
+fn default_k8s_inv_hist_max_mb() -> u64 {
+    32
+}
+
+impl Default for K8sInventoryHistoryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_k8s_inv_hist_enabled(),
+            max_file_mb: default_k8s_inv_hist_max_mb(),
+        }
+    }
 }
 
 /// Append-only hardware inventory history on disk (vCenter-style audit trail of platform identity / topology).
@@ -691,5 +720,12 @@ mod tests {
         assert!(i.enabled);
         assert_eq!(i.interval_secs, 3600);
         assert_eq!(i.max_file_mb, 64);
+    }
+
+    #[test]
+    fn k8s_inventory_history_defaults() {
+        let k = K8sInventoryHistoryConfig::default();
+        assert!(!k.enabled);
+        assert_eq!(k.max_file_mb, 32);
     }
 }

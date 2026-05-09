@@ -13,6 +13,11 @@ refresh_interval_secs = 5
 # interval_secs = 3600
 # max_file_mb = 64
 
+# Append-only JSON Lines of GET /k8s/cluster-inventory under /var/lib/machina/k8s-cluster-inventory.jsonl (audit / drift).
+# [k8s_inventory_history]
+# enabled = false
+# max_file_mb = 32
+
 [daemon]
 host = "0.0.0.0"
 # Omit `port` to use default 5092 (see DEFAULT_DAEMON_PORT in core)

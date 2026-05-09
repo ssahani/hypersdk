@@ -23,6 +23,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let terminal_store = TerminalSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();
     let auth_cfg = config.auth.clone();
+    let k8s_inventory_history_cfg = Arc::new(config.k8s_inventory_history.clone());
 
     let terminal_api = terminal::http_routes()
         .layer(Extension(terminal_store.clone()))
@@ -39,6 +40,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
         .layer(Extension(job_registry))
         .layer(Extension(vib_build_slots))
+        .layer(Extension(k8s_inventory_history_cfg.clone()))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,

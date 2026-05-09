@@ -5,7 +5,6 @@ import KubeVirtSerialConsole from '../components/KubeVirtSerialConsole'
 import KubeVirtExposeServiceModal from '../components/KubeVirtExposeServiceModal'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import {
-  getK8sContexts,
   getK8sCronJobs,
   getK8sDaemonSets,
   getK8sDeployments,
@@ -31,11 +30,13 @@ import {
   K8sService,
   runK8sAction,
 } from '../api/k8s'
+import { useK8sContext } from '../hooks/useK8sContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 
 export default function K8sWorkloadsPage() {
   const toast = useToastContext()
+  const { context, setContext, choices: contextChoices, refreshChoices, ctxTrim } = useK8sContext()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [namespace, setNamespace] = useState<string>('all')
@@ -50,8 +51,6 @@ export default function K8sWorkloadsPage() {
   const [acting, setActing] = useState<string | null>(null)
   const [scaleValue, setScaleValue] = useState<Record<string, number>>({})
   const [connectionError, setConnectionError] = useState<string | null>(null)
-  const [k8sContext, setK8sContext] = useState('')
-  const [contextChoices, setContextChoices] = useState<string[]>([])
   const [statefulsets, setStatefulsets] = useState<K8sDeployment[]>([])
   const [daemonsets, setDaemonsets] = useState<K8sDeployment[]>([])
   const [jobs, setJobs] = useState<K8sMetadataName[]>([])
@@ -72,7 +71,6 @@ export default function K8sWorkloadsPage() {
   const [explorerJson, setExplorerJson] = useState('')
 
   const nsValue = namespace === 'all' ? undefined : namespace
-  const ctxTrim = k8sContext.trim() || undefined
 
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
@@ -185,32 +183,28 @@ export default function K8sWorkloadsPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <input
-            type="text"
-            value={k8sContext}
-            onChange={(e) => setK8sContext(e.target.value)}
-            placeholder="kubectl context (optional)"
-            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm w-44 min-w-[10rem]"
-            list="k8s-ctx-list"
-          />
-          <datalist id="k8s-ctx-list">
+          <select
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            className="bg-slate-800 border border-slate-600 rounded-lg px-3 py-2 text-sm text-slate-200 max-w-[18rem]"
+            title="kubectl --context"
+          >
+            <option value="">Default kubeconfig context</option>
             {contextChoices.map((c) => (
-              <option key={c} value={c} />
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
-          </datalist>
+          </select>
           <button
             type="button"
             className="px-2 py-2 text-xs rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 border border-slate-600"
             onClick={() => {
-              void getK8sContexts()
-                .then((r) => {
-                  setContextChoices(r.contexts ?? [])
-                  toast.success(`Loaded ${(r.contexts ?? []).length} context(s)`)
-                })
-                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+              refreshChoices()
+              toast.success('Refreshing context list')
             }}
           >
-            List contexts
+            Refresh contexts
           </button>
           <select
             value={namespace}

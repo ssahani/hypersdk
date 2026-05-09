@@ -12,7 +12,8 @@ import {
 } from 'lucide-react'
 import { useToastContext } from '../contexts/ToastContext'
 import { getSession, type SessionRole } from '../api/auth'
-import { getK8sContexts, getK8sEnvironment, postKataDeploy, type KataDeployAction, type K8sActionResult } from '../api/k8s'
+import { getK8sEnvironment, postKataDeploy, type KataDeployAction, type K8sActionResult } from '../api/k8s'
+import { useK8sContext } from '../hooks/useK8sContext'
 
 const KATA_EXAMPLES =
   'https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy/examples'
@@ -57,17 +58,14 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
 
 function KataAutomateSection() {
   const toast = useToastContext()
+  const { context, setContext, choices: ctxChoices, refreshChoices, ctxTrim } = useK8sContext()
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
   const [kubectlOk, setKubectlOk] = useState<boolean | null>(null)
   const [helmOk, setHelmOk] = useState<boolean | null>(null)
   const [kubeReachable, setKubeReachable] = useState<boolean | null>(null)
-  const [ctx, setCtx] = useState('')
-  const [ctxChoices, setCtxChoices] = useState<string[]>([])
   const [dryRun, setDryRun] = useState(false)
   const [busy, setBusy] = useState<KataDeployAction | null>(null)
   const [lastOut, setLastOut] = useState<K8sActionResult | null>(null)
-
-  const ctxTrim = ctx.trim()
 
   useEffect(() => {
     getSession()
@@ -109,7 +107,7 @@ function KataAutomateSection() {
       try {
         const r = await postKataDeploy({
           action,
-          context: ctxTrim || undefined,
+          context: ctxTrim,
           dry_run: action === 'wait_kata_deploy_pod' ? undefined : dryRun || undefined,
         })
         setLastOut(r)
@@ -123,15 +121,6 @@ function KataAutomateSection() {
     },
     [canRunHelm, canRunKubectl, ctxTrim, dryRun, toast],
   )
-
-  const loadContexts = useCallback(() => {
-    void getK8sContexts()
-      .then((r) => {
-        setCtxChoices(r.contexts ?? [])
-        toast.success(`Loaded ${(r.contexts ?? []).length} kubectl context(s)`)
-      })
-      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
-  }, [toast])
 
   const btnClass =
     'px-3 py-2 rounded-lg text-sm font-medium transition border disabled:opacity-45 disabled:cursor-not-allowed border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-100 inline-flex items-center justify-center gap-2 min-h-[2.5rem]'
@@ -183,22 +172,30 @@ function KataAutomateSection() {
           <label htmlFor="kata-ctx" className="block text-xs text-slate-500 mb-1">
             kubectl context (optional)
           </label>
-          <input
+          <select
             id="kata-ctx"
-            value={ctx}
-            onChange={(e) => setCtx(e.target.value)}
-            placeholder="default context if empty"
-            className="input-field w-full text-sm font-mono"
-            list="kata-ctx-list"
-          />
-          <datalist id="kata-ctx-list">
+            value={context}
+            onChange={(e) => setContext(e.target.value)}
+            className="input-field w-full text-sm text-slate-200"
+            title="kubectl --context (shared with other K8s pages)"
+          >
+            <option value="">Default kubeconfig context</option>
             {ctxChoices.map((c) => (
-              <option key={c} value={c} />
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
-          </datalist>
+          </select>
         </div>
-        <button type="button" className={btnClass} onClick={loadContexts}>
-          <RefreshCw className="w-4 h-4" /> List contexts
+        <button
+          type="button"
+          className={btnClass}
+          onClick={() => {
+            refreshChoices()
+            toast.success('Refreshing context list')
+          }}
+        >
+          <RefreshCw className="w-4 h-4" /> Refresh contexts
         </button>
         <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer shrink-0">
           <input type="checkbox" className="rounded border-slate-600" checked={dryRun} onChange={(e) => setDryRun(e.target.checked)} />

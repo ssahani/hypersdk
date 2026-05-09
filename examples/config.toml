@@ -15,6 +15,16 @@
 # Range: 1-60 recommended.
 refresh_interval_secs = 5
 
+# Optional JSON Lines history on the daemon host (defaults shown).
+# [inventory_history]
+# enabled = true
+# interval_secs = 3600
+# max_file_mb = 64
+#
+# [k8s_inventory_history]
+# enabled = false
+# max_file_mb = 32
+
 [guacamole]
 # Optional Apache Guacamole encrypted JSON auth — same 32 hex chars as Docker JSON_SECRET_KEY.
 # GET /api/v1/vms/{name}/guacamole-auth returns guac_data (+ optional token if fetch_token).

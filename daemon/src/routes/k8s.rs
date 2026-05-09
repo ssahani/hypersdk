@@ -1,10 +1,12 @@
 use axum::extract::{DefaultBodyLimit, Extension, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use machina_core::config::K8sInventoryHistoryConfig;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::Command;
 use tokio::time::timeout;
@@ -106,6 +108,9 @@ struct K8sNodeInfo {
     /// Populated in cluster inventory when API server gitVersion parses cleanly.
     #[serde(skip_serializing_if = "Option::is_none")]
     kubelet_minor_matches_apiserver: Option<bool>,
+    /// When daemon host DMI product UUID matches Node `status.nodeInfo.systemUUID`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    daemon_matches_this_machine: Option<bool>,
 }
 
 #[derive(Debug, Serialize, Default, Clone)]
@@ -182,6 +187,41 @@ struct K8sClusterInventoryResponse {
     control_plane_stack_pods: Vec<K8sCpStackPod>,
     #[serde(default)]
     upgrade_insights: K8sUpgradeInsights,
+    #[serde(default)]
+    extended: K8sExtendedClusterInsights,
+}
+
+#[derive(Debug, Serialize, Default, Clone)]
+struct K8sWebhookSummaryRow {
+    name: String,
+    webhook_rules_count: usize,
+}
+
+#[derive(Debug, Serialize, Default, Clone)]
+struct K8sAddonDaemonSetRow {
+    namespace: String,
+    name: String,
+    primary_image: String,
+}
+
+#[derive(Debug, Serialize, Default, Clone)]
+struct K8sExtendedClusterInsights {
+    #[serde(default)]
+    validating_webhooks: Vec<K8sWebhookSummaryRow>,
+    #[serde(default)]
+    mutating_webhooks: Vec<K8sWebhookSummaryRow>,
+    #[serde(default)]
+    addon_daemonsets: Vec<K8sAddonDaemonSetRow>,
+    #[serde(default)]
+    gpu_allocatable_cluster_totals: BTreeMap<String, String>,
+    #[serde(default)]
+    daemon_machine_product_uuid: Option<String>,
+    #[serde(default)]
+    etcd_member_list_stdout: Option<String>,
+    #[serde(default)]
+    etcd_member_list_stderr: Option<String>,
+    #[serde(default)]
+    operator_alerts: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -1175,6 +1215,7 @@ fn parse_k8s_node_item(item: &Value) -> Option<K8sNodeInfo> {
         pid_pressure,
         network_unavailable,
         kubelet_minor_matches_apiserver: None,
+        daemon_matches_this_machine: None,
     })
 }
 
@@ -1690,6 +1731,214 @@ fn rollup_cluster_views(
     )
 }
 
+fn read_daemon_product_uuid() -> Option<String> {
+    std::fs::read_to_string("/sys/class/dmi/id/product_uuid")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+}
+
+fn summarize_webhooks(json_res: &Result<Value, LibvirtError>) -> Vec<K8sWebhookSummaryRow> {
+    let Ok(json) = json_res else {
+        return Vec::new();
+    };
+    let items = json
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Vec::new();
+    for item in items {
+        let name = item
+            .get("metadata")
+            .and_then(|m| m.get("name"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let webhook_rules_count = item
+            .get("webhooks")
+            .and_then(|x| x.as_array())
+            .map(|a| a.len())
+            .unwrap_or(0);
+        out.push(K8sWebhookSummaryRow {
+            name,
+            webhook_rules_count,
+        });
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+fn scan_addon_daemonsets(ds: &Value) -> Vec<K8sAddonDaemonSetRow> {
+    let items = ds
+        .get("items")
+        .and_then(|x| x.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut out = Vec::new();
+    for item in items {
+        let meta = item.get("metadata").and_then(|x| x.as_object());
+        let Some(meta) = meta else {
+            continue;
+        };
+        let ns = meta
+            .get("namespace")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let name = meta
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        if name.is_empty() {
+            continue;
+        }
+        let nl = name.to_lowercase();
+        let nsl = ns.to_lowercase();
+        let is_addon = nsl == "kube-system"
+            || nsl == "openshift-dns"
+            || nl.contains("kube-proxy")
+            || nl.contains("coredns")
+            || nl.contains("kube-dns")
+            || nl.contains("calico")
+            || nl.contains("cilium")
+            || nl.contains("flannel")
+            || nl.contains("weave")
+            || nl.contains("canal")
+            || nl.contains("antrea")
+            || nl.contains("csi");
+        if !is_addon {
+            continue;
+        }
+        let img = item
+            .get("spec")
+            .and_then(|s| s.get("template"))
+            .and_then(|t| t.get("spec"))
+            .and_then(|ps| ps.get("containers"))
+            .and_then(|c| c.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|co| co.get("image"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        out.push(K8sAddonDaemonSetRow {
+            namespace: ns,
+            name,
+            primary_image: img,
+        });
+    }
+    out.sort_by(|a, b| (a.namespace.cmp(&b.namespace)).then(a.name.cmp(&b.name)));
+    out
+}
+
+fn rollup_gpu_allocatable(nodes: &[K8sNodeInfo]) -> BTreeMap<String, String> {
+    let mut sums: BTreeMap<String, f64> = BTreeMap::new();
+    for n in nodes {
+        for (k, v) in &n.allocatable {
+            let kl = k.to_lowercase();
+            if kl.contains("gpu")
+                || kl.contains("nvidia.com")
+                || kl.contains("amd.com")
+                || kl.contains("intel.com/gpu")
+            {
+                if let Ok(q) = v.parse::<f64>() {
+                    *sums.entry(k.clone()).or_insert(0.0) += q;
+                }
+            }
+        }
+    }
+    sums.into_iter()
+        .map(|(k, v)| (k, format!("{}", v)))
+        .collect()
+}
+
+fn build_operator_alerts(
+    not_ready: usize,
+    livez_ok: bool,
+    readyz_ok: bool,
+    minor_lag: &[String],
+    major_behind: &[String],
+) -> Vec<String> {
+    let mut a = Vec::new();
+    if not_ready > 0 {
+        a.push(format!(
+            "{not_ready} node(s) report NotReady — inspect kubelet, networking, and CSI."
+        ));
+    }
+    if !livez_ok {
+        a.push(
+            "livez did not report success — confirm API health or RBAC for aggregated health endpoints."
+                .into(),
+        );
+    }
+    if !readyz_ok {
+        a.push(
+            "readyz did not report success — control-plane readiness checks failed or are blocked."
+                .into(),
+        );
+    }
+    if !minor_lag.is_empty() {
+        a.push(format!(
+            "{} node(s) exceed supported kubelet minor skew vs API server.",
+            minor_lag.len()
+        ));
+    }
+    if !major_behind.is_empty() {
+        a.push(format!(
+            "{} node(s) run an older kubelet major than the API server — upgrade soon.",
+            major_behind.len()
+        ));
+    }
+    a
+}
+
+async fn try_etcdctl_member_list(
+    ctx: Option<&str>,
+    etcd_pods: &[K8sCpStackPod],
+) -> (Option<String>, Option<String>) {
+    let Some(ep) = etcd_pods.iter().find(|p| p.phase == "Running") else {
+        return (None, None);
+    };
+    let ns = ep.namespace.clone();
+    let pod_name = ep.name.clone();
+    let args = vec![
+        "exec".into(),
+        "-n".into(),
+        ns,
+        pod_name,
+        "-c".into(),
+        "etcd".into(),
+        "--".into(),
+        "etcdctl".into(),
+        "member".into(),
+        "list".into(),
+    ];
+    let res = match run_kubectl_timeout(&args, 20, ctx).await {
+        Ok(r) => r,
+        Err(e) => return (None, Some(format!("kubectl exec etcd: {e}"))),
+    };
+    let out = res.stdout.trim().to_string();
+    let err = res.stderr.trim().to_string();
+    if res.ok && !out.is_empty() {
+        (Some(out), None)
+    } else if res.ok && out.is_empty() {
+        (None, if err.is_empty() { None } else { Some(err) })
+    } else {
+        (
+            if out.is_empty() { None } else { Some(out) },
+            if err.is_empty() {
+                Some(format!("exit {}", res.exit_code))
+            } else {
+                Some(err)
+            },
+        )
+    }
+}
+
 async fn k8s_nodes(
     Extension(actor): Extension<RequestActor>,
     Query(q): Query<K8sContextQuery>,
@@ -1718,6 +1967,7 @@ async fn k8s_nodes(
 
 async fn k8s_cluster_inventory(
     Extension(actor): Extension<RequestActor>,
+    Extension(hist_cfg): Extension<Arc<K8sInventoryHistoryConfig>>,
     Query(q): Query<K8sContextQuery>,
 ) -> Result<Json<K8sClusterInventoryResponse>, AppError> {
     require_browser_session_for_host_insight(&actor)?;
@@ -1731,13 +1981,38 @@ async fn k8s_cluster_inventory(
     let args_pods = vec!["get".into(), "pods".into(), "-A".into()];
     let args_livez = vec!["get".into(), "--raw".into(), "/livez".into()];
     let args_readyz = vec!["get".into(), "--raw".into(), "/readyz".into()];
+    let args_vwc = vec![
+        "get".into(),
+        "validatingwebhookconfigurations".into(),
+        "-o".into(),
+        "json".into(),
+    ];
+    let args_mwc = vec![
+        "get".into(),
+        "mutatingwebhookconfigurations".into(),
+        "-o".into(),
+        "json".into(),
+    ];
+    let args_ds = vec!["get".into(), "daemonsets".into(), "-A".into(), "-o".into(), "json".into()];
 
-    let (nodes_res, ver_res, pods_res, livez_res, readyz_res) = tokio::join!(
+    let (
+        nodes_res,
+        ver_res,
+        pods_res,
+        livez_res,
+        readyz_res,
+        vwc_res,
+        mwc_res,
+        ds_res,
+    ) = tokio::join!(
         run_kubectl_json_ctx(&args_nodes, KUBECTL_TIMEOUT_SECS, ctx),
         run_kubectl_json_ctx(&args_ver, KUBECTL_TIMEOUT_SECS, ctx),
         run_kubectl_json_ctx(&args_pods, KUBECTL_TIMEOUT_SECS, ctx),
         run_kubectl_timeout(&args_livez, KUBECTL_PROBE_TIMEOUT_SECS, ctx),
         run_kubectl_timeout(&args_readyz, KUBECTL_PROBE_TIMEOUT_SECS, ctx),
+        run_kubectl_json_ctx(&args_vwc, KUBECTL_TIMEOUT_SECS, ctx),
+        run_kubectl_json_ctx(&args_mwc, KUBECTL_TIMEOUT_SECS, ctx),
+        run_kubectl_json_ctx(&args_ds, KUBECTL_TIMEOUT_SECS, ctx),
     );
 
     let v = nodes_res?;
@@ -1771,10 +2046,22 @@ async fn k8s_cluster_inventory(
         enrich_kubelet_apiserver_skew(&mut nodes, &apiserver_git_version);
     }
 
+    let host_uuid = read_daemon_product_uuid();
+    for n in &mut nodes {
+        n.daemon_matches_this_machine = match (&host_uuid, &n.system_uuid) {
+            (Some(h), Some(s)) if !h.is_empty() && !s.trim().is_empty() => {
+                Some(h.eq_ignore_ascii_case(s.trim()))
+            }
+            _ => None,
+        };
+    }
+
     let nodes_with_kubelet_minor_skew = nodes
         .iter()
         .filter(|n| n.kubelet_minor_matches_apiserver == Some(false))
         .count();
+
+    let not_ready_nodes = nodes.iter().filter(|n| !n.ready).count();
 
     let cluster_livez_ok = livez_res.as_ref().map(|r| r.ok).unwrap_or(false);
     let cluster_readyz_ok = readyz_res.as_ref().map(|r| r.ok).unwrap_or(false);
@@ -1844,10 +2131,39 @@ async fn k8s_cluster_inventory(
             ),
         };
 
+    let (etcd_out, etcd_err) = try_etcdctl_member_list(ctx, &etcd_placement_pods).await;
+
+    let validating_webhooks = summarize_webhooks(&vwc_res);
+    let mutating_webhooks = summarize_webhooks(&mwc_res);
+    let addon_daemonsets = ds_res
+        .as_ref()
+        .map(|j| scan_addon_daemonsets(j))
+        .unwrap_or_default();
+    let gpu_allocatable_cluster_totals = rollup_gpu_allocatable(&nodes);
+
+    let operator_alerts = build_operator_alerts(
+        not_ready_nodes,
+        cluster_livez_ok,
+        cluster_readyz_ok,
+        &upgrade_insights.nodes_kubelet_minor_lag_exceeds_policy,
+        &upgrade_insights.nodes_kubelet_major_behind_apiserver,
+    );
+
+    let extended = K8sExtendedClusterInsights {
+        validating_webhooks,
+        mutating_webhooks,
+        addon_daemonsets,
+        gpu_allocatable_cluster_totals,
+        daemon_machine_product_uuid: host_uuid,
+        etcd_member_list_stdout: etcd_out,
+        etcd_member_list_stderr: etcd_err,
+        operator_alerts,
+    };
+
     let (totals_all_nodes, by_plane, combined_control_plane_and_mixed, combined_worker_dataplane_and_mixed) =
         rollup_cluster_views(&nodes);
 
-    Ok(Json(K8sClusterInventoryResponse {
+    let resp = K8sClusterInventoryResponse {
         collected_at_rfc3339: chrono::Utc::now().to_rfc3339(),
         disclaimer: "Kubernetes Node objects expose kubelet-reported capacity/allocatable cpu and memory, not physical CPU sockets/cores/hyperthreads. Those appear only if mirrored by labels (e.g. cloud instance-type, Node Feature Discovery) or custom operators. This is inventory visibility, not VMware-style subscription licensing.".to_string(),
         totals_all_nodes,
@@ -1871,7 +2187,40 @@ async fn k8s_cluster_inventory(
         etcd_placement_pods,
         control_plane_stack_pods,
         upgrade_insights,
-    }))
+        extended,
+    };
+
+    if hist_cfg.enabled {
+        if let Ok(line) = serde_json::to_string(&resp) {
+            let max_b = hist_cfg.max_file_mb.saturating_mul(1024 * 1024);
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::k8s_inventory_history::append_k8s_cluster_inventory_line(&line, max_b)
+            })
+            .await;
+        }
+    }
+
+    Ok(Json(resp))
+}
+
+#[derive(Debug, Deserialize)]
+struct K8sClusterInventoryHistoryQuery {
+    #[serde(default)]
+    limit: Option<usize>,
+}
+
+async fn k8s_cluster_inventory_history(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<K8sClusterInventoryHistoryQuery>,
+) -> Result<Json<Value>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    let lim = q.limit.unwrap_or(20).min(100).max(1);
+    let entries = crate::k8s_inventory_history::load_k8s_cluster_inventory_history(lim)
+        .map_err(AppError::from)?;
+    Ok(Json(serde_json::json!({
+        "path": crate::k8s_inventory_history::k8s_cluster_inventory_jsonl_path().display().to_string(),
+        "entries": entries,
+    })))
 }
 
 async fn k8s_resource_list(
@@ -2987,6 +3336,10 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         .route("/k8s/overview", get(k8s_overview))
         .route("/k8s/environment", get(k8s_environment))
         .route("/k8s/contexts", get(k8s_contexts_list))
+        .route(
+            "/k8s/cluster-inventory/history",
+            get(k8s_cluster_inventory_history),
+        )
         .route("/k8s/cluster-inventory", get(k8s_cluster_inventory))
         .route("/k8s/nodes", get(k8s_nodes))
         .route("/k8s/namespaces", get(k8s_namespaces))
