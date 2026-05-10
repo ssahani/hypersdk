@@ -166,14 +166,30 @@ pub fn missing_file_disk_paths(conn: &Connect, name: &str) -> Result<Vec<String>
 }
 
 pub fn start_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
-    let missing = missing_file_disk_paths(conn, name)?;
+    let domain = lookup_domain(conn, name)?;
+    let xml = domain
+        .get_xml_desc(0)
+        .map_err(LibvirtError::map_op("get_xml"))?;
+
+    let missing: Vec<String> = collect_disk_paths(&xml)
+        .into_iter()
+        .filter(|p| !Path::new(p).is_file())
+        .collect();
     if !missing.is_empty() {
         return Err(LibvirtError::Invalid(format!(
             "Cannot start VM '{name}': disk image file(s) missing on host (create the image or fix paths before start): {}",
             missing.join(", ")
         )));
     }
-    domain_action(conn, name, "start", |d| d.create().map(|_| ()))
+
+    for net_name in crate::libvirt::net_xml::network_names_from_domain_xml(&xml) {
+        crate::libvirt::network::ensure_network_active(conn, &net_name)?;
+    }
+
+    domain
+        .create()
+        .map(|_| ())
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start VM '{name}': {e}")))
 }
 
 pub fn stop_vm(conn: &Connect, name: &str) -> Result<(), LibvirtError> {

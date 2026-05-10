@@ -40,6 +40,17 @@ pub fn start_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     Ok(())
 }
 
+/// Start a defined libvirt network if it is not already active (e.g. before starting a guest that uses it).
+pub fn ensure_network_active(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
+    let net = lookup_network(conn, name)?;
+    if net.is_active().unwrap_or(false) {
+        return Ok(());
+    }
+    net.create()
+        .map_err(|e| LibvirtError::Operation(format!("Failed to start network '{name}': {e}")))?;
+    Ok(())
+}
+
 pub fn stop_network(conn: &Connect, name: &str) -> Result<(), LibvirtError> {
     let net = lookup_network(conn, name)?;
     net.destroy()

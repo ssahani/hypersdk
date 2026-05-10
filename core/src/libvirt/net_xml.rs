@@ -18,20 +18,67 @@ pub fn ipv4_gateway_from_network_xml(xml: &str) -> Option<String> {
     None
 }
 
-/// `<source network='foo'/>` names referenced by a domain XML.
+/// `<source network='foo'/>` or `network="foo"` names referenced by a domain XML.
 pub fn network_names_from_domain_xml(xml: &str) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut out = Vec::new();
     let mut start = 0usize;
-    while let Some(rel) = xml.get(start..).and_then(|s| s.find("network='")) {
-        let i = start + rel + "network='".len();
-        let Some(rest) = xml.get(i..) else { break };
-        let Some(end) = rest.find('\'') else { break };
-        let name = rest[..end].to_string();
+    while let Some((name, next)) = next_network_source_name(xml, start) {
         if seen.insert(name.clone()) {
             out.push(name);
         }
-        start = i + end;
+        start = next;
     }
     out
+}
+
+fn next_network_source_name(xml: &str, start: usize) -> Option<(String, usize)> {
+    let tail = xml.get(start..)?;
+    let pos_sq = tail.find("network='");
+    let pos_dq = tail.find("network=\"");
+    let (rel, quote, key_len) = match (pos_sq, pos_dq) {
+        (Some(a), Some(b)) => {
+            if a <= b {
+                (a, '\'', "network='".len())
+            } else {
+                (b, '"', "network=\"".len())
+            }
+        }
+        (Some(a), None) => (a, '\'', "network='".len()),
+        (None, Some(b)) => (b, '"', "network=\"".len()),
+        (None, None) => return None,
+    };
+    let i = start + rel + key_len;
+    let rest = xml.get(i..)?;
+    let end = rest.find(quote)?;
+    Some((rest[..end].to_string(), i + end + 1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::network_names_from_domain_xml;
+
+    #[test]
+    fn domain_xml_single_quoted_network_sources() {
+        let xml = r#"<interface type='network'><source network='default'/></interface>"#;
+        assert_eq!(network_names_from_domain_xml(xml), vec!["default".to_string()]);
+    }
+
+    #[test]
+    fn domain_xml_double_quoted_network_sources() {
+        let xml = r#"<interface type="network"><source network="default"/></interface>"#;
+        assert_eq!(network_names_from_domain_xml(xml), vec!["default".to_string()]);
+    }
+
+    #[test]
+    fn domain_xml_prefers_earliest_network_source() {
+        let xml = concat!(
+            r#"<interface type='network'><source network='net-a'/>"#,
+            r#"<source network='net-b'/></interface>"#
+        );
+        assert_eq!(
+            network_names_from_domain_xml(xml),
+            vec!["net-a".to_string(), "net-b".to_string()]
+        );
+    }
 }
