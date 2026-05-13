@@ -10,7 +10,7 @@ export interface K8sOverview {
   pods: number
   deployments: number
   services: number
-  /** Heuristic: k3s, rke2, eks, gke, aks, minikube, kind, generic, unknown */
+  /** Heuristic: k3s, rke2, eks, gke, aks, ack, tke, cce, minikube, kind, generic, unknown */
   distribution?: string
   distribution_hints?: string[]
   extra_resource_counts?: Record<string, number>
@@ -517,3 +517,29 @@ export type KataDeployAction =
 
 export const postKataDeploy = (body: { action: KataDeployAction; context?: string; dry_run?: boolean }) =>
   apiPost<K8sActionResult>(`${API}/k8s/kata-deploy`, body)
+
+/** Install k3s on the daemon host via `https://get.k3s.io` (operator/admin, browser session). */
+export const postK8sK3sInstall = (body: {
+  install_k3s_exec?: string
+  install_k3s_version?: string
+  dry_run?: boolean
+}) => apiPost<K8sActionResult>(`${API}/k8s/k3s/install`, body)
+
+/** Run upstream `k3s-uninstall.sh` / `k3s-agent-uninstall.sh` on the daemon host. */
+export const postK8sK3sUninstall = (body: {
+  /** `server` | `agent` | `auto` (default) */
+  role?: string
+  dry_run?: boolean
+}) => apiPost<K8sActionResult>(`${API}/k8s/k3s/uninstall`, body)
+
+/** Phased host bootstrap — implemented in machina-daemon (`cluster_bootstrap.rs`). */
+export type ClusterBootstrapPhase = 'full' | 'k3s' | 'cilium' | 'metrics' | 'kubevirt_cdi'
+
+export const postK8sClusterBootstrap = (body: {
+  phase?: ClusterBootstrapPhase
+  server_ip?: string
+  /** When phase is `full`, skip KubeVirt/CDI/metrics virt stack */
+  skip_kubevirt_cdi?: boolean
+  install_metrics_server?: boolean
+  dry_run?: boolean
+}) => apiPost<K8sActionResult>(`${API}/k8s/cluster-bootstrap`, body)

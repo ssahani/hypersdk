@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::process::Command;
@@ -15,6 +16,7 @@ use tracing::{info, warn};
 use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::auth::{require_browser_session_for_host_insight, RequestActor};
+use crate::cluster_bootstrap::{run_cluster_bootstrap, ClusterBootstrapParams};
 use crate::k8s_quantity::{parse_cpu_to_millicores, parse_memory_to_bytes};
 use crate::error::AppError;
 
@@ -39,6 +41,15 @@ const KATA_GITHUB_LATEST: &str =
     "https://api.github.com/repos/kata-containers/kata-containers/releases/latest";
 /// When `curl` cannot reach GitHub, pin chart version (bump when kata ships a new major you care about).
 const KATA_HELM_VERSION_FALLBACK: &str = "3.29.0";
+/// Official `https://get.k3s.io` installer (network + root on daemon host).
+const K3S_INSTALL_SHELL: &str = "curl -sfL https://get.k3s.io | sh -";
+const K3S_INSTALL_TIMEOUT_SECS: u64 = 900;
+const K3S_UNINSTALL_TIMEOUT_SECS: u64 = 420;
+const K3S_UNINSTALL_SERVER: &str = "/usr/local/bin/k3s-uninstall.sh";
+const K3S_UNINSTALL_AGENT: &str = "/usr/local/bin/k3s-agent-uninstall.sh";
+const INSTALL_K3S_EXEC_MAX: usize = 8192;
+const INSTALL_K3S_VERSION_MAX: usize = 96;
+const BOOTSTRAP_SERVER_IP_MAX: usize = 253;
 /// Sample workloads only — fixed upstream path on `main` (allowlisted for `kubectl apply -f`).
 const KATA_EXAMPLE_MANIFEST_BASE: &str =
     "https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy/examples";
@@ -284,7 +295,7 @@ struct K8sOverview {
     pods: usize,
     deployments: usize,
     services: usize,
-    /// Best-effort: `k3s`, `rke2`, `eks`, `gke`, `aks`, `minikube`, `kind`, `generic`, or `unknown`.
+    /// Best-effort: `k3s`, `rke2`, `eks`, `gke`, `aks`, `ack`, `tke`, `cce`, `minikube`, `kind`, `generic`, or `unknown`.
     #[serde(default)]
     distribution: String,
     #[serde(default)]
@@ -749,6 +760,21 @@ fn infer_cluster_distribution(items: &[Value], host: &K8sHostSignals) -> (String
         if prov.starts_with("azure://") {
             hints.push(format!("providerID {prov}"));
             return ("aks".to_string(), hints);
+        }
+        // Alibaba Cloud ACK (`kubernetes/cloud-provider-alibaba-cloud`; legacy `alibabacloud://`).
+        if prov.starts_with("alicloud://") || prov.starts_with("alibabacloud://") {
+            hints.push(format!("providerID {prov}"));
+            return ("ack".to_string(), hints);
+        }
+        // Tencent TKE (kubelet `--cloud-provider` CCM; `qcloud://` seen on older stacks).
+        if prov.starts_with("tencentcloud://") || prov.starts_with("qcloud://") {
+            hints.push(format!("providerID {prov}"));
+            return ("tke".to_string(), hints);
+        }
+        // Huawei Cloud CCE (`kubernetes-sigs/cloud-provider-huaweicloud`, `huaweicloud:///…`).
+        if prov.starts_with("huaweicloud://") {
+            hints.push(format!("providerID {prov}"));
+            return ("cce".to_string(), hints);
         }
     }
 
@@ -1585,7 +1611,7 @@ fn build_upgrade_insights(
     pods_inventory_available: bool,
 ) -> K8sUpgradeInsights {
     let mut ins = K8sUpgradeInsights {
-        disclaimer: "etcd Raft membership is not read from the etcd API here — we infer likely members from pods (stacked kubeadm-style). Managed clouds (EKS, GKE, AKS) often expose no etcd pods; k3s/kubeadm may embed etcd without pod visibility.".to_string(),
+        disclaimer: "etcd Raft membership is not read from the etcd API here — we infer likely members from pods (stacked kubeadm-style). Managed clouds (EKS, GKE, AKS, ACK, TKE, CCE, …) often expose no etcd pods; k3s/kubeadm may embed etcd without pod visibility.".to_string(),
         inferred_etcd_member_pods_running: etcd_pods.iter().filter(|p| p.phase == "Running").count(),
         ..Default::default()
     };
@@ -3324,6 +3350,352 @@ async fn k8s_action(
     Ok(Json(res))
 }
 
+fn validate_k3s_install_env_value(s: &str, label: &str, max: usize) -> Result<(), LibvirtError> {
+    if s.len() > max {
+        return Err(LibvirtError::Invalid(format!(
+            "{label} exceeds max length ({max} bytes)"
+        )));
+    }
+    if s.chars().any(|c| c == '\n' || c == '\r' || c == '\0') {
+        return Err(LibvirtError::Invalid(format!(
+            "{label} must not contain newlines or NUL"
+        )));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct K3sInstallRequest {
+    /// Passed to the installer as `INSTALL_K3S_EXEC` (flags for `k3s server` / agent).
+    #[serde(default)]
+    install_k3s_exec: Option<String>,
+    /// Optional pin, e.g. `v1.30.3+k3s1` → `INSTALL_K3S_VERSION`.
+    #[serde(default)]
+    install_k3s_version: Option<String>,
+    #[serde(default)]
+    dry_run: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+struct K3sUninstallRequest {
+    /// `server` → `k3s-uninstall.sh`, `agent` → `k3s-agent-uninstall.sh`, `auto` picks an existing script.
+    #[serde(default)]
+    role: Option<String>,
+    #[serde(default)]
+    dry_run: Option<bool>,
+}
+
+async fn run_k3s_install_script(req: &K3sInstallRequest) -> Result<KubectlResult, LibvirtError> {
+    if let Some(ref v) = req.install_k3s_version {
+        validate_k3s_install_env_value(v, "install_k3s_version", INSTALL_K3S_VERSION_MAX)?;
+    }
+    if let Some(ref e) = req.install_k3s_exec {
+        validate_k3s_install_env_value(e, "install_k3s_exec", INSTALL_K3S_EXEC_MAX)?;
+    }
+
+    let mut cmd = Command::new("/bin/sh");
+    cmd.arg("-c").arg(K3S_INSTALL_SHELL);
+    cmd.stdin(Stdio::null());
+    if let Some(ref v) = req.install_k3s_version {
+        cmd.env("INSTALL_K3S_VERSION", v);
+    }
+    if let Some(ref e) = req.install_k3s_exec {
+        cmd.env("INSTALL_K3S_EXEC", e);
+    }
+
+    let mut command_text = K3S_INSTALL_SHELL.to_string();
+    if req.install_k3s_version.is_some() {
+        command_text.push_str(" (INSTALL_K3S_VERSION set)");
+    }
+    if let Some(e) = req.install_k3s_exec.as_ref() {
+        command_text.push_str(&format!(" (INSTALL_K3S_EXEC {} bytes)", e.len()));
+    }
+
+    let output = timeout(
+        Duration::from_secs(K3S_INSTALL_TIMEOUT_SECS),
+        cmd.output(),
+    )
+    .await
+    .map_err(|_| LibvirtError::Operation("k3s install timed out".into()))?
+    .map_err(|e| LibvirtError::Operation(format!("failed to run k3s install: {e}")))?;
+
+    Ok(KubectlResult {
+        command: command_text,
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        exit_code: output.status.code().unwrap_or(-1),
+        ok: output.status.success(),
+    })
+}
+
+fn resolve_k3s_uninstall_script(role: &str) -> Result<&'static str, LibvirtError> {
+    match role {
+        "server" => {
+            if Path::new(K3S_UNINSTALL_SERVER).is_file() {
+                Ok(K3S_UNINSTALL_SERVER)
+            } else {
+                Err(LibvirtError::Invalid(format!(
+                    "k3s server uninstall script not found at {K3S_UNINSTALL_SERVER}"
+                )))
+            }
+        }
+        "agent" => {
+            if Path::new(K3S_UNINSTALL_AGENT).is_file() {
+                Ok(K3S_UNINSTALL_AGENT)
+            } else {
+                Err(LibvirtError::Invalid(format!(
+                    "k3s agent uninstall script not found at {K3S_UNINSTALL_AGENT}"
+                )))
+            }
+        }
+        "auto" => {
+            if Path::new(K3S_UNINSTALL_SERVER).is_file() {
+                Ok(K3S_UNINSTALL_SERVER)
+            } else if Path::new(K3S_UNINSTALL_AGENT).is_file() {
+                Ok(K3S_UNINSTALL_AGENT)
+            } else {
+                Err(LibvirtError::Invalid(
+                    "Neither k3s-uninstall.sh nor k3s-agent-uninstall.sh found under /usr/local/bin"
+                        .into(),
+                ))
+            }
+        }
+        _ => Err(LibvirtError::Invalid(
+            "role must be \"server\", \"agent\", or \"auto\"".into(),
+        )),
+    }
+}
+
+async fn run_k3s_uninstall_script(script: &str) -> Result<KubectlResult, LibvirtError> {
+    let mut cmd = Command::new(script);
+    cmd.stdin(Stdio::null());
+    let output = timeout(
+        Duration::from_secs(K3S_UNINSTALL_TIMEOUT_SECS),
+        cmd.output(),
+    )
+    .await
+    .map_err(|_| LibvirtError::Operation("k3s uninstall timed out".into()))?
+    .map_err(|e| LibvirtError::Operation(format!("failed to run k3s uninstall: {e}")))?;
+
+    Ok(KubectlResult {
+        command: script.to_string(),
+        stdout: String::from_utf8_lossy(&output.stdout).to_string(),
+        stderr: String::from_utf8_lossy(&output.stderr).to_string(),
+        exit_code: output.status.code().unwrap_or(-1),
+        ok: output.status.success(),
+    })
+}
+
+/// Runs the upstream k3s install script on the **daemon host** (machina-daemon is root in the stock unit).
+async fn k8s_k3s_install(
+    Extension(actor): Extension<RequestActor>,
+    Json(req): Json<K3sInstallRequest>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "k3s install requires the operator or admin role.".into(),
+        )
+        .into());
+    }
+
+    if req.dry_run == Some(true) {
+        let preview = serde_json::json!({
+            "note": "dry_run only — no install was executed",
+            "shell": K3S_INSTALL_SHELL,
+            "INSTALL_K3S_VERSION": req.install_k3s_version,
+            "INSTALL_K3S_EXEC": req.install_k3s_exec,
+        });
+        return Ok(Json(KubectlResult {
+            command: format!("(dry_run) {K3S_INSTALL_SHELL}"),
+            stdout: preview.to_string(),
+            stderr: String::new(),
+            exit_code: 0,
+            ok: true,
+        }));
+    }
+
+    info!(
+        target: "machina_k8s",
+        user = %actor.username,
+        "k3s install via get.k3s.io"
+    );
+
+    let res = run_k3s_install_script(&req).await?;
+    if !res.ok {
+        let msg = if res.stderr.trim().is_empty() {
+            format!("k3s install failed (exit {}): {}", res.exit_code, res.command)
+        } else {
+            res.stderr.clone()
+        };
+        return Err(LibvirtError::Operation(msg).into());
+    }
+    Ok(Json(res))
+}
+
+async fn k8s_k3s_uninstall(
+    Extension(actor): Extension<RequestActor>,
+    Json(req): Json<K3sUninstallRequest>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "k3s uninstall requires the operator or admin role.".into(),
+        )
+        .into());
+    }
+
+    let role = req.role.as_deref().unwrap_or("auto").trim();
+    if role.is_empty() {
+        return Err(LibvirtError::Invalid("role cannot be empty".into()).into());
+    }
+
+    let script = resolve_k3s_uninstall_script(role)?;
+
+    if req.dry_run == Some(true) {
+        let preview = serde_json::json!({
+            "note": "dry_run only — uninstall script was not executed",
+            "script": script,
+            "role": role,
+        });
+        return Ok(Json(KubectlResult {
+            command: format!("(dry_run) {}", script),
+            stdout: preview.to_string(),
+            stderr: String::new(),
+            exit_code: 0,
+            ok: true,
+        }));
+    }
+
+    info!(
+        target: "machina_k8s",
+        user = %actor.username,
+        script = %script,
+        "k3s uninstall"
+    );
+
+    let res = run_k3s_uninstall_script(script).await?;
+    if !res.ok {
+        let msg = if res.stderr.trim().is_empty() {
+            format!(
+                "k3s uninstall failed (exit {}): {}",
+                res.exit_code, res.command
+            )
+        } else {
+            res.stderr.clone()
+        };
+        return Err(LibvirtError::Operation(msg).into());
+    }
+    Ok(Json(res))
+}
+
+fn validate_bootstrap_server_ip(s: &str) -> Result<(), LibvirtError> {
+    if s.is_empty() {
+        return Err(LibvirtError::Invalid("server_ip cannot be empty".into()));
+    }
+    if s.len() > BOOTSTRAP_SERVER_IP_MAX {
+        return Err(LibvirtError::Invalid(format!(
+            "server_ip exceeds max length ({BOOTSTRAP_SERVER_IP_MAX})"
+        )));
+    }
+    if s.chars()
+        .any(|c| c == '\n' || c == '\r' || c == '\0' || c.is_whitespace())
+    {
+        return Err(LibvirtError::Invalid(
+            "server_ip must not contain whitespace or control characters".into(),
+        ));
+    }
+    Ok(())
+}
+
+#[derive(Debug, Deserialize)]
+struct ClusterBootstrapRequest {
+    /// `full` | `k3s` | `cilium` | `metrics` | `kubevirt_cdi`
+    #[serde(default)]
+    phase: Option<String>,
+    /// API advertise IP for kubeconfig / Cilium (optional; defaults to first address from `hostname -I`).
+    #[serde(default)]
+    server_ip: Option<String>,
+    /// When `phase` is `full`, skip KubeVirt/CDI/virtctl after Cilium/metrics.
+    #[serde(default)]
+    skip_kubevirt_cdi: Option<bool>,
+    /// Install metrics-server on full/metrics phases (recommended on k3s labs).
+    #[serde(default)]
+    install_metrics_server: Option<bool>,
+    #[serde(default)]
+    dry_run: Option<bool>,
+}
+
+/// Runs phased cluster bootstrap in-process (`daemon/src/cluster_bootstrap.rs`).
+async fn k8s_cluster_bootstrap(
+    Extension(actor): Extension<RequestActor>,
+    Json(req): Json<ClusterBootstrapRequest>,
+) -> Result<Json<KubectlResult>, AppError> {
+    require_browser_session_for_host_insight(&actor)?;
+    if !actor.role.can_write() {
+        return Err(LibvirtError::Forbidden(
+            "cluster bootstrap requires the operator or admin role.".into(),
+        )
+        .into());
+    }
+
+    let phase = req.phase.as_deref().unwrap_or("full").trim();
+    match phase {
+        "full" | "k3s" | "cilium" | "metrics" | "kubevirt_cdi" => {}
+        _ => {
+            return Err(LibvirtError::Invalid(
+                "phase must be \"full\", \"k3s\", \"cilium\", \"metrics\", or \"kubevirt_cdi\""
+                    .into(),
+            )
+            .into())
+        }
+    }
+
+    if let Some(ip) = req.server_ip.as_ref() {
+        validate_bootstrap_server_ip(ip)?;
+    }
+
+    if req.dry_run == Some(true) {
+        let preview = serde_json::json!({
+            "note": "dry_run — cluster_bootstrap Rust module not executed",
+            "phase": phase,
+            "server_ip": req.server_ip,
+            "skip_kubevirt_cdi": req.skip_kubevirt_cdi,
+            "install_metrics_server": req.install_metrics_server,
+        });
+        return Ok(Json(KubectlResult {
+            command: format!("(dry_run) MACHINA_BOOTSTRAP_PHASE={phase}"),
+            stdout: preview.to_string(),
+            stderr: String::new(),
+            exit_code: 0,
+            ok: true,
+        }));
+    }
+
+    info!(
+        target: "machina_k8s",
+        user = %actor.username,
+        phase = %phase,
+        "cluster bootstrap (Rust)"
+    );
+
+    let out = run_cluster_bootstrap(ClusterBootstrapParams {
+        phase: phase.to_string(),
+        server_ip: req.server_ip.clone(),
+        skip_kubevirt_cdi: req.skip_kubevirt_cdi == Some(true),
+        install_metrics_server: req.install_metrics_server != Some(false),
+    })
+    .await?;
+
+    Ok(Json(KubectlResult {
+        command: out.command,
+        stdout: out.stdout,
+        stderr: out.stderr,
+        exit_code: out.exit_code,
+        ok: out.ok,
+    }))
+}
+
 pub fn k8s_routes() -> Router<LibvirtManager> {
     let apply = Router::new()
         .route("/k8s/apply", post(k8s_apply_manifest))
@@ -3368,4 +3740,7 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
         .route("/k8s/kubevirt/vm-summary", get(k8s_kubevirt_vm_summary))
         .route("/k8s/action", post(k8s_action))
         .route("/k8s/kata-deploy", post(k8s_kata_deploy))
+        .route("/k8s/k3s/install", post(k8s_k3s_install))
+        .route("/k8s/k3s/uninstall", post(k8s_k3s_uninstall))
+        .route("/k8s/cluster-bootstrap", post(k8s_cluster_bootstrap))
 }

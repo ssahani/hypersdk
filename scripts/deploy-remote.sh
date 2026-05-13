@@ -17,10 +17,62 @@ STRICT="${STRICT:-0}"
 # Default matches VM-style layout: rsync here → build on server → install to /usr/local + systemd
 REMOTE_DIR="${REMOTE_DIR:-~/.deployment/machina}"
 
-info() { printf 'ℹ️  %s\n' "$*"; }
-ok()   { printf '✅ %s\n' "$*"; }
-warn() { printf '⚠️  %s\n' "$*"; }
-die()  { printf '❌ %s\n' "$*" >&2; exit 1; }
+# ── Terminal styling (NO_COLOR + non-TTY safe) ────────────────────────────────
+if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
+    BOLD=$'\033[1m'
+    DIM=$'\033[2m'
+    RESET=$'\033[0m'
+    CYAN=$'\033[36m'
+    GREEN=$'\033[32m'
+    YELLOW=$'\033[33m'
+    MAGENTA=$'\033[35m'
+    BLUE=$'\033[34m'
+else
+    BOLD='' DIM='' RESET='' CYAN='' GREEN='' YELLOW='' MAGENTA='' BLUE=''
+fi
+
+_bar72() { printf '%s' '────────────────────────────────────────────────────────────────────────'; }
+
+info() { printf '%bℹ️  %s%b\n' "$BLUE" "$*" "$RESET"; }
+ok()   { printf '%b✅ %s%b\n' "$GREEN" "$*" "$RESET"; }
+warn() { printf '%b⚠️  %s%b\n' "$YELLOW" "$*" "$RESET"; }
+die()  { printf '%b❌ %s%b\n' "$MAGENTA" "$*" "$RESET" >&2; exit 1; }
+
+hr() { printf '\n%b%s%b\n' "$DIM" "$(_bar72)" "$RESET"; }
+
+# Usage: phase step total "Title" "optional subtitle"
+phase() {
+    local step="$1" total="$2" title="$3"
+    local sub="${4:-}"
+    printf '\n'
+    printf '%b╭%s╮%b\n' "$CYAN" "$(_bar72)" "$RESET"
+    printf '%b│%b  %s/%s  %b%s%b' "$CYAN" "$DIM" "$step" "$total" "$BOLD" "$title" "$RESET"
+    [[ -n "$sub" ]] && printf '\n%b│%b    %s%b' "$CYAN" "$DIM" "$sub" "$RESET"
+    printf '\n'
+    printf '%b╰%s╯%b\n' "$CYAN" "$(_bar72)" "$RESET"
+}
+
+banner_deploy() {
+    local host="$1" user="$2" rdir="$3" mode="$4"
+    printf '\n'
+    printf '%b%s%b\n' "$CYAN" "$(_bar72)" "$RESET"
+    printf '%b  🚀 Machina remote deploy%b\n' "$BOLD$GREEN" "$RESET"
+    printf '%b%s%b\n' "$DIM" "$(_bar72)" "$RESET"
+    printf '  %-14s %b%s@%s%b\n' "SSH target" "$BOLD" "$user" "$host" "$RESET"
+    printf '  %-14s %s\n' "Remote tree" "$rdir"
+    printf '  %-14s %b%s%b\n' "Plan" "$YELLOW" "$mode" "$RESET"
+    printf '  %-14s %s\n' "Health check" "${HEALTH_URL}"
+    printf '%b%s%b\n\n' "$CYAN" "$(_bar72)" "$RESET"
+}
+
+tip() { printf '%b💡 %s%b\n' "$DIM" "$*" "$RESET"; }
+
+elapsed_fmt() {
+    local s="$1"
+    local m=$((s / 60)) r=$((s % 60))
+    ((m > 0)) && printf '%dm ' "$m"
+    printf '%ds' "$r"
+}
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=15 -p "$SSH_PORT")
 RSYNC_RSH="ssh ${SSH_OPTS[*]}"
@@ -57,6 +109,8 @@ Env: DEPLOY_HOST DEPLOY_USER SSH_PORT SSHPASS REMOTE_DIR HEALTH_URL STRICT SYNC_
 
 After each rsync, the script runs sudo chown on the deploy tree so interrupted
 sudo builds cannot leave root-owned target/ (cargo EACCES on --quick).
+
+Output uses ANSI colors when stdout is a TTY. Set NO_COLOR=1 to disable.
 EOF
     exit 0
 }
@@ -81,6 +135,8 @@ rsync_r() {
 
 check_body() {
     EXIT_CODE=0
+    printf '\n%b  🩺 Local machina health snapshot%b\n' "$BOLD$CYAN" "$RESET"
+    hr
     unit_line() {
         local n="$1" a e
         a=$(systemctl is-active "$n" 2>/dev/null) || a="unknown"
@@ -90,7 +146,7 @@ check_body() {
     if ! command -v systemctl &>/dev/null; then
         warn "systemctl not found — skip unit checks"
     else
-        printf '\n⚙️  Systemd units\n'
+        printf '\n%b⚙️  Systemd units%b\n' "$BOLD" "$RESET"
         unit_line libvirtd.service
         unit_line machina-daemon.service
         unit_line machina-backup.timer
@@ -103,12 +159,12 @@ check_body() {
         [[ "$ad" == active ]] && ok "machina-daemon active"
     fi
     if command -v systemctl &>/dev/null; then
-        printf '\n📋 systemctl status machina-daemon\n'
+        printf '\n%b📋 machina-daemon — systemctl status%b\n' "$BOLD" "$RESET"
         systemctl status machina-daemon --no-pager 2>/dev/null || warn "cannot read machina-daemon status"
-        printf '\n📋 systemctl status libvirtd\n'
+        printf '\n%b📋 libvirtd — systemctl status%b\n' "$BOLD" "$RESET"
         systemctl status libvirtd --no-pager 2>/dev/null || warn "cannot read libvirtd status"
     fi
-    printf '\n💚 HTTPS %s\n' "$HEALTH_URL"
+    printf '\n%b💚 API health%b  %s\n' "$BOLD$GREEN" "$RESET" "$HEALTH_URL"
     if command -v curl &>/dev/null; then
         curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null 2>&1 && ok "GET $HEALTH_URL" || {
             warn "cannot reach $HEALTH_URL"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
@@ -121,7 +177,9 @@ check_body() {
 
 check_remote() {
     local r="$1"
-    info "check @ $r"
+    printf '\n%b  🩺 Remote health check%b\n' "$BOLD$CYAN" "$RESET"
+    hr
+    info "SSH target → $r"
     ssh_r "$r" env STRICT="$STRICT" HEALTH_URL="$HEALTH_URL" bash -s <<'EOS'
 run() {
     EXIT_CODE=0
@@ -230,24 +288,50 @@ fi
 [[ -n "${SSHPASS:-}" ]] && ! command -v sshpass &>/dev/null && die "install sshpass for password auth"
 command -v rsync &>/dev/null || die "rsync required"
 
-[[ -n "${SSHPASS:-}" ]] && info "SSH → $REMOTE (password)" || info "SSH → $REMOTE (keys)"
+[[ -n "${SSHPASS:-}" ]] && info "SSH auth: password (SSHPASS / sshpass)" || info "SSH auth: keys or agent"
 
-ssh_r "$REMOTE" 'hostname' >/dev/null || die "cannot SSH to $REMOTE"
+REMOTE_HOSTNAME="$(ssh_r "$REMOTE" 'hostname')" || die "cannot SSH to $REMOTE"
+ok "Connected — remote hostname: $REMOTE_HOSTNAME"
 
-echo "📤 rsync sources → $REMOTE:$REMOTE_DIR (excludes target/node_modules/.git/web/dist)"
+MODE_LABEL="Full install — sudo install.sh (deps, Rust, npm, systemd)"
+if $REMOTE_CHECK; then MODE_LABEL="Compile check — make check (no install)"; fi
+if $REMOTE_BUILD; then MODE_LABEL="Compile — make release (no install)"; fi
+if [[ "${SYNC_ONLY:-0}" == 1 ]] || ($SKIP_INSTALL && ! $REMOTE_BUILD && ! $REMOTE_CHECK); then
+    MODE_LABEL="Sync only — rsync sources + ownership fix"
+fi
+if $QUICK; then MODE_LABEL="Quick — make release web + install + try-restart"; fi
+
+TOTAL_STEPS=4
+if $REMOTE_BUILD || $REMOTE_CHECK; then TOTAL_STEPS=3
+elif [[ "${SYNC_ONLY:-0}" == 1 ]] || ($SKIP_INSTALL && ! $REMOTE_BUILD && ! $REMOTE_CHECK); then TOTAL_STEPS=2
+fi
+
+OPTS_LINE=""
+[[ -n "$BIND" ]] && OPTS_LINE+="--bind $BIND  "
+$OPEN_FW && OPTS_LINE+="--open-firewall  "
+$NO_START && OPTS_LINE+="--no-start  "
+$DEPS_ONLY && OPTS_LINE+="--deps-only  "
+$CLEANUP && OPTS_LINE+="cleanup deploy dir after  "
+
+DEPLOY_T0=$SECONDS
+banner_deploy "$HOST" "$USER" "$REMOTE_DIR" "$MODE_LABEL"
+[[ -n "${OPTS_LINE// /}" ]] && tip "Extra install.sh flags: ${OPTS_LINE%  }"
+
+phase 1 "$TOTAL_STEPS" "Synchronize sources to remote" "rsync · excludes target/, node_modules/, .git/, web/dist/"
 ssh_r "$REMOTE" "mkdir -p $REMOTE_DIR"
 rsync_r \
     --exclude='target/' --exclude='node_modules/' --exclude='.git/' --exclude='web/dist/' \
     "$REPO/" "$REMOTE:$REMOTE_DIR/" || die "rsync failed"
+ok "Sources synced → ${REMOTE}:${REMOTE_DIR}"
 
 # If a previous run left root-owned files under the tree (e.g. interrupted sudo), cargo fails with EACCES.
-info "ensure $REMOTE_DIR is owned by the SSH user (idempotent)"
+phase 2 "$TOTAL_STEPS" "Ensure deploy tree is writable" "sudo chown → SSH user (idempotent)"
 ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo chown -R \"\$(id -un):\$(id -gn)\" ." || warn "chown deploy tree failed (non-fatal if you are not sudo-capable)"
 
 if $REMOTE_BUILD || $REMOTE_CHECK; then
     mk_target=release
     $REMOTE_CHECK && mk_target=check
-    echo "🔨 remote: make $mk_target on $HOST (compile only — no install.sh)"
+    phase 3 "$TOTAL_STEPS" "Compile on remote (make ${mk_target})" "no install.sh — use full deploy to install binaries"
     ssh_r "$REMOTE" "bash -s" "$REMOTE_DIR" "$mk_target" <<'EOS' || die "remote compile failed"
 set -euo pipefail
 REMOTE_DIR="${1:?}"
@@ -272,12 +356,17 @@ fi
 [ -n "${LIBCLANG_PATH:-}" ] && printf 'ℹ  LIBCLANG_PATH=%s\n' "$LIBCLANG_PATH"
 make "$REMOTE_MAKE_TARGET"
 EOS
-    ok "remote compile ok — run full deploy without --remote-build/--remote-check to install"
+    ok "Remote compile finished — run without --remote-build/--remote-check to install"
+    hr
+    printf '%b  ✨ Finished in %s%b\n' "$GREEN" "$(elapsed_fmt $((SECONDS - DEPLOY_T0)))" "$RESET"
+    tip "Next: ./scripts/deploy-remote.sh ${USER}@${HOST}   # full install on same tree"
     exit 0
 fi
 
 if [[ "${SYNC_ONLY:-0}" == 1 ]] || $SKIP_INSTALL; then
-    ok "sync-only done"
+    hr
+    printf '%b  ✨ Sync finished in %s%b\n' "$GREEN" "$(elapsed_fmt $((SECONDS - DEPLOY_T0)))" "$RESET"
+    tip "Sources live on the server under ${REMOTE_DIR} — run full deploy when ready."
     exit 0
 fi
 
@@ -293,18 +382,18 @@ if ((${#INSTALL_ARGS[@]} > 0)); then
 fi
 
 if $QUICK; then
-    echo "🔨 [2/3] remote build: make release web + make install (on $HOST)"
+    phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web && sudo make install · cargo stays on user PATH"
     # Build as SSH user (rustup cargo on PATH); only `make install` needs root (install + systemctl).
     # Do not wrap `make release` in sudo — secure_path often omits cargo.
     ssh_r "$REMOTE" "cd $REMOTE_DIR && make release web && sudo make install" || die "quick build failed"
-    echo "🔄 [3/3] systemd: daemon-reload + try-restart (reloads unit if machina-daemon was running)"
+    phase 4 "$TOTAL_STEPS" "Reload systemd & try-restart machina-daemon" "daemon-reload — restarts only if the unit was already active"
     ssh_r "$REMOTE" "sudo bash -lc 'systemctl daemon-reload && systemctl try-restart machina-daemon'" || die "service reload failed"
 else
-    echo "🔨 [2/2] remote: sudo install.sh on $HOST (deps + cargo + npm + install + enable/restart)"
+    phase 3 "$TOTAL_STEPS" "Run installer on remote" "sudo install.sh — tooling, build, unit files, optional firewall"
     ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo bash install.sh${OPTS}${REMOTE_INST}" || die "install failed"
 fi
 
-echo "🩺 services"
+phase 4 "$TOTAL_STEPS" "Service snapshot" "machina-daemon + libvirtd status"
 ssh_r "$REMOTE" "bash -lc '
 for svc in machina-daemon libvirtd; do
   st=\$(systemctl is-active \$svc 2>/dev/null || echo unknown)
@@ -318,14 +407,28 @@ for svc in machina-daemon libvirtd; do
 done
 '" || warn "service status check failed"
 
-$CLEANUP && { echo "🧹 cleanup $REMOTE_DIR"; ssh_r "$REMOTE" "rm -rf $REMOTE_DIR"; }
+if $CLEANUP; then
+    warn "Removing remote deploy tree $REMOTE_DIR"
+    ssh_r "$REMOTE" "rm -rf $REMOTE_DIR" || warn "cleanup failed"
+fi
 
-echo "🔍 verify"
+hr
+info "Post-flight verification (health endpoint + systemd)"
 sleep 1
 check_remote "$REMOTE" || true
 
-echo ""
-echo "════════════════════════════════════════"
-echo "✅ done  🌐 https://${HOST}:5092  💚 https://${HOST}:5092/api/v1/health"
-echo "🔁 ./scripts/deploy-remote.sh ${USER}@${HOST} --quick"
-echo "════════════════════════════════════════"
+ELAPSED=$((SECONDS - DEPLOY_T0))
+hr
+printf '\n'
+printf '%b╭%s╮%b\n' "$GREEN" "$(_bar72)" "$RESET"
+printf '%b│%b  %bDeploy complete%b  ·  %s\n' "$GREEN" "$RESET" "$BOLD" "$RESET" "$(elapsed_fmt "$ELAPSED")"
+printf '%b│%b\n' "$GREEN" "$RESET"
+printf '%b│%b  %-18s %s\n' "$GREEN" "$RESET" "Web UI" "https://${HOST}:5092"
+printf '%b│%b  %-18s %s\n' "$GREEN" "$RESET" "Health API" "https://${HOST}:5092/api/v1/health"
+printf '%b│%b\n' "$GREEN" "$RESET"
+printf '%b│%b  %s%b\n' "$GREEN" "$DIM" "Next iteration (incremental rebuild):" "$RESET"
+printf '%b│%b    ./scripts/deploy-remote.sh %s@%s --quick\n' "$GREEN" "$RESET" "$USER" "$HOST"
+printf '%b╰%s╯%b\n' "$GREEN" "$(_bar72)" "$RESET"
+printf '\n'
+tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
+printf '\n'

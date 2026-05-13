@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
+  Loader2,
   RefreshCw,
   ShieldAlert,
   Server,
@@ -24,6 +25,10 @@ import {
   K8sExtendedClusterInsights,
   K8sNodeInfo,
   K8sPlaneRollup,
+  type ClusterBootstrapPhase,
+  postK8sClusterBootstrap,
+  postK8sK3sInstall,
+  postK8sK3sUninstall,
   runK8sAction,
 } from '../api/k8s'
 import { useK8sContext } from '../hooks/useK8sContext'
@@ -285,6 +290,14 @@ export default function K8sOverviewPage() {
   const [invHist, setInvHist] = useState<K8sClusterInventoryHistoryResponse | null>(null)
   const [invHistLoading, setInvHistLoading] = useState(false)
   const [invHistErr, setInvHistErr] = useState<string | null>(null)
+  const [k3sInstallExec, setK3sInstallExec] = useState('')
+  const [k3sInstallVersion, setK3sInstallVersion] = useState('')
+  const [k3sBusy, setK3sBusy] = useState<'install' | 'uninstall' | null>(null)
+  const [bootstrapServerIp, setBootstrapServerIp] = useState('')
+  const [bootstrapSkipKv, setBootstrapSkipKv] = useState(false)
+  const [bootstrapInstallMetrics, setBootstrapInstallMetrics] = useState(true)
+  const [bootstrapBusy, setBootstrapBusy] = useState<ClusterBootstrapPhase | null>(null)
+  const [bootstrapLastLog, setBootstrapLastLog] = useState('')
 
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
@@ -401,6 +414,91 @@ export default function K8sOverviewPage() {
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }, [ctxTrim, toast])
+
+  const runHostK3sInstall = useCallback(async () => {
+    const ok = window.confirm(
+      'Install k3s on this machine using https://get.k3s.io ? This runs as root on the Machina daemon host.',
+    )
+    if (!ok) return
+    setK3sBusy('install')
+    try {
+      const exec = k3sInstallExec.trim()
+      const ver = k3sInstallVersion.trim()
+      const result = await postK8sK3sInstall({
+        ...(exec ? { install_k3s_exec: exec } : {}),
+        ...(ver ? { install_k3s_version: ver } : {}),
+      })
+      setLastCommand(result.command)
+      const tail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
+      toast.success(tail || 'k3s install finished')
+      await load(true)
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : String(e)
+      toast.error(`k3s install failed: ${summarizeK8sClientError(raw).headline}`)
+    } finally {
+      setK3sBusy(null)
+    }
+  }, [k3sInstallExec, k3sInstallVersion, load, toast])
+
+  const runHostK3sUninstall = useCallback(async () => {
+    const ok = window.confirm(
+      'Remove k3s from this host using the upstream uninstall script? This destroys the local cluster and runs as root.',
+    )
+    if (!ok) return
+    setK3sBusy('uninstall')
+    try {
+      const result = await postK8sK3sUninstall({ role: 'auto' })
+      setLastCommand(result.command)
+      const tail = [result.stdout, result.stderr].filter(Boolean).join('\n').trim()
+      toast.success(tail || 'k3s uninstall finished')
+      await load(true)
+    } catch (e: unknown) {
+      const raw = e instanceof Error ? e.message : String(e)
+      toast.error(`k3s uninstall failed: ${summarizeK8sClientError(raw).headline}`)
+    } finally {
+      setK3sBusy(null)
+    }
+  }, [load, toast])
+
+  const hostSetupBusy = k3sBusy !== null || bootstrapBusy !== null
+
+  const runClusterBootstrap = useCallback(
+    async (phase: ClusterBootstrapPhase) => {
+      const ok = window.confirm(
+        phase === 'full'
+          ? 'Run the full install-k3s-cilium.sh pipeline on this host (can take 30+ minutes: k3s → Cilium → metrics → KubeVirt/CDI)?'
+          : `Run bootstrap phase "${phase}" on the Machina daemon host? Later phases assume earlier steps already succeeded.`,
+      )
+      if (!ok) return
+      setBootstrapBusy(phase)
+      try {
+        const ip = bootstrapServerIp.trim()
+        const result = await postK8sClusterBootstrap({
+          phase,
+          ...(ip ? { server_ip: ip } : {}),
+          ...(phase === 'full' && bootstrapSkipKv ? { skip_kubevirt_cdi: true } : {}),
+          install_metrics_server: bootstrapInstallMetrics,
+        })
+        setLastCommand(result.command)
+        const log = [result.stdout, result.stderr].filter(Boolean).join('\n--- stderr ---\n')
+        setBootstrapLastLog(log.length > 120_000 ? `${log.slice(0, 120_000)}\n… [truncated]` : log)
+        toast.success(phase === 'full' ? 'Cluster bootstrap finished' : `Phase “${phase}” finished`)
+        await load(true)
+      } catch (e: unknown) {
+        const raw = e instanceof Error ? e.message : String(e)
+        toast.error(`Bootstrap failed: ${summarizeK8sClientError(raw).headline}`)
+      } finally {
+        setBootstrapBusy(null)
+      }
+    },
+    [
+      bootstrapInstallMetrics,
+      bootstrapServerIp,
+      bootstrapSkipKv,
+      load,
+      toast,
+    ],
+  )
 
   const counts = useMemo(() => {
     const extra = overview?.extra_resource_counts ?? {}
@@ -1018,6 +1116,140 @@ export default function K8sOverviewPage() {
               <div>RKE2 config / data: {environment.host.rke2_config_present ? 'yes' : 'no'} / {environment.host.rke2_data_dir_present ? 'yes' : 'no'} · server: <span className="font-mono">{environment.host.rke2_server_systemd}</span></div>
               <div>k3s binary: {environment.host.k3s_binary_version ?? '—'} · rke2 binary: {environment.host.rke2_binary_version ?? '—'}</div>
               <div>helm: {environment.host.helm_version ?? '—'} · crictl: {environment.host.crictl_version ?? '—'}</div>
+              <details className="group mt-2 rounded-lg border border-amber-500/25 bg-slate-950/50">
+                <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] text-amber-100/90 hover:bg-slate-900/60 rounded-md">
+                  <span className="font-medium">Host:</span> install / uninstall k3s (get.k3s.io and upstream scripts)
+                </summary>
+                <div className="px-2 pb-3 pt-1 space-y-2 text-[11px] text-slate-400">
+                  <p>
+                    Runs on the machine where <code className="text-slate-300">machina-daemon</code> executes (stock unit is root).
+                    Optional <code className="text-slate-300">INSTALL_K3S_EXEC</code> flags — e.g. disable bundled networking for Cilium:{' '}
+                    <code className="break-all text-slate-500">
+                      --disable=traefik --flannel-backend=none --disable-network-policy --disable-kube-proxy
+                    </code>
+                  </p>
+                  <label className="block space-y-1">
+                    <span className="text-slate-500">INSTALL_K3S_VERSION (optional)</span>
+                    <input
+                      type="text"
+                      value={k3sInstallVersion}
+                      onChange={(e) => setK3sInstallVersion(e.target.value)}
+                      placeholder="e.g. v1.30.3+k3s1"
+                      className="w-full font-mono text-xs bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 placeholder:text-slate-600"
+                    />
+                  </label>
+                  <label className="block space-y-1">
+                    <span className="text-slate-500">INSTALL_K3S_EXEC (optional)</span>
+                    <textarea
+                      value={k3sInstallExec}
+                      onChange={(e) => setK3sInstallExec(e.target.value)}
+                      rows={2}
+                      placeholder="--disable=traefik …"
+                      className="w-full font-mono text-xs bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 placeholder:text-slate-600"
+                    />
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={hostSetupBusy}
+                      onClick={() => void runHostK3sInstall()}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-emerald-600/90 text-white text-xs font-medium hover:bg-emerald-500 disabled:opacity-50"
+                    >
+                      {k3sBusy === 'install' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                      ) : null}
+                      Install k3s
+                    </button>
+                    <button
+                      type="button"
+                      disabled={hostSetupBusy}
+                      onClick={() => void runHostK3sUninstall()}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-rose-700/90 text-white text-xs font-medium hover:bg-rose-600 disabled:opacity-50"
+                    >
+                      {k3sBusy === 'uninstall' ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden />
+                      ) : null}
+                      Uninstall k3s
+                    </button>
+                  </div>
+                </div>
+              </details>
+              <details className="group mt-2 rounded-lg border border-cyan-500/25 bg-slate-950/50">
+                <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] text-cyan-100/90 hover:bg-slate-900/60 rounded-md">
+                  <span className="font-medium">Cluster bootstrap:</span> k3s → Cilium → metrics → KubeVirt/CDI (daemon, phased)
+                </summary>
+                <div className="px-2 pb-3 pt-1 space-y-3 text-[11px] text-slate-400">
+                  <p>
+                    Executes in <code className="text-slate-300">machina-daemon</code> (
+                    <code className="text-slate-300">cluster_bootstrap.rs</code>) on this host — same steps as the legacy shell recipe.
+                    Long-running; use phased buttons if you install manually between steps. Requires outbound HTTPS.
+                  </p>
+                  <label className="block space-y-1">
+                    <span className="text-slate-500">SERVER_IP / API address (optional)</span>
+                    <input
+                      type="text"
+                      value={bootstrapServerIp}
+                      onChange={(e) => setBootstrapServerIp(e.target.value)}
+                      placeholder="Default: first address from hostname -I"
+                      className="w-full font-mono text-xs bg-slate-900 border border-slate-600 rounded-md px-2 py-1.5 text-slate-200 placeholder:text-slate-600"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bootstrapInstallMetrics}
+                      onChange={(e) => setBootstrapInstallMetrics(e.target.checked)}
+                      className="rounded border-slate-600"
+                    />
+                    <span>Install metrics-server on full pipeline (recommended for k3s labs)</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={bootstrapSkipKv}
+                      onChange={(e) => setBootstrapSkipKv(e.target.checked)}
+                      className="rounded border-slate-600"
+                    />
+                    <span>Full pipeline only: skip KubeVirt / CDI / virtctl (stop after Cilium + metrics)</span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {(
+                      [
+                        ['full', 'Full pipeline', true],
+                        ['k3s', '1 · k3s + kubeconfig', false],
+                        ['cilium', '2 · Cilium + Hubble', false],
+                        ['metrics', '3 · metrics-server', false],
+                        ['kubevirt_cdi', '4 · KubeVirt + CDI + virtctl', false],
+                      ] as const
+                    ).map(([phase, label, primary]) => (
+                      <button
+                        key={phase}
+                        type="button"
+                        disabled={hostSetupBusy}
+                        onClick={() => void runClusterBootstrap(phase)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium disabled:opacity-50 ${
+                          primary
+                            ? 'bg-cyan-700/90 text-white hover:bg-cyan-600'
+                            : 'bg-slate-700/80 border border-slate-600 text-slate-100 hover:bg-slate-600/80'
+                        }`}
+                      >
+                        {bootstrapBusy === phase ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" aria-hidden />
+                        ) : null}
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {bootstrapLastLog ? (
+                    <details className="rounded-md border border-slate-700/60 bg-slate-900/40">
+                      <summary className="cursor-pointer px-2 py-1.5 text-slate-400">Last bootstrap output</summary>
+                      <pre className="px-2 pb-2 text-[10px] text-slate-500 whitespace-pre-wrap break-words max-h-64 overflow-y-auto">
+                        {bootstrapLastLog}
+                      </pre>
+                    </details>
+                  ) : null}
+                </div>
+              </details>
             </div>
           </div>
           {(environment.cluster_distribution_hints?.length ?? 0) > 0 && (

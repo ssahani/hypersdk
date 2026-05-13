@@ -1,4 +1,5 @@
 mod auth;
+mod cluster_bootstrap;
 mod conn_query;
 mod error;
 mod inventory_history;
