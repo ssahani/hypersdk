@@ -10,6 +10,8 @@ declare -a REST=()
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=lib/deploy-common.sh
+source "$SCRIPT_DIR/lib/deploy-common.sh"
 
 SSH_PORT="${SSH_PORT:-22}"
 HEALTH_URL="${HEALTH_URL:-https://127.0.0.1:5092/api/v1/health}"
@@ -34,9 +36,9 @@ fi
 _bar72() { printf '%s' '────────────────────────────────────────────────────────────────────────'; }
 
 info() { printf '%bℹ️  %s%b\n' "$BLUE" "$*" "$RESET"; }
-ok()   { printf '%b✅ %s%b\n' "$GREEN" "$*" "$RESET"; }
-warn() { printf '%b⚠️  %s%b\n' "$YELLOW" "$*" "$RESET"; }
-die()  { printf '%b❌ %s%b\n' "$MAGENTA" "$*" "$RESET" >&2; exit 1; }
+ok()   { deploy_ui_info "$@"; }
+warn() { deploy_ui_warn "$@"; }
+die()  { deploy_ui_error "$@"; }
 
 hr() { printf '\n%b%s%b\n' "$DIM" "$(_bar72)" "$RESET"; }
 
@@ -44,9 +46,11 @@ hr() { printf '\n%b%s%b\n' "$DIM" "$(_bar72)" "$RESET"; }
 phase() {
     local step="$1" total="$2" title="$3"
     local sub="${4:-}"
+    local emoji
+    emoji=$(deploy_ui_step_emoji "$title")
     printf '\n'
     printf '%b╭%s╮%b\n' "$CYAN" "$(_bar72)" "$RESET"
-    printf '%b│%b  %s/%s  %b%s%b' "$CYAN" "$DIM" "$step" "$total" "$BOLD" "$title" "$RESET"
+    printf '%b│%b  %s/%s  %s %b%s%b' "$CYAN" "$DIM" "$step" "$total" "$emoji" "$BOLD" "$title" "$RESET"
     [[ -n "$sub" ]] && printf '\n%b│%b    %s%b' "$CYAN" "$DIM" "$sub" "$RESET"
     printf '\n'
     printf '%b╰%s╯%b\n' "$CYAN" "$(_bar72)" "$RESET"
@@ -54,33 +58,28 @@ phase() {
 
 banner_deploy() {
     local host="$1" user="$2" rdir="$3" mode="$4"
-    printf '\n'
-    printf '%b%s%b\n' "$CYAN" "$(_bar72)" "$RESET"
-    printf '%b  🚀 Machina remote deploy%b\n' "$BOLD$GREEN" "$RESET"
-    printf '%b%s%b\n' "$DIM" "$(_bar72)" "$RESET"
-    printf '  %-14s %b%s@%s%b\n' "SSH target" "$BOLD" "$user" "$host" "$RESET"
-    printf '  %-14s %s\n' "Remote tree" "$rdir"
-    printf '  %-14s %b%s%b\n' "Plan" "$YELLOW" "$mode" "$RESET"
-    printf '  %-14s %s\n' "Health check" "${HEALTH_URL}"
-    printf '%b%s%b\n\n' "$CYAN" "$(_bar72)" "$RESET"
+    local ver="${MACHINA_VERSION:-dev}" commit="${MACHINA_COMMIT:-?}"
+    deploy_ui_banner "Remote deploy" "${ver} (${commit}) → ${user}@${host}" "🤖"
+    deploy_ui_kv "🎯" "SSH target" "${user}@${host}"
+    deploy_ui_kv "📁" "Remote tree" "$rdir"
+    deploy_ui_kv "📋" "Plan" "$mode"
+    deploy_ui_kv "💚" "Health" "${HEALTH_URL}"
+    deploy_ui_note "Build runs on the server (sources rsync'd — not compiled locally)"
 }
 
 tip() { printf '%b💡 %s%b\n' "$DIM" "$*" "$RESET"; }
 
-elapsed_fmt() {
-    local s="$1"
-    local m=$((s / 60)) r=$((s % 60))
-    ((m > 0)) && printf '%dm ' "$m"
-    printf '%ds' "$r"
-}
+elapsed_fmt() { machina_elapsed_fmt "$1"; }
 
 SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=15 -p "$SSH_PORT")
 RSYNC_RSH="ssh ${SSH_OPTS[*]}"
 
 usage() {
     cat <<'EOF'
-deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup|--dry-run]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall] [--no-start] [--deps-only] [extra install.sh args...]
+
+Prefer: ./scripts/deploy remote USER@HOST [flags]  |  ./scripts/deploy status
 
 deploy-remote.sh check [USER@HOST | USER HOST]
 
@@ -116,6 +115,14 @@ EOF
 }
 
 [[ "${1:-}" == -h || "${1:-}" == --help ]] && usage
+
+machina_build_metadata "$REPO"
+
+# Reuse last target: ./scripts/deploy remote --quick
+if [[ $# -gt 0 && "${1:-}" == -* ]] && machina_load_deploy_last "$REPO"; then
+    set -- "${USER}@${HOST}" "$@"
+    ok "Using .deploy-last → ${USER}@${HOST}"
+fi
 
 ssh_r() {
     if [[ -n "${SSHPASS:-}" ]] && command -v sshpass &>/dev/null; then
@@ -228,6 +235,7 @@ NO_START=false
 DEPS_ONLY=false
 REMOTE_BUILD=false
 REMOTE_CHECK=false
+DRY_RUN=false
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -240,6 +248,7 @@ parse_flags() {
             --deps-only) DEPS_ONLY=true; shift ;;
             --remote-build) REMOTE_BUILD=true; SKIP_INSTALL=true; shift ;;
             --remote-check) REMOTE_CHECK=true; SKIP_INSTALL=true; shift ;;
+            --dry-run) DRY_RUN=true; shift ;;
             --bind) shift; BIND="${1:?}"; shift ;;
             *) REST+=("$1"); shift ;;
         esac
@@ -256,7 +265,14 @@ if [[ "$MODE" == check ]]; then
     exit 0
 fi
 
-[[ $# -eq 0 && -n "${DEPLOY_HOST:-}" ]] && set -- "${DEPLOY_USER:-root}" "$DEPLOY_HOST"
+if [[ $# -eq 0 ]]; then
+    if machina_load_deploy_last "$REPO"; then
+        set -- "${USER}@${HOST}"
+        ok "Using .deploy-last → ${USER}@${HOST}"
+    elif [[ -n "${DEPLOY_HOST:-}" ]]; then
+        set -- "${DEPLOY_USER:-root}" "$DEPLOY_HOST"
+    fi
+fi
 
 if [[ $# -ge 1 && "$1" == *@* ]]; then
     REMOTE="$1"; USER="${1%%@*}"; HOST="${1#*@}"; shift
@@ -317,6 +333,14 @@ DEPLOY_T0=$SECONDS
 banner_deploy "$HOST" "$USER" "$REMOTE_DIR" "$MODE_LABEL"
 [[ -n "${OPTS_LINE// /}" ]] && tip "Extra install.sh flags: ${OPTS_LINE%  }"
 
+if $DRY_RUN; then
+    deploy_ui_dry_run "$HOST" "$USER" "$REMOTE_DIR" "$QUICK"
+    deploy_ui_note "Would rsync → chown → install on remote (cargo/npm on server)"
+    $REMOTE_BUILD && deploy_ui_note "Mode: --remote-build (make release only)"
+    $REMOTE_CHECK && deploy_ui_note "Mode: --remote-check (make check only)"
+    exit 0
+fi
+
 phase 1 "$TOTAL_STEPS" "Synchronize sources to remote" "rsync · excludes target/, node_modules/, .git/, web/dist/"
 ssh_r "$REMOTE" "mkdir -p $REMOTE_DIR"
 rsync_r \
@@ -357,15 +381,17 @@ fi
 make "$REMOTE_MAKE_TARGET"
 EOS
     ok "Remote compile finished — run without --remote-build/--remote-check to install"
+    machina_save_deploy_last "$REPO" "$HOST" "$USER" "remote-${mk_target}"
     hr
-    printf '%b  ✨ Finished in %s%b\n' "$GREEN" "$(elapsed_fmt $((SECONDS - DEPLOY_T0)))" "$RESET"
-    tip "Next: ./scripts/deploy-remote.sh ${USER}@${HOST}   # full install on same tree"
+    deploy_ui_note "✨ Finished in $(machina_elapsed_fmt $((SECONDS - DEPLOY_T0)))"
+    tip "Next: ./scripts/deploy remote ${USER}@${HOST}   # full install on same tree"
     exit 0
 fi
 
 if [[ "${SYNC_ONLY:-0}" == 1 ]] || $SKIP_INSTALL; then
+    machina_save_deploy_last "$REPO" "$HOST" "$USER" "sync-only"
     hr
-    printf '%b  ✨ Sync finished in %s%b\n' "$GREEN" "$(elapsed_fmt $((SECONDS - DEPLOY_T0)))" "$RESET"
+    deploy_ui_note "✨ Sync finished in $(machina_elapsed_fmt $((SECONDS - DEPLOY_T0)))"
     tip "Sources live on the server under ${REMOTE_DIR} — run full deploy when ready."
     exit 0
 fi
@@ -418,17 +444,16 @@ sleep 1
 check_remote "$REMOTE" || true
 
 ELAPSED=$((SECONDS - DEPLOY_T0))
-hr
-printf '\n'
-printf '%b╭%s╮%b\n' "$GREEN" "$(_bar72)" "$RESET"
-printf '%b│%b  %bDeploy complete%b  ·  %s\n' "$GREEN" "$RESET" "$BOLD" "$RESET" "$(elapsed_fmt "$ELAPSED")"
-printf '%b│%b\n' "$GREEN" "$RESET"
-printf '%b│%b  %-18s %s\n' "$GREEN" "$RESET" "Web UI" "https://${HOST}:5092"
-printf '%b│%b  %-18s %s\n' "$GREEN" "$RESET" "Health API" "https://${HOST}:5092/api/v1/health"
-printf '%b│%b\n' "$GREEN" "$RESET"
-printf '%b│%b  %s%b\n' "$GREEN" "$DIM" "Next iteration (incremental rebuild):" "$RESET"
-printf '%b│%b    ./scripts/deploy-remote.sh %s@%s --quick\n' "$GREEN" "$RESET" "$USER" "$HOST"
-printf '%b╰%s╯%b\n' "$GREEN" "$(_bar72)" "$RESET"
-printf '\n'
+MODE_SAVE=full
+$QUICK && MODE_SAVE=quick
+machina_save_deploy_last "$REPO" "$HOST" "$USER" "$MODE_SAVE"
+
+deploy_ui_highlight "📋 Post-deploy checklist"
+deploy_ui_checklist "machina-daemon" "$(ssh_r "$REMOTE" 'systemctl is-active machina-daemon 2>/dev/null || echo unknown' | tr -d '\r')"
+deploy_ui_checklist "libvirtd" "$(ssh_r "$REMOTE" 'systemctl is-active libvirtd 2>/dev/null || echo unknown' | tr -d '\r')"
+
+machina_print_success "$HOST" "$ELAPSED" "$USER"
+deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
+tip "Redeploy: ./scripts/deploy remote --quick"
 printf '\n'
