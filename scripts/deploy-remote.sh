@@ -71,8 +71,20 @@ tip() { printf '%b💡 %s%b\n' "$DIM" "$*" "$RESET"; }
 
 elapsed_fmt() { machina_elapsed_fmt "$1"; }
 
-SSH_OPTS=(-o StrictHostKeyChecking=no -o ConnectTimeout=15 -p "$SSH_PORT")
+# Keepalives for long remote cargo/npm/install.sh runs; ControlMaster=no avoids stale sockets.
+DEPLOY_SSH_OPTS=(
+    -o StrictHostKeyChecking=no
+    -o ConnectTimeout=30
+    -o ServerAliveInterval=15
+    -o ServerAliveCountMax=120
+    -o TCPKeepAlive=yes
+    -o ControlMaster=no
+    -p "$SSH_PORT"
+)
+SSH_OPTS=("${DEPLOY_SSH_OPTS[@]}")
 RSYNC_RSH="ssh ${SSH_OPTS[*]}"
+# Non-root: TTY for sudo password; cleared when passwordless sudo works.
+DEPLOY_SSH_TTY_OPTS=()
 
 usage() {
     cat <<'EOF'
@@ -124,11 +136,30 @@ if [[ $# -gt 0 && "${1:-}" == -* ]] && machina_load_deploy_last "$REPO"; then
     ok "Using .deploy-last → ${USER}@${HOST}"
 fi
 
-ssh_r() {
+# Run a remote script under bash (not login zsh — avoids nomatch on globs during make/install).
+ssh_r_bash() {
+    local remote="$1"
+    shift
+    local -a ssh_args=("${SSH_OPTS[@]}")
+    ((${#DEPLOY_SSH_TTY_OPTS[@]})) && ssh_args+=("${DEPLOY_SSH_TTY_OPTS[@]}")
     if [[ -n "${SSHPASS:-}" ]] && command -v sshpass &>/dev/null; then
-        SSHPASS="$SSHPASS" sshpass -e ssh "${SSH_OPTS[@]}" "$@"
+        printf '%s\n' "$@" | SSHPASS="$SSHPASS" sshpass -e ssh "${ssh_args[@]}" "$remote" "exec bash -s"
     else
-        ssh "${SSH_OPTS[@]}" "$@"
+        printf '%s\n' "$@" | ssh "${ssh_args[@]}" "$remote" "exec bash -s"
+    fi
+}
+
+ssh_r() {
+    # Two-arg one-liner → bash -s on remote. Multi-arg / explicit bash -s / heredoc → raw ssh.
+    if [[ $# -eq 2 && "$2" != bash && "$2" != "bash -s" && "$2" != "exec bash -s" ]]; then
+        ssh_r_bash "$1" "$2"
+        return
+    fi
+    local -a ssh_args=("${SSH_OPTS[@]}")
+    if [[ -n "${SSHPASS:-}" ]] && command -v sshpass &>/dev/null; then
+        SSHPASS="$SSHPASS" sshpass -e ssh "${ssh_args[@]}" "$@"
+    else
+        ssh "${ssh_args[@]}" "$@"
     fi
 }
 
@@ -306,8 +337,17 @@ command -v rsync &>/dev/null || die "rsync required"
 
 [[ -n "${SSHPASS:-}" ]] && info "SSH auth: password (SSHPASS / sshpass)" || info "SSH auth: keys or agent"
 
-REMOTE_HOSTNAME="$(ssh_r "$REMOTE" 'hostname')" || die "cannot SSH to $REMOTE"
+REMOTE_HOSTNAME="$(ssh_r_bash "$REMOTE" 'hostname')" || die "cannot SSH to $REMOTE"
 ok "Connected — remote hostname: $REMOTE_HOSTNAME"
+
+if [[ "$USER" != "root" ]]; then
+    if ssh_r_bash "$REMOTE" "sudo -n true" 2>/dev/null; then
+        DEPLOY_SSH_TTY_OPTS=()
+        ok "Passwordless sudo — non-TTY SSH for long installs"
+    else
+        DEPLOY_SSH_TTY_OPTS=(-tt)
+    fi
+fi
 
 MODE_LABEL="Full install — sudo install.sh (deps, Rust, npm, systemd)"
 if $REMOTE_CHECK; then MODE_LABEL="Compile check — make check (no install)"; fi
@@ -342,7 +382,7 @@ if $DRY_RUN; then
 fi
 
 phase 1 "$TOTAL_STEPS" "Synchronize sources to remote" "rsync · excludes target/, node_modules/, .git/, web/dist/"
-ssh_r "$REMOTE" "mkdir -p $REMOTE_DIR"
+ssh_r_bash "$REMOTE" "mkdir -p $REMOTE_DIR"
 rsync_r \
     --exclude='target/' --exclude='node_modules/' --exclude='.git/' --exclude='web/dist/' \
     "$REPO/" "$REMOTE:$REMOTE_DIR/" || die "rsync failed"
@@ -350,7 +390,7 @@ ok "Sources synced → ${REMOTE}:${REMOTE_DIR}"
 
 # If a previous run left root-owned files under the tree (e.g. interrupted sudo), cargo fails with EACCES.
 phase 2 "$TOTAL_STEPS" "Ensure deploy tree is writable" "sudo chown → SSH user (idempotent)"
-ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo chown -R \"\$(id -un):\$(id -gn)\" ." || warn "chown deploy tree failed (non-fatal if you are not sudo-capable)"
+ssh_r_bash "$REMOTE" "cd $REMOTE_DIR && sudo chown -R \"\$(id -un):\$(id -gn)\" ." || warn "chown deploy tree failed (non-fatal if you are not sudo-capable)"
 
 if $REMOTE_BUILD || $REMOTE_CHECK; then
     mk_target=release
@@ -410,17 +450,26 @@ fi
 if $QUICK; then
     phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web && sudo make install · cargo stays on user PATH"
     # Build as SSH user (rustup cargo on PATH); only `make install` needs root (install + systemctl).
-    # Do not wrap `make release` in sudo — secure_path often omits cargo.
-    ssh_r "$REMOTE" "cd $REMOTE_DIR && make release web && sudo make install" || die "quick build failed"
+    ssh_r_bash "$REMOTE" "
+set -euo pipefail
+export PATH=\"\${HOME}/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:\${PATH}\"
+cd $REMOTE_DIR
+make release web
+sudo make install
+" || die "quick build failed"
     phase 4 "$TOTAL_STEPS" "Reload systemd & try-restart machina-daemon" "daemon-reload — restarts only if the unit was already active"
-    ssh_r "$REMOTE" "sudo bash -lc 'systemctl daemon-reload && systemctl try-restart machina-daemon'" || die "service reload failed"
+    ssh_r_bash "$REMOTE" "sudo systemctl daemon-reload && sudo systemctl try-restart machina-daemon" || die "service reload failed"
 else
     phase 3 "$TOTAL_STEPS" "Run installer on remote" "sudo install.sh — tooling, build, unit files, optional firewall"
-    ssh_r "$REMOTE" "cd $REMOTE_DIR && sudo bash install.sh${OPTS}${REMOTE_INST}" || die "install failed"
+    ssh_r_bash "$REMOTE" "
+set -euo pipefail
+cd $REMOTE_DIR
+sudo bash install.sh${OPTS}${REMOTE_INST}
+" || die "install failed"
 fi
 
 phase 4 "$TOTAL_STEPS" "Service snapshot" "machina-daemon + libvirtd status"
-ssh_r "$REMOTE" "bash -lc '
+ssh_r_bash "$REMOTE" "
 for svc in machina-daemon libvirtd; do
   st=\$(systemctl is-active \$svc 2>/dev/null || echo unknown)
   if [ \"\$st\" = active ]; then
@@ -431,7 +480,7 @@ for svc in machina-daemon libvirtd; do
   systemctl status \$svc --no-pager || true
   echo
 done
-'" || warn "service status check failed"
+" || warn "service status check failed"
 
 if $CLEANUP; then
     warn "Removing remote deploy tree $REMOTE_DIR"
@@ -449,8 +498,8 @@ $QUICK && MODE_SAVE=quick
 machina_save_deploy_last "$REPO" "$HOST" "$USER" "$MODE_SAVE"
 
 deploy_ui_highlight "📋 Post-deploy checklist"
-deploy_ui_checklist "machina-daemon" "$(ssh_r "$REMOTE" 'systemctl is-active machina-daemon 2>/dev/null || echo unknown' | tr -d '\r')"
-deploy_ui_checklist "libvirtd" "$(ssh_r "$REMOTE" 'systemctl is-active libvirtd 2>/dev/null || echo unknown' | tr -d '\r')"
+deploy_ui_checklist "machina-daemon" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-daemon 2>/dev/null || echo unknown' | tr -d '\r')"
+deploy_ui_checklist "libvirtd" "$(ssh_r_bash "$REMOTE" 'systemctl is-active libvirtd 2>/dev/null || echo unknown' | tr -d '\r')"
 
 machina_print_success "$HOST" "$ELAPSED" "$USER"
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
