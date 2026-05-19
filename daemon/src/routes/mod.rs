@@ -6,6 +6,7 @@ mod extras;
 mod guacamole;
 mod guest_images;
 mod health;
+mod kubevirt;
 mod host_network;
 mod jobs;
 mod k8s;
@@ -28,6 +29,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()
         .merge(jobs::job_routes())
         .merge(k8s::k8s_routes())
+        .merge(kubevirt::kubevirt_routes())
         .merge(vms::vm_routes())
         .merge(vm_guest::vm_guest_routes())
         .merge(snapshots::snapshot_routes())

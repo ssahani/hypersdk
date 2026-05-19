@@ -248,6 +248,8 @@ export const getVMXml = (name: string, connection?: string | null) =>
 export interface KubeVirtBundle {
   libvirt_vm: string
   libvirt_root_disk: string
+  /** `linux` or `windows` */
+  guest_os?: string
   namespace: string
   virtual_machine_name: string
   datavolume_name: string

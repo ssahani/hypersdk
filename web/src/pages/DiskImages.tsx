@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { ClipboardList, FolderOpen, HardDrive, RefreshCw, Trash2 } from 'lucide-react'
+import { Boxes, ClipboardList, FolderOpen, HardDrive, RefreshCw, Trash2 } from 'lucide-react'
+import KubeVirtQcow2Modal from '../components/KubeVirtQcow2Modal'
 import {
   deleteDiskImage,
   getVirtImageOutputRoots,
@@ -47,6 +48,7 @@ export default function DiskImagesPage() {
   const [vbOk, setVbOk] = useState(false)
   const [vbFailed, setVbFailed] = useState(false)
   const [outBrowseOpen, setOutBrowseOpen] = useState(false)
+  const [kvPath, setKvPath] = useState<string | null>(null)
 
   const toast = useToastContext()
 
@@ -372,6 +374,18 @@ export default function DiskImagesPage() {
                     {img.path}
                   </td>
                   <td className="px-5 py-3 text-right">
+                    <span className="inline-flex items-center justify-end gap-1">
+                    {(img.format === 'qcow2' || img.path.toLowerCase().endsWith('.qcow2')) && (
+                      <button
+                        type="button"
+                        onClick={() => setKvPath(img.path)}
+                        className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 hover:text-violet-200 text-xs font-medium transition mr-1"
+                        title="Upload to Kubernetes (KubeVirt + CDI)"
+                      >
+                        <Boxes className="w-3.5 h-3.5" />
+                        KubeVirt
+                      </button>
+                    )}
                     <button
                       onClick={() => setConfirmPath(img.path)}
                       disabled={deleting === img.path}
@@ -385,6 +399,7 @@ export default function DiskImagesPage() {
                       )}
                       Delete
                     </button>
+                    </span>
                   </td>
                 </tr>
               ))}
@@ -403,6 +418,8 @@ export default function DiskImagesPage() {
           setVbOutput(suggestQcow2Path(dir, vbOs.trim() || 'disk'))
         }}
       />
+
+      <KubeVirtQcow2Modal open={!!kvPath} qcow2Path={kvPath ?? ''} onClose={() => setKvPath(null)} />
 
       <ConfirmDialog
         open={!!confirmPath}

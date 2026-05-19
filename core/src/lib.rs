@@ -16,7 +16,10 @@ pub use config::{
     AuthConfig, KubeVirtConfig, MachinaConfig, OidcConfig, OidcDefaultRole, SshTerminalConfig,
     SshTerminalTarget, VmCreateBackend, DEFAULT_DAEMON_PORT,
 };
-pub use kubevirt::{kubevirt_bundle_from_libvirt_vm, KubeVirtBundle};
+pub use kubevirt::{
+    kubevirt_bundle_from_libvirt_vm, kubevirt_bundle_from_qcow2, resolve_guest_os, GuestOsFamily,
+    KubeVirtBundle,
+};
 pub use libvirt::{LibvirtManager, LibvirtTarget};
 pub use state::{
     AppState, AttachDiskRequest, AuditEvent, BackupInfo, BackupRequest, CloneVmRequest,
