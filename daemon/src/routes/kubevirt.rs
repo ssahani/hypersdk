@@ -1,7 +1,9 @@
 //! Standalone qcow2 → KubeVirt bundle and optional cluster exec (hyper2kvm-style disk upload).
 
+use std::sync::Arc;
+
 use axum::{
-    extract::{Query, State},
+    extract::{Extension, Query, State},
     routing::{get, post},
     Json, Router,
 };
@@ -13,6 +15,13 @@ use serde::Deserialize;
 
 use crate::error::AppError;
 use crate::kubevirt_exec;
+use crate::routes::events::{EventBus, MachinaEvent};
+
+fn emit(bus: &Arc<EventBus>, kind: &str, target: &str, status: &str, message: &str) {
+    let mut ev = MachinaEvent::now(kind, target, status);
+    ev.message = message.chars().take(512).collect();
+    bus.emit(ev);
+}
 
 fn log_audit(action: &str, target: &str, result: &str) {
     let event = AuditEvent {
@@ -135,6 +144,7 @@ async fn qcow2_kubevirt_bundle_post(
 
 async fn qcow2_kubevirt_apply(
     State(manager): State<LibvirtManager>,
+    Extension(bus): Extension<Arc<EventBus>>,
     Json(p): Json<Qcow2KubeVirtParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let path = p.qcow2_path.trim();
@@ -169,6 +179,13 @@ async fn qcow2_kubevirt_apply(
     let _ = std::fs::remove_file(&tmp);
     let audit = if code == 0 { "ok" } else { "error" };
     log_audit("kubevirt-qcow2-apply", &bundle.libvirt_root_disk, audit);
+    emit(
+        &bus,
+        "kubevirt.qcow2.apply",
+        &bundle.libvirt_root_disk,
+        audit,
+        &bundle.virtual_machine_name,
+    );
     Ok(Json(serde_json::json!({
         "exit_code": code,
         "stdout": stdout,
@@ -178,6 +195,7 @@ async fn qcow2_kubevirt_apply(
 
 async fn qcow2_kubevirt_upload(
     State(manager): State<LibvirtManager>,
+    Extension(bus): Extension<Arc<EventBus>>,
     Json(p): Json<Qcow2KubeVirtParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let path = p.qcow2_path.trim();
@@ -203,6 +221,13 @@ async fn qcow2_kubevirt_upload(
     .map_err(AppError::from)?;
     let audit = if code == 0 { "ok" } else { "error" };
     log_audit("kubevirt-qcow2-upload", &bundle.libvirt_root_disk, audit);
+    emit(
+        &bus,
+        "kubevirt.qcow2.upload",
+        &bundle.libvirt_root_disk,
+        audit,
+        &bundle.datavolume_name,
+    );
     Ok(Json(serde_json::json!({
         "exit_code": code,
         "stdout": stdout,
@@ -212,6 +237,7 @@ async fn qcow2_kubevirt_upload(
 
 async fn qcow2_kubevirt_start(
     State(manager): State<LibvirtManager>,
+    Extension(bus): Extension<Arc<EventBus>>,
     Json(p): Json<Qcow2KubeVirtParams>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let path = p.qcow2_path.trim();
@@ -232,6 +258,13 @@ async fn qcow2_kubevirt_start(
             .map_err(AppError::from)?;
     let audit = if code == 0 { "ok" } else { "error" };
     log_audit("kubevirt-qcow2-start", &bundle.libvirt_root_disk, audit);
+    emit(
+        &bus,
+        "kubevirt.qcow2.start",
+        &bundle.libvirt_root_disk,
+        audit,
+        &bundle.virtual_machine_name,
+    );
     Ok(Json(serde_json::json!({
         "exit_code": code,
         "stdout": stdout,

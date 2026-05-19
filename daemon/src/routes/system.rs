@@ -2,7 +2,7 @@ use axum::extract::{Extension, Path};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::system_accounts;
-use machina_core::{LibvirtError, LibvirtManager};
+use machina_core::{LibvirtError, LibvirtManager, MachinaConfig};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::info;
@@ -176,8 +176,34 @@ async fn put_create_vm_defaults(
     Ok(Json(json!({ "status": "saved" })))
 }
 
+/// Surfaces the runtime "what is enabled?" view used by the web shell to render
+/// capability badges (TLS, OIDC, KubeVirt cluster exec, virtio-win image, etc.).
+async fn platform_info() -> Json<serde_json::Value> {
+    let cfg = MachinaConfig::load();
+    Json(json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "tls": {
+            "enabled": cfg.tls.enabled
+                && !cfg.tls.cert_path.is_empty()
+                && !cfg.tls.key_path.is_empty(),
+        },
+        "auth": {
+            "pam_service": cfg.auth.pam_service,
+            "oidc_enabled": cfg.auth.oidc.is_enabled(),
+        },
+        "kubevirt": {
+            "exec_enabled": cfg.kubevirt.exec_enabled,
+            "default_namespace": cfg.kubevirt.default_namespace,
+            "default_storage_class": cfg.kubevirt.default_storage_class,
+            "virtio_container_disk_image": cfg.kubevirt.virtio_container_disk_image,
+            "machine_type": cfg.kubevirt.machine_type,
+        },
+    }))
+}
+
 pub fn system_routes() -> Router<LibvirtManager> {
     Router::new()
+        .route("/system/platform-info", get(platform_info))
         .route("/system/os-users/capability", get(os_users_capability))
         .route("/system/os-users", post(create_os_user))
         .route("/system/os-users/{username}", delete(delete_os_user))

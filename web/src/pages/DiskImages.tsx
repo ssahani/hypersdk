@@ -1,7 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { Boxes, ClipboardList, FolderOpen, HardDrive, RefreshCw, Trash2 } from 'lucide-react'
+import Hero from '../components/Hero'
 import KubeVirtQcow2Modal from '../components/KubeVirtQcow2Modal'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import {
   deleteDiskImage,
   getVirtImageOutputRoots,
@@ -49,8 +52,10 @@ export default function DiskImagesPage() {
   const [vbFailed, setVbFailed] = useState(false)
   const [outBrowseOpen, setOutBrowseOpen] = useState(false)
   const [kvPath, setKvPath] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   const toast = useToastContext()
+  const { lastEvent, refreshKey } = usePlatformInfo()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -74,6 +79,26 @@ export default function DiskImagesPage() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!lastEvent) return
+    if (lastEvent.kind.startsWith('kubevirt.qcow2.')) void load()
+  }, [refreshKey, lastEvent, load])
+
+  useEffect(() => {
+    if (searchParams.get('kv') !== 'open') return
+    const path = searchParams.get('path')
+    if (path) {
+      setKvPath(path)
+    } else if (images.length > 0) {
+      const first = images.find((i) => i.format === 'qcow2' || i.path.toLowerCase().endsWith('.qcow2'))
+      if (first) setKvPath(first.path)
+    }
+    const next = new URLSearchParams(searchParams)
+    next.delete('kv')
+    next.delete('path')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, images, setSearchParams])
 
   useEffect(() => {
     if (!vbCatalog) return
@@ -165,22 +190,24 @@ export default function DiskImagesPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <HardDrive className="w-6 h-6" /> Disk Images
-          </h1>
-          {!loading && (
-            <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
-              {images.length} image{images.length !== 1 ? 's' : ''} · {formatBytes(totalBytes)} total — ISOs, qcow2, and
-              templates visible on this hypervisor host (pools + defaults).
-            </p>
-          )}
-        </div>
-        <button onClick={() => void load()} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh">
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-        </button>
-      </div>
+      <Hero
+        title="Disk Images"
+        subtitle={
+          loading
+            ? 'Scanning hypervisor pools and defaults…'
+            : `${images.length} image${images.length !== 1 ? 's' : ''} · ${formatBytes(totalBytes)} total — ISOs, qcow2, and templates visible on this hypervisor host.`
+        }
+        icon={<HardDrive className="w-6 h-6" />}
+        actions={
+          <button
+            onClick={() => void load()}
+            className="p-2 hover:bg-slate-700 rounded transition"
+            title="Refresh"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+        }
+      />
 
       {!loading && scanDirectories.length > 0 && (
         <div className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 text-xs text-slate-400 space-y-2">

@@ -14,6 +14,8 @@ import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import { useToastContext } from '../contexts/ToastContext'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import Hero from '../components/Hero'
 
 interface MetricsPoint { time: string; memory: number }
 
@@ -37,6 +39,7 @@ export default function Dashboard() {
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const { subscribe, events } = useWebSocketContext()
   const toast = useToastContext()
+  const { lastEvent, refreshKey } = usePlatformInfo()
 
   const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
@@ -86,6 +89,12 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   }, [loadData, loadMetrics])
 
+  // Re-fetch immediately when the daemon emits a relevant event (e.g. a fresh
+  // KubeVirt qcow2 upload). Avoids waiting up to 10s for the polling tick.
+  useEffect(() => {
+    if (lastEvent && lastEvent.kind.startsWith('kubevirt.')) loadData()
+  }, [refreshKey, lastEvent, loadData])
+
   useEffect(() => {
     const unsubscribe = subscribe(() => loadData())
     return () => unsubscribe()
@@ -116,7 +125,12 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in min-w-0">
-      {/* Header */}
+      <Hero
+        title={`Dashboard${node?.hostname ? ` · ${node.hostname}` : ''}`}
+        subtitle="Live virtualization, network, storage, and KubeVirt status from this hypervisor."
+        icon={<Activity className="w-6 h-6" />}
+      />
+
       {healthProblems.length > 0 && (
         <div className="rounded-xl border border-rose-500/35 bg-rose-950/25 px-4 py-3 space-y-2">
           <div className="flex items-center gap-2 text-sm font-medium text-rose-100">

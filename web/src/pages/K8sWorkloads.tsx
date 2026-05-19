@@ -32,11 +32,15 @@ import {
 } from '../api/k8s'
 import { useK8sContext } from '../hooks/useK8sContext'
 import { useToastContext } from '../contexts/ToastContext'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
+import Hero from '../components/Hero'
+import { Boxes } from 'lucide-react'
 
 export default function K8sWorkloadsPage() {
   const toast = useToastContext()
   const { context, setContext, choices: contextChoices, refreshChoices, ctxTrim } = useK8sContext()
+  const { lastEvent, refreshKey } = usePlatformInfo()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [namespace, setNamespace] = useState<string>('all')
@@ -116,6 +120,11 @@ export default function K8sWorkloadsPage() {
     void load()
   }, [load])
 
+  useEffect(() => {
+    if (!lastEvent) return
+    if (lastEvent.kind.startsWith('kubevirt.')) void load(true)
+  }, [refreshKey, lastEvent, load])
+
   const copyText = useCallback((label: string, text: string) => {
     void navigator.clipboard.writeText(text).then(() => {
       toast.success(`${label} copied`)
@@ -175,13 +184,13 @@ export default function K8sWorkloadsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in relative">
+      <Hero
+        title="Kubernetes Workloads"
+        subtitle="Pods show node + host IP; KubeVirt VMs merge VMI guest/pod IP & node InternalIP. Use Console / VNC to copy virtctl commands."
+        icon={<Boxes className="w-6 h-6" />}
+      />
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Kubernetes Workloads</h1>
-          <p className="text-sm text-slate-400 mt-0.5">
-            Pods show node name and host IP. KubeVirt VMs merge VMI guest / pod IP and node InternalIP; use <strong className="text-slate-400">Console</strong> / <strong className="text-slate-400">VNC</strong> to copy <code className="text-xs bg-slate-900/80 px-1 rounded">virtctl</code> commands (run where kubeconfig reaches the cluster).
-          </p>
-        </div>
+        <div className="hidden md:block" />
         <div className="flex flex-wrap items-center gap-2">
           <select
             value={context}

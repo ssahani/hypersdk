@@ -2,6 +2,7 @@ mod advanced;
 mod automation;
 mod backup;
 mod console;
+pub(crate) mod events;
 mod extras;
 mod guacamole;
 mod guest_images;
@@ -27,6 +28,7 @@ use machina_core::LibvirtManager;
 
 pub fn api_routes() -> Router<LibvirtManager> {
     Router::new()
+        .merge(events::event_routes())
         .merge(jobs::job_routes())
         .merge(k8s::k8s_routes())
         .merge(kubevirt::kubevirt_routes())

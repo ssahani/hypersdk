@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star } from 'lucide-react'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload } from 'lucide-react'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
@@ -108,6 +108,16 @@ export default function CommandPalette() {
     { id: 'qa-create', icon: <Plus className="w-4 h-4" />, label: 'Create VM', action: () => go('/create'), category: 'Quick Actions' },
     { id: 'qa-host-ssh', icon: <Terminal className="w-4 h-4" />, label: 'Host SSH (hypervisor)', action: () => go('/host-ssh'), category: 'Quick Actions' },
     { id: 'qa-snap', icon: <Camera className="w-4 h-4" />, label: 'Snapshots', action: () => go('/snapshots'), category: 'Quick Actions' },
+    { id: 'qa-disk-images', icon: <HardDrive className="w-4 h-4" />, label: 'Disk Images', sublabel: 'g i', action: () => go('/disk-images'), category: 'Quick Actions' },
+    {
+      id: 'qa-kubevirt-upload',
+      icon: <Upload className="w-4 h-4" />,
+      label: 'Upload qcow2 to KubeVirt',
+      sublabel: 'last picked qcow2',
+      action: () => go('/disk-images?kv=open'),
+      category: 'Quick Actions',
+    },
+    { id: 'qa-kubevirt-workloads', icon: <Boxes className="w-4 h-4" />, label: 'KubeVirt Workloads', sublabel: 'g k', action: () => go('/k8s/workloads'), category: 'Quick Actions' },
   )
 
   // Navigation pages

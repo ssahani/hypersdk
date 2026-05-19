@@ -30,6 +30,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .layer(Extension(ssh_terminal_cfg.clone()));
 
     let job_registry = std::sync::Arc::new(JobRegistry::new());
+    let event_bus = std::sync::Arc::new(crate::routes::events::EventBus::new(256));
     let vib_build_slots = Arc::new(Semaphore::new(
         config.libvirt.virt_image_build_max_concurrent.max(1),
     ));
@@ -39,6 +40,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .merge(terminal_api)
         .merge(auth::auth_routes(session_store.clone(), auth_cfg))
         .layer(Extension(job_registry))
+        .layer(Extension(event_bus))
         .layer(Extension(vib_build_slots))
         .layer(Extension(k8s_inventory_history_cfg.clone()))
         .route_layer(middleware::from_fn_with_state(

@@ -72,3 +72,19 @@ export async function getServerCreateVmDefaults(): Promise<Record<string, unknow
 export async function putServerCreateVmDefaults(body: Record<string, unknown>): Promise<{ status?: string }> {
   return apiPut(`${API}/system/create-vm-defaults`, body)
 }
+
+/** Mirrors `GET /api/v1/system/platform-info` — runtime capability summary used by the shell. */
+export interface PlatformInfo {
+  version: string
+  tls: { enabled: boolean }
+  auth: { pam_service: string; oidc_enabled: boolean }
+  kubevirt: {
+    exec_enabled: boolean
+    default_namespace: string
+    default_storage_class: string
+    virtio_container_disk_image: string
+    machine_type: string
+  }
+}
+
+export const getPlatformInfo = () => readJsonObject<PlatformInfo>(`${API}/system/platform-info`)

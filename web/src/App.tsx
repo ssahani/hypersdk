@@ -4,6 +4,7 @@ import { ToastProvider } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
+import { PlatformInfoProvider } from './contexts/PlatformInfoContext'
 import Navbar from './components/Navbar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
@@ -59,6 +60,8 @@ function GlobalShortcuts() {
     { sequence: ['g', 'e'] as [string, string], handler: () => navigate('/events') },
     { sequence: ['g', 'j'] as [string, string], handler: () => navigate('/jobs') },
     { sequence: ['g', 'b'] as [string, string], handler: () => navigate('/backups') },
+    { sequence: ['g', 'i'] as [string, string], handler: () => navigate('/disk-images') },
+    { sequence: ['g', 'k'] as [string, string], handler: () => navigate('/k8s/workloads') },
   ], [navigate])
 
   useSequenceShortcuts(shortcuts)
@@ -99,15 +102,16 @@ function AuthenticatedApp() {
 
   return (
     <WebSocketProvider>
-      <BrowserRouter>
-        <div className={shellClass}>
-          <Navbar />
-          <CommandPalette />
-          <GlobalShortcuts />
-          <main className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
-            <Breadcrumb />
-            <Suspense fallback={<PageSkeleton />}>
-              <Routes>
+      <PlatformInfoProvider>
+        <BrowserRouter>
+          <div className={shellClass}>
+            <Navbar />
+            <CommandPalette />
+            <GlobalShortcuts />
+            <main className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
+              <Breadcrumb />
+              <Suspense fallback={<PageSkeleton />}>
+                <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/vms" element={<VMList />} />
                 <Route path="/vms/:name" element={<VMDetails />} />
@@ -146,7 +150,8 @@ function AuthenticatedApp() {
             </Suspense>
           </main>
         </div>
-      </BrowserRouter>
+        </BrowserRouter>
+      </PlatformInfoProvider>
     </WebSocketProvider>
   )
 }
