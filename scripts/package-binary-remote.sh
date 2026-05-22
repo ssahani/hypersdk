@@ -180,7 +180,11 @@ PRODUCTION HOST (mkosi, packer, systemd — no git clone required)
   sudo ./install-full.sh --bind 0.0.0.0 --open-firewall
 
 Checklist: PREREQUISITES.txt  |  Details: HOST_SETUP.txt
+
+Packaged by Zyvor — https://zyvor.dev · © @zyvor 2026
 QEOF
+
+cp "\${BUILD_DIR}/scripts/zyvor-branding/ZYVOR_INSTALL.txt" "\${STAGE}/ZYVOR_INSTALL.txt" 2>/dev/null || true
 
 cat > "\${STAGE}/README.txt" <<README_EOF
 Machina ${VERSION} — Linux amd64 client bundle

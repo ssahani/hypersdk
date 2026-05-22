@@ -12,6 +12,7 @@ import CommandPalette from './components/CommandPalette'
 import Breadcrumb from './components/Breadcrumb'
 import ShortcutsHelp from './components/ShortcutsHelp'
 import PageSkeleton from './components/PageSkeleton'
+import { ZyvorFooter } from './components/ZyvorBrand'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 
@@ -104,7 +105,7 @@ function AuthenticatedApp() {
     <WebSocketProvider>
       <PlatformInfoProvider>
         <BrowserRouter>
-          <div className={shellClass}>
+          <div className={`${shellClass} flex flex-col min-h-screen`}>
             <Navbar />
             <CommandPalette />
             <GlobalShortcuts />
@@ -149,6 +150,7 @@ function AuthenticatedApp() {
               </Routes>
             </Suspense>
           </main>
+          <ZyvorFooter product="Machina" />
         </div>
         </BrowserRouter>
       </PlatformInfoProvider>
