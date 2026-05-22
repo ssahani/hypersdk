@@ -3,7 +3,20 @@
 # Usage: ./scripts/demo.sh [API_URL]
 set -eo pipefail
 
-API="${1:-https://localhost:5092/api/v1}"
+_script_dir="$(cd "$(dirname "$0")" && pwd)"
+for _pkg_ui in "${_script_dir}/../.package-lib/package-ui.sh" "${_script_dir}/lib/package-ui.sh"; do
+  if [[ -f "${_pkg_ui}" ]]; then
+    # shellcheck source=/dev/null
+    source "${_pkg_ui}"
+    break
+  fi
+done
+
+_default_api="https://localhost:5092/api/v1"
+if [[ $# -eq 0 ]] && declare -F pkg_access_url >/dev/null 2>&1; then
+  _default_api="$(pkg_access_url https 5092)/api/v1"
+fi
+API="${1:-${_default_api}}"
 
 step_n=0
 step() {
@@ -214,7 +227,11 @@ api GET /vms
 echo ""
 echo "✅ Demo complete!"
 echo ""
-echo "  🌐 Web UI:  https://localhost:5092"
+if declare -F pkg_access_url >/dev/null 2>&1; then
+  echo "  Web UI:  $(pkg_access_url https 5092) ($(pkg_primary_host_label))"
+else
+  echo "  Web UI:  https://localhost:5092"
+fi
 echo "  🖥️  TUI:     machina"
 echo "  🔗 API:     ${API}/health"
 echo ""

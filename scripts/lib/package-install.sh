@@ -40,12 +40,14 @@ pkg_step "Smoke test"
 [[ -x ./test-package.sh ]] && ./test-package.sh || pkg_warn "test-package.sh issues"
 pkg_step_done
 
+_machina_ui=$(pkg_access_url https 5092)
+_machina_host=$(pkg_primary_host_label)
 pkg_summary "Install complete"
 pkg_next_steps \
   "https://zyvor.dev · © @zyvor 2026" \
   "Host checks: ./test-host.sh" \
-  "Production install: sudo ./install-full.sh --bind 0.0.0.0 --open-firewall" \
+  "Production install: sudo ./install-full.sh --open-firewall" \
   "Quick start: sudo ./machina-daemon --config /etc/machina/config.toml" \
-  "UI: https://<this-server>:5092" \
+  "UI: ${_machina_ui} (${_machina_host})" \
   "Docs: HOST_SETUP.txt · PREREQUISITES.txt" \
   "Remove: ./uninstall.sh --yes [--remove-dir]"

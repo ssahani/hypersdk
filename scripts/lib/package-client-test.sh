@@ -16,10 +16,13 @@ if [[ -x ./test-host.sh ]]; then
   ./test-host.sh || pkg_warn "test-host.sh — see HOST_SETUP.txt"
 fi
 
+_lan=$(pkg_access_url https 5092)
 if curl -skf https://127.0.0.1:5092/health >/dev/null 2>&1; then
   pkg_ok "daemon health https://127.0.0.1:5092"
+  pkg_detail "LAN URL: ${_lan} ($(pkg_primary_host_label))"
 else
   pkg_skip "daemon not running (start machina-daemon after config)"
+  pkg_detail "When running: ${_lan}"
 fi
 
 pkg_summary "Package test"

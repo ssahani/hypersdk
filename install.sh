@@ -19,17 +19,68 @@ INSTALL_DIR="/opt/machina"
 LOG_FILE=$(mktemp /tmp/machina-install-XXXXXX.log)
 chmod 600 "$LOG_FILE"
 
+for _pkg_ui in "${INSTALLER_ROOT}/scripts/lib/package-ui.sh" "${INSTALLER_ROOT}/.package-lib/package-ui.sh"; do
+    if [[ -f "${_pkg_ui}" ]]; then
+        # shellcheck source=/dev/null
+        source "${_pkg_ui}"
+        break
+    fi
+done
+
 BIND_HOST=""
+BIND_EXPLICIT=false
 REMOTE_HOST=""
 OPEN_FIREWALL=false
 NO_TESTS=false
 BUNDLE_INSTALL=false
+MACHINA_PORT=5092
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
 warn()  { echo "⚠️  $*"; }
 fail()  { echo "❌ $*"; exit 1; }
 step()  { echo ""; echo "➡️  $*"; }
+
+# Fallback when package-ui.sh is not bundled (source tree install).
+install_primary_ipv4() {
+    if declare -F pkg_primary_ipv4 >/dev/null 2>&1; then
+        pkg_primary_ipv4
+        return
+    fi
+    local ip=""
+    if command -v ip &>/dev/null; then
+        ip=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") { print $(i+1); exit }}')
+        if [[ -z "${ip}" || "${ip}" == "127.0.0.1" ]]; then
+            ip=$(ip -4 -o addr show scope global up 2>/dev/null \
+                | awk '$2 !~ /^(lo|docker|virbr|veth|br-|cni|flannel|tailscale|wg)/ {split($4,a,"/"); print a[1]; exit}')
+        fi
+    fi
+    [[ -z "${ip}" ]] && ip=$(hostname -I 2>/dev/null | awk '{print $1}')
+    if [[ -n "${ip}" && "${ip}" != "127.0.0.1" ]]; then
+        echo "${ip}"
+    else
+        echo "127.0.0.1"
+    fi
+}
+
+install_primary_host_label() {
+    if declare -F pkg_primary_host_label >/dev/null 2>&1; then
+        pkg_primary_host_label
+        return
+    fi
+    local ip iface
+    ip=$(install_primary_ipv4)
+    if [[ "${ip}" == "127.0.0.1" ]]; then
+        echo "localhost"
+        return
+    fi
+    iface=$(ip -4 -o addr show scope global 2>/dev/null | awk -v want="${ip}" 'split($4,a,"/"); if(a[1]==want){print $2; exit}')
+    if [[ -n "${iface}" ]]; then
+        echo "${ip} (${iface})"
+    else
+        echo "${ip}"
+    fi
+}
 
 log_cmd() {
     "$@" >> "$LOG_FILE" 2>&1
@@ -1284,14 +1335,15 @@ uninstall() {
 # ── Summary ──────────────────────────────────────────────────────────
 
 print_summary() {
-    local vm_count
-    vm_count=$(curl -sfk https://localhost:5092/api/v1/vms 2>/dev/null | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || vm_count="?"
+    local vm_count host_ip host_label lan_only
+    vm_count=$(curl -sfk "https://127.0.0.1:${MACHINA_PORT}/api/v1/vms" 2>/dev/null \
+        | python3 -c "import json,sys; print(len(json.load(sys.stdin)))" 2>/dev/null) || vm_count="?"
 
-    local bind_info="localhost"
-    if [ -n "$BIND_HOST" ] && [ "$BIND_HOST" != "127.0.0.1" ]; then
-        local ip
-        ip=$(hostname -I 2>/dev/null | awk '{print $1}') || ip="<server-ip>"
-        bind_info="$ip"
+    host_ip=$(install_primary_ipv4)
+    host_label=$(install_primary_host_label)
+    lan_only=false
+    if [ -z "${BIND_HOST}" ] || [ "${BIND_HOST}" = "127.0.0.1" ]; then
+        lan_only=true
     fi
 
     echo ""
@@ -1299,21 +1351,31 @@ print_summary() {
     echo "✅ machina installed successfully!"
     echo "============================================"
     echo ""
-    echo "  🌐 Web UI:    https://$bind_info:5092"
-    echo "  🖥️  TUI:       machina"
-    echo "  🔗 API:       https://$bind_info:5092/api/v1/health"
-    echo "  📊 VMs found: $vm_count"
+    if [ "${host_ip}" != "127.0.0.1" ]; then
+        echo "  Web UI:      https://${host_ip}:${MACHINA_PORT}   (${host_label})"
+        echo "  API:         https://${host_ip}:${MACHINA_PORT}/api/v1/health"
+        if $lan_only; then
+            echo "  Note:        daemon is localhost-only — re-run with:"
+            echo "               sudo $0 --bind 0.0.0.0 --open-firewall"
+        fi
+    else
+        echo "  Web UI:      https://localhost:${MACHINA_PORT}"
+        echo "  API:         https://localhost:${MACHINA_PORT}/api/v1/health"
+    fi
+    echo "  Local only:  https://127.0.0.1:${MACHINA_PORT}"
+    echo "  TUI:         machina"
+    echo "  VMs found:   ${vm_count}"
     echo ""
-    echo "  📋 Manage:"
+    echo "  Manage:"
     echo "    sudo systemctl status  machina-daemon"
     echo "    sudo systemctl restart machina-daemon"
     echo "    sudo journalctl -u machina-daemon -f"
     echo ""
-    echo "  ⚙️  Config:  /etc/machina/config.toml"
-    echo "  📂 Source:  $INSTALL_DIR"
-    echo "  📜 Log:     $LOG_FILE"
-    echo "  🏗️  Packer:  /usr/local/share/machina/packer/build-linux-image.sh"
-    echo "  🪟  Win+VirtIO: /usr/local/share/machina/packer/windows-qemu/ (see HOWTO.txt)"
+    echo "  Config:      /etc/machina/config.toml"
+    echo "  Source:      ${INSTALL_DIR}"
+    echo "  Log:         ${LOG_FILE}"
+    echo "  Packer:      /usr/local/share/machina/packer/build-linux-image.sh"
+    echo "  Win+VirtIO:  /usr/local/share/machina/packer/windows-qemu/ (see HOWTO.txt)"
     echo ""
 }
 
@@ -1339,7 +1401,7 @@ MACHINA_BANNER
     local prev_arg=""
     for arg in "$@"; do
         case "$prev_arg" in
-            --bind)   BIND_HOST="$arg"; prev_arg=""; continue ;;
+            --bind)   BIND_HOST="$arg"; BIND_EXPLICIT=true; prev_arg=""; continue ;;
             --remote) REMOTE_HOST="$arg"; prev_arg=""; continue ;;
         esac
         case "$arg" in
@@ -1464,6 +1526,11 @@ HELPEOF
     install_deps
 
     detect_bundle_install || true
+
+    if [ "${BUNDLE_INSTALL:-false}" = true ] && [ "${BIND_EXPLICIT}" = false ]; then
+        BIND_HOST="0.0.0.0"
+        info "Client bundle: binding daemon to 0.0.0.0:${MACHINA_PORT} (pass --bind 127.0.0.1 for local-only)"
+    fi
 
     if [ "${BUNDLE_INSTALL:-false}" != true ]; then
         install_rust
