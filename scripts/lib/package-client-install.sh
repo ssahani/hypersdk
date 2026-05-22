@@ -1,13 +1,20 @@
 #!/usr/bin/env bash
-# Client-side runtime dependencies for Machina bundle (do not call ./install.sh — that recurses).
 set -euo pipefail
-echo "== Machina client dependencies =="
+# shellcheck source=/dev/null
+[[ -f "$(dirname "$0")/package-ui.sh" ]] && source "$(dirname "$0")/package-ui.sh"
+[[ -f "$(dirname "$0")/.package-lib/package-ui.sh" ]] && source "$(dirname "$0")/.package-lib/package-ui.sh"
+
+pkg_banner "Machina host dependencies" "libvirt · qemu-kvm"
 SUDO=""
-[ "$(id -u)" -ne 0 ] && command -v sudo &>/dev/null && SUDO=sudo
+[[ "$(id -u)" -ne 0 ]] && command -v sudo &>/dev/null && SUDO=sudo
 if command -v dnf &>/dev/null; then
-  $SUDO dnf install -y libvirt libvirt-devel qemu-kvm 2>&1 | tail -8 || true
+  $SUDO dnf install -y libvirt libvirt-devel qemu-kvm 2>&1 | tail -6 || true
+  pkg_ok "dnf packages (libvirt/qemu)"
 elif command -v apt-get &>/dev/null; then
-  $SUDO apt-get update -qq && $SUDO apt-get install -y libvirt-daemon-system qemu-kvm 2>&1 | tail -8 || true
+  $SUDO apt-get update -qq
+  $SUDO apt-get install -y libvirt-daemon-system qemu-kvm 2>&1 | tail -6 || true
+  pkg_ok "apt packages (libvirt/qemu)"
+else
+  pkg_warn "Install libvirt and qemu-kvm manually"
 fi
-echo "  libvirt/qemu packages installed or already present."
-echo "Done."
+pkg_summary "Dependencies"

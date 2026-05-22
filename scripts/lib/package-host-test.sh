@@ -1,56 +1,54 @@
 #!/usr/bin/env bash
-# Verify libvirt / KVM host prerequisites for Machina client bundle.
 set -uo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
+# shellcheck source=/dev/null
+[[ -f "${ROOT}/.package-lib/package-ui.sh" ]] && source "${ROOT}/.package-lib/package-ui.sh"
 
-PASS=0 WARN=0 FAIL=0
-ok()   { echo "  OK: $*"; PASS=$((PASS + 1)); }
-warn() { echo "  WARN: $*"; WARN=$((WARN + 1)); }
-fail() { echo "  FAIL: $*"; FAIL=$((FAIL + 1)); }
-skip() { echo "  SKIP: $*"; }
+_PKG_SESSION_START=${SECONDS}
+pkg_counters_reset
+pkg_banner "Machina host test" "KVM · libvirt · hypervisor prerequisites"
 
-echo "== Machina host test =="
+SUDO=""
+[[ "$(id -u)" -ne 0 ]] && command -v sudo &>/dev/null && SUDO=sudo
 
 if egrep -q '(vmx|svm)' /proc/cpuinfo 2>/dev/null; then
-  ok "CPU virtualization (vmx/svm)"
+  pkg_ok "CPU virtualization (vmx/svm)"
 else
-  warn "No vmx/svm in /proc/cpuinfo (nested virt or restricted host?)"
+  pkg_warn "No vmx/svm in /proc/cpuinfo"
 fi
 
-if command -v virsh >/dev/null 2>&1; then
-  ok "virsh installed"
+if command -v virsh &>/dev/null; then
   if virsh list --all >/dev/null 2>&1; then
-    ok "virsh connects to libvirt"
+    pkg_ok "virsh → libvirt"
   elif sudo virsh list --all >/dev/null 2>&1; then
-    warn "virsh needs sudo (add user to libvirt group: sudo usermod -aG libvirt \$USER)"
+    pkg_warn "virsh needs sudo (add user to libvirt group)"
   else
-    fail "virsh cannot connect — start libvirtd: sudo systemctl start libvirtd"
+    pkg_fail "virsh cannot connect — sudo systemctl start libvirtd"
   fi
 else
-  fail "virsh not found (run ./install.sh)"
+  pkg_fail "virsh not found"
 fi
 
-if systemctl is-active libvirtd >/dev/null 2>&1 || systemctl is-active virtqemud >/dev/null 2>&1; then
-  ok "libvirt service active"
+if systemctl is-active libvirtd &>/dev/null || systemctl is-active virtqemud &>/dev/null; then
+  pkg_ok "libvirt service active"
 else
-  warn "libvirtd not active (sudo systemctl start libvirtd)"
+  pkg_warn "libvirtd not active"
+fi
+
+if [[ -x "${ROOT}/machina-daemon" ]]; then
+  pkg_ok "machina-daemon binary in bundle"
+else
+  pkg_fail "machina-daemon missing in bundle"
 fi
 
 if [[ -f /etc/machina/config.toml ]]; then
-  ok "/etc/machina/config.toml exists"
+  pkg_ok "/etc/machina/config.toml"
 elif [[ -f ./config.toml.local ]]; then
-  ok "./config.toml.local exists"
+  pkg_ok "./config.toml.local"
 else
-  warn "No config — copy machina.toml.example to /etc/machina/config.toml"
+  pkg_warn "No Machina config — copy machina.toml.example"
 fi
 
-if [[ -x ./machina-daemon ]]; then
-  ok "machina-daemon binary"
-else
-  fail "machina-daemon missing"
-fi
-
-echo ""
-echo "Summary: ${PASS} ok, ${WARN} warn, ${FAIL} fail"
-[[ "${FAIL}" -eq 0 ]]
+pkg_summary "Host readiness"
+[[ "${_PKG_COUNTERS_FAIL}" -eq 0 ]]
