@@ -67,7 +67,7 @@ machina/   # git checkout directory name
 ├── docs/               Optional integration notes (e.g. Apache Guacamole)
 ├── guac-bridge/        Apache Guacamole JSON-auth library + optional standalone `libvirt-guac-bridge` binary (daemon integrates `GET …/guacamole-auth`)
 ├── examples/           Example user configuration
-├── scripts/            deploy-remote.sh (rsync + remote build/install; --remote-check / --remote-build), demo, status, backup, bulk
+├── scripts/            deploy-remote.sh, package-binary-remote.sh (client tarball), demo, status, backup, bulk
 ├── machinactl        Management CLI (deploy, verify, health, backup, upgrade, tls)
 ├── install.sh          Automated installer (Fedora/RHEL/Ubuntu/Debian/openSUSE/Arch)
 └── Makefile            Build, install, deploy, manage targets
@@ -335,6 +335,15 @@ sudo ./install.sh --remote user@host                                   # alterna
 ```
 
 `--remote-check` / `--remote-build` set `PATH` for cargo and a **LIBCLANG_PATH** hint (Alma/RHEL-style) so **pam-sys** can link; run `sudo ./install.sh --deps-only` once on the host if cargo is missing.
+
+### Client tarball (no deploy scripts on client machine)
+
+```bash
+./scripts/package-binary-remote.sh HOST USER --fetch
+./scripts/package-binary-remote.sh HOST USER --reuse-build --fetch   # skip make if already built on server
+```
+
+See **[docs/PACKAGE_BINARY_REMOTE.md](docs/PACKAGE_BINARY_REMOTE.md)**.
 
 ### What `make deploy` does
 

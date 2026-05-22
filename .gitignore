@@ -1,6 +1,7 @@
 .deploy-last
 
 /target
+/dist/
 *.log
 *.pid
 *.swp
