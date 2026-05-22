@@ -160,6 +160,9 @@ cp "\${LIB}/package-uninstall-lib.sh" "\${STAGE}/.package-lib/"
 cp "\${LIB}/package-uninstall.sh" "\${STAGE}/uninstall.sh"
 chmod +x "\${STAGE}/install.sh" "\${STAGE}/install-client-deps.sh" "\${STAGE}/test-package.sh" \
   "\${STAGE}/install-everything.sh" "\${STAGE}/uninstall.sh"
+chmod +x "\${LIB}/write-customer-help.sh"
+"\${LIB}/write-customer-help.sh" "\${STAGE}" "Machina" host
+cp "\${LIB}/START_HERE.txt" "\${STAGE}/"
 cat > "\${STAGE}/.package-lib/product.meta" <<'META'
 PRODUCT_NAME=Machina
 ACCESS_SCHEME=https
@@ -199,6 +202,8 @@ cat > "\${STAGE}/README.txt" <<README_EOF
 Machina ${VERSION} — Linux amd64 client bundle
 ==============================================
 
+START: cat START_HERE.txt  |  full help: cat HELP.txt
+
 NOT KUBERNETES — runs on a libvirt/KVM hypervisor host.
 
 WHAT IS IN THIS ARCHIVE
@@ -217,7 +222,7 @@ FLAGS (install-full.sh): --deps-only --bind 0.0.0.0 --open-firewall (no source t
 UNINSTALL: ./uninstall.sh --yes [--remove-dir]
 README_EOF
 
-for req in install.sh uninstall.sh README.txt QUICKSTART.txt HOST_SETUP.txt PREREQUISITES.txt \
+for req in HELP.txt START_HERE.txt install.sh uninstall.sh README.txt QUICKSTART.txt HOST_SETUP.txt PREREQUISITES.txt \
   test-host.sh test-package.sh install-client-deps.sh machina-daemon machina.toml.example; do
   test -e "\${STAGE}/\${req}" || { echo "bundle missing \${req}" >&2; exit 1; }
 done

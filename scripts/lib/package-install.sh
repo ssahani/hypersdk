@@ -3,8 +3,11 @@
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
+export PKG_INSTALL_ROOT="${ROOT}"
 # shellcheck source=/dev/null
 [[ -f "${ROOT}/.package-lib/package-ui.sh" ]] && source "${ROOT}/.package-lib/package-ui.sh"
+
+pkg_parse_install_args "$@"
 
 _PKG_SESSION_START=${SECONDS}
 pkg_install_welcome "Machina"
@@ -53,5 +56,6 @@ pkg_step_done
 
 pkg_install_finish "Machina" https 5092 "" \
   "TUI: machina" \
+  "Help: cat HELP.txt · ./install.sh --help" \
   "Service: sudo systemctl status machina-daemon" \
   "Logs: sudo journalctl -u machina-daemon -f"
