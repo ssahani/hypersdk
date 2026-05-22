@@ -1,4 +1,5 @@
 import { X } from 'lucide-react'
+import { ZyvorHelpStrip } from './ZyvorBrand'
 
 const shortcuts = [
   { keys: ['Ctrl', 'K'], description: 'Command palette' },
@@ -31,6 +32,7 @@ export default function ShortcutsHelp({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="p-5 space-y-3">
+          <ZyvorHelpStrip product="Machina" />
           {shortcuts.map(s => (
             <div key={s.description} className="flex items-center justify-between">
               <span className="text-sm text-slate-300">{s.description}</span>
