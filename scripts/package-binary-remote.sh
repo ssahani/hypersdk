@@ -155,9 +155,21 @@ cp "\${LIB}/package-client-install.sh" "\${STAGE}/install-client-deps.sh"
 cp "\${LIB}/package-client-test.sh" "\${STAGE}/test-package.sh"
 mkdir -p "\${STAGE}/.package-lib"
 cp "\${LIB}/package-ui.sh" "\${STAGE}/.package-lib/"
+cp "\${LIB}/install-everything.sh" "\${STAGE}/"
 cp "\${LIB}/package-uninstall-lib.sh" "\${STAGE}/.package-lib/"
 cp "\${LIB}/package-uninstall.sh" "\${STAGE}/uninstall.sh"
-chmod +x "\${STAGE}/install.sh" "\${STAGE}/install-client-deps.sh" "\${STAGE}/test-package.sh" "\${STAGE}/uninstall.sh"
+chmod +x "\${STAGE}/install.sh" "\${STAGE}/install-client-deps.sh" "\${STAGE}/test-package.sh" \
+  "\${STAGE}/install-everything.sh" "\${STAGE}/uninstall.sh"
+cat > "\${STAGE}/.package-lib/product.meta" <<'META'
+PRODUCT_NAME=Machina
+ACCESS_SCHEME=https
+ACCESS_PORT=5092
+ACCESS_PATH=
+AUTO_FULL_INSTALL=1
+FINISH_EXTRA_1=TUI: machina
+FINISH_EXTRA_2=Service: sudo systemctl status machina-daemon
+FINISH_EXTRA_3=Logs: sudo journalctl -u machina-daemon -f
+META
 cp "\${BUILD_DIR}/install.sh" "\${STAGE}/install-full.sh" 2>/dev/null || true
 chmod +x "\${STAGE}/install-full.sh" 2>/dev/null || true
 cp "\${LIB}/HOST_SETUP.txt" "\${LIB}/PREREQUISITES.txt" "\${STAGE}/"
@@ -168,16 +180,13 @@ cat > "\${STAGE}/QUICKSTART.txt" <<'QEOF'
 Machina — install guide (libvirt host — NOT Kubernetes)
 =======================================================
 
-HOST FIRST (quick — bundled binaries, no compile)
+HOST FIRST (one command — bundled binaries, no compile)
   1. tar xzf machina-*-linux-amd64.tar.gz && cd machina-*-linux-amd64
-  2. ./install.sh              # deps + verify bundle
-  3. ./test-host.sh
-  4. sudo ./install-full.sh --bind 0.0.0.0 --open-firewall
-  5. https://<server-ip>:5092
-  6. ./test-package.sh
+  2. ./install-everything.sh   # deps + systemd + firewall + tests
+  3. Open the https URL printed at the end (this server's LAN IP)
 
-PRODUCTION HOST (mkosi, packer, systemd — no git clone required)
-  sudo ./install-full.sh --bind 0.0.0.0 --open-firewall
+Manual steps (optional)
+  ./install.sh && ./test-host.sh && sudo ./install-full.sh --open-firewall && ./test-package.sh
 
 Checklist: PREREQUISITES.txt  |  Details: HOST_SETUP.txt
 

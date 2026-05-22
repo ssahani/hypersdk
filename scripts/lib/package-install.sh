@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# Machina — automatic client install (extracted tarball).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 cd "$ROOT"
@@ -7,47 +8,50 @@ cd "$ROOT"
 
 _PKG_SESSION_START=${SECONDS}
 pkg_install_welcome "Machina"
-pkg_banner "Machina client install" "libvirt / KVM hypervisor · not Kubernetes"
-pkg_step_init 4
+pkg_banner "Machina" "libvirt / KVM hypervisor · client bundle"
+pkg_step_init 6
 
-pkg_step "Host dependencies (libvirt, qemu)"
+pkg_step "Host dependencies (libvirt, QEMU, tools)"
 if [[ -x ./install-client-deps.sh ]]; then
-  sudo ./install-client-deps.sh && pkg_step_done || { pkg_warn "deps had issues"; pkg_step_done; }
+  pkg_sudo ./install-client-deps.sh && pkg_step_done || { pkg_warn "deps had issues"; pkg_step_done; }
 else
   pkg_fail "install-client-deps.sh missing"
   exit 1
 fi
 
-pkg_step "Configuration"
-sudo mkdir -p /etc/machina /var/lib/machina 2>/dev/null || true
-if [[ -f machina.toml.example ]] && [[ ! -f /etc/machina/config.toml ]]; then
-  sudo cp machina.toml.example /etc/machina/config.toml
-  pkg_ok "Created /etc/machina/config.toml"
-  pkg_detail "Edit before production use"
+pkg_step "Host preflight"
+if [[ -x ./test-host.sh ]]; then
+  ./test-host.sh || pkg_warn "test-host.sh — see HOST_SETUP.txt"
 else
-  cp machina.toml.example ./config.toml.local 2>/dev/null || true
-  pkg_ok "config.toml.local template (or /etc/machina/config.toml exists)"
+  pkg_skip "test-host.sh not bundled"
 fi
 pkg_step_done
 
-pkg_step "Verify binaries"
+pkg_step "Configuration"
+pkg_sudo mkdir -p /etc/machina /var/lib/machina 2>/dev/null || true
+if [[ -f machina.toml.example ]] && [[ ! -f /etc/machina/config.toml ]]; then
+  pkg_sudo cp machina.toml.example /etc/machina/config.toml
+  pkg_ok "/etc/machina/config.toml created"
+else
+  pkg_env_bootstrap machina.toml.example config.toml.local
+fi
+pkg_step_done
+
+pkg_step "Verify bundle"
 [[ -x ./machina-daemon ]] && pkg_ok "machina-daemon" || { pkg_fail "machina-daemon missing"; exit 1; }
-[[ -x ./machina ]] && pkg_ok "machina TUI CLI" || pkg_skip "machina TUI not bundled"
-[[ -d ./web/dist ]] && pkg_ok "web/dist dashboard assets" || pkg_warn "web/dist missing"
+[[ -x ./machina ]] && pkg_ok "machina TUI" || pkg_skip "machina TUI not in bundle"
+[[ -d ./web/dist ]] && pkg_ok "web dashboard assets" || pkg_warn "web/dist missing"
+pkg_step_done
+
+pkg_step "Production install (systemd, TLS, firewall)"
+pkg_maybe_run_full_install
 pkg_step_done
 
 pkg_step "Smoke test"
 [[ -x ./test-package.sh ]] && ./test-package.sh || pkg_warn "test-package.sh issues"
 pkg_step_done
 
-_machina_ui=$(pkg_access_url https 5092)
-_machina_host=$(pkg_primary_host_label)
-pkg_summary "Install complete"
-pkg_next_steps \
-  "https://zyvor.dev · © @zyvor 2026" \
-  "Host checks: ./test-host.sh" \
-  "Production install: sudo ./install-full.sh --open-firewall" \
-  "Quick start: sudo ./machina-daemon --config /etc/machina/config.toml" \
-  "UI: ${_machina_ui} (${_machina_host})" \
-  "Docs: HOST_SETUP.txt · PREREQUISITES.txt" \
-  "Remove: ./uninstall.sh --yes [--remove-dir]"
+pkg_install_finish "Machina" https 5092 "" \
+  "TUI: machina" \
+  "Service: sudo systemctl status machina-daemon" \
+  "Logs: sudo journalctl -u machina-daemon -f"
