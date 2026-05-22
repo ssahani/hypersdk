@@ -31,12 +31,14 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
 FETCH=false
 REUSE_BUILD=false
+SKIP_DEPS=false
 POSITIONAL=()
 
 for arg in "$@"; do
     case "$arg" in
         --fetch) FETCH=true ;;
         --reuse-build) REUSE_BUILD=true ;;
+        --skip-deps) SKIP_DEPS=true ;;
         -h|--help)
             sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -90,6 +92,21 @@ rsync -az --delete "${RSYNC_EXCLUDES[@]}" \
     -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=120" \
     "${REPO_DIR}/" "${REMOTE}:${BUILD_DIR}/"
 
+if ! $SKIP_DEPS; then
+    step "Install build dependencies on remote (install.sh --deps-only)"
+    ssh "${REMOTE}" bash -s <<REMOTE_DEPS
+set -euo pipefail
+cd '${BUILD_DIR}'
+if [ -f install.sh ]; then
+  sudo ./install.sh --deps-only 2>&1 | tail -20
+else
+  echo "install.sh missing" >&2
+  exit 1
+fi
+echo "build deps OK"
+REMOTE_DEPS
+fi
+
 step "Build on remote (make release web)"
 BUILD_CMD="cd '${BUILD_DIR}' && make release web"
 if $REUSE_BUILD; then
@@ -122,32 +139,67 @@ cp -a "\${BUILD_DIR}/web/dist/." "\${STAGE}/web/dist/"
 cp "\${BUILD_DIR}/contrib/machina.toml" "\${STAGE}/machina.toml.example"
 cp "\${BUILD_DIR}/contrib/machina-daemon.service" "\${STAGE}/" 2>/dev/null || true
 
+LIB="\${BUILD_DIR}/scripts/lib"
+for f in package-install.sh package-client-install.sh package-client-test.sh; do
+  test -f "\${LIB}/\${f}" || { echo "missing \${LIB}/\${f}" >&2; exit 1; }
+done
+cp "\${LIB}/package-install.sh" "\${STAGE}/install.sh"
+cp "\${LIB}/package-client-install.sh" "\${STAGE}/install-client-deps.sh"
+cp "\${LIB}/package-client-test.sh" "\${STAGE}/test-package.sh"
+mkdir -p "\${STAGE}/.package-lib"
+cp "\${LIB}/package-uninstall-lib.sh" "\${STAGE}/.package-lib/"
+cp "\${LIB}/package-uninstall.sh" "\${STAGE}/uninstall.sh"
+chmod +x "\${STAGE}/install.sh" "\${STAGE}/install-client-deps.sh" "\${STAGE}/test-package.sh" "\${STAGE}/uninstall.sh"
+cp "\${BUILD_DIR}/install.sh" "\${STAGE}/install-full.sh" 2>/dev/null || true
+chmod +x "\${STAGE}/install-full.sh" 2>/dev/null || true
+cp "\${LIB}/HOST_SETUP.txt" "\${LIB}/PREREQUISITES.txt" "\${STAGE}/"
+cp "\${LIB}/package-host-test.sh" "\${STAGE}/test-host.sh"
+chmod +x "\${STAGE}/test-host.sh"
+
+cat > "\${STAGE}/QUICKSTART.txt" <<'QEOF'
+Machina — install guide (libvirt host — NOT Kubernetes)
+=======================================================
+
+HOST FIRST
+  1. tar xzf machina-*-linux-amd64.tar.gz && cd machina-*-linux-amd64
+  2. ./install.sh              # libvirt/qemu packages
+  3. ./test-host.sh            # verify KVM + libvirt
+  4. sudo nano /etc/machina/config.toml
+  5. sudo ./machina-daemon --config /etc/machina/config.toml
+  6. https://<server-ip>:5092
+  7. ./test-package.sh
+
+Checklist: PREREQUISITES.txt  |  Details: HOST_SETUP.txt
+Optional full install: ./install-full.sh --help
+QEOF
+
 cat > "\${STAGE}/README.txt" <<README_EOF
 Machina ${VERSION} — Linux amd64 client bundle
 ==============================================
 
-Contents:
-  machina-daemon      HTTPS API + libvirt/KubeVirt management
-  machina             TUI (optional)
-  web/dist/           Web UI static assets
-  machina.toml.example
-  machina-daemon.service  Example systemd unit
+NOT KUBERNETES — runs on a libvirt/KVM hypervisor host.
 
-Requirements:
-  - Linux x86_64 hypervisor host with libvirt (and optional k3s/KubeVirt)
-  - Same distro/glibc family as this build host
+WHAT IS IN THIS ARCHIVE
+  machina-daemon, machina (TUI), web/dist/
+  install.sh, test-host.sh, test-package.sh, uninstall.sh
+  HOST_SETUP.txt, PREREQUISITES.txt
+  install-full.sh (optional full installer from source)
 
-Quick start:
-  sudo mkdir -p /etc/machina /var/lib/machina
-  sudo cp machina.toml.example /etc/machina/config.toml
-  # edit config; ensure libvirt socket access
-  ./machina-daemon --config /etc/machina/config.toml
-  Open https://<host>:5092
+REQUIREMENTS — see PREREQUISITES.txt
+  Linux x86_64, KVM, libvirtd, qemu-kvm, /etc/machina/config.toml
 
-Or use install.sh from the full source tree for systemd install.
+ORDER: ./install.sh → ./test-host.sh → configure → machina-daemon → ./test-package.sh
 
-Full guide: docs/PACKAGE_BINARY_REMOTE.md
+FLAGS (install-full.sh): --deps-only --bind 0.0.0.0 --open-firewall --remote user@host
+
+UNINSTALL: ./uninstall.sh --yes [--remove-dir]
 README_EOF
+
+for req in install.sh uninstall.sh README.txt QUICKSTART.txt HOST_SETUP.txt PREREQUISITES.txt \
+  test-host.sh test-package.sh install-client-deps.sh machina-daemon machina.toml.example; do
+  test -e "\${STAGE}/\${req}" || { echo "bundle missing \${req}" >&2; exit 1; }
+done
+echo "Customer bundle OK"
 
 cd "\${OUT_DIR}"
 tar czf "\${ARTIFACT}.tar.gz" "\${ARTIFACT}"
