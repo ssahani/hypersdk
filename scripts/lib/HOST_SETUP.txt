@@ -41,7 +41,9 @@ STEP C — Start daemon
 
 FULL HOST INSTALL (optional)
 ----------------------------
-  For building from source on the host, use install-full.sh (from Machina repo layout).
+  For a full production host install (deps, mkosi, packer, systemd) from the tarball:
+    sudo ./install-full.sh --bind 0.0.0.0 --open-firewall
+  No git clone required — uses the bundled machina-daemon binary.
 
 FLAGS (install-full.sh / source install.sh)
   --deps-only          OS packages only

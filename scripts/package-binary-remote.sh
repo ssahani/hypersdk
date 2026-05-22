@@ -143,6 +143,8 @@ chmod +x "\${STAGE}/machina-daemon" "\${STAGE}/machina" 2>/dev/null || true
 cp -a "\${BUILD_DIR}/web/dist/." "\${STAGE}/web/dist/"
 cp "\${BUILD_DIR}/contrib/machina.toml" "\${STAGE}/machina.toml.example"
 cp "\${BUILD_DIR}/contrib/machina-daemon.service" "\${STAGE}/" 2>/dev/null || true
+mkdir -p "\${STAGE}/contrib"
+cp -a "\${BUILD_DIR}/contrib/mkosi-defs" "\${STAGE}/contrib/" 2>/dev/null || true
 
 LIB="\${BUILD_DIR}/scripts/lib"
 for f in package-install.sh package-client-install.sh package-client-test.sh; do
@@ -166,17 +168,18 @@ cat > "\${STAGE}/QUICKSTART.txt" <<'QEOF'
 Machina — install guide (libvirt host — NOT Kubernetes)
 =======================================================
 
-HOST FIRST
+HOST FIRST (quick — bundled binaries, no compile)
   1. tar xzf machina-*-linux-amd64.tar.gz && cd machina-*-linux-amd64
-  2. ./install.sh              # libvirt/qemu packages
-  3. ./test-host.sh            # verify KVM + libvirt
-  4. sudo nano /etc/machina/config.toml
-  5. sudo ./machina-daemon --config /etc/machina/config.toml
-  6. https://<server-ip>:5092
-  7. ./test-package.sh
+  2. ./install.sh              # deps + verify bundle
+  3. ./test-host.sh
+  4. sudo ./install-full.sh --bind 0.0.0.0 --open-firewall
+  5. https://<server-ip>:5092
+  6. ./test-package.sh
+
+PRODUCTION HOST (mkosi, packer, systemd — no git clone required)
+  sudo ./install-full.sh --bind 0.0.0.0 --open-firewall
 
 Checklist: PREREQUISITES.txt  |  Details: HOST_SETUP.txt
-Optional full install: ./install-full.sh --help
 QEOF
 
 cat > "\${STAGE}/README.txt" <<README_EOF
@@ -189,14 +192,14 @@ WHAT IS IN THIS ARCHIVE
   machina-daemon, machina (TUI), web/dist/
   install.sh, test-host.sh, test-package.sh, uninstall.sh
   HOST_SETUP.txt, PREREQUISITES.txt
-  install-full.sh (optional full installer from source)
+  install-full.sh       Full host install (deps + systemd + /usr/local; uses bundled binaries)
 
 REQUIREMENTS — see PREREQUISITES.txt
-  Linux x86_64, KVM, libvirtd, qemu-kvm, /etc/machina/config.toml
+  Linux x86_64, KVM, libvirtd, qemu-kvm
 
-ORDER: ./install.sh → ./test-host.sh → configure → machina-daemon → ./test-package.sh
+ORDER: ./install.sh → ./test-host.sh → sudo ./install-full.sh [--bind 0.0.0.0] → Web UI :5092
 
-FLAGS (install-full.sh): --deps-only --bind 0.0.0.0 --open-firewall --remote user@host
+FLAGS (install-full.sh): --deps-only --bind 0.0.0.0 --open-firewall (no source tree needed)
 
 UNINSTALL: ./uninstall.sh --yes [--remove-dir]
 README_EOF

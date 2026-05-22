@@ -23,6 +23,7 @@ BIND_HOST=""
 REMOTE_HOST=""
 OPEN_FIREWALL=false
 NO_TESTS=false
+BUNDLE_INSTALL=false
 
 info()  { echo "ℹ️  $*"; }
 ok()    { echo "✅ $*"; }
@@ -670,12 +671,32 @@ install_rust() {
 
 # ── Clone and build ──────────────────────────────────────────────────
 
+detect_bundle_install() {
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    if [ -x "$script_dir/machina-daemon" ] && [ ! -f "$script_dir/Cargo.toml" ]; then
+        BUNDLE_INSTALL=true
+        INSTALL_DIR="$script_dir"
+        INSTALLER_ROOT="$script_dir"
+        return 0
+    fi
+    return 1
+}
+
 find_source() {
     step "Locating machina source"
 
-    # If running from within the repo, use it directly
     local script_dir
     script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+    # Client tarball (install-full.sh): prebuilt binaries, no Cargo workspace
+    if detect_bundle_install; then
+        ok "Client bundle at $INSTALL_DIR (installing prebuilt binaries — no source build)"
+        cd "$INSTALL_DIR"
+        return
+    fi
+
+    # If running from within the repo, use it directly
     if [ -f "$script_dir/Makefile" ] && [ -f "$script_dir/Cargo.toml" ]; then
         INSTALL_DIR="$script_dir"
         ok "Using local source at $INSTALL_DIR"
@@ -810,7 +831,62 @@ install_mkosi_workspace_defs() {
 
 # ── Install ──────────────────────────────────────────────────────────
 
+install_files_bundle() {
+    step "Installing machina (client bundle)"
+
+    local root="$INSTALL_DIR"
+
+    mkdir -p /var/lib/machina/backups
+    mkdir -p /var/lib/machina/packer-builds
+
+    install -Dm755 "$root/machina-daemon" /usr/local/bin/machina-daemon
+    ok "machina-daemon -> /usr/local/bin/"
+    if [ -x "$root/machina" ]; then
+        install -Dm755 "$root/machina" /usr/local/bin/machina
+        ok "machina TUI -> /usr/local/bin/"
+    fi
+
+    if [ ! -f /etc/machina/config.toml ]; then
+        if [ -f "$root/machina.toml.example" ]; then
+            install -Dm644 "$root/machina.toml.example" /etc/machina/config.toml
+        elif [ -f "$root/contrib/machina.toml" ]; then
+            install -Dm644 "$root/contrib/machina.toml" /etc/machina/config.toml
+        fi
+        ok "Config -> /etc/machina/config.toml"
+    else
+        info "Config already exists, not overwriting"
+    fi
+
+    if [ -n "$BIND_HOST" ] && [ -f /etc/machina/config.toml ]; then
+        sed -i "s/^host = .*/host = \"$BIND_HOST\"/" /etc/machina/config.toml
+        ok "Configured daemon to bind to $BIND_HOST"
+    fi
+
+    if [ -f "$root/machina-daemon.service" ]; then
+        install -Dm644 "$root/machina-daemon.service" /usr/lib/systemd/system/machina-daemon.service
+        systemctl daemon-reload
+        ok "Systemd unit -> machina-daemon.service"
+    else
+        warn "machina-daemon.service missing from bundle — start manually: machina-daemon --config /etc/machina/config.toml"
+    fi
+
+    if [ -d "$root/web/dist" ]; then
+        mkdir -p /usr/local/share/machina/web
+        cp -r "$root/web/dist/"* /usr/local/share/machina/web/
+        ok "Web UI -> /usr/local/share/machina/web/"
+    else
+        warn "web/dist missing from bundle — dashboard may not load"
+    fi
+
+    install_mkosi_workspace_defs
+}
+
 install_files() {
+    if [ "${BUNDLE_INSTALL:-false}" = true ]; then
+        install_files_bundle
+        return
+    fi
+
     step "Installing machina"
 
     cd "$INSTALL_DIR"
@@ -1282,8 +1358,10 @@ Usage: install.sh [OPTIONS]
   helpers when you configure them.
 
   Detects the Linux distribution, installs all dependencies (libvirt,
-  QEMU/KVM, Rust, Node.js 20), builds from source, deploys binaries
-  and systemd services, then runs verification tests (unless --no-tests).
+  QEMU/KVM, Rust, Node.js 20), then either builds from source (git checkout)
+  or installs prebuilt binaries from a client tarball (install-full.sh
+  in machina-*-linux-amd64), deploys systemd services, and runs verification
+  tests (unless --no-tests).
 
 Install options:
   --bind HOST          Bind daemon to HOST (default: 127.0.0.1)
@@ -1384,19 +1462,36 @@ HELPEOF
     info "Install log: $LOG_FILE"
 
     install_deps
-    install_rust
+
+    detect_bundle_install || true
+
+    if [ "${BUNDLE_INSTALL:-false}" != true ]; then
+        install_rust
+    else
+        info "Client bundle detected — skipping Rust toolchain install (using prebuilt binaries)"
+    fi
 
     if $deps_only; then
-        ok "Dependencies installed. Run '$0' again to build and install."
+        if [ "${BUNDLE_INSTALL:-false}" = true ]; then
+            ok "Host dependencies installed. Run: sudo $0 [--bind 0.0.0.0] [--open-firewall]"
+        else
+            ok "Dependencies installed. Run '$0' again to build and install."
+        fi
         exit 0
     fi
 
     find_source
-    build_rust
-    build_web
-    # After sources compile: bring up libvirt so virsh failures do not obscure Rust build errors in the log.
-    enable_libvirt
-    install_files
+
+    if [ "${BUNDLE_INSTALL:-false}" = true ]; then
+        enable_libvirt
+        install_files
+    else
+        build_rust
+        build_web
+        # After sources compile: bring up libvirt so virsh failures do not obscure Rust build errors in the log.
+        enable_libvirt
+        install_files
+    fi
     ensure_tls_for_https
 
     if $OPEN_FIREWALL; then

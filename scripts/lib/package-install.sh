@@ -42,7 +42,8 @@ pkg_step_done
 pkg_summary "Install complete"
 pkg_next_steps \
   "Host checks: ./test-host.sh" \
-  "Start: sudo ./machina-daemon --config /etc/machina/config.toml" \
+  "Production install: sudo ./install-full.sh --bind 0.0.0.0 --open-firewall" \
+  "Quick start: sudo ./machina-daemon --config /etc/machina/config.toml" \
   "UI: https://<this-server>:5092" \
   "Docs: HOST_SETUP.txt · PREREQUISITES.txt" \
   "Remove: ./uninstall.sh --yes [--remove-dir]"
