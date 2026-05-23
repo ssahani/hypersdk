@@ -169,9 +169,9 @@ ACCESS_SCHEME=https
 ACCESS_PORT=5092
 ACCESS_PATH=
 AUTO_FULL_INSTALL=1
-FINISH_EXTRA_1=TUI: machina
-FINISH_EXTRA_2=Service: sudo systemctl status machina-daemon
-FINISH_EXTRA_3=Logs: sudo journalctl -u machina-daemon -f
+FINISH_EXTRA_1='TUI: machina'
+FINISH_EXTRA_2='Service: sudo systemctl status machina-daemon'
+FINISH_EXTRA_3='Logs: sudo journalctl -u machina-daemon -f'
 META
 cp "\${BUILD_DIR}/install.sh" "\${STAGE}/install-full.sh" 2>/dev/null || true
 chmod +x "\${STAGE}/install-full.sh" 2>/dev/null || true
