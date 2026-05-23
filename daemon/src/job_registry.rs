@@ -235,16 +235,4 @@ impl JobRegistry {
         })
     }
 
-    /// Log lines starting at `offset` (0-based line index). Returns `(lines, total_len, status_clone)`.
-    pub fn logs_since(&self, id: &Uuid, offset: usize) -> Option<(Vec<String>, usize, JobStatus)> {
-        let g = self.inner.lock().expect("job registry");
-        let j = g.get(id)?;
-        let total = j.logs.len();
-        let slice = if offset < total {
-            j.logs[offset..].to_vec()
-        } else {
-            Vec::new()
-        };
-        Some((slice, total, j.summary.status.clone()))
-    }
 }

@@ -539,17 +539,6 @@ async fn run_kubectl_timeout(
     })
 }
 
-async fn run_kubectl(args: &[String]) -> Result<KubectlResult, LibvirtError> {
-    run_kubectl_timeout(args, KUBECTL_TIMEOUT_SECS, None).await
-}
-
-async fn run_kubectl_ctx(
-    args: &[String],
-    context: Option<&str>,
-) -> Result<KubectlResult, LibvirtError> {
-    run_kubectl_timeout(args, KUBECTL_TIMEOUT_SECS, context).await
-}
-
 async fn run_kubectl_json_timeout(
     args: &[String],
     timeout_secs: u64,
@@ -569,10 +558,6 @@ async fn run_kubectl_json_timeout(
     }
     serde_json::from_str::<Value>(&res.stdout)
         .map_err(|e| LibvirtError::Operation(format!("failed to parse kubectl JSON output: {e}")))
-}
-
-async fn run_kubectl_json(args: &[String]) -> Result<Value, LibvirtError> {
-    run_kubectl_json_timeout(args, KUBECTL_TIMEOUT_SECS, None).await
 }
 
 async fn run_kubectl_json_ctx(

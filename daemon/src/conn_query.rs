@@ -41,10 +41,9 @@ pub async fn spawn_libvirt<R>(
 where
     R: Send + 'static,
 {
-    let cq = conn_q.connection.clone();
     let mgr = manager;
     tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
+        let t = conn_q.target(&mgr);
         mgr.with_conn_target(t, op)
     })
     .await
