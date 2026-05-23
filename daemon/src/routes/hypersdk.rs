@@ -99,7 +99,7 @@ async fn hypersdk_status() -> Result<Json<Value>, AppError> {
             out["reachable"] = true.into();
         }
         Err(e) => {
-            out["last_error"] = e.to_string().into();
+            out["last_error"] = format!("{e:?}").into();
         }
     }
     Ok(Json(out))

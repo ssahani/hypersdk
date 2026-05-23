@@ -313,9 +313,9 @@ async fn openstack_push_preview_handler(
     let mgr = manager.clone();
     let n = name.clone();
     let cq = conn_q.connection.clone();
-    let preview = tokio::task::spawn_blocking(move || {
+    let preview = tokio::task::spawn_blocking(move || -> Result<_, AppError> {
         let details = vm_details_blocking(&mgr, &n, cq.as_deref())?;
-        libvirt_openstack_push_preview(&n, &details)
+        libvirt_openstack_push_preview(&n, &details).map_err(AppError::from)
     })
     .await
     .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
@@ -347,12 +347,12 @@ async fn openstack_push_handler(
     let cq = conn_q.connection.clone();
     let stop_vm = body.stop_vm;
     let glance_override = body.upload.glance_name.clone();
-    let preview = tokio::task::spawn_blocking(move || {
+    let preview = tokio::task::spawn_blocking(move || -> Result<_, AppError> {
         let details = vm_details_blocking(&mgr, &n, cq.as_deref())?;
-        let preview = libvirt_openstack_push_preview(&n, &details)?;
+        let preview = libvirt_openstack_push_preview(&n, &details).map_err(AppError::from)?;
         if stop_vm && preview.vm_running {
             let t = mgr.resolve_query(cq.as_deref());
-            mgr.with_conn_target(t, |c| domain::stop_vm(c, &n))?;
+            mgr.with_conn_target(t, |c| domain::stop_vm(c, &n)).map_err(AppError::from)?;
         }
         Ok(preview)
     })
