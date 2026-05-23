@@ -14,8 +14,8 @@ pub mod validate;
 pub mod xml;
 
 pub use config::{
-    AuthConfig, KubeVirtConfig, MachinaConfig, OpenStackConfig, OidcConfig, OidcDefaultRole,
-    SshTerminalConfig, SshTerminalTarget, VmCreateBackend, DEFAULT_DAEMON_PORT,
+    AuthConfig, HypersdkConfig, KubeVirtConfig, MachinaConfig, OpenStackConfig, OidcConfig,
+    OidcDefaultRole, SshTerminalConfig, SshTerminalTarget, VmCreateBackend, DEFAULT_DAEMON_PORT,
 };
 pub use kubevirt::{
     kubevirt_bundle_from_libvirt_vm, kubevirt_bundle_from_qcow2, resolve_guest_os, GuestOsFamily,

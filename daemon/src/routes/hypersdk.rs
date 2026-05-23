@@ -98,8 +98,8 @@ async fn hypersdk_status() -> Result<Json<Value>, AppError> {
         Ok(_) => {
             out["reachable"] = true.into();
         }
-        Err(e) => {
-            out["last_error"] = format!("{e:?}").into();
+        Err(_) => {
+            out["last_error"] = "hypervisord health check failed".into();
         }
     }
     Ok(Json(out))
