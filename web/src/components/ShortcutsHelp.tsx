@@ -1,5 +1,4 @@
 import { X } from 'lucide-react'
-import { ZyvorInline } from './ZyvorBrand'
 
 const shortcuts = [
   { keys: ['Ctrl', 'K'], description: 'Command palette' },
@@ -10,6 +9,9 @@ const shortcuts = [
   { keys: ['g', 'c'], description: 'Create VM' },
   { keys: ['g', 'e'], description: 'Go to Live Metrics' },
   { keys: ['g', 'b'], description: 'Go to Backups' },
+  { keys: ['g', 'i'], description: 'Go to Disk Images' },
+  { keys: ['g', 'k'], description: 'Go to KubeVirt Workloads' },
+  { keys: ['g', 'o'], description: 'Go to OpenStack (when configured)' },
   { keys: ['?'], description: 'Show keyboard shortcuts' },
 ]
 
@@ -48,9 +50,7 @@ export default function ShortcutsHelp({ onClose }: { onClose: () => void }) {
         </div>
         <div className="px-5 py-3 border-t border-slate-700/50 space-y-2 text-xs text-slate-500">
           <p>Shortcuts are disabled when typing in input fields.</p>
-          <p className="text-center">
-            <ZyvorInline product="Machina" />
-          </p>
+          <p className="text-center"></p>
         </div>
       </div>
     </div>

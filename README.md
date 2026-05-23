@@ -2,7 +2,7 @@
 
 **Enterprise Linux Hypervisor Management Platform** for bare-metal worker nodes — unified control plane for VMs, networks, storage, snapshots, and day-two operations from a single dashboard and REST API.
 
-Built on **libvirt** with QEMU/KVM. Optional **Kubernetes** integration via YAML workflows and `kubectl`/`virtctl` helpers allows libvirt guests to participate in **KubeVirt** clusters and migrations. See [docs/kubevirt-migration.md](docs/kubevirt-migration.md).
+Built on **libvirt** with QEMU/KVM. Optional **Kubernetes** integration via YAML workflows and `kubectl`/`virtctl` helpers allows libvirt guests to participate in **KubeVirt** clusters and migrations. See [docs/kubevirt-migration.md](docs/kubevirt-migration.md). **OpenStack** Glance upload from qcow2 on the hypervisor is available via hyper2kvm — see [docs/openstack-migration.md](docs/openstack-migration.md).
 
 A **Rust daemon** exposes REST and WebSocket APIs; a **web UI** delivers VNC, SPICE, serial, and SSH consoles; a **terminal UI** covers keyboard-first workflows. PAM authentication with RBAC, live metrics, Prometheus, alerts, webhooks, scheduled actions, and more run through that single daemon.
 

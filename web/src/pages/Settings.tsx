@@ -10,11 +10,14 @@ import {
   NotificationChannel, SnapshotSchedule,
 } from '../api/automation'
 import { getOsUserCapability, createOsUser, deleteOsUser, OsUserCapability } from '../api/system'
+import { getOpenStackStatus, postOpenStackTestConnection, type OpenStackConnectionStatus } from '../api/openstack'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { isOpenStackNavEnabled } from '../utils/routes'
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   Settings, Users, Key, Bell, Webhook, Clock, Plus, Trash2, RefreshCw,
-  Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare,
+  Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare, Cloud, ExternalLink,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 
@@ -24,6 +27,7 @@ export default function SettingsPage() {
   const [tab, setTab] = useState<Tab>('roles')
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
+  const { info } = usePlatformInfo()
 
   // Data
   const [roles, setRoles] = useState<UserRole[]>([])
@@ -58,6 +62,8 @@ export default function SettingsPage() {
   const [newOsPassword, setNewOsPassword] = useState('')
   const [deleteOsUsername, setDeleteOsUsername] = useState('')
   const [addOsUserToLibvirt, setAddOsUserToLibvirt] = useState(true)
+  const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
+  const [openstackTesting, setOpenstackTesting] = useState(false)
 
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -65,6 +71,7 @@ export default function SettingsPage() {
       listWebhooks(), listSchedules(), listVMs(),
       listNotificationChannels(), listSnapshotSchedules(),
       getOsUserCapability(),
+      getOpenStackStatus(),
     ])
     if (results[0].status === 'fulfilled') setRoles(results[0].value)
     if (results[1].status === 'fulfilled') setTokens(results[1].value)
@@ -77,6 +84,8 @@ export default function SettingsPage() {
     if (results[8].status === 'fulfilled') setSnapshotSchedules(results[8].value)
     if (results[9].status === 'fulfilled') setOsUserCap(results[9].value)
     else setOsUserCap(null)
+    if (results[10].status === 'fulfilled') setOpenstackStatus(results[10].value)
+    else setOpenstackStatus(null)
     setLoading(false)
   }, [])
 
@@ -113,6 +122,78 @@ export default function SettingsPage() {
         Libvirt secrets (Ceph, iSCSI, TLS, …) are managed on the{' '}
         <Link to="/secrets" className="text-blue-400 hover:text-blue-300 underline">Secrets</Link> page (define XML + optional base64 value).
       </p>
+
+      <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+        <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+          <Cloud className="w-4 h-4 text-sky-400" />
+          OpenStack connection
+        </h2>
+        <p className="text-xs text-slate-500">
+          Credentials live on the host (<code className="text-slate-400">clouds.yaml</code>, machina config, or{' '}
+          <code className="text-slate-400">OS_*</code>). Edit{' '}
+          <code className="text-slate-400">/etc/machina/config.toml</code> — not in the browser.
+        </p>
+        {openstackStatus && (
+          <dl className="grid grid-cols-2 gap-2 text-sm">
+            <div><dt className="text-slate-500 text-xs">Enabled</dt><dd>{openstackStatus.enabled ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Configured</dt><dd>{openstackStatus.configured ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Cloud</dt><dd>{openstackStatus.cloud_name || '—'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Reachable</dt><dd>{openstackStatus.reachable ? 'yes' : 'no'}</dd></div>
+            {info?.openstack?.clouds_yaml && (
+              <div className="col-span-2">
+                <dt className="text-slate-500 text-xs">clouds.yaml</dt>
+                <dd className="font-mono text-xs break-all">{info.openstack.clouds_yaml}</dd>
+              </div>
+            )}
+          </dl>
+        )}
+        <p className="text-xs text-slate-500">
+          First boot on a Packstack/RDO host:{' '}
+          <code className="text-slate-400">sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack</code>
+          {' '}then <code className="text-slate-400">sudo systemctl restart machina-daemon</code>. See{' '}
+          <code className="text-slate-400">docs/openstack.md</code> in the machina source tree.
+        </p>
+        {isOpenStackNavEnabled(info?.openstack) && info?.openstack?.upload_enabled && (
+          <p className="text-xs text-slate-500">
+            <a
+              href={`https://${window.location.hostname}:5080/web/dashboard/`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1 text-sky-400 hover:underline"
+            >
+              HyperSDK dashboard (export pipelines)
+              <ExternalLink className="w-3 h-3" />
+            </a>
+          </p>
+        )}
+        {openstackStatus?.error && (
+          <p className="text-xs text-red-400">{openstackStatus.error}</p>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={openstackTesting || !openstackStatus?.configured}
+            onClick={async () => {
+              setOpenstackTesting(true)
+              try {
+                const s = await postOpenStackTestConnection()
+                setOpenstackStatus(s)
+                toast.success(s.reachable ? 'OpenStack connection OK' : 'Connected but list failed')
+              } catch (e: unknown) {
+                toast.error(e instanceof Error ? e.message : String(e))
+              } finally {
+                setOpenstackTesting(false)
+              }
+            }}
+            className="px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm disabled:opacity-50"
+          >
+            {openstackTesting ? 'Testing…' : 'Test connection'}
+          </button>
+          <Link to="/openstack/instances" className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-700">
+            Open instances
+          </Link>
+        </div>
+      </section>
 
       <div>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Section</h2>

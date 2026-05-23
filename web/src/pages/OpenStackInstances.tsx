@@ -1,0 +1,255 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import {
+  listOpenStackInstances,
+  startOpenStackInstance,
+  stopOpenStackInstance,
+  rebootOpenStackInstance,
+  getOpenStackStatus,
+  type OpenStackInstance,
+  type OpenStackConnectionStatus,
+} from '../api/openstack'
+import { useToastContext } from '../contexts/ToastContext'
+import { Play, Square, RotateCcw, Search, RefreshCw, Cloud, Plus, AlertCircle } from 'lucide-react'
+import OpenStackFooter from '../components/OpenStackFooter'
+
+const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
+
+function statusBadge(status: string) {
+  const s = status.toUpperCase()
+  if (s === 'ACTIVE') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+  if (s === 'SHUTOFF') return 'bg-slate-500/20 text-slate-300 border-slate-500/40'
+  if (s === 'ERROR') return 'bg-red-500/20 text-red-300 border-red-500/40'
+  if (s === 'BUILD') return 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+  return 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+}
+
+export default function OpenStackInstancesPage() {
+  const [instances, setInstances] = useState<OpenStackInstance[]>([])
+  const [status, setStatus] = useState<OpenStackConnectionStatus | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const toast = useToastContext()
+  const { lastEvent, refreshKey } = usePlatformInfo()
+
+  const load = useCallback(async () => {
+    try {
+      const [conn, list] = await Promise.all([
+        getOpenStackStatus(),
+        listOpenStackInstances({
+          search: search.trim() || undefined,
+          status: statusFilter || undefined,
+        }),
+      ])
+      setStatus(conn)
+      setInstances(list.instances)
+    } catch (e: unknown) {
+      toast.error(`Failed to load OpenStack instances: ${e instanceof Error ? e.message : e}`)
+    } finally {
+      setLoading(false)
+    }
+  }, [search, statusFilter, toast])
+
+  useEffect(() => {
+    setLoading(true)
+    const t = setTimeout(() => { load() }, search ? 300 : 0)
+    return () => clearTimeout(t)
+  }, [load, search])
+
+  useEffect(() => {
+    if (!lastEvent) return
+    if (lastEvent.kind.startsWith('openstack.instance')) void load()
+  }, [refreshKey, lastEvent, load])
+
+  const runAction = async (
+    inst: OpenStackInstance,
+    fn: (id: string) => Promise<unknown>,
+    label: string,
+  ) => {
+    try {
+      await fn(inst.id)
+      toast.success(`${label} '${inst.name}' OK`)
+      load()
+    } catch (e: unknown) {
+      toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`)
+    }
+  }
+
+  const notConfigured = status && !status.configured
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-semibold flex items-center gap-2">
+            <Cloud className="w-7 h-7 text-sky-400" />
+            OpenStack Instances
+          </h1>
+          <p className="text-slate-400 text-sm mt-1">
+            Nova instances for cloud{' '}
+            <span className="text-slate-200">{status?.cloud_name || '—'}</span>
+            {status?.connected && status.instance_count != null && (
+              <> · {status.instance_count} in project</>
+            )}
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Link
+            to="/openstack/images"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-sm"
+          >
+            Glance images
+          </Link>
+          <Link
+            to="/openstack/create"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            Create instance
+          </Link>
+          <button
+            type="button"
+            onClick={() => { setLoading(true); load() }}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 text-slate-200 hover:bg-slate-800 text-sm"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      {notConfigured && (
+        <div className="flex gap-3 p-4 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-100 text-sm">
+          <AlertCircle className="w-5 h-5 shrink-0" />
+          <div>
+            OpenStack is not configured on this host. Set{' '}
+            <code className="text-amber-200">[openstack] enabled = true</code> and{' '}
+            <code className="text-amber-200">cloud_name</code> or inline auth in machina config.
+            See <code className="text-amber-200">docs/openstack.md</code> in the machina repo or Settings → test connection.
+          </div>
+        </div>
+      )}
+
+      {status?.error && (
+        <div className="p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm">
+          {status.error}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-3 items-center">
+        <div className="relative flex-1 min-w-[200px] max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+          <input
+            type="search"
+            placeholder="Search name or ID…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 text-sm"
+          />
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {STATUS_CHIPS.map((chip) => (
+            <button
+              key={chip || 'all'}
+              type="button"
+              onClick={() => setStatusFilter(chip)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                statusFilter === chip
+                  ? 'bg-sky-600 border-sky-500 text-white'
+                  : 'border-slate-600 text-slate-400 hover:border-slate-500'
+              }`}
+            >
+              {chip || 'All'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="overflow-x-auto rounded-xl border border-slate-700/80">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-900/80 text-slate-400 text-left">
+            <tr>
+              <th className="px-4 py-3 font-medium">Name</th>
+              <th className="px-4 py-3 font-medium">Status</th>
+              <th className="px-4 py-3 font-medium">Flavor</th>
+              <th className="px-4 py-3 font-medium">IPs</th>
+              <th className="px-4 py-3 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-800">
+            {loading && instances.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  Loading…
+                </td>
+              </tr>
+            )}
+            {!loading && instances.length === 0 && (
+              <tr>
+                <td colSpan={5} className="px-4 py-8 text-center text-slate-500">
+                  No instances match your filters.
+                </td>
+              </tr>
+            )}
+            {instances.map((inst) => (
+              <tr key={inst.id} className="hover:bg-slate-800/40">
+                <td className="px-4 py-3">
+                  <Link
+                    to={`/openstack/instances/${encodeURIComponent(inst.id)}`}
+                    className="font-medium text-sky-400 hover:text-sky-300"
+                  >
+                    {inst.name || inst.id.slice(0, 8)}
+                  </Link>
+                  <div className="text-xs text-slate-500 font-mono truncate max-w-[220px]">{inst.id}</div>
+                </td>
+                <td className="px-4 py-3">
+                  <span className={`inline-block px-2 py-0.5 rounded border text-xs ${statusBadge(inst.status)}`}>
+                    {inst.status}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-slate-300">
+                  {inst.flavor_name || inst.flavor_id || '—'}
+                </td>
+                <td className="px-4 py-3 text-slate-400 font-mono text-xs">
+                  {inst.ip_addresses.length ? inst.ip_addresses.join(', ') : '—'}
+                </td>
+                <td className="px-4 py-3">
+                  <div className="flex justify-end gap-1">
+                    <button
+                      type="button"
+                      title="Start"
+                      onClick={() => runAction(inst, startOpenStackInstance, 'Start')}
+                      className="p-2 rounded hover:bg-emerald-500/20 text-emerald-400"
+                    >
+                      <Play className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Stop"
+                      onClick={() => runAction(inst, stopOpenStackInstance, 'Stop')}
+                      className="p-2 rounded hover:bg-red-500/20 text-red-400"
+                    >
+                      <Square className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Reboot"
+                      onClick={() => runAction(inst, (id) => rebootOpenStackInstance(id, 'hard'), 'Reboot')}
+                      className="p-2 rounded hover:bg-amber-500/20 text-amber-400"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <OpenStackFooter />
+    </div>
+  )
+}

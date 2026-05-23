@@ -337,6 +337,26 @@ impl DaemonClient {
     }
 
     /// `op`: `apply` | `upload` | `start` — POST body is JSON overrides (same keys as kubevirt-bundle query).
+    // ── OpenStack (Nova/Glance) ─────────────────────────────────────────
+
+    pub async fn openstack_status(&self) -> Result<serde_json::Value> {
+        self.get_json("/api/v1/openstack/status").await
+    }
+
+    pub async fn openstack_list_instances(&self) -> Result<serde_json::Value> {
+        self.get_json("/api/v1/openstack/instances").await
+    }
+
+    pub async fn openstack_instance_action(&self, id: &str, action: &str) -> Result<()> {
+        self.post_action(&format!("/api/v1/openstack/instances/{id}/{action}"))
+            .await
+    }
+
+    pub async fn openstack_delete_instance(&self, id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/openstack/instances/{id}"))
+            .await
+    }
+
     pub async fn kubevirt_cluster_exec(
         &self,
         vm: &str,

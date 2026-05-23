@@ -9,12 +9,14 @@ import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { timeAgo } from '../utils/time'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw, Cloud } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { isOpenStackNavEnabled } from '../utils/routes'
+import { getOpenStackStatus, type OpenStackConnectionStatus } from '../api/openstack'
 import Hero from '../components/Hero'
 
 interface MetricsPoint { time: string; memory: number }
@@ -39,7 +41,9 @@ export default function Dashboard() {
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const { subscribe, events } = useWebSocketContext()
   const toast = useToastContext()
-  const { lastEvent, refreshKey } = usePlatformInfo()
+  const { info, lastEvent, refreshKey } = usePlatformInfo()
+  const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
+  const openstackReady = isOpenStackNavEnabled(info?.openstack)
 
   const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
@@ -68,8 +72,17 @@ export default function Dashboard() {
     } catch {
       setHealthProblems([])
     }
+    if (isOpenStackNavEnabled(info?.openstack)) {
+      try {
+        setOpenstackStatus(await getOpenStackStatus())
+      } catch {
+        setOpenstackStatus(null)
+      }
+    } else {
+      setOpenstackStatus(null)
+    }
     setLoading(false)
-  }, [])
+  }, [info?.openstack])
 
   const loadMetrics = useCallback(async () => {
     try {
@@ -92,7 +105,9 @@ export default function Dashboard() {
   // Re-fetch immediately when the daemon emits a relevant event (e.g. a fresh
   // KubeVirt qcow2 upload). Avoids waiting up to 10s for the polling tick.
   useEffect(() => {
-    if (lastEvent && lastEvent.kind.startsWith('kubevirt.')) loadData()
+    if (lastEvent && (lastEvent.kind.startsWith('kubevirt.') || lastEvent.kind.startsWith('openstack.instance'))) {
+      loadData()
+    }
   }, [refreshKey, lastEvent, loadData])
 
   useEffect(() => {
@@ -243,6 +258,35 @@ export default function Dashboard() {
         <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
         <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
+
+      {openstackReady && openstackStatus && (
+        <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Cloud className="w-6 h-6 text-sky-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-slate-100">OpenStack</h2>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Cloud <span className="text-slate-200">{openstackStatus.cloud_name || '—'}</span>
+                {openstackStatus.instance_count != null && (
+                  <> · {openstackStatus.instance_count} instance{openstackStatus.instance_count === 1 ? '' : 's'}</>
+                )}
+                {openstackStatus.reachable ? '' : ' · not reachable'}
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link to="/openstack/instances" className="px-3 py-1.5 rounded-lg border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-sm">
+              Instances
+            </Link>
+            <Link to="/openstack/create" className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm">
+              Create
+            </Link>
+            <Link to="/openstack/images" className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
+              Images
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Recently Viewed */}
       {(() => {

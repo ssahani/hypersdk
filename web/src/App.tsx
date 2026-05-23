@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, useNavigate } from 'react-router'
+import { ZyvorFooter } from './components/ZyvorBrand';
 import { Suspense, lazy, useState, useCallback, useMemo } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
@@ -14,6 +15,8 @@ import ShortcutsHelp from './components/ShortcutsHelp'
 import PageSkeleton from './components/PageSkeleton'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
+import { usePlatformInfo } from './contexts/PlatformInfoContext'
+import { isOpenStackNavEnabled } from './utils/routes'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const VMList = lazy(() => import('./pages/VMList'))
@@ -46,23 +49,35 @@ const Jobs = lazy(() => import('./pages/Jobs'))
 const K8sOverview = lazy(() => import('./pages/K8sOverview'))
 const K8sWorkloads = lazy(() => import('./pages/K8sWorkloads'))
 const KataContainers = lazy(() => import('./pages/KataContainers'))
+const OpenStackInstances = lazy(() => import('./pages/OpenStackInstances'))
+const OpenStackInstanceDetail = lazy(() => import('./pages/OpenStackInstanceDetail'))
+const OpenStackCreateInstance = lazy(() => import('./pages/OpenStackCreateInstance'))
+const OpenStackImages = lazy(() => import('./pages/OpenStackImages'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
   const [showHelp, setShowHelp] = useState(false)
+  const { info } = usePlatformInfo()
+  const openstackReady = isOpenStackNavEnabled(info?.openstack)
 
-  const shortcuts = useMemo(() => [
-    { sequence: ['g', 'd'] as [string, string], handler: () => navigate('/') },
-    { sequence: ['g', 'v'] as [string, string], handler: () => navigate('/vms') },
-    { sequence: ['g', 'n'] as [string, string], handler: () => navigate('/networks') },
-    { sequence: ['g', 's'] as [string, string], handler: () => navigate('/storage') },
-    { sequence: ['g', 'c'] as [string, string], handler: () => navigate('/create') },
-    { sequence: ['g', 'e'] as [string, string], handler: () => navigate('/events') },
-    { sequence: ['g', 'j'] as [string, string], handler: () => navigate('/jobs') },
-    { sequence: ['g', 'b'] as [string, string], handler: () => navigate('/backups') },
-    { sequence: ['g', 'i'] as [string, string], handler: () => navigate('/disk-images') },
-    { sequence: ['g', 'k'] as [string, string], handler: () => navigate('/k8s/workloads') },
-  ], [navigate])
+  const shortcuts = useMemo(() => {
+    const base: { sequence: [string, string]; handler: () => void }[] = [
+      { sequence: ['g', 'd'], handler: () => navigate('/') },
+      { sequence: ['g', 'v'], handler: () => navigate('/vms') },
+      { sequence: ['g', 'n'], handler: () => navigate('/networks') },
+      { sequence: ['g', 's'], handler: () => navigate('/storage') },
+      { sequence: ['g', 'c'], handler: () => navigate('/create') },
+      { sequence: ['g', 'e'], handler: () => navigate('/events') },
+      { sequence: ['g', 'j'], handler: () => navigate('/jobs') },
+      { sequence: ['g', 'b'], handler: () => navigate('/backups') },
+      { sequence: ['g', 'i'], handler: () => navigate('/disk-images') },
+      { sequence: ['g', 'k'], handler: () => navigate('/k8s/workloads') },
+    ]
+    if (openstackReady) {
+      base.push({ sequence: ['g', 'o'], handler: () => navigate('/openstack/instances') })
+    }
+    return base
+  }, [navigate, openstackReady])
 
   useSequenceShortcuts(shortcuts)
 
@@ -122,6 +137,10 @@ function AuthenticatedApp() {
                 <Route path="/k8s" element={<K8sOverview />} />
                 <Route path="/k8s/workloads" element={<K8sWorkloads />} />
                 <Route path="/k8s/kata" element={<KataContainers />} />
+                <Route path="/openstack/instances" element={<OpenStackInstances />} />
+                <Route path="/openstack/instances/:id" element={<OpenStackInstanceDetail />} />
+                <Route path="/openstack/create" element={<OpenStackCreateInstance />} />
+                <Route path="/openstack/images" element={<OpenStackImages />} />
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />
                 <Route path="/storage/:pool" element={<StoragePoolDetail />} />
@@ -149,6 +168,7 @@ function AuthenticatedApp() {
               </Routes>
             </Suspense>
           </main>
+          <ZyvorFooter />
         </div>
         </BrowserRouter>
       </PlatformInfoProvider>

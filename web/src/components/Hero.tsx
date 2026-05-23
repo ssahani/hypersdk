@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
-import { Activity, Lock, Shield, Boxes, KeyRound, Wifi, WifiOff } from 'lucide-react'
+import { Activity, Lock, Shield, Boxes, KeyRound, Wifi, WifiOff, Cloud } from 'lucide-react'
+import { isOpenStackNavEnabled } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 
 interface HeroProps {
@@ -97,6 +98,23 @@ export default function Hero({ title, subtitle, icon, actions, children, hideBad
             icon={<KeyRound className="h-3 w-3" />}
             title={providers?.oidc.button_label}
             tone="info"
+          />
+          <Badge
+            on={isOpenStackNavEnabled(info?.openstack)}
+            label={
+              isOpenStackNavEnabled(info?.openstack)
+                ? `OpenStack: ${info?.openstack?.cloud_name || 'connected'}`
+                : info?.openstack?.enabled
+                  ? 'OpenStack: not wired'
+                  : 'OpenStack off'
+            }
+            icon={<Cloud className="h-3 w-3" />}
+            title={
+              isOpenStackNavEnabled(info?.openstack)
+                ? `Cloud ${info?.openstack?.cloud_name}; upload=${info?.openstack?.upload_enabled ? 'on' : 'off'}`
+                : 'Enable [openstack] and run openstack-wire-cloud.sh on the host'
+            }
+            tone={isOpenStackNavEnabled(info?.openstack) ? 'info' : 'warn'}
           />
           <Badge
             on={Boolean(info?.kubevirt.exec_enabled)}

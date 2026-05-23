@@ -1,0 +1,283 @@
+import { useCallback, useEffect, useState } from 'react'
+import {
+  attachOpenStackVolume,
+  associateOpenStackFloatingIp,
+  detachOpenStackVolume,
+  dissociateOpenStackFloatingIp,
+  exportOpenStackInstance,
+  getOpenStackConsoleOutput,
+  getOpenStackRemoteConsole,
+  listOpenStackCinderVolumes,
+  listOpenStackFlavors,
+  listOpenStackInstanceFloatingIps,
+  listOpenStackNetworks,
+  pauseOpenStackInstance,
+  resizeOpenStackInstance,
+  resumeOpenStackInstance,
+  suspendOpenStackInstance,
+  unpauseOpenStackInstance,
+  addOpenStackSecurityGroup,
+  removeOpenStackSecurityGroup,
+  type OpenStackAttachedVolume,
+  type OpenStackFloatingIp,
+  type OpenStackInstance,
+  type OpenStackNetwork,
+} from '../api/openstack'
+import { useToastContext } from '../contexts/ToastContext'
+import {
+  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2,
+} from 'lucide-react'
+
+type Props = {
+  inst: OpenStackInstance
+  volumes: OpenStackAttachedVolume[]
+  onRefresh: () => void
+}
+
+export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: Props) {
+  const toast = useToastContext()
+  const [fips, setFips] = useState<OpenStackFloatingIp[]>([])
+  const [cinderVols, setCinderVols] = useState<OpenStackAttachedVolume[]>([])
+  const [networks, setNetworks] = useState<OpenStackNetwork[]>([])
+  const [flavors, setFlavors] = useState<{ id: string; name: string }[]>([])
+  const [attachVolId, setAttachVolId] = useState('')
+  const [extNet, setExtNet] = useState('')
+  const [resizeFlavor, setResizeFlavor] = useState('')
+  const [sgName, setSgName] = useState('')
+  const [consoleLog, setConsoleLog] = useState<string | null>(null)
+  const [exportSteps, setExportSteps] = useState<string[] | null>(null)
+
+  const loadExtras = useCallback(async () => {
+    try {
+      const [f, cv, n, fl] = await Promise.all([
+        listOpenStackInstanceFloatingIps(inst.id),
+        listOpenStackCinderVolumes(),
+        listOpenStackNetworks(),
+        listOpenStackFlavors(),
+      ])
+      setFips(f.floating_ips)
+      setCinderVols(cv.volumes.filter((v) => !volumes.some((a) => a.id === v.id)))
+      setNetworks(n.networks.filter((net) => net.external))
+      setFlavors(fl.flavors.map((x) => ({ id: x.id, name: x.name })))
+      if (!extNet && n.networks.find((net) => net.external)) {
+        const ext = n.networks.find((net) => net.external)
+        if (ext) setExtNet(ext.id)
+      }
+    } catch {
+      /* optional */
+    }
+  }, [inst.id, volumes, extNet])
+
+  useEffect(() => { void loadExtras() }, [loadExtras])
+
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
+    try {
+      await fn()
+      toast.success(ok)
+      onRefresh()
+      void loadExtras()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3">Power &amp; lifecycle</h2>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => run(() => pauseOpenStackInstance(inst.id), 'Paused')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
+            <Pause className="w-3.5 h-3.5 inline mr-1" /> Pause
+          </button>
+          <button type="button" onClick={() => run(() => unpauseOpenStackInstance(inst.id), 'Unpaused')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
+            Unpause
+          </button>
+          <button type="button" onClick={() => run(() => suspendOpenStackInstance(inst.id), 'Suspended')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
+            Suspend
+          </button>
+          <button type="button" onClick={() => run(() => resumeOpenStackInstance(inst.id), 'Resumed')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
+            <PlayCircle className="w-3.5 h-3.5 inline mr-1" /> Resume
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3 items-end">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Resize to flavor</label>
+            <select value={resizeFlavor} onChange={(e) => setResizeFlavor(e.target.value)}
+              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
+              <option value="">Select…</option>
+              {flavors.map((f) => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
+          <button type="button" disabled={!resizeFlavor}
+            onClick={() => run(() => resizeOpenStackInstance(inst.id, resizeFlavor), 'Resize submitted')}
+            className="px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-sm text-white disabled:opacity-40">
+            <Maximize2 className="w-3.5 h-3.5 inline mr-1" /> Resize
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <Terminal className="w-4 h-4 text-sky-400" /> Console
+        </h2>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={async () => {
+            try {
+              const { output } = await getOpenStackConsoleOutput(inst.id, 100)
+              setConsoleLog(output || '(empty)')
+            } catch (e: unknown) {
+              toast.error(e instanceof Error ? e.message : String(e))
+            }
+          }} className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
+            Show serial log (100 lines)
+          </button>
+          <button type="button" onClick={async () => {
+            try {
+              const c = await getOpenStackRemoteConsole(inst.id, 'novnc')
+              window.open(c.url, '_blank', 'noopener,noreferrer')
+            } catch (e: unknown) {
+              toast.error(e instanceof Error ? e.message : String(e))
+            }
+          }} className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white">
+            Open noVNC console
+          </button>
+        </div>
+        {consoleLog != null && (
+          <pre className="mt-3 p-3 rounded-lg bg-black/60 text-xs text-slate-300 overflow-auto max-h-48 whitespace-pre-wrap">
+            {consoleLog}
+          </pre>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <Globe className="w-4 h-4 text-sky-400" /> Floating IPs
+        </h2>
+        {fips.length === 0 ? (
+          <p className="text-slate-500 text-sm mb-3">No floating IPs on this instance.</p>
+        ) : (
+          <ul className="space-y-2 mb-3 text-sm font-mono text-slate-300">
+            {fips.map((f) => (
+              <li key={f.id} className="flex flex-wrap items-center gap-2">
+                {f.address}
+                {f.fixed_address && <span className="text-slate-500">→ {f.fixed_address}</span>}
+                <button type="button" onClick={() => run(() => dissociateOpenStackFloatingIp(f.id), 'Dissociated')}
+                  className="text-xs text-red-400 hover:underline">Dissociate</button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">External network</label>
+            <select value={extNet} onChange={(e) => setExtNet(e.target.value)}
+              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm max-w-xs">
+              <option value="">Select…</option>
+              {networks.map((n) => (
+                <option key={n.id} value={n.id}>{n.name || n.id}</option>
+              ))}
+            </select>
+          </div>
+          <button type="button" disabled={!extNet}
+            onClick={() => run(
+              () => associateOpenStackFloatingIp(inst.id, { floating_network: extNet }),
+              'Floating IP associated',
+            )}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white disabled:opacity-40">
+            Allocate &amp; associate
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <HardDrive className="w-4 h-4 text-sky-400" /> Cinder volumes
+        </h2>
+        <div className="flex flex-wrap gap-2 items-end mb-3">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Attach volume</label>
+            <select value={attachVolId} onChange={(e) => setAttachVolId(e.target.value)}
+              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm max-w-md">
+              <option value="">Select unattached volume…</option>
+              {cinderVols.map((v) => (
+                <option key={v.id} value={v.id}>{v.name || v.id} ({v.size_gb} GB)</option>
+              ))}
+            </select>
+          </div>
+          <button type="button" disabled={!attachVolId}
+            onClick={() => run(() => attachOpenStackVolume(inst.id, attachVolId), 'Volume attached')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800 disabled:opacity-40">
+            Attach
+          </button>
+        </div>
+        {volumes.length > 0 && (
+          <ul className="space-y-2 text-sm">
+            {volumes.map((v) => (
+              <li key={v.id} className="flex flex-wrap items-center gap-2 font-mono text-slate-300">
+                <span>{v.device || '—'}</span>
+                <span className="text-slate-500">· {v.name || v.id}</span>
+                <button type="button" onClick={() => run(() => detachOpenStackVolume(inst.id, v.id), 'Detached')}
+                  className="text-xs text-red-400 hover:underline">Detach</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-sky-400" /> Security groups
+        </h2>
+        <div className="flex flex-wrap gap-2 items-end mb-2">
+          <input value={sgName} onChange={(e) => setSgName(e.target.value)} placeholder="group name"
+            className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
+          <button type="button" disabled={!sgName.trim()}
+            onClick={() => run(() => addOpenStackSecurityGroup(inst.id, sgName.trim()), 'Security group added')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm disabled:opacity-40">Add</button>
+        </div>
+        {inst.security_groups.length > 0 && (
+          <ul className="flex flex-wrap gap-2">
+            {inst.security_groups.map((g) => (
+              <li key={g} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-sm">
+                {g}
+                <button type="button" className="text-red-400 text-xs ml-1"
+                  onClick={() => run(() => removeOpenStackSecurityGroup(inst.id, g), 'Removed')}>×</button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-2 flex items-center gap-2">
+          <Upload className="w-4 h-4 text-sky-400" /> Export to Glance
+        </h2>
+        <p className="text-slate-500 text-sm mb-3">
+          Creates a Glance snapshot image; download with <code className="text-slate-400">openstack image save</code> on the host.
+        </p>
+        <button type="button" onClick={async () => {
+          try {
+            const plan = await exportOpenStackInstance(inst.id, `${inst.name}-export`)
+            setExportSteps(plan.steps)
+            toast.success(`Export started: ${plan.suggested_image_name}`)
+          } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : String(e))
+          }
+        }} className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white">
+          Snapshot for export
+        </button>
+        {exportSteps && (
+          <ol className="mt-3 list-decimal list-inside text-sm text-slate-400 space-y-1">
+            {exportSteps.map((s, i) => <li key={i}>{s}</li>)}
+          </ol>
+        )}
+      </section>
+    </div>
+  )
+}

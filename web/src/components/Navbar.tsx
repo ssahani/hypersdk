@@ -2,15 +2,17 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell, Palette } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
-import { ZyvorInline } from './ZyvorBrand'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
 import { timeAgo } from '../utils/time'
-import { navGroups, NavItem, NavGroup } from '../utils/routes'
+import { navGroups, NavItem, NavGroup, isOpenStackNavEnabled } from '../utils/routes'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 
-function navItemVisible(item: NavItem, username: string) {
-  return !item.requiresRoot || username === 'root'
+function navItemVisible(item: NavItem, username: string, openstackReady: boolean) {
+  if (item.requiresRoot && username !== 'root') return false
+  if (item.requiresOpenStack && !openstackReady) return false
+  return true
 }
 
 function NavLink({ item, onClick, steel }: { item: NavItem; onClick?: () => void; steel: boolean }) {
@@ -54,13 +56,13 @@ function NavLink({ item, onClick, steel }: { item: NavItem; onClick?: () => void
   )
 }
 
-function DesktopDropdown({ group, username, steel }: { group: NavGroup; username: string; steel: boolean }) {
+function DesktopDropdown({ group, username, steel, openstackReady }: { group: NavGroup; username: string; steel: boolean; openstackReady: boolean }) {
   const { theme } = useTheme()
   const isLight = theme === 'light'
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
-  const items = group.items.filter((i) => navItemVisible(i, username))
+  const items = group.items.filter((i) => navItemVisible(i, username, openstackReady))
   const hasActive = items.some((i) => i.to === location.pathname)
 
   const handleEnter = () => {
@@ -130,6 +132,8 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false)
   const { isAuthenticated, username, logout } = useAuth()
   const { theme, setTheme, toggleDarkLight } = useTheme()
+  const { info } = usePlatformInfo()
+  const openstackReady = isOpenStackNavEnabled(info?.openstack)
   const steel = theme === 'steel'
   const { events } = useWebSocketContext()
   const [bellOpen, setBellOpen] = useState(false)
@@ -213,7 +217,7 @@ export default function Navbar() {
           {/* Desktop Nav — top bar only, no sidebar */}
           <div className="hidden lg:flex items-center gap-1 order-3 lg:order-2 flex-1 min-w-0 justify-center">
             {navGroups.map((group) => (
-              <DesktopDropdown key={group.label} group={group} username={username} steel={steel} />
+              <DesktopDropdown key={group.label} group={group} username={username} steel={steel} openstackReady={openstackReady} />
             ))}
           </div>
 
@@ -243,11 +247,7 @@ export default function Navbar() {
               ) : (
                 <Sun className="w-4 h-4" />
               )}
-            </button>
-            <div className="hidden lg:flex items-center pl-3 ml-0.5 border-l light-theme:border-slate-300 border-slate-700/60 shrink-0">
-              <ZyvorInline product="Machina" />
-            </div>
-            <div className="relative shrink-0" ref={bellRef}>
+            </button><div className="relative shrink-0" ref={bellRef}>
               <button
                 type="button"
                 onClick={() => setBellOpen(o => !o)}
@@ -377,7 +377,7 @@ export default function Navbar() {
                   {group.label}
                 </div>
                 <div className="space-y-0.5">
-                  {group.items.filter((item) => navItemVisible(item, username)).map((item) => (
+                  {group.items.filter((item) => navItemVisible(item, username, openstackReady)).map((item) => (
                     <NavLink key={item.to} item={item} steel={steel} onClick={() => setMobileOpen(false)} />
                   ))}
                 </div>

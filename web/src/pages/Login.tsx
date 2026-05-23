@@ -31,6 +31,14 @@ const LOGIN_ORBS = [
 
 const features = [
   {
+    icon: <OpenStackLogo className="w-5 h-5" />,
+    gradient: 'from-red-500/90 to-orange-700/90',
+    title: 'OpenStack Nova & Glance',
+    description:
+      'Manage private-cloud instances and images from the same UI as libvirt — Keystone on the host, Packstack/RDO wire script, qcow2 upload without Horizon.',
+    highlight: true,
+  },
+  {
     icon: <Server className="w-5 h-5 text-blue-200" />,
     gradient: 'from-blue-500/90 to-blue-800/90',
     title: 'Guests & lifecycle',
@@ -55,6 +63,16 @@ const features = [
     description: 'Push any golden qcow2 to Kubernetes — Linux or Windows guest profiles, CDI upload, virtctl from Disk Images.',
   },
 ]
+
+function OpenStackLogo({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden>
+      <path d="M4 4h16v3H4z" fill="#ED1944" />
+      <path d="M4 9h5v6H4zm11 0h5v6h-5z" fill="#ED1944" />
+      <path d="M4 17h16v3H4z" fill="#ED1944" />
+    </svg>
+  )
+}
 
 function BoltLogo({ className = 'w-7 h-7' }: { className?: string }) {
   return <Zap className={className} aria-hidden />
@@ -145,15 +163,18 @@ export default function LoginPage() {
             <span className="text-4xl font-bold tracking-tight text-white">Machina</span>
           </div>
           <h2 className="login-fade-in login-fade-in-d1 text-4xl font-extrabold text-white leading-[1.12] mb-4 max-w-lg">
-            Bare-metal
+            Libvirt + OpenStack
             <br />
-            <span className="login-text-gradient">hypervisor control</span>
+            <span className="login-text-gradient">on one hypervisor host</span>
           </h2>
           <p className="login-fade-in login-fade-in-d2 text-lg text-slate-300/90 max-w-md leading-relaxed">
-            Libvirt and QEMU/KVM on the worker host — consoles, storage, automation, and optional KubeVirt migration for
-            any qcow2.
+            QEMU/KVM under libvirt, plus Nova and Glance when your cloud is wired — consoles, storage, automation, and
+            block upload to Glance, without Horizon.
           </p>
           <div className="login-fade-in login-fade-in-d3 flex flex-wrap gap-2 mt-6">
+            <span className="login-stat-pill">
+              <OpenStackLogo className="w-3 h-3" /> OpenStack
+            </span>
             <span className="login-stat-pill">
               <HardDrive className="w-3 h-3" /> qcow2 → K8s
             </span>
@@ -166,7 +187,11 @@ export default function LoginPage() {
           {features.map((f, i) => (
             <div
               key={f.title}
-              className="login-fade-in flex items-start gap-4 p-4 rounded-xl bg-white/[0.04] border border-white/10 backdrop-blur-sm"
+              className={`login-fade-in flex items-start gap-4 p-4 rounded-xl backdrop-blur-sm ${
+                'highlight' in f && f.highlight
+                  ? 'bg-red-950/25 border border-red-500/25'
+                  : 'bg-white/[0.04] border border-white/10'
+              }`}
               style={{ animationDelay: `${0.35 + i * 0.08}s`, opacity: 0 }}
             >
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br ${f.gradient} shadow-lg`}>
@@ -341,7 +366,7 @@ function MobileBrand() {
         <BoltLogo className="w-7 h-7 text-white" />
       </div>
       <h1 className="text-2xl font-bold text-white">Machina</h1>
-      <p className="text-sm mt-1 text-slate-400">Hypervisor host · sign in</p>
+      <p className="text-sm mt-1 text-slate-400">Libvirt · OpenStack · sign in</p>
     </div>
   )
 }
@@ -350,7 +375,9 @@ function DesktopHeading({ isLight }: { isLight: boolean }) {
   return (
     <div className="hidden lg:block mb-8">
       <h2 className={`text-2xl font-bold mb-1 ${isLight ? 'text-slate-800' : 'text-white'}`}>Welcome back</h2>
-      <p className={`text-sm ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>Sign in to this libvirt / QEMU/KVM host</p>
+      <p className={`text-sm ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+        Sign in to libvirt, OpenStack, and automation on this host
+      </p>
     </div>
   )
 }

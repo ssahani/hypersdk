@@ -1533,6 +1533,52 @@ impl App {
                     self.state.backups = backups;
                 }
             }
+            ["openstack"] | ["os"] => match self.client.openstack_status().await {
+                Ok(v) => {
+                    let connected = v.get("connected").and_then(|x| x.as_bool()).unwrap_or(false);
+                    let err = v.get("error").and_then(|x| x.as_str()).unwrap_or("");
+                    self.state.status_message = if connected {
+                        "OpenStack: connected".to_string()
+                    } else if err.is_empty() {
+                        "OpenStack: not connected (check Settings / config)".to_string()
+                    } else {
+                        format!("OpenStack: {err}")
+                    };
+                }
+                Err(e) => self.state.status_message = format!("openstack status: {e}"),
+            },
+            ["openstack", "list"] | ["os", "list"] => match self.client.openstack_list_instances().await {
+                Ok(v) => {
+                    let n = v
+                        .get("instances")
+                        .and_then(|x| x.as_array())
+                        .map(|a| a.len())
+                        .unwrap_or(0);
+                    self.state.status_message = format!("OpenStack: {n} instance(s)");
+                }
+                Err(e) => self.state.status_message = format!("openstack list: {e}"),
+            },
+            ["openstack", "start", id] | ["os", "start", id] => {
+                let r = self.client.openstack_instance_action(id, "start").await;
+                self.report_cmd_result(r, &format!("Started OpenStack instance {id}"), "openstack-start", id, false)
+                    .await;
+            }
+            ["openstack", "stop", id] | ["os", "stop", id] => {
+                let r = self.client.openstack_instance_action(id, "stop").await;
+                self.report_cmd_result(r, &format!("Stopped OpenStack instance {id}"), "openstack-stop", id, false)
+                    .await;
+            }
+            ["openstack", "delete", id] | ["os", "delete", id] => {
+                let r = self.client.openstack_delete_instance(id).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted OpenStack instance {id}"),
+                    "openstack-delete",
+                    id,
+                    true,
+                )
+                .await;
+            }
             ["kubevirt-bundle", vm] => match self.client.get_kubevirt_bundle_yaml(vm).await {
                 Ok(yaml) => {
                     self.state.xml_content = yaml;

@@ -15,3 +15,8 @@ thiserror = { workspace = true }
 chrono = { workspace = true }
 rand = { workspace = true }
 hex = { workspace = true }
+openstack = { workspace = true }
+osauth = "0.5"
+reqwest = { workspace = true }
+tokio = { workspace = true }
+tokio-util = { workspace = true }

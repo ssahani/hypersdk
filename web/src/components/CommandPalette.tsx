@@ -7,7 +7,8 @@ import { listPools, StoragePoolInfo } from '../api/storage'
 import { listAllSnapshots, SnapshotInfo } from '../api/snapshot'
 import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
-import { navGroups } from '../utils/routes'
+import { navGroups, isOpenStackNavEnabled } from '../utils/routes'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { getPinnedVMs } from '../utils/pinnedVMs'
@@ -35,6 +36,8 @@ export default function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const toast = useToastContext()
+  const { info } = usePlatformInfo()
+  const openstackReady = isOpenStackNavEnabled(info?.openstack)
 
   const toggle = useCallback(() => setOpen(o => !o), [])
 
@@ -119,10 +122,18 @@ export default function CommandPalette() {
     },
     { id: 'qa-kubevirt-workloads', icon: <Boxes className="w-4 h-4" />, label: 'KubeVirt Workloads', sublabel: 'g k', action: () => go('/k8s/workloads'), category: 'Quick Actions' },
   )
+  if (openstackReady) {
+    items.push(
+      { id: 'qa-openstack', icon: <Server className="w-4 h-4" />, label: 'OpenStack instances', sublabel: 'g o openstack', action: () => go('/openstack/instances'), category: 'Quick Actions' },
+      { id: 'qa-openstack-create', icon: <Plus className="w-4 h-4" />, label: 'openstack create instance', sublabel: 'openstack create', action: () => go('/openstack/create'), category: 'Quick Actions' },
+      { id: 'qa-openstack-images', icon: <HardDrive className="w-4 h-4" />, label: 'OpenStack Glance images', action: () => go('/openstack/images'), category: 'Quick Actions' },
+    )
+  }
 
   // Navigation pages
   for (const group of navGroups) {
     for (const item of group.items) {
+      if (item.requiresOpenStack && !openstackReady) continue
       items.push({
         id: `nav-${item.to}`,
         icon: item.icon,

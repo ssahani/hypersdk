@@ -5,6 +5,7 @@ import {
   ClipboardList,
   Boxes,
   Package,
+  Cloud,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -13,6 +14,15 @@ export interface NavItem {
   label: string
   /** If true, only show in nav when signed in as UNIX `root`. */
   requiresRoot?: boolean
+  /** If true, only show when OpenStack is enabled and configured on the daemon. */
+  requiresOpenStack?: boolean
+}
+
+/** OpenStack nav / shortcuts when platform-info reports a wired cloud. */
+export function isOpenStackNavEnabled(
+  openstack: { enabled?: boolean; configured?: boolean } | undefined,
+): boolean {
+  return Boolean(openstack?.enabled && openstack?.configured)
 }
 
 export interface NavGroup {
@@ -45,6 +55,7 @@ export const navGroups: NavGroup[] = [
       { to: '/k8s', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Kubernetes' },
       { to: '/k8s/workloads', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'K8s Workloads' },
       { to: '/k8s/kata', icon: React.createElement(Package, { className: 'w-4 h-4' }), label: 'Kata + Cloud Hypervisor' },
+      { to: '/openstack/instances', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'OpenStack', requiresOpenStack: true },
     ],
   },
   {
@@ -85,6 +96,10 @@ export const routeLabels: Record<string, string> = {
   '/k8s': 'Kubernetes',
   '/k8s/workloads': 'K8s Workloads',
   '/k8s/kata': 'Kata Containers',
+  '/openstack/instances': 'OpenStack Instances',
+  '/openstack/instances/:id': 'OpenStack Instance',
+  '/openstack/create': 'Create OpenStack Instance',
+  '/openstack/images': 'OpenStack Images',
   '/audit': 'Audit Log',
   '/import': 'Import VM',
   '/api-docs': 'API Docs',
