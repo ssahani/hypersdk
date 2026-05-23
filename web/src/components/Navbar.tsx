@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
 import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell, Palette } from 'lucide-react'
 import ConnectionStatus from './ConnectionStatus'
+import { ZyvorInline } from './ZyvorBrand'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
@@ -243,6 +244,9 @@ export default function Navbar() {
                 <Sun className="w-4 h-4" />
               )}
             </button>
+            <div className="hidden lg:flex items-center pl-3 ml-0.5 border-l light-theme:border-slate-300 border-slate-700/60 shrink-0">
+              <ZyvorInline product="Machina" />
+            </div>
             <div className="relative shrink-0" ref={bellRef}>
               <button
                 type="button"

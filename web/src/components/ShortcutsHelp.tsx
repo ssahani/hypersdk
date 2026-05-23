@@ -1,5 +1,5 @@
 import { X } from 'lucide-react'
-import { ZyvorHelpStrip } from './ZyvorBrand'
+import { ZyvorInline } from './ZyvorBrand'
 
 const shortcuts = [
   { keys: ['Ctrl', 'K'], description: 'Command palette' },
@@ -32,7 +32,6 @@ export default function ShortcutsHelp({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="p-5 space-y-3">
-          <ZyvorHelpStrip product="Machina" />
           {shortcuts.map(s => (
             <div key={s.description} className="flex items-center justify-between">
               <span className="text-sm text-slate-300">{s.description}</span>
@@ -47,8 +46,11 @@ export default function ShortcutsHelp({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
-        <div className="px-5 py-3 border-t border-slate-700/50 text-xs text-slate-500">
-          Shortcuts are disabled when typing in input fields.
+        <div className="px-5 py-3 border-t border-slate-700/50 space-y-2 text-xs text-slate-500">
+          <p>Shortcuts are disabled when typing in input fields.</p>
+          <p className="text-center">
+            <ZyvorInline product="Machina" />
+          </p>
         </div>
       </div>
     </div>
