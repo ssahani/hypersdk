@@ -4,7 +4,9 @@ mod auth;
 mod compute;
 mod glance;
 mod instance_ops;
+mod libvirt_push;
 mod networking;
+mod pull;
 mod resources;
 
 pub use auth::{
@@ -18,8 +20,14 @@ pub use compute::{
 };
 pub use glance::{
     delete_glance_image, preview_qcow2_upload, upload_cloud_hint, upload_qcow2_to_glance,
-    GlanceUploadPreview, GlanceUploadRequest, GlanceUploadResult,
+    GlancePullRequest, GlancePullResult, GlanceUploadPreview, GlanceUploadRequest,
+    GlanceUploadResult,
 };
+pub use libvirt_push::{
+    is_supported_upload_disk, libvirt_openstack_push_preview, libvirt_root_disk_path,
+    LibvirtOpenStackPushPreview,
+};
+pub use pull::pull_glance_image_to_disk;
 pub use instance_ops::{
     add_security_group, attach_volume, detach_volume, export_instance_plan, get_console_output,
     get_remote_console, pause_instance, remove_security_group, resize_instance, resume_instance,

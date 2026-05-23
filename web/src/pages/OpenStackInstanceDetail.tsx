@@ -214,7 +214,9 @@ export default function OpenStackInstanceDetailPage() {
       <section className="rounded-xl border border-slate-700/80 p-4 space-y-4">
         <h2 className="font-medium text-slate-200">Migration &amp; export</h2>
         <p className="text-slate-400 text-sm">
-          Snapshot creates a Glance image from this instance. Push an on-host qcow2 to Glance from Disk images, or use HyperSDK for full export pipelines.
+          Snapshot creates a Glance image from this instance. After it reaches ACTIVE, pull it from{' '}
+          <Link to="/openstack/images" className="text-sky-400 hover:underline">Glance images</Link>
+          {' '}to the hypervisor, then import as libvirt. Push on-host qcow2 from Disk images, or use HyperSDK for bulk export.
         </p>
         <div className="flex flex-wrap gap-3 items-end">
           <div>

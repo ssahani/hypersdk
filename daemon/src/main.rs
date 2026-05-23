@@ -7,6 +7,7 @@ mod k8s_inventory_history;
 mod k8s_quantity;
 mod job_registry;
 mod k8s_kubeconfig;
+mod hyper2kvm_exec;
 mod kubevirt_exec;
 mod kubevirt_k8s_ws_proxy;
 mod routes;

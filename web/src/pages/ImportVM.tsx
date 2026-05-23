@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { importDisk, listDiskImages, ImageFile } from '../api/extras'
 import { createVMWithProgress, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
@@ -26,11 +26,22 @@ export default function ImportVMPage() {
   const [sourceBrowseOpen, setSourceBrowseOpen] = useState(false)
   const toast = useToastContext()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   useEffect(() => {
     listNetworks().then(setNetworks).catch(() => {})
     listDiskImages().then((r) => setExistingDisks(r.files)).catch(() => {})
   }, [])
+
+  useEffect(() => {
+    const disk = searchParams.get('disk')?.trim()
+    if (!disk) return
+    const base = disk.split('/').pop()?.replace(/\.[^.]+$/, '') || 'imported-vm'
+    setImportedPath(disk)
+    setSource(disk)
+    setVmName((prev) => prev || base)
+    setStep('configure')
+  }, [searchParams])
 
   useEffect(() => {
     if (createLog.length) logEndRef.current?.scrollIntoView({ behavior: 'smooth' })

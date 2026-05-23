@@ -10,6 +10,7 @@ use axum::{
 use machina_core::{
     add_security_group, associate_floating_ip, attach_volume, audit, connection_status_skeleton,
     create_instance, delete_glance_image, delete_instance, detach_volume, dissociate_floating_ip,
+    pull_glance_image_to_disk,
     enrich_instance_flavor, export_instance_plan, get_console_output, get_instance,
     get_remote_console, is_openstack_configured, list_flavors, list_floating_ips,
     list_cinder_volumes, list_images, list_instance_floating_ips, list_instance_volumes,
@@ -17,8 +18,9 @@ use machina_core::{
     list_networks, pause_instance, preview_qcow2_upload, reboot_instance, remove_security_group,
     resize_instance, resume_instance, snapshot_instance, start_instance, stop_instance,
     suspend_instance, test_connection, unpause_instance, upload_qcow2_to_glance, AssociateFloatingIpRequest,
-    AttachVolumeRequest, AuditEvent, CreateInstanceRequest, CreateInstanceResponse, GlanceUploadPreview,
-    GlanceUploadRequest, GlanceUploadResult, LibvirtError, LibvirtManager, MachinaConfig,
+    AttachVolumeRequest, AuditEvent, CreateInstanceRequest, CreateInstanceResponse, GlancePullRequest,
+    GlancePullResult, GlanceUploadPreview, GlanceUploadRequest, GlanceUploadResult, LibvirtError,
+    LibvirtManager, MachinaConfig,
     OpenStackConnectionStatus, OpenStackInstance,
 };
 use serde::Deserialize;
@@ -658,4 +660,26 @@ pub fn openstack_routes() -> Router<LibvirtManager> {
         )
         .route("/openstack/images/upload/preview", get(openstack_image_upload_preview))
         .route("/openstack/images/upload", post(openstack_image_upload))
+        .route("/openstack/images/{id}/pull", post(openstack_image_pull))
+}
+
+async fn openstack_image_pull(
+    State(manager): State<LibvirtManager>,
+    Extension(bus): Extension<Arc<EventBus>>,
+    Path(id): Path<String>,
+    Json(req): Json<GlancePullRequest>,
+) -> Result<Json<GlancePullResult>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let prefixes = allowed_prefixes(&manager).await?;
+    let result = pull_glance_image_to_disk(&cfg, &id, &req, &prefixes).await?;
+    log_audit("openstack-image-pull", &result.dest_path, "ok");
+    emit(
+        &bus,
+        "openstack.image.pull",
+        &id,
+        "ok",
+        &result.dest_path,
+    );
+    Ok(Json(result))
 }

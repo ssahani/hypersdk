@@ -36,6 +36,11 @@ export default function OpenStackImageUploadModal({
   const [flavor, setFlavor] = useState('')
   const [network, setNetwork] = useState('')
   const [keyName, setKeyName] = useState('')
+  const [instanceName, setInstanceName] = useState('')
+  const [visibility, setVisibility] = useState('private')
+  const [securityGroup, setSecurityGroup] = useState('')
+  const [availabilityZone, setAvailabilityZone] = useState('')
+  const [waitActive, setWaitActive] = useState(false)
   const [preview, setPreview] = useState<GlanceUploadPreview | null>(null)
   const [loading, setLoading] = useState(false)
   const [uploadBusy, setUploadBusy] = useState(false)
@@ -48,8 +53,13 @@ export default function OpenStackImageUploadModal({
     if (flavor.trim()) body.flavor = flavor.trim()
     if (network.trim()) body.network = network.trim()
     if (keyName.trim()) body.key_name = keyName.trim()
+    if (instanceName.trim()) body.instance_name = instanceName.trim()
+    if (visibility) body.visibility = visibility
+    if (securityGroup.trim()) body.security_groups = [securityGroup.trim()]
+    if (availabilityZone.trim()) body.availability_zone = availabilityZone.trim()
+    if (waitActive) body.wait_until_active = true
     return body
-  }, [qcow2Path, glanceName, bootInstance, flavor, network, keyName])
+  }, [qcow2Path, glanceName, bootInstance, flavor, network, keyName, instanceName, visibility, securityGroup, availabilityZone, waitActive])
 
   const loadPreview = useCallback(async () => {
     if (!qcow2Path) return
@@ -134,6 +144,15 @@ export default function OpenStackImageUploadModal({
                 onChange={(e) => setGlanceName(e.target.value)}
                 className="input-field text-sm"
               />
+              <select
+                value={visibility}
+                onChange={(e) => setVisibility(e.target.value)}
+                className="input-field text-sm"
+              >
+                <option value="private">private</option>
+                <option value="shared">shared</option>
+                <option value="public">public</option>
+              </select>
             </div>
             <label className="flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
               <input type="checkbox" checked={bootInstance} onChange={(e) => setBootInstance(e.target.checked)} />
@@ -162,6 +181,31 @@ export default function OpenStackImageUploadModal({
                   onChange={(e) => setKeyName(e.target.value)}
                   className="input-field text-sm"
                 />
+                <input
+                  type="text"
+                  placeholder="instance name"
+                  value={instanceName}
+                  onChange={(e) => setInstanceName(e.target.value)}
+                  className="input-field text-sm"
+                />
+                <input
+                  type="text"
+                  placeholder="security group"
+                  value={securityGroup}
+                  onChange={(e) => setSecurityGroup(e.target.value)}
+                  className="input-field text-sm"
+                />
+                <input
+                  type="text"
+                  placeholder="availability zone"
+                  value={availabilityZone}
+                  onChange={(e) => setAvailabilityZone(e.target.value)}
+                  className="input-field text-sm"
+                />
+                <label className="flex items-center gap-2 text-xs text-slate-400 sm:col-span-3">
+                  <input type="checkbox" checked={waitActive} onChange={(e) => setWaitActive(e.target.checked)} />
+                  Wait for Nova ACTIVE
+                </label>
               </div>
             )}
             <button type="button" className="text-xs text-orange-400 hover:underline" onClick={() => void loadPreview()}>

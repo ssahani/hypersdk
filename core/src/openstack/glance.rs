@@ -50,6 +50,12 @@ pub struct GlanceUploadRequest {
     pub key_name: Option<String>,
     #[serde(default)]
     pub instance_name: Option<String>,
+    #[serde(default)]
+    pub availability_zone: Option<String>,
+    #[serde(default)]
+    pub security_groups: Option<Vec<String>>,
+    #[serde(default)]
+    pub wait_until_active: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +68,22 @@ pub struct GlanceUploadResult {
     pub instance_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_name: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlancePullRequest {
+    /// Destination path under an allowed disk-images directory (must end with .qcow2).
+    pub dest_path: String,
+    #[serde(default)]
+    pub wait_for_active: Option<bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlancePullResult {
+    pub image_id: String,
+    pub image_name: String,
+    pub dest_path: String,
+    pub bytes_written: u64,
 }
 
 #[derive(Serialize)]
@@ -196,6 +218,9 @@ pub async fn upload_qcow2_to_glance(
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| format!("{glance_name}-vm"));
 
+        let wait_active = req
+            .wait_until_active
+            .unwrap_or(cfg.default_wait_until_active);
         let create_resp = create_instance(
             cfg,
             &CreateInstanceRequest {
@@ -204,10 +229,10 @@ pub async fn upload_qcow2_to_glance(
                 image: Some(image.id.clone()),
                 network,
                 key_name,
-                availability_zone: None,
-                security_groups: None,
+                availability_zone: req.availability_zone.clone().filter(|s| !s.is_empty()),
+                security_groups: req.security_groups.clone(),
                 user_data: None,
-                wait_until_active: false,
+                wait_until_active: wait_active,
             },
         )
         .await?;

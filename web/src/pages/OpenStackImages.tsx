@@ -5,7 +5,8 @@ import { useToastContext } from '../contexts/ToastContext'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import OpenStackFooter from '../components/OpenStackFooter'
-import { Cloud, RefreshCw, Plus, Trash2 } from 'lucide-react'
+import { Cloud, RefreshCw, Plus, Trash2, Download } from 'lucide-react'
+import GlancePullModal from '../components/GlancePullModal'
 
 function formatBytes(n?: number) {
   if (n == null || n === 0) return '—'
@@ -19,6 +20,7 @@ export default function OpenStackImagesPage() {
   const [images, setImages] = useState<OpenStackImage[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<OpenStackImage | null>(null)
+  const [pullTarget, setPullTarget] = useState<OpenStackImage | null>(null)
   const [deleting, setDeleting] = useState(false)
   const toast = useToastContext()
   const { lastEvent, refreshKey } = usePlatformInfo()
@@ -117,14 +119,24 @@ export default function OpenStackImagesPage() {
                 <td className="px-4 py-3">{img.min_ram_mb} MB</td>
                 <td className="px-4 py-3">{formatBytes(img.size_bytes)}</td>
                 <td className="px-4 py-3">
-                  <button
-                    type="button"
-                    title="Delete image"
-                    onClick={() => setDeleteTarget(img)}
-                    className="p-2 rounded hover:bg-red-500/20 text-red-400"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      title="Pull to hypervisor disk"
+                      onClick={() => setPullTarget(img)}
+                      className="p-2 rounded hover:bg-sky-500/20 text-sky-400"
+                    >
+                      <Download className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Delete image"
+                      onClick={() => setDeleteTarget(img)}
+                      className="p-2 rounded hover:bg-red-500/20 text-red-400"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -133,6 +145,12 @@ export default function OpenStackImagesPage() {
       </div>
 
       <OpenStackFooter />
+
+      <GlancePullModal
+        open={!!pullTarget}
+        image={pullTarget}
+        onClose={() => setPullTarget(null)}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}

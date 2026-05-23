@@ -113,7 +113,10 @@ Catalog APIs for the create wizard:
 - `GET /api/v1/openstack/flavors`
 - `GET /api/v1/openstack/networks`
 - `GET /api/v1/openstack/images`
+- `POST /api/v1/openstack/images/{id}/pull` — download image file to hypervisor path
 - `DELETE /api/v1/openstack/images/{id}` — Glance image delete
+- `GET /api/v1/vms/{name}/openstack-push/preview` — libvirt VM push preview
+- `POST /api/v1/vms/{name}/openstack-push` — upload VM root disk (native or hyper2kvm)
 - `GET /api/v1/openstack/keypairs`
 - `POST /api/v1/openstack/instances` — create instance (optional `availability_zone`, `security_groups`, `user_data`)
 
@@ -121,17 +124,16 @@ Audit events: `openstack.instance.*`, `openstack.image.upload`, `openstack.image
 
 ## Disk migration (libvirt ↔ cloud)
 
-### Push: hypervisor qcow2 → Glance
+See [openstack-migration.md](openstack-migration.md) for full API tables.
 
-See [openstack-migration.md](openstack-migration.md) for `hyper2kvm` / `POST /api/v1/openstack/qcow2/deploy` and the **Disk images → OpenStack** modal.
+| Direction | API / UI |
+|-----------|----------|
+| qcow2 → Glance | `POST /api/v1/openstack/images/upload` — **Disk images** modal |
+| libvirt VM → Glance (+ optional Nova) | `POST /api/v1/vms/{name}/openstack-push` — **VM detail → Push to OpenStack** |
+| Glance → qcow2 on host | `POST /api/v1/openstack/images/{id}/pull` — **Glance images** pull modal |
+| qcow2 → libvirt domain | `/import?disk=…` or **Create VM** with existing disk |
 
-### Pull: OpenStack → libvirt
-
-1. Snapshot the instance from the detail page (Glance image), or export with **hyper2kvm** / HyperSDK for a full qcow2.
-2. Place the qcow2 on an allowed disk-images path.
-3. Use **Import VM** or **Create VM** with an existing disk.
-
-HyperSDK pipelines (`list_provider_vms`, `submit_migration`) remain the path for large multi-VM migrations from hypervisord.
+Optional `use_hyper2kvm` on VM push delegates to hyper2kvm for guest-fix and deploy parity with hyper2kvm CLI. HyperSDK (`list_provider_vms`, `submit_migration`) remains the path for bulk migrations from hypervisord.
 
 ## Packaging
 

@@ -225,6 +225,9 @@ pub struct OpenStackConfig {
     pub default_network: String,
     #[serde(default)]
     pub default_key_name: String,
+    /// When true, Nova boot after Glance upload waits for ACTIVE (upload API and defaults).
+    #[serde(default)]
+    pub default_wait_until_active: bool,
 }
 
 fn default_openstack_domain() -> String {
@@ -264,6 +267,7 @@ impl Default for OpenStackConfig {
             default_flavor: String::new(),
             default_network: String::new(),
             default_key_name: String::new(),
+            default_wait_until_active: false,
         }
     }
 }

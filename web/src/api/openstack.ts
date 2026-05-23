@@ -132,6 +132,29 @@ export interface GlanceUploadRequest {
   network?: string
   key_name?: string
   instance_name?: string
+  availability_zone?: string
+  security_groups?: string[]
+  wait_until_active?: boolean
+}
+
+export interface GlancePullRequest {
+  dest_path: string
+  wait_for_active?: boolean
+}
+
+export interface GlancePullResult {
+  image_id: string
+  image_name: string
+  dest_path: string
+  bytes_written: number
+}
+
+export interface LibvirtOpenStackPushPreview {
+  vm_name: string
+  vm_state: string
+  root_disk: string
+  glance_preview: GlanceUploadPreview
+  vm_running: boolean
 }
 
 export interface GlanceUploadResult {
@@ -360,4 +383,36 @@ export function getGlanceUploadPreview(qcow2Path: string): Promise<GlanceUploadP
 
 export function postGlanceUpload(body: GlanceUploadRequest): Promise<GlanceUploadResult> {
   return apiPost<GlanceUploadResult>(`${API}/openstack/images/upload`, body)
+}
+
+export function pullGlanceImage(
+  imageId: string,
+  body: GlancePullRequest,
+): Promise<GlancePullResult> {
+  return apiPost<GlancePullResult>(`${API}/openstack/images/${inst(imageId)}/pull`, body)
+}
+
+export function getLibvirtOpenStackPushPreview(
+  vmName: string,
+  connection?: string,
+): Promise<LibvirtOpenStackPushPreview> {
+  const q = connection ? `?connection=${encodeURIComponent(connection)}` : ''
+  return readJsonObject<LibvirtOpenStackPushPreview>(
+    `${API}/vms/${encodeURIComponent(vmName)}/openstack-push/preview${q}`,
+  )
+}
+
+export type LibvirtOpenStackPushBody = Partial<GlanceUploadRequest> & {
+  stop_vm?: boolean
+  use_hyper2kvm?: boolean
+  guest_fix?: boolean
+}
+
+export function postLibvirtOpenStackPush(
+  vmName: string,
+  body: LibvirtOpenStackPushBody,
+  connection?: string,
+): Promise<Record<string, unknown>> {
+  const q = connection ? `?connection=${encodeURIComponent(connection)}` : ''
+  return apiPost(`${API}/vms/${encodeURIComponent(vmName)}/openstack-push${q}`, body)
 }

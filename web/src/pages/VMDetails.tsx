@@ -28,6 +28,9 @@ import { getSession, type SessionRole } from '../api/auth'
 import { snapshotForest, type SnapshotTreeNode } from '../utils/snapshotTree'
 import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import ConfirmDialog from '../components/ConfirmDialog'
+import LibvirtOpenStackPushModal from '../components/LibvirtOpenStackPushModal'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { isOpenStackNavEnabled } from '../utils/routes'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
@@ -39,7 +42,7 @@ import {
   ToggleLeft, ToggleRight, Cpu, HardDrive, Network, Camera, Terminal,
   Save, Disc, Archive, Copy, Pencil, ArrowRightLeft, Download,
   Plus, Trash2, RotateCw, Code, MemoryStick, Settings, Usb, Layers,
-  ChevronUp, ChevronDown, X, Tag, Monitor, Shield, Sliders, FolderOpen,
+  ChevronUp, ChevronDown, X, Tag, Monitor, Shield, Sliders, FolderOpen, Cloud,
 } from 'lucide-react'
 
 interface MetricsPoint { time: string; memory: number; diskRd: number; diskWr: number; netRx: number; netTx: number }
@@ -112,6 +115,9 @@ export default function VMDetailsPage() {
   const [loading, setLoading] = useState(true)
   const [dialog, setDialog] = useState<Dialog>(null)
   const toast = useToastContext()
+  const { info } = usePlatformInfo()
+  const openstackPushReady =
+    isOpenStackNavEnabled(info?.openstack) && Boolean(info?.openstack?.upload_enabled)
   const prevMetricsRef = useRef<VmMetrics | null>(null)
 
   const conn = useMemo(
@@ -153,6 +159,7 @@ export default function VMDetailsPage() {
   const [cdromBrowseOpen, setCdromBrowseOpen] = useState(false)
   const [attachDiskBrowseOpen, setAttachDiskBrowseOpen] = useState(false)
   const [kubevirtOpen, setKubevirtOpen] = useState(false)
+  const [openstackPushOpen, setOpenstackPushOpen] = useState(false)
   const [kubevirtBundle, setKubevirtBundle] = useState<KubeVirtBundle | null>(null)
   const [kubevirtLoading, setKubevirtLoading] = useState(false)
   /** Local checklist only (not sent to the server). */
@@ -1382,6 +1389,17 @@ export default function VMDetailsPage() {
               <Archive className="w-4 h-4" aria-hidden />
               {kubevirtLoading ? 'Loading…' : 'KubeVirt YAML'}
             </button>
+            {openstackPushReady && name && (
+              <button
+                type="button"
+                onClick={() => setOpenstackPushOpen(true)}
+                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm transition flex items-center gap-1"
+                title="Upload root disk to OpenStack Glance (native or hyper2kvm)"
+              >
+                <Cloud className="w-4 h-4" aria-hidden />
+                Push to OpenStack
+              </button>
+            )}
             <button onClick={() => openDialog('attach-disk')} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Attach Disk</button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
@@ -2978,6 +2996,21 @@ export default function VMDetailsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {openstackPushReady && name && (
+        <LibvirtOpenStackPushModal
+          vmName={name}
+          open={openstackPushOpen}
+          onClose={() => setOpenstackPushOpen(false)}
+          onSuccess={(r) => {
+            toast.success(
+              r.instance_id
+                ? `OpenStack instance ${r.instance_name || r.instance_id}`
+                : `Glance image ${r.image_name || r.image_id}`,
+            )
+          }}
+        />
       )}
 
       <BrowseHostPathModal
