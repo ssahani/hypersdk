@@ -16,3 +16,6 @@
 
 # Local AI caches
 .grok/
+
+# Local presentation exports
+presentations/
