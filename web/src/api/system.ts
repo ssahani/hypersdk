@@ -101,6 +101,12 @@ export interface PlatformInfo {
     default_flavor?: string
     default_network?: string
     default_key_name?: string
+    hypersdk_base_url?: string
+  }
+  hypersdk?: {
+    enabled: boolean
+    base_url: string
+    insecure_tls: boolean
   }
 }
 

@@ -11,7 +11,8 @@ use machina_core::{
     add_security_group, associate_floating_ip, attach_volume, audit, connection_status_skeleton,
     create_instance, delete_glance_image, delete_instance, detach_volume, dissociate_floating_ip,
     pull_glance_image_to_disk,
-    enrich_instance_flavor, export_instance_plan, get_console_output, get_instance,
+    enrich_instance_flavor, export_instance_plan, export_instance_to_disk, get_console_output,
+    get_instance,
     get_remote_console, is_openstack_configured, list_flavors, list_floating_ips,
     list_cinder_volumes, list_images, list_instance_floating_ips, list_instance_volumes,
     list_instances, list_keypairs,
@@ -526,14 +527,57 @@ async fn openstack_detach_volume(
 #[derive(Debug, Deserialize)]
 struct ExportBody {
     pub image_name: Option<String>,
+    /// When set with `auto_pull`, download Glance image to this path after snapshot.
+    pub dest_path: Option<String>,
+    #[serde(default)]
+    pub auto_pull: bool,
+    #[serde(default)]
+    pub wait_for_active: Option<bool>,
 }
 
 async fn openstack_export_instance(
+    State(manager): State<LibvirtManager>,
+    Extension(bus): Extension<Arc<EventBus>>,
     Path(id): Path<String>,
     Json(body): Json<ExportBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
+    let id = id.trim().to_string();
+    if body.auto_pull {
+        let dest = body
+            .dest_path
+            .as_deref()
+            .map(str::trim)
+            .filter(|s| !s.is_empty())
+            .ok_or_else(|| {
+                AppError::from(LibvirtError::Invalid(
+                    "dest_path is required when auto_pull is true".into(),
+                ))
+            })?;
+        let prefixes = allowed_prefixes(&manager).await?;
+        let wait = body.wait_for_active.unwrap_or(true);
+        let plan = export_instance_to_disk(
+            &cfg,
+            &id,
+            body.image_name.as_deref(),
+            dest,
+            &prefixes,
+            wait,
+        )
+        .await?;
+        if let Some(ref pull) = plan.pull {
+            log_audit("openstack-export-pull", &pull.dest_path, "ok");
+            emit(
+                &bus,
+                "openstack.image.pull",
+                &plan.image_id.clone().unwrap_or_default(),
+                "ok",
+                &pull.dest_path,
+            );
+        }
+        return Ok(Json(serde_json::json!(plan)));
+    }
     let plan = export_instance_plan(&cfg, &id, body.image_name.as_deref()).await?;
     Ok(Json(serde_json::json!(plan)))
 }

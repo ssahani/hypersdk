@@ -1,7 +1,10 @@
 //! Glance images, Nova catalogs, instance create/snapshot.
 
+use std::time::{Duration, Instant};
+
 use openstack::compute::ServerAction;
 use openstack::waiter::Waiter;
+use tokio::time::sleep;
 
 use crate::config::OpenStackConfig;
 use crate::LibvirtError;
@@ -201,6 +204,41 @@ pub async fn create_instance(
         name: server.name().clone(),
         status: format!("{:?}", server.status()),
     })
+}
+
+/// Poll Glance until an image with the given name reaches ACTIVE (Nova snapshot).
+pub async fn wait_glance_image_by_name(
+    cfg: &OpenStackConfig,
+    image_name: &str,
+    timeout: Duration,
+) -> Result<String, LibvirtError> {
+    let want = image_name.trim();
+    if want.is_empty() {
+        return Err(LibvirtError::Invalid("image_name is required".into()));
+    }
+    let start = Instant::now();
+    loop {
+        let images = list_images(cfg).await?;
+        let mut matches: Vec<&OpenStackImage> = images.iter().filter(|i| i.name == want).collect();
+        matches.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+        if let Some(img) = matches.first() {
+            let st = img.status.to_lowercase();
+            if st == "active" {
+                return Ok(img.id.clone());
+            }
+            if st == "killed" || st == "deleted" || st.contains("error") {
+                return Err(LibvirtError::Operation(format!(
+                    "Glance image '{want}' entered status {st}"
+                )));
+            }
+        }
+        if start.elapsed() > timeout {
+            return Err(LibvirtError::Operation(format!(
+                "timed out waiting for Glance image '{want}' to become active"
+            )));
+        }
+        sleep(Duration::from_secs(5)).await;
+    }
 }
 
 pub async fn snapshot_instance(

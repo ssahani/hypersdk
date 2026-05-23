@@ -93,8 +93,17 @@ export interface OpenStackExportPlan {
   instance_id: string
   instance_name: string
   suggested_image_name: string
+  image_id?: string
+  pull?: GlancePullResult
   steps: string[]
   hypervisord_dashboard: string
+}
+
+export interface OpenStackExportRequest {
+  image_name?: string
+  dest_path?: string
+  auto_pull?: boolean
+  wait_for_active?: boolean
 }
 
 export interface CreateInstanceRequest {
@@ -260,11 +269,9 @@ export function snapshotOpenStackInstance(
 
 export function exportOpenStackInstance(
   id: string,
-  imageName?: string,
+  body?: OpenStackExportRequest,
 ): Promise<OpenStackExportPlan> {
-  return apiPost<OpenStackExportPlan>(`${API}/openstack/instances/${inst(id)}/export`, {
-    image_name: imageName,
-  })
+  return apiPost<OpenStackExportPlan>(`${API}/openstack/instances/${inst(id)}/export`, body ?? {})
 }
 
 export function getOpenStackConsoleOutput(

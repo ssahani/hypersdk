@@ -29,6 +29,9 @@ pub struct MachinaConfig {
     /// Defaults for OpenStack Glance upload (`/api/v1/openstack/images/upload`).
     #[serde(default)]
     pub openstack: OpenStackConfig,
+    /// Optional HyperSDK hypervisord proxy (`/api/v1/hypersdk/*`).
+    #[serde(default)]
+    pub hypersdk: HypersdkConfig,
     /// Periodic snapshots of host hardware inventory (JSON Lines under `/var/lib/machina/hardware-inventory.jsonl`).
     #[serde(default)]
     pub inventory_history: InventoryHistoryConfig,
@@ -228,6 +231,13 @@ pub struct OpenStackConfig {
     /// When true, Nova boot after Glance upload waits for ACTIVE (upload API and defaults).
     #[serde(default)]
     pub default_wait_until_active: bool,
+    /// HyperSDK / hypervisord base URL for migration dashboard links and optional API proxy.
+    #[serde(default = "default_hypersdk_base_url")]
+    pub hypersdk_base_url: String,
+}
+
+fn default_hypersdk_base_url() -> String {
+    "https://127.0.0.1:5080".to_string()
 }
 
 fn default_openstack_domain() -> String {
@@ -244,6 +254,32 @@ fn default_openstack_upload_enabled() -> bool {
 
 fn default_openstack_upload_timeout() -> u64 {
     3600
+}
+
+/// Proxy settings for HyperSDK bulk migrations (hypervisord on :5080 by default).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HypersdkConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_hypersdk_base_url")]
+    pub base_url: String,
+    /// Skip TLS certificate verification when proxying hypervisord (lab / self-signed).
+    #[serde(default = "default_hypersdk_insecure_tls")]
+    pub insecure_tls: bool,
+}
+
+fn default_hypersdk_insecure_tls() -> bool {
+    true
+}
+
+impl Default for HypersdkConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: default_hypersdk_base_url(),
+            insecure_tls: default_hypersdk_insecure_tls(),
+        }
+    }
 }
 
 impl Default for OpenStackConfig {
@@ -268,6 +304,7 @@ impl Default for OpenStackConfig {
             default_network: String::new(),
             default_key_name: String::new(),
             default_wait_until_active: false,
+            hypersdk_base_url: default_hypersdk_base_url(),
         }
     }
 }

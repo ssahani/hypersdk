@@ -512,7 +512,7 @@ mod tests {
             filesystems: vec![],
             libvirt_connection: None,
         };
-        let disk = pick_root_disk(&d).unwrap();
+        let disk = pick_root_boot_disk(&d).unwrap();
         assert!(disk.source.ends_with(".qcow2"));
     }
 }

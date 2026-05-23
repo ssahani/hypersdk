@@ -216,6 +216,12 @@ async fn platform_info() -> Json<serde_json::Value> {
             "default_flavor": cfg.openstack.default_flavor,
             "default_network": cfg.openstack.default_network,
             "default_key_name": cfg.openstack.default_key_name,
+            "hypersdk_base_url": cfg.openstack.hypersdk_base_url,
+        },
+        "hypersdk": {
+            "enabled": cfg.hypersdk.enabled,
+            "base_url": cfg.hypersdk.base_url,
+            "insecure_tls": cfg.hypersdk.insecure_tls,
         },
     }))
 }

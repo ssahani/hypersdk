@@ -26,6 +26,10 @@ pub struct OpenStackExportPlan {
     pub instance_id: String,
     pub instance_name: String,
     pub suggested_image_name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub pull: Option<super::glance::GlancePullResult>,
     pub steps: Vec<String>,
     pub hypervisord_dashboard: String,
 }
@@ -207,14 +211,72 @@ pub async fn export_instance_plan(
         instance_id: server.id().clone(),
         instance_name: name.clone(),
         suggested_image_name: snap_name,
+        image_id: None,
+        pull: None,
         steps: vec![
             "Glance image is being created from the instance snapshot.".into(),
-            "When status is active, download with: openstack image save <image> --file /path/on/host.qcow2".into(),
-            "Place the qcow2 on a machina disk-images path, then use Import VM or Create VM.".into(),
-            "For bulk migrations use HyperSDK (hypervisord :5080).".into(),
+            "When status is active, pull from OpenStack → Glance images or POST /openstack/images/{id}/pull.".into(),
+            "Then use Import VM or Create VM with the qcow2 on this host.".into(),
+            "For bulk migrations use HyperSDK (Machina → OpenStack migrations or hypervisord :5080).".into(),
         ],
-        hypervisord_dashboard: "https://127.0.0.1:5080/web/dashboard/".into(),
+        hypervisord_dashboard: hypersdk_dashboard_url(cfg),
     })
+}
+
+/// Snapshot Nova instance → wait for Glance ACTIVE → stream image to hypervisor disk.
+pub async fn export_instance_to_disk(
+    cfg: &OpenStackConfig,
+    id: &str,
+    image_name: Option<&str>,
+    dest_path: &str,
+    allowed_prefixes: &[String],
+    wait_for_active: bool,
+) -> Result<OpenStackExportPlan, LibvirtError> {
+    let server = server_mut(cfg, id).await?;
+    let name = server.name().clone();
+    let snap_name = image_name
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| format!("{name}-export"));
+    super::resources::snapshot_instance(cfg, id, &snap_name).await?;
+    let timeout = std::time::Duration::from_secs(cfg.upload_timeout_secs.max(120));
+    let image_id =
+        super::resources::wait_glance_image_by_name(cfg, &snap_name, timeout).await?;
+    let pull = super::pull::pull_glance_image_to_disk(
+        cfg,
+        &image_id,
+        &super::glance::GlancePullRequest {
+            dest_path: dest_path.to_string(),
+            wait_for_active: Some(wait_for_active),
+        },
+        allowed_prefixes,
+    )
+    .await?;
+    Ok(OpenStackExportPlan {
+        instance_id: server.id().clone(),
+        instance_name: name.clone(),
+        suggested_image_name: snap_name.clone(),
+        image_id: Some(image_id),
+        pull: Some(pull.clone()),
+        steps: vec![
+            format!("Snapshot {snap_name} created in Glance."),
+            format!("Downloaded {} bytes to {}.", pull.bytes_written, pull.dest_path),
+            "Open Import VM to define a libvirt domain from this disk.".into(),
+        ],
+        hypervisord_dashboard: hypersdk_dashboard_url(cfg),
+    })
+}
+
+fn hypersdk_dashboard_url(cfg: &OpenStackConfig) -> String {
+    let base = cfg
+        .hypersdk_base_url
+        .trim()
+        .trim_end_matches('/');
+    if base.is_empty() {
+        "https://127.0.0.1:5080/web/dashboard/".into()
+    } else {
+        format!("{base}/web/dashboard/")
+    }
 }
 
 pub async fn add_security_group(

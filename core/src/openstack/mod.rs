@@ -29,7 +29,8 @@ pub use libvirt_push::{
 };
 pub use pull::pull_glance_image_to_disk;
 pub use instance_ops::{
-    add_security_group, attach_volume, detach_volume, export_instance_plan, get_console_output,
+    add_security_group, attach_volume, detach_volume, export_instance_plan, export_instance_to_disk,
+    get_console_output,
     get_remote_console, pause_instance, remove_security_group, resize_instance, resume_instance,
     suspend_instance, unpause_instance, AttachVolumeRequest, OpenStackConsoleOutput,
     OpenStackExportPlan, OpenStackRemoteConsole,
@@ -40,7 +41,8 @@ pub use networking::{
 };
 pub use resources::{
     create_instance, enrich_instance_flavor, list_flavors, list_images, list_instance_volumes,
-    list_cinder_volumes, list_keypairs, list_networks, snapshot_instance, CreateInstanceRequest,
+    list_cinder_volumes, list_keypairs, list_networks, snapshot_instance, wait_glance_image_by_name,
+    CreateInstanceRequest,
     CreateInstanceResponse,
     OpenStackAttachedVolume, OpenStackFlavor, OpenStackImage, OpenStackKeyPair, OpenStackNetwork,
 };

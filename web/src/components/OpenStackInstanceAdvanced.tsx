@@ -4,7 +4,6 @@ import {
   associateOpenStackFloatingIp,
   detachOpenStackVolume,
   dissociateOpenStackFloatingIp,
-  exportOpenStackInstance,
   getOpenStackConsoleOutput,
   getOpenStackRemoteConsole,
   listOpenStackCinderVolumes,
@@ -24,6 +23,7 @@ import {
   type OpenStackNetwork,
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
+import OpenStackExportModal from './OpenStackExportModal'
 import {
   Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2,
 } from 'lucide-react'
@@ -45,7 +45,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
   const [resizeFlavor, setResizeFlavor] = useState('')
   const [sgName, setSgName] = useState('')
   const [consoleLog, setConsoleLog] = useState<string | null>(null)
-  const [exportSteps, setExportSteps] = useState<string[] | null>(null)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const loadExtras = useCallback(async () => {
     try {
@@ -259,25 +259,23 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           <Upload className="w-4 h-4 text-sky-400" /> Export to Glance
         </h2>
         <p className="text-slate-500 text-sm mb-3">
-          Creates a Glance snapshot image; download with <code className="text-slate-400">openstack image save</code> on the host.
+          Snapshot to Glance and optionally pull qcow2 to this hypervisor for libvirt import.
         </p>
-        <button type="button" onClick={async () => {
-          try {
-            const plan = await exportOpenStackInstance(inst.id, `${inst.name}-export`)
-            setExportSteps(plan.steps)
-            toast.success(`Export started: ${plan.suggested_image_name}`)
-          } catch (e: unknown) {
-            toast.error(e instanceof Error ? e.message : String(e))
-          }
-        }} className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white">
-          Snapshot for export
+        <button
+          type="button"
+          onClick={() => setExportOpen(true)}
+          className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white"
+        >
+          Export to hypervisor…
         </button>
-        {exportSteps && (
-          <ol className="mt-3 list-decimal list-inside text-sm text-slate-400 space-y-1">
-            {exportSteps.map((s, i) => <li key={i}>{s}</li>)}
-          </ol>
-        )}
       </section>
+
+      <OpenStackExportModal
+        open={exportOpen}
+        instanceId={inst.id}
+        instanceName={inst.name}
+        onClose={() => setExportOpen(false)}
+      />
     </div>
   )
 }

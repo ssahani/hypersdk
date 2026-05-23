@@ -3,6 +3,7 @@ import { Cloud, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router'
 import {
   getLibvirtOpenStackPushPreview,
+  getOpenStackInstance,
   postLibvirtOpenStackPush,
   type GlanceUploadResult,
   type LibvirtOpenStackPushPreview,
@@ -47,6 +48,7 @@ export default function LibvirtOpenStackPushModal({
   const [useHyper2kvm, setUseHyper2kvm] = useState(false)
   const [guestFix, setGuestFix] = useState(true)
   const [result, setResult] = useState<{ mode: string; native?: GlanceUploadResult } | null>(null)
+  const [deployStatus, setDeployStatus] = useState<string | null>(null)
 
   const loadPreview = useCallback(async () => {
     setLoading(true)
@@ -66,8 +68,29 @@ export default function LibvirtOpenStackPushModal({
     if (!open || !osReady) return
     setPreview(null)
     setResult(null)
+    setDeployStatus(null)
     void loadPreview()
   }, [open, osReady, loadPreview])
+
+  useEffect(() => {
+    const instanceId = result?.native?.instance_id
+    if (!open || !instanceId) return
+    let cancelled = false
+    const poll = async () => {
+      try {
+        const inst = await getOpenStackInstance(instanceId)
+        if (!cancelled) {
+          setDeployStatus(inst.status)
+          if (['ACTIVE', 'ERROR'].includes(inst.status.toUpperCase())) return
+        }
+      } catch {
+        /* ignore transient errors while Nova boots */
+      }
+      if (!cancelled) window.setTimeout(() => void poll(), 5000)
+    }
+    void poll()
+    return () => { cancelled = true }
+  }, [open, result?.native?.instance_id])
 
   const runPush = async () => {
     setBusy(true)
@@ -207,9 +230,15 @@ export default function LibvirtOpenStackPushModal({
                 <div className="rounded-lg border border-emerald-800/50 bg-emerald-950/30 p-3 text-xs">
                   <p>Image {result.native.image_name} ({result.native.image_id})</p>
                   {result.native.instance_id && (
-                    <Link to={`/openstack/instances/${encodeURIComponent(result.native.instance_id)}`} className="text-orange-400 hover:underline" onClick={onClose}>
-                      View Nova instance
-                    </Link>
+                    <p className="mt-1">
+                      Nova instance:{' '}
+                      <Link to={`/openstack/instances/${encodeURIComponent(result.native.instance_id)}`} className="text-orange-400 hover:underline" onClick={onClose}>
+                        {result.native.instance_name || result.native.instance_id}
+                      </Link>
+                      {deployStatus && (
+                        <span className="text-slate-400 ml-2">({deployStatus})</span>
+                      )}
+                    </p>
                   )}
                 </div>
               )}

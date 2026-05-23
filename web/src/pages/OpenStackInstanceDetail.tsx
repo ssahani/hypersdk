@@ -19,6 +19,7 @@ import {
 } from 'lucide-react'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackInstanceAdvanced from '../components/OpenStackInstanceAdvanced'
+import OpenStackExportModal from '../components/OpenStackExportModal'
 
 function CopyBtn({ text }: { text: string }) {
   const toast = useToastContext()
@@ -50,6 +51,7 @@ export default function OpenStackInstanceDetailPage() {
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [snapshotName, setSnapshotName] = useState('')
   const [snapshotBusy, setSnapshotBusy] = useState(false)
+  const [exportOpen, setExportOpen] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -238,21 +240,37 @@ export default function OpenStackInstanceDetailPage() {
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm"
+          >
+            <HardDrive className="w-4 h-4" />
+            Export & pull to hypervisor
+          </button>
           <Link
             to={`/disk-images?os=open&glance_name=${encodeURIComponent(inst.name)}`}
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-sm"
           >
-            <HardDrive className="w-4 h-4" />
             Push qcow2 to Glance
           </Link>
           <Link
-            to="/import"
+            to="/openstack/migrations"
             className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm"
           >
-            Import VM (libvirt)
+            Bulk migrations
           </Link>
         </div>
       </section>
+
+      {inst && (
+        <OpenStackExportModal
+          open={exportOpen}
+          instanceId={inst.id}
+          instanceName={inst.name}
+          onClose={() => setExportOpen(false)}
+        />
+      )}
 
       <OpenStackFooter />
 

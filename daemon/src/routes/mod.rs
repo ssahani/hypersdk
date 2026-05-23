@@ -8,6 +8,7 @@ mod guacamole;
 mod guest_images;
 mod health;
 mod kubevirt;
+mod hypersdk;
 mod openstack;
 mod host_network;
 mod jobs;
@@ -34,6 +35,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(k8s::k8s_routes())
         .merge(kubevirt::kubevirt_routes())
         .merge(openstack::openstack_routes())
+        .merge(hypersdk::hypersdk_routes())
         .merge(vms::vm_routes())
         .merge(vm_guest::vm_guest_routes())
         .merge(snapshots::snapshot_routes())

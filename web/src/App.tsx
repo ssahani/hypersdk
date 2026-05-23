@@ -53,6 +53,7 @@ const OpenStackInstances = lazy(() => import('./pages/OpenStackInstances'))
 const OpenStackInstanceDetail = lazy(() => import('./pages/OpenStackInstanceDetail'))
 const OpenStackCreateInstance = lazy(() => import('./pages/OpenStackCreateInstance'))
 const OpenStackImages = lazy(() => import('./pages/OpenStackImages'))
+const OpenStackMigrations = lazy(() => import('./pages/OpenStackMigrations'))
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -141,6 +142,7 @@ function AuthenticatedApp() {
                 <Route path="/openstack/instances/:id" element={<OpenStackInstanceDetail />} />
                 <Route path="/openstack/create" element={<OpenStackCreateInstance />} />
                 <Route path="/openstack/images" element={<OpenStackImages />} />
+                <Route path="/openstack/migrations" element={<OpenStackMigrations />} />
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />
                 <Route path="/storage/:pool" element={<StoragePoolDetail />} />

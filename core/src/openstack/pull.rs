@@ -152,3 +152,19 @@ pub async fn pull_glance_image_to_disk(
         bytes_written,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::validate_dest;
+
+    #[test]
+    fn dest_must_be_under_allowed_prefix() {
+        let ok = validate_dest(
+            "/var/lib/libvirt/images/vm.qcow2",
+            &["/var/lib/libvirt/images".into()],
+        );
+        assert!(ok.is_ok());
+        let bad = validate_dest("/tmp/evil.qcow2", &["/var/lib/libvirt/images".into()]);
+        assert!(bad.is_err());
+    }
+}

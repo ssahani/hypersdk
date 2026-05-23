@@ -56,6 +56,7 @@ export const navGroups: NavGroup[] = [
       { to: '/k8s/workloads', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'K8s Workloads' },
       { to: '/k8s/kata', icon: React.createElement(Package, { className: 'w-4 h-4' }), label: 'Kata + Cloud Hypervisor' },
       { to: '/openstack/instances', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'OpenStack', requiresOpenStack: true },
+      { to: '/openstack/migrations', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'OS Migrations', requiresOpenStack: true },
     ],
   },
   {

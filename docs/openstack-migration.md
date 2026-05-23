@@ -42,6 +42,37 @@ Body: `dest_path`, optional `wait_for_active`.
 
 Manual path: snapshot or HyperSDK export → qcow2 on host → **Import VM** or **Create VM** with existing disk.
 
+### Automated export (Nova → Glance → disk)
+
+`POST /api/v1/openstack/instances/{id}/export` with:
+
+```json
+{
+  "image_name": "myvm-export",
+  "auto_pull": true,
+  "dest_path": "/var/lib/libvirt/images/myvm-export.qcow2",
+  "wait_for_active": true
+}
+```
+
+Waits for the snapshot image in Glance, then streams it to `dest_path`. UI: **Export & pull to hypervisor** on instance detail.
+
+## HyperSDK proxy (`[hypersdk]`)
+
+| API | Proxies to |
+|-----|------------|
+| `GET /api/v1/hypersdk/status` | hypervisord health |
+| `GET /api/v1/hypersdk/providers/vms?provider=openstack` | `/api/providers/vms` |
+| `POST /api/v1/hypersdk/migrations/submit` | `/api/v1/migrations/submit` |
+| `GET /api/v1/hypersdk/migrations/jobs` | `/api/v1/migrations/jobs` |
+
+```toml
+[hypersdk]
+enabled = true
+base_url = "https://127.0.0.1:5080"
+insecure_tls = true
+```
+
 ## Config (`/etc/machina/config.toml`)
 
 | Key | Purpose |
@@ -56,4 +87,4 @@ Wire script: `sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /roo
 
 ## HyperSDK
 
-Use hypervisord (`https://<host>:5080/web/dashboard/`) for `list_provider_vms`, `submit_migration`, and bulk export from OpenStack **source** VMs. Machina does not proxy those APIs.
+Enable `[hypersdk]` to proxy list/submit/jobs through machina-daemon, or open the full dashboard at `hypersdk_base_url` / `https://<host>:5080/web/dashboard/`.

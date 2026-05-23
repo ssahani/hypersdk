@@ -80,7 +80,8 @@ connect_timeout_secs = 30
 | OpenStack | `/openstack/instances` — list, search, start/stop/reboot (nav when configured) |
 | Instance detail | `/openstack/instances/{id}` — lifecycle, console, FIPs, Cinder attach/detach, resize, security groups, export |
 | Create wizard | `/openstack/create` — image, flavor, network, keypair, AZ, security groups (defaults from config) |
-| Glance images | `/openstack/images` — linked from Instances header |
+| Glance images | `/openstack/images` — pull to hypervisor, import as libvirt |
+| Bulk migrations | `/openstack/migrations` — HyperSDK proxy (when `[hypersdk] enabled`) |
 
 Lifecycle APIs:
 
@@ -92,7 +93,7 @@ Lifecycle APIs:
 - `GET .../console-output?lines=100` — serial console log tail
 - `GET .../console?type=novnc` — remote console URL (`novnc`, `spice`, `serial`, `rdp`)
 - `POST .../snapshot` — body `{ "image_name": "..." }` (Nova createImage → Glance)
-- `POST .../export` — body `{ "image_name": "..." }` — snapshot + export steps for libvirt pull
+- `POST .../export` — body `{ "image_name", "auto_pull", "dest_path", "wait_for_active" }` — snapshot; with `auto_pull` streams Glance image to hypervisor
 - `DELETE .../instances/{id}`
 
 Volumes & networking:
@@ -133,7 +134,9 @@ See [openstack-migration.md](openstack-migration.md) for full API tables.
 | Glance → qcow2 on host | `POST /api/v1/openstack/images/{id}/pull` — **Glance images** pull modal |
 | qcow2 → libvirt domain | `/import?disk=…` or **Create VM** with existing disk |
 
-Optional `use_hyper2kvm` on VM push delegates to hyper2kvm for guest-fix and deploy parity with hyper2kvm CLI. HyperSDK (`list_provider_vms`, `submit_migration`) remains the path for bulk migrations from hypervisord.
+Optional `use_hyper2kvm` on VM push delegates to hyper2kvm for guest-fix and deploy parity with hyper2kvm CLI.
+
+**HyperSDK proxy** (optional `[hypersdk]` in config): `GET /api/v1/hypersdk/status`, `.../providers/vms`, `POST .../migrations/submit`, `GET .../migrations/jobs` — forwards to hypervisord for bulk pipelines. UI: **OpenStack → OS Migrations**.
 
 ## Packaging
 
@@ -143,7 +146,7 @@ Optional `use_hyper2kvm` on VM push delegates to hyper2kvm for guest-fix and dep
 ## What stays in Horizon / `osc` (not in v1)
 
 - Neutron topology editor, Heat stacks, Octavia load balancers, identity project admin
-- Proxying all HyperSDK APIs through machina-daemon (use hypervisord :5080 dashboard instead)
+- Full HyperSDK dashboard features (Machina proxies list/submit/jobs; advanced flows use hypervisord UI)
 
 TUI commands (`:` prefix): `openstack` / `os` (status), `openstack list`, `openstack start|stop|delete <id>`.
 
