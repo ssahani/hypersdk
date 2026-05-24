@@ -1,4 +1,5 @@
 import { type ReactNode } from 'react'
+import { Link } from 'react-router'
 import { Activity, Lock, Shield, Boxes, KeyRound, Wifi, WifiOff, Cloud } from 'lucide-react'
 import { isOpenStackNavEnabled } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -71,6 +72,21 @@ export default function Hero({ title, subtitle, icon, actions, children, hideBad
 
       {!hideBadges && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
+          {info?.host?.os_pretty_name ? (
+            <Badge
+              on
+              label={info.host.os_pretty_name}
+              title="Hypervisor host OS (from /etc/os-release)"
+              tone="info"
+            />
+          ) : !loading ? (
+            <Badge
+              on={false}
+              label="Host OS unknown"
+              title="platform-info did not report os_pretty_name"
+              tone="warn"
+            />
+          ) : null}
           <Badge
             on={liveConnected}
             label={liveConnected ? 'Live' : 'Reconnecting…'}
@@ -99,23 +115,28 @@ export default function Hero({ title, subtitle, icon, actions, children, hideBad
             title={providers?.oidc.button_label}
             tone="info"
           />
-          <Badge
-            on={isOpenStackNavEnabled(info?.openstack)}
-            label={
-              isOpenStackNavEnabled(info?.openstack)
-                ? `OpenStack: ${info?.openstack?.cloud_name || 'connected'}`
-                : info?.openstack?.enabled
-                  ? 'OpenStack: not wired'
-                  : 'OpenStack off'
-            }
-            icon={<Cloud className="h-3 w-3" />}
+          <Link
+            to={isOpenStackNavEnabled(info?.openstack) ? '/openstack' : '/settings?openstack=1'}
+            className="inline-flex no-underline"
             title={
               isOpenStackNavEnabled(info?.openstack)
                 ? `Cloud ${info?.openstack?.cloud_name}; upload=${info?.openstack?.upload_enabled ? 'on' : 'off'}`
                 : 'Enable [openstack] and run openstack-wire-cloud.sh on the host'
             }
-            tone={isOpenStackNavEnabled(info?.openstack) ? 'info' : 'warn'}
-          />
+          >
+            <Badge
+              on={isOpenStackNavEnabled(info?.openstack)}
+              label={
+                isOpenStackNavEnabled(info?.openstack)
+                  ? `OpenStack: ${info?.openstack?.cloud_name || 'connected'}`
+                  : info?.openstack?.enabled
+                    ? 'OpenStack: not wired'
+                    : 'OpenStack off'
+              }
+              icon={<Cloud className="h-3 w-3" />}
+              tone={isOpenStackNavEnabled(info?.openstack) ? 'info' : 'warn'}
+            />
+          </Link>
           <Badge
             on={Boolean(info?.kubevirt.exec_enabled)}
             label={info?.kubevirt.exec_enabled ? 'KubeVirt: exec' : 'KubeVirt: bundle-only'}

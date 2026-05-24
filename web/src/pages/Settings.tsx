@@ -92,6 +92,12 @@ export default function SettingsPage() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('openstack')) {
+      document.getElementById('openstack-connection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [])
+
+  useEffect(() => {
     if (osUserCap?.libvirtGroupAvailable === false) {
       setAddOsUserToLibvirt(false)
     }
@@ -123,7 +129,7 @@ export default function SettingsPage() {
         <Link to="/secrets" className="text-blue-400 hover:text-blue-300 underline">Secrets</Link> page (define XML + optional base64 value).
       </p>
 
-      <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+      <section id="openstack-connection" className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3 scroll-mt-24">
         <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
           <Cloud className="w-4 h-4 text-sky-400" />
           OpenStack connection
@@ -189,9 +195,11 @@ export default function SettingsPage() {
           >
             {openstackTesting ? 'Testing…' : 'Test connection'}
           </button>
-          <Link to="/openstack/instances" className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-700">
-            Open instances
-          </Link>
+          {isOpenStackNavEnabled(info?.openstack) && (
+            <Link to="/openstack/instances" className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-700">
+              Open instances
+            </Link>
+          )}
         </div>
       </section>
 

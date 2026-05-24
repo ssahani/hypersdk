@@ -1,0 +1,153 @@
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { Cloud, Server, HardDrive, Plus, GitBranch, Upload, Download, ArrowRight } from 'lucide-react'
+import Hero from '../components/Hero'
+import OpenStackSetupPanel from '../components/OpenStackSetupPanel'
+import OpenStackSubNav from '../components/OpenStackSubNav'
+import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import OpenStackFooter from '../components/OpenStackFooter'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { isOpenStackNavEnabled } from '../utils/routes'
+import { getOpenStackStatus, type OpenStackConnectionStatus } from '../api/openstack'
+
+const QUICK_LINKS = [
+  {
+    to: '/openstack/instances',
+    icon: Server,
+    title: 'Nova instances',
+    description: 'List, start, stop, reboot, console, volumes, floating IPs, security groups.',
+  },
+  {
+    to: '/openstack/images',
+    icon: HardDrive,
+    title: 'Glance images',
+    description: 'Pull images to the hypervisor, delete, boot new instances from golden images.',
+  },
+  {
+    to: '/openstack/create',
+    icon: Plus,
+    title: 'Create instance',
+    description: 'Wizard: image, flavor, network, keypair, security groups, cloud-init.',
+  },
+  {
+    to: '/openstack/migrations',
+    icon: GitBranch,
+    title: 'Bulk migrations',
+    description: 'HyperSDK export pipelines when hypersdk is enabled on the daemon.',
+  },
+] as const
+
+const PIPELINES = [
+  {
+    icon: Upload,
+    title: 'qcow2 → Glance',
+    description: 'Disk Images → Upload to OpenStack (needs upload_enabled).',
+    to: '/disk-images',
+  },
+  {
+    icon: Server,
+    title: 'libvirt → Glance',
+    description: 'VM detail → Push to OpenStack (running VM root disk).',
+    to: '/vms',
+  },
+  {
+    icon: Download,
+    title: 'Glance → hypervisor',
+    description: 'Pull qcow2 from Glance, then Import VM or Create VM with existing disk.',
+    to: '/openstack/images',
+  },
+] as const
+
+export default function OpenStackOverviewPage() {
+  const { info } = usePlatformInfo()
+  const ready = isOpenStackNavEnabled(info?.openstack)
+  const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
+  const quickLinks = hypersdkEnabled
+    ? QUICK_LINKS
+    : QUICK_LINKS.filter((l) => l.to !== '/openstack/migrations')
+  const [status, setStatus] = useState<OpenStackConnectionStatus | null>(null)
+
+  const load = useCallback(async () => {
+    try {
+      setStatus(await getOpenStackStatus())
+    } catch {
+      setStatus(null)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (ready) void load()
+  }, [ready, load])
+
+  if (!ready) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Hero
+          title="OpenStack"
+          subtitle="Nova & Glance on this hypervisor — wire Keystone once, manage from Machina."
+          icon={<Cloud className="w-6 h-6" />}
+        />
+        <OpenStackSetupPanel />
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <Hero
+        title="OpenStack"
+        subtitle={`Cloud ${status?.cloud_name || info?.openstack?.cloud_name || '—'} · Nova instances & Glance images without Horizon.`}
+        icon={<Cloud className="w-6 h-6" />}
+        actions={
+          <Link
+            to="/openstack/create"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium"
+          >
+            <Plus className="w-4 h-4" />
+            Create instance
+          </Link>
+        }
+      />
+      <OpenStackSubNav />
+      <OpenStackStatusBar />
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {quickLinks.map(({ to, icon: Icon, title, description }) => (
+          <Link
+            key={to}
+            to={to}
+            className="group rounded-xl border border-slate-700/60 bg-slate-800/40 p-4 hover:border-sky-500/40 hover:bg-sky-950/20 transition"
+          >
+            <Icon className="w-6 h-6 text-sky-400 mb-2" />
+            <h3 className="font-semibold text-slate-100 flex items-center gap-2">
+              {title}
+              <ArrowRight className="w-4 h-4 opacity-0 -translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 transition" />
+            </h3>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{description}</p>
+          </Link>
+        ))}
+      </div>
+
+      <section className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
+        <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">
+          Disk migration pipelines
+        </h2>
+        <ul className="grid gap-3 sm:grid-cols-3">
+          {PIPELINES.map(({ icon: Icon, title, description, to }) => (
+            <li key={title}>
+              <Link to={to} className="flex gap-3 p-3 rounded-lg border border-slate-700/50 hover:bg-slate-800/50 transition">
+                <Icon className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+                <div>
+                  <div className="text-sm font-medium text-slate-200">{title}</div>
+                  <p className="text-xs text-slate-500 mt-0.5">{description}</p>
+                </div>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <OpenStackFooter />
+    </div>
+  )
+}

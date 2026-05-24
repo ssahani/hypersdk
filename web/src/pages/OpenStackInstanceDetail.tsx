@@ -20,6 +20,9 @@ import {
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackInstanceAdvanced from '../components/OpenStackInstanceAdvanced'
 import OpenStackExportModal from '../components/OpenStackExportModal'
+import OpenStackGate from '../components/OpenStackGate'
+import OpenStackSubNav from '../components/OpenStackSubNav'
+import OpenStackStatusBar from '../components/OpenStackStatusBar'
 
 function CopyBtn({ text }: { text: string }) {
   const toast = useToastContext()
@@ -41,6 +44,14 @@ function CopyBtn({ text }: { text: string }) {
 }
 
 export default function OpenStackInstanceDetailPage() {
+  return (
+    <OpenStackGate>
+      <OpenStackInstanceDetailContent />
+    </OpenStackGate>
+  )
+}
+
+function OpenStackInstanceDetailContent() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToastContext()
@@ -128,6 +139,8 @@ export default function OpenStackInstanceDetailPage() {
 
   return (
     <div className="space-y-6 max-w-4xl">
+      <OpenStackSubNav />
+      <OpenStackStatusBar />
       <Link to="/openstack/instances" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm">
         <ArrowLeft className="w-4 h-4" />
         Instances
@@ -150,9 +163,13 @@ export default function OpenStackInstanceDetailPage() {
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-600 hover:bg-slate-800 text-sm">
             <Square className="w-4 h-4" /> Stop
           </button>
-          <button type="button" onClick={() => runAction(() => rebootOpenStackInstance(inst.id, 'soft'), 'Reboot')}
+          <button type="button" onClick={() => runAction(() => rebootOpenStackInstance(inst.id, 'soft'), 'Soft reboot')}
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-600 hover:bg-slate-800 text-sm">
-            <RotateCcw className="w-4 h-4" /> Reboot
+            <RotateCcw className="w-4 h-4" /> Soft reboot
+          </button>
+          <button type="button" onClick={() => runAction(() => rebootOpenStackInstance(inst.id, 'hard'), 'Hard reboot')}
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-amber-600/50 text-amber-200 hover:bg-amber-500/10 text-sm">
+            <RotateCcw className="w-4 h-4" /> Hard reboot
           </button>
           <button type="button" onClick={() => setDeleteOpen(true)}
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-sm">

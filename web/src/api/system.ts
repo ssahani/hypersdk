@@ -76,6 +76,9 @@ export async function putServerCreateVmDefaults(body: Record<string, unknown>): 
 /** Mirrors `GET /api/v1/system/platform-info` — runtime capability summary used by the shell. */
 export interface PlatformInfo {
   version: string
+  host?: {
+    os_pretty_name?: string
+  }
   tls: { enabled: boolean }
   auth: { pam_service: string; oidc_enabled: boolean }
   kubevirt: {

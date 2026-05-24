@@ -72,13 +72,9 @@ export default function Dashboard() {
     } catch {
       setHealthProblems([])
     }
-    if (isOpenStackNavEnabled(info?.openstack)) {
-      try {
-        setOpenstackStatus(await getOpenStackStatus())
-      } catch {
-        setOpenstackStatus(null)
-      }
-    } else {
+    try {
+      setOpenstackStatus(await getOpenStackStatus())
+    } catch {
       setOpenstackStatus(null)
     }
     setLoading(false)
@@ -258,6 +254,35 @@ export default function Dashboard() {
         <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
         <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
+
+      {!openstackReady && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Cloud className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-slate-100">OpenStack not in the menu yet</h2>
+              <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
+                {openstackStatus?.enabled
+                  ? 'OpenStack is enabled in machina config but not fully wired (set cloud_name, auth_url, or clouds.yaml).'
+                  : 'The daemon reports OpenStack off — enable it in /etc/machina/config.toml, then wire Keystone on this host.'}
+                {' '}Use the top nav <span className="text-slate-300">OpenStack → Wire OpenStack</span> or the button below.
+              </p>
+              {openstackStatus && (
+                <p className="text-xs text-slate-500 mt-2 font-mono">
+                  enabled={openstackStatus.enabled ? 'yes' : 'no'} · configured={openstackStatus.configured ? 'yes' : 'no'}
+                  {openstackStatus.cloud_name ? ` · cloud=${openstackStatus.cloud_name}` : ''}
+                </p>
+              )}
+            </div>
+          </div>
+          <Link
+            to="/openstack"
+            className="shrink-0 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-sm"
+          >
+            Wire OpenStack
+          </Link>
+        </div>
+      )}
 
       {openstackReady && openstackStatus && (
         <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">

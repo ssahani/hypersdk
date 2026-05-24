@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   attachOpenStackVolume,
   associateOpenStackFloatingIp,
@@ -8,6 +8,7 @@ import {
   getOpenStackRemoteConsole,
   listOpenStackCinderVolumes,
   listOpenStackFlavors,
+  listOpenStackFloatingIps,
   listOpenStackInstanceFloatingIps,
   listOpenStackNetworks,
   pauseOpenStackInstance,
@@ -17,7 +18,9 @@ import {
   unpauseOpenStackInstance,
   addOpenStackSecurityGroup,
   removeOpenStackSecurityGroup,
+  OPENSTACK_CONSOLE_TYPES,
   type OpenStackAttachedVolume,
+  type OpenStackConsoleType,
   type OpenStackFloatingIp,
   type OpenStackInstance,
   type OpenStackNetwork,
@@ -25,8 +28,9 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import OpenStackExportModal from './OpenStackExportModal'
 import {
-  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2,
+  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink,
 } from 'lucide-react'
+import { isFloatingIpAvailable } from '../utils/openstackFloatingIp'
 
 type Props = {
   inst: OpenStackInstance
@@ -36,39 +40,54 @@ type Props = {
 
 export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: Props) {
   const toast = useToastContext()
+  const extrasErrorShown = useRef(false)
   const [fips, setFips] = useState<OpenStackFloatingIp[]>([])
+  const [poolFips, setPoolFips] = useState<OpenStackFloatingIp[]>([])
   const [cinderVols, setCinderVols] = useState<OpenStackAttachedVolume[]>([])
   const [networks, setNetworks] = useState<OpenStackNetwork[]>([])
   const [flavors, setFlavors] = useState<{ id: string; name: string }[]>([])
   const [attachVolId, setAttachVolId] = useState('')
   const [extNet, setExtNet] = useState('')
+  const [existingFipId, setExistingFipId] = useState('')
   const [resizeFlavor, setResizeFlavor] = useState('')
   const [sgName, setSgName] = useState('')
+  const [consoleType, setConsoleType] = useState<OpenStackConsoleType>('novnc')
   const [consoleLog, setConsoleLog] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
 
   const loadExtras = useCallback(async () => {
     try {
-      const [f, cv, n, fl] = await Promise.all([
+      const [f, allFips, cv, n, fl] = await Promise.all([
         listOpenStackInstanceFloatingIps(inst.id),
+        listOpenStackFloatingIps(),
         listOpenStackCinderVolumes(),
         listOpenStackNetworks(),
         listOpenStackFlavors(),
       ])
       setFips(f.floating_ips)
+      setPoolFips(allFips.floating_ips.filter((ip) => isFloatingIpAvailable(ip, inst.id)))
       setCinderVols(cv.volumes.filter((v) => !volumes.some((a) => a.id === v.id)))
       setNetworks(n.networks.filter((net) => net.external))
       setFlavors(fl.flavors.map((x) => ({ id: x.id, name: x.name })))
-      if (!extNet && n.networks.find((net) => net.external)) {
+      setExtNet((prev) => {
+        if (prev) return prev
         const ext = n.networks.find((net) => net.external)
-        if (ext) setExtNet(ext.id)
+        return ext ? ext.id : prev
+      })
+    } catch (e: unknown) {
+      if (!extrasErrorShown.current) {
+        extrasErrorShown.current = true
+        toast.error(
+          e instanceof Error ? e.message : 'Failed to load OpenStack networking extras',
+        )
       }
-    } catch {
-      /* optional */
     }
-  }, [inst.id, volumes, extNet])
+  }, [inst.id, volumes, toast])
 
-  useEffect(() => { void loadExtras() }, [loadExtras])
+  useEffect(() => {
+    extrasErrorShown.current = false
+    void loadExtras()
+  }, [loadExtras])
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -80,6 +99,18 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       toast.error(e instanceof Error ? e.message : String(e))
     }
   }
+
+  const openRemoteConsole = async () => {
+    try {
+      const c = await getOpenStackRemoteConsole(inst.id, consoleType)
+      window.open(c.url, '_blank', 'noopener,noreferrer')
+      toast.success(`Opened ${c.console_type || consoleType} console`)
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const availablePool = poolFips.filter((ip) => !fips.some((a) => a.id === ip.id))
 
   return (
     <div className="space-y-4">
@@ -126,7 +157,27 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
         <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
           <Terminal className="w-4 h-4 text-sky-400" /> Console
         </h2>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Remote console type</label>
+            <select
+              value={consoleType}
+              onChange={(e) => setConsoleType(e.target.value as OpenStackConsoleType)}
+              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm min-w-[10rem]"
+            >
+              {OPENSTACK_CONSOLE_TYPES.map((t) => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={() => void openRemoteConsole()}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white inline-flex items-center gap-1.5"
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            Open console
+          </button>
           <button type="button" onClick={async () => {
             try {
               const { output } = await getOpenStackConsoleOutput(inst.id, 100)
@@ -135,17 +186,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               toast.error(e instanceof Error ? e.message : String(e))
             }
           }} className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
-            Show serial log (100 lines)
-          </button>
-          <button type="button" onClick={async () => {
-            try {
-              const c = await getOpenStackRemoteConsole(inst.id, 'novnc')
-              window.open(c.url, '_blank', 'noopener,noreferrer')
-            } catch (e: unknown) {
-              toast.error(e instanceof Error ? e.message : String(e))
-            }
-          }} className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white">
-            Open noVNC console
+            Serial log (100 lines)
           </button>
         </div>
         {consoleLog != null && (
@@ -167,12 +208,48 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               <li key={f.id} className="flex flex-wrap items-center gap-2">
                 {f.address}
                 {f.fixed_address && <span className="text-slate-500">→ {f.fixed_address}</span>}
+                <span className="text-xs text-slate-600">({f.status})</span>
                 <button type="button" onClick={() => run(() => dissociateOpenStackFloatingIp(f.id), 'Dissociated')}
                   className="text-xs text-red-400 hover:underline">Dissociate</button>
               </li>
             ))}
           </ul>
         )}
+
+        <p className="text-xs text-slate-500 mb-2">Associate an existing unbound floating IP</p>
+        <div className="flex flex-wrap gap-2 items-end mb-4 pb-4 border-b border-slate-700/60">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Available in project</label>
+            <select
+              value={existingFipId}
+              onChange={(e) => setExistingFipId(e.target.value)}
+              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm max-w-md"
+            >
+              <option value="">Select floating IP…</option>
+              {availablePool.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.address} ({f.status}{f.instance_id ? ` · was ${f.instance_id.slice(0, 8)}` : ''})
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            disabled={!existingFipId}
+            onClick={() => run(
+              () => associateOpenStackFloatingIp(inst.id, { floating_ip_id: existingFipId }),
+              'Existing floating IP associated',
+            )}
+            className="px-3 py-1.5 rounded-lg border border-sky-500/50 text-sky-200 hover:bg-sky-500/10 text-sm disabled:opacity-40"
+          >
+            Associate existing
+          </button>
+          {availablePool.length === 0 && (
+            <span className="text-xs text-slate-600">No unbound IPs in this project.</span>
+          )}
+        </div>
+
+        <p className="text-xs text-slate-500 mb-2">Or allocate a new floating IP</p>
         <div className="flex flex-wrap gap-2 items-end">
           <div>
             <label className="block text-xs text-slate-500 mb-1">External network</label>
@@ -187,7 +264,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           <button type="button" disabled={!extNet}
             onClick={() => run(
               () => associateOpenStackFloatingIp(inst.id, { floating_network: extNet }),
-              'Floating IP associated',
+              'New floating IP allocated and associated',
             )}
             className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white disabled:opacity-40">
             Allocate &amp; associate

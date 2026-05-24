@@ -282,9 +282,19 @@ export function getOpenStackConsoleOutput(
   return readJsonObject(`${API}/openstack/instances/${inst(id)}/console-output${q}`)
 }
 
+/** Remote console types supported by Nova (see daemon `get_remote_console`). */
+export const OPENSTACK_CONSOLE_TYPES = [
+  { id: 'novnc', label: 'noVNC (graphical)' },
+  { id: 'spice', label: 'SPICE HTML5' },
+  { id: 'serial', label: 'Serial' },
+  { id: 'rdp', label: 'RDP HTML5' },
+] as const
+
+export type OpenStackConsoleType = (typeof OPENSTACK_CONSOLE_TYPES)[number]['id']
+
 export function getOpenStackRemoteConsole(
   id: string,
-  type: string = 'novnc',
+  type: OpenStackConsoleType | string = 'novnc',
 ): Promise<OpenStackRemoteConsole> {
   const q = new URLSearchParams({ type })
   return readJsonObject(`${API}/openstack/instances/${inst(id)}/console?${q}`)

@@ -4,25 +4,41 @@ import {
   getHypersdkStatus,
   listHypersdkMigrationJobs,
   listHypersdkProviderVms,
+  submitHypersdkMigration,
   type HypersdkMigrationJob,
   type HypersdkProviderVm,
 } from '../api/hypersdk'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
-import { Cloud, ExternalLink, RefreshCw, Server } from 'lucide-react'
+import OpenStackGate from '../components/OpenStackGate'
+import OpenStackSubNav from '../components/OpenStackSubNav'
+import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import { Cloud, ExternalLink, Loader2, Play, RefreshCw, Server } from 'lucide-react'
 
 export default function OpenStackMigrationsPage() {
+  return (
+    <OpenStackGate title="OpenStack Migrations">
+      <OpenStackMigrationsContent />
+    </OpenStackGate>
+  )
+}
+
+function OpenStackMigrationsContent() {
   const toast = useToastContext()
   const { info } = usePlatformInfo()
-  const openstackReady = isOpenStackNavEnabled(info?.openstack)
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
 
   const [status, setStatus] = useState<Awaited<ReturnType<typeof getHypersdkStatus>> | null>(null)
   const [vms, setVms] = useState<HypersdkProviderVm[]>([])
   const [jobs, setJobs] = useState<HypersdkMigrationJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [submitVmName, setSubmitVmName] = useState('')
+  const [submitVmId, setSubmitVmId] = useState('')
+  const [submitDestPath, setSubmitDestPath] = useState('')
+  const [submitAdvanced, setSubmitAdvanced] = useState(false)
+  const [submitJson, setSubmitJson] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const load = useCallback(async () => {
     if (!hypersdkEnabled) {
@@ -50,22 +66,58 @@ export default function OpenStackMigrationsPage() {
     void load()
   }, [load])
 
+  const buildMigrationPayload = (): Record<string, unknown> => {
+    if (submitAdvanced && submitJson.trim()) {
+      const parsed = JSON.parse(submitJson) as Record<string, unknown>
+      if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+        throw new Error('Advanced payload must be a JSON object')
+      }
+      return parsed
+    }
+    const body: Record<string, unknown> = { provider: 'openstack' }
+    if (submitVmName.trim()) body.vm_name = submitVmName.trim()
+    if (submitVmId.trim()) body.vm_id = submitVmId.trim()
+    if (submitDestPath.trim()) body.dest_path = submitDestPath.trim()
+    return body
+  }
+
+  const handleSubmitMigration = async () => {
+    if (submitAdvanced) {
+      if (!submitJson.trim()) {
+        toast.warning('Enter JSON in advanced mode, or turn off Advanced JSON')
+        return
+      }
+    } else if (!submitVmName.trim() && !submitVmId.trim()) {
+      toast.warning('Enter a VM name or ID, or use advanced JSON')
+      return
+    }
+    setSubmitting(true)
+    try {
+      const payload = buildMigrationPayload()
+      const res = await submitHypersdkMigration(payload)
+      const jobId = res.job_id ?? res.id
+      toast.success(jobId ? `Migration job ${jobId} submitted` : 'Migration submitted')
+      setSubmitVmName('')
+      setSubmitVmId('')
+      setSubmitDestPath('')
+      void load()
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const dashboardUrl = info?.openstack?.hypersdk_base_url
     ? `${info.openstack.hypersdk_base_url.replace(/\/$/, '')}/web/dashboard/`
     : info?.hypersdk?.base_url
       ? `${info.hypersdk.base_url.replace(/\/$/, '')}/web/dashboard/`
       : 'https://127.0.0.1:5080/web/dashboard/'
 
-  if (!openstackReady) {
-    return (
-      <div className="text-slate-400 text-sm">
-        Configure OpenStack in Settings first.
-      </div>
-    )
-  }
-
   return (
     <div className="space-y-6">
+      <OpenStackSubNav />
+      <OpenStackStatusBar />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -117,6 +169,86 @@ export default function OpenStackMigrationsPage() {
         </div>
       )}
 
+      {hypersdkEnabled && status?.reachable && (
+        <section className="rounded-xl border border-sky-500/30 bg-sky-950/15 p-4 space-y-4">
+          <h2 className="font-medium text-slate-200 flex items-center gap-2">
+            <Play className="w-4 h-4 text-sky-400" />
+            Submit migration job
+          </h2>
+          <p className="text-xs text-slate-500">
+            Proxied to hypervisord <code className="text-slate-400">POST /api/v1/migrations/submit</code>.
+            Pick a VM below or enter details manually.
+          </p>
+          {!submitAdvanced ? (
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">VM name</label>
+                <input
+                  value={submitVmName}
+                  onChange={(e) => setSubmitVmName(e.target.value)}
+                  list="hypersdk-vm-names"
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm"
+                  placeholder="from table or type…"
+                />
+                <datalist id="hypersdk-vm-names">
+                  {vms.map((vm) => (
+                    <option key={vm.id ?? vm.name} value={vm.name} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">VM / instance ID (optional)</label>
+                <input
+                  value={submitVmId}
+                  onChange={(e) => setSubmitVmId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm font-mono"
+                  placeholder="Nova UUID"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-slate-500 mb-1">Destination path (optional)</label>
+                <input
+                  value={submitDestPath}
+                  onChange={(e) => setSubmitDestPath(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-sm font-mono"
+                  placeholder="/var/lib/libvirt/images/export.qcow2"
+                />
+              </div>
+            </div>
+          ) : (
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">JSON body (sent as-is)</label>
+              <textarea
+                value={submitJson}
+                onChange={(e) => setSubmitJson(e.target.value)}
+                rows={6}
+                className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-xs font-mono"
+                placeholder={'{\n  "provider": "openstack",\n  "vm_name": "my-vm"\n}'}
+              />
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void handleSubmitMigration()}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm font-medium disabled:opacity-50"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {submitting ? 'Submitting…' : 'Submit job'}
+            </button>
+            <label className="flex items-center gap-2 text-sm text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={submitAdvanced}
+                onChange={(e) => setSubmitAdvanced(e.target.checked)}
+              />
+              Advanced JSON
+            </label>
+          </div>
+        </section>
+      )}
+
       <section className="rounded-xl border border-slate-700/80 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-700/80 flex items-center gap-2">
           <Server className="w-4 h-4 text-sky-400" />
@@ -141,7 +273,15 @@ export default function OpenStackMigrationsPage() {
                 </td></tr>
               )}
               {vms.map((vm) => (
-                <tr key={vm.id ?? vm.name} className="hover:bg-slate-800/40">
+                <tr
+                  key={vm.id ?? vm.name}
+                  className="hover:bg-slate-800/40 cursor-pointer"
+                  onClick={() => {
+                    setSubmitVmName(vm.name)
+                    if (vm.id) setSubmitVmId(vm.id)
+                  }}
+                  title="Click to use in submit form"
+                >
                   <td className="px-4 py-2 text-slate-200">{vm.name}</td>
                   <td className="px-4 py-2">{vm.status ?? '—'}</td>
                   <td className="px-4 py-2 font-mono text-xs text-slate-500">{vm.id ?? '—'}</td>
@@ -151,7 +291,8 @@ export default function OpenStackMigrationsPage() {
           </table>
         </div>
         <p className="px-4 py-2 text-xs text-slate-500">
-          Single-VM flows: <Link to="/openstack/instances" className="text-sky-400 hover:underline">Machina OpenStack instances</Link>
+          Click a row to fill the submit form. Single-VM flows:{' '}
+          <Link to="/openstack/instances" className="text-sky-400 hover:underline">Machina OpenStack instances</Link>
           {' '}or <Link to="/vms" className="text-sky-400 hover:underline">Push libvirt VM to Glance</Link>.
         </p>
       </section>

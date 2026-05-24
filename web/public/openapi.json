@@ -3,7 +3,7 @@
   "info": {
     "title": "Machina API",
     "version": "1.0.0",
-    "description": "REST API for Linux hypervisor hosts: QEMU/KVM domains via libvirt, networks, storage, host networking, backups, metrics, and optional KubeVirt bundle/apply workflows when configured."
+    "description": "REST API for Linux hypervisor hosts: QEMU/KVM domains via libvirt, networks, storage, host networking, backups, metrics, optional OpenStack Nova/Glance/Neutron management, and optional KubeVirt bundle/apply workflows when configured."
   },
   "servers": [
     { "url": "/api/v1", "description": "Default API base" }
@@ -2324,6 +2324,439 @@
         "summary": "Save scheduled tasks",
         "tags": ["Automation"],
         "responses": { "200": { "description": "Schedules saved" } }
+      }
+    },
+    "/openstack/status": {
+      "get": {
+        "summary": "OpenStack connection status (enabled, configured, reachable)",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Status JSON" } }
+      }
+    },
+    "/openstack/test-connection": {
+      "post": {
+        "summary": "Validate Keystone credentials",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Connection test result" } }
+      }
+    },
+    "/openstack/flavors": {
+      "get": {
+        "summary": "List Nova flavors",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Flavor list" } }
+      }
+    },
+    "/openstack/networks": {
+      "get": {
+        "summary": "List Neutron networks",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Network list" } }
+      }
+    },
+    "/openstack/images": {
+      "get": {
+        "summary": "List Glance images",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Image list" } }
+      }
+    },
+    "/openstack/images/upload/preview": {
+      "get": {
+        "summary": "Preview qcow2 upload to Glance",
+        "tags": ["OpenStack"],
+        "parameters": [
+          { "name": "path", "in": "query", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Upload preview" } }
+      }
+    },
+    "/openstack/images/upload": {
+      "post": {
+        "summary": "Upload qcow2 disk to Glance (requires upload_enabled)",
+        "tags": ["OpenStack"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "path": { "type": "string" },
+                  "image_name": { "type": "string" },
+                  "disk_format": { "type": "string" },
+                  "container_format": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Upload started or completed" } }
+      }
+    },
+    "/openstack/images/{id}": {
+      "delete": {
+        "summary": "Delete Glance image",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Image deleted" } }
+      }
+    },
+    "/openstack/images/{id}/pull": {
+      "post": {
+        "summary": "Download Glance image to hypervisor path",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dest_path": { "type": "string" },
+                  "format": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Pull result with dest_path" } }
+      }
+    },
+    "/openstack/keypairs": {
+      "get": {
+        "summary": "List Nova keypairs",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Keypair list" } }
+      }
+    },
+    "/openstack/instances": {
+      "get": {
+        "summary": "List Nova instances",
+        "tags": ["OpenStack"],
+        "parameters": [
+          { "name": "search", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "status", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Instance list" } }
+      },
+      "post": {
+        "summary": "Create Nova instance",
+        "tags": ["OpenStack"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "flavor"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "flavor": { "type": "string" },
+                  "image": { "type": "string" },
+                  "network": { "type": "string" },
+                  "key_name": { "type": "string" },
+                  "availability_zone": { "type": "string" },
+                  "security_groups": { "type": "array", "items": { "type": "string" } },
+                  "user_data": { "type": "string" },
+                  "wait_until_active": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Created instance" } }
+      }
+    },
+    "/openstack/instances/{id}": {
+      "get": {
+        "summary": "Get Nova instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Instance detail" } }
+      },
+      "delete": {
+        "summary": "Delete Nova instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/openstack/instances/{id}/start": {
+      "post": { "summary": "Start instance", "tags": ["OpenStack"], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Started" } } }
+    },
+    "/openstack/instances/{id}/stop": {
+      "post": { "summary": "Stop instance", "tags": ["OpenStack"], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Stopped" } } }
+    },
+    "/openstack/instances/{id}/reboot": {
+      "post": {
+        "summary": "Reboot instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "reboot_type": { "type": "string", "enum": ["soft", "hard"] } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Rebooted" } }
+      }
+    },
+    "/openstack/instances/{id}/pause": {
+      "post": { "summary": "Pause instance", "tags": ["OpenStack"], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Paused" } } }
+    },
+    "/openstack/instances/{id}/unpause": {
+      "post": { "summary": "Unpause instance", "tags": ["OpenStack"], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Unpaused" } } }
+    },
+    "/openstack/instances/{id}/suspend": {
+      "post": { "summary": "Suspend instance", "tags": ["OpenStack"], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Suspended" } } }
+    },
+    "/openstack/instances/{id}/resume": {
+      "post": { "summary": "Resume instance", "tags": ["OpenStack"], "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }], "responses": { "200": { "description": "Resumed" } } }
+    },
+    "/openstack/instances/{id}/resize": {
+      "post": {
+        "summary": "Resize instance to flavor",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["flavor"],
+                "properties": { "flavor": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Resized" } }
+      }
+    },
+    "/openstack/instances/{id}/snapshot": {
+      "post": {
+        "summary": "Snapshot instance to Glance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": { "image_name": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Snapshot created" } }
+      }
+    },
+    "/openstack/instances/{id}/export": {
+      "post": {
+        "summary": "Export instance (snapshot + optional Glance pull to hypervisor)",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image_name": { "type": "string" },
+                  "dest_path": { "type": "string" },
+                  "auto_pull": { "type": "boolean" },
+                  "wait_for_active": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Export plan / result" } }
+      }
+    },
+    "/openstack/instances/{id}/console-output": {
+      "get": {
+        "summary": "Serial console log tail",
+        "tags": ["OpenStack"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "lines", "in": "query", "required": false, "schema": { "type": "integer" } }
+        ],
+        "responses": { "200": { "description": "Console output text" } }
+      }
+    },
+    "/openstack/instances/{id}/console": {
+      "get": {
+        "summary": "Remote console URL (novnc, spice, serial, rdp)",
+        "tags": ["OpenStack"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "type", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Console URL" } }
+      }
+    },
+    "/openstack/volumes": {
+      "get": {
+        "summary": "List Cinder volumes",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Volume list" } }
+      }
+    },
+    "/openstack/instances/{id}/volumes": {
+      "get": {
+        "summary": "List volumes attached to instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Attached volumes" } }
+      }
+    },
+    "/openstack/instances/{id}/volumes/attach": {
+      "post": {
+        "summary": "Attach Cinder volume",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["volume_id"],
+                "properties": { "volume_id": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Attached" } }
+      }
+    },
+    "/openstack/instances/{id}/volumes/{vol_id}": {
+      "delete": {
+        "summary": "Detach Cinder volume",
+        "tags": ["OpenStack"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "vol_id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Detached" } }
+      }
+    },
+    "/openstack/floating-ips": {
+      "get": {
+        "summary": "List project floating IPs",
+        "tags": ["OpenStack"],
+        "responses": { "200": { "description": "Floating IP list" } }
+      }
+    },
+    "/openstack/instances/{id}/floating-ips": {
+      "get": {
+        "summary": "List floating IPs on instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Instance floating IPs" } }
+      },
+      "post": {
+        "summary": "Associate floating IP (existing id or new on external network)",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "floating_ip_id": { "type": "string" },
+                  "floating_network": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Associated floating IP" } }
+      }
+    },
+    "/openstack/floating-ips/{id}/dissociate": {
+      "post": {
+        "summary": "Dissociate floating IP",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Dissociated" } }
+      }
+    },
+    "/openstack/instances/{id}/security-groups": {
+      "post": {
+        "summary": "Add security group to instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Added" } }
+      }
+    },
+    "/openstack/instances/{id}/security-groups/remove": {
+      "post": {
+        "summary": "Remove security group from instance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": { "name": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Removed" } }
+      }
+    },
+    "/vms/{name}/openstack-push/preview": {
+      "get": {
+        "summary": "Preview libvirt VM push to Glance",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Push preview" } }
+      }
+    },
+    "/vms/{name}/openstack-push": {
+      "post": {
+        "summary": "Push libvirt VM root disk to Glance (optional Nova instance)",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "image_name": { "type": "string" },
+                  "create_instance": { "type": "boolean" },
+                  "use_hyper2kvm": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Push result" } }
       }
     },
     "/k8s/overview": {

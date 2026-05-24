@@ -8,6 +8,9 @@ import { useToastContext } from '../contexts/ToastContext'
 import { ArrowLeft, Upload, HardDrive, FolderOpen, Sliders } from 'lucide-react'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { Link } from 'react-router'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { isOpenStackNavEnabled } from '../utils/routes'
+import { Cloud } from 'lucide-react'
 
 export default function ImportVMPage() {
   const [source, setSource] = useState('')
@@ -27,6 +30,8 @@ export default function ImportVMPage() {
   const toast = useToastContext()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { info } = usePlatformInfo()
+  const openstackReady = isOpenStackNavEnabled(info?.openstack)
 
   useEffect(() => {
     listNetworks().then(setNetworks).catch(() => {})
@@ -122,6 +127,26 @@ export default function ImportVMPage() {
           />
         </ChoiceCardGrid>
       </div>
+
+      {openstackReady && step === 'import' && (
+        <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Cloud className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-slate-200">Import from OpenStack Glance</p>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Pull a cloud image to this host, then continue with configure below.
+              </p>
+            </div>
+          </div>
+          <Link
+            to="/openstack/images"
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm"
+          >
+            Glance images
+          </Link>
+        </div>
+      )}
 
       {step === 'import' && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">

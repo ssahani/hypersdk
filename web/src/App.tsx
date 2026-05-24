@@ -49,11 +49,18 @@ const Jobs = lazy(() => import('./pages/Jobs'))
 const K8sOverview = lazy(() => import('./pages/K8sOverview'))
 const K8sWorkloads = lazy(() => import('./pages/K8sWorkloads'))
 const KataContainers = lazy(() => import('./pages/KataContainers'))
+const OpenStackOverview = lazy(() => import('./pages/OpenStackOverview'))
 const OpenStackInstances = lazy(() => import('./pages/OpenStackInstances'))
 const OpenStackInstanceDetail = lazy(() => import('./pages/OpenStackInstanceDetail'))
 const OpenStackCreateInstance = lazy(() => import('./pages/OpenStackCreateInstance'))
 const OpenStackImages = lazy(() => import('./pages/OpenStackImages'))
 const OpenStackMigrations = lazy(() => import('./pages/OpenStackMigrations'))
+
+function AppZyvorFooter() {
+  const { info } = usePlatformInfo()
+  const hostOs = info?.host?.os_pretty_name?.trim()
+  return <ZyvorFooter hostOs={hostOs || undefined} />
+}
 
 function GlobalShortcuts() {
   const navigate = useNavigate()
@@ -75,7 +82,7 @@ function GlobalShortcuts() {
       { sequence: ['g', 'k'], handler: () => navigate('/k8s/workloads') },
     ]
     if (openstackReady) {
-      base.push({ sequence: ['g', 'o'], handler: () => navigate('/openstack/instances') })
+      base.push({ sequence: ['g', 'o'], handler: () => navigate('/openstack') })
     }
     return base
   }, [navigate, openstackReady])
@@ -138,6 +145,7 @@ function AuthenticatedApp() {
                 <Route path="/k8s" element={<K8sOverview />} />
                 <Route path="/k8s/workloads" element={<K8sWorkloads />} />
                 <Route path="/k8s/kata" element={<KataContainers />} />
+                <Route path="/openstack" element={<OpenStackOverview />} />
                 <Route path="/openstack/instances" element={<OpenStackInstances />} />
                 <Route path="/openstack/instances/:id" element={<OpenStackInstanceDetail />} />
                 <Route path="/openstack/create" element={<OpenStackCreateInstance />} />
@@ -170,7 +178,7 @@ function AuthenticatedApp() {
               </Routes>
             </Suspense>
           </main>
-          <ZyvorFooter />
+          <AppZyvorFooter />
         </div>
         </BrowserRouter>
       </PlatformInfoProvider>

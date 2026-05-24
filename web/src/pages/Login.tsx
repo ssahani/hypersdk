@@ -1,4 +1,4 @@
-import { useEffect, useState, FormEvent } from 'react'
+import { useEffect, useState, FormEvent, type ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
@@ -20,47 +20,61 @@ import {
   Loader2,
   CheckCircle,
   HardDrive,
+  Sparkles,
 } from 'lucide-react'
 
 const LOGIN_ORBS = [
-  { size: 300, top: '6%', left: '8%', delay: '0s', duration: '10s' },
-  { size: 200, top: '58%', left: '14%', delay: '2.5s', duration: '12s' },
-  { size: 160, top: '22%', left: '62%', delay: '1s', duration: '9s' },
-  { size: 380, top: '62%', left: '70%', delay: '3s', duration: '14s' },
+  { size: 340, top: '4%', left: '6%', delay: '0s', duration: '11s', hue: 'blue' as const },
+  { size: 220, top: '55%', left: '12%', delay: '2.2s', duration: '13s', hue: 'violet' as const },
+  { size: 180, top: '18%', left: '58%', delay: '0.8s', duration: '9s', hue: 'cyan' as const },
+  { size: 400, top: '58%', left: '68%', delay: '3.2s', duration: '15s', hue: 'red' as const },
 ]
+
+const PARTICLE_SEEDS = Array.from({ length: 28 }, (_, i) => ({
+  id: i,
+  left: `${(i * 17 + 7) % 100}%`,
+  top: `${(i * 23 + 11) % 100}%`,
+  delay: `${(i % 7) * 0.45}s`,
+  size: 2 + (i % 3),
+}))
 
 const features = [
   {
     icon: <OpenStackLogo className="w-5 h-5" />,
-    gradient: 'from-red-500/90 to-orange-700/90',
+    gradient: 'from-red-500/95 via-orange-600/90 to-red-800/95',
+    glow: 'shadow-red-500/30',
     title: 'OpenStack Nova & Glance',
     description:
-      'Manage private-cloud instances and images from the same UI as libvirt — Keystone on the host, Packstack/RDO wire script, qcow2 upload without Horizon.',
+      'Private-cloud instances and images beside libvirt — Keystone on the host, Packstack wire script, qcow2 upload without Horizon.',
     highlight: true,
   },
   {
-    icon: <Server className="w-5 h-5 text-blue-200" />,
-    gradient: 'from-blue-500/90 to-blue-800/90',
+    icon: <Server className="w-5 h-5 text-blue-100" />,
+    gradient: 'from-blue-500/95 to-indigo-800/95',
+    glow: 'shadow-blue-500/25',
     title: 'Guests & lifecycle',
-    description: 'Create, start, stop, snapshot, and migrate libvirt-backed QEMU/KVM guests with full console access.',
+    description: 'Create, start, stop, snapshot, and migrate QEMU/KVM guests with VNC, SPICE, and serial consoles.',
   },
   {
-    icon: <Network className="w-5 h-5 text-emerald-200" />,
-    gradient: 'from-emerald-500/90 to-emerald-800/90',
+    icon: <Network className="w-5 h-5 text-emerald-100" />,
+    gradient: 'from-emerald-500/95 to-teal-800/95',
+    glow: 'shadow-emerald-500/25',
     title: 'Host networking & storage',
-    description: 'Visual topology, port forwarding, storage pools, and firewall rules on this hypervisor node.',
+    description: 'Topology maps, port forwards, pools, and firewall rules on the hypervisor node.',
   },
   {
-    icon: <Activity className="w-5 h-5 text-purple-200" />,
-    gradient: 'from-purple-500/90 to-purple-800/90',
+    icon: <Activity className="w-5 h-5 text-purple-100" />,
+    gradient: 'from-purple-500/95 to-fuchsia-800/95',
+    glow: 'shadow-purple-500/25',
     title: 'Monitoring & automation',
-    description: 'Live metrics, alerts, webhooks, scheduled actions, and Prometheus integration.',
+    description: 'Live metrics, alerts, webhooks, schedules, and Prometheus hooks.',
   },
   {
-    icon: <Boxes className="w-5 h-5 text-orange-200" />,
-    gradient: 'from-orange-500/90 to-rose-700/90',
-    title: 'KubeVirt & qcow2 upload',
-    description: 'Push any golden qcow2 to Kubernetes — Linux or Windows guest profiles, CDI upload, virtctl from Disk Images.',
+    icon: <Boxes className="w-5 h-5 text-orange-100" />,
+    gradient: 'from-orange-500/95 to-rose-700/95',
+    glow: 'shadow-orange-500/25',
+    title: 'KubeVirt & qcow2',
+    description: 'Golden images to Kubernetes — Linux or Windows profiles, CDI upload, virtctl from Disk Images.',
   },
 ]
 
@@ -101,6 +115,8 @@ export default function LoginPage() {
   const { login } = useAuth()
   const { theme, setTheme } = useTheme()
   const isLight = theme === 'light'
+  const isSteel = theme === 'steel'
+  const pageThemeClass = isLight ? 'login-page-light' : isSteel ? 'login-page-steel' : ''
 
   useEffect(() => {
     void getAuthProviders().then(setProviders).catch(() => {})
@@ -136,14 +152,20 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={`login-page min-h-screen flex flex-col lg:flex-row ${isLight ? 'login-page-light' : ''}`}>
-      <ThemeSwitcher theme={theme} setTheme={setTheme} isLight={isLight} />
+    <div className={`login-page min-h-screen flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}`}>
+      <div className="login-aurora" aria-hidden />
+      <div className="login-scanline" aria-hidden />
 
-      <aside className="login-hero hidden lg:flex lg:w-[58%] flex-col justify-between p-12 overflow-hidden relative">
+      <ThemeSwitcher theme={theme} setTheme={setTheme} isLight={isLight} isSteel={isSteel} />
+
+      <aside className="login-hero hidden lg:flex lg:w-[58%] flex-col justify-between p-10 xl:p-12 overflow-hidden relative">
+        <div className="login-hero-mesh" aria-hidden />
+        <div className="login-spotlight" aria-hidden />
+
         {LOGIN_ORBS.map((orb, i) => (
           <div
             key={i}
-            className="login-orb"
+            className={`login-orb login-orb-${orb.hue}`}
             style={{
               width: orb.size,
               height: orb.size,
@@ -155,24 +177,47 @@ export default function LoginPage() {
           />
         ))}
 
+        <div className="login-particles" aria-hidden>
+          {PARTICLE_SEEDS.map((p) => (
+            <span
+              key={p.id}
+              className="login-particle"
+              style={{
+                left: p.left,
+                top: p.top,
+                width: p.size,
+                height: p.size,
+                animationDelay: p.delay,
+              }}
+            />
+          ))}
+        </div>
+
         <div className="relative z-10">
-          <div className="login-fade-in flex items-center gap-3 mb-8">
-            <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/25 border border-blue-400/20">
-              <BoltLogo className="w-7 h-7 text-white" />
+          <div className="login-fade-in flex items-center gap-4 mb-8">
+            <div className="login-logo-ring">
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-blue-400 via-blue-600 to-indigo-800 shadow-xl shadow-blue-500/40 border border-white/20">
+                <BoltLogo className="w-7 h-7 text-white drop-shadow" />
+              </div>
             </div>
-            <span className="text-4xl font-bold tracking-tight text-white">Machina</span>
+            <div>
+              <span className="text-4xl font-bold tracking-tight text-white block">Machina</span>
+              <span className="text-xs font-medium uppercase tracking-[0.28em] text-sky-300/80 mt-0.5 block">
+                Hypervisor control plane
+              </span>
+            </div>
           </div>
-          <h2 className="login-fade-in login-fade-in-d1 text-4xl font-extrabold text-white leading-[1.12] mb-4 max-w-lg">
+          <h2 className="login-fade-in login-fade-in-d1 text-4xl xl:text-[2.75rem] font-extrabold text-white leading-[1.08] mb-4 max-w-xl">
             Libvirt + OpenStack
             <br />
             <span className="login-text-gradient">on one hypervisor host</span>
           </h2>
-          <p className="login-fade-in login-fade-in-d2 text-lg text-slate-300/90 max-w-md leading-relaxed">
-            QEMU/KVM under libvirt, plus Nova and Glance when your cloud is wired — consoles, storage, automation, and
-            block upload to Glance, without Horizon.
+          <p className="login-fade-in login-fade-in-d2 text-lg text-slate-300/90 max-w-lg leading-relaxed">
+            QEMU/KVM under libvirt, Nova and Glance when wired, consoles, storage, automation, and block upload to
+            Glance — without Horizon.
           </p>
           <div className="login-fade-in login-fade-in-d3 flex flex-wrap gap-2 mt-6">
-            <span className="login-stat-pill">
+            <span className="login-stat-pill login-stat-pill-glow">
               <OpenStackLogo className="w-3 h-3" /> OpenStack
             </span>
             <span className="login-stat-pill">
@@ -183,38 +228,48 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="relative z-10 space-y-3">
+        <div className="relative z-10 space-y-2.5 max-h-[42vh] overflow-y-auto login-feature-scroll pr-1">
           {features.map((f, i) => (
             <div
               key={f.title}
-              className={`login-fade-in flex items-start gap-4 p-4 rounded-xl backdrop-blur-sm ${
-                'highlight' in f && f.highlight
-                  ? 'bg-red-950/25 border border-red-500/25'
-                  : 'bg-white/[0.04] border border-white/10'
+              className={`login-feature-card login-fade-in flex items-start gap-4 p-4 rounded-xl backdrop-blur-md ${
+                f.highlight
+                  ? 'login-feature-card-highlight'
+                  : 'bg-white/[0.04] border border-white/10 hover:border-white/20'
               }`}
-              style={{ animationDelay: `${0.35 + i * 0.08}s`, opacity: 0 }}
+              style={{ animationDelay: `${0.35 + i * 0.07}s`, opacity: 0 }}
             >
-              <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br ${f.gradient} shadow-lg`}>
+              <div
+                className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 bg-gradient-to-br ${f.gradient} shadow-lg ${f.glow}`}
+              >
                 {f.icon}
               </div>
-              <div>
-                <div className="text-sm font-semibold text-white">{f.title}</div>
-                <p className="text-xs mt-1 text-slate-400">{f.description}</p>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white flex items-center gap-2">
+                  {f.title}
+                  {f.highlight && (
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300/90 shrink-0" aria-hidden />
+                  )}
+                </div>
+                <p className="text-xs mt-1 text-slate-400 leading-relaxed">{f.description}</p>
               </div>
             </div>
           ))}
         </div>
       </aside>
 
+      <div className="login-beam hidden lg:block" aria-hidden />
+
       <main className="login-panel flex-1 flex items-center justify-center relative px-6 py-12 min-h-screen">
         <div className="login-panel-grid" aria-hidden />
-        <div className="w-full max-w-[400px] relative z-10">
+        <div className="login-panel-glow" aria-hidden />
+        <div className="w-full max-w-[420px] relative z-10">
           <MobileBrand />
           <DesktopHeading isLight={isLight} />
 
-          <form onSubmit={handleSubmit} className="login-glass rounded-2xl p-8 shadow-2xl" autoComplete="on">
+          <form onSubmit={handleSubmit} className="login-glass login-glass-border rounded-2xl p-8 shadow-2xl" autoComplete="on">
             {error && (
-              <div className="flex items-center gap-2.5 bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-6">
+              <div className="flex items-center gap-2.5 bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-6 login-shake">
                 <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
                 <span className="text-sm text-red-300">{error}</span>
               </div>
@@ -272,7 +327,7 @@ export default function LoginPage() {
               <span className="text-sm text-slate-400">Remember me on this device</span>
             </label>
 
-            <button type="submit" disabled={submitting || !username || !password} className="login-btn-primary">
+            <button type="submit" disabled={submitting || !username || !password} className="login-btn-primary group">
               {submitting ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin relative z-10" />
@@ -281,7 +336,7 @@ export default function LoginPage() {
               ) : (
                 <>
                   <span className="relative z-10">Sign in</span>
-                  <ArrowRight className="h-4 w-4 relative z-10" />
+                  <ArrowRight className="h-4 w-4 relative z-10 group-hover:translate-x-0.5 transition-transform" />
                 </>
               )}
             </button>
@@ -296,15 +351,21 @@ export default function LoginPage() {
             )}
 
             <div className="mt-6 pt-5 border-t border-slate-700/50 flex items-center justify-center gap-2 text-xs text-slate-500">
-              <CheckCircle className="h-3.5 w-3.5 text-slate-600" />
+              <CheckCircle className="h-3.5 w-3.5 text-emerald-500/70" />
               <span>Secured with system PAM (same as SSH)</span>
             </div>
           </form>
 
-          <p className={`text-xs text-center mt-4 max-w-sm mx-auto leading-relaxed ${isLight ? 'text-slate-500' : 'text-slate-500'}`}>
+          <p className="text-xs text-center mt-4 max-w-sm mx-auto leading-relaxed text-slate-500">
             {providers.oidc.enabled
               ? 'Use your system account or organization SSO, depending on daemon configuration.'
-              : <>Same credentials as SSH. If you only use SSH keys, run <code className="text-[11px] px-1 rounded bg-slate-800/80">passwd</code> on the server first.</>}
+              : (
+                <>
+                  Same credentials as SSH. If you only use SSH keys, run{' '}
+                  <code className="text-[11px] px-1 rounded bg-slate-800/80 text-slate-300">passwd</code> on the
+                  server first.
+                </>
+              )}
           </p>
         </div>
       </main>
@@ -312,23 +373,26 @@ export default function LoginPage() {
   )
 }
 
-
 function ThemeSwitcher({
   theme,
   setTheme,
   isLight,
+  isSteel,
 }: {
   theme: string
   setTheme: (t: 'dark' | 'steel' | 'light') => void
   isLight: boolean
+  isSteel: boolean
 }) {
+  const shell = isLight
+    ? 'border-slate-300/80 bg-white/90 shadow-lg shadow-slate-200/50'
+    : isSteel
+      ? 'border-[rgba(140,160,190,0.25)] bg-[#1a2230]/92 shadow-lg shadow-black/30'
+      : 'border-slate-600/50 bg-slate-900/85 shadow-lg shadow-black/40'
+
   return (
     <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-30" role="group" aria-label="Theme">
-      <div
-        className={`grid grid-cols-3 gap-1.5 w-[11.5rem] rounded-xl p-1 backdrop-blur-md border ${
-          isLight ? 'border-slate-300/80 bg-white/90' : 'border-slate-600/60 bg-slate-900/80'
-        }`}
-      >
+      <div className={`login-theme-switch grid grid-cols-3 gap-1 rounded-xl p-1 backdrop-blur-xl border ${shell}`}>
         {(
           [
             { id: 'dark' as const, label: 'Dark', Icon: Moon },
@@ -340,14 +404,14 @@ function ThemeSwitcher({
             key={id}
             type="button"
             onClick={() => setTheme(id)}
-            className={`rounded-lg border px-1.5 py-2 text-[10px] font-semibold uppercase tracking-wide flex flex-col items-center gap-1 transition ${
+            className={`login-theme-btn rounded-lg border px-2 py-2 text-[10px] font-semibold uppercase tracking-wide flex flex-col items-center gap-1 transition ${
               theme === id
                 ? isLight
-                  ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-200'
-                  : 'border-blue-500 bg-blue-950/50 text-blue-200 ring-2 ring-blue-500/50'
+                  ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-200/80'
+                  : 'border-blue-500/80 bg-blue-500/20 text-blue-100 ring-2 ring-blue-400/30'
                 : isLight
                   ? 'border-transparent text-slate-600 hover:bg-slate-100'
-                  : 'border-transparent text-slate-300 hover:bg-slate-800/80'
+                  : 'border-transparent text-slate-400 hover:bg-white/5'
             }`}
           >
             <Icon className="w-4 h-4" aria-hidden />
@@ -362,11 +426,13 @@ function ThemeSwitcher({
 function MobileBrand() {
   return (
     <div className="lg:hidden text-center mb-8">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 shadow-lg shadow-blue-500/20 mb-4 border border-blue-400/20">
-        <BoltLogo className="w-7 h-7 text-white" />
+      <div className="login-logo-ring inline-block mb-4">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-700 shadow-lg shadow-blue-500/30 border border-blue-400/25">
+          <BoltLogo className="w-7 h-7 text-white" />
+        </div>
       </div>
       <h1 className="text-2xl font-bold text-white">Machina</h1>
-      <p className="text-sm mt-1 text-slate-400">Libvirt · OpenStack · sign in</p>
+      <p className="text-sm mt-1 text-slate-400">Libvirt · OpenStack · KubeVirt</p>
     </div>
   )
 }
@@ -382,7 +448,7 @@ function DesktopHeading({ isLight }: { isLight: boolean }) {
   )
 }
 
-function Field({ label, id, children }: { label: string; id: string; children: React.ReactNode }) {
+function Field({ label, id, children }: { label: string; id: string; children: ReactNode }) {
   return (
     <div>
       <label htmlFor={id} className="block text-sm font-medium text-slate-300 mb-2">

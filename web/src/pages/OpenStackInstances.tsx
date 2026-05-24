@@ -11,8 +11,11 @@ import {
   type OpenStackConnectionStatus,
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
-import { Play, Square, RotateCcw, Search, RefreshCw, Cloud, Plus, AlertCircle } from 'lucide-react'
+import { Play, Square, RotateCcw, Search, RefreshCw, Cloud, Plus } from 'lucide-react'
 import OpenStackFooter from '../components/OpenStackFooter'
+import OpenStackGate from '../components/OpenStackGate'
+import OpenStackSubNav from '../components/OpenStackSubNav'
+import OpenStackStatusBar from '../components/OpenStackStatusBar'
 
 const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
 
@@ -26,6 +29,14 @@ function statusBadge(status: string) {
 }
 
 export default function OpenStackInstancesPage() {
+  return (
+    <OpenStackGate title="OpenStack Instances">
+      <OpenStackInstancesContent />
+    </OpenStackGate>
+  )
+}
+
+function OpenStackInstancesContent() {
   const [instances, setInstances] = useState<OpenStackInstance[]>([])
   const [status, setStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -77,10 +88,10 @@ export default function OpenStackInstancesPage() {
     }
   }
 
-  const notConfigured = status && !status.configured
-
   return (
     <div className="space-y-6">
+      <OpenStackSubNav />
+      <OpenStackStatusBar />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -119,18 +130,6 @@ export default function OpenStackInstancesPage() {
           </button>
         </div>
       </div>
-
-      {notConfigured && (
-        <div className="flex gap-3 p-4 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-100 text-sm">
-          <AlertCircle className="w-5 h-5 shrink-0" />
-          <div>
-            OpenStack is not configured on this host. Set{' '}
-            <code className="text-amber-200">[openstack] enabled = true</code> and{' '}
-            <code className="text-amber-200">cloud_name</code> or inline auth in machina config.
-            See <code className="text-amber-200">docs/openstack.md</code> in the machina repo or Settings → test connection.
-          </div>
-        </div>
-      )}
 
       {status?.error && (
         <div className="p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm">

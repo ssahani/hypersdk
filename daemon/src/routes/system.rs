@@ -176,12 +176,27 @@ async fn put_create_vm_defaults(
     Ok(Json(json!({ "status": "saved" })))
 }
 
+fn read_host_os_pretty() -> String {
+    let Ok(content) = std::fs::read_to_string("/etc/os-release") else {
+        return String::new();
+    };
+    for line in content.lines() {
+        if let Some(rest) = line.strip_prefix("PRETTY_NAME=") {
+            return rest.trim_matches('"').to_string();
+        }
+    }
+    String::new()
+}
+
 /// Surfaces the runtime "what is enabled?" view used by the web shell to render
 /// capability badges (TLS, OIDC, KubeVirt cluster exec, virtio-win image, etc.).
 async fn platform_info() -> Json<serde_json::Value> {
     let cfg = MachinaConfig::load();
     Json(json!({
         "version": env!("CARGO_PKG_VERSION"),
+        "host": {
+            "os_pretty_name": read_host_os_pretty(),
+        },
         "tls": {
             "enabled": cfg.tls.enabled
                 && !cfg.tls.cert_path.is_empty()

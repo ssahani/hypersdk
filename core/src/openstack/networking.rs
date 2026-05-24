@@ -27,10 +27,26 @@ pub struct AssociateFloatingIpRequest {
 
 pub async fn list_floating_ips(cfg: &OpenStackConfig) -> Result<Vec<OpenStackFloatingIp>, LibvirtError> {
     let cloud = connect_cloud(cfg).await?;
+    let ports = cloud
+        .find_ports()
+        .all()
+        .await
+        .map_err(map_openstack_err)?;
+    let port_device: std::collections::HashMap<String, String> = ports
+        .iter()
+        .filter_map(|p| {
+            let device = p.device_id().clone().filter(|d| !d.is_empty())?;
+            Some((p.id().clone(), device))
+        })
+        .collect();
     let fips = cloud.list_floating_ips().await.map_err(map_openstack_err)?;
     let mut out = Vec::with_capacity(fips.len());
     for fip in fips {
-        out.push(fip_row(&fip, None));
+        let instance_id = fip
+            .port_id()
+            .as_ref()
+            .and_then(|pid| port_device.get(pid).cloned());
+        out.push(fip_row(&fip, instance_id));
     }
     out.sort_by(|a, b| a.address.cmp(&b.address));
     Ok(out)

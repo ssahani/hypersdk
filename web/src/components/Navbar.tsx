@@ -6,16 +6,10 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
 import { timeAgo } from '../utils/time'
-import { navGroups, NavItem, NavGroup, isOpenStackNavEnabled } from '../utils/routes'
+import { navGroups, NavItem, NavGroup, isOpenStackNavEnabled, navItemVisible } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 
-function navItemVisible(item: NavItem, username: string, openstackReady: boolean) {
-  if (item.requiresRoot && username !== 'root') return false
-  if (item.requiresOpenStack && !openstackReady) return false
-  return true
-}
-
-function NavLink({ item, onClick, steel }: { item: NavItem; onClick?: () => void; steel: boolean }) {
+function NavLink({ item, onClick, steel, setup }: { item: NavItem; onClick?: () => void; steel: boolean; setup?: boolean }) {
   const { theme } = useTheme()
   const isLight = theme === 'light'
   const location = useLocation()
@@ -27,7 +21,11 @@ function NavLink({ item, onClick, steel }: { item: NavItem; onClick?: () => void
         to={item.to}
         onClick={onClick}
         className={`nav-steel-link flex items-center gap-2 px-2 py-2 text-sm font-medium no-underline transition-colors duration-200 ${
-          isActive ? 'nav-steel-link-active' : 'text-[#9aa8b8] hover:text-white'
+          setup
+            ? 'text-amber-300/90 hover:text-amber-200'
+            : isActive
+              ? 'nav-steel-link-active'
+              : 'text-[#9aa8b8] hover:text-white'
         }`}
       >
         {item.icon}
@@ -41,13 +39,15 @@ function NavLink({ item, onClick, steel }: { item: NavItem; onClick?: () => void
       to={item.to}
       onClick={onClick}
       className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
-        isActive
-          ? isLight
-            ? 'bg-blue-100 text-blue-900 shadow-lg shadow-blue-200/40'
-            : 'bg-blue-600/90 text-white shadow-lg shadow-blue-600/20'
-          : isLight
-            ? 'text-slate-700 hover:bg-slate-100'
-            : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+        setup
+          ? 'text-amber-600 hover:bg-amber-50 border border-amber-200/80'
+          : isActive
+            ? isLight
+              ? 'bg-blue-100 text-blue-900 shadow-lg shadow-blue-200/40'
+              : 'bg-blue-600/90 text-white shadow-lg shadow-blue-600/20'
+            : isLight
+              ? 'text-slate-700 hover:bg-slate-100'
+              : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
       }`}
     >
       {item.icon}
@@ -56,13 +56,13 @@ function NavLink({ item, onClick, steel }: { item: NavItem; onClick?: () => void
   )
 }
 
-function DesktopDropdown({ group, username, steel, openstackReady }: { group: NavGroup; username: string; steel: boolean; openstackReady: boolean }) {
+function DesktopDropdown({ group, username, steel, openstackReady, hypersdkEnabled }: { group: NavGroup; username: string; steel: boolean; openstackReady: boolean; hypersdkEnabled: boolean }) {
   const { theme } = useTheme()
   const isLight = theme === 'light'
   const [open, setOpen] = useState(false)
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
-  const items = group.items.filter((i) => navItemVisible(i, username, openstackReady))
+  const items = group.items.filter((i) => navItemVisible(i, username, openstackReady, hypersdkEnabled))
   const hasActive = items.some((i) => i.to === location.pathname)
 
   const handleEnter = () => {
@@ -116,7 +116,9 @@ function DesktopDropdown({ group, username, steel, openstackReady }: { group: Na
               key={item.to}
               to={item.to}
               onClick={() => setOpen(false)}
-              className={itemClass(location.pathname === item.to)}
+              className={`${itemClass(location.pathname === item.to)} ${
+                item.openstackSetupOnly ? '!text-amber-300 hover:!text-amber-200' : ''
+              }`}
             >
               {item.icon}
               {item.label}
@@ -134,6 +136,7 @@ export default function Navbar() {
   const { theme, setTheme, toggleDarkLight } = useTheme()
   const { info } = usePlatformInfo()
   const openstackReady = isOpenStackNavEnabled(info?.openstack)
+  const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
   const steel = theme === 'steel'
   const { events } = useWebSocketContext()
   const [bellOpen, setBellOpen] = useState(false)
@@ -217,7 +220,7 @@ export default function Navbar() {
           {/* Desktop Nav — top bar only, no sidebar */}
           <div className="hidden lg:flex items-center gap-1 order-3 lg:order-2 flex-1 min-w-0 justify-center">
             {navGroups.map((group) => (
-              <DesktopDropdown key={group.label} group={group} username={username} steel={steel} openstackReady={openstackReady} />
+              <DesktopDropdown key={group.label} group={group} username={username} steel={steel} openstackReady={openstackReady} hypersdkEnabled={hypersdkEnabled} />
             ))}
           </div>
 
@@ -377,8 +380,14 @@ export default function Navbar() {
                   {group.label}
                 </div>
                 <div className="space-y-0.5">
-                  {group.items.filter((item) => navItemVisible(item, username, openstackReady)).map((item) => (
-                    <NavLink key={item.to} item={item} steel={steel} onClick={() => setMobileOpen(false)} />
+                  {group.items.filter((item) => navItemVisible(item, username, openstackReady, hypersdkEnabled)).map((item) => (
+                    <NavLink
+                      key={item.to}
+                      item={item}
+                      steel={steel}
+                      setup={item.openstackSetupOnly}
+                      onClick={() => setMobileOpen(false)}
+                    />
                   ))}
                 </div>
               </div>

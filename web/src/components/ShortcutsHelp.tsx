@@ -11,7 +11,7 @@ const shortcuts = [
   { keys: ['g', 'b'], description: 'Go to Backups' },
   { keys: ['g', 'i'], description: 'Go to Disk Images' },
   { keys: ['g', 'k'], description: 'Go to KubeVirt Workloads' },
-  { keys: ['g', 'o'], description: 'Go to OpenStack (when configured)' },
+  { keys: ['g', 'o'], description: 'Go to OpenStack overview (when wired)' },
   { keys: ['?'], description: 'Show keyboard shortcuts' },
 ]
 

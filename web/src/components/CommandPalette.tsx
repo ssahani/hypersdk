@@ -7,8 +7,9 @@ import { listPools, StoragePoolInfo } from '../api/storage'
 import { listAllSnapshots, SnapshotInfo } from '../api/snapshot'
 import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
-import { navGroups, isOpenStackNavEnabled } from '../utils/routes'
+import { navGroups, isOpenStackNavEnabled, navItemVisible } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useAuth } from '../contexts/AuthContext'
 import { getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { getPinnedVMs } from '../utils/pinnedVMs'
@@ -37,7 +38,9 @@ export default function CommandPalette() {
   const navigate = useNavigate()
   const toast = useToastContext()
   const { info } = usePlatformInfo()
+  const { username } = useAuth()
   const openstackReady = isOpenStackNavEnabled(info?.openstack)
+  const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
 
   const toggle = useCallback(() => setOpen(o => !o), [])
 
@@ -124,16 +127,31 @@ export default function CommandPalette() {
   )
   if (openstackReady) {
     items.push(
-      { id: 'qa-openstack', icon: <Server className="w-4 h-4" />, label: 'OpenStack instances', sublabel: 'g o openstack', action: () => go('/openstack/instances'), category: 'Quick Actions' },
-      { id: 'qa-openstack-create', icon: <Plus className="w-4 h-4" />, label: 'openstack create instance', sublabel: 'openstack create', action: () => go('/openstack/create'), category: 'Quick Actions' },
+      { id: 'qa-openstack', icon: <Server className="w-4 h-4" />, label: 'OpenStack overview', sublabel: 'g o', action: () => go('/openstack'), category: 'Quick Actions' },
+      { id: 'qa-openstack-instances', icon: <Server className="w-4 h-4" />, label: 'OpenStack instances', action: () => go('/openstack/instances'), category: 'Quick Actions' },
+      { id: 'qa-openstack-create', icon: <Plus className="w-4 h-4" />, label: 'Create OpenStack instance', action: () => go('/openstack/create'), category: 'Quick Actions' },
       { id: 'qa-openstack-images', icon: <HardDrive className="w-4 h-4" />, label: 'OpenStack Glance images', action: () => go('/openstack/images'), category: 'Quick Actions' },
     )
+    if (hypersdkEnabled) {
+      items.push(
+        { id: 'qa-openstack-migrations', icon: <Server className="w-4 h-4" />, label: 'OpenStack migrations', action: () => go('/openstack/migrations'), category: 'Quick Actions' },
+      )
+    }
+  } else {
+    items.push({
+      id: 'qa-openstack-setup',
+      icon: <Server className="w-4 h-4" />,
+      label: 'Wire OpenStack on this host',
+      sublabel: 'Settings · packstack wire script',
+      action: () => go('/settings?openstack=1'),
+      category: 'Quick Actions',
+    })
   }
 
   // Navigation pages
   for (const group of navGroups) {
     for (const item of group.items) {
-      if (item.requiresOpenStack && !openstackReady) continue
+      if (!navItemVisible(item, username, openstackReady, hypersdkEnabled)) continue
       items.push({
         id: `nav-${item.to}`,
         icon: item.icon,

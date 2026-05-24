@@ -61,6 +61,14 @@ export default function ApiDocs() {
     return list
   }, [spec])
 
+  const tagFilters = useMemo(() => {
+    const tags = new Set<string>()
+    for (const e of endpoints) {
+      for (const t of e.tags) tags.add(t)
+    }
+    return Array.from(tags).sort((a, b) => a.localeCompare(b))
+  }, [endpoints])
+
   const filtered = useMemo(() => {
     if (!search.trim()) return endpoints
     const q = search.toLowerCase()
@@ -115,6 +123,34 @@ export default function ApiDocs() {
           className="w-full pl-10 pr-4 py-2.5 bg-slate-800 border border-slate-700 rounded-lg text-sm focus:outline-none focus:border-blue-500 text-slate-200"
         />
       </div>
+
+      {tagFilters.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {tagFilters.map((tag) => (
+            <button
+              key={tag}
+              type="button"
+              onClick={() => setSearch(tag)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition ${
+                search.toLowerCase() === tag.toLowerCase()
+                  ? 'bg-sky-600/30 border-sky-500/50 text-sky-200'
+                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-slate-200 hover:border-slate-600'
+              }`}
+            >
+              {tag}
+            </button>
+          ))}
+          {search.trim() && (
+            <button
+              type="button"
+              onClick={() => setSearch('')}
+              className="px-2.5 py-1 rounded-lg text-xs text-slate-500 hover:text-slate-300"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="text-xs text-slate-500">{filtered.length} of {endpoints.length} endpoints</div>
 

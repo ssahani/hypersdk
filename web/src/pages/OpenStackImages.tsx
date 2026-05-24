@@ -7,6 +7,9 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { Cloud, RefreshCw, Plus, Trash2, Download } from 'lucide-react'
 import GlancePullModal from '../components/GlancePullModal'
+import OpenStackGate from '../components/OpenStackGate'
+import OpenStackSubNav from '../components/OpenStackSubNav'
+import OpenStackStatusBar from '../components/OpenStackStatusBar'
 
 function formatBytes(n?: number) {
   if (n == null || n === 0) return '—'
@@ -17,13 +20,21 @@ function formatBytes(n?: number) {
 }
 
 export default function OpenStackImagesPage() {
+  return (
+    <OpenStackGate title="OpenStack Glance Images">
+      <OpenStackImagesContent />
+    </OpenStackGate>
+  )
+}
+
+function OpenStackImagesContent() {
   const [images, setImages] = useState<OpenStackImage[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteTarget, setDeleteTarget] = useState<OpenStackImage | null>(null)
   const [pullTarget, setPullTarget] = useState<OpenStackImage | null>(null)
   const [deleting, setDeleting] = useState(false)
   const toast = useToastContext()
-  const { lastEvent, refreshKey } = usePlatformInfo()
+  const { info, lastEvent, refreshKey } = usePlatformInfo()
 
   const load = useCallback(async () => {
     try {
@@ -60,8 +71,12 @@ export default function OpenStackImagesPage() {
     }
   }
 
+  const uploadEnabled = Boolean(info?.openstack?.upload_enabled)
+
   return (
     <div className="space-y-6">
+      <OpenStackSubNav />
+      <OpenStackStatusBar />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -70,7 +85,15 @@ export default function OpenStackImagesPage() {
           </h1>
           <p className="text-slate-400 text-sm mt-1">Images in the connected OpenStack project.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {uploadEnabled && (
+            <Link
+              to="/disk-images?os=open"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-sky-500/40 text-sky-300 hover:bg-sky-500/10 text-sm"
+            >
+              Upload qcow2 to Glance
+            </Link>
+          )}
           <Link
             to="/openstack/create"
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white text-sm"

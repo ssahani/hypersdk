@@ -16,10 +16,21 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { ArrowLeft, Cloud, Disc, Loader2, Network } from 'lucide-react'
 import OpenStackFooter from '../components/OpenStackFooter'
+import OpenStackGate from '../components/OpenStackGate'
+import OpenStackSubNav from '../components/OpenStackSubNav'
+import OpenStackStatusBar from '../components/OpenStackStatusBar'
 
 const STEPS = ['Source', 'Flavor', 'Network & access', 'Review'] as const
 
 export default function OpenStackCreateInstancePage() {
+  return (
+    <OpenStackGate title="Create OpenStack Instance">
+      <OpenStackCreateInstanceContent />
+    </OpenStackGate>
+  )
+}
+
+function OpenStackCreateInstanceContent() {
   const navigate = useNavigate()
   const toast = useToastContext()
   const { info } = usePlatformInfo()
@@ -39,6 +50,7 @@ export default function OpenStackCreateInstancePage() {
   const [keyName, setKeyName] = useState('')
   const [availabilityZone, setAvailabilityZone] = useState('')
   const [securityGroups, setSecurityGroups] = useState('')
+  const [userData, setUserData] = useState('')
   const [waitActive, setWaitActive] = useState(true)
 
   useEffect(() => {
@@ -111,6 +123,7 @@ export default function OpenStackCreateInstancePage() {
         key_name: keyName || undefined,
         availability_zone: availabilityZone.trim() || undefined,
         security_groups: sgList.length > 0 ? sgList : undefined,
+        user_data: userData.trim() || undefined,
         wait_until_active: waitActive,
       })
       toast.success(`Instance ${resp.name} created (${resp.status})`)
@@ -128,6 +141,8 @@ export default function OpenStackCreateInstancePage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
+      <OpenStackSubNav />
+      <OpenStackStatusBar />
       <Link to="/openstack/instances" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm">
         <ArrowLeft className="w-4 h-4" />
         Instances
@@ -264,6 +279,16 @@ export default function OpenStackCreateInstancePage() {
               placeholder="default"
             />
           </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Cloud-init user_data (optional)</label>
+            <textarea
+              value={userData}
+              onChange={(e) => setUserData(e.target.value)}
+              rows={4}
+              className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs"
+              placeholder="#cloud-config&#10;ssh_pwauth: true"
+            />
+          </div>
         </div>
       )}
 
@@ -276,6 +301,7 @@ export default function OpenStackCreateInstancePage() {
           <p><span className="text-slate-500">Key pair:</span> {keyName || '—'}</p>
           <p><span className="text-slate-500">AZ:</span> {availabilityZone || '—'}</p>
           <p><span className="text-slate-500">Security groups:</span> {securityGroups || '—'}</p>
+          <p><span className="text-slate-500">user_data:</span> {userData.trim() ? `${userData.trim().length} chars` : '—'}</p>
           <label className="flex items-center gap-2 mt-3 text-slate-400">
             <input type="checkbox" checked={waitActive} onChange={(e) => setWaitActive(e.target.checked)} />
             Wait until ACTIVE (may take several minutes)

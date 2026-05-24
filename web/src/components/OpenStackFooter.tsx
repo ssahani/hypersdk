@@ -16,10 +16,16 @@ export default function OpenStackFooter() {
         . Import exported disks via{' '}
         <Link to="/import" className="text-sky-400 hover:underline">Import VM</Link>.
       </p>
-      {info?.openstack?.upload_enabled && (
+      {(info?.openstack?.upload_enabled || info?.hypersdk?.enabled) && (
         <p>
           <a
-            href={`https://${window.location.hostname}:5080/web/dashboard/`}
+            href={
+              info?.openstack?.hypersdk_base_url
+                ? `${info.openstack.hypersdk_base_url.replace(/\/$/, '')}/web/dashboard/`
+                : info?.hypersdk?.base_url
+                  ? `${info.hypersdk.base_url.replace(/\/$/, '')}/web/dashboard/`
+                  : `https://${window.location.hostname}:5080/web/dashboard/`
+            }
             target="_blank"
             rel="noreferrer"
             className="inline-flex items-center gap-1 text-sky-400 hover:underline"

@@ -16,6 +16,10 @@ export interface NavItem {
   requiresRoot?: boolean
   /** If true, only show when OpenStack is enabled and configured on the daemon. */
   requiresOpenStack?: boolean
+  /** Show only while OpenStack is not wired — links to Settings for setup. */
+  openstackSetupOnly?: boolean
+  /** If true, only show when HyperSDK is enabled on the daemon. */
+  requiresHypersdk?: boolean
 }
 
 /** OpenStack nav / shortcuts when platform-info reports a wired cloud. */
@@ -23,6 +27,19 @@ export function isOpenStackNavEnabled(
   openstack: { enabled?: boolean; configured?: boolean } | undefined,
 ): boolean {
   return Boolean(openstack?.enabled && openstack?.configured)
+}
+
+export function navItemVisible(
+  item: NavItem,
+  username: string,
+  openstackReady: boolean,
+  hypersdkEnabled = false,
+): boolean {
+  if (item.requiresRoot && username !== 'root') return false
+  if (item.requiresOpenStack && !openstackReady) return false
+  if (item.openstackSetupOnly && openstackReady) return false
+  if (item.requiresHypersdk && !hypersdkEnabled) return false
+  return true
 }
 
 export interface NavGroup {
@@ -55,8 +72,22 @@ export const navGroups: NavGroup[] = [
       { to: '/k8s', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Kubernetes' },
       { to: '/k8s/workloads', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'K8s Workloads' },
       { to: '/k8s/kata', icon: React.createElement(Package, { className: 'w-4 h-4' }), label: 'Kata + Cloud Hypervisor' },
-      { to: '/openstack/instances', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'OpenStack', requiresOpenStack: true },
-      { to: '/openstack/migrations', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'OS Migrations', requiresOpenStack: true },
+    ],
+  },
+  {
+    label: 'OpenStack',
+    items: [
+      {
+        to: '/settings?openstack=1',
+        icon: React.createElement(Cloud, { className: 'w-4 h-4' }),
+        label: 'Wire OpenStack',
+        openstackSetupOnly: true,
+      },
+      { to: '/openstack', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Overview', requiresOpenStack: true },
+      { to: '/openstack/instances', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Instances', requiresOpenStack: true },
+      { to: '/openstack/images', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Glance Images', requiresOpenStack: true },
+      { to: '/openstack/create', icon: React.createElement(Plus, { className: 'w-4 h-4' }), label: 'Create Instance', requiresOpenStack: true },
+      { to: '/openstack/migrations', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Migrations', requiresOpenStack: true, requiresHypersdk: true },
     ],
   },
   {
@@ -97,10 +128,12 @@ export const routeLabels: Record<string, string> = {
   '/k8s': 'Kubernetes',
   '/k8s/workloads': 'K8s Workloads',
   '/k8s/kata': 'Kata Containers',
+  '/openstack': 'OpenStack',
   '/openstack/instances': 'OpenStack Instances',
   '/openstack/instances/:id': 'OpenStack Instance',
   '/openstack/create': 'Create OpenStack Instance',
   '/openstack/images': 'OpenStack Images',
+  '/openstack/migrations': 'OpenStack Migrations',
   '/audit': 'Audit Log',
   '/import': 'Import VM',
   '/api-docs': 'API Docs',
