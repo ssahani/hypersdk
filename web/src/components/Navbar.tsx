@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
+import { getPinnedPages } from '../utils/pinnedPages'
+import { getPageLabel } from '../utils/pageLabels'
 import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink } from 'lucide-react'
 import { ZYVOR_HELP } from '../config/zyvorHelp'
 import type { HelpTab } from './HelpDialog'
@@ -146,6 +148,11 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
   const [bellOpen, setBellOpen] = useState(false)
   const bellRef = useRef<HTMLDivElement>(null)
   const recentCount = events.filter((e: VMEvent) => Date.now() - e.timestamp < 300_000).length
+  const [pinnedPaths, setPinnedPaths] = useState(() => getPinnedPages())
+
+  useEffect(() => {
+    setPinnedPaths(getPinnedPages())
+  }, [location.pathname])
 
   useEffect(() => {
     if (!bellOpen) return
@@ -232,6 +239,28 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
 
           {/* Desktop Nav — top bar only, no sidebar */}
           <div className="hidden lg:flex items-center gap-1 order-3 lg:order-2 flex-1 min-w-0 justify-center">
+            {pinnedPaths.length > 0 ? (
+              <div
+                className={`flex items-center gap-0.5 mr-1 pr-2 shrink-0 max-w-[14rem] ${
+                  steel ? 'border-r border-[rgba(140,160,190,0.2)]' : 'border-r border-slate-700/60 light-theme:border-slate-300'
+                }`}
+              >
+                {pinnedPaths.slice(0, 4).map((path) => (
+                  <Link
+                    key={path}
+                    to={path}
+                    title={getPageLabel(path)}
+                    className={`px-2 py-1 rounded-md text-[11px] font-medium truncate max-w-[5.5rem] transition-colors ${
+                      steel
+                        ? 'text-amber-300/90 hover:text-amber-200 hover:bg-white/5'
+                        : 'text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10'
+                    }`}
+                  >
+                    {getPageLabel(path)}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
             {navGroups.map((group) => (
               <DesktopDropdown key={group.label} group={group} username={username} steel={steel} openstackReady={openstackReady} hypersdkEnabled={hypersdkEnabled} />
             ))}
@@ -492,6 +521,32 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
           }`}
         >
           <div className="app-shell pt-3 space-y-4">
+            {pinnedPaths.length > 0 ? (
+              <div>
+                <div className={`text-[10px] font-bold uppercase tracking-wider px-3 mb-1.5 light-theme:text-slate-600 ${
+                  steel ? 'text-[#7f8b99]' : 'text-slate-500'
+                }`}
+                >
+                  Pinned
+                </div>
+                <div className="space-y-0.5">
+                  {pinnedPaths.map((path) => (
+                    <Link
+                      key={path}
+                      to={path}
+                      onClick={() => setMobileOpen(false)}
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium truncate no-underline ${
+                        steel
+                          ? 'text-amber-300/90 hover:bg-white/5'
+                          : 'text-amber-400/90 hover:bg-amber-500/10 light-theme:text-amber-700'
+                      }`}
+                    >
+                      {getPageLabel(path)}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            ) : null}
             {navGroups.map((group) => (
               <div key={group.label}>
                 <div className={`text-[10px] font-bold uppercase tracking-wider px-3 mb-1.5 light-theme:text-slate-600 ${

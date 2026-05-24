@@ -1,10 +1,10 @@
 import { ExternalLink, Zap } from 'lucide-react'
 import { ZYVOR_URL, ZYVOR_BRAND, ZYVOR_COPY, ZYVOR_LINE } from './ZyvorBrand'
+import { MACHINA_HELP, ZYVOR_HELP } from '../config/zyvorHelp'
 
-export const MACHINA_PRODUCT = 'Machina'
-export const MACHINA_VERSION = '0.1.0'
-export const MACHINA_TAGLINE =
-  'Enterprise Linux hypervisor management — VMs, networks, storage, and day-two ops from one dashboard.'
+export const MACHINA_PRODUCT = MACHINA_HELP.name
+export const MACHINA_VERSION = MACHINA_HELP.version
+export const MACHINA_TAGLINE = MACHINA_HELP.tagline
 
 const ORANGE = '#f97316'
 
@@ -29,6 +29,14 @@ export const MACHINA_HELP_LINKS: HelpDocLink[] = [
   {
     label: 'OpenStack integration',
     href: 'https://github.com/ssahani/machina/blob/main/docs/openstack.md',
+  },
+  {
+    label: 'Zyvor documentation',
+    href: ZYVOR_HELP.docs,
+  },
+  {
+    label: 'Machina on zyvor.dev',
+    href: MACHINA_HELP.productUrl,
   },
   {
     label: 'Zyvor — HyperSDK suite',

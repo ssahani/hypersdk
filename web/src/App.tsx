@@ -15,6 +15,7 @@ import HelpDialog, { type HelpTab } from './components/HelpDialog'
 import PageSkeleton from './components/PageSkeleton'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
+import { useRecordRecentPage } from './hooks/useRecordRecentPage'
 import { usePlatformInfo } from './contexts/PlatformInfoContext'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -129,6 +130,11 @@ function AuthenticatedApp() {
   return <AuthenticatedShell />
 }
 
+function RouteRecorder() {
+  useRecordRecentPage()
+  return null
+}
+
 function AuthenticatedShell() {
   const { theme } = useTheme()
   const [helpOpen, setHelpOpen] = useState(false)
@@ -152,6 +158,7 @@ function AuthenticatedShell() {
     <WebSocketProvider>
       <PlatformInfoProvider>
         <BrowserRouter>
+          <RouteRecorder />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             <Navbar onOpenHelp={openHelp} />
             <CommandPalette />

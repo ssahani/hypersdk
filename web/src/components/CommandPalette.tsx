@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin } from 'lucide-react'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
@@ -14,6 +14,9 @@ import { useAuth } from '../contexts/AuthContext'
 import { getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { getPinnedVMs } from '../utils/pinnedVMs'
+import { getRecentPages, recordRecentPage } from '../utils/recentPages'
+import { getPinnedPages, isPagePinned, togglePinnedPage } from '../utils/pinnedPages'
+import { getPageLabel } from '../utils/pageLabels'
 
 interface PaletteItem {
   id: string
@@ -37,7 +40,9 @@ export default function CommandPalette() {
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+  const location = useLocation()
   const toast = useToastContext()
+  const [pinnedPages, setPinnedPages] = useState<string[]>(() => getPinnedPages())
   const { info } = usePlatformInfo()
   const { username } = useAuth()
   const openstackConfigured = isOpenStackConfigured(info?.openstack)
@@ -54,6 +59,7 @@ export default function CommandPalette() {
     if (!open) return
     setQuery('')
     setSelectedIndex(0)
+    setPinnedPages(getPinnedPages())
     setLoading(true)
     Promise.allSettled([listVMs(), listNetworks(), listPools(), listAllSnapshots()])
       .then(([vmR, netR, poolR, snapR]) => {
@@ -72,7 +78,11 @@ export default function CommandPalette() {
 
   const close = useCallback(() => { setOpen(false); setQuery('') }, [])
 
-  const go = useCallback((path: string) => { close(); navigate(path) }, [close, navigate])
+  const go = useCallback((path: string) => {
+    recordRecentPage(path)
+    close()
+    navigate(path)
+  }, [close, navigate])
 
   const vmAction = useCallback(async (name: string, fn: (n: string) => Promise<void>, label: string) => {
     close()
@@ -86,6 +96,44 @@ export default function CommandPalette() {
 
   // Build items list
   const items: PaletteItem[] = []
+
+  const currentPath = location.pathname
+
+  // Pinned app pages
+  for (const path of pinnedPages) {
+    items.push({
+      id: `pin-page-${path}`,
+      icon: <Star className="w-4 h-4 text-amber-400" />,
+      label: getPageLabel(path),
+      action: () => go(path),
+      category: 'Pinned pages',
+    })
+  }
+
+  // Recent app pages (non-VM routes)
+  const recentPagePaths = getRecentPages()
+  for (const path of recentPagePaths) {
+    if (pinnedPages.includes(path)) continue
+    items.push({
+      id: `recent-page-${path}`,
+      icon: <Clock className="w-4 h-4" />,
+      label: getPageLabel(path),
+      action: () => go(path),
+      category: 'Recent pages',
+    })
+  }
+
+  items.push({
+    id: 'pin-current-page',
+    icon: <Pin className={`w-4 h-4 ${isPagePinned(currentPath) ? 'text-amber-400' : ''}`} />,
+    label: isPagePinned(currentPath) ? 'Unpin current page from navbar' : 'Pin current page to navbar',
+    sublabel: getPageLabel(currentPath),
+    action: () => {
+      setPinnedPages(togglePinnedPage(currentPath))
+      close()
+    },
+    category: 'Quick Actions',
+  })
 
   // Recent VMs
   const recentNames = getRecentVMs()
@@ -222,7 +270,19 @@ export default function CommandPalette() {
   const filtered = q ? items.filter(i => i.label.toLowerCase().includes(q) || (i.sublabel || '').toLowerCase().includes(q)) : items
 
   // Group by category
-  const categories = ['Recent', 'Pinned', 'Quick Actions', 'Pages', 'Virtual Machines', 'Networks', 'Storage Pools', 'Snapshots']
+  const categories = [
+    'Pinned pages',
+    'Recent pages',
+    'Recent',
+    'Pinned',
+    'Quick Actions',
+    'Setup',
+    'Pages',
+    'Virtual Machines',
+    'Networks',
+    'Storage Pools',
+    'Snapshots',
+  ]
   const grouped = categories
     .map(cat => ({ cat, items: filtered.filter(i => i.category === cat) }))
     .filter(g => g.items.length > 0)
