@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import { X, Keyboard, Info } from 'lucide-react'
+import { useFocusTrap } from '../hooks/useFocusTrap'
 import { helpShortcuts } from './helpShortcuts'
 import ZyvorAbout from './ZyvorAbout'
 
@@ -25,19 +27,24 @@ function Kbd({ children }: { children: string }) {
 }
 
 export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(dialogRef, open)
+
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm animate-fade-in flex items-start justify-center pt-[8vh] px-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Help"
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm animate-fade-in flex items-start justify-center pt-[8vh] px-4"
       onClick={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose()
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Help"
         className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
