@@ -16,6 +16,8 @@ import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import EmptyState from '../components/EmptyState'
 
 const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
 
@@ -37,6 +39,7 @@ export default function OpenStackInstancesPage() {
 }
 
 function OpenStackInstancesContent() {
+  const { computeLive } = useOpenStackConnection()
   const [instances, setInstances] = useState<OpenStackInstance[]>([])
   const [status, setStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,6 +49,10 @@ function OpenStackInstancesContent() {
   const { lastEvent, refreshKey } = usePlatformInfo()
 
   const load = useCallback(async () => {
+    if (!computeLive) {
+      setLoading(false)
+      return
+    }
     try {
       const [conn, list] = await Promise.all([
         getOpenStackStatus(),
@@ -61,7 +68,7 @@ function OpenStackInstancesContent() {
     } finally {
       setLoading(false)
     }
-  }, [search, statusFilter, toast])
+  }, [search, statusFilter, toast, computeLive])
 
   useEffect(() => {
     setLoading(true)
@@ -132,11 +139,26 @@ function OpenStackInstancesContent() {
       </div>
 
       {status?.error && (
-        <div className="p-3 rounded-lg border border-red-500/40 bg-red-500/10 text-red-200 text-sm">
+        <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-100 text-sm">
           {status.error}
         </div>
       )}
 
+      {!computeLive && (
+        <EmptyState
+          icon={<Cloud className="w-6 h-6" />}
+          title="Keystone is up — Nova is not"
+          description="Identity works, but the compute API is unavailable. Install or start Nova (openstack-nova-api) on this host, or finish a minimal Packstack pass with Horizon disabled."
+          secondaryAction={
+            <Link to="/settings?openstack=1" className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
+              OpenStack settings
+            </Link>
+          }
+        />
+      )}
+
+      {computeLive && (
+        <>
       <div className="flex flex-wrap gap-3 items-center">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
@@ -247,6 +269,8 @@ function OpenStackInstancesContent() {
           </tbody>
         </table>
       </div>
+        </>
+      )}
 
       <OpenStackFooter />
     </div>

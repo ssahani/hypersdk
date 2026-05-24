@@ -10,10 +10,11 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { getAllTags, getVmTags } from '../api/extras'
-import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star } from 'lucide-react'
+import { Play, Square, Power, Pause, RotateCcw, Trash2, Search, RefreshCw, Terminal, Tag, LayoutGrid, LayoutList, X, Download, Star, Server } from 'lucide-react'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
+import EmptyState from '../components/EmptyState'
 
 export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -222,9 +223,29 @@ export default function VMList() {
       {loading ? (
         <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
       ) : filtered.length === 0 ? (
-        <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 p-12 text-center text-slate-500">
-          {search ? 'No VMs match your search.' : 'No guests on this host yet. Create a VM or import a disk to define one in libvirt.'}
-        </div>
+        <EmptyState
+          icon={<Server className="w-6 h-6" />}
+          title={search || tagFilter ? 'No VMs match your filters' : 'No guests on this host'}
+          description={
+            search || tagFilter
+              ? 'Try a different search or clear the tag filter.'
+              : 'Create a new VM or import an existing disk image to define a libvirt domain.'
+          }
+          primaryAction={
+            !search && !tagFilter ? (
+              <Link to="/create" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+                Create VM
+              </Link>
+            ) : undefined
+          }
+          secondaryAction={
+            !search && !tagFilter ? (
+              <Link to="/import" className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
+                Import VM
+              </Link>
+            ) : undefined
+          }
+        />
       ) : viewMode === 'table' ? (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <table className="w-full">

@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Cloud, Server, HardDrive, Plus, GitBranch, Upload, Download, ArrowRight } from 'lucide-react'
 import Hero from '../components/Hero'
 import OpenStackSetupPanel from '../components/OpenStackSetupPanel'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import OpenStackUnreachablePanel from '../components/OpenStackUnreachablePanel'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
-import { getOpenStackStatus, type OpenStackConnectionStatus } from '../api/openstack'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 
 const QUICK_LINKS = [
   {
@@ -60,26 +59,21 @@ const PIPELINES = [
 
 export default function OpenStackOverviewPage() {
   const { info } = usePlatformInfo()
-  const ready = isOpenStackNavEnabled(info?.openstack)
+  const { phase, cloudName, loading, configured } = useOpenStackConnection()
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
   const quickLinks = hypersdkEnabled
     ? QUICK_LINKS
     : QUICK_LINKS.filter((l) => l.to !== '/openstack/migrations')
-  const [status, setStatus] = useState<OpenStackConnectionStatus | null>(null)
 
-  const load = useCallback(async () => {
-    try {
-      setStatus(await getOpenStackStatus())
-    } catch {
-      setStatus(null)
-    }
-  }, [])
+  if (configured && loading) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
+      </div>
+    )
+  }
 
-  useEffect(() => {
-    if (ready) void load()
-  }, [ready, load])
-
-  if (!ready) {
+  if (phase === 'off' || phase === 'needsWire') {
     return (
       <div className="space-y-6 animate-fade-in">
         <Hero
@@ -87,7 +81,24 @@ export default function OpenStackOverviewPage() {
           subtitle="Nova & Glance on this hypervisor — wire Keystone once, manage from Machina."
           icon={<Cloud className="w-6 h-6" />}
         />
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
         <OpenStackSetupPanel />
+      </div>
+    )
+  }
+
+  if (phase === 'unreachable') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Hero
+          title="OpenStack"
+          subtitle={`Cloud ${cloudName || '—'} is configured but Keystone/API is not reachable.`}
+          icon={<Cloud className="w-6 h-6" />}
+        />
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
+        <OpenStackUnreachablePanel />
       </div>
     )
   }
@@ -96,7 +107,7 @@ export default function OpenStackOverviewPage() {
     <div className="space-y-6 animate-fade-in">
       <Hero
         title="OpenStack"
-        subtitle={`Cloud ${status?.cloud_name || info?.openstack?.cloud_name || '—'} · Nova instances & Glance images without Horizon.`}
+        subtitle={`Cloud ${cloudName || '—'} · Nova instances & Glance images without Horizon.`}
         icon={<Cloud className="w-6 h-6" />}
         actions={
           <Link

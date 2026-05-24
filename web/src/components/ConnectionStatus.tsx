@@ -13,8 +13,13 @@ export default function ConnectionStatus() {
       ? 'Connecting to real-time updates… Can stay here briefly after libvirt or the daemon restarts. If it never turns Live, check WebSockets through your proxy (see README).'
       : 'Could not obtain a WebSocket token (try refreshing after sign-in).'
 
+  const ariaLabel = isLive ? 'Live: real-time updates connected' : isConnecting ? 'Connecting to real-time updates' : 'Offline: real-time updates unavailable'
+
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-label={ariaLabel}
       title={title}
       className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
         isLive

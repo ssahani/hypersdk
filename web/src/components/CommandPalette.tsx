@@ -7,8 +7,9 @@ import { listPools, StoragePoolInfo } from '../api/storage'
 import { listAllSnapshots, SnapshotInfo } from '../api/snapshot'
 import { useToastContext } from '../contexts/ToastContext'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
-import { navGroups, isOpenStackNavEnabled, navItemVisible } from '../utils/routes'
+import { navGroups, isOpenStackConfigured, navItemVisible } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useAuth } from '../contexts/AuthContext'
 import { getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
@@ -39,7 +40,9 @@ export default function CommandPalette() {
   const toast = useToastContext()
   const { info } = usePlatformInfo()
   const { username } = useAuth()
-  const openstackReady = isOpenStackNavEnabled(info?.openstack)
+  const openstackConfigured = isOpenStackConfigured(info?.openstack)
+  const { phase: osPhase } = useOpenStackConnection()
+  const osLive = osPhase === 'live'
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
 
   const toggle = useCallback(() => setOpen(o => !o), [])
@@ -125,33 +128,33 @@ export default function CommandPalette() {
     },
     { id: 'qa-kubevirt-workloads', icon: <Boxes className="w-4 h-4" />, label: 'KubeVirt Workloads', sublabel: 'g k', action: () => go('/k8s/workloads'), category: 'Quick Actions' },
   )
-  if (openstackReady) {
+  const osHint = osLive ? 'g o' : osPhase === 'unreachable' ? 'unreachable' : 'wire cloud first'
+  items.push(
+    { id: 'qa-openstack', icon: <Server className="w-4 h-4" />, label: 'OpenStack overview', sublabel: osHint, action: () => go('/openstack'), category: 'Quick Actions' },
+    { id: 'qa-openstack-instances', icon: <Server className="w-4 h-4" />, label: 'OpenStack instances', sublabel: osHint, action: () => go('/openstack/instances'), category: 'Quick Actions' },
+    { id: 'qa-openstack-create', icon: <Plus className="w-4 h-4" />, label: 'Create OpenStack instance', sublabel: osHint, action: () => go('/openstack/create'), category: 'Quick Actions' },
+    { id: 'qa-openstack-images', icon: <HardDrive className="w-4 h-4" />, label: 'OpenStack Glance images', sublabel: osHint, action: () => go('/openstack/images'), category: 'Quick Actions' },
+  )
+  if (hypersdkEnabled) {
     items.push(
-      { id: 'qa-openstack', icon: <Server className="w-4 h-4" />, label: 'OpenStack overview', sublabel: 'g o', action: () => go('/openstack'), category: 'Quick Actions' },
-      { id: 'qa-openstack-instances', icon: <Server className="w-4 h-4" />, label: 'OpenStack instances', action: () => go('/openstack/instances'), category: 'Quick Actions' },
-      { id: 'qa-openstack-create', icon: <Plus className="w-4 h-4" />, label: 'Create OpenStack instance', action: () => go('/openstack/create'), category: 'Quick Actions' },
-      { id: 'qa-openstack-images', icon: <HardDrive className="w-4 h-4" />, label: 'OpenStack Glance images', action: () => go('/openstack/images'), category: 'Quick Actions' },
+      { id: 'qa-openstack-migrations', icon: <Server className="w-4 h-4" />, label: 'OpenStack migrations', sublabel: osHint, action: () => go('/openstack/migrations'), category: 'Quick Actions' },
     )
-    if (hypersdkEnabled) {
-      items.push(
-        { id: 'qa-openstack-migrations', icon: <Server className="w-4 h-4" />, label: 'OpenStack migrations', action: () => go('/openstack/migrations'), category: 'Quick Actions' },
-      )
-    }
-  } else {
+  }
+  if (!openstackConfigured) {
     items.push({
       id: 'qa-openstack-setup',
       icon: <Server className="w-4 h-4" />,
       label: 'Wire OpenStack on this host',
-      sublabel: 'Settings · packstack wire script',
+      sublabel: 'Settings',
       action: () => go('/settings?openstack=1'),
-      category: 'Quick Actions',
+      category: 'Setup',
     })
   }
 
   // Navigation pages
   for (const group of navGroups) {
     for (const item of group.items) {
-      if (!navItemVisible(item, username, openstackReady, hypersdkEnabled)) continue
+      if (!navItemVisible(item, username, openstackConfigured, hypersdkEnabled)) continue
       items.push({
         id: `nav-${item.to}`,
         icon: item.icon,

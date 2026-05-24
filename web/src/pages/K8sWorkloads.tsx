@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Copy, ExternalLink, Monitor, Network, RefreshCw, Terminal } from 'lucide-react'
+import { Link } from 'react-router'
+import { Boxes, Copy, ExternalLink, Monitor, Network, RefreshCw, Terminal } from 'lucide-react'
 import VNCViewer from '../components/VNCViewer'
 import KubeVirtSerialConsole from '../components/KubeVirtSerialConsole'
 import KubeVirtExposeServiceModal from '../components/KubeVirtExposeServiceModal'
@@ -35,7 +36,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import Hero from '../components/Hero'
-import { Boxes } from 'lucide-react'
+import EmptyState from '../components/EmptyState'
 
 export default function K8sWorkloadsPage() {
   const toast = useToastContext()
@@ -241,6 +242,24 @@ export default function K8sWorkloadsPage() {
         </div>
       )}
 
+      {!connectionError && deployments.length === 0 && pods.length === 0 && services.length === 0 && (
+        <EmptyState
+          icon={<Boxes className="w-6 h-6" />}
+          title="No workloads in this scope"
+          description="The API is reachable but there are no deployments, pods, or services in the selected namespace(s). Install a cluster from Kubernetes overview or switch context."
+          primaryAction={
+            <Link to="/k8s" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-sm font-medium text-white transition">
+              Kubernetes overview
+            </Link>
+          }
+          secondaryAction={
+            <Link to="/settings" className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 border border-slate-600 transition">
+              Settings
+            </Link>
+          }
+        />
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         {Object.entries(byNs).slice(0, 9).map(([ns, counts]) => (
           <div key={ns} className="rounded-xl border border-slate-700/50 bg-slate-800/50 px-4 py-3">
@@ -269,6 +288,17 @@ export default function K8sWorkloadsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">
+              {deployments.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-8">
+                    <EmptyState
+                      className="py-6 border-0 bg-transparent"
+                      title="No deployments"
+                      description={namespace === 'all' ? 'No Deployment objects in any namespace.' : `No deployments in ${namespace}.`}
+                    />
+                  </td>
+                </tr>
+              )}
               {deployments.map((d) => {
                 const key = `${d.metadata.namespace || 'default'}/${d.metadata.name}`
                 const replicaCurrent = d.spec?.replicas ?? 1
@@ -620,6 +650,17 @@ export default function K8sWorkloadsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700/30">
+              {pods.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8">
+                    <EmptyState
+                      className="py-6 border-0 bg-transparent"
+                      title="No pods"
+                      description="Pods appear when controllers create them or you run standalone Pod manifests."
+                    />
+                  </td>
+                </tr>
+              )}
               {pods.map((p) => (
                 <tr key={`${p.metadata.namespace || 'default'}/${p.metadata?.name ?? ''}`} className="hover:bg-slate-700/30">
                   <td className="px-4 py-3 text-white font-medium">{p.metadata?.name ?? '—'}</td>

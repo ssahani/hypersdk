@@ -1,12 +1,13 @@
 import { ExternalLink } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 
 /** Shared footer for OpenStack pages: disk migration + optional HyperSDK dashboard. */
 export default function OpenStackFooter() {
   const { info } = usePlatformInfo()
-  if (!isOpenStackNavEnabled(info?.openstack)) return null
+  const { phase } = useOpenStackConnection()
+  if (phase !== 'live') return null
 
   return (
     <footer className="rounded-xl border border-slate-700/50 bg-slate-900/30 px-4 py-3 text-xs text-slate-500 space-y-2">

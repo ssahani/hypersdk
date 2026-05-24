@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link } from 'react-router'
 import {
   listRoles, setRole, listTokens, createToken, deleteToken,
@@ -12,7 +12,9 @@ import {
 import { getOsUserCapability, createOsUser, deleteOsUser, OsUserCapability } from '../api/system'
 import { getOpenStackStatus, postOpenStackTestConnection, type OpenStackConnectionStatus } from '../api/openstack'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { isOpenStackConfigured } from '../utils/routes'
+import CopyButton from '../components/CopyButton'
+import { WIRE_SCRIPT, VERIFY_COMMANDS, openStackErrorHints } from '../utils/openstackHints'
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import {
@@ -64,6 +66,7 @@ export default function SettingsPage() {
   const [addOsUserToLibvirt, setAddOsUserToLibvirt] = useState(true)
   const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [openstackTesting, setOpenstackTesting] = useState(false)
+  const openstackAutoTested = useRef(false)
 
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -92,10 +95,28 @@ export default function SettingsPage() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
-    if (new URLSearchParams(window.location.search).get('openstack')) {
-      document.getElementById('openstack-connection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    if (!new URLSearchParams(window.location.search).get('openstack')) return
+    document.getElementById('openstack-connection')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [])
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get('openstack')) return
+    if (!openstackStatus?.configured || openstackAutoTested.current) return
+    openstackAutoTested.current = true
+    let cancelled = false
+    ;(async () => {
+      setOpenstackTesting(true)
+      try {
+        const s = await postOpenStackTestConnection()
+        if (!cancelled) setOpenstackStatus(s)
+      } catch {
+        /* keep loaded status */
+      } finally {
+        if (!cancelled) setOpenstackTesting(false)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [openstackStatus?.configured])
 
   useEffect(() => {
     if (osUserCap?.libvirtGroupAvailable === false) {
@@ -144,7 +165,9 @@ export default function SettingsPage() {
             <div><dt className="text-slate-500 text-xs">Enabled</dt><dd>{openstackStatus.enabled ? 'yes' : 'no'}</dd></div>
             <div><dt className="text-slate-500 text-xs">Configured</dt><dd>{openstackStatus.configured ? 'yes' : 'no'}</dd></div>
             <div><dt className="text-slate-500 text-xs">Cloud</dt><dd>{openstackStatus.cloud_name || '—'}</dd></div>
-            <div><dt className="text-slate-500 text-xs">Reachable</dt><dd>{openstackStatus.reachable ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Keystone</dt><dd>{openstackStatus.keystone_reachable ?? openstackStatus.reachable ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Nova</dt><dd>{openstackStatus.compute_reachable ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Glance</dt><dd>{openstackStatus.glance_reachable ? 'yes' : 'no'}</dd></div>
             {info?.openstack?.clouds_yaml && (
               <div className="col-span-2">
                 <dt className="text-slate-500 text-xs">clouds.yaml</dt>
@@ -153,13 +176,18 @@ export default function SettingsPage() {
             )}
           </dl>
         )}
-        <p className="text-xs text-slate-500">
-          First boot on a Packstack/RDO host:{' '}
-          <code className="text-slate-400">sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack</code>
-          {' '}then <code className="text-slate-400">sudo systemctl restart machina-daemon</code>. See{' '}
-          <code className="text-slate-400">docs/openstack.md</code> in the machina source tree.
-        </p>
-        {isOpenStackNavEnabled(info?.openstack) && info?.openstack?.upload_enabled && (
+        <div className="flex flex-wrap gap-2">
+          <CopyButton text={WIRE_SCRIPT} label="Copy wire script" />
+          <CopyButton text={VERIFY_COMMANDS} label="Copy verify commands" />
+        </div>
+        {openstackStatus?.configured && !openstackStatus.reachable && (
+          <ul className="text-xs text-amber-200/90 list-disc pl-4 space-y-1">
+            {openStackErrorHints(openstackStatus.error).map((h, i) => (
+              <li key={i}>{h}</li>
+            ))}
+          </ul>
+        )}
+        {isOpenStackConfigured(info?.openstack) && info?.openstack?.upload_enabled && openstackStatus?.reachable && (
           <p className="text-xs text-slate-500">
             <a
               href={`https://${window.location.hostname}:5080/web/dashboard/`}
@@ -195,7 +223,7 @@ export default function SettingsPage() {
           >
             {openstackTesting ? 'Testing…' : 'Test connection'}
           </button>
-          {isOpenStackNavEnabled(info?.openstack) && (
+          {openstackStatus?.reachable && (
             <Link to="/openstack/instances" className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-700">
               Open instances
             </Link>

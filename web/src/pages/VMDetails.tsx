@@ -30,7 +30,7 @@ import { deleteVmWithNvramRetry } from '../utils/deleteVmWithNvramRetry'
 import ConfirmDialog from '../components/ConfirmDialog'
 import LibvirtOpenStackPushModal from '../components/LibvirtOpenStackPushModal'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
@@ -116,8 +116,16 @@ export default function VMDetailsPage() {
   const [dialog, setDialog] = useState<Dialog>(null)
   const toast = useToastContext()
   const { info } = usePlatformInfo()
-  const openstackPushReady =
-    isOpenStackNavEnabled(info?.openstack) && Boolean(info?.openstack?.upload_enabled)
+  const { phase: osPhase, glanceLive: osGlanceLive } = useOpenStackConnection()
+  const openstackPushReady = osPhase === 'live' && osGlanceLive && Boolean(info?.openstack?.upload_enabled)
+  const openstackPushDisabledReason =
+    osPhase === 'unreachable'
+      ? 'OpenStack configured but unreachable'
+      : osPhase !== 'live' && info?.openstack?.upload_enabled
+        ? 'Wire OpenStack and reach Keystone first'
+        : !info?.openstack?.upload_enabled
+          ? 'Enable upload_enabled in machina config'
+          : null
   const prevMetricsRef = useRef<VmMetrics | null>(null)
 
   const conn = useMemo(
@@ -1020,7 +1028,8 @@ export default function VMDetailsPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header */}
+      {/* Header + lifecycle actions (sticky while scrolling) */}
+      <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-slate-950/90 backdrop-blur-md border-b border-slate-800/80 space-y-3">
       <div className="flex items-center gap-4">
         <Link to="/vms" className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Back to VM list"><ArrowLeft className="w-5 h-5" /></Link>
         <div className="flex-1">
@@ -1077,6 +1086,7 @@ export default function VMDetailsPage() {
           {vm.state === 'paused' && <button onClick={() => action(resumeVM, 'Resume')} className="px-3 py-1.5 bg-green-600 hover:bg-green-700 rounded-lg text-sm transition flex items-center gap-1"><RefreshCw className="w-4 h-4" /> Resume</button>}
           {hasSave && <button onClick={() => action(managedSaveRemove, 'Remove Save')} className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm transition flex items-center gap-1"><Save className="w-4 h-4" /> Remove Save</button>}
         </div>
+      </div>
       </div>
 
       {/* Settings Bar */}
@@ -1389,12 +1399,13 @@ export default function VMDetailsPage() {
               <Archive className="w-4 h-4" aria-hidden />
               {kubevirtLoading ? 'Loading…' : 'KubeVirt YAML'}
             </button>
-            {openstackPushReady && name && (
+            {name && (openstackPushReady || openstackPushDisabledReason) && (
               <button
                 type="button"
-                onClick={() => setOpenstackPushOpen(true)}
-                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 rounded-lg text-sm transition flex items-center gap-1"
-                title="Upload root disk to OpenStack Glance (native or hyper2kvm)"
+                onClick={() => openstackPushReady && setOpenstackPushOpen(true)}
+                disabled={!openstackPushReady}
+                className="px-3 py-1.5 bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg text-sm transition flex items-center gap-1"
+                title={openstackPushReady ? 'Upload root disk to OpenStack Glance' : openstackPushDisabledReason ?? ''}
               >
                 <Cloud className="w-4 h-4" aria-hidden />
                 Push to OpenStack
@@ -1715,6 +1726,13 @@ export default function VMDetailsPage() {
             </div>
           </div>
 
+          <details className="rounded-xl border border-slate-700/50 bg-slate-800/30 overflow-hidden group">
+            <summary className="px-5 py-3 cursor-pointer text-sm font-semibold text-slate-200 select-none flex items-center gap-2">
+              <Sliders className="w-4 h-4 text-slate-400" />
+              Advanced passthrough (USB, PCI, IOMMU)
+              <span className="text-xs font-normal text-slate-500 ml-1">— expand for host devices and VFIO groups</span>
+            </summary>
+            <div className="p-5 pt-0 space-y-6 border-t border-slate-700/40">
           {/* USB Devices */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -1807,6 +1825,8 @@ export default function VMDetailsPage() {
               </div>
             )}
           </div>
+            </div>
+          </details>
         </div>
       )}
 

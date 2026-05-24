@@ -10,7 +10,9 @@ import {
 } from '../api/openstack'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
+import HypersdkStatusBanner from './HypersdkStatusBanner'
 
 type Props = {
   open: boolean
@@ -29,7 +31,10 @@ export default function LibvirtOpenStackPushModal({
 }: Props) {
   const toast = useToastContext()
   const { info } = usePlatformInfo()
-  const osReady = isOpenStackNavEnabled(info?.openstack) && info?.openstack?.upload_enabled
+  const { phase: osPhase } = useOpenStackConnection()
+  const { phase: hsPhase } = useHypersdkConnection()
+  const osReady = osPhase === 'live' && Boolean(info?.openstack?.upload_enabled)
+  const hypersdkNeedsBanner = Boolean(info?.hypersdk?.enabled) && hsPhase === 'unreachable'
 
   const [preview, setPreview] = useState<LibvirtOpenStackPushPreview | null>(null)
   const [loading, setLoading] = useState(false)
@@ -165,6 +170,12 @@ export default function LibvirtOpenStackPushModal({
           </button>
         </div>
         <div className="p-4 overflow-y-auto space-y-4 text-sm">
+          {hypersdkNeedsBanner && (
+            <HypersdkStatusBanner
+              compact
+              title="HyperSDK needed for hyper2kvm"
+            />
+          )}
           {loading && (
             <div className="flex justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-orange-400" />

@@ -9,14 +9,15 @@ import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { timeAgo } from '../utils/time'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw, Cloud } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw, Cloud, Boxes } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
-import { getOpenStackStatus, type OpenStackConnectionStatus } from '../api/openstack'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
+import { getK8sEnvironment, getK8sOverview, type K8sEnvironment, type K8sOverview } from '../api/k8s'
 import Hero from '../components/Hero'
 
 interface MetricsPoint { time: string; memory: number }
@@ -42,8 +43,11 @@ export default function Dashboard() {
   const { subscribe, events } = useWebSocketContext()
   const toast = useToastContext()
   const { info, lastEvent, refreshKey } = usePlatformInfo()
-  const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
-  const openstackReady = isOpenStackNavEnabled(info?.openstack)
+  const { phase: osPhase, status: openstackStatus, testConnection: testOs } = useOpenStackConnection()
+  const { phase: hsPhase } = useHypersdkConnection()
+  const [k8sEnv, setK8sEnv] = useState<K8sEnvironment | null>(null)
+  const [k8sOverview, setK8sOverview] = useState<K8sOverview | null>(null)
+  const [k8sError, setK8sError] = useState<string | null>(null)
 
   const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
@@ -73,12 +77,22 @@ export default function Dashboard() {
       setHealthProblems([])
     }
     try {
-      setOpenstackStatus(await getOpenStackStatus())
-    } catch {
-      setOpenstackStatus(null)
+      const env = await getK8sEnvironment()
+      setK8sEnv(env)
+      if (env.kubectl_server_reachable) {
+        setK8sOverview(await getK8sOverview())
+        setK8sError(null)
+      } else {
+        setK8sOverview(null)
+        setK8sError('kubectl cannot reach the API server — check kubeconfig on the host.')
+      }
+    } catch (e: unknown) {
+      setK8sEnv(null)
+      setK8sOverview(null)
+      setK8sError(e instanceof Error ? e.message : String(e))
     }
     setLoading(false)
-  }, [info?.openstack])
+  }, [])
 
   const loadMetrics = useCallback(async () => {
     try {
@@ -255,24 +269,17 @@ export default function Dashboard() {
         <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
 
-      {!openstackReady && (
+      {(osPhase === 'off' || osPhase === 'needsWire') && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
             <Cloud className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <h2 className="font-semibold text-slate-100">OpenStack not in the menu yet</h2>
+              <h2 className="font-semibold text-slate-100">OpenStack not wired</h2>
               <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
-                {openstackStatus?.enabled
-                  ? 'OpenStack is enabled in machina config but not fully wired (set cloud_name, auth_url, or clouds.yaml).'
-                  : 'The daemon reports OpenStack off — enable it in /etc/machina/config.toml, then wire Keystone on this host.'}
-                {' '}Use the top nav <span className="text-slate-300">OpenStack → Wire OpenStack</span> or the button below.
+                {osPhase === 'needsWire'
+                  ? 'OpenStack is enabled in machina config but missing clouds.yaml or cloud_name.'
+                  : 'Enable [openstack] in /etc/machina/config.toml, then wire Keystone on this host.'}
               </p>
-              {openstackStatus && (
-                <p className="text-xs text-slate-500 mt-2 font-mono">
-                  enabled={openstackStatus.enabled ? 'yes' : 'no'} · configured={openstackStatus.configured ? 'yes' : 'no'}
-                  {openstackStatus.cloud_name ? ` · cloud=${openstackStatus.cloud_name}` : ''}
-                </p>
-              )}
             </div>
           </div>
           <Link
@@ -284,7 +291,93 @@ export default function Dashboard() {
         </div>
       )}
 
-      {openstackReady && openstackStatus && (
+      {osPhase === 'unreachable' && openstackStatus && (
+        <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Cloud className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-slate-100">OpenStack unreachable</h2>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Cloud <span className="text-slate-200">{openstackStatus.cloud_name || '—'}</span> is configured but Keystone/API is down.
+              </p>
+              {openstackStatus.error && (
+                <p className="text-xs text-red-300/90 mt-1 truncate max-w-xl" title={openstackStatus.error}>
+                  {openstackStatus.error}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void testOs().then((s) => toast.success(s.reachable ? 'OpenStack OK' : 'Still unreachable'))}
+              className="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-200 hover:bg-red-500/10 text-sm"
+            >
+              Test
+            </button>
+            <Link to="/openstack" className="px-3 py-1.5 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
+              Diagnose
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {(k8sOverview || k8sError) && (
+        <div
+          className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
+            k8sOverview
+              ? 'border border-violet-500/30 bg-violet-950/20'
+              : 'border border-amber-500/30 bg-amber-950/15'
+          }`}
+        >
+          <div className="flex items-start gap-3 min-w-0">
+            <Boxes className={`w-6 h-6 shrink-0 mt-0.5 ${k8sOverview ? 'text-violet-400' : 'text-amber-400'}`} />
+            <div>
+              <h2 className="font-semibold text-slate-100">Kubernetes</h2>
+              {k8sOverview ? (
+                <p className="text-sm text-slate-400 mt-0.5">
+                  {k8sOverview.distribution || 'cluster'} · {k8sOverview.ready_nodes}/{k8sOverview.nodes} nodes ready ·{' '}
+                  {k8sOverview.pods} pods
+                  {k8sEnv?.current_context ? (
+                    <> · context <span className="text-slate-300 font-mono text-xs">{k8sEnv.current_context}</span></>
+                  ) : null}
+                </p>
+              ) : (
+                <p className="text-sm text-slate-400 mt-0.5 truncate max-w-xl" title={k8sError ?? undefined}>
+                  {k8sError}
+                </p>
+              )}
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link to="/k8s" className="px-3 py-1.5 rounded-lg border border-violet-500/40 text-violet-300 hover:bg-violet-500/10 text-sm">
+              Cluster
+            </Link>
+            <Link to="/k8s/workloads" className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm">
+              Workloads
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {hsPhase === 'unreachable' && (
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Cloud className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-slate-100">HyperSDK unreachable</h2>
+              <p className="text-sm text-slate-400 mt-0.5">
+                Enabled in config but hypervisord is not responding — bulk migrations need HyperSDK.
+              </p>
+            </div>
+          </div>
+          <Link to="/openstack/migrations" className="shrink-0 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-sm">
+            Migrations
+          </Link>
+        </div>
+      )}
+
+      {osPhase === 'live' && openstackStatus && (
         <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
             <Cloud className="w-6 h-6 text-sky-400 shrink-0 mt-0.5" />
@@ -295,7 +388,6 @@ export default function Dashboard() {
                 {openstackStatus.instance_count != null && (
                   <> · {openstackStatus.instance_count} instance{openstackStatus.instance_count === 1 ? '' : 's'}</>
                 )}
-                {openstackStatus.reachable ? '' : ' · not reachable'}
               </p>
             </div>
           </div>

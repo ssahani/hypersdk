@@ -10,9 +10,18 @@ Machina manages OpenStack Nova instances and Glance images from the same UI as l
    sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack
    sudo systemctl restart machina-daemon
    ```
-3. In the Machina UI: **Settings → OpenStack connection → Test connection** (or `POST /api/v1/openstack/test-connection`).
-4. Open **OpenStack → Instances** (nav appears only when `platform-info` reports enabled + configured).
+3. In the Machina UI: **Settings → OpenStack connection → Test connection** (or `POST /api/v1/openstack/test-connection`). Status must show **reachable=yes**.
+4. Open **OpenStack → Instances**. The nav group is always visible; instance APIs work only when **configured + reachable** (Keystone up).
 5. Optional: set `[openstack] upload_enabled = true` for **Disk images → Upload to OpenStack** (native Glance upload in machina-daemon).
+
+### UI states
+
+| State | `platform-info` | `GET /openstack/status` | What you see |
+|-------|-----------------|-------------------------|--------------|
+| Off | `enabled=false` | — | Wire OpenStack setup panel |
+| Needs wire | `enabled=true`, `configured=false` | — | Wire script instructions |
+| Unreachable | configured | `reachable=false` | Diagnose panel (Keystone down, wrong creds, etc.) |
+| Live | configured | `reachable=true` | Instances, Glance, create wizard |
 
 Smoke on the host:
 

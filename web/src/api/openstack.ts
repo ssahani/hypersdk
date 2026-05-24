@@ -7,7 +7,10 @@ export interface OpenStackConnectionStatus {
   configured: boolean
   cloud_name: string
   connected: boolean
+  /** Keystone identity OK (UI “live” phase). */
   reachable: boolean
+  keystone_reachable?: boolean
+  compute_reachable?: boolean
   error?: string
   instance_count?: number
   image_count?: number

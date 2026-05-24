@@ -22,11 +22,53 @@ export interface NavItem {
   requiresHypersdk?: boolean
 }
 
-/** OpenStack nav / shortcuts when platform-info reports a wired cloud. */
-export function isOpenStackNavEnabled(
+/** OpenStack credentials present in daemon config (may still be unreachable). */
+export function isOpenStackConfigured(
   openstack: { enabled?: boolean; configured?: boolean } | undefined,
 ): boolean {
   return Boolean(openstack?.enabled && openstack?.configured)
+}
+
+/** @deprecated Use isOpenStackConfigured — nav visibility; operational UI gates on phase === live. */
+export const isOpenStackNavEnabled = isOpenStackConfigured
+
+/** Match nav item href against current location (supports /openstack prefix + settings query). */
+export function navItemActive(
+  item: NavItem,
+  pathname: string,
+  search: string,
+): boolean {
+  const [path, query] = item.to.split('?')
+  if (query) {
+    if (pathname !== path) return false
+    const params = new URLSearchParams(query)
+    for (const [k, v] of params.entries()) {
+      if (new URLSearchParams(search).get(k) !== v) return false
+    }
+    return true
+  }
+  if (path === '/openstack') {
+    return pathname === '/openstack'
+  }
+  if (path.startsWith('/openstack/')) {
+    return pathname === path || pathname.startsWith(`${path}/`)
+  }
+  return pathname === path
+}
+
+export function navGroupHasActive(
+  group: NavGroup,
+  pathname: string,
+  search: string,
+  username: string,
+  openstackReady: boolean,
+  hypersdkEnabled = false,
+): boolean {
+  return group.items.some(
+    (item) =>
+      navItemVisible(item, username, openstackReady, hypersdkEnabled) &&
+      navItemActive(item, pathname, search),
+  )
 }
 
 export function navItemVisible(
@@ -83,11 +125,11 @@ export const navGroups: NavGroup[] = [
         label: 'Wire OpenStack',
         openstackSetupOnly: true,
       },
-      { to: '/openstack', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Overview', requiresOpenStack: true },
-      { to: '/openstack/instances', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Instances', requiresOpenStack: true },
-      { to: '/openstack/images', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Glance Images', requiresOpenStack: true },
-      { to: '/openstack/create', icon: React.createElement(Plus, { className: 'w-4 h-4' }), label: 'Create Instance', requiresOpenStack: true },
-      { to: '/openstack/migrations', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Migrations', requiresOpenStack: true, requiresHypersdk: true },
+      { to: '/openstack', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Overview' },
+      { to: '/openstack/instances', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Instances' },
+      { to: '/openstack/images', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Glance Images' },
+      { to: '/openstack/create', icon: React.createElement(Plus, { className: 'w-4 h-4' }), label: 'Create Instance' },
+      { to: '/openstack/migrations', icon: React.createElement(Cloud, { className: 'w-4 h-4' }), label: 'Migrations', requiresHypersdk: true },
     ],
   },
   {

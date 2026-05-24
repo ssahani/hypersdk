@@ -18,6 +18,7 @@ import { getSession, type SessionRole } from '../api/auth'
 import { parseOsinfoDetectVariant } from '../utils/osinfoDetect'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { BuildStepTimeline } from '../components/BuildStepTimeline'
+import WizardStepper from '../components/WizardStepper'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { useToastContext } from '../contexts/ToastContext'
 import {
@@ -124,6 +125,14 @@ export default function CreateVMPage() {
   const [useInstallWizard, setUseInstallWizard] = useState(true)
   const [installWizardStep, setInstallWizardStep] = useState(0)
   const [osDetectBusy, setOsDetectBusy] = useState(false)
+
+  useEffect(() => {
+    if (!useInstallWizard || pageFlow !== 'install') return
+    document.getElementById(`create-vm-step-${installWizardStep}`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }, [installWizardStep, useInstallWizard, pageFlow])
 
   const createDefaultsKey = useMemo(() => {
     const host = typeof window !== 'undefined' ? window.location.hostname : ''
@@ -656,29 +665,20 @@ export default function CreateVMPage() {
       {pageFlow === 'install' && (
         <>
       {useInstallWizard && (
-        <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap gap-2">
-            {INSTALL_WIZARD_STEPS.map((label, i) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => setInstallWizardStep(i)}
-                className={`text-xs px-2 py-1.5 rounded-lg transition ${
-                  i === installWizardStep ? 'bg-cyan-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-                }`}
-              >
-                {i + 1}. {label}
-              </button>
-            ))}
-          </div>
-          <button
-            type="button"
-            className="text-xs text-slate-400 hover:text-slate-200 underline"
-            onClick={() => setUseInstallWizard(false)}
-          >
-            Single-page form
-          </button>
-        </div>
+        <WizardStepper
+          steps={INSTALL_WIZARD_STEPS}
+          current={installWizardStep}
+          onStep={setInstallWizardStep}
+          trailing={
+            <button
+              type="button"
+              className="text-xs text-slate-400 hover:text-slate-200 underline"
+              onClick={() => setUseInstallWizard(false)}
+            >
+              Single-page form
+            </button>
+          }
+        />
       )}
       {!useInstallWizard && (
         <div className="text-right mb-2">
@@ -697,7 +697,7 @@ export default function CreateVMPage() {
 
       {/* Installation source (Cockpit-style) */}
       {(!useInstallWizard || installWizardStep === 0) && (
-      <>
+      <div id="create-vm-step-0" className="scroll-mt-28 space-y-4">
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
           <Disc className="w-5 h-5 text-amber-400" />
@@ -989,11 +989,12 @@ export default function CreateVMPage() {
           <span className="text-xs text-slate-500">On load: server defaults, then browser overrides.</span>
         </div>
       </div>
-      </>
+      </div>
       )}
 
       {/* Storage — Cockpit: new image vs existing volume */}
       {(!useInstallWizard || installWizardStep === 1) && (
+      <div id="create-vm-step-1" className="scroll-mt-28">
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
           <HardDrive className="w-5 h-5 text-sky-400" />
@@ -1076,10 +1077,12 @@ export default function CreateVMPage() {
           </div>
         )}
       </div>
+      </div>
       )}
 
       {/* Network + console */}
       {(!useInstallWizard || installWizardStep === 2) && (
+      <div id="create-vm-step-2" className="scroll-mt-28">
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
           <Network className="w-5 h-5 text-emerald-400" />
@@ -1154,10 +1157,12 @@ export default function CreateVMPage() {
           </div>
         )}
       </div>
+      </div>
       )}
 
       {/* Optional cloud-init CD */}
       {(!useInstallWizard || installWizardStep === 3) && (
+      <div id="create-vm-step-3" className="scroll-mt-28">
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
         <h2 className="text-base font-semibold text-white">Cloud-init / seed ISO (optional)</h2>
         <p className="text-xs text-slate-500">
@@ -1203,6 +1208,7 @@ export default function CreateVMPage() {
           Ignore path-in-use check (busy images / volumes)
         </label>
       </div>
+      </div>
       )}
 
       {useInstallWizard && (
@@ -1233,7 +1239,7 @@ export default function CreateVMPage() {
       )}
 
       {useInstallWizard && installWizardStep === 4 && (
-        <div className="bg-slate-800/50 rounded-xl p-6 border border-cyan-800/50 space-y-2 text-sm text-slate-300">
+        <div id="create-vm-step-4" className="scroll-mt-28 bg-slate-800/50 rounded-xl p-6 border border-cyan-800/50 space-y-2 text-sm text-slate-300">
           <h2 className="text-lg font-semibold text-white">Review</h2>
           <p>
             <span className="text-slate-500">Name:</span> {vmName.trim() || '—'}

@@ -54,7 +54,18 @@ clouds:
 EOF
 chmod 600 "$CLOUDS_YAML"
 
-cp "$RC_FILE" "$OPENRC_OUT"
+# systemd EnvironmentFile: KEY=value only (no export / PS1). Always write from sourced env
+# so indented Packstack keystonerc files work reliably.
+{
+  echo "OS_AUTH_URL=${OS_AUTH_URL}"
+  echo "OS_USERNAME=${OS_USERNAME}"
+  echo "OS_PASSWORD=${OS_PASSWORD}"
+  echo "OS_PROJECT_NAME=${PROJECT}"
+  echo "OS_USER_DOMAIN_NAME=${USER_DOMAIN}"
+  echo "OS_PROJECT_DOMAIN_NAME=${PROJECT_DOMAIN}"
+  echo "OS_REGION_NAME=${REGION}"
+  echo "OS_IDENTITY_API_VERSION=3"
+} >"$OPENRC_OUT"
 chmod 600 "$OPENRC_OUT"
 
 if [[ -f "$CONFIG" ]]; then

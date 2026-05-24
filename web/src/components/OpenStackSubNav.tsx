@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
-import { Cloud, Server, HardDrive, Plus, GitBranch, LayoutGrid } from 'lucide-react'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import { Cloud, Server, HardDrive, Plus, GitBranch, LayoutGrid, Settings } from 'lucide-react'
 
 const TABS = [
   { to: '/openstack', label: 'Overview', icon: LayoutGrid, end: true },
@@ -14,15 +14,29 @@ const TABS = [
 export default function OpenStackSubNav() {
   const { pathname } = useLocation()
   const { info } = usePlatformInfo()
-  if (!isOpenStackNavEnabled(info?.openstack)) return null
+  const { phase, cloudName } = useOpenStackConnection()
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
   const tabs = TABS.filter((t) => !('requiresHypersdk' in t && t.requiresHypersdk) || hypersdkEnabled)
+  const needsWire = phase === 'off' || phase === 'needsWire'
+
+  let statusLabel = 'Not wired — run openstack-wire-cloud.sh'
+  if (phase === 'live') statusLabel = cloudName || 'cloud · live'
+  else if (phase === 'unreachable') statusLabel = `${cloudName || 'cloud'} · unreachable`
 
   return (
     <nav
       className="mb-6 flex flex-wrap gap-1 p-1 rounded-xl border border-sky-500/25 bg-sky-950/20 backdrop-blur-sm"
       aria-label="OpenStack"
     >
+      {needsWire && (
+        <Link
+          to="/settings?openstack=1"
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition text-amber-300/95 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20"
+        >
+          <Settings className="w-4 h-4 shrink-0" />
+          Wire cloud
+        </Link>
+      )}
       {tabs.map(({ to, label, icon: Icon, ...rest }) => {
         const end = 'end' in rest && rest.end
         const active = end ? pathname === to : pathname === to || pathname.startsWith(`${to}/`)
@@ -41,9 +55,17 @@ export default function OpenStackSubNav() {
           </Link>
         )
       })}
-      <span className="hidden sm:inline-flex items-center gap-1.5 ml-auto px-3 py-2 text-xs text-sky-300/80">
+      <span
+        className={`hidden sm:inline-flex items-center gap-1.5 ml-auto px-3 py-2 text-xs ${
+          phase === 'live'
+            ? 'text-sky-300/80'
+            : phase === 'unreachable'
+              ? 'text-red-300/80'
+              : 'text-amber-300/80'
+        }`}
+      >
         <Cloud className="w-3.5 h-3.5" />
-        {info?.openstack?.cloud_name || 'cloud'}
+        {statusLabel}
       </span>
     </nav>
   )

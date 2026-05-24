@@ -14,6 +14,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import HypersdkStatusBanner from '../components/HypersdkStatusBanner'
 import { Cloud, ExternalLink, Loader2, Play, RefreshCw, Server } from 'lucide-react'
 
 export default function OpenStackMigrationsPage() {
@@ -118,6 +119,7 @@ function OpenStackMigrationsContent() {
     <div className="space-y-6">
       <OpenStackSubNav />
       <OpenStackStatusBar />
+      <HypersdkStatusBanner />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">
@@ -153,19 +155,6 @@ function OpenStackMigrationsContent() {
         <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-100">
           Enable <code className="text-amber-50">[hypersdk] enabled = true</code> and set{' '}
           <code className="text-amber-50">base_url</code> to hypervisord (default :5080), then restart machina-daemon.
-        </div>
-      )}
-
-      {hypersdkEnabled && status && (
-        <div className="rounded-xl border border-slate-700/80 p-4 text-sm">
-          <span className="text-slate-400">HyperSDK: </span>
-          <span className={status.reachable ? 'text-green-400' : 'text-red-400'}>
-            {status.reachable ? 'reachable' : 'unreachable'}
-          </span>
-          <span className="text-slate-500 ml-2 font-mono text-xs">{status.base_url}</span>
-          {status.last_error && (
-            <p className="text-red-300 text-xs mt-2">{status.last_error}</p>
-          )}
         </div>
       )}
 

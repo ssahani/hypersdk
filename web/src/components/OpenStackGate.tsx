@@ -1,9 +1,12 @@
 import { ReactNode } from 'react'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import OpenStackSetupPanel from './OpenStackSetupPanel'
+import OpenStackSubNav from './OpenStackSubNav'
+import OpenStackStatusBar from './OpenStackStatusBar'
+import OpenStackUnreachablePanel from './OpenStackUnreachablePanel'
 
-/** Renders children only when OpenStack is enabled + configured; otherwise setup instructions. */
+/** Renders children when OpenStack API is live; otherwise setup or unreachable panels. */
 export default function OpenStackGate({
   children,
   title,
@@ -11,10 +14,10 @@ export default function OpenStackGate({
   children: ReactNode
   title?: string
 }) {
-  const { info, loading } = usePlatformInfo()
-  const ready = isOpenStackNavEnabled(info?.openstack)
+  const { loading: platformLoading } = usePlatformInfo()
+  const { phase, loading: connLoading, configured } = useOpenStackConnection()
 
-  if (loading) {
+  if (platformLoading || (configured && connLoading)) {
     return (
       <div className="flex items-center justify-center h-40">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
@@ -22,13 +25,24 @@ export default function OpenStackGate({
     )
   }
 
-  if (!ready) {
+  if (phase === 'off' || phase === 'needsWire') {
     return (
       <div className="space-y-6 animate-fade-in">
-        {title && (
-          <h1 className="text-2xl font-semibold text-slate-100">{title}</h1>
-        )}
+        {title && <h1 className="text-2xl font-semibold text-slate-100">{title}</h1>}
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
         <OpenStackSetupPanel />
+      </div>
+    )
+  }
+
+  if (phase === 'unreachable') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        {title && <h1 className="text-2xl font-semibold text-slate-100">{title}</h1>}
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
+        <OpenStackUnreachablePanel />
       </div>
     )
   }

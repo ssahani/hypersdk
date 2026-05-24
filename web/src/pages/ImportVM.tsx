@@ -5,12 +5,14 @@ import { createVMWithProgress, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { BrowseHostPathModal, isHostDiskImageFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
-import { ArrowLeft, Upload, HardDrive, FolderOpen, Sliders } from 'lucide-react'
-import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
+import { ArrowLeft, Upload, HardDrive, FolderOpen } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { Cloud } from 'lucide-react'
+import WizardStepper from '../components/WizardStepper'
+
+const IMPORT_STEPS = ['Import disk', 'Configure VM'] as const
 
 export default function ImportVMPage() {
   const [source, setSource] = useState('')
@@ -31,7 +33,7 @@ export default function ImportVMPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { info } = usePlatformInfo()
-  const openstackReady = isOpenStackNavEnabled(info?.openstack)
+  const { phase: osPhase } = useOpenStackConnection()
 
   useEffect(() => {
     listNetworks().then(setNetworks).catch(() => {})
@@ -103,32 +105,16 @@ export default function ImportVMPage() {
         </div>
       </div>
 
-      <div>
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">Wizard steps</h2>
-        <ChoiceCardGrid>
-          <ChoiceCard
-            tone="blue"
-            selected={step === 'import'}
-            onClick={() => {
-              if (step === 'configure') setStep('import')
-            }}
-            icon={<Upload className="w-4 h-4" />}
-            title="1 · Import disk"
-            description="Convert or copy the source image to qcow2 on the hypervisor."
-          />
-          <ChoiceCard
-            tone="blue"
-            selected={step === 'configure'}
-            onClick={() => {}}
-            disabled={step === 'import'}
-            icon={<Sliders className="w-4 h-4" />}
-            title="2 · Configure VM"
-            description={step === 'import' ? 'Finish step 1 first, then set CPUs, memory, and network.' : 'Set vCPUs, memory, firmware, and network, then create the VM.'}
-          />
-        </ChoiceCardGrid>
-      </div>
+      <WizardStepper
+        steps={IMPORT_STEPS}
+        current={step === 'import' ? 0 : 1}
+        onStep={(i) => {
+          if (i === 0) setStep('import')
+          else if (importedPath || source) setStep('configure')
+        }}
+      />
 
-      {openstackReady && step === 'import' && (
+      {osPhase === 'live' && step === 'import' && (
         <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <Cloud className="w-5 h-5 text-sky-400 shrink-0 mt-0.5" />

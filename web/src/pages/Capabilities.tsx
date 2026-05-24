@@ -3,7 +3,8 @@ import { Link } from 'react-router'
 import { getCapabilities, getSysinfo, CapabilitiesInfo } from '../api/advanced'
 import { getOpenStackStatus, type OpenStackConnectionStatus } from '../api/openstack'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import OpenStackUnreachablePanel from '../components/OpenStackUnreachablePanel'
 import { useToastContext } from '../contexts/ToastContext'
 import { RefreshCw, Cpu, Info, Cloud } from 'lucide-react'
 import OpenStackSetupPanel from '../components/OpenStackSetupPanel'
@@ -18,7 +19,7 @@ export default function CapabilitiesPage() {
   const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
   const toast = useToastContext()
   const { info } = usePlatformInfo()
-  const openstackReady = isOpenStackNavEnabled(info?.openstack)
+  const { phase: osPhase } = useOpenStackConnection()
 
   const load = useCallback(async () => {
     try {
@@ -75,15 +76,14 @@ export default function CapabilitiesPage() {
 
       {tab === 'capabilities' && (
         <div className="space-y-4">
-          {openstackReady && openstackStatus ? (
+          {osPhase === 'live' && openstackStatus ? (
             <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Cloud className="w-6 h-6 text-sky-400" />
                 <div>
                   <h3 className="font-semibold text-slate-100">OpenStack</h3>
                   <p className="text-sm text-slate-400">
-                    {openstackStatus.cloud_name} · {openstackStatus.instance_count ?? 0} instances ·{' '}
-                    {openstackStatus.reachable ? 'reachable' : 'not reachable'}
+                    {openstackStatus.cloud_name} · {openstackStatus.instance_count ?? 0} instances · live
                   </p>
                 </div>
               </div>
@@ -91,6 +91,8 @@ export default function CapabilitiesPage() {
                 Open cloud UI →
               </Link>
             </div>
+          ) : osPhase === 'unreachable' ? (
+            <OpenStackUnreachablePanel />
           ) : (
             <OpenStackSetupPanel compact />
           )}

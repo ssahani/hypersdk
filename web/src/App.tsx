@@ -11,12 +11,11 @@ import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
 import CommandPalette from './components/CommandPalette'
 import Breadcrumb from './components/Breadcrumb'
-import ShortcutsHelp from './components/ShortcutsHelp'
+import HelpDialog, { type HelpTab } from './components/HelpDialog'
 import PageSkeleton from './components/PageSkeleton'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 import { usePlatformInfo } from './contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from './utils/routes'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const VMList = lazy(() => import('./pages/VMList'))
@@ -62,12 +61,20 @@ function AppZyvorFooter() {
   return <ZyvorFooter hostOs={hostOs || undefined} />
 }
 
-function GlobalShortcuts() {
+function GlobalShortcuts({
+  helpOpen,
+  helpTab,
+  onOpenHelp,
+  onCloseHelp,
+  onHelpTabChange,
+}: {
+  helpOpen: boolean
+  helpTab: HelpTab
+  onOpenHelp: (tab?: HelpTab) => void
+  onCloseHelp: () => void
+  onHelpTabChange: (tab: HelpTab) => void
+}) {
   const navigate = useNavigate()
-  const [showHelp, setShowHelp] = useState(false)
-  const { info } = usePlatformInfo()
-  const openstackReady = isOpenStackNavEnabled(info?.openstack)
-
   const shortcuts = useMemo(() => {
     const base: { sequence: [string, string]; handler: () => void }[] = [
       { sequence: ['g', 'd'], handler: () => navigate('/') },
@@ -80,29 +87,32 @@ function GlobalShortcuts() {
       { sequence: ['g', 'b'], handler: () => navigate('/backups') },
       { sequence: ['g', 'i'], handler: () => navigate('/disk-images') },
       { sequence: ['g', 'k'], handler: () => navigate('/k8s/workloads') },
+      { sequence: ['g', 'o'], handler: () => navigate('/openstack') },
     ]
-    if (openstackReady) {
-      base.push({ sequence: ['g', 'o'], handler: () => navigate('/openstack') })
-    }
     return base
-  }, [navigate, openstackReady])
+  }, [navigate])
 
   useSequenceShortcuts(shortcuts)
 
-  const toggleHelp = useCallback((e: KeyboardEvent) => {
-    if (isInputFocused()) return
-    e.preventDefault()
-    setShowHelp(h => !h)
-  }, [])
+  const toggleHelp = useCallback(
+    (e: KeyboardEvent) => {
+      if (isInputFocused()) return
+      e.preventDefault()
+      if (helpOpen) onCloseHelp()
+      else onOpenHelp('shortcuts')
+    },
+    [helpOpen, onCloseHelp, onOpenHelp],
+  )
 
   useKeyboardShortcut({ key: '?', handler: toggleHelp })
 
-  return showHelp ? <ShortcutsHelp onClose={() => setShowHelp(false)} /> : null
+  return (
+    <HelpDialog open={helpOpen} tab={helpTab} onClose={onCloseHelp} onTabChange={onHelpTabChange} />
+  )
 }
 
 function AuthenticatedApp() {
   const { isAuthenticated, loading } = useAuth()
-  const { theme } = useTheme()
 
   if (loading) {
     return (
@@ -116,6 +126,21 @@ function AuthenticatedApp() {
     return <LoginPage />
   }
 
+  return <AuthenticatedShell />
+}
+
+function AuthenticatedShell() {
+  const { theme } = useTheme()
+  const [helpOpen, setHelpOpen] = useState(false)
+  const [helpTab, setHelpTab] = useState<HelpTab>('shortcuts')
+
+  const openHelp = useCallback((tab: HelpTab = 'shortcuts') => {
+    setHelpTab(tab)
+    setHelpOpen(true)
+  }, [])
+
+  const closeHelp = useCallback(() => setHelpOpen(false), [])
+
   const shellClass =
     theme === 'steel'
       ? 'dashboard-steel min-h-screen flex flex-col text-[#d7dde5]'
@@ -128,9 +153,15 @@ function AuthenticatedApp() {
       <PlatformInfoProvider>
         <BrowserRouter>
           <div className={`${shellClass} flex flex-col min-h-screen`}>
-            <Navbar />
+            <Navbar onOpenHelp={openHelp} />
             <CommandPalette />
-            <GlobalShortcuts />
+            <GlobalShortcuts
+              helpOpen={helpOpen}
+              helpTab={helpTab}
+              onOpenHelp={openHelp}
+              onCloseHelp={closeHelp}
+              onHelpTabChange={setHelpTab}
+            />
             <main className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
               <Breadcrumb />
               <Suspense fallback={<PageSkeleton />}>

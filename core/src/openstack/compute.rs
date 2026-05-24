@@ -36,9 +36,13 @@ pub struct OpenStackConnectionStatus {
     pub configured: bool,
     pub cloud_name: String,
     pub connected: bool,
+    /// True when Keystone identity auth works (minimal “live” for the UI).
     pub reachable: bool,
+    pub keystone_reachable: bool,
+    pub compute_reachable: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub instance_count: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_count: Option<usize>,
@@ -69,29 +73,31 @@ pub async fn test_connection(cfg: &OpenStackConfig) -> OpenStackConnectionStatus
         Ok(cloud) => {
             let servers = cloud.list_servers().await;
             let images = cloud.list_images().await;
-            match (servers, images) {
-                (Ok(servers), Ok(images)) => OpenStackConnectionStatus {
-                    connected: true,
-                    reachable: true,
-                    instance_count: Some(servers.len()),
-                    image_count: Some(images.len()),
-                    glance_reachable: true,
-                    ..base
-                },
-                (Ok(servers), Err(e)) => OpenStackConnectionStatus {
-                    connected: true,
-                    reachable: true,
-                    instance_count: Some(servers.len()),
-                    glance_reachable: false,
-                    error: Some(format!("Glance: {}", map_openstack_err(e))),
-                    ..base
-                },
-                (Err(e), _) => OpenStackConnectionStatus {
-                    connected: true,
-                    reachable: false,
-                    error: Some(map_openstack_err(e).to_string()),
-                    ..base
-                },
+            let compute_reachable = servers.is_ok();
+            let glance_reachable = images.is_ok();
+            let instance_count = servers.as_ref().ok().map(|s| s.len());
+            let image_count = images.as_ref().ok().map(|s| s.len());
+            let mut error = None;
+            if let Err(e) = servers {
+                error = Some(format!("Nova: {}", map_openstack_err(e)));
+            }
+            if let Err(e) = images {
+                let msg = format!("Glance: {}", map_openstack_err(e));
+                error = Some(match error {
+                    Some(prev) => format!("{prev}; {msg}"),
+                    None => msg,
+                });
+            }
+            OpenStackConnectionStatus {
+                connected: true,
+                reachable: true,
+                keystone_reachable: true,
+                compute_reachable,
+                instance_count,
+                image_count,
+                glance_reachable,
+                error,
+                ..base
             }
         }
         Err(e) => OpenStackConnectionStatus {
@@ -110,6 +116,8 @@ pub fn connection_status_skeleton(cfg: &OpenStackConfig) -> OpenStackConnectionS
         cloud_name,
         connected: false,
         reachable: false,
+        keystone_reachable: false,
+        compute_reachable: false,
         error: None,
         instance_count: None,
         image_count: None,

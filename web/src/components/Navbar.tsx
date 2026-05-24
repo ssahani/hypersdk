@@ -1,19 +1,21 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
-import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell, Palette } from 'lucide-react'
+import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink } from 'lucide-react'
+import { ZYVOR_HELP } from '../config/zyvorHelp'
+import type { HelpTab } from './HelpDialog'
 import ConnectionStatus from './ConnectionStatus'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
 import { timeAgo } from '../utils/time'
-import { navGroups, NavItem, NavGroup, isOpenStackNavEnabled, navItemVisible } from '../utils/routes'
+import { navGroups, NavItem, NavGroup, isOpenStackNavEnabled, navItemVisible, navItemActive, navGroupHasActive } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 
 function NavLink({ item, onClick, steel, setup }: { item: NavItem; onClick?: () => void; steel: boolean; setup?: boolean }) {
   const { theme } = useTheme()
   const isLight = theme === 'light'
   const location = useLocation()
-  const isActive = location.pathname === item.to
+  const isActive = navItemActive(item, location.pathname, location.search)
 
   if (steel) {
     return (
@@ -63,7 +65,7 @@ function DesktopDropdown({ group, username, steel, openstackReady, hypersdkEnabl
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
   const items = group.items.filter((i) => navItemVisible(i, username, openstackReady, hypersdkEnabled))
-  const hasActive = items.some((i) => i.to === location.pathname)
+  const hasActive = navGroupHasActive(group, location.pathname, location.search, username, openstackReady, hypersdkEnabled)
 
   const handleEnter = () => {
     if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
@@ -116,7 +118,7 @@ function DesktopDropdown({ group, username, steel, openstackReady, hypersdkEnabl
               key={item.to}
               to={item.to}
               onClick={() => setOpen(false)}
-              className={`${itemClass(location.pathname === item.to)} ${
+              className={`${itemClass(navItemActive(item, location.pathname, location.search))} ${
                 item.openstackSetupOnly ? '!text-amber-300 hover:!text-amber-200' : ''
               }`}
             >
@@ -130,8 +132,10 @@ function DesktopDropdown({ group, username, steel, openstackReady, hypersdkEnabl
   )
 }
 
-export default function Navbar() {
+export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) => void }) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [helpMenuOpen, setHelpMenuOpen] = useState(false)
+  const helpRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated, username, logout } = useAuth()
   const { theme, setTheme, toggleDarkLight } = useTheme()
   const { info } = usePlatformInfo()
@@ -151,6 +155,15 @@ export default function Navbar() {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [bellOpen])
+
+  useEffect(() => {
+    if (!helpMenuOpen) return
+    const handler = (e: MouseEvent) => {
+      if (helpRef.current && !helpRef.current.contains(e.target as Node)) setHelpMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [helpMenuOpen])
 
   const navShell = steel
     ? 'min-h-[72px] flex flex-wrap items-center gap-x-3 gap-y-2 py-2 lg:flex-nowrap lg:justify-between lg:items-center'
@@ -304,6 +317,114 @@ export default function Navbar() {
                 </div>
               )}
             </div>
+            {onOpenHelp && (
+              <div className="relative shrink-0 hidden sm:block" ref={helpRef}>
+                <button
+                  type="button"
+                  onClick={() => setHelpMenuOpen((v) => !v)}
+                  aria-expanded={helpMenuOpen}
+                  aria-haspopup="menu"
+                  className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition text-sm light-theme:text-slate-600 light-theme:hover:bg-slate-100 ${
+                    steel
+                      ? 'text-[#9aa8b8] hover:text-white hover:bg-white/5'
+                      : 'text-slate-400 hover:bg-slate-700/60 hover:text-white'
+                  } ${helpMenuOpen ? (steel ? 'bg-white/5 text-white' : 'bg-slate-700/60 text-white') : ''}`}
+                  title="Help (?)"
+                  aria-label="Help menu"
+                >
+                  <CircleHelp className="w-4 h-4 shrink-0" aria-hidden />
+                  <span className="hidden md:inline text-xs font-medium">Help</span>
+                  <ChevronDown
+                    className={`w-3 h-3 hidden md:block transition-transform ${helpMenuOpen ? 'rotate-180' : ''}`}
+                    aria-hidden
+                  />
+                </button>
+                {helpMenuOpen && (
+                  <div
+                    className={`absolute top-full right-0 mt-1 min-w-[12.5rem] rounded-xl py-1.5 z-40 animate-fade-in light-theme:bg-white light-theme:border-slate-200 ${
+                      steel
+                        ? 'nav-steel-dropdown border border-[rgba(140,160,190,0.18)] shadow-2xl'
+                        : 'bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl'
+                    }`}
+                    role="menu"
+                  >
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setHelpMenuOpen(false)
+                        onOpenHelp('shortcuts')
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-sm light-theme:text-slate-700 light-theme:hover:bg-slate-100 ${
+                        steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <Keyboard className="w-4 h-4 shrink-0" aria-hidden />
+                      Keyboard shortcuts
+                      <kbd
+                        className={`ml-auto text-[10px] px-1 py-0.5 rounded font-mono ${
+                          steel ? 'bg-black/30 text-[#9aa8b8]' : 'bg-slate-700 text-slate-500'
+                        }`}
+                      >
+                        ?
+                      </kbd>
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setHelpMenuOpen(false)
+                        onOpenHelp('about')
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-sm light-theme:text-slate-700 light-theme:hover:bg-slate-100 ${
+                        steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <Info className="w-4 h-4 shrink-0" aria-hidden />
+                      About
+                    </button>
+                    <a
+                      role="menuitem"
+                      href={ZYVOR_HELP.docs}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setHelpMenuOpen(false)}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-sm light-theme:text-slate-700 light-theme:hover:bg-slate-100 ${
+                        steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <BookOpen className="w-4 h-4 shrink-0" aria-hidden />
+                      Help &amp; documentation
+                      <ExternalLink className="w-3 h-3 ml-auto opacity-60" aria-hidden />
+                    </a>
+                    <a
+                      role="menuitem"
+                      href={ZYVOR_HELP.contact}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setHelpMenuOpen(false)}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-sm light-theme:text-slate-700 light-theme:hover:bg-slate-100 ${
+                        steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <ExternalLink className="w-4 h-4 shrink-0" aria-hidden />
+                      Contact support
+                    </a>
+                    <div className={`px-3 py-2 border-t text-[11px] ${steel ? 'border-[rgba(140,160,190,0.12)]' : 'border-slate-700/50 light-theme:border-slate-200'}`}>
+                      <a
+                        href={ZYVOR_HELP.platform}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-orange-400 hover:text-orange-300"
+                        onClick={() => setHelpMenuOpen(false)}
+                      >
+                        zyvor.dev · © 2026
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="shrink-0">
               <ConnectionStatus />
             </div>
@@ -402,6 +523,48 @@ export default function Navbar() {
               <Plus className="w-4 h-4" />
               Create VM
             </Link>
+            {onOpenHelp && (
+              <div className="space-y-0.5 sm:hidden">
+                <div className={`text-[10px] font-bold uppercase tracking-wider px-3 mb-1.5 light-theme:text-slate-600 ${
+                  steel ? 'text-[#7f8b99]' : 'text-slate-500'
+                }`}
+                >
+                  Help
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setMobileOpen(false); onOpenHelp('shortcuts') }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm light-theme:text-slate-700 ${
+                    steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                  }`}
+                >
+                  <Keyboard className="w-4 h-4" />
+                  Keyboard shortcuts
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setMobileOpen(false); onOpenHelp('about') }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm light-theme:text-slate-700 ${
+                    steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                  }`}
+                >
+                  <Info className="w-4 h-4" />
+                  About
+                </button>
+                <a
+                  href={ZYVOR_HELP.docs}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setMobileOpen(false)}
+                  className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm light-theme:text-slate-700 ${
+                    steel ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Help &amp; documentation
+                </a>
+              </div>
+            )}
             {isAuthenticated && (
               <button
                 type="button"

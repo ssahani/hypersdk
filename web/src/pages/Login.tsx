@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { ZyvorFooter } from '../components/ZyvorBrand'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
+import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import {
   Lock,
   User,
@@ -115,9 +116,13 @@ export default function LoginPage() {
   })
   const { login } = useAuth()
   const { theme, setTheme } = useTheme()
+  const reducedMotion = usePrefersReducedMotion()
   const isLight = theme === 'light'
   const isSteel = theme === 'steel'
   const pageThemeClass = isLight ? 'login-page-light' : isSteel ? 'login-page-steel' : ''
+  const hostLabel = typeof window !== 'undefined' ? window.location.hostname : ''
+  const oidcEnabled = providers.oidc.enabled
+  const pamEnabled = providers.pam.enabled
 
   useEffect(() => {
     void getAuthProviders().then(setProviders).catch(() => {})
@@ -154,9 +159,11 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-    <div className={`login-page flex-1 flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}`}>
-      <div className="login-aurora" aria-hidden />
-      <div className="login-scanline" aria-hidden />
+    <div
+      className={`login-page flex-1 flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}${reducedMotion ? ' login-page-reduced-motion' : ''}`}
+    >
+      {!reducedMotion && <div className="login-aurora" aria-hidden />}
+      {!reducedMotion && <div className="login-scanline" aria-hidden />}
 
       <ThemeSwitcher theme={theme} setTheme={setTheme} isLight={isLight} isSteel={isSteel} />
 
@@ -164,36 +171,39 @@ export default function LoginPage() {
         <div className="login-hero-mesh" aria-hidden />
         <div className="login-spotlight" aria-hidden />
 
-        {LOGIN_ORBS.map((orb, i) => (
-          <div
-            key={i}
-            className={`login-orb login-orb-${orb.hue}`}
-            style={{
-              width: orb.size,
-              height: orb.size,
-              top: orb.top,
-              left: orb.left,
-              ['--login-delay' as string]: orb.delay,
-              ['--login-duration' as string]: orb.duration,
-            }}
-          />
-        ))}
-
-        <div className="login-particles" aria-hidden>
-          {PARTICLE_SEEDS.map((p) => (
-            <span
-              key={p.id}
-              className="login-particle"
+        {!reducedMotion &&
+          LOGIN_ORBS.map((orb, i) => (
+            <div
+              key={i}
+              className={`login-orb login-orb-${orb.hue}`}
               style={{
-                left: p.left,
-                top: p.top,
-                width: p.size,
-                height: p.size,
-                animationDelay: p.delay,
+                width: orb.size,
+                height: orb.size,
+                top: orb.top,
+                left: orb.left,
+                ['--login-delay' as string]: orb.delay,
+                ['--login-duration' as string]: orb.duration,
               }}
             />
           ))}
-        </div>
+
+        {!reducedMotion && (
+          <div className="login-particles" aria-hidden>
+            {PARTICLE_SEEDS.map((p) => (
+              <span
+                key={p.id}
+                className="login-particle"
+                style={{
+                  left: p.left,
+                  top: p.top,
+                  width: p.size,
+                  height: p.size,
+                  animationDelay: p.delay,
+                }}
+              />
+            ))}
+          </div>
+        )}
 
         <div className="relative z-10">
           <div className="login-fade-in flex items-center gap-4 mb-8">
@@ -260,114 +270,142 @@ export default function LoginPage() {
         </div>
       </aside>
 
-      <div className="login-beam hidden lg:block" aria-hidden />
+      {!reducedMotion && <div className="login-beam hidden lg:block" aria-hidden />}
 
       <main className="login-panel flex-1 flex items-center justify-center relative px-6 py-12 min-h-screen">
         <div className="login-panel-grid" aria-hidden />
         <div className="login-panel-glow" aria-hidden />
         <div className="w-full max-w-[420px] relative z-10">
-          <MobileBrand />
-          <DesktopHeading isLight={isLight} />
+          <MobileBrand hostLabel={hostLabel} />
+          <DesktopHeading isLight={isLight} hostLabel={hostLabel} />
 
-          <form onSubmit={handleSubmit} className="login-glass login-glass-border rounded-2xl p-8 shadow-2xl" autoComplete="on">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (pamEnabled) void handleSubmit(e)
+            }}
+            className="login-glass login-glass-border rounded-2xl p-8 shadow-2xl"
+            autoComplete={pamEnabled ? 'on' : 'off'}
+          >
             {error && (
-              <div className="flex items-center gap-2.5 bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-6 login-shake">
-                <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+              <div
+                role="alert"
+                className={`flex items-center gap-2.5 bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-6 ${reducedMotion ? '' : 'login-shake'}`}
+              >
+                <AlertCircle className="h-4 w-4 text-red-400 shrink-0" aria-hidden />
                 <span className="text-sm text-red-300">{error}</span>
               </div>
             )}
 
-            <div className="space-y-5">
-              <Field label="Username" id="login-username">
-                <User className="login-field-icon" />
-                <input
-                  id="login-username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
-                  autoFocus
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="root"
-                  className="login-input"
-                />
-              </Field>
+            {oidcEnabled && (
+              <button
+                type="button"
+                onClick={() => beginOidcLogin()}
+                className="login-btn-primary group w-full"
+              >
+                <span className="relative z-10">{providers.oidc.button_label}</span>
+                <ArrowRight className="h-4 w-4 relative z-10 group-hover:translate-x-0.5 transition-transform" />
+              </button>
+            )}
 
-              <Field label="Password" id="login-password">
-                <Lock className="login-field-icon" />
-                <input
-                  id="login-password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Password"
-                  className="login-input pr-11"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </Field>
-            </div>
+            {oidcEnabled && pamEnabled && <OidcDivider isLight={isLight} label="or sign in with password" />}
 
-            <label className="flex items-center gap-2.5 mt-5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={rememberMe}
-                onChange={(e) => {
-                  setRememberMe(e.target.checked)
-                  if (!e.target.checked) localStorage.removeItem('machina-saved-login')
-                }}
-                className="w-4 h-4 rounded border-slate-600 bg-slate-900 accent-blue-500"
-              />
-              <span className="text-sm text-slate-400">Remember me on this device</span>
-            </label>
-
-            <button type="submit" disabled={submitting || !username || !password} className="login-btn-primary group">
-              {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin relative z-10" />
-                  <span className="relative z-10">Signing in…</span>
-                </>
-              ) : (
-                <>
-                  <span className="relative z-10">Sign in</span>
-                  <ArrowRight className="h-4 w-4 relative z-10 group-hover:translate-x-0.5 transition-transform" />
-                </>
-              )}
-            </button>
-
-            {providers.oidc.enabled && (
+            {pamEnabled && (
               <>
-                <OidcDivider isLight={isLight} />
-                <button type="button" onClick={() => beginOidcLogin()} className="login-btn-secondary w-full mt-4">
-                  {providers.oidc.button_label}
+                <div className="space-y-5">
+                  <Field label="Username" id="login-username">
+                    <User className="login-field-icon" />
+                    <input
+                      id="login-username"
+                      name="username"
+                      type="text"
+                      autoComplete="username"
+                      autoFocus={!oidcEnabled}
+                      value={username}
+                      onChange={(e) => setUsername(e.target.value)}
+                      placeholder="root"
+                      className="login-input"
+                    />
+                  </Field>
+
+                  <Field label="Password" id="login-password">
+                    <Lock className="login-field-icon" />
+                    <input
+                      id="login-password"
+                      name="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="Password"
+                      className="login-input pr-11"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 transition-colors"
+                      aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </Field>
+                </div>
+
+                <label className="flex items-center gap-2.5 mt-5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => {
+                      setRememberMe(e.target.checked)
+                      if (!e.target.checked) localStorage.removeItem('machina-saved-login')
+                    }}
+                    className="w-4 h-4 rounded border-slate-600 bg-slate-900 accent-blue-500"
+                  />
+                  <span className="text-sm text-slate-400">Remember me on this device</span>
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={submitting || !username || !password}
+                  className={oidcEnabled ? 'login-btn-secondary w-full mt-4' : 'login-btn-primary group w-full'}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className={`h-4 w-4 relative z-10 ${reducedMotion ? '' : 'animate-spin'}`} />
+                      <span className="relative z-10">Signing in…</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="relative z-10">Sign in with password</span>
+                      {!oidcEnabled && (
+                        <ArrowRight className="h-4 w-4 relative z-10 group-hover:translate-x-0.5 transition-transform" />
+                      )}
+                    </>
+                  )}
                 </button>
               </>
             )}
 
-            <div className="mt-6 pt-5 border-t border-slate-700/50 flex items-center justify-center gap-2 text-xs text-slate-500">
-              <CheckCircle className="h-3.5 w-3.5 text-emerald-500/70" />
-              <span>Secured with system PAM (same as SSH)</span>
-            </div>
+            {pamEnabled && (
+              <div className="mt-6 pt-5 border-t border-slate-700/50 flex items-center justify-center gap-2 text-xs text-slate-500">
+                <CheckCircle className="h-3.5 w-3.5 text-emerald-500/70" aria-hidden />
+                <span>Secured with system PAM (same as SSH)</span>
+              </div>
+            )}
           </form>
 
           <p className="text-xs text-center mt-4 max-w-sm mx-auto leading-relaxed text-slate-500">
-            {providers.oidc.enabled
-              ? 'Use your system account or organization SSO, depending on daemon configuration.'
-              : (
-                <>
-                  Same credentials as SSH. If you only use SSH keys, run{' '}
-                  <code className="text-[11px] px-1 rounded bg-slate-800/80 text-slate-300">passwd</code> on the
-                  server first.
-                </>
-              )}
+            {oidcEnabled && pamEnabled
+              ? 'Use organization SSO or your system account, depending on how this host is configured.'
+              : oidcEnabled
+                ? 'You will be redirected to your identity provider to complete sign-in.'
+                : (
+                  <>
+                    Same credentials as SSH. If you only use SSH keys, run{' '}
+                    <code className="text-[11px] px-1 rounded bg-slate-800/80 text-slate-300">passwd</code> on the
+                    server first.
+                  </>
+                )}
           </p>
         </div>
       </main>
@@ -427,7 +465,7 @@ function ThemeSwitcher({
   )
 }
 
-function MobileBrand() {
+function MobileBrand({ hostLabel }: { hostLabel: string }) {
   return (
     <div className="lg:hidden text-center mb-8">
       <div className="login-logo-ring inline-block mb-4">
@@ -437,16 +475,29 @@ function MobileBrand() {
       </div>
       <h1 className="text-2xl font-bold text-white">Machina</h1>
       <p className="text-sm mt-1 text-slate-400">Libvirt · OpenStack · KubeVirt</p>
+      {hostLabel && (
+        <p className="text-xs mt-2 font-mono text-slate-500" title="Hypervisor host">
+          {hostLabel}
+        </p>
+      )}
     </div>
   )
 }
 
-function DesktopHeading({ isLight }: { isLight: boolean }) {
+function DesktopHeading({ isLight, hostLabel }: { isLight: boolean; hostLabel: string }) {
   return (
     <div className="hidden lg:block mb-8">
       <h2 className={`text-2xl font-bold mb-1 ${isLight ? 'text-slate-800' : 'text-white'}`}>Welcome back</h2>
       <p className={`text-sm ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
-        Sign in to libvirt, OpenStack, and automation on this host
+        Sign in to libvirt, OpenStack, and automation
+        {hostLabel ? (
+          <>
+            {' '}
+            on <span className="font-mono text-slate-300">{hostLabel}</span>
+          </>
+        ) : (
+          ' on this host'
+        )}
       </p>
     </div>
   )
@@ -463,10 +514,10 @@ function Field({ label, id, children }: { label: string; id: string; children: R
   )
 }
 
-function OidcDivider({ isLight }: { isLight: boolean }) {
+function OidcDivider({ isLight, label = 'or' }: { isLight: boolean; label?: string }) {
   return (
-    <div className={`relative py-3 mt-4 text-center text-xs uppercase tracking-[0.22em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-      <span className={`relative px-2 ${isLight ? 'bg-white' : 'bg-slate-900/40'}`}>or</span>
+    <div className={`relative py-3 mt-4 text-center text-xs uppercase tracking-[0.18em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
+      <span className={`relative px-2 ${isLight ? 'bg-white' : 'bg-slate-900/40'}`}>{label}</span>
       <div className={`absolute inset-x-0 top-1/2 -translate-y-1/2 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/60'}`} />
     </div>
   )

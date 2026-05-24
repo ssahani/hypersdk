@@ -6,7 +6,8 @@ import Hero from '../components/Hero'
 import KubeVirtQcow2Modal from '../components/KubeVirtQcow2Modal'
 import OpenStackImageUploadModal from '../components/OpenStackImageUploadModal'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
-import { isOpenStackNavEnabled } from '../utils/routes'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import EmptyState from '../components/EmptyState'
 import {
   deleteDiskImage,
   getVirtImageOutputRoots,
@@ -60,9 +61,15 @@ export default function DiskImagesPage() {
 
   const toast = useToastContext()
   const { info, lastEvent, refreshKey } = usePlatformInfo()
-  const openstackUploadAvailable = Boolean(
-    info?.openstack?.upload_enabled && isOpenStackNavEnabled(info.openstack),
-  )
+  const { phase: osPhase, glanceLive: osGlanceLive } = useOpenStackConnection()
+  const openstackUploadAvailable =
+    osPhase === 'live' && osGlanceLive && Boolean(info?.openstack?.upload_enabled)
+  const openstackUploadHint =
+    osPhase === 'unreachable'
+      ? 'OpenStack is configured but unreachable — Glance upload is disabled until Keystone is up.'
+      : osPhase === 'needsWire' || osPhase === 'off'
+        ? 'Wire OpenStack in Settings to enable Glance upload from qcow2 rows.'
+        : null
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -237,8 +244,13 @@ export default function DiskImagesPage() {
       {openstackUploadAvailable && (
         <p className="inline-flex items-center gap-2 text-xs text-sky-300 border border-sky-500/30 bg-sky-500/10 rounded-lg px-3 py-2">
           <Cloud className="w-3.5 h-3.5 shrink-0" />
-          OpenStack upload available — use <strong className="font-medium">Upload to OpenStack</strong> on qcow2 rows when{' '}
-          <code className="text-sky-200/90">[openstack] upload_enabled = true</code>.
+          OpenStack upload available — use <strong className="font-medium">Upload to OpenStack</strong> on qcow2 rows.
+        </p>
+      )}
+      {openstackUploadHint && (
+        <p className="inline-flex items-center gap-2 text-xs text-amber-300/90 border border-amber-500/30 bg-amber-950/20 rounded-lg px-3 py-2">
+          <Cloud className="w-3.5 h-3.5 shrink-0" />
+          {openstackUploadHint}
         </p>
       )}
 
@@ -395,14 +407,25 @@ export default function DiskImagesPage() {
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
         </div>
       ) : images.length === 0 ? (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-12 text-center text-slate-500 space-y-2">
-          <p>No disk images found in the scanned directories.</p>
-          {scanDirectories.length > 0 ? (
-            <p className="text-xs font-mono text-slate-400 break-all">{scanDirectories.join(', ')}</p>
-          ) : (
-            <p className="text-xs">Connect to the daemon to discover pool paths on this hypervisor host.</p>
-          )}
-        </div>
+        <EmptyState
+          icon={<HardDrive className="w-6 h-6" />}
+          title="No disk images found"
+          description={
+            scanDirectories.length > 0
+              ? `Scanned: ${scanDirectories.join(', ')}. Build a disk below or copy qcow2/ISO into a pool path.`
+              : 'Connect to the daemon to discover storage pool paths on this host.'
+          }
+          primaryAction={
+            <Link to="/create" className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium">
+              Create VM
+            </Link>
+          }
+          secondaryAction={
+            <Link to="/import" className="px-4 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-sm">
+              Import VM
+            </Link>
+          }
+        />
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <table className="w-full">

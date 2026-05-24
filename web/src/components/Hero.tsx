@@ -1,8 +1,8 @@
 import { type ReactNode } from 'react'
 import { Link } from 'react-router'
 import { Activity, Lock, Shield, Boxes, KeyRound, Wifi, WifiOff, Cloud } from 'lucide-react'
-import { isOpenStackNavEnabled } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 
 interface HeroProps {
   /** Page title (rendered as gradient headline). */
@@ -25,7 +25,7 @@ interface BadgeProps {
   icon?: ReactNode
   /** Tooltip with the resolved value (e.g. "namespace=default"). */
   title?: string
-  tone?: 'default' | 'info' | 'warn'
+  tone?: 'default' | 'info' | 'warn' | 'error'
 }
 
 function Badge({ on, label, icon, title, tone = 'default' }: BadgeProps) {
@@ -34,7 +34,9 @@ function Badge({ on, label, icon, title, tone = 'default' }: BadgeProps) {
       ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
       : tone === 'warn'
         ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
-        : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+        : tone === 'error'
+          ? 'border-red-500/40 bg-red-500/10 text-red-200'
+          : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
   const offCls = 'border-slate-700/60 bg-slate-800/40 text-slate-400'
   return (
     <span
@@ -54,6 +56,47 @@ function Badge({ on, label, icon, title, tone = 'default' }: BadgeProps) {
  */
 export default function Hero({ title, subtitle, icon, actions, children, hideBadges }: HeroProps) {
   const { info, providers, liveConnected, loading } = usePlatformInfo()
+  const { phase: osPhase, cloudName: osCloud, status: openstackStatus } = useOpenStackConnection()
+
+  const osBadge = (() => {
+    if (osPhase === 'live') {
+      const partial = openstackStatus && !openstackStatus.compute_reachable
+      return {
+        on: true,
+        label: partial ? `OpenStack: Keystone` : `OpenStack: ${osCloud || 'live'}`,
+        tone: partial ? ('warn' as const) : ('info' as const),
+        title: partial
+          ? `Identity OK; Nova/Glance may be down — ${openstackStatus?.error || 'see OpenStack overview'}`
+          : `Cloud ${osCloud}; upload=${info?.openstack?.upload_enabled ? 'on' : 'off'}`,
+        to: '/openstack',
+      }
+    }
+    if (osPhase === 'unreachable') {
+      return {
+        on: true,
+        label: 'OpenStack: unreachable',
+        tone: 'error' as const,
+        title: 'Configured but Keystone/API not reachable',
+        to: '/openstack',
+      }
+    }
+    if (osPhase === 'needsWire') {
+      return {
+        on: false,
+        label: 'OpenStack: not wired',
+        tone: 'warn' as const,
+        title: 'Enable [openstack] and run openstack-wire-cloud.sh',
+        to: '/settings?openstack=1',
+      }
+    }
+    return {
+      on: false,
+      label: 'OpenStack off',
+      tone: 'warn' as const,
+      title: 'Enable [openstack] in /etc/machina/config.toml',
+      to: '/settings?openstack=1',
+    }
+  })()
 
   return (
     <div className="mb-6 rounded-2xl border border-slate-700/40 bg-gradient-to-br from-slate-900/70 via-slate-900/40 to-slate-800/40 p-5 backdrop-blur">
@@ -115,26 +158,12 @@ export default function Hero({ title, subtitle, icon, actions, children, hideBad
             title={providers?.oidc.button_label}
             tone="info"
           />
-          <Link
-            to={isOpenStackNavEnabled(info?.openstack) ? '/openstack' : '/settings?openstack=1'}
-            className="inline-flex no-underline"
-            title={
-              isOpenStackNavEnabled(info?.openstack)
-                ? `Cloud ${info?.openstack?.cloud_name}; upload=${info?.openstack?.upload_enabled ? 'on' : 'off'}`
-                : 'Enable [openstack] and run openstack-wire-cloud.sh on the host'
-            }
-          >
+          <Link to={osBadge.to} className="inline-flex no-underline" title={osBadge.title}>
             <Badge
-              on={isOpenStackNavEnabled(info?.openstack)}
-              label={
-                isOpenStackNavEnabled(info?.openstack)
-                  ? `OpenStack: ${info?.openstack?.cloud_name || 'connected'}`
-                  : info?.openstack?.enabled
-                    ? 'OpenStack: not wired'
-                    : 'OpenStack off'
-              }
+              on={osBadge.on}
+              label={osBadge.label}
               icon={<Cloud className="h-3 w-3" />}
-              tone={isOpenStackNavEnabled(info?.openstack) ? 'info' : 'warn'}
+              tone={osBadge.tone}
             />
           </Link>
           <Badge
