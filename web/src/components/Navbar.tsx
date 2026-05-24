@@ -439,17 +439,17 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                       <ExternalLink className="w-4 h-4 shrink-0" aria-hidden />
                       Contact support
                     </a>
-                    <div className={`px-3 py-2 border-t text-[11px] ${steel ? 'border-[rgba(140,160,190,0.12)]' : 'border-slate-700/50 light-theme:border-slate-200'}`}>
-                      <a
-                        href={ZYVOR_HELP.platform}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-orange-400 hover:text-orange-300"
-                        onClick={() => setHelpMenuOpen(false)}
-                      >
-                        zyvor.dev · © 2026
-                      </a>
-                    </div>
+                    <a
+                      role="menuitem"
+                      href={ZYVOR_HELP.platform}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={() => setHelpMenuOpen(false)}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-sm text-orange-400 hover:text-orange-300 light-theme:text-orange-600 light-theme:hover:bg-orange-50"
+                    >
+                      <ExternalLink className="w-4 h-4 shrink-0" aria-hidden />
+                      zyvor.dev · © 2026
+                    </a>
                   </div>
                 )}
               </div>

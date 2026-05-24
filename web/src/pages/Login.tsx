@@ -1,7 +1,7 @@
 import { useEffect, useState, FormEvent, type ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
-import { ZyvorFooter } from '../components/ZyvorBrand'
+import { ZyvorBrandLine } from '../components/ZyvorBrand'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import {
@@ -158,9 +158,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col">
     <div
-      className={`login-page flex-1 flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}${reducedMotion ? ' login-page-reduced-motion' : ''}`}
+      className={`login-page min-h-screen flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}${reducedMotion ? ' login-page-reduced-motion' : ''}`}
     >
       {!reducedMotion && <div className="login-aurora" aria-hidden />}
       {!reducedMotion && <div className="login-scanline" aria-hidden />}
@@ -267,6 +266,10 @@ export default function LoginPage() {
               </div>
             </div>
           ))}
+        </div>
+
+        <div className="relative z-10 pt-4 shrink-0">
+          <ZyvorBrandLine />
         </div>
       </aside>
 
@@ -407,10 +410,12 @@ export default function LoginPage() {
                   </>
                 )}
           </p>
+
+          <div className="lg:hidden text-center mt-6">
+            <ZyvorBrandLine />
+          </div>
         </div>
       </main>
-    </div>
-    <ZyvorFooter />
     </div>
   )
 }

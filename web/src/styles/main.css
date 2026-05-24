@@ -123,6 +123,14 @@ code {
 .login-page {
   isolation: isolate;
 }
+
+/* Zyvor brand — text only, never a dark footer bar */
+.zyvor-footer,
+.zyvor-brand-line {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
 .login-aurora {
   position: fixed;
   inset: 0;
