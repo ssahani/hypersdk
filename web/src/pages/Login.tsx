@@ -1,6 +1,7 @@
 import { useEffect, useState, FormEvent, type ReactNode } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
+import { ZyvorFooter } from '../components/ZyvorBrand'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
 import {
   Lock,
@@ -152,7 +153,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className={`login-page min-h-screen flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}`}>
+    <div className="min-h-screen flex flex-col">
+    <div className={`login-page flex-1 flex flex-col lg:flex-row relative overflow-hidden ${pageThemeClass}`}>
       <div className="login-aurora" aria-hidden />
       <div className="login-scanline" aria-hidden />
 
@@ -369,6 +371,8 @@ export default function LoginPage() {
           </p>
         </div>
       </main>
+    </div>
+    <ZyvorFooter />
     </div>
   )
 }
