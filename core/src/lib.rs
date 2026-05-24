@@ -47,8 +47,9 @@ pub use state::{
     ConfirmationDialog, CreateNetworkRequest, CreateSnapshotRequest, CreateVmRequest,
     CreateVolumeRequest, DashboardStats, DiskInfo, Focus, InputMode, InterfaceInfo, NetworkInfo,
     NodeInfo, NotifyLevel, ObjectTab, RenameVmRequest, ResourceView, RestoreRequest,
-    SidebarCategory, SidebarItem, SnapshotInfo, SortColumn, SortDirection, StoragePoolInfo,
-    StorageVolumeInfo, ViewMode, VmDetails, VmInfo, VmMetrics, VmTemplate,
+    OpenStackCreateStep, OpenStackCreateWizard, SidebarCategory, SidebarItem, SnapshotInfo,
+    SortColumn, SortDirection, StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo,
+    VmMetrics, VmTemplate,
 };
 
 pub const UNKNOWN: &str = "unknown";

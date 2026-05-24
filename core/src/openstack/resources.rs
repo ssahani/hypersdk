@@ -47,6 +47,7 @@ pub struct OpenStackKeyPair {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[derive(serde::Serialize)]
 pub struct CreateInstanceRequest {
     pub name: String,
     pub flavor: String,

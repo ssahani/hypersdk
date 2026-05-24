@@ -17,7 +17,7 @@ pub struct OpenStackFloatingIp {
     pub network_id: Option<String>,
 }
 
-#[derive(Debug, Clone, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AssociateFloatingIpRequest {
     /// Existing floating IP id (optional). When omitted, creates a new FIP on `floating_network`.
     pub floating_ip_id: Option<String>,

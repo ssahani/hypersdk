@@ -1,9 +1,12 @@
 use anyhow::Result;
 use machina_core::libvirt::extras::BrowseDirResponse;
 use machina_core::{
-    BackupInfo, BackupRequest, CloneVmRequest, CreateNetworkRequest, CreateSnapshotRequest,
-    NetworkInfo, NodeInfo, RenameVmRequest, RestoreRequest, SnapshotInfo, StoragePoolInfo,
-    VmDetails, VmInfo, VmMetrics,
+    BackupInfo, BackupRequest, CloneVmRequest, CreateInstanceRequest, CreateNetworkRequest,
+    CreateSnapshotRequest, NetworkInfo, NodeInfo, OpenStackConnectionStatus,
+    AssociateFloatingIpRequest, AttachVolumeRequest, OpenStackAttachedVolume, OpenStackFloatingIp,
+    OpenStackFlavor, OpenStackImage, OpenStackInstance, OpenStackKeyPair, OpenStackNetwork,
+    OpenStackRemoteConsole, RenameVmRequest, RestoreRequest, SnapshotInfo,
+    StoragePoolInfo, VmDetails, VmInfo, VmMetrics,
 };
 
 pub struct DaemonClient {
@@ -337,24 +340,265 @@ impl DaemonClient {
     }
 
     /// `op`: `apply` | `upload` | `start` — POST body is JSON overrides (same keys as kubevirt-bundle query).
-    // ── OpenStack (Nova/Glance) ─────────────────────────────────────────
+    // ── OpenStack (Nova/Glance) — parity with web /api/v1/openstack/* ───
 
-    pub async fn openstack_status(&self) -> Result<serde_json::Value> {
+    async fn post_json_value(&self, path: &str, body: &serde_json::Value) -> Result<serde_json::Value> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self.client.post(&url).json(body).send().await?;
+        let status = resp.status();
+        let text = resp.text().await.unwrap_or_default();
+        if !status.is_success() {
+            anyhow::bail!("[{status}] {text}");
+        }
+        serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("invalid JSON: {e}; body: {text}"))
+    }
+
+    pub async fn openstack_status(&self) -> Result<OpenStackConnectionStatus> {
         self.get_json("/api/v1/openstack/status").await
     }
 
-    pub async fn openstack_list_instances(&self) -> Result<serde_json::Value> {
-        self.get_json("/api/v1/openstack/instances").await
+    pub async fn openstack_test_connection(&self) -> Result<OpenStackConnectionStatus> {
+        self.post_json_value("/api/v1/openstack/test-connection", &serde_json::json!({}))
+            .await
+            .and_then(|v| {
+                serde_json::from_value(v)
+                    .map_err(|e| anyhow::anyhow!("openstack test-connection: {e}"))
+            })
+    }
+
+    pub async fn openstack_list_instances(&self) -> Result<Vec<OpenStackInstance>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            instances: Vec<OpenStackInstance>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/instances").await?;
+        Ok(r.instances)
+    }
+
+    pub async fn openstack_get_instance(&self, id: &str) -> Result<OpenStackInstance> {
+        self.get_json(&format!("/api/v1/openstack/instances/{id}"))
+            .await
+    }
+
+    pub async fn openstack_list_images(&self) -> Result<Vec<OpenStackImage>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            images: Vec<OpenStackImage>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/images").await?;
+        Ok(r.images)
+    }
+
+    pub async fn openstack_list_flavors(&self) -> Result<Vec<OpenStackFlavor>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            flavors: Vec<OpenStackFlavor>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/flavors").await?;
+        Ok(r.flavors)
+    }
+
+    pub async fn openstack_list_networks(&self) -> Result<Vec<OpenStackNetwork>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            networks: Vec<OpenStackNetwork>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/networks").await?;
+        Ok(r.networks)
+    }
+
+    pub async fn openstack_list_keypairs(&self) -> Result<Vec<OpenStackKeyPair>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            keypairs: Vec<OpenStackKeyPair>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/keypairs").await?;
+        Ok(r.keypairs)
     }
 
     pub async fn openstack_instance_action(&self, id: &str, action: &str) -> Result<()> {
-        self.post_action(&format!("/api/v1/openstack/instances/{id}/{action}"))
+        self.post_action(&format!(
+            "/api/v1/openstack/instances/{id}/{action}"
+        ))
+        .await
+    }
+
+    pub async fn openstack_reboot_instance(&self, id: &str, soft: bool) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/reboot"),
+            &serde_json::json!({ "reboot_type": if soft { "soft" } else { "hard" } }),
+        )
+        .await
+    }
+
+    pub async fn openstack_snapshot_instance(&self, id: &str, image_name: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/snapshot"),
+            &serde_json::json!({ "image_name": image_name }),
+        )
+        .await
+    }
+
+    pub async fn openstack_resize_instance(&self, id: &str, flavor: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/resize"),
+            &serde_json::json!({ "flavor": flavor }),
+        )
+        .await
+    }
+
+    pub async fn openstack_create_instance(&self, req: &CreateInstanceRequest) -> Result<serde_json::Value> {
+        self.post_json_value("/api/v1/openstack/instances", &serde_json::to_value(req)?)
             .await
     }
 
     pub async fn openstack_delete_instance(&self, id: &str) -> Result<()> {
         self.delete_action(&format!("/api/v1/openstack/instances/{id}"))
             .await
+    }
+
+    pub async fn openstack_delete_image(&self, id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/openstack/images/{id}"))
+            .await
+    }
+
+    pub async fn openstack_console_output(&self, id: &str, lines: Option<u32>) -> Result<String> {
+        let suffix = lines
+            .map(|n| format!("?lines={n}"))
+            .unwrap_or_default();
+        #[derive(serde::Deserialize)]
+        struct R {
+            output: String,
+        }
+        let r: R = self
+            .get_json(&format!(
+                "/api/v1/openstack/instances/{id}/console-output{suffix}"
+            ))
+            .await?;
+        Ok(r.output)
+    }
+
+    pub async fn openstack_remote_console(
+        &self,
+        id: &str,
+        console_type: &str,
+    ) -> Result<OpenStackRemoteConsole> {
+        self.get_json(&format!(
+            "/api/v1/openstack/instances/{id}/console?type={console_type}"
+        ))
+        .await
+    }
+
+    pub async fn openstack_export_instance(
+        &self,
+        id: &str,
+        body: &serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        self.post_json_value(
+            &format!("/api/v1/openstack/instances/{id}/export"),
+            body,
+        )
+        .await
+    }
+
+    pub async fn openstack_list_json(&self, resource: &str) -> Result<serde_json::Value> {
+        self.get_json(&format!("/api/v1/openstack/{resource}")).await
+    }
+
+    pub async fn openstack_list_cinder_volumes(&self) -> Result<Vec<OpenStackAttachedVolume>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            volumes: Vec<OpenStackAttachedVolume>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/volumes").await?;
+        Ok(r.volumes)
+    }
+
+    pub async fn openstack_list_instance_volumes(
+        &self,
+        id: &str,
+    ) -> Result<Vec<OpenStackAttachedVolume>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            volumes: Vec<OpenStackAttachedVolume>,
+        }
+        let r: R = self
+            .get_json(&format!("/api/v1/openstack/instances/{id}/volumes"))
+            .await?;
+        Ok(r.volumes)
+    }
+
+    pub async fn openstack_attach_volume(&self, instance_id: &str, volume_id: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{instance_id}/volumes/attach"),
+            &AttachVolumeRequest {
+                volume_id: volume_id.to_string(),
+            },
+        )
+        .await
+    }
+
+    pub async fn openstack_detach_volume(&self, instance_id: &str, volume_id: &str) -> Result<()> {
+        self.delete_action(&format!(
+            "/api/v1/openstack/instances/{instance_id}/volumes/{volume_id}"
+        ))
+        .await
+    }
+
+    pub async fn openstack_list_floating_ips(&self) -> Result<Vec<OpenStackFloatingIp>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            floating_ips: Vec<OpenStackFloatingIp>,
+        }
+        let r: R = self.get_json("/api/v1/openstack/floating-ips").await?;
+        Ok(r.floating_ips)
+    }
+
+    pub async fn openstack_list_instance_floating_ips(
+        &self,
+        id: &str,
+    ) -> Result<Vec<OpenStackFloatingIp>> {
+        #[derive(serde::Deserialize)]
+        struct R {
+            floating_ips: Vec<OpenStackFloatingIp>,
+        }
+        let r: R = self
+            .get_json(&format!("/api/v1/openstack/instances/{id}/floating-ips"))
+            .await?;
+        Ok(r.floating_ips)
+    }
+
+    pub async fn openstack_associate_floating_ip(
+        &self,
+        instance_id: &str,
+        body: &AssociateFloatingIpRequest,
+    ) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{instance_id}/floating-ips"),
+            body,
+        )
+        .await
+    }
+
+    pub async fn openstack_dissociate_floating_ip(&self, fip_id: &str) -> Result<()> {
+        self.post_action(&format!("/api/v1/openstack/floating-ips/{fip_id}/dissociate"))
+            .await
+    }
+
+    pub async fn openstack_add_security_group(&self, instance_id: &str, name: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{instance_id}/security-groups"),
+            &serde_json::json!({ "name": name }),
+        )
+        .await
+    }
+
+    pub async fn openstack_remove_security_group(&self, instance_id: &str, name: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{instance_id}/security-groups/remove"),
+            &serde_json::json!({ "name": name }),
+        )
+        .await
     }
 
     pub async fn kubevirt_cluster_exec(

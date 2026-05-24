@@ -34,7 +34,7 @@ pub struct OpenStackExportPlan {
     pub hypervisord_dashboard: String,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AttachVolumeRequest {
     pub volume_id: String,
 }

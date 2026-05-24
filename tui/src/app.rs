@@ -3,8 +3,10 @@ use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
 use machina_core::{
-    AppState, ConfirmationDialog, CreateNetworkRequest, Focus, InputMode, NotifyLevel, ObjectTab,
-    ResourceView, SidebarCategory, SidebarItem, SortColumn, SortDirection, ViewMode,
+    AppState, AssociateFloatingIpRequest, ConfirmationDialog, CreateInstanceRequest,
+    CreateNetworkRequest, Focus, InputMode, NotifyLevel, ObjectTab, OpenStackCreateStep,
+    OpenStackCreateWizard, ResourceView, SidebarCategory, SidebarItem, SortColumn, SortDirection,
+    ViewMode,
 };
 
 use crate::api::DaemonClient;
@@ -65,8 +67,14 @@ impl App {
             InputMode::Search => self.handle_search_key(key),
             InputMode::Confirmation => self.handle_confirmation_key(key).await,
             InputMode::Command => self.handle_command_key(key).await,
+            InputMode::OpenStackWizard => self.handle_openstack_wizard_key(key).await,
             InputMode::Normal => self.handle_normal_key(key).await,
         }
+    }
+
+    fn openstack_wizard_active(&self) -> bool {
+        self.state.view_mode == ViewMode::OpenStackCreate
+            && self.state.openstack_create_wizard.is_some()
     }
 
     // ── Scrollable view handling (shared by Help, Xml, Logs) ────────────
@@ -121,6 +129,10 @@ impl App {
                 }
                 return;
             }
+            ViewMode::OpenStackCreate => {
+                self.handle_openstack_create_view_key(key).await;
+                return;
+            }
             ViewMode::Table => {}
         }
 
@@ -132,6 +144,10 @@ impl App {
 
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => {
+                if self.openstack_wizard_active() {
+                    self.cancel_openstack_create_wizard();
+                    return;
+                }
                 if self.state.multi_select_mode {
                     self.state.clear_selection();
                 } else if self.state.command_content_override.is_some() {
@@ -291,13 +307,34 @@ impl App {
                 Some(SidebarItem::Network(_)) | Some(SidebarItem::Snapshot(_, _)) => {
                     self.state.focus = Focus::Content;
                 }
+                Some(SidebarItem::OpenStackInstance(id)) => {
+                    self.load_openstack_instance_detail(&id).await;
+                    self.state.focus = Focus::Content;
+                }
+                Some(SidebarItem::OpenStackImages) => {
+                    self.state.focus = Focus::Content;
+                }
+                Some(SidebarItem::OpenStackCreate) => {
+                    self.start_openstack_create_wizard().await;
+                }
                 None => {}
             },
 
             KeyCode::Backspace => self.exit_volume_browser(),
 
             KeyCode::Char('l') => {
-                if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
+                if let Some(id) = self.state.effective_openstack_instance_id().map(|s| s.to_string()) {
+                    match self.client.openstack_console_output(&id, Some(80)).await {
+                        Ok(out) => {
+                            self.state.log_content = format!("OpenStack console — {id}\n\n{out}");
+                            self.state.content_overlay_caption =
+                                " OpenStack console log (j/k:scroll  Esc:close) ".to_string();
+                            self.state.scroll_offset = 0;
+                            self.state.view_mode = ViewMode::Logs;
+                        }
+                        Err(e) => self.state.status_message = format!("openstack console: {e}"),
+                    }
+                } else if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
                     self.show_vm_logs_by_name(&name).await;
                 }
             }
@@ -405,6 +442,10 @@ impl App {
                         self.browse_pool_volumes_by_name(&name).await;
                     }
                 }
+                Some(SidebarItem::OpenStackInstance(id)) => {
+                    self.load_openstack_instance_detail(&id).await;
+                }
+                Some(SidebarItem::OpenStackImages) | Some(SidebarItem::Category(SidebarCategory::OpenStack)) => {}
                 _ => {}
             },
 
@@ -472,6 +513,20 @@ impl App {
             KeyCode::Char('c') => {
                 if let Some(n) = self.resolve_vm_name() {
                     self.launch_console_by_name(&n).await;
+                }
+            }
+            KeyCode::Char('l') => {
+                if let Some(id) = self.state.effective_openstack_instance_id().map(|s| s.to_string()) {
+                    match self.client.openstack_console_output(&id, Some(80)).await {
+                        Ok(out) => {
+                            self.state.log_content = format!("OpenStack console — {id}\n\n{out}");
+                            self.state.content_overlay_caption =
+                                " OpenStack console log (j/k:scroll  Esc:close) ".to_string();
+                            self.state.scroll_offset = 0;
+                            self.state.view_mode = ViewMode::Logs;
+                        }
+                        Err(e) => self.state.status_message = format!("openstack console: {e}"),
+                    }
                 }
             }
             KeyCode::Char('t') => {
@@ -605,6 +660,333 @@ impl App {
                 }
             }
         }
+        if let Some(SidebarItem::OpenStackInstance(id)) = self.state.selected_sidebar_item().cloned() {
+            self.load_openstack_instance_detail(&id).await;
+        } else {
+            self.state.openstack_instance_detail = None;
+            self.state.openstack_instance_volumes.clear();
+            self.state.openstack_instance_fips.clear();
+        }
+    }
+
+    fn cancel_openstack_create_wizard(&mut self) {
+        self.state.openstack_create_wizard = None;
+        self.state.view_mode = ViewMode::Table;
+        self.state.input_mode = InputMode::Normal;
+        self.state.status_message = "Create instance cancelled".to_string();
+    }
+
+    async fn start_openstack_create_wizard(&mut self) {
+        if !self.state.openstack_configured() {
+            self.state.status_message =
+                "OpenStack not configured — add [openstack] in /etc/machina/config.toml".to_string();
+            return;
+        }
+        self.state.status_message = "Loading OpenStack catalogs…".to_string();
+        let (flavors, networks, images, keypairs) = tokio::join!(
+            self.client.openstack_list_flavors(),
+            self.client.openstack_list_networks(),
+            self.client.openstack_list_images(),
+            self.client.openstack_list_keypairs(),
+        );
+        let flavors = match flavors {
+            Ok(f) => f,
+            Err(e) => {
+                self.state.status_message = format!("openstack flavors: {e}");
+                return;
+            }
+        };
+        if flavors.is_empty() {
+            self.state.status_message = "No Nova flavors available".to_string();
+            return;
+        }
+        let networks = networks.unwrap_or_default();
+        let images = images.unwrap_or_default();
+        let keypairs = keypairs.unwrap_or_default();
+        self.state.openstack_images = images.clone();
+        self.state.openstack_create_wizard = Some(OpenStackCreateWizard {
+            step: OpenStackCreateStep::Name,
+            name: String::new(),
+            list_cursor: 0,
+            flavor_idx: 0,
+            image_idx: None,
+            network_idx: if networks.is_empty() { None } else { Some(0) },
+            key_idx: None,
+            flavors,
+            networks,
+            images,
+            keypairs,
+        });
+        self.state.view_mode = ViewMode::OpenStackCreate;
+        self.state.input_mode = InputMode::OpenStackWizard;
+        self.state.status_message = "Create instance — enter name, Enter to continue".to_string();
+    }
+
+    async fn handle_openstack_wizard_key(&mut self, key: KeyEvent) {
+        let Some(wizard) = self.state.openstack_create_wizard.as_mut() else {
+            self.cancel_openstack_create_wizard();
+            return;
+        };
+        if wizard.step != OpenStackCreateStep::Name {
+            return;
+        }
+        match key.code {
+            KeyCode::Esc => self.cancel_openstack_create_wizard(),
+            KeyCode::Enter => {
+                if wizard.name.trim().is_empty() {
+                    self.state.status_message = "Instance name is required".to_string();
+                    return;
+                }
+                wizard.step = OpenStackCreateStep::Flavor;
+                wizard.list_cursor = wizard.flavor_idx;
+                self.state.input_mode = InputMode::Normal;
+                self.state.status_message =
+                    "Pick flavor (j/k Enter) — Esc cancel".to_string();
+            }
+            KeyCode::Backspace => {
+                wizard.name.pop();
+            }
+            KeyCode::Char(c) if !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) => {
+                wizard.name.push(c);
+            }
+            _ => {}
+        }
+    }
+
+    fn wizard_step_list_len(wizard: &OpenStackCreateWizard, step: OpenStackCreateStep) -> usize {
+        match step {
+            OpenStackCreateStep::Flavor => wizard.flavors.len(),
+            OpenStackCreateStep::Image => wizard.images.len(),
+            OpenStackCreateStep::Network => wizard.networks.len(),
+            OpenStackCreateStep::Keypair => wizard.keypairs.len(),
+            _ => 0,
+        }
+    }
+
+    fn wizard_sync_cursor(wizard: &mut OpenStackCreateWizard) {
+        wizard.list_cursor = match wizard.step {
+            OpenStackCreateStep::Flavor => wizard.flavor_idx,
+            OpenStackCreateStep::Image => wizard.image_idx.unwrap_or(0),
+            OpenStackCreateStep::Network => wizard.network_idx.unwrap_or(0),
+            OpenStackCreateStep::Keypair => wizard.key_idx.unwrap_or(0),
+            _ => wizard.list_cursor,
+        };
+    }
+
+    fn wizard_advance_step(wizard: &mut OpenStackCreateWizard) -> OpenStackCreateStep {
+        wizard.step = match wizard.step {
+            OpenStackCreateStep::Name => OpenStackCreateStep::Flavor,
+            OpenStackCreateStep::Flavor => OpenStackCreateStep::Image,
+            OpenStackCreateStep::Image => OpenStackCreateStep::Network,
+            OpenStackCreateStep::Network => OpenStackCreateStep::Keypair,
+            OpenStackCreateStep::Keypair => OpenStackCreateStep::Confirm,
+            OpenStackCreateStep::Confirm => OpenStackCreateStep::Confirm,
+        };
+        Self::wizard_sync_cursor(wizard);
+        wizard.step
+    }
+
+    fn wizard_retreat_step(wizard: &mut OpenStackCreateWizard) -> OpenStackCreateStep {
+        wizard.step = match wizard.step {
+            OpenStackCreateStep::Confirm => OpenStackCreateStep::Keypair,
+            OpenStackCreateStep::Keypair => OpenStackCreateStep::Network,
+            OpenStackCreateStep::Network => OpenStackCreateStep::Image,
+            OpenStackCreateStep::Image => OpenStackCreateStep::Flavor,
+            OpenStackCreateStep::Flavor => OpenStackCreateStep::Name,
+            OpenStackCreateStep::Name => OpenStackCreateStep::Name,
+        };
+        Self::wizard_sync_cursor(wizard);
+        wizard.step
+    }
+
+    async fn submit_openstack_create_wizard(&mut self) {
+        let Some(wizard) = self.state.openstack_create_wizard.clone() else {
+            return;
+        };
+        let Some(flavor) = wizard.flavor_name().map(str::to_string) else {
+            self.state.status_message = "Flavor is required".to_string();
+            return;
+        };
+        let req = CreateInstanceRequest {
+            name: wizard.name.trim().to_string(),
+            flavor,
+            image: wizard.image_name().map(str::to_string),
+            network: wizard.network_name().map(str::to_string),
+            key_name: wizard.key_name().map(str::to_string),
+            availability_zone: None,
+            security_groups: None,
+            user_data: None,
+            wait_until_active: false,
+        };
+        self.state.status_message = format!("Creating {}…", req.name);
+        match self.client.openstack_create_instance(&req).await {
+            Ok(v) => {
+                self.state.status_message = format!("Created instance: {v}");
+                self.cancel_openstack_create_wizard();
+                self.refresh_openstack().await;
+            }
+            Err(e) => {
+                self.state.status_message = format!("openstack create: {e}");
+            }
+        }
+    }
+
+    async fn handle_openstack_create_view_key(&mut self, key: KeyEvent) {
+        if self.state.input_mode == InputMode::OpenStackWizard {
+            return;
+        }
+        let Some(wizard) = self.state.openstack_create_wizard.as_mut() else {
+            self.cancel_openstack_create_wizard();
+            return;
+        };
+
+        match key.code {
+            KeyCode::Esc => {
+                self.cancel_openstack_create_wizard();
+                return;
+            }
+            KeyCode::Backspace => {
+                if wizard.step != OpenStackCreateStep::Confirm {
+                    let step = Self::wizard_retreat_step(wizard);
+                    if step == OpenStackCreateStep::Name {
+                        self.state.input_mode = InputMode::OpenStackWizard;
+                    }
+                    self.state.status_message = wizard_step_hint(step);
+                }
+                return;
+            }
+            KeyCode::Char('-') | KeyCode::Char('n')
+                if matches!(wizard.step, OpenStackCreateStep::Image | OpenStackCreateStep::Keypair) =>
+            {
+                match wizard.step {
+                    OpenStackCreateStep::Image => wizard.image_idx = None,
+                    OpenStackCreateStep::Keypair => wizard.key_idx = None,
+                    _ => {}
+                }
+                let step = Self::wizard_advance_step(wizard);
+                self.state.status_message = wizard_step_hint(step);
+                return;
+            }
+            KeyCode::Enter => match wizard.step {
+                OpenStackCreateStep::Flavor => {
+                    if wizard.flavors.is_empty() {
+                        return;
+                    }
+                    wizard.flavor_idx = wizard.list_cursor.min(wizard.flavors.len() - 1);
+                    let step = Self::wizard_advance_step(wizard);
+                    self.state.status_message = wizard_step_hint(step);
+                }
+                OpenStackCreateStep::Image => {
+                    if wizard.images.is_empty() {
+                        wizard.image_idx = None;
+                    } else {
+                        wizard.image_idx = Some(wizard.list_cursor.min(wizard.images.len() - 1));
+                    }
+                    let step = Self::wizard_advance_step(wizard);
+                    self.state.status_message = wizard_step_hint(step);
+                }
+                OpenStackCreateStep::Network => {
+                    if wizard.networks.is_empty() {
+                        self.state.status_message =
+                            "No Neutron networks — fix networking or use :openstack create …"
+                                .to_string();
+                        return;
+                    }
+                    wizard.network_idx =
+                        Some(wizard.list_cursor.min(wizard.networks.len() - 1));
+                    let step = Self::wizard_advance_step(wizard);
+                    self.state.status_message = wizard_step_hint(step);
+                }
+                OpenStackCreateStep::Keypair => {
+                    if wizard.keypairs.is_empty() {
+                        wizard.key_idx = None;
+                    } else {
+                        wizard.key_idx = Some(wizard.list_cursor.min(wizard.keypairs.len() - 1));
+                    }
+                    let step = Self::wizard_advance_step(wizard);
+                    self.state.status_message = wizard_step_hint(step);
+                }
+                OpenStackCreateStep::Confirm => self.submit_openstack_create_wizard().await,
+                _ => {}
+            },
+            KeyCode::Char('j') | KeyCode::Down => {
+                let len = Self::wizard_step_list_len(wizard, wizard.step);
+                if len > 0 {
+                    wizard.list_cursor = (wizard.list_cursor + 1) % len;
+                }
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                let len = Self::wizard_step_list_len(wizard, wizard.step);
+                if len > 0 {
+                    wizard.list_cursor = if wizard.list_cursor == 0 {
+                        len - 1
+                    } else {
+                        wizard.list_cursor - 1
+                    };
+                }
+            }
+            _ => {}
+        }
+    }
+
+    async fn load_openstack_instance_detail(&mut self, id: &str) {
+        let (inst, vols, fips) = tokio::join!(
+            self.client.openstack_get_instance(id),
+            self.client.openstack_list_instance_volumes(id),
+            self.client.openstack_list_instance_floating_ips(id),
+        );
+        match inst {
+            Ok(d) => self.state.openstack_instance_detail = Some(d),
+            Err(e) => {
+                self.state.status_message = format!("openstack get: {e}");
+                return;
+            }
+        }
+        self.state.openstack_instance_volumes = vols.unwrap_or_default();
+        self.state.openstack_instance_fips = fips.unwrap_or_default();
+    }
+
+    async fn refresh_openstack(&mut self) {
+        if let Ok(st) = self.client.openstack_status().await {
+            self.state.openstack_status = Some(st);
+        }
+        if !self.state.openstack_configured() {
+            self.state.openstack_instances.clear();
+            self.state.openstack_images.clear();
+            self.state.rebuild_sidebar();
+            return;
+        }
+        if let Ok(insts) = self.client.openstack_list_instances().await {
+            self.state.openstack_instances = insts;
+        }
+        if let Ok(imgs) = self.client.openstack_list_images().await {
+            self.state.openstack_images = imgs;
+        }
+        self.state.rebuild_sidebar();
+        self.state.clamp_selection();
+    }
+
+    fn format_openstack_status(st: &machina_core::OpenStackConnectionStatus) -> String {
+        if st.compute_reachable && st.glance_reachable {
+            format!(
+                "OpenStack live · {} · {} instance(s), {} image(s)",
+                st.cloud_name,
+                st.instance_count.unwrap_or(0),
+                st.image_count.unwrap_or(0)
+            )
+        } else if st.reachable || st.keystone_reachable {
+            format!(
+                "OpenStack Keystone OK · Nova/Glance: {}",
+                st.error.as_deref().unwrap_or("partial")
+            )
+        } else if st.configured {
+            format!(
+                "OpenStack configured · {}",
+                st.error.as_deref().unwrap_or("not connected")
+            )
+        } else {
+            "OpenStack disabled".to_string()
+        }
     }
 
     // ── Action dispatch ─────────────────────────────────────────────────
@@ -625,8 +1007,31 @@ impl App {
             Some(SidebarItem::StoragePool(name)) => {
                 self.resource_action(action, "pool", &name).await;
             }
+            Some(SidebarItem::OpenStackInstance(id)) => {
+                self.openstack_instance_action(action, &id).await;
+            }
             _ => {}
         }
+    }
+
+    async fn openstack_instance_action(&mut self, action: &str, id: &str) {
+        let r = match action {
+            "start" => self.client.openstack_instance_action(id, "start").await,
+            "stop" => self.client.openstack_instance_action(id, "stop").await,
+            "reboot" => self.client.openstack_reboot_instance(id, false).await,
+            "pause" => self.client.openstack_instance_action(id, "pause").await,
+            "resume" => self.client.openstack_instance_action(id, "unpause").await,
+            _ => return,
+        };
+        self.report_cmd_result(
+            r,
+            &format!("OpenStack {action} {id}"),
+            &format!("openstack-{action}"),
+            id,
+            false,
+        )
+        .await;
+        self.refresh_openstack().await;
     }
 
     /// Unified network/pool start/stop actions.
@@ -907,6 +1312,12 @@ impl App {
             | Some(SidebarItem::Category(SidebarCategory::Storage)) => {
                 self.resolve_volume_for_delete()
             }
+            Some(SidebarItem::OpenStackInstance(id)) => Some(ConfirmationDialog {
+                title: "Delete OpenStack instance".to_string(),
+                message: "This will delete the Nova instance.".to_string(),
+                resource_name: id.clone(),
+                action: format!("delete-openstack:{id}"),
+            }),
             _ => None,
         };
 
@@ -1024,6 +1435,18 @@ impl App {
                     true,
                 )
                 .await;
+            }
+            ["delete-openstack", id] => {
+                let r = self.client.openstack_delete_instance(id).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Deleted OpenStack instance {id}"),
+                    "openstack-delete",
+                    id,
+                    true,
+                )
+                .await;
+                self.refresh_openstack().await;
             }
             ["delete-vol", pool, vol] => {
                 let r = self.client.delete_volume(pool, vol).await;
@@ -1344,6 +1767,13 @@ impl App {
         }
     }
 
+    fn show_json_overlay(&mut self, title: &str, v: &serde_json::Value) {
+        self.state.xml_content = serde_json::to_string_pretty(v).unwrap_or_else(|_| v.to_string());
+        self.state.content_overlay_caption = format!(" {title} (j/k:scroll  Esc:close) ");
+        self.state.scroll_offset = 0;
+        self.state.view_mode = ViewMode::Xml;
+    }
+
     fn show_cluster_cmd_output(
         &mut self,
         title: &str,
@@ -1534,39 +1964,176 @@ impl App {
                 }
             }
             ["openstack"] | ["os"] => match self.client.openstack_status().await {
-                Ok(v) => {
-                    let connected = v.get("connected").and_then(|x| x.as_bool()).unwrap_or(false);
-                    let err = v.get("error").and_then(|x| x.as_str()).unwrap_or("");
-                    self.state.status_message = if connected {
-                        "OpenStack: connected".to_string()
-                    } else if err.is_empty() {
-                        "OpenStack: not connected (check Settings / config)".to_string()
-                    } else {
-                        format!("OpenStack: {err}")
-                    };
+                Ok(st) => {
+                    self.state.openstack_status = Some(st.clone());
+                    self.state.status_message = Self::format_openstack_status(&st);
+                    self.state.rebuild_sidebar();
                 }
                 Err(e) => self.state.status_message = format!("openstack status: {e}"),
             },
-            ["openstack", "list"] | ["os", "list"] => match self.client.openstack_list_instances().await {
-                Ok(v) => {
-                    let n = v
-                        .get("instances")
-                        .and_then(|x| x.as_array())
-                        .map(|a| a.len())
-                        .unwrap_or(0);
-                    self.state.status_message = format!("OpenStack: {n} instance(s)");
+            ["openstack", "test"] | ["os", "test"] => match self.client.openstack_test_connection().await {
+                Ok(st) => {
+                    self.state.openstack_status = Some(st.clone());
+                    self.state.status_message = Self::format_openstack_status(&st);
+                    self.refresh_openstack().await;
                 }
-                Err(e) => self.state.status_message = format!("openstack list: {e}"),
+                Err(e) => self.state.status_message = format!("openstack test: {e}"),
+            },
+            ["openstack", "list"] | ["os", "list"] => {
+                self.refresh_openstack().await;
+                self.state.status_message =
+                    format!("OpenStack: {} instance(s)", self.state.openstack_instances.len());
+                self.navigate_to_category(SidebarCategory::OpenStack);
+            },
+            ["openstack", "images"] | ["os", "images"] => {
+                self.refresh_openstack().await;
+                self.navigate_to_category(SidebarCategory::OpenStack);
+                if let Some(pos) = self
+                    .state
+                    .sidebar_items
+                    .iter()
+                    .position(|i| *i == SidebarItem::OpenStackImages)
+                {
+                    self.state.sidebar_selected = pos;
+                    self.on_sidebar_selection_changed().await;
+                }
+            },
+            ["openstack", "flavors"] | ["os", "flavors"] => {
+                match self.client.openstack_list_json("flavors").await {
+                    Ok(v) => self.show_json_overlay("OpenStack flavors", &v),
+                    Err(e) => self.state.status_message = format!("openstack flavors: {e}"),
+                }
+            },
+            ["openstack", "networks"] | ["os", "networks"] => {
+                match self.client.openstack_list_json("networks").await {
+                    Ok(v) => self.show_json_overlay("OpenStack networks", &v),
+                    Err(e) => self.state.status_message = format!("openstack networks: {e}"),
+                }
+            },
+            ["openstack", "keypairs"] | ["os", "keypairs"] => {
+                match self.client.openstack_list_json("keypairs").await {
+                    Ok(v) => self.show_json_overlay("OpenStack keypairs", &v),
+                    Err(e) => self.state.status_message = format!("openstack keypairs: {e}"),
+                }
+            },
+            ["openstack", "get", id] | ["os", "get", id] => {
+                self.load_openstack_instance_detail(id).await;
+                self.state.status_message = format!("Loaded OpenStack instance {id}");
+            },
+            ["openstack", "create"] | ["os", "create"] | ["openstack", "wizard"] | ["os", "wizard"] => {
+                self.start_openstack_create_wizard().await;
+            }
+            ["openstack", "create", name, flavor] => {
+                let req = CreateInstanceRequest {
+                    name: name.to_string(),
+                    flavor: flavor.to_string(),
+                    image: None,
+                    network: None,
+                    key_name: None,
+                    availability_zone: None,
+                    security_groups: None,
+                    user_data: None,
+                    wait_until_active: false,
+                };
+                match self.client.openstack_create_instance(&req).await {
+                    Ok(v) => {
+                        self.state.status_message = format!("Created instance: {v}");
+                        self.refresh_openstack().await;
+                    }
+                    Err(e) => self.state.status_message = format!("openstack create: {e}"),
+                }
+            },
+            ["openstack", "create", name, flavor, image] => {
+                let req = CreateInstanceRequest {
+                    name: name.to_string(),
+                    flavor: flavor.to_string(),
+                    image: Some(image.to_string()),
+                    network: None,
+                    key_name: None,
+                    availability_zone: None,
+                    security_groups: None,
+                    user_data: None,
+                    wait_until_active: false,
+                };
+                match self.client.openstack_create_instance(&req).await {
+                    Ok(v) => {
+                        self.state.status_message = format!("Created instance: {v}");
+                        self.refresh_openstack().await;
+                    }
+                    Err(e) => self.state.status_message = format!("openstack create: {e}"),
+                }
             },
             ["openstack", "start", id] | ["os", "start", id] => {
                 let r = self.client.openstack_instance_action(id, "start").await;
                 self.report_cmd_result(r, &format!("Started OpenStack instance {id}"), "openstack-start", id, false)
                     .await;
+                self.refresh_openstack().await;
             }
             ["openstack", "stop", id] | ["os", "stop", id] => {
                 let r = self.client.openstack_instance_action(id, "stop").await;
                 self.report_cmd_result(r, &format!("Stopped OpenStack instance {id}"), "openstack-stop", id, false)
                     .await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "reboot", id] | ["os", "reboot", id] => {
+                let r = self.client.openstack_reboot_instance(id, false).await;
+                self.report_cmd_result(r, &format!("Rebooted OpenStack instance {id}"), "openstack-reboot", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "pause", id] => {
+                let r = self.client.openstack_instance_action(id, "pause").await;
+                self.report_cmd_result(r, &format!("Paused {id}"), "openstack-pause", id, false).await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "unpause", id] | ["openstack", "resume", id] => {
+                let r = self.client.openstack_instance_action(id, "unpause").await;
+                self.report_cmd_result(r, &format!("Resumed {id}"), "openstack-resume", id, false).await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "suspend", id] => {
+                let r = self.client.openstack_instance_action(id, "suspend").await;
+                self.report_cmd_result(r, &format!("Suspended {id}"), "openstack-suspend", id, false).await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "snapshot", id, image_name] => {
+                let r = self.client.openstack_snapshot_instance(id, image_name).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Snapshot {id} → {image_name}"),
+                    "openstack-snapshot",
+                    id,
+                    false,
+                )
+                .await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "resize", id, flavor] => {
+                let r = self.client.openstack_resize_instance(id, flavor).await;
+                self.report_cmd_result(r, &format!("Resize {id} → {flavor}"), "openstack-resize", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            }
+            ["openstack", "console", id] => match self.client.openstack_remote_console(id, "novnc").await {
+                Ok(c) => {
+                    self.state.log_content =
+                        format!("OpenStack noVNC console — {id}\n\nURL:\n{}\n", c.url);
+                    self.state.content_overlay_caption =
+                        " OpenStack console URL (j/k:scroll  Esc:close) ".to_string();
+                    self.state.scroll_offset = 0;
+                    self.state.view_mode = ViewMode::Logs;
+                }
+                Err(e) => self.state.status_message = format!("openstack console: {e}"),
+            },
+            ["openstack", "export", id] => match self.client.openstack_export_instance(id, &serde_json::json!({})).await {
+                Ok(v) => self.show_json_overlay("OpenStack export plan", &v),
+                Err(e) => self.state.status_message = format!("openstack export: {e}"),
+            },
+            ["openstack", "image-delete", id] | ["openstack", "delete-image", id] => {
+                let r = self.client.openstack_delete_image(id).await;
+                self.report_cmd_result(r, &format!("Deleted Glance image {id}"), "openstack-image-delete", id, true)
+                    .await;
+                self.refresh_openstack().await;
             }
             ["openstack", "delete", id] | ["os", "delete", id] => {
                 let r = self.client.openstack_delete_instance(id).await;
@@ -1578,7 +2145,140 @@ impl App {
                     true,
                 )
                 .await;
+                self.refresh_openstack().await;
             }
+            ["openstack", "nav"] | ["os", "nav"] => {
+                self.navigate_to_category(SidebarCategory::OpenStack);
+            }
+            ["openstack", "volumes"] | ["os", "volumes"] => match self.client.openstack_list_cinder_volumes().await {
+                Ok(vols) => {
+                    self.state.openstack_cinder_volumes = vols.clone();
+                    self.state.status_message =
+                        format!("Cinder: {} volume(s) — :openstack volumes-json for list", vols.len());
+                }
+                Err(e) => self.state.status_message = format!("openstack volumes: {e}"),
+            },
+            ["openstack", "volumes-json"] => match self.client.openstack_list_cinder_volumes().await {
+                Ok(vols) => {
+                    self.state.openstack_cinder_volumes = vols.clone();
+                    self.show_json_overlay("Cinder volumes", &serde_json::json!({ "volumes": vols }));
+                }
+                Err(e) => self.state.status_message = format!("openstack volumes: {e}"),
+            },
+            ["openstack", "instance-volumes", id] | ["os", "instance-volumes", id] => {
+                match self.client.openstack_list_instance_volumes(id).await {
+                    Ok(vols) => {
+                        self.state.openstack_instance_volumes = vols.clone();
+                        self.show_json_overlay(
+                            &format!("Volumes on {id}"),
+                            &serde_json::json!({ "volumes": vols }),
+                        );
+                    }
+                    Err(e) => self.state.status_message = format!("openstack instance-volumes: {e}"),
+                }
+            },
+            ["openstack", "attach", inst, vol] => {
+                let r = self.client.openstack_attach_volume(inst, vol).await;
+                self.report_cmd_result(r, &format!("Attached {vol} → {inst}"), "openstack-attach", inst, false)
+                    .await;
+                self.load_openstack_instance_detail(inst).await;
+            },
+            ["openstack", "detach", inst, vol] => {
+                let r = self.client.openstack_detach_volume(inst, vol).await;
+                self.report_cmd_result(r, &format!("Detached {vol} from {inst}"), "openstack-detach", inst, false)
+                    .await;
+                self.load_openstack_instance_detail(inst).await;
+            },
+            ["openstack", "fips"] | ["os", "fips"] => match self.client.openstack_list_floating_ips().await {
+                Ok(fips) => self.show_json_overlay("Floating IPs", &serde_json::json!({ "floating_ips": fips })),
+                Err(e) => self.state.status_message = format!("openstack fips: {e}"),
+            },
+            ["openstack", "instance-fips", id] => {
+                match self.client.openstack_list_instance_floating_ips(id).await {
+                    Ok(fips) => {
+                        self.state.openstack_instance_fips = fips.clone();
+                        self.show_json_overlay(
+                            &format!("FIPs on {id}"),
+                            &serde_json::json!({ "floating_ips": fips }),
+                        );
+                    }
+                    Err(e) => self.state.status_message = format!("openstack instance-fips: {e}"),
+                }
+            },
+            ["openstack", "fip-associate", inst, fip_id] => {
+                let body = AssociateFloatingIpRequest {
+                    floating_ip_id: Some(fip_id.to_string()),
+                    floating_network: None,
+                };
+                let r = self.client.openstack_associate_floating_ip(inst, &body).await;
+                self.report_cmd_result(r, &format!("Associated FIP {fip_id} → {inst}"), "openstack-fip", inst, false)
+                    .await;
+                self.load_openstack_instance_detail(inst).await;
+            },
+            ["openstack", "fip-new", inst, network_id] => {
+                let body = AssociateFloatingIpRequest {
+                    floating_ip_id: None,
+                    floating_network: Some(network_id.to_string()),
+                };
+                let r = self.client.openstack_associate_floating_ip(inst, &body).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Allocated FIP on network {network_id} → {inst}"),
+                    "openstack-fip-new",
+                    inst,
+                    false,
+                )
+                .await;
+                self.load_openstack_instance_detail(inst).await;
+            },
+            ["openstack", "fip-dissociate", fip_id] => {
+                let r = self.client.openstack_dissociate_floating_ip(fip_id).await;
+                self.report_cmd_result(r, &format!("Dissociated FIP {fip_id}"), "openstack-fip-dissoc", fip_id, false)
+                    .await;
+            },
+            ["openstack", "sg-add", inst, sg] => {
+                let r = self.client.openstack_add_security_group(inst, sg).await;
+                self.report_cmd_result(r, &format!("Added SG {sg} → {inst}"), "openstack-sg-add", inst, false)
+                    .await;
+                self.load_openstack_instance_detail(inst).await;
+            },
+            ["openstack", "sg-remove", inst, sg] => {
+                let r = self.client.openstack_remove_security_group(inst, sg).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Removed SG {sg} from {inst}"),
+                    "openstack-sg-remove",
+                    inst,
+                    false,
+                )
+                .await;
+                self.load_openstack_instance_detail(inst).await;
+            },
+            ["openstack", "reboot-soft", id] | ["os", "reboot-soft", id] => {
+                let r = self.client.openstack_reboot_instance(id, true).await;
+                self.report_cmd_result(r, &format!("Soft-rebooted {id}"), "openstack-reboot-soft", id, false)
+                    .await;
+            },
+            ["openstack", "create", name, flavor, image, network] => {
+                let req = CreateInstanceRequest {
+                    name: name.to_string(),
+                    flavor: flavor.to_string(),
+                    image: Some(image.to_string()),
+                    network: Some(network.to_string()),
+                    key_name: None,
+                    availability_zone: None,
+                    security_groups: None,
+                    user_data: None,
+                    wait_until_active: false,
+                };
+                match self.client.openstack_create_instance(&req).await {
+                    Ok(v) => {
+                        self.state.status_message = format!("Created instance: {v}");
+                        self.refresh_openstack().await;
+                    }
+                    Err(e) => self.state.status_message = format!("openstack create: {e}"),
+                }
+            },
             ["kubevirt-bundle", vm] => match self.client.get_kubevirt_bundle_yaml(vm).await {
                 Ok(yaml) => {
                     self.state.xml_content = yaml;
@@ -1711,6 +2411,8 @@ impl App {
             }
         }
 
+        self.refresh_openstack().await;
+
         self.state.compute_dashboard();
         self.state.rebuild_sidebar();
         self.state.clamp_selection();
@@ -1732,5 +2434,20 @@ impl App {
 
         self.state.compute_dashboard();
         self.state.rebuild_sidebar();
+    }
+}
+
+fn wizard_step_hint(step: OpenStackCreateStep) -> String {
+    match step {
+        OpenStackCreateStep::Name => "Enter instance name".to_string(),
+        OpenStackCreateStep::Flavor => "Pick flavor (j/k Enter, Backspace back)".to_string(),
+        OpenStackCreateStep::Image => {
+            "Pick Glance image (j/k Enter, n skip, Backspace back)".to_string()
+        }
+        OpenStackCreateStep::Network => "Pick Neutron network (j/k Enter, Backspace back)".to_string(),
+        OpenStackCreateStep::Keypair => {
+            "Pick SSH keypair (j/k Enter, n skip, Backspace back)".to_string()
+        }
+        OpenStackCreateStep::Confirm => "Confirm — Enter create, Backspace edit".to_string(),
     }
 }
