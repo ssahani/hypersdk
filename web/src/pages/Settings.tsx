@@ -22,6 +22,7 @@ import {
   Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare, Cloud, ExternalLink,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
+import { formatUserError } from '../utils/apiError'
 
 type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
@@ -214,7 +215,7 @@ export default function SettingsPage() {
                 setOpenstackStatus(s)
                 toast.success(s.reachable ? 'OpenStack connection OK' : 'Connected but list failed')
               } catch (e: unknown) {
-                toast.error(e instanceof Error ? e.message : String(e))
+                toast.error(formatUserError(e))
               } finally {
                 setOpenstackTesting(false)
               }
@@ -258,7 +259,7 @@ export default function SettingsPage() {
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]">
@@ -322,7 +323,7 @@ export default function SettingsPage() {
                               setNewOsUsername('')
                               setNewOsPassword('')
                             } catch (e: unknown) {
-                              toast.error(e instanceof Error ? e.message : String(e))
+                              toast.error(formatUserError(e))
                             }
                           }}
                           className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition whitespace-nowrap"
@@ -348,7 +349,7 @@ export default function SettingsPage() {
                               toast.success(`System user '${u}' removed`)
                               setDeleteOsUsername('')
                             } catch (e: unknown) {
-                              toast.error(e instanceof Error ? e.message : String(e))
+                              toast.error(formatUserError(e))
                             }
                           }}
                           className="px-4 py-2 bg-red-600/90 hover:bg-red-600 rounded-lg text-sm transition whitespace-nowrap"
@@ -378,7 +379,7 @@ export default function SettingsPage() {
               <option value="operator">Operator</option>
               <option value="readonly">Read-only</option>
             </select>
-            <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           {createdToken && (
             <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
@@ -397,7 +398,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm">{t.username}</td>
                     <td className="px-6 py-3 text-xs"><span className="px-2 py-0.5 bg-slate-700 rounded">{t.role}</span></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{t.created}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={async () => { try { await deleteToken(t.token); toast.success('Deleted'); load() } catch {} }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={async () => { try { await deleteToken(t.token); toast.success('Deleted'); load() } catch (e: unknown) { toast.error(formatUserError(e)) } }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
                   </tr>
                 ))}
                 {tokens.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No API tokens. Create one to authenticate scripts and automation.</td></tr>}
@@ -427,7 +428,7 @@ export default function SettingsPage() {
               </tbody>
             </table>
           </div>
-          <button onClick={async () => { try { await saveAlertRules(alertRules); toast.success('Rules saved') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition">Save Rules</button>
+          <button onClick={async () => { try { await saveAlertRules(alertRules); toast.success('Rules saved') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition">Save Rules</button>
 
           <h3 className="text-sm font-semibold text-slate-300 mt-6">Active Alerts</h3>
           <div className="space-y-2">
@@ -438,7 +439,7 @@ export default function SettingsPage() {
                   <div className="text-sm font-medium">{a.rule_name}</div>
                   <div className="text-xs text-slate-400">{a.message} — {a.timestamp}</div>
                 </div>
-                <button onClick={async () => { try { await acknowledgeAlert(a.id); load() } catch {} }} className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs"><Check className="w-3 h-3 inline" /> Ack</button>
+                <button onClick={async () => { try { await acknowledgeAlert(a.id); load() } catch (e: unknown) { toast.error(formatUserError(e)) } }} className="px-2 py-1 bg-slate-700 hover:bg-slate-600 rounded text-xs"><Check className="w-3 h-3 inline" /> Ack</button>
               </div>
             ))}
             {alerts.filter(a => !a.acknowledged).length === 0 && <p className="text-sm text-slate-500">No active alerts</p>}
@@ -451,7 +452,7 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <div className="flex flex-col gap-2 min-w-0 sm:flex-row sm:items-center">
             <input value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1 min-w-0" placeholder="https://example.com/webhook" />
-            <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]">
@@ -489,7 +490,7 @@ export default function SettingsPage() {
               <option value="snapshot">Snapshot</option>
             </select>
             <input type="time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-full shrink-0 sm:w-28" />
-            <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
+            <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
             <table className="w-full min-w-[40rem]">
@@ -523,7 +524,7 @@ export default function SettingsPage() {
               <option value="webhook">Webhook</option>
             </select>
             <input value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
-            <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]">
@@ -535,7 +536,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next) }} /></td>
                     <td className="px-6 py-3 text-right flex items-center justify-end gap-1">
-                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className="w-4 h-4 text-blue-400" /></button>
+                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className="w-4 h-4 text-blue-400" /></button>
                       <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button>
                     </td>
                   </tr>
@@ -563,7 +564,7 @@ export default function SettingsPage() {
               <option value="24">Every 24h</option>
             </select>
             <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} className="input-field w-24" placeholder="Retain" min="1" max="100" />
-            <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch(() => {}) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
+            <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
             <table className="w-full min-w-[36rem]">

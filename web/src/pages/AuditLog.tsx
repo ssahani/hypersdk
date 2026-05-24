@@ -3,6 +3,7 @@ import { getAuditLog, AuditEvent } from '../api/extras'
 import { useToastContext } from '../contexts/ToastContext'
 import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
+import { formatUserError } from '../utils/apiError'
 
 export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEvent[]>([])
@@ -24,7 +25,7 @@ export default function AuditLogPage() {
         }),
       )
     } catch (e: unknown) {
-      toast.error(`Failed to load audit log: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Failed to load audit log: ${formatUserError(e)}`)
     } finally {
       setLoading(false)
     }

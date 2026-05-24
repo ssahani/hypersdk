@@ -3,6 +3,7 @@ import { Download, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router'
 import { exportOpenStackInstance } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   open: boolean
@@ -49,7 +50,7 @@ export default function OpenStackExportModal({
         toast.success(`Snapshot started: ${plan.suggested_image_name}`)
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setBusy(false)
     }

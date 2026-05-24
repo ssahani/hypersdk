@@ -4,6 +4,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { RefreshCw, Trash2, Maximize, Minimize } from 'lucide-react'
 import { apiPost, getWsToken } from '../api/client'
+import { formatUserError } from '../utils/apiError'
 
 const API = '/api/v1'
 
@@ -64,7 +65,7 @@ export default function SSHConsole({ host, sshUser = 'root' }: Props) {
       )
       sessionId = body.session_id
     } catch (e) {
-      term.write(`\r\n❌ Could not create SSH session: ${e instanceof Error ? e.message : String(e)}\r\n`)
+      term.write(`\r\n❌ Could not create SSH session: ${formatUserError(e)}\r\n`)
       return
     }
 

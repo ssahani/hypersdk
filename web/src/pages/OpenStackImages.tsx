@@ -10,6 +10,9 @@ import GlancePullModal from '../components/GlancePullModal'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { openStackErrorHints } from '../utils/openstackHints'
 
 function formatBytes(n?: number) {
   if (n == null || n === 0) return '—'
@@ -30,6 +33,7 @@ export default function OpenStackImagesPage() {
 function OpenStackImagesContent() {
   const [images, setImages] = useState<OpenStackImage[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OpenStackImage | null>(null)
   const [pullTarget, setPullTarget] = useState<OpenStackImage | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -38,10 +42,13 @@ function OpenStackImagesContent() {
 
   const load = useCallback(async () => {
     try {
+      setLoadError(null)
       const { images: list } = await listOpenStackImages()
       setImages(list)
     } catch (e: unknown) {
-      toast.error(`Failed to load images: ${e instanceof Error ? e.message : e}`)
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      toast.error(`Failed to load images: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -65,7 +72,7 @@ function OpenStackImagesContent() {
       setDeleteTarget(null)
       await load()
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setDeleting(false)
     }
@@ -77,6 +84,17 @@ function OpenStackImagesContent() {
     <div className="space-y-6">
       <OpenStackSubNav />
       <OpenStackStatusBar />
+      {loadError && (
+        <ErrorBanner
+          title="Failed to load Glance images"
+          headline={loadError}
+          hints={openStackErrorHints(loadError)}
+          technicalDetail={loadError}
+          tone="red"
+          onRetry={() => void load()}
+          onDismiss={() => setLoadError(null)}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">

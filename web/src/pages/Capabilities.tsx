@@ -10,6 +10,7 @@ import { RefreshCw, Cpu, Info, Cloud } from 'lucide-react'
 import OpenStackSetupPanel from '../components/OpenStackSetupPanel'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import SysinfoDisplay from '../components/SysinfoDisplay'
+import { formatUserError } from '../utils/apiError'
 
 export default function CapabilitiesPage() {
   const [capabilities, setCapabilities] = useState<CapabilitiesInfo | null>(null)
@@ -32,7 +33,7 @@ export default function CapabilitiesPage() {
       setSysinfo(sys)
       setOpenstackStatus(os)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setLoading(false)
     }

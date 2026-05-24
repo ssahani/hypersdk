@@ -23,6 +23,7 @@ import OpenStackExportModal from '../components/OpenStackExportModal'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import { formatUserError } from '../utils/apiError'
 
 function CopyBtn({ text }: { text: string }) {
   const toast = useToastContext()
@@ -75,7 +76,7 @@ function OpenStackInstanceDetailContent() {
       setVolumes(vols.volumes)
       if (!snapshotName) setSnapshotName(`${data.name}-snap`)
     } catch (e: unknown) {
-      toast.error(`Failed to load instance: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Failed to load instance: ${formatUserError(e)}`)
     } finally {
       setLoading(false)
     }
@@ -96,7 +97,7 @@ function OpenStackInstanceDetailContent() {
       toast.success(`${label} OK`)
       load()
     } catch (e: unknown) {
-      toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`${label} failed: ${formatUserError(e)}`)
     }
   }
 
@@ -108,7 +109,7 @@ function OpenStackInstanceDetailContent() {
       toast.success(`Deleted '${inst.name}'`)
       navigate('/openstack/instances')
     } catch (e: unknown) {
-      toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Delete failed: ${formatUserError(e)}`)
     }
   }
 
@@ -119,7 +120,7 @@ function OpenStackInstanceDetailContent() {
       await snapshotOpenStackInstance(inst.id, snapshotName.trim())
       toast.success(`Snapshot requested: ${snapshotName}`)
     } catch (e: unknown) {
-      toast.error(`Snapshot failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Snapshot failed: ${formatUserError(e)}`)
     } finally {
       setSnapshotBusy(false)
     }

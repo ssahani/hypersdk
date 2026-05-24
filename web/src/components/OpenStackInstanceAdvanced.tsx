@@ -31,6 +31,7 @@ import {
   Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink,
 } from 'lucide-react'
 import { isFloatingIpAvailable } from '../utils/openstackFloatingIp'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   inst: OpenStackInstance
@@ -77,9 +78,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
     } catch (e: unknown) {
       if (!extrasErrorShown.current) {
         extrasErrorShown.current = true
-        toast.error(
-          e instanceof Error ? e.message : 'Failed to load OpenStack networking extras',
-        )
+        toast.error(`Failed to load OpenStack networking extras: ${formatUserError(e)}`)
       }
     }
   }, [inst.id, volumes, toast])
@@ -96,7 +95,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       onRefresh()
       void loadExtras()
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     }
   }
 
@@ -106,7 +105,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       window.open(c.url, '_blank', 'noopener,noreferrer')
       toast.success(`Opened ${c.console_type || consoleType} console`)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     }
   }
 
@@ -183,7 +182,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               const { output } = await getOpenStackConsoleOutput(inst.id, 100)
               setConsoleLog(output || '(empty)')
             } catch (e: unknown) {
-              toast.error(e instanceof Error ? e.message : String(e))
+              toast.error(formatUserError(e))
             }
           }} className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
             Serial log (100 lines)

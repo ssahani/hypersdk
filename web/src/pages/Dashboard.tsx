@@ -19,6 +19,7 @@ import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import { getK8sEnvironment, getK8sOverview, type K8sEnvironment, type K8sOverview } from '../api/k8s'
 import Hero from '../components/Hero'
+import { formatUserError } from '../utils/apiError'
 
 interface MetricsPoint { time: string; memory: number }
 
@@ -51,7 +52,7 @@ export default function Dashboard() {
 
   const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
-    catch (e: unknown) { toast.error(`${label} '${vm.name}' failed: ${e instanceof Error ? e.message : e}`) }
+    catch (e: unknown) { toast.error(`${label} '${vm.name}' failed: ${formatUserError(e)}`) }
   }
 
   const loadData = useCallback(async () => {
@@ -89,7 +90,7 @@ export default function Dashboard() {
     } catch (e: unknown) {
       setK8sEnv(null)
       setK8sOverview(null)
-      setK8sError(e instanceof Error ? e.message : String(e))
+      setK8sError(formatUserError(e))
     }
     setLoading(false)
   }, [])

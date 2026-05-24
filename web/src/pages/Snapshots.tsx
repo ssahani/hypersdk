@@ -3,6 +3,7 @@ import { listAllSnapshots, deleteSnapshot, revertSnapshot, SnapshotInfo } from '
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Trash2, RotateCcw, RefreshCw, Camera } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export default function SnapshotsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
@@ -11,18 +12,18 @@ export default function SnapshotsPage() {
   const toast = useToastContext()
 
   const load = useCallback(async () => {
-    try { setSnapshots(await listAllSnapshots()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
+    try { setSnapshots(await listAllSnapshots()) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setLoading(false) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
 
   const handleRevert = async (snap: SnapshotInfo) => {
-    try { await revertSnapshot(snap.vm_name, snap.name); toast.success(`Reverted '${snap.vm_name}' to '${snap.name}'`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await revertSnapshot(snap.vm_name, snap.name); toast.success(`Reverted '${snap.vm_name}' to '${snap.name}'`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    try { await deleteSnapshot(deleteTarget.vm_name, deleteTarget.name); toast.success(`Deleted snapshot '${deleteTarget.name}'`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await deleteSnapshot(deleteTarget.vm_name, deleteTarget.name); toast.success(`Deleted snapshot '${deleteTarget.name}'`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setDeleteTarget(null)
   }
 

@@ -18,6 +18,9 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import EmptyState from '../components/EmptyState'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { openStackErrorHints } from '../utils/openstackHints'
 
 const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
 
@@ -43,6 +46,7 @@ function OpenStackInstancesContent() {
   const [instances, setInstances] = useState<OpenStackInstance[]>([])
   const [status, setStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const toast = useToastContext()
@@ -54,6 +58,7 @@ function OpenStackInstancesContent() {
       return
     }
     try {
+      setLoadError(null)
       const [conn, list] = await Promise.all([
         getOpenStackStatus(),
         listOpenStackInstances({
@@ -64,7 +69,9 @@ function OpenStackInstancesContent() {
       setStatus(conn)
       setInstances(list.instances)
     } catch (e: unknown) {
-      toast.error(`Failed to load OpenStack instances: ${e instanceof Error ? e.message : e}`)
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      toast.error(`Failed to load OpenStack instances: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -91,7 +98,7 @@ function OpenStackInstancesContent() {
       toast.success(`${label} '${inst.name}' OK`)
       load()
     } catch (e: unknown) {
-      toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`${label} failed: ${formatUserError(e)}`)
     }
   }
 
@@ -99,6 +106,17 @@ function OpenStackInstancesContent() {
     <div className="space-y-6">
       <OpenStackSubNav />
       <OpenStackStatusBar />
+      {loadError && (
+        <ErrorBanner
+          title="Failed to load instances"
+          headline={loadError}
+          hints={openStackErrorHints(loadError)}
+          technicalDetail={loadError}
+          tone="red"
+          onRetry={() => void load()}
+          onDismiss={() => setLoadError(null)}
+        />
+      )}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold flex items-center gap-2">

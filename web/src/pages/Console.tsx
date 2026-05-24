@@ -10,6 +10,7 @@ import {
   sendGuestKey, getGuestScreenshotBlob, virtViewerVvUrl, appendVmConnection, vmDetailRoute,
 } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 interface ConsoleInfo {
   name: string
@@ -134,7 +135,7 @@ export default function ConsolePage() {
               if (!name) return
               void sendGuestKey(name, { preset: 'ctrl_alt_del' }, conn)
                 .then(() => toast.success('Sent Ctrl+Alt+Del'))
-                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                .catch((e: unknown) => toast.error(formatUserError(e)))
             }}
           >
             <Keyboard className="w-4 h-4" aria-hidden />
@@ -154,7 +155,7 @@ export default function ConsolePage() {
                   setTimeout(() => URL.revokeObjectURL(u), 60_000)
                   toast.success('Screenshot opened in new tab')
                 })
-                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                .catch((e: unknown) => toast.error(formatUserError(e)))
                 .finally(() => setShotBusy(false))
             }}
           >

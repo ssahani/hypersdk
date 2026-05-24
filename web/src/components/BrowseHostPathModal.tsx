@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react'
 import { browseDir, BrowseDirResponse } from '../api/extras'
 import { FolderOpen } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export function isIsoFileName(name: string): boolean {
   return name.toLowerCase().endsWith('.iso')
@@ -56,7 +57,7 @@ export function BrowseHostPathModal({
       const d = await browseDir(path)
       setData(d)
     } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : 'Browse failed')
+      setErr(formatUserError(e) || 'Browse failed')
     } finally {
       setLoading(false)
     }

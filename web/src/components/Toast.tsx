@@ -1,5 +1,6 @@
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import type { Toast } from '../hooks/useToast'
+import { formatUserError } from '../utils/apiError'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 
 const icons = {
@@ -16,30 +17,49 @@ const bgColors = {
   info: 'bg-blue-900/80 border-blue-700',
 }
 
+function displayErrorMessage(raw: string): string {
+  const sanitized = formatUserError(new Error(raw))
+  const lower = sanitized.toLowerCase()
+  const looksK8s =
+    lower.includes('kubectl') ||
+    lower.includes('kubeconfig') ||
+    lower.includes('certificate signed by unknown authority') ||
+    lower.includes('memcache.go')
+  if (looksK8s && sanitized.length > 200) {
+    return summarizeK8sClientError(sanitized).headline
+  }
+  if (sanitized.length > 320) {
+    return `${sanitized.slice(0, 317)}…`
+  }
+  return sanitized
+}
+
 export function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: (id: string) => void }) {
   if (toasts.length === 0) return null
 
   return (
     <div className="fixed top-4 right-4 z-50 space-y-2">
-      {toasts.map((toast) => (
-        <div
-          key={toast.id}
-          className={`animate-slide-in flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-[300px] max-w-lg ${bgColors[toast.type]}`}
-        >
-          {icons[toast.type]}
-          <span
-            className="flex-1 text-sm text-white whitespace-pre-wrap break-words max-h-40 overflow-y-auto"
-            title={toast.message.length > 220 ? toast.message : undefined}
+      {toasts.map((toast) => {
+        const display =
+          toast.type === 'error' ? displayErrorMessage(toast.message) : toast.message
+        return (
+          <div
+            key={toast.id}
+            className={`animate-slide-in flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-[300px] max-w-lg ${bgColors[toast.type]}`}
           >
-            {toast.type === 'error' && toast.message.length > 280
-              ? summarizeK8sClientError(toast.message).headline
-              : toast.message}
-          </span>
-          <button onClick={() => onClose(toast.id)} className="text-slate-400 hover:text-white">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      ))}
+            {icons[toast.type]}
+            <span
+              className="flex-1 text-sm text-white whitespace-pre-wrap break-words max-h-40 overflow-y-auto"
+              title={display.length > 220 ? display : undefined}
+            >
+              {display}
+            </span>
+            <button onClick={() => onClose(toast.id)} className="text-slate-400 hover:text-white">
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }

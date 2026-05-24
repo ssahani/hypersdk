@@ -5,6 +5,7 @@ import { createPool, deletePool, getPoolXml, resizeVolume, cloneVolume } from '.
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize, ToggleLeft, ToggleRight } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export default function StoragePage() {
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
@@ -30,48 +31,48 @@ export default function StoragePage() {
   const toast = useToastContext()
 
   const loadPools = useCallback(async () => {
-    try { setPools(await listPools()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
+    try { setPools(await listPools()) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setLoading(false) }
   }, [toast])
 
   const loadVolumes = async (pool: string) => {
-    try { setVolumes(await listVolumes(pool)); setSelectedPool(pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { setVolumes(await listVolumes(pool)); setSelectedPool(pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   useEffect(() => { loadPools() }, [loadPools])
 
   const poolAction = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
-    try { await fn(name); toast.success(`${label} '${name}' OK`); loadPools() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await fn(name); toast.success(`${label} '${name}' OK`); loadPools() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleDeleteVol = async () => {
     if (!deleteTarget) return
-    try { await deleteVolume(deleteTarget.pool, deleteTarget.vol); toast.success(`Deleted volume '${deleteTarget.vol}'`); loadVolumes(deleteTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await deleteVolume(deleteTarget.pool, deleteTarget.vol); toast.success(`Deleted volume '${deleteTarget.vol}'`); loadVolumes(deleteTarget.pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setDeleteTarget(null)
   }
 
   const handleDeletePool = async () => {
     if (!deletePoolTarget) return
-    try { await deletePool(deletePoolTarget); toast.success(`Deleted pool '${deletePoolTarget}'`); loadPools() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await deletePool(deletePoolTarget); toast.success(`Deleted pool '${deletePoolTarget}'`); loadPools() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setDeletePoolTarget(null)
   }
 
   const handleCreatePool = async () => {
-    try { await createPool({ name: newPoolName, pool_type: newPoolType, target_path: newPoolPath }); toast.success(`Created pool '${newPoolName}'`); setShowCreatePool(false); setNewPoolName(''); setNewPoolPath(''); loadPools() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await createPool({ name: newPoolName, pool_type: newPoolType, target_path: newPoolPath }); toast.success(`Created pool '${newPoolName}'`); setShowCreatePool(false); setNewPoolName(''); setNewPoolPath(''); loadPools() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const showPoolXml = async (name: string) => {
-    try { const xml = await getPoolXml(name); setXmlContent(xml); setXmlName(name) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { const xml = await getPoolXml(name); setXmlContent(xml); setXmlName(name) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleResize = async () => {
     if (!resizeTarget) return
-    try { await resizeVolume(resizeTarget.pool, resizeTarget.vol, parseFloat(resizeGb)); toast.success(`Resized volume '${resizeTarget.vol}'`); loadVolumes(resizeTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await resizeVolume(resizeTarget.pool, resizeTarget.vol, parseFloat(resizeGb)); toast.success(`Resized volume '${resizeTarget.vol}'`); loadVolumes(resizeTarget.pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setResizeTarget(null); setResizeGb('')
   }
 
   const handleClone = async () => {
     if (!cloneTarget) return
-    try { await cloneVolume(cloneTarget.pool, cloneTarget.vol, cloneName); toast.success(`Cloned volume '${cloneTarget.vol}' to '${cloneName}'`); loadVolumes(cloneTarget.pool) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await cloneVolume(cloneTarget.pool, cloneTarget.vol, cloneName); toast.success(`Cloned volume '${cloneTarget.vol}' to '${cloneName}'`); loadVolumes(cloneTarget.pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setCloneTarget(null); setCloneName('')
   }
 
@@ -80,7 +81,7 @@ export default function StoragePage() {
       await setPoolAutostart(pool.name, !pool.autostart)
       toast.success(`Autostart ${!pool.autostart ? 'enabled' : 'disabled'} for '${pool.name}'`)
       loadPools()
-    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleCreateVol = async () => {
@@ -91,7 +92,7 @@ export default function StoragePage() {
       setShowCreateVol(false)
       setNewVolName('')
       loadVolumes(selectedPool)
-    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>

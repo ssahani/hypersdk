@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { listAdminSessions, revokeAdminSession, AdminSessionsResponse } from '../api/adminSessions'
 import { logout as apiLogout } from '../api/auth'
+import { formatUserError } from '../utils/apiError'
 
 export default function AdminSessionsPage() {
   const { username, isRoot } = useAuth()
@@ -18,7 +19,7 @@ export default function AdminSessionsPage() {
     try {
       setData(await listAdminSessions())
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
       setData(null)
     } finally {
       setLoading(false)
@@ -115,7 +116,7 @@ export default function AdminSessionsPage() {
                         }
                         await load()
                       } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : String(e))
+                        toast.error(formatUserError(e))
                       }
                     }}
                   >

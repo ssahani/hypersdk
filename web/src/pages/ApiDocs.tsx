@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react'
 import { Search, Play } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 interface PathItem {
   summary?: string
@@ -96,7 +97,7 @@ export default function ApiDocs() {
       try { formatted = JSON.stringify(JSON.parse(text), null, 2) } catch { /* not json */ }
       setTryResponse({ status: res.status, body: formatted })
     } catch (e: unknown) {
-      setTryResponse({ status: 0, body: `Error: ${e instanceof Error ? e.message : String(e)}` })
+      setTryResponse({ status: 0, body: `Error: ${formatUserError(e)}` })
     } finally { setTryLoading(false) }
   }
 

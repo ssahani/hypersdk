@@ -9,6 +9,7 @@ import {
   type GlanceUploadResult,
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   open: boolean
@@ -67,7 +68,7 @@ export default function OpenStackImageUploadModal({
     try {
       setPreview(await getGlanceUploadPreview(qcow2Path))
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -93,7 +94,7 @@ export default function OpenStackImageUploadModal({
       setUploadResult(res)
       toast.success(`Uploaded to Glance: ${res.image_name}`)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setUploadBusy(false)
     }

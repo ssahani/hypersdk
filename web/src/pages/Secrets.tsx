@@ -3,6 +3,7 @@ import { listSecrets, deleteSecret, getSecretXml, defineSecret, SecretInfo } fro
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Shield, Trash2, RefreshCw, Search, Code, X, Plus } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export default function SecretsPage() {
   const [secrets, setSecrets] = useState<SecretInfo[]>([])
@@ -19,19 +20,19 @@ export default function SecretsPage() {
   const toast = useToastContext()
 
   const load = useCallback(async () => {
-    try { setSecrets(await listSecrets()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
+    try { setSecrets(await listSecrets()) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setLoading(false) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    try { await deleteSecret(deleteTarget); toast.success(`Deleted secret '${deleteTarget}'`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await deleteSecret(deleteTarget); toast.success(`Deleted secret '${deleteTarget}'`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setDeleteTarget(null)
   }
 
   const showXml = async (uuid: string) => {
-    try { const xml = await getSecretXml(uuid); setXmlContent(xml); setXmlUuid(uuid) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { const xml = await getSecretXml(uuid); setXmlContent(xml); setXmlUuid(uuid) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleDefineSecret = async () => {
@@ -54,7 +55,7 @@ export default function SecretsPage() {
       setDefValidate(false)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setDefSaving(false)
     }

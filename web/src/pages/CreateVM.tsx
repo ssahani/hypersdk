@@ -48,6 +48,9 @@ import {
   Terminal,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 
 type InstallSource = 'iso' | 'url' | 'pxe' | 'download'
 type StorageMode = 'new' | 'volume'
@@ -95,6 +98,7 @@ export default function CreateVMPage() {
 
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [isoScan, setIsoScan] = useState<ImageFile[]>([])
+  const [catalogWarning, setCatalogWarning] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [createLog, setCreateLog] = useState<string[]>([])
   const [isoBrowseOpen, setIsoBrowseOpen] = useState(false)
@@ -173,14 +177,34 @@ export default function CreateVMPage() {
   }, [])
 
   useEffect(() => {
-    listNetworks().then(setNetworks).catch(() => {})
-    listIsos().then((r) => setIsoScan(r.files)).catch(() => {})
-    listPools()
-      .then((p) => {
-        setPools(p)
-        setDiskPool((prev) => (prev || (p[0]?.name ?? '')))
-      })
-      .catch(() => {})
+    void (async () => {
+      const warnings: string[] = []
+      const [netR, isoR, poolR] = await Promise.allSettled([
+        listNetworks(),
+        listIsos(),
+        listPools(),
+      ])
+      if (netR.status === 'fulfilled') {
+        setNetworks(netR.value)
+      } else {
+        warnings.push(`Networks: ${formatUserError(netR.reason)}`)
+        setNetworks([])
+      }
+      if (isoR.status === 'fulfilled') {
+        setIsoScan(isoR.value.files)
+      } else {
+        warnings.push(`ISO scan: ${formatUserError(isoR.reason)}`)
+        setIsoScan([])
+      }
+      if (poolR.status === 'fulfilled') {
+        setPools(poolR.value)
+        setDiskPool((prev) => prev || (poolR.value[0]?.name ?? ''))
+      } else {
+        warnings.push(`Storage pools: ${formatUserError(poolR.reason)}`)
+        setPools([])
+      }
+      setCatalogWarning(warnings.length > 0 ? warnings.join(' · ') : null)
+    })()
   }, [])
 
   useEffect(() => {
@@ -327,7 +351,7 @@ export default function CreateVMPage() {
       })
     } catch (e: unknown) {
       setPackerProgressFailed(true)
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
       setPackerRunning(false)
     }
   }
@@ -371,7 +395,7 @@ export default function CreateVMPage() {
       await putServerCreateVmDefaults(buildDefaultsPayload())
       toast.success('Defaults saved on hypervisor')
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     }
   }
 
@@ -396,7 +420,7 @@ export default function CreateVMPage() {
         toast.warning(r.stderr || 'osinfo-detect failed — install osinfo-tools on the hypervisor')
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setOsDetectBusy(false)
     }
@@ -502,7 +526,7 @@ export default function CreateVMPage() {
       navigate(vmDetailRoute(name, createLibvirtTarget === 'session' ? 'session' : undefined))
     } catch (e: unknown) {
       setCreateProgressFailed(true)
-      toast.error(`Create failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast.error(`Create failed: ${formatUserError(e)}`)
     } finally {
       setSubmitting(false)
     }
@@ -571,7 +595,7 @@ export default function CreateVMPage() {
       navigate(vmDetailRoute(name, createLibvirtTarget === 'session' ? 'session' : undefined))
     } catch (e: unknown) {
       setCreateProgressFailed(true)
-      toast.error(`Create failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast.error(`Create failed: ${formatUserError(e)}`)
     } finally {
       setSubmitting(false)
     }
@@ -606,6 +630,17 @@ export default function CreateVMPage() {
           </p>
         </div>
       </div>
+
+      {catalogWarning && (
+        <ErrorBanner
+          title="Some catalogs could not be loaded"
+          headline={catalogWarning}
+          hints={libvirtErrorHints(catalogWarning)}
+          technicalDetail={catalogWarning}
+          tone="amber"
+          onDismiss={() => setCatalogWarning(null)}
+        />
+      )}
 
       <div>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-3">How do you want to create this VM?</h2>

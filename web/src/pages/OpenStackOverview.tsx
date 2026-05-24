@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Cloud, Server, HardDrive, Plus, GitBranch, Upload, Download, ArrowRight } from 'lucide-react'
 import Hero from '../components/Hero'
@@ -6,8 +7,12 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import OpenStackUnreachablePanel from '../components/OpenStackUnreachablePanel'
 import OpenStackFooter from '../components/OpenStackFooter'
+import ErrorBanner from '../components/ErrorBanner'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import { listOpenStackImages, listOpenStackInstances } from '../api/openstack'
+import { formatUserError } from '../utils/apiError'
+import { openStackErrorHints } from '../utils/openstackHints'
 
 const QUICK_LINKS = [
   {
@@ -57,51 +62,38 @@ const PIPELINES = [
   },
 ] as const
 
-export default function OpenStackOverviewPage() {
+function OpenStackLiveOverview() {
   const { info } = usePlatformInfo()
-  const { phase, cloudName, loading, configured } = useOpenStackConnection()
+  const { cloudName, computeLive, glanceLive } = useOpenStackConnection()
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
+  const [probeError, setProbeError] = useState<string | null>(null)
+  const [probing, setProbing] = useState(true)
+
   const quickLinks = hypersdkEnabled
     ? QUICK_LINKS
     : QUICK_LINKS.filter((l) => l.to !== '/openstack/migrations')
 
-  if (configured && loading) {
-    return (
-      <div className="flex items-center justify-center h-40">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
-      </div>
-    )
-  }
+  const probeApis = useCallback(async () => {
+    setProbing(true)
+    setProbeError(null)
+    const tasks: Promise<unknown>[] = []
+    if (computeLive) tasks.push(listOpenStackInstances())
+    if (glanceLive) tasks.push(listOpenStackImages())
+    if (tasks.length === 0) {
+      setProbing(false)
+      return
+    }
+    const results = await Promise.allSettled(tasks)
+    const failed = results.filter((r) => r.status === 'rejected') as PromiseRejectedResult[]
+    if (failed.length > 0) {
+      setProbeError(failed.map((r) => formatUserError(r.reason)).join(' · '))
+    }
+    setProbing(false)
+  }, [computeLive, glanceLive])
 
-  if (phase === 'off' || phase === 'needsWire') {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <Hero
-          title="OpenStack"
-          subtitle="Nova & Glance on this hypervisor — wire Keystone once, manage from Machina."
-          icon={<Cloud className="w-6 h-6" />}
-        />
-        <OpenStackSubNav />
-        <OpenStackStatusBar />
-        <OpenStackSetupPanel />
-      </div>
-    )
-  }
-
-  if (phase === 'unreachable') {
-    return (
-      <div className="space-y-6 animate-fade-in">
-        <Hero
-          title="OpenStack"
-          subtitle={`Cloud ${cloudName || '—'} is configured but Keystone/API is not reachable.`}
-          icon={<Cloud className="w-6 h-6" />}
-        />
-        <OpenStackSubNav />
-        <OpenStackStatusBar />
-        <OpenStackUnreachablePanel />
-      </div>
-    )
-  }
+  useEffect(() => {
+    void probeApis()
+  }, [probeApis])
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -121,6 +113,21 @@ export default function OpenStackOverviewPage() {
       />
       <OpenStackSubNav />
       <OpenStackStatusBar />
+
+      {probeError && (
+        <ErrorBanner
+          title="OpenStack API errors"
+          headline={probeError}
+          hints={openStackErrorHints(probeError)}
+          technicalDetail={probeError}
+          tone="red"
+          onRetry={() => void probeApis()}
+          onDismiss={() => setProbeError(null)}
+        />
+      )}
+      {probing && !probeError && (
+        <p className="text-xs text-slate-500">Checking Nova/Glance APIs…</p>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {quickLinks.map(({ to, icon: Icon, title, description }) => (
@@ -161,4 +168,48 @@ export default function OpenStackOverviewPage() {
       <OpenStackFooter />
     </div>
   )
+}
+
+export default function OpenStackOverviewPage() {
+  const { phase, cloudName, loading, configured } = useOpenStackConnection()
+
+  if (configured && loading) {
+    return (
+      <div className="flex items-center justify-center h-40">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-sky-500" />
+      </div>
+    )
+  }
+
+  if (phase === 'off' || phase === 'needsWire') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Hero
+          title="OpenStack"
+          subtitle="Nova & Glance on this hypervisor — wire Keystone once, manage from Machina."
+          icon={<Cloud className="w-6 h-6" />}
+        />
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
+        <OpenStackSetupPanel />
+      </div>
+    )
+  }
+
+  if (phase === 'unreachable') {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Hero
+          title="OpenStack"
+          subtitle={`Cloud ${cloudName || '—'} is configured but Keystone/API is not reachable.`}
+          icon={<Cloud className="w-6 h-6" />}
+        />
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
+        <OpenStackUnreachablePanel />
+      </div>
+    )
+  }
+
+  return <OpenStackLiveOverview />
 }

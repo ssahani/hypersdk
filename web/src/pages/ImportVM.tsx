@@ -5,6 +5,7 @@ import { createVMWithProgress, CreateVmRequest } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { BrowseHostPathModal, isHostDiskImageFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 import { ArrowLeft, Upload, HardDrive, FolderOpen } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -36,8 +37,8 @@ export default function ImportVMPage() {
   const { phase: osPhase } = useOpenStackConnection()
 
   useEffect(() => {
-    listNetworks().then(setNetworks).catch(() => {})
-    listDiskImages().then((r) => setExistingDisks(r.files)).catch(() => {})
+    listNetworks().then(setNetworks).catch((e: unknown) => toast.warning(`Networks: ${formatUserError(e)}`))
+    listDiskImages().then((r) => setExistingDisks(r.files)).catch((e: unknown) => toast.warning(`Disk images: ${formatUserError(e)}`))
   }, [])
 
   useEffect(() => {
@@ -63,7 +64,7 @@ export default function ImportVMPage() {
       toast.success(`Disk imported to ${result.path}`)
       setStep('configure')
     } catch (e: unknown) {
-      toast.error(`Import failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Import failed: ${formatUserError(e)}`)
     } finally {
       setSubmitting(false)
     }
@@ -89,7 +90,7 @@ export default function ImportVMPage() {
       toast.success(`VM '${vmName}' created with imported disk`)
       navigate('/vms')
     } catch (e: unknown) {
-      toast.error(`Create failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Create failed: ${formatUserError(e)}`)
     } finally {
       setSubmitting(false)
     }

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { listDevices, getDeviceXml, NodeDeviceInfo } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import { RefreshCw, Usb, Code, X } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export default function DevicesPage() {
   const [devices, setDevices] = useState<NodeDeviceInfo[]>([])
@@ -18,7 +19,7 @@ export default function DevicesPage() {
       setDevices(devs)
       setFiltered(devs)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setLoading(false)
     }
@@ -42,7 +43,7 @@ export default function DevicesPage() {
       setXmlContent(xml)
       setXmlName(name)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 

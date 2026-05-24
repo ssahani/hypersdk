@@ -4,6 +4,7 @@ import { useTheme } from '../contexts/ThemeContext'
 import { ZyvorBrandLine } from '../components/ZyvorBrand'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
+import { formatUserError } from '../utils/apiError'
 import {
   Lock,
   User,
@@ -151,7 +152,7 @@ export default function LoginPage() {
         localStorage.removeItem('machina-saved-login')
       }
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Login failed')
+      setError(formatUserError(e) || 'Login failed')
     } finally {
       setSubmitting(false)
     }

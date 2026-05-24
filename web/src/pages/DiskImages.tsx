@@ -22,6 +22,9 @@ import { BuildStepTimeline } from '../components/BuildStepTimeline'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { useToastContext } from '../contexts/ToastContext'
 import { computeVirtImageBuildTimeline, VIRT_IMAGE_TIMELINE_LABELS } from '../utils/buildProgress'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 
 function formatBytes(b: number): string {
   if (b === 0) return '0 B'
@@ -40,6 +43,7 @@ export default function DiskImagesPage() {
   const [images, setImages] = useState<ImageFile[]>([])
   const [scanDirectories, setScanDirectories] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
   const [confirmPath, setConfirmPath] = useState<string | null>(null)
   const [vbCatalog, setVbCatalog] = useState<VirtBuilderListResponse | null>(null)
@@ -74,6 +78,7 @@ export default function DiskImagesPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
+      setLoadError(null)
       const [r, vb, roots] = await Promise.all([
         listDiskImages(),
         listVirtBuilderTemplates().catch(() => null),
@@ -84,7 +89,9 @@ export default function DiskImagesPage() {
       setVbCatalog(vb)
       setOutputRoots(roots)
     } catch (e: unknown) {
-      toast.error(`Failed to load disk images: ${e instanceof Error ? e.message : e}`)
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      toast.error(`Failed to load disk images: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -199,7 +206,7 @@ export default function DiskImagesPage() {
     } catch (e: unknown) {
       setVbFailed(true)
       setVbBuilding(false)
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     }
   }
 
@@ -212,7 +219,7 @@ export default function DiskImagesPage() {
       toast.success(`Deleted ${confirmPath.split('/').pop()}`)
       setImages((prev) => prev.filter((i) => i.path !== confirmPath))
     } catch (e: unknown) {
-      toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Delete failed: ${formatUserError(e)}`)
     } finally {
       setDeleting(null)
     }
@@ -240,6 +247,18 @@ export default function DiskImagesPage() {
           </button>
         }
       />
+
+      {loadError && (
+        <ErrorBanner
+          title="Failed to load disk images"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          technicalDetail={loadError}
+          tone="red"
+          onRetry={() => void load()}
+          onDismiss={() => setLoadError(null)}
+        />
+      )}
 
       {openstackUploadAvailable && (
         <p className="inline-flex items-center gap-2 text-xs text-sky-300 border border-sky-500/30 bg-sky-500/10 rounded-lg px-3 py-2">

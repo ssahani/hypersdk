@@ -34,6 +34,7 @@ import {
 import { useK8sContext } from '../hooks/useK8sContext'
 import { formatBytes } from '../utils/vm'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 type NodeAction = 'node_cordon' | 'node_uncordon' | 'node_drain'
 
@@ -313,7 +314,7 @@ export default function K8sOverviewPage() {
         setEnvironment(null)
       }
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : String(e)
+      const msg = formatUserError(e)
       setLoadError(msg)
       setOverview(null)
       setClusterInventory(null)
@@ -346,7 +347,7 @@ export default function K8sOverviewPage() {
       setInvHist(r)
     } catch (e: unknown) {
       setInvHist(null)
-      setInvHistErr(e instanceof Error ? e.message : String(e))
+      setInvHistErr(formatUserError(e))
     } finally {
       setInvHistLoading(false)
     }
@@ -360,7 +361,7 @@ export default function K8sOverviewPage() {
       toast.success(result.stdout.trim() || `${action} succeeded for ${name}`)
       await load(true)
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : String(e)
+      const raw = formatUserError(e)
       toast.error(`Action failed: ${summarizeK8sClientError(raw).headline}`)
     } finally {
       setActing(null)
@@ -411,7 +412,7 @@ export default function K8sOverviewPage() {
       downloadTextAsFile(`machina-k8s-audit-${stamp}.json`, j, 'application/json')
       toast.success('Audit bundle downloaded')
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     }
   }, [ctxTrim, toast])
 
@@ -433,7 +434,7 @@ export default function K8sOverviewPage() {
       toast.success(tail || 'k3s install finished')
       await load(true)
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : String(e)
+      const raw = formatUserError(e)
       toast.error(`k3s install failed: ${summarizeK8sClientError(raw).headline}`)
     } finally {
       setK3sBusy(null)
@@ -453,7 +454,7 @@ export default function K8sOverviewPage() {
       toast.success(tail || 'k3s uninstall finished')
       await load(true)
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : String(e)
+      const raw = formatUserError(e)
       toast.error(`k3s uninstall failed: ${summarizeK8sClientError(raw).headline}`)
     } finally {
       setK3sBusy(null)
@@ -485,7 +486,7 @@ export default function K8sOverviewPage() {
         toast.success(phase === 'full' ? 'Cluster bootstrap finished' : `Phase “${phase}” finished`)
         await load(true)
       } catch (e: unknown) {
-        const raw = e instanceof Error ? e.message : String(e)
+        const raw = formatUserError(e)
         toast.error(`Bootstrap failed: ${summarizeK8sClientError(raw).headline}`)
       } finally {
         setBootstrapBusy(null)

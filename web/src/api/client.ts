@@ -1,26 +1,13 @@
-const defaultOpts: RequestInit = { credentials: 'same-origin' }
+import { formatHttpErrorBody, formatUserError } from '../utils/apiError'
 
-/** Prefer daemon JSON `{ error, error_code? }` for thrown message text. */
-function formatHttpErrorBody(status: number, statusText: string, text: string): string {
-  const raw = text.trim()
-  if (!raw) return `HTTP ${status}: ${statusText}`
-  try {
-    const j = JSON.parse(raw) as { error?: string; error_code?: string }
-    if (typeof j.error === 'string' && j.error.length > 0) {
-      return j.error_code ? `${j.error} (${j.error_code})` : j.error
-    }
-  } catch {
-    /* not JSON */
-  }
-  return raw
-}
+const defaultOpts: RequestInit = { credentials: 'same-origin' }
 
 /** fetch() throws TypeError / "NetworkError" when DNS fails, CORS blocks, TLS errors, or daemon is down. */
 async function fetchApi(url: string, init?: RequestInit): Promise<Response> {
   try {
     return await fetch(url, init)
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = formatUserError(e)
     if (
       e instanceof TypeError
       || msg.includes('NetworkError')

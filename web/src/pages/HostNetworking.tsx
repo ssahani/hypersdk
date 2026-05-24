@@ -19,6 +19,7 @@ import {
   ArrowRight, Monitor, Wifi, Cable, X, Sliders, Copy, Check, Search, Route,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
+import { formatUserError } from '../utils/apiError'
 
 type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'routing' | 'sysctl' | 'systemd'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
@@ -95,7 +96,7 @@ export default function HostNetworkingPage() {
       const data = await getSysctlTuning()
       setSysctlData(data)
     } catch (e: unknown) {
-      toast.error(`Sysctl tuning: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Sysctl tuning: ${formatUserError(e)}`)
     } finally {
       setSysctlLoading(false)
     }
@@ -107,7 +108,7 @@ export default function HostNetworkingPage() {
       const out = await getSystemdInterfaceStatus(name)
       setIfaceDiag((prev) => ({ ...prev, [name]: out.status || '' }))
     } catch (e: unknown) {
-      toast.error(`Interface diagnostics (${name}): ${e instanceof Error ? e.message : e}`)
+      toast.error(`Interface diagnostics (${name}): ${formatUserError(e)}`)
     } finally {
       setIfaceDiagLoading(null)
     }
@@ -119,7 +120,7 @@ export default function HostNetworkingPage() {
       const out = await getSystemdNetworkDiagnostics()
       setDiag(out)
     } catch (e: unknown) {
-      toast.error(`Systemd network diagnostics: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Systemd network diagnostics: ${formatUserError(e)}`)
     } finally {
       setDiagLoading(false)
     }
@@ -163,7 +164,7 @@ export default function HostNetworkingPage() {
         setVmIps(ips)
       }
     } catch (e: unknown) {
-      toast.error(`Load failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Load failed: ${formatUserError(e)}`)
     } finally { setLoading(false) }
   }, [toast])
 
@@ -206,7 +207,7 @@ export default function HostNetworkingPage() {
       toast.success(routeOp === 'add' ? 'Route added' : 'Route removed')
       await load()
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setRouteBusy(false)
     }
@@ -288,12 +289,12 @@ export default function HostNetworkingPage() {
     try {
       await createBridge({ name: brName.trim(), interfaces: brIfaces, mtu: brMtu, stp: brStp })
       toast.success(`Bridge '${brName}' created`); setDialog(null); setBrName(''); setBrIfaces([]); load()
-    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleDeleteBridge = async (name: string) => {
     try { await deleteBridge(name); toast.success(`Bridge '${name}' deleted`); load() }
-    catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleCreatePortForward = async () => {
@@ -301,12 +302,12 @@ export default function HostNetworkingPage() {
     try {
       await createPortForward({ protocol: pfProto, host_port: pfHostPort, vm_ip: pfVmIp, vm_port: pfVmPort, description: pfDesc })
       toast.success(`Port forward ${pfHostPort} -> ${pfVmIp}:${pfVmPort} created`); setDialog(null); load()
-    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleDeletePortForward = async (r: PortForwardRule) => {
     try { await deletePortForward({ protocol: r.protocol, host_port: r.host_port, vm_ip: r.vm_ip, vm_port: r.vm_port }); toast.success('Rule deleted'); load() }
-    catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleCreateFirewallRule = async () => {
@@ -314,12 +315,12 @@ export default function HostNetworkingPage() {
     try {
       await createFirewallRule({ vm_ip: fwVmIp, direction: fwDir, protocol: fwProto, port: fwPort, action: fwAction, description: fwDesc })
       toast.success('Firewall rule created'); setDialog(null); load()
-    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleDeleteFirewallRule = async (r: FirewallRule) => {
     try { await deleteFirewallRule({ vm_ip: r.vm_ip, direction: r.direction, protocol: r.protocol, port: r.port, action: r.action }); toast.success('Rule deleted'); load() }
-    catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   // Collect all known VM IPs for dropdowns

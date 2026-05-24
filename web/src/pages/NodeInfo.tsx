@@ -43,6 +43,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { getSession, type SessionRole } from '../api/auth'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { serviceAction } from '../api/extras'
+import { formatUserError } from '../utils/apiError'
 
 interface StatsPoint { time: string; cpu: number; mem: number; disk: number; load: number }
 
@@ -283,7 +284,7 @@ export default function NodeInfoPage() {
         /* keep prior probe */
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setPkgMutBusy(false)
     }
@@ -299,7 +300,7 @@ export default function NodeInfoPage() {
       if (r.ok) toast.success('Upgrade dry-run finished (no packages were changed).')
       else toast.error(`Upgrade preview exited with code ${r.exit_code}.`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setPkgMutBusy(false)
     }
@@ -330,7 +331,7 @@ export default function NodeInfoPage() {
         /* ignore */
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setPkgMutBusy(false)
     }
@@ -356,7 +357,7 @@ export default function NodeInfoPage() {
         /* ignore */
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setPkgMutBusy(false)
     }
@@ -389,7 +390,7 @@ export default function NodeInfoPage() {
         /* ignore */
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setPkgMutBusy(false)
     }
@@ -401,7 +402,7 @@ export default function NodeInfoPage() {
       const r = await getHostNetRates(rateSampleMs)
       setNetRates(r)
     } catch (e: unknown) {
-      toast.error(`Bandwidth sample failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Bandwidth sample failed: ${formatUserError(e)}`)
     } finally {
       setNetRatesLoading(false)
     }
@@ -432,7 +433,7 @@ export default function NodeInfoPage() {
           /* ignore refresh failure */
         }
       } catch (e) {
-        toast.error(e instanceof Error ? e.message : String(e))
+        toast.error(formatUserError(e))
       } finally {
         setKillBusyPid(null)
       }
@@ -454,7 +455,7 @@ export default function NodeInfoPage() {
         setLibvirtBoot(null)
       }
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setLibvirtBootBusy(false)
     }

@@ -13,6 +13,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import HypersdkStatusBanner from './HypersdkStatusBanner'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   open: boolean
@@ -63,7 +64,7 @@ export default function LibvirtOpenStackPushModal({
       setGlanceName(p.glance_preview.suggested_name)
       setStopVm(p.vm_running)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -136,7 +137,7 @@ export default function LibvirtOpenStackPushModal({
         }
       }
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setBusy(false)
     }

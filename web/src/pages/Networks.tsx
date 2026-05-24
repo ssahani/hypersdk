@@ -5,6 +5,7 @@ import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X, Pencil } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export default function NetworksPage() {
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
@@ -35,18 +36,18 @@ export default function NetworksPage() {
       if (dhcp.status === 'fulfilled') setLeases(dhcp.value)
       if (lb.status === 'fulfilled') setLibvirtBoot(lb.value)
       else setLibvirtBoot(null)
-    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     finally { setLoading(false) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
 
   const action = async (name: string, fn: (n: string) => Promise<void>, label: string) => {
-    try { await fn(name); toast.success(`${label} '${name}' OK`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await fn(name); toast.success(`${label} '${name}' OK`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const toggleAutostart = async (net: NetworkInfo) => {
-    try { await setNetworkAutostart(net.name, !net.autostart); toast.success(`Autostart ${!net.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await setNetworkAutostart(net.name, !net.autostart); toast.success(`Autostart ${!net.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleDelete = async () => {
@@ -61,7 +62,7 @@ export default function NetworksPage() {
       await createNetwork({ name: newName.trim(), subnet: newSubnet, dhcp_start: newDhcpStart, dhcp_end: newDhcpEnd })
       toast.success(`Network '${newName}' created`)
       setShowCreate(false); setNewName(''); load()
-    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const openEditXml = async (net: NetworkInfo) => {
@@ -72,7 +73,7 @@ export default function NetworksPage() {
       const xml = await getNetworkXml(net.name)
       setEditXml(xml)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
       setEditTarget(null)
     } finally {
       setEditXmlLoading(false)
@@ -88,7 +89,7 @@ export default function NetworksPage() {
       setEditTarget(null)
       load()
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setEditXmlSaving(false)
     }
@@ -108,7 +109,7 @@ export default function NetworksPage() {
         setLibvirtBoot(null)
       }
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setLibvirtBootBusy(false)
     }

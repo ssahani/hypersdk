@@ -161,7 +161,7 @@ function AuthenticatedShell() {
           <RouteRecorder />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             <Navbar onOpenHelp={openHelp} />
-            <CommandPalette />
+            <CommandPalette onOpenHelp={openHelp} />
             <GlobalShortcuts
               helpOpen={helpOpen}
               helpTab={helpTab}

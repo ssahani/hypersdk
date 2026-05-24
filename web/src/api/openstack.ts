@@ -1,4 +1,5 @@
 import { apiPost, readJsonObject } from './client'
+import { parseResponseError } from './parseResponseError'
 
 const API = '/api/v1'
 
@@ -257,8 +258,7 @@ export async function deleteOpenStackInstance(id: string): Promise<{ status: str
     credentials: 'same-origin',
   })
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw await parseResponseError(res)
   }
   return res.json()
 }
@@ -321,8 +321,7 @@ export async function detachOpenStackVolume(
     { method: 'DELETE', credentials: 'same-origin' },
   )
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw await parseResponseError(res)
   }
   return res.json()
 }
@@ -386,8 +385,7 @@ export async function deleteOpenStackImage(id: string): Promise<{ status: string
     credentials: 'same-origin',
   })
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw await parseResponseError(res)
   }
   return res.json()
 }

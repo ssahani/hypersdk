@@ -14,6 +14,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { getSession, type SessionRole } from '../api/auth'
 import { getK8sEnvironment, postKataDeploy, type KataDeployAction, type K8sActionResult } from '../api/k8s'
 import { useK8sContext } from '../hooks/useK8sContext'
+import { formatUserError } from '../utils/apiError'
 
 const KATA_EXAMPLES =
   'https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy/examples'
@@ -114,7 +115,7 @@ function KataAutomateSection() {
         if (r.ok) toast.success(`Step finished: ${action.replace(/_/g, ' ')}`)
         else toast.error(r.stderr.trim() || `exit ${r.exit_code}`)
       } catch (e: unknown) {
-        toast.error(e instanceof Error ? e.message : String(e))
+        toast.error(formatUserError(e))
       } finally {
         setBusy(null)
       }

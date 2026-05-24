@@ -37,6 +37,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import Hero from '../components/Hero'
 import EmptyState from '../components/EmptyState'
+import { formatUserError } from '../utils/apiError'
 
 export default function K8sWorkloadsPage() {
   const toast = useToastContext()
@@ -107,10 +108,10 @@ export default function K8sWorkloadsPage() {
         setKubevirtRows(Array.isArray(rows) ? rows : [])
       } catch (e: unknown) {
         setKubevirtRows([])
-        setKubevirtListError(e instanceof Error ? e.message : String(e))
+        setKubevirtListError(formatUserError(e))
       }
     } catch (e: unknown) {
-      setConnectionError(e instanceof Error ? e.message : String(e))
+      setConnectionError(formatUserError(e))
     } finally {
       setLoading(false)
       setRefreshing(false)
@@ -144,7 +145,7 @@ export default function K8sWorkloadsPage() {
       toast.success(res.stdout.trim() || `Action ${payload.action} succeeded`)
       await load(true)
     } catch (e: unknown) {
-      const raw = e instanceof Error ? e.message : String(e)
+      const raw = formatUserError(e)
       toast.error(`Action failed: ${summarizeK8sClientError(raw).headline}`)
     } finally {
       setActing(null)
@@ -432,7 +433,7 @@ export default function K8sWorkloadsPage() {
             <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
               void getK8sEvents({ allNamespaces: namespace === 'all', namespace: namespace === 'all' ? undefined : namespace, context: ctxTrim })
                 .then((ev) => setEventsText(JSON.stringify(ev.items ?? [], null, 2)))
-                .catch((e: unknown) => setEventsText(e instanceof Error ? e.message : String(e)))
+                .catch((e: unknown) => setEventsText(formatUserError(e)))
             }}>Load events JSON</button>
             <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-48 overflow-auto text-slate-300">{eventsText || '—'}</pre>
           </div>
@@ -446,7 +447,7 @@ export default function K8sWorkloadsPage() {
                 if (!logPod.trim()) { toast.error('Pod name required'); return }
                 void getK8sPodLogs({ pod: logPod.trim(), namespace: logNs.trim() || 'default', container: logContainer.trim() || undefined, tailLines: 500, context: ctxTrim })
                   .then((r) => setLogOut(`${r.stdout}\n${r.stderr}`.trim()))
-                  .catch((e: unknown) => setLogOut(e instanceof Error ? e.message : String(e)))
+                  .catch((e: unknown) => setLogOut(formatUserError(e)))
               }}>Fetch logs</button>
             </div>
             <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-56 overflow-auto text-slate-300 whitespace-pre-wrap">{logOut || '—'}</pre>
@@ -456,7 +457,7 @@ export default function K8sWorkloadsPage() {
             <label className="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" checked={applyDry} onChange={(e) => setApplyDry(e.target.checked)} /> Server dry-run</label>
             <textarea className="w-full min-h-[120px] bg-slate-900 border border-slate-600 rounded p-2 text-xs font-mono text-slate-200" value={applyYaml} onChange={(e) => setApplyYaml(e.target.value)} placeholder="apiVersion: v1&#10;kind: ConfigMap&#10;..." />
             <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-amber-700/40 text-amber-100 border border-amber-600/40" onClick={() => {
-              void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(JSON.stringify(r, null, 2))).catch((e: unknown) => setApplyOut(e instanceof Error ? e.message : String(e)))
+              void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(JSON.stringify(r, null, 2))).catch((e: unknown) => setApplyOut(formatUserError(e)))
             }}>Apply</button>
             <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-40 overflow-auto text-slate-300">{applyOut || '—'}</pre>
           </div>
@@ -467,7 +468,7 @@ export default function K8sWorkloadsPage() {
               <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs flex-1 min-w-[8rem]" value={caniRes} onChange={(e) => setCaniRes(e.target.value)} placeholder="resource" />
               <input className="bg-slate-900 border border-slate-600 rounded px-2 py-1 text-xs w-28" value={caniNs} onChange={(e) => setCaniNs(e.target.value)} placeholder="-n (opt)" />
               <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
-                void postK8sAuthCanI({ verb: caniVerb.trim(), resource: caniRes.trim(), namespace: caniNs.trim() || undefined, context: ctxTrim }).then((r) => setCaniOut(r.stdout.trim() || JSON.stringify(r))).catch((e: unknown) => setCaniOut(e instanceof Error ? e.message : String(e)))
+                void postK8sAuthCanI({ verb: caniVerb.trim(), resource: caniRes.trim(), namespace: caniNs.trim() || undefined, context: ctxTrim }).then((r) => setCaniOut(r.stdout.trim() || JSON.stringify(r))).catch((e: unknown) => setCaniOut(formatUserError(e)))
               }}>Check</button>
             </div>
             <pre className="text-xs text-slate-400">{caniOut || '—'}</pre>
@@ -475,7 +476,7 @@ export default function K8sWorkloadsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">Helm releases</div>
             <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
-              void getK8sHelmReleases('*', ctxTrim).then((h) => setHelmJson(JSON.stringify(h, null, 2))).catch((e: unknown) => setHelmJson(e instanceof Error ? e.message : String(e)))
+              void getK8sHelmReleases('*', ctxTrim).then((h) => setHelmJson(JSON.stringify(h, null, 2))).catch((e: unknown) => setHelmJson(formatUserError(e)))
             }}>helm list -A (JSON)</button>
             <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-48 overflow-auto text-slate-300">{helmJson || '—'}</pre>
           </div>
@@ -499,7 +500,7 @@ export default function K8sWorkloadsPage() {
                   if (explorerKind === 'pvs') return getK8sPersistentVolumes(c)
                   return getK8sStorageClasses(c)
                 })()
-                void p.then((x) => setExplorerJson(JSON.stringify(x, null, 2))).catch((e: unknown) => setExplorerJson(e instanceof Error ? e.message : String(e)))
+                void p.then((x) => setExplorerJson(JSON.stringify(x, null, 2))).catch((e: unknown) => setExplorerJson(formatUserError(e)))
               }}>Fetch</button>
             </div>
             <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-64 overflow-auto text-slate-300">{explorerJson || '—'}</pre>

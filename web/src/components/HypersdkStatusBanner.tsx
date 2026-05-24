@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import { useToastContext } from '../contexts/ToastContext'
 import ErrorBanner from './ErrorBanner'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   title?: string
@@ -55,7 +56,7 @@ export default function HypersdkStatusBanner({ title = 'HyperSDK unavailable', c
                 const s = await refresh()
                 toast.success(s?.reachable ? 'HyperSDK OK' : 'Still unreachable — check hypervisord')
               } catch (e: unknown) {
-                toast.error(e instanceof Error ? e.message : String(e))
+                toast.error(formatUserError(e))
               } finally {
                 setTesting(false)
               }

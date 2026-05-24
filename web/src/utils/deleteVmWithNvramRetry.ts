@@ -1,4 +1,5 @@
 import { deleteVM, type VmDeleteUndefineOpts } from '../api/vm'
+import { formatUserError } from '../utils/apiError'
 
 /**
  * Deletes a VM via the API. If libvirt rejects undefine without NVRAM (same as
@@ -16,7 +17,7 @@ export async function deleteVmWithNvramRetry(
   try {
     await deleteVM(name, opts, connection)
   } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e)
+    const msg = formatUserError(e)
     const m = msg.toLowerCase()
     // Libvirt: "cannot undefine domain with nvram" — require both tokens to avoid unrelated "nvram" text.
     const looksLikeNvramUndefineConflict =

@@ -7,6 +7,7 @@ import {
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
+import { formatUserError } from '../utils/apiError'
 import {
   Archive, Trash2, RotateCcw, RefreshCw, Play, HardDrive, Server,
   Download, ShieldCheck, Clock, ToggleLeft, ToggleRight, CheckCircle,
@@ -57,7 +58,7 @@ export default function BackupsPage() {
       if (vResult.status === 'fulfilled') setVms(vResult.value)
       if (sResult.status === 'fulfilled') setScheduleState(sResult.value)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setLoading(false)
     }
@@ -91,7 +92,7 @@ export default function BackupsPage() {
       if (backupTimerRef.current) clearTimeout(backupTimerRef.current)
       backupTimerRef.current = setTimeout(() => load(), 2000)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setRunning(false)
     }
@@ -106,7 +107,7 @@ export default function BackupsPage() {
       toast.success(`Restore completed from '${restoreTarget.id}'`)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setRestoring(false)
     }
@@ -121,7 +122,7 @@ export default function BackupsPage() {
       toast.success(`Deleted backup '${deleteTarget.id}'`)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setDeleting(false)
     }
@@ -139,7 +140,7 @@ export default function BackupsPage() {
         toast.error(`Backup '${b.id}' verification failed: ${result.files_failed} files`)
       }
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     } finally {
       setVerifying(null)
     }
@@ -152,7 +153,7 @@ export default function BackupsPage() {
       toast.success(schedule.enabled ? 'Backup timer disabled' : 'Backup timer enabled')
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 

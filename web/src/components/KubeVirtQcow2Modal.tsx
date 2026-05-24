@@ -10,6 +10,7 @@ import {
   type Qcow2KubeVirtRequest,
 } from '../api/kubevirt'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   open: boolean
@@ -50,7 +51,7 @@ export default function KubeVirtQcow2Modal({ open, qcow2Path, onClose }: Props) 
     try {
       setBundle(await getQcow2KubeVirtBundle(requestBody()))
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -74,7 +75,7 @@ export default function KubeVirtQcow2Modal({ open, qcow2Path, onClose }: Props) 
       if (res.exit_code === 0) toast.success(`${kind} finished`)
       else toast.error(`${kind} exited ${res.exit_code}`)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setExecBusy(null)
     }

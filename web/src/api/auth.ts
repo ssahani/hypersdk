@@ -1,3 +1,5 @@
+import { parseResponseError } from './parseResponseError'
+
 const API = '/api/v1'
 
 /** RBAC role from session or API token (daemon `roles.json` / token metadata). */
@@ -110,18 +112,7 @@ export async function login(username: string, password: string): Promise<{ statu
     credentials: 'same-origin',
   })
   if (!res.ok) {
-    let body: unknown
-    try {
-      body = await res.json()
-    } catch {
-      body = null
-    }
-    const msg =
-      body !== null && typeof body === 'object' && !Array.isArray(body) && 'error' in body
-        ? (body as { error?: unknown }).error
-        : undefined
-    const errStr = typeof msg === 'string' && msg.length > 0 ? msg : `HTTP ${res.status}`
-    throw new Error(errStr)
+    throw await parseResponseError(res)
   }
   let raw: unknown
   try {

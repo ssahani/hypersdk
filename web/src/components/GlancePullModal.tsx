@@ -3,6 +3,7 @@ import { Download, Loader2, X } from 'lucide-react'
 import { Link } from 'react-router'
 import { pullGlanceImage, type OpenStackImage } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 type Props = {
   open: boolean
@@ -35,7 +36,7 @@ export default function GlancePullModal({ open, image, defaultDestDir, onClose }
       setPulledPath(res.dest_path)
       toast.success(`Saved to ${res.dest_path}`)
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setBusy(false)
     }

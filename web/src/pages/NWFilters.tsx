@@ -3,6 +3,7 @@ import { listNwfilters, deleteNwfilter, defineNwfilter, getNwfilterXml, Nwfilter
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Shield, Trash2, RefreshCw, Search, Code, X, Plus } from 'lucide-react'
+import { formatUserError } from '../utils/apiError'
 
 export default function NWFiltersPage() {
   const [filters, setFilters] = useState<NwfilterInfo[]>([])
@@ -21,19 +22,19 @@ export default function NWFiltersPage() {
   const toast = useToastContext()
 
   const load = useCallback(async () => {
-    try { setFilters(await listNwfilters()) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setLoading(false) }
+    try { setFilters(await listNwfilters()) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setLoading(false) }
   }, [toast])
 
   useEffect(() => { load() }, [load])
 
   const handleDelete = async () => {
     if (!deleteTarget) return
-    try { await deleteNwfilter(deleteTarget); toast.success(`Deleted filter '${deleteTarget}'`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await deleteNwfilter(deleteTarget); toast.success(`Deleted filter '${deleteTarget}'`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     setDeleteTarget(null)
   }
 
   const showXml = async (name: string) => {
-    try { const xml = await getNwfilterXml(name); setXmlContent(xml); setXmlName(name) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { const xml = await getNwfilterXml(name); setXmlContent(xml); setXmlName(name) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   const handleCreate = async () => {
@@ -49,7 +50,7 @@ export default function NWFiltersPage() {
   </rule>
 </filter>`)
       load()
-    } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
     finally { setCreating(false) }
   }
 

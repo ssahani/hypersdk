@@ -1,4 +1,5 @@
 import { readJsonObject, apiPut } from './client'
+import { parseResponseError } from './parseResponseError'
 
 const API = '/api/v1'
 
@@ -39,8 +40,7 @@ export async function createOsUser(
     body: JSON.stringify({ username, password, add_to_libvirt_group: addToLibvirtGroup }),
   })
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw await parseResponseError(res)
   }
   const body = (await res.json().catch(() => ({}))) as {
     libvirt_group_attached?: boolean
@@ -59,8 +59,7 @@ export async function deleteOsUser(username: string): Promise<void> {
     credentials: 'same-origin',
   })
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { error?: string }
-    throw new Error(body.error || `HTTP ${res.status}`)
+    throw await parseResponseError(res)
   }
 }
 

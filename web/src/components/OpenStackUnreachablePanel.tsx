@@ -6,14 +6,16 @@ import { useToastContext } from '../contexts/ToastContext'
 import ErrorBanner from './ErrorBanner'
 import CopyButton from './CopyButton'
 import { VERIFY_COMMANDS, WIRE_SCRIPT, openStackErrorHints } from '../utils/openstackHints'
+import { formatUserError, sanitizeErrorText } from '../utils/apiError'
 
 /** Shown when OpenStack is configured in Machina but Keystone/API is not reachable. */
 export default function OpenStackUnreachablePanel() {
   const { status, testConnection, cloudName } = useOpenStackConnection()
   const toast = useToastContext()
   const [testing, setTesting] = useState(false)
-  const error = status?.error || 'Could not reach OpenStack API'
-  const hints = openStackErrorHints(status?.error)
+  const rawError = status?.error || 'Could not reach OpenStack API'
+  const error = sanitizeErrorText(rawError)
+  const hints = openStackErrorHints(rawError)
 
   return (
     <div className="space-y-4">
@@ -39,7 +41,7 @@ export default function OpenStackUnreachablePanel() {
         title="Connection error"
         headline={error.length > 200 ? `${error.slice(0, 197)}…` : error}
         hints={hints}
-        technicalDetail={status?.error}
+        technicalDetail={rawError}
         tone="red"
         actions={
           <>
@@ -52,7 +54,7 @@ export default function OpenStackUnreachablePanel() {
                   const s = await testConnection()
                   toast.success(s.reachable ? 'OpenStack is reachable' : 'Still unreachable — see error')
                 } catch (e: unknown) {
-                  toast.error(e instanceof Error ? e.message : String(e))
+                  toast.error(formatUserError(e))
                 } finally {
                   setTesting(false)
                 }

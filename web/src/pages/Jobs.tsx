@@ -12,6 +12,7 @@ import {
   VM_CREATE_TIMELINE_LABELS,
 } from '../utils/buildProgress'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 
 function statusBadge(status: string) {
   if (status === 'running') return 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
@@ -55,7 +56,7 @@ export default function JobsPage() {
     return listJobs()
       .then(setJobs)
       .catch((e: unknown) => {
-        toast.error(e instanceof Error ? e.message : String(e))
+        toast.error(formatUserError(e))
       })
   }, [toast])
 
@@ -66,7 +67,7 @@ export default function JobsPage() {
     }
     getJob(selectedId)
       .then(setDetail)
-      .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) => toast.error(formatUserError(e)))
   }, [selectedId, toast])
 
   useEffect(() => {

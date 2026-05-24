@@ -34,6 +34,7 @@ import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
+import { formatUserError } from '../utils/apiError'
 import { triggerBackup } from '../api/backup'
 import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate, listIommuGroups, IommuGroup } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -298,7 +299,7 @@ export default function VMDetailsPage() {
       try { setCpuTune(await getCpuTune(name, conn)) } catch { /* optional */ }
       try { setMemTune(await getMemTune(name, conn)) } catch { /* optional */ }
     } catch (e: unknown) {
-      toast.error(`Failed to load VM: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Failed to load VM: ${formatUserError(e)}`)
     } finally {
       setLoading(false)
     }
@@ -308,11 +309,11 @@ export default function VMDetailsPage() {
 
   // Load network list, USB devices, ISOs for dialogs
   useEffect(() => {
-    listNetworks().then(setNetworks).catch(() => {})
-    listUsbDevices().then(setUsbDevices).catch(() => {})
-    listIsos().then((r) => setIsoFiles(r.files)).catch(() => {})
-    listPciDevices().then(setPciDevices).catch(() => {})
-    listIommuGroups().then(setIommuGroups).catch(() => {})
+    listNetworks().then(setNetworks).catch((e: unknown) => toast.warning(`Networks: ${formatUserError(e)}`))
+    listUsbDevices().then(setUsbDevices).catch((e: unknown) => toast.warning(`USB devices: ${formatUserError(e)}`))
+    listIsos().then((r) => setIsoFiles(r.files)).catch((e: unknown) => toast.warning(`ISO list: ${formatUserError(e)}`))
+    listPciDevices().then(setPciDevices).catch((e: unknown) => toast.warning(`PCI devices: ${formatUserError(e)}`))
+    listIommuGroups().then(setIommuGroups).catch((e: unknown) => toast.warning(`IOMMU groups: ${formatUserError(e)}`))
   }, [])
 
   useEffect(() => {
@@ -384,7 +385,7 @@ export default function VMDetailsPage() {
 
   const action = async (fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     if (!name) return
-    try { await fn(name, conn); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${e instanceof Error ? e.message : e}`) }
+    try { await fn(name, conn); toast.success(`${label} OK`); load() } catch (e: unknown) { toast.error(`${label} failed: ${formatUserError(e)}`) }
   }
 
   const openDialog = (d: Dialog) => {
@@ -466,7 +467,7 @@ export default function VMDetailsPage() {
         toast.success(`${kind === 'apply' ? 'kubectl apply' : kind === 'upload' ? 'virtctl image-upload' : 'virtctl start'} finished (exit 0)`)
       }
     } catch (e: unknown) {
-      toast.error(`${kind}: ${e instanceof Error ? e.message : e}`)
+      toast.error(`${kind}: ${formatUserError(e)}`)
     } finally {
       setKubevirtExecBusy(null)
     }
@@ -485,7 +486,7 @@ export default function VMDetailsPage() {
       setKubevirtBundle(b)
       setKubevirtOpen(true)
     } catch (e: unknown) {
-      toast.error(`KubeVirt bundle: ${e instanceof Error ? e.message : e}`)
+      toast.error(`KubeVirt bundle: ${formatUserError(e)}`)
     } finally {
       setKubevirtLoading(false)
     }
@@ -495,7 +496,7 @@ export default function VMDetailsPage() {
 
   const handleClone = async () => {
     if (!name || !cloneName.trim()) return
-    try { await cloneVM(name, cloneName.trim(), conn); toast.success(`Cloned to '${cloneName}'`); setDialog(null); load() } catch (e: unknown) { toast.error(`Clone failed: ${e instanceof Error ? e.message : e}`) }
+    try { await cloneVM(name, cloneName.trim(), conn); toast.success(`Cloned to '${cloneName}'`); setDialog(null); load() } catch (e: unknown) { toast.error(`Clone failed: ${formatUserError(e)}`) }
   }
 
   const handleRename = async () => {
@@ -505,7 +506,7 @@ export default function VMDetailsPage() {
       toast.success(`Renamed to '${newName}'`)
       setDialog(null)
       navigate(vmDetailRoute(newName.trim(), conn))
-    } catch (e: unknown) { toast.error(`Rename failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Rename failed: ${formatUserError(e)}`) }
   }
 
   const handleMigrate = async () => {
@@ -522,7 +523,7 @@ export default function VMDetailsPage() {
       toast.success('Migration completed')
       setDialog(null)
     } catch (e: unknown) {
-      toast.error(`Migration failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Migration failed: ${formatUserError(e)}`)
     }
   }
 
@@ -537,7 +538,7 @@ export default function VMDetailsPage() {
         toast.success(`vCPUs set to ${editVcpus} (effective on next boot)`)
       }
       setDialog(null); load()
-    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleSetMemory = async () => {
@@ -551,22 +552,22 @@ export default function VMDetailsPage() {
         toast.success(`Memory set to ${editMemory} MB (effective on next boot)`)
       }
       setDialog(null); load()
-    } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleBalloon = async () => {
     if (!name) return
-    try { await setMemoryBalloon(name, balloonMb, conn); toast.success(`Memory ballooned to ${balloonMb} MB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try { await setMemoryBalloon(name, balloonMb, conn); toast.success(`Memory ballooned to ${balloonMb} MB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleSetBootOrder = async () => {
     if (!name) return
-    try { await setBootOrder(name, bootDevices, conn); toast.success('Boot order updated'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try { await setBootOrder(name, bootDevices, conn); toast.success('Boot order updated'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleInsertCdrom = async () => {
     if (!name || !cdromPath) return
-    try { await insertCdrom(name, cdromPath, cdromTarget, conn); toast.success('CD-ROM inserted'); setDialog(null); setCdromPath(''); load(); setVmXml('') } catch (e: unknown) { toast.error(`Insert failed: ${e instanceof Error ? e.message : e}`) }
+    try { await insertCdrom(name, cdromPath, cdromTarget, conn); toast.success('CD-ROM inserted'); setDialog(null); setCdromPath(''); load(); setVmXml('') } catch (e: unknown) { toast.error(`Insert failed: ${formatUserError(e)}`) }
   }
 
   const handleCreateSnapshot = async () => {
@@ -592,18 +593,18 @@ export default function VMDetailsPage() {
       setSnapDiskOnly(false)
       load()
     } catch (e: unknown) {
-      toast.error(`Snapshot failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Snapshot failed: ${formatUserError(e)}`)
     }
   }
 
   const handleDeleteSnapshot = async (snapN: string) => {
     if (!name) return
-    try { await deleteSnapshot(name, snapN, conn); toast.success(`Snapshot '${snapN}' deleted`); load() } catch (e: unknown) { toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`) }
+    try { await deleteSnapshot(name, snapN, conn); toast.success(`Snapshot '${snapN}' deleted`); load() } catch (e: unknown) { toast.error(`Delete failed: ${formatUserError(e)}`) }
   }
 
   const handleRevertSnapshot = async (snapN: string) => {
     if (!name) return
-    try { await revertSnapshot(name, snapN, conn); toast.success(`Reverted to '${snapN}'`); load() } catch (e: unknown) { toast.error(`Revert failed: ${e instanceof Error ? e.message : e}`) }
+    try { await revertSnapshot(name, snapN, conn); toast.success(`Reverted to '${snapN}'`); load() } catch (e: unknown) { toast.error(`Revert failed: ${formatUserError(e)}`) }
   }
 
   const handleAttachDisk = async () => {
@@ -622,7 +623,7 @@ export default function VMDetailsPage() {
       if (attachShareable) body.shareable = true
       await apiPostVoid(appendVmConnection(`/api/v1/vms/${encodeURIComponent(name)}/disk/attach`, conn), body)
       toast.success('Disk attached'); setDialog(null); setAttachSource(''); load(); setVmXml('')
-    } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Attach failed: ${formatUserError(e)}`) }
   }
 
   const handleDiskTune = async () => {
@@ -649,7 +650,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`Disk tune failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Disk tune failed: ${formatUserError(e)}`)
     }
   }
 
@@ -666,7 +667,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`NIC tune failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`NIC tune failed: ${formatUserError(e)}`)
     }
   }
 
@@ -679,7 +680,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`Firmware: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Firmware: ${formatUserError(e)}`)
     }
   }
 
@@ -692,7 +693,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -705,7 +706,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -718,7 +719,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -731,7 +732,7 @@ export default function VMDetailsPage() {
       load()
       setVmXml('')
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -741,17 +742,17 @@ export default function VMDetailsPage() {
       const { apiPostVoid } = await import('../api/client')
       await apiPostVoid(appendVmConnection(`/api/v1/vms/${encodeURIComponent(name)}/disk/detach/${encodeURIComponent(targetDev)}`, conn))
       toast.success(`Disk '${targetDev}' detached`); load(); setVmXml('')
-    } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
+    } catch (e: unknown) { toast.error(`Detach failed: ${formatUserError(e)}`) }
   }
 
   const handleResizeDisk = async () => {
     if (!name || !resizeTarget) return
-    try { await resizeDisk(name, resizeTarget, resizeGb, conn); toast.success(`Disk '${resizeTarget}' resized to ${resizeGb} GB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Resize failed: ${e instanceof Error ? e.message : e}`) }
+    try { await resizeDisk(name, resizeTarget, resizeGb, conn); toast.success(`Disk '${resizeTarget}' resized to ${resizeGb} GB`); setDialog(null); load() } catch (e: unknown) { toast.error(`Resize failed: ${formatUserError(e)}`) }
   }
 
   const handleAttachNic = async () => {
     if (!name || !nicNetwork.trim()) return
-    try { await attachInterface(name, nicNetwork.trim(), nicModel, conn); toast.success(`NIC attached to '${nicNetwork}'`); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Attach failed: ${e instanceof Error ? e.message : e}`) }
+    try { await attachInterface(name, nicNetwork.trim(), nicModel, conn); toast.success(`NIC attached to '${nicNetwork}'`); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Attach failed: ${formatUserError(e)}`) }
   }
 
   const handleAttachUsb = async (vendorId?: string, productId?: string) => {
@@ -759,17 +760,17 @@ export default function VMDetailsPage() {
     const vid = vendorId ?? selectedUsb.split(':')[0]
     const pid = productId ?? selectedUsb.split(':')[1]
     if (!vid || !pid) return
-    try { await attachUsb(name, vid, pid); toast.success('USB device attached'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try { await attachUsb(name, vid, pid); toast.success('USB device attached'); setDialog(null); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleDetachUsb = async (vid: string, pid: string) => {
     if (!name || !canUsbPci) return
-    try { await detachUsb(name, vid, pid); toast.success('USB device detached'); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${e instanceof Error ? e.message : e}`) }
+    try { await detachUsb(name, vid, pid); toast.success('USB device detached'); load(); setVmXml('') } catch (e: unknown) { toast.error(`Failed: ${formatUserError(e)}`) }
   }
 
   const handleDetachNic = async (mac: string) => {
     if (!name) return
-    try { await detachInterface(name, mac, conn); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${e instanceof Error ? e.message : e}`) }
+    try { await detachInterface(name, mac, conn); toast.success(`NIC '${mac}' detached`); load(); setVmXml('') } catch (e: unknown) { toast.error(`Detach failed: ${formatUserError(e)}`) }
   }
 
   const handleSaveTemplate = async () => {
@@ -779,7 +780,7 @@ export default function VMDetailsPage() {
       toast.success(`Saved as template '${templateName.trim()}'`)
       setDialog(null)
     } catch (e: unknown) {
-      toast.error(`Save template failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Save template failed: ${formatUserError(e)}`)
     }
   }
 
@@ -800,7 +801,7 @@ export default function VMDetailsPage() {
       setDialog(null)
       navigate('/vms')
     } catch (e: unknown) {
-      toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Delete failed: ${formatUserError(e)}`)
     }
   }
 
@@ -820,7 +821,7 @@ export default function VMDetailsPage() {
       setDialog(null)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -840,7 +841,7 @@ export default function VMDetailsPage() {
       setDialog(null)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -870,7 +871,7 @@ export default function VMDetailsPage() {
       setDialog(null)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -882,7 +883,7 @@ export default function VMDetailsPage() {
       setDialog(null)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -894,7 +895,7 @@ export default function VMDetailsPage() {
       setDialog(null)
       load()
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -908,7 +909,7 @@ export default function VMDetailsPage() {
       setBlockJob(r.job ?? null)
       toast.success(r.job ? 'Active block job' : 'No block job on this disk')
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -929,7 +930,7 @@ export default function VMDetailsPage() {
       toast.success('Block commit started')
       setDialog(null)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -939,7 +940,7 @@ export default function VMDetailsPage() {
       await blockPull(name, { disk: blockDisk.trim(), bandwidth: 0, bandwidth_bytes: true }, conn)
       toast.success('Block pull started')
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -950,7 +951,7 @@ export default function VMDetailsPage() {
       toast.success('Block job abort requested')
       setBlockJob(undefined)
     } catch (e: unknown) {
-      toast.error(`${e instanceof Error ? e.message : e}`)
+      toast.error(`${formatUserError(e)}`)
     }
   }
 
@@ -980,7 +981,7 @@ export default function VMDetailsPage() {
 
   const toggleAutostart = async () => {
     if (!name || !vm) return
-    try { await setAutostart(name, !vm.autostart, conn); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) }
+    try { await setAutostart(name, !vm.autostart, conn); toast.success(`Autostart ${!vm.autostart ? 'enabled' : 'disabled'}`); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
   /** Open SSH dialog: guest IP from agent first, else last-saved IP; SSH user from last successful connect (defaults to root). */
@@ -1047,10 +1048,10 @@ export default function VMDetailsPage() {
             {vmTags.map((t) => (
               <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-xs font-medium">
                 <Tag className="w-3 h-3" />{t}
-                <button onClick={async () => { const next = vmTags.filter(x => x !== t); try { await apiSetVmTags(vm.name, next); setVmTags(next) } catch {} }} className="hover:text-red-400 ml-0.5" aria-label={`Remove tag ${t}`}><X className="w-3 h-3" /></button>
+                <button onClick={async () => { const next = vmTags.filter(x => x !== t); try { await apiSetVmTags(vm.name, next); setVmTags(next) } catch (e: unknown) { toast.error(formatUserError(e)) } }} className="hover:text-red-400 ml-0.5" aria-label={`Remove tag ${t}`}><X className="w-3 h-3" /></button>
               </span>
             ))}
-            <form className="inline-flex items-center gap-1" onSubmit={async (e) => { e.preventDefault(); const tag = newTag.trim(); if (!tag || vmTags.includes(tag)) return; const next = [...vmTags, tag]; try { await apiSetVmTags(vm.name, next); setVmTags(next); setNewTag('') } catch {} }}>
+            <form className="inline-flex items-center gap-1" onSubmit={async (e) => { e.preventDefault(); const tag = newTag.trim(); if (!tag || vmTags.includes(tag)) return; const next = [...vmTags, tag]; try { await apiSetVmTags(vm.name, next); setVmTags(next); setNewTag('') } catch (e: unknown) { toast.error(formatUserError(e)) } }}>
               <input type="text" value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder="+ tag" className="w-16 px-1.5 py-0.5 bg-slate-800 border border-slate-700 rounded text-xs focus:outline-none focus:border-blue-500 text-slate-300" />
             </form>
           </div>
@@ -1065,7 +1066,7 @@ export default function VMDetailsPage() {
               if (!name || !window.confirm('Convert SPICE graphics to VNC via virt-xml? The guest may briefly lose display.')) return
               void convertGraphicsSpiceToVnc(name, conn)
                 .then(() => { toast.success('virt-xml convert-to-vnc completed — check Console / XML'); load(); setVmXml('') })
-                .catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                .catch((e: unknown) => toast.error(formatUserError(e)))
             }}
           >
             SPICE→VNC
@@ -1100,7 +1101,7 @@ export default function VMDetailsPage() {
         <button onClick={() => openDialog('clone')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Copy className="w-3 h-3 inline -mt-0.5" /> Clone</button>
         {vm.state === 'shutoff' && <button onClick={() => openDialog('rename')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Pencil className="w-3 h-3 inline -mt-0.5" /> Rename</button>}
         <button onClick={() => openDialog('migrate')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><ArrowRightLeft className="w-3 h-3 inline -mt-0.5" /> Migrate</button>
-        <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); toast.info('Backup started in background'); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup triggered successfully for '${vm.name}'`) } catch (e: unknown) { toast.error(`${e instanceof Error ? e.message : e}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
+        <button disabled={backingUp} onClick={async () => { if (backingUp) return; setBackingUp(true); toast.info('Backup started in background'); try { await triggerBackup({ vm_name: vm.name }); toast.success(`Backup triggered successfully for '${vm.name}'`) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setBackingUp(false) } }} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition disabled:opacity-50"><Archive className="w-3 h-3 inline -mt-0.5" /> {backingUp ? '...' : 'Backup'}</button>
         <button onClick={() => openDialog('save-template')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Layers className="w-3 h-3 inline -mt-0.5" /> Save Template</button>
         <button type="button" onClick={() => setTab('advanced')} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition"><Sliders className="w-3 h-3 inline -mt-0.5" /> Advanced</button>
         <button onClick={load} className="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded text-xs transition" aria-label="Refresh"><RefreshCw className="w-3 h-3" /></button>
@@ -1606,7 +1607,7 @@ export default function VMDetailsPage() {
                 className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
                 onClick={() => {
                   if (!name) return
-                  void attachVmTpm(name, conn).then(() => { toast.success('TPM 2.0 attached'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                  void attachVmTpm(name, conn).then(() => { toast.success('TPM 2.0 attached'); load(); setVmXml('') }).catch((e: unknown) => toast.error(formatUserError(e)))
                 }}
               >
                 Add TPM 2.0
@@ -1616,7 +1617,7 @@ export default function VMDetailsPage() {
                 className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
                 onClick={() => {
                   if (!name) return
-                  void detachVmTpm(name, conn).then(() => { toast.success('TPM removed'); load(); setVmXml('') }).catch((e: unknown) => toast.error(e instanceof Error ? e.message : String(e)))
+                  void detachVmTpm(name, conn).then(() => { toast.success('TPM removed'); load(); setVmXml('') }).catch((e: unknown) => toast.error(formatUserError(e)))
                 }}
               >
                 Remove TPM
@@ -1665,7 +1666,7 @@ export default function VMDetailsPage() {
                         load()
                         setVmXml('')
                       } catch (e: unknown) {
-                        toast.error(e instanceof Error ? e.message : String(e))
+                        toast.error(formatUserError(e))
                       }
                     }}
                     className="ml-auto px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm transition"
@@ -1706,7 +1707,7 @@ export default function VMDetailsPage() {
                                   load()
                                   setVmXml('')
                                 } catch (e: unknown) {
-                                  toast.error(e instanceof Error ? e.message : String(e))
+                                  toast.error(formatUserError(e))
                                 }
                               }}
                               className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-300 transition"
@@ -1940,7 +1941,7 @@ export default function VMDetailsPage() {
                     load()
                     setVmXml('')
                   } catch (e: unknown) {
-                    toast.error(`${e instanceof Error ? e.message : e}`)
+                    toast.error(`${formatUserError(e)}`)
                   }
                 }}
                 className="px-3 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-lg text-sm transition"
@@ -1959,7 +1960,7 @@ export default function VMDetailsPage() {
                     load()
                     setVmXml('')
                   } catch (e: unknown) {
-                    toast.error(`${e instanceof Error ? e.message : e}`)
+                    toast.error(`${formatUserError(e)}`)
                   }
                 }}
                 className="px-3 py-2 bg-slate-600 hover:bg-slate-500 disabled:opacity-50 rounded-lg text-sm transition"
@@ -1984,7 +1985,7 @@ export default function VMDetailsPage() {
                     await detachNodeDevice(nodedevName.trim())
                     toast.success('Node device detached')
                   } catch (e: unknown) {
-                    toast.error(`${e instanceof Error ? e.message : e}`)
+                    toast.error(`${formatUserError(e)}`)
                   }
                 }}
                 className="px-3 py-2 bg-orange-700 hover:bg-orange-600 disabled:opacity-50 rounded-lg text-sm transition"
@@ -2001,7 +2002,7 @@ export default function VMDetailsPage() {
                     await reattachNodeDevice(nodedevName.trim())
                     toast.success('Node device reattached')
                   } catch (e: unknown) {
-                    toast.error(`${e instanceof Error ? e.message : e}`)
+                    toast.error(`${formatUserError(e)}`)
                   }
                 }}
                 className="px-3 py-2 bg-slate-600 hover:bg-slate-500 disabled:opacity-50 rounded-lg text-sm transition"
@@ -2343,7 +2344,7 @@ export default function VMDetailsPage() {
                   {cdromDisks.map((d, i) => (
                     <div key={i} className="flex items-center justify-between py-1">
                       <span className="text-sm"><span className="font-mono text-blue-400">{d.target}</span> {d.source ? <span className="text-slate-400 text-xs ml-2">{d.source.split('/').pop()}</span> : <span className="text-slate-500 text-xs ml-2">(empty)</span>}</span>
-                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target, conn).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${e instanceof Error ? e.message : e}`)) } }} className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-400 transition">Eject</button>}
+                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target, conn).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${formatUserError(e)}`)) } }} className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-400 transition">Eject</button>}
                     </div>
                   ))}
                 </div>

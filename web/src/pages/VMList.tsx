@@ -15,10 +15,14 @@ import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
 import EmptyState from '../components/EmptyState'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 
 export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [deleteTarget, setDeleteTarget] = useState<{ name: string; libvirt_connection?: string } | null>(null)
   const [vmTagsMap, setVmTagsMap] = useState<Record<string, string[]>>({})
@@ -34,6 +38,7 @@ export default function VMList() {
 
   const load = useCallback(async () => {
     try {
+      setLoadError(null)
       const vmList = await listVMs()
       setVMs(vmList)
       // Load tags for all VMs
@@ -48,10 +53,12 @@ export default function VMList() {
       // Load all unique tag names
       try { const counts = await getAllTags(); setAllTagNames(Object.keys(counts).sort()) } catch { /* optional */ }
     } catch (e: unknown) {
+      const msg = formatUserError(e)
+      setLoadError(msg)
       const now = Date.now()
       if (now - lastLoadErrorToastAt.current > 12_000) {
         lastLoadErrorToastAt.current = now
-        toast.error(`Failed to load VMs: ${e instanceof Error ? e.message : e}`)
+        toast.error(`Failed to load VMs: ${msg}`)
       }
     } finally {
       setLoading(false)
@@ -74,7 +81,7 @@ export default function VMList() {
       toast.success(`${label} '${vm.name}' OK`)
       load()
     } catch (e: unknown) {
-      toast.error(`${label} '${vm.name}' failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`${label} '${vm.name}' failed: ${formatUserError(e)}`)
     }
   }
 
@@ -87,7 +94,7 @@ export default function VMList() {
       toast.success(`Deleted '${t.name}'`)
       load()
     } catch (e: unknown) {
-      toast.error(`Delete failed: ${e instanceof Error ? e.message : e}`)
+      toast.error(`Delete failed: ${formatUserError(e)}`)
     }
   }
 
@@ -159,6 +166,17 @@ export default function VMList() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {loadError && (
+        <ErrorBanner
+          title="Failed to load virtual machines"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          technicalDetail={loadError}
+          tone="red"
+          onRetry={() => void load()}
+          onDismiss={() => setLoadError(null)}
+        />
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">Virtual machines</h1>

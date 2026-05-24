@@ -14,6 +14,9 @@ import { useToastContext } from '../contexts/ToastContext'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
+import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
+import { openStackErrorHints } from '../utils/openstackHints'
 import HypersdkStatusBanner from '../components/HypersdkStatusBanner'
 import { Cloud, ExternalLink, Loader2, Play, RefreshCw, Server } from 'lucide-react'
 
@@ -34,6 +37,7 @@ function OpenStackMigrationsContent() {
   const [vms, setVms] = useState<HypersdkProviderVm[]>([])
   const [jobs, setJobs] = useState<HypersdkMigrationJob[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [submitVmName, setSubmitVmName] = useState('')
   const [submitVmId, setSubmitVmId] = useState('')
   const [submitDestPath, setSubmitDestPath] = useState('')
@@ -47,6 +51,7 @@ function OpenStackMigrationsContent() {
       return
     }
     try {
+      setLoadError(null)
       const [st, vmRes, jobRes] = await Promise.all([
         getHypersdkStatus(),
         listHypersdkProviderVms('openstack').catch(() => ({ vms: [] })),
@@ -57,7 +62,7 @@ function OpenStackMigrationsContent() {
       setVms(vmList)
       setJobs(jobRes.jobs ?? [])
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -103,7 +108,7 @@ function OpenStackMigrationsContent() {
       setSubmitDestPath('')
       void load()
     } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : String(e))
+      toast.error(formatUserError(e))
     } finally {
       setSubmitting(false)
     }
@@ -119,6 +124,17 @@ function OpenStackMigrationsContent() {
     <div className="space-y-6">
       <OpenStackSubNav />
       <OpenStackStatusBar />
+      {loadError && (
+        <ErrorBanner
+          title="Failed to load HyperSDK migration data"
+          headline={loadError}
+          hints={openStackErrorHints(loadError)}
+          technicalDetail={loadError}
+          tone="red"
+          onRetry={() => void load()}
+          onDismiss={() => setLoadError(null)}
+        />
+      )}
       <HypersdkStatusBanner />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>

@@ -4,6 +4,7 @@ import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { useState } from 'react'
+import { formatUserError, sanitizeErrorText } from '../utils/apiError'
 
 /** Live OpenStack connection summary for cloud pages. */
 export default function OpenStackStatusBar() {
@@ -77,12 +78,12 @@ export default function OpenStackStatusBar() {
       )}
       {status?.error && reachable && (
         <span className="text-xs text-amber-300/90 truncate max-w-md" title={status.error}>
-          {status.error}
+          {sanitizeErrorText(status.error)}
         </span>
       )}
       {status?.error && !reachable && (
         <span className="text-xs text-red-300 truncate max-w-md" title={status.error}>
-          {status.error}
+          {sanitizeErrorText(status.error)}
         </span>
       )}
       <div className="flex flex-wrap gap-2 ml-auto">
@@ -95,7 +96,7 @@ export default function OpenStackStatusBar() {
               const s = await testConnection()
               toast.success(s.reachable ? 'OpenStack OK' : 'Still unreachable')
             } catch (e: unknown) {
-              toast.error(e instanceof Error ? e.message : String(e))
+              toast.error(formatUserError(e))
             } finally {
               setTesting(false)
             }

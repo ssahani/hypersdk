@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router'
-import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin } from 'lucide-react'
+import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info } from 'lucide-react'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listPools, StoragePoolInfo } from '../api/storage'
@@ -17,6 +17,12 @@ import { getPinnedVMs } from '../utils/pinnedVMs'
 import { getRecentPages, recordRecentPage } from '../utils/recentPages'
 import { getPinnedPages, isPagePinned, togglePinnedPage } from '../utils/pinnedPages'
 import { getPageLabel } from '../utils/pageLabels'
+import type { HelpTab } from './HelpDialog'
+import { formatUserError } from '../utils/apiError'
+
+interface CommandPaletteProps {
+  onOpenHelp?: (tab?: HelpTab) => void
+}
 
 interface PaletteItem {
   id: string
@@ -28,7 +34,7 @@ interface PaletteItem {
   category: string
 }
 
-export default function CommandPalette() {
+export default function CommandPalette({ onOpenHelp }: CommandPaletteProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(0)
@@ -90,7 +96,7 @@ export default function CommandPalette() {
       await fn(name)
       toast.success(`${label} '${name}' OK`)
     } catch (e: unknown) {
-      toast.error(`${label} '${name}' failed: ${e instanceof Error ? e.message : String(e)}`)
+      toast.error(`${label} '${name}' failed: ${formatUserError(e)}`)
     }
   }, [close, toast])
 
@@ -199,6 +205,33 @@ export default function CommandPalette() {
     })
   }
 
+  if (onOpenHelp) {
+    items.push(
+      {
+        id: 'help-shortcuts',
+        icon: <Keyboard className="w-4 h-4" />,
+        label: 'Help: keyboard shortcuts',
+        sublabel: '?',
+        action: () => {
+          close()
+          onOpenHelp('shortcuts')
+        },
+        category: 'Help',
+      },
+      {
+        id: 'help-about',
+        icon: <Info className="w-4 h-4" />,
+        label: 'Help: about Machina',
+        sublabel: 'zyvor.dev',
+        action: () => {
+          close()
+          onOpenHelp('about')
+        },
+        category: 'Help',
+      },
+    )
+  }
+
   // Navigation pages
   for (const group of navGroups) {
     for (const item of group.items) {
@@ -276,6 +309,7 @@ export default function CommandPalette() {
     'Recent',
     'Pinned',
     'Quick Actions',
+    'Help',
     'Setup',
     'Pages',
     'Virtual Machines',
