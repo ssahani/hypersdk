@@ -7,10 +7,12 @@
 #
 # Usage:
 #   ./scripts/package-binary-remote.sh <host> [user] [--fetch] [--reuse-build]
+#   ./scripts/package-binary-remote.sh 212.8.252.194 sus --from-deploy --fetch
 #
 # Options:
 #   --fetch        Copy tarball to ./dist/ on your laptop
 #   --reuse-build  Skip make if target/release/machina-daemon exists
+#   --from-deploy  Package ~/.deployment/machina (existing deploy tree; no full rebuild)
 #
 # Environment:
 #   DEPLOY_HOST / DEPLOY_USER
@@ -32,6 +34,7 @@ REPO_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 FETCH=false
 REUSE_BUILD=false
 SKIP_DEPS=false
+FROM_DEPLOY=false
 POSITIONAL=()
 
 for arg in "$@"; do
@@ -39,6 +42,7 @@ for arg in "$@"; do
         --fetch) FETCH=true ;;
         --reuse-build) REUSE_BUILD=true ;;
         --skip-deps) SKIP_DEPS=true ;;
+        --from-deploy) FROM_DEPLOY=true; REUSE_BUILD=true; SKIP_DEPS=true ;;
         -h|--help)
             sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'
             exit 0
@@ -64,7 +68,11 @@ VERSION="${VERSION:-0.1.0}"
 ARCH="linux-amd64"
 REMOTE="${USER}@${HOST}"
 REMOTE_HOME=$(ssh -o BatchMode=yes -o ConnectTimeout="${SSH_TIMEOUT}" "${REMOTE}" 'echo "$HOME"')
-BUILD_DIR="${REMOTE_HOME}/.deployment/machina-package"
+if $FROM_DEPLOY; then
+    BUILD_DIR="${REMOTE_HOME}/.deployment/machina"
+else
+    BUILD_DIR="${REMOTE_HOME}/.deployment/machina-package"
+fi
 OUT_DIR="${MACHINA_PACKAGE_DIR:-${REMOTE_HOME}/machina-dist}"
 ARTIFACT="machina-${VERSION}-${ARCH}"
 LOCAL_DIST="${REPO_DIR}/dist"
@@ -88,12 +96,32 @@ if [[ "${MACHINA_REMOTE_SKIP_SSH_CHECK:-}" != "1" ]]; then
     pkg_ok "SSH ${REMOTE}"
 fi
 
-pkg_remote_phase "Sync source"
-pkg_remote_kv "Build dir" "${BUILD_DIR}"
-ssh "${REMOTE}" "mkdir -p '${BUILD_DIR}'"
-rsync -az --delete "${RSYNC_EXCLUDES[@]}" \
-    -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=120" \
-    "${REPO_DIR}/" "${REMOTE}:${BUILD_DIR}/"
+if $FROM_DEPLOY; then
+    pkg_remote_phase "Use existing deploy tree"
+    pkg_remote_kv "Build dir" "${BUILD_DIR}"
+    ssh "${REMOTE}" "test -x '${BUILD_DIR}/target/release/machina-daemon'" \
+        || { echo "No release build in ${BUILD_DIR} — deploy or run without --from-deploy" >&2; exit 1; }
+    pkg_ok "Found machina-daemon in deploy tree"
+    pkg_remote_phase "Sync packaging scripts only"
+    ssh "${REMOTE}" "mkdir -p '${BUILD_DIR}/scripts/lib' '${BUILD_DIR}/contrib'"
+    rsync -az \
+        -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=120" \
+        "${REPO_DIR}/scripts/lib/" "${REMOTE}:${BUILD_DIR}/scripts/lib/"
+    rsync -az \
+        "${REPO_DIR}/scripts/zyvor-branding/" "${REMOTE}:${BUILD_DIR}/scripts/zyvor-branding/" 2>/dev/null || true
+    rsync -az "${REPO_DIR}/contrib/machina.toml" "${REPO_DIR}/contrib/machina-daemon.service" \
+        "${REMOTE}:${BUILD_DIR}/contrib/"
+    rsync -az "${REPO_DIR}/install.sh" "${REMOTE}:${BUILD_DIR}/"
+    rsync -az \
+        "${REPO_DIR}/contrib/mkosi-defs/" "${REMOTE}:${BUILD_DIR}/contrib/mkosi-defs/" 2>/dev/null || true
+else
+    pkg_remote_phase "Sync source"
+    pkg_remote_kv "Build dir" "${BUILD_DIR}"
+    ssh "${REMOTE}" "mkdir -p '${BUILD_DIR}'"
+    rsync -az --delete "${RSYNC_EXCLUDES[@]}" \
+        -e "ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=15 -o ServerAliveCountMax=120" \
+        "${REPO_DIR}/" "${REMOTE}:${BUILD_DIR}/"
+fi
 
 if ! $SKIP_DEPS; then
     pkg_remote_phase "Build dependencies"
@@ -155,6 +183,7 @@ cp "\${LIB}/package-client-install.sh" "\${STAGE}/install-client-deps.sh"
 cp "\${LIB}/package-client-test.sh" "\${STAGE}/test-package.sh"
 mkdir -p "\${STAGE}/.package-lib"
 cp "\${LIB}/package-ui.sh" "\${STAGE}/.package-lib/"
+cp "\${LIB}/package-auth-bootstrap.sh" "\${STAGE}/.package-lib/"
 cp "\${LIB}/install-everything.sh" "\${STAGE}/"
 cp "\${LIB}/package-uninstall-lib.sh" "\${STAGE}/.package-lib/"
 cp "\${LIB}/package-uninstall.sh" "\${STAGE}/uninstall.sh"
