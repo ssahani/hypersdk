@@ -35,6 +35,8 @@ import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 import { triggerBackup } from '../api/backup'
 import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate, listIommuGroups, IommuGroup } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -114,6 +116,7 @@ export default function VMDetailsPage() {
   const [backingUp, setBackingUp] = useState(false)
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [dialog, setDialog] = useState<Dialog>(null)
   const toast = useToastContext()
   const { info } = usePlatformInfo()
@@ -271,6 +274,7 @@ export default function VMDetailsPage() {
   const load = useCallback(async () => {
     if (!name) return
     try {
+      setLoadError(null)
       const [vmData, snapData] = await Promise.all([getVM(name, conn), listSnapshots(name, conn).catch(() => [])])
       setVM(vmData)
       setSnapshots(snapData)
@@ -299,7 +303,10 @@ export default function VMDetailsPage() {
       try { setCpuTune(await getCpuTune(name, conn)) } catch { /* optional */ }
       try { setMemTune(await getMemTune(name, conn)) } catch { /* optional */ }
     } catch (e: unknown) {
-      toast.error(`Failed to load VM: ${formatUserError(e)}`)
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      setVM(null)
+      toast.error(`Failed to load VM: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -1014,7 +1021,25 @@ export default function VMDetailsPage() {
   }
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
-  if (!vm) return <div className="text-center text-slate-500 py-12">VM not found</div>
+  if (!vm) {
+    return (
+      <div className="space-y-4 animate-fade-in">
+        {loadError ? (
+          <ErrorBanner
+            title={`Could not load VM`}
+            headline={loadError}
+            hints={libvirtErrorHints(loadError)}
+            onRetry={load}
+          />
+        ) : (
+          <div className="text-center text-slate-500 py-12">VM not found</div>
+        )}
+        <Link to="/vms" className="inline-flex items-center gap-2 text-sm text-blue-400 hover:text-blue-300">
+          <ArrowLeft className="w-4 h-4" /> Back to VMs
+        </Link>
+      </div>
+    )
+  }
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'overview', label: 'Overview', icon: <Cpu className="w-4 h-4" /> },

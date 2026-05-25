@@ -6,11 +6,14 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X, Pencil } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 
 export default function NetworksPage() {
   const [networks, setNetworks] = useState<NetworkInfo[]>([])
   const [leases, setLeases] = useState<DhcpLease[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newName, setNewName] = useState('')
@@ -26,19 +29,22 @@ export default function NetworksPage() {
   const toast = useToastContext()
 
   const load = useCallback(async () => {
-    try {
-      const [nets, dhcp, lb] = await Promise.allSettled([
-        listNetworks(),
-        listDhcpLeases(),
-        getHostLibvirtBoot(),
-      ])
-      if (nets.status === 'fulfilled') setNetworks(nets.value)
-      if (dhcp.status === 'fulfilled') setLeases(dhcp.value)
-      if (lb.status === 'fulfilled') setLibvirtBoot(lb.value)
-      else setLibvirtBoot(null)
-    } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
-    finally { setLoading(false) }
-  }, [toast])
+    const [nets, dhcp, lb] = await Promise.allSettled([
+      listNetworks(),
+      listDhcpLeases(),
+      getHostLibvirtBoot(),
+    ])
+    if (nets.status === 'fulfilled') {
+      setNetworks(nets.value)
+      setLoadError(null)
+    } else {
+      setLoadError(formatUserError(nets.reason))
+    }
+    if (dhcp.status === 'fulfilled') setLeases(dhcp.value)
+    if (lb.status === 'fulfilled') setLibvirtBoot(lb.value)
+    else setLibvirtBoot(null)
+    setLoading(false)
+  }, [])
 
   useEffect(() => { load() }, [load])
 
@@ -126,6 +132,15 @@ export default function NetworksPage() {
           <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
+
+      {loadError && (
+        <ErrorBanner
+          title="Could not load networks"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          onRetry={load}
+        />
+      )}
 
       {libvirtBoot?.needs_attention && libvirtBoot.detail && (
         <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">

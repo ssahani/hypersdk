@@ -1,3 +1,4 @@
+pub mod api_error;
 pub mod audit;
 pub mod build_precheck;
 pub mod config;
@@ -13,9 +14,11 @@ pub mod system_accounts;
 pub mod validate;
 pub mod xml;
 
+pub use api_error::{format_http_error_body, format_user_error, friendly_error_code, sanitize_error_text};
 pub use config::{
     AuthConfig, HypersdkConfig, KubeVirtConfig, MachinaConfig, OpenStackConfig, OidcConfig,
-    OidcDefaultRole, SshTerminalConfig, SshTerminalTarget, VmCreateBackend, DEFAULT_DAEMON_PORT,
+    OidcDefaultRole, RunAsUserConfig, SshTerminalConfig, SshTerminalTarget, VmCreateBackend,
+    DEFAULT_DAEMON_PORT,
 };
 pub use kubevirt::{
     kubevirt_bundle_from_libvirt_vm, kubevirt_bundle_from_qcow2, resolve_guest_os, GuestOsFamily,

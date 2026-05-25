@@ -1,4 +1,7 @@
 import { readJsonArray, readJsonObject } from './client'
+import { parseResponseError } from './parseResponseError'
+import { streamResponseError } from './streamResponseError'
+import { formatUserError } from '../utils/apiError'
 import { VirtImageBuildRequest } from './extras'
 
 const API = '/api/v1'
@@ -40,17 +43,8 @@ export const startPackerGoldenBuildJob = (body: PackerGoldenBuildRequest) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(async (res) => {
+    if (!res.ok) throw await parseResponseError(res)
     const text = await res.text()
-    if (!res.ok) {
-      let msg = text
-      try {
-        const j = JSON.parse(text) as { error?: string }
-        if (j?.error) msg = j.error
-      } catch {
-        /* keep */
-      }
-      throw new Error(msg || res.statusText)
-    }
     return JSON.parse(text) as { id: string; status: string; message?: string }
   })
 
@@ -61,17 +55,8 @@ export const startVirtImageBuildJob = (body: VirtImageBuildRequest) =>
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   }).then(async (res) => {
+    if (!res.ok) throw await parseResponseError(res)
     const text = await res.text()
-    if (!res.ok) {
-      let msg = text
-      try {
-        const j = JSON.parse(text) as { error?: string }
-        if (j?.error) msg = j.error
-      } catch {
-        /* keep */
-      }
-      throw new Error(msg || res.statusText)
-    }
     return JSON.parse(text) as { id: string; status: string; message?: string }
   })
 
@@ -91,10 +76,7 @@ export async function streamJobLogs(
     headers: { Accept: 'text/event-stream' },
     signal: opts.signal,
   })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(text || res.statusText)
-  }
+  if (!res.ok) throw await streamResponseError(res)
   if (!res.body) throw new Error('No response body')
   const reader = res.body.getReader()
   const dec = new TextDecoder()
@@ -120,7 +102,7 @@ export async function streamJobLogs(
         return
       }
       if (ev === 'error') {
-        opts.onError?.(data || 'Job failed')
+        opts.onError?.(formatUserError(data || 'Job failed'))
         return
       }
       if (data && data !== 'keepalive') opts.onLogChunk?.(data)

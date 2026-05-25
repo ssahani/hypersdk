@@ -99,6 +99,13 @@ async fn main() -> anyhow::Result<()> {
             "OIDC marked enabled but missing issuer_url/client_id/redirect_url; browser SSO is disabled"
         );
     }
+    if config.auth.run_as_user.wants_impersonation() {
+        tracing::warn!(
+            "auth.run_as_user is enabled (mode={:?}) but UNIX impersonation is not implemented yet; \
+             effective_linux_user remains policy-only — see docs/oidc-run-as-user.md",
+            config.auth.run_as_user.mode
+        );
+    }
 
     inventory_history::spawn_inventory_history_worker(manager.clone(), config.inventory_history.clone());
 

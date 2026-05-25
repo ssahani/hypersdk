@@ -27,6 +27,8 @@ Today’s behavior is **policy alignment**: routes can require “this OIDC iden
 
 ## Future: run-as-user (not implemented)
 
+See [`oidc-run-as-user.md`](oidc-run-as-user.md) for the config scaffold (`[auth.run_as_user]`) and implementation plan.
+
 To actually run libvirt or helpers as the mapped UNIX user would require an explicit design, for example:
 
 - A setuid helper or polkit-backed action runner acceptable to your threat model

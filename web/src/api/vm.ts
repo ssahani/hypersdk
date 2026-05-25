@@ -7,6 +7,8 @@ import {
   readJsonObject,
   apiGetText,
 } from './client'
+import { streamResponseError } from './streamResponseError'
+import { formatUserError } from '../utils/apiError'
 
 const API = '/api/v1'
 
@@ -340,17 +342,7 @@ export async function createVMWithProgress(
     },
     body: JSON.stringify(req),
   })
-  if (!res.ok) {
-    const text = await res.text()
-    let msg = text
-    try {
-      const j = JSON.parse(text) as { error?: string }
-      if (j?.error) msg = j.error
-    } catch {
-      /* keep text */
-    }
-    throw new Error(msg || res.statusText)
-  }
+  if (!res.ok) throw await streamResponseError(res)
   if (!res.body) throw new Error('No response body')
   const reader = res.body.getReader()
   const dec = new TextDecoder()
@@ -375,7 +367,7 @@ export async function createVMWithProgress(
         return JSON.parse(data) as CreateVmStreamResult
       }
       if (ev === 'error') {
-        throw new Error(data || 'Create failed')
+        throw new Error(formatUserError(data || 'Create failed'))
       }
       if (ev === 'job') {
         try {

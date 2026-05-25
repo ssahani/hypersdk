@@ -19,7 +19,9 @@ import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import { getK8sEnvironment, getK8sOverview, type K8sEnvironment, type K8sOverview } from '../api/k8s'
 import Hero from '../components/Hero'
+import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 
 interface MetricsPoint { time: string; memory: number }
 
@@ -49,6 +51,7 @@ export default function Dashboard() {
   const [k8sEnv, setK8sEnv] = useState<K8sEnvironment | null>(null)
   const [k8sOverview, setK8sOverview] = useState<K8sOverview | null>(null)
   const [k8sError, setK8sError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
@@ -62,7 +65,12 @@ export default function Dashboard() {
       listPools(),
       getNodeInfo(),
     ])
-    if (vmR.status === 'fulfilled') setVMs(vmR.value)
+    if (vmR.status === 'fulfilled') {
+      setVMs(vmR.value)
+      setLoadError(null)
+    } else {
+      setLoadError(formatUserError(vmR.reason))
+    }
     if (netR.status === 'fulfilled') setNetworks(netR.value)
     if (poolR.status === 'fulfilled') setPools(poolR.value)
     if (nodeR.status === 'fulfilled') setNode(nodeR.value)
@@ -156,6 +164,15 @@ export default function Dashboard() {
         subtitle="Live virtualization, network, storage, and KubeVirt status from this hypervisor."
         icon={<Activity className="w-6 h-6" />}
       />
+
+      {loadError && (
+        <ErrorBanner
+          title="Could not load VMs"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          onRetry={loadData}
+        />
+      )}
 
       {healthProblems.length > 0 && (
         <div className="rounded-xl border border-rose-500/35 bg-rose-950/25 px-4 py-3 space-y-2">

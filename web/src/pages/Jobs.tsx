@@ -13,6 +13,7 @@ import {
 } from '../utils/buildProgress'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
 
 function statusBadge(status: string) {
   if (status === 'running') return 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
@@ -26,6 +27,7 @@ export default function JobsPage() {
   const [jobs, setJobs] = useState<JobSummary[]>([])
   const [detail, setDetail] = useState<JobDetail | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const selectedId = jobId || null
 
@@ -54,9 +56,14 @@ export default function JobsPage() {
 
   const refreshList = useCallback(() => {
     return listJobs()
-      .then(setJobs)
+      .then((data) => {
+        setJobs(data)
+        setLoadError(null)
+      })
       .catch((e: unknown) => {
-        toast.error(formatUserError(e))
+        const msg = formatUserError(e)
+        setLoadError(msg)
+        toast.error(msg)
       })
   }, [toast])
 
@@ -117,6 +124,15 @@ export default function JobsPage() {
           <strong className="text-slate-300">Create VM</strong> progress after you navigate away. Logs update automatically while a job is running.
         </p>
       </div>
+
+      {loadError && (
+        <ErrorBanner
+          title="Could not load jobs"
+          headline={loadError}
+          hints={['Confirm machina-daemon is running.', 'Jobs require a valid session with operator or admin role.']}
+          onRetry={() => void refreshList()}
+        />
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">

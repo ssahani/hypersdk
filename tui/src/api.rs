@@ -1,4 +1,5 @@
 use anyhow::Result;
+use machina_core::format_http_error_body;
 use machina_core::libvirt::extras::BrowseDirResponse;
 use machina_core::{
     BackupInfo, BackupRequest, CloneVmRequest, CreateInstanceRequest, CreateNetworkRequest,
@@ -29,16 +30,35 @@ impl DaemonClient {
 
     // ── Unified HTTP helpers ────────────────────────────────────────────
 
+    fn http_error(status: reqwest::StatusCode, body: &str) -> anyhow::Error {
+        let reason = status.canonical_reason().unwrap_or("");
+        anyhow::anyhow!(format_http_error_body(
+            status.as_u16(),
+            reason,
+            body,
+        ))
+    }
+
     async fn get_json<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T> {
         let url = format!("{}{}", self.base_url, path);
-        let data = self.client.get(&url).send().await?.json().await?;
-        Ok(data)
+        let resp = self.client.get(&url).send().await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Self::http_error(status, &body));
+        }
+        Ok(resp.json().await?)
     }
 
     async fn get_text(&self, path: &str) -> Result<String> {
         let url = format!("{}{}", self.base_url, path);
-        let text = self.client.get(&url).send().await?.text().await?;
-        Ok(text)
+        let resp = self.client.get(&url).send().await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Self::http_error(status, &body));
+        }
+        Ok(resp.text().await?)
     }
 
     async fn post_action(&self, path: &str) -> Result<()> {
@@ -47,7 +67,7 @@ impl DaemonClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("[{status}] {body}");
+            return Err(Self::http_error(status, &body));
         }
         Ok(())
     }
@@ -58,7 +78,7 @@ impl DaemonClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("[{status}] {body}");
+            return Err(Self::http_error(status, &body));
         }
         Ok(())
     }
@@ -69,7 +89,7 @@ impl DaemonClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("[{status}] {body}");
+            return Err(Self::http_error(status, &body));
         }
         Ok(())
     }
@@ -324,7 +344,7 @@ impl DaemonClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
-            anyhow::bail!("[{status}] {body}");
+            return Err(Self::http_error(status, &body));
         }
         Ok(resp.json().await?)
     }
@@ -348,7 +368,7 @@ impl DaemonClient {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
         if !status.is_success() {
-            anyhow::bail!("[{status}] {text}");
+            return Err(Self::http_error(status, &text));
         }
         serde_json::from_str(&text).map_err(|e| anyhow::anyhow!("invalid JSON: {e}; body: {text}"))
     }
@@ -618,7 +638,7 @@ impl DaemonClient {
         let status = resp.status();
         let text = resp.text().await.unwrap_or_default();
         if !status.is_success() {
-            anyhow::bail!("[{status}] {text}");
+            return Err(Self::http_error(status, &text));
         }
         serde_json::from_str(&text)
             .map_err(|e| anyhow::anyhow!("invalid JSON from daemon: {e}; body: {text}"))

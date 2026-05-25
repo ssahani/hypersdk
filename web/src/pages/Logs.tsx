@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { getJournalBoots, getJournalLogs, JournalBootEntry, JournalEntry } from '../api/extras'
 import { RefreshCw, Search } from 'lucide-react'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
 
 const PRIORITIES = ['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug'] as const
 const LINE_COUNTS = [50, 100, 500, 1000] as const
@@ -39,6 +41,7 @@ function priorityBg(p: string): string {
 export default function LogsPage() {
   const [entries, setEntries] = useState<JournalEntry[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [priority, setPriority] = useState('')
   const [unit, setUnit] = useState('')
   const [boot, setBoot] = useState('')
@@ -55,6 +58,7 @@ export default function LogsPage() {
 
   const load = useCallback(async () => {
     try {
+      setLoadError(null)
       const data = await getJournalLogs({
         lines: lineCount,
         priority: priority || undefined,
@@ -68,8 +72,8 @@ export default function LogsPage() {
         kernel: kernelOnly,
       })
       setEntries(data)
-    } catch (e) {
-      console.error('Failed to load logs:', e)
+    } catch (e: unknown) {
+      setLoadError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -109,6 +113,18 @@ export default function LogsPage() {
           <RefreshCw className="w-4 h-4" />
         </button>
       </div>
+
+      {loadError && (
+        <ErrorBanner
+          title="Could not load journal logs"
+          headline={loadError}
+          hints={[
+            'Confirm machina-daemon is running and your session is valid.',
+            'journalctl must be available on the host; check daemon logs if filters fail.',
+          ]}
+          onRetry={load}
+        />
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

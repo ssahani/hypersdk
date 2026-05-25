@@ -77,6 +77,11 @@ pam_service = "sshd"
 # button_label = "Sign in with SSO"
 # require_local_user_for_session_libvirt = true
 
+# Future: execute libvirt/host helpers as the OIDC-mapped local user (not implemented — see docs/oidc-run-as-user.md).
+# [auth.run_as_user]
+# enabled = false
+# mode = "disabled"   # disabled | polkit | setuid_helper
+
 # HTTPS is enabled by default (self-signed cert created by install.sh if missing).
 [tls]
 enabled = true

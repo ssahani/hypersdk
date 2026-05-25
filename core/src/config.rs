@@ -372,6 +372,50 @@ impl Default for TlsConfig {
     }
 }
 
+/// Future: execute libvirt/host helpers as the OIDC-mapped local user (not implemented — see `docs/oidc-run-as-user.md`).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum RunAsUserMode {
+    #[serde(alias = "disabled")]
+    Disabled,
+    #[serde(alias = "polkit")]
+    Polkit,
+    #[serde(alias = "setuid_helper")]
+    SetuidHelper,
+}
+
+impl Default for RunAsUserMode {
+    fn default() -> Self {
+        Self::Disabled
+    }
+}
+
+/// Scaffold for per-session UNIX impersonation (policy flag only until a runner is implemented).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RunAsUserConfig {
+    /// When true, routes that support impersonation will require `run_as_user.mode` to be implemented.
+    #[serde(default)]
+    pub enabled: bool,
+    /// Intended backend. `polkit` and `setuid_helper` are documented; daemon rejects them until implemented.
+    #[serde(default)]
+    pub mode: RunAsUserMode,
+}
+
+impl Default for RunAsUserConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            mode: RunAsUserMode::Disabled,
+        }
+    }
+}
+
+impl RunAsUserConfig {
+    pub fn wants_impersonation(&self) -> bool {
+        self.enabled && self.mode != RunAsUserMode::Disabled
+    }
+}
+
 /// PAM configuration for `machina-daemon` (web sign-in uses the same password as the selected stack).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuthConfig {
@@ -382,6 +426,9 @@ pub struct AuthConfig {
     /// Optional OpenID Connect login backend. When enabled, the web UI can redirect users to an external IdP.
     #[serde(default)]
     pub oidc: OidcConfig,
+    /// Optional run-as-user impersonation (scaffold — see `docs/oidc-run-as-user.md`).
+    #[serde(default)]
+    pub run_as_user: RunAsUserConfig,
 }
 
 fn default_pam_service() -> String {
@@ -508,6 +555,7 @@ impl Default for AuthConfig {
         Self {
             pam_service: default_pam_service(),
             oidc: OidcConfig::default(),
+            run_as_user: RunAsUserConfig::default(),
         }
     }
 }

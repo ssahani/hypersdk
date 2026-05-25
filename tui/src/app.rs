@@ -3,7 +3,7 @@ use ratatui::DefaultTerminal;
 use std::time::{Duration, Instant};
 
 use machina_core::{
-    AppState, AssociateFloatingIpRequest, ConfirmationDialog, CreateInstanceRequest,
+    format_user_error, AppState, AssociateFloatingIpRequest, ConfirmationDialog, CreateInstanceRequest,
     CreateNetworkRequest, Focus, InputMode, NotifyLevel, ObjectTab, OpenStackCreateStep,
     OpenStackCreateWizard, ResourceView, SidebarCategory, SidebarItem, SortColumn, SortDirection,
     ViewMode,
@@ -13,6 +13,10 @@ use crate::api::DaemonClient;
 use crate::ui;
 
 const PACKER_IMAGE_HINT: &str = "Web /create: ISO install, Packer qcow2 builds, clone golden image (saved template or backing). Packer script: /usr/local/share/machina/packer/build-linux-image.sh";
+
+fn status_err(prefix: &str, e: impl std::fmt::Display) -> String {
+    format!("{prefix}: {}", format_user_error(&e.to_string()))
+}
 
 pub struct App {
     pub state: AppState,
@@ -332,7 +336,7 @@ impl App {
                             self.state.scroll_offset = 0;
                             self.state.view_mode = ViewMode::Logs;
                         }
-                        Err(e) => self.state.status_message = format!("openstack console: {e}"),
+                        Err(e) => self.state.status_message = status_err("openstack console", &e),
                     }
                 } else if let Some(SidebarItem::Vm(name)) = self.state.selected_sidebar_item().cloned() {
                     self.show_vm_logs_by_name(&name).await;
@@ -525,7 +529,7 @@ impl App {
                             self.state.scroll_offset = 0;
                             self.state.view_mode = ViewMode::Logs;
                         }
-                        Err(e) => self.state.status_message = format!("openstack console: {e}"),
+                        Err(e) => self.state.status_message = status_err("openstack console", &e),
                     }
                 }
             }
@@ -692,7 +696,7 @@ impl App {
         let flavors = match flavors {
             Ok(f) => f,
             Err(e) => {
-                self.state.status_message = format!("openstack flavors: {e}");
+                self.state.status_message = status_err("openstack flavors", &e);
                 return;
             }
         };
@@ -826,7 +830,7 @@ impl App {
                 self.refresh_openstack().await;
             }
             Err(e) => {
-                self.state.status_message = format!("openstack create: {e}");
+                self.state.status_message = status_err("openstack create", &e);
             }
         }
     }
@@ -938,7 +942,7 @@ impl App {
         match inst {
             Ok(d) => self.state.openstack_instance_detail = Some(d),
             Err(e) => {
-                self.state.status_message = format!("openstack get: {e}");
+                self.state.status_message = status_err("openstack get", &e);
                 return;
             }
         }
@@ -1472,7 +1476,7 @@ impl App {
     async fn load_vm_details(&mut self, name: &str) {
         match self.client.get_vm_details(name).await {
             Ok(details) => self.state.vm_details = Some(details),
-            Err(e) => self.state.status_message = format!("Error fetching details: {e}"),
+            Err(e) => self.state.status_message = status_err("Error fetching details", &e),
         }
     }
 
@@ -1545,7 +1549,7 @@ impl App {
                 self.state.scroll_offset = 0;
                 self.state.view_mode = ViewMode::Xml;
             }
-            Err(e) => self.state.status_message = format!("Error fetching {kind} XML: {e}"),
+            Err(e) => self.state.status_message = status_err("Error fetching {kind} XML", &e),
         }
     }
 
@@ -1563,7 +1567,7 @@ impl App {
                     self.state.volumes.len()
                 );
             }
-            Err(e) => self.state.status_message = format!("Error: {e}"),
+            Err(e) => self.state.status_message = status_err("Error", &e),
         }
     }
 
@@ -1641,7 +1645,7 @@ impl App {
                 self.state
                     .add_audit_event("novnc", name, &format!("port {connect_port}"));
             }
-            Err(e) => self.state.status_message = format!("Error: {e}"),
+            Err(e) => self.state.status_message = status_err("Error", &e),
         }
     }
 
@@ -1732,7 +1736,7 @@ impl App {
                     self.refresh_all_data().await;
                 }
             }
-            Err(e) => self.state.status_message = format!("Error: {e}"),
+            Err(e) => self.state.status_message = status_err("Error", &e),
         }
     }
 
@@ -1763,7 +1767,7 @@ impl App {
                 self.state.view_mode = ViewMode::Logs;
                 self.state.add_audit_event("browse-dir", &resp.path, "OK");
             }
-            Err(e) => self.state.status_message = format!("browse: {e}"),
+            Err(e) => self.state.status_message = status_err("browse", &e),
         }
     }
 
@@ -1969,7 +1973,7 @@ impl App {
                     self.state.status_message = Self::format_openstack_status(&st);
                     self.state.rebuild_sidebar();
                 }
-                Err(e) => self.state.status_message = format!("openstack status: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack status", &e),
             },
             ["openstack", "test"] | ["os", "test"] => match self.client.openstack_test_connection().await {
                 Ok(st) => {
@@ -1977,7 +1981,7 @@ impl App {
                     self.state.status_message = Self::format_openstack_status(&st);
                     self.refresh_openstack().await;
                 }
-                Err(e) => self.state.status_message = format!("openstack test: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack test", &e),
             },
             ["openstack", "list"] | ["os", "list"] => {
                 self.refresh_openstack().await;
@@ -2001,19 +2005,19 @@ impl App {
             ["openstack", "flavors"] | ["os", "flavors"] => {
                 match self.client.openstack_list_json("flavors").await {
                     Ok(v) => self.show_json_overlay("OpenStack flavors", &v),
-                    Err(e) => self.state.status_message = format!("openstack flavors: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack flavors", &e),
                 }
             },
             ["openstack", "networks"] | ["os", "networks"] => {
                 match self.client.openstack_list_json("networks").await {
                     Ok(v) => self.show_json_overlay("OpenStack networks", &v),
-                    Err(e) => self.state.status_message = format!("openstack networks: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack networks", &e),
                 }
             },
             ["openstack", "keypairs"] | ["os", "keypairs"] => {
                 match self.client.openstack_list_json("keypairs").await {
                     Ok(v) => self.show_json_overlay("OpenStack keypairs", &v),
-                    Err(e) => self.state.status_message = format!("openstack keypairs: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack keypairs", &e),
                 }
             },
             ["openstack", "get", id] | ["os", "get", id] => {
@@ -2040,7 +2044,7 @@ impl App {
                         self.state.status_message = format!("Created instance: {v}");
                         self.refresh_openstack().await;
                     }
-                    Err(e) => self.state.status_message = format!("openstack create: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack create", &e),
                 }
             },
             ["openstack", "create", name, flavor, image] => {
@@ -2060,7 +2064,7 @@ impl App {
                         self.state.status_message = format!("Created instance: {v}");
                         self.refresh_openstack().await;
                     }
-                    Err(e) => self.state.status_message = format!("openstack create: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack create", &e),
                 }
             },
             ["openstack", "start", id] | ["os", "start", id] => {
@@ -2123,11 +2127,11 @@ impl App {
                     self.state.scroll_offset = 0;
                     self.state.view_mode = ViewMode::Logs;
                 }
-                Err(e) => self.state.status_message = format!("openstack console: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack console", &e),
             },
             ["openstack", "export", id] => match self.client.openstack_export_instance(id, &serde_json::json!({})).await {
                 Ok(v) => self.show_json_overlay("OpenStack export plan", &v),
-                Err(e) => self.state.status_message = format!("openstack export: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack export", &e),
             },
             ["openstack", "image-delete", id] | ["openstack", "delete-image", id] => {
                 let r = self.client.openstack_delete_image(id).await;
@@ -2156,14 +2160,14 @@ impl App {
                     self.state.status_message =
                         format!("Cinder: {} volume(s) — :openstack volumes-json for list", vols.len());
                 }
-                Err(e) => self.state.status_message = format!("openstack volumes: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack volumes", &e),
             },
             ["openstack", "volumes-json"] => match self.client.openstack_list_cinder_volumes().await {
                 Ok(vols) => {
                     self.state.openstack_cinder_volumes = vols.clone();
                     self.show_json_overlay("Cinder volumes", &serde_json::json!({ "volumes": vols }));
                 }
-                Err(e) => self.state.status_message = format!("openstack volumes: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack volumes", &e),
             },
             ["openstack", "instance-volumes", id] | ["os", "instance-volumes", id] => {
                 match self.client.openstack_list_instance_volumes(id).await {
@@ -2174,7 +2178,7 @@ impl App {
                             &serde_json::json!({ "volumes": vols }),
                         );
                     }
-                    Err(e) => self.state.status_message = format!("openstack instance-volumes: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack instance-volumes", &e),
                 }
             },
             ["openstack", "attach", inst, vol] => {
@@ -2191,7 +2195,7 @@ impl App {
             },
             ["openstack", "fips"] | ["os", "fips"] => match self.client.openstack_list_floating_ips().await {
                 Ok(fips) => self.show_json_overlay("Floating IPs", &serde_json::json!({ "floating_ips": fips })),
-                Err(e) => self.state.status_message = format!("openstack fips: {e}"),
+                Err(e) => self.state.status_message = status_err("openstack fips", &e),
             },
             ["openstack", "instance-fips", id] => {
                 match self.client.openstack_list_instance_floating_ips(id).await {
@@ -2202,7 +2206,7 @@ impl App {
                             &serde_json::json!({ "floating_ips": fips }),
                         );
                     }
-                    Err(e) => self.state.status_message = format!("openstack instance-fips: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack instance-fips", &e),
                 }
             },
             ["openstack", "fip-associate", inst, fip_id] => {
@@ -2276,7 +2280,7 @@ impl App {
                         self.state.status_message = format!("Created instance: {v}");
                         self.refresh_openstack().await;
                     }
-                    Err(e) => self.state.status_message = format!("openstack create: {e}"),
+                    Err(e) => self.state.status_message = status_err("openstack create", &e),
                 }
             },
             ["kubevirt-bundle", vm] => match self.client.get_kubevirt_bundle_yaml(vm).await {
@@ -2288,7 +2292,7 @@ impl App {
                     self.state.view_mode = ViewMode::Xml;
                     self.state.add_audit_event("kubevirt-bundle", vm, "OK");
                 }
-                Err(e) => self.state.status_message = format!("kubevirt-bundle: {e}"),
+                Err(e) => self.state.status_message = status_err("kubevirt-bundle", &e),
             },
             ["kubevirt-apply", vm] => {
                 match self
@@ -2297,7 +2301,7 @@ impl App {
                     .await
                 {
                     Ok(v) => self.show_cluster_cmd_output("kubectl apply", vm, v, "kubevirt-apply"),
-                    Err(e) => self.state.status_message = format!("kubevirt-apply: {e}"),
+                    Err(e) => self.state.status_message = status_err("kubevirt-apply", &e),
                 }
             }
             ["kubevirt-upload", vm] => {
@@ -2312,7 +2316,7 @@ impl App {
                         v,
                         "kubevirt-upload",
                     ),
-                    Err(e) => self.state.status_message = format!("kubevirt-upload: {e}"),
+                    Err(e) => self.state.status_message = status_err("kubevirt-upload", &e),
                 }
             }
             ["kubevirt-start", vm] => {
@@ -2322,7 +2326,7 @@ impl App {
                     .await
                 {
                     Ok(v) => self.show_cluster_cmd_output("virtctl start", vm, v, "kubevirt-start"),
-                    Err(e) => self.state.status_message = format!("kubevirt-start: {e}"),
+                    Err(e) => self.state.status_message = status_err("kubevirt-start", &e),
                 }
             }
             ["q"] | ["quit"] => self.should_quit = true,
@@ -2382,7 +2386,7 @@ impl App {
             Ok(vms) => self.apply_vm_data(vms),
             Err(e) => {
                 self.state.connected = false;
-                self.state.status_message = format!("Error: {e}");
+                self.state.status_message = status_err("Error", &e);
             }
         }
         if let Ok(nets) = nets {
@@ -2423,7 +2427,7 @@ impl App {
             Ok(vms) => self.apply_vm_data(vms),
             Err(e) => {
                 self.state.connected = false;
-                self.state.status_message = format!("Error: {e}");
+                self.state.status_message = status_err("Error", &e);
             }
         }
 

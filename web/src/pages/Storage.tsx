@@ -6,12 +6,15 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize, ToggleLeft, ToggleRight } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 
 export default function StoragePage() {
   const [pools, setPools] = useState<StoragePoolInfo[]>([])
   const [volumes, setVolumes] = useState<StorageVolumeInfo[]>([])
   const [selectedPool, setSelectedPool] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ pool: string; vol: string } | null>(null)
   const [deletePoolTarget, setDeletePoolTarget] = useState<string | null>(null)
   const [showCreatePool, setShowCreatePool] = useState(false)
@@ -31,7 +34,14 @@ export default function StoragePage() {
   const toast = useToastContext()
 
   const loadPools = useCallback(async () => {
-    try { setPools(await listPools()) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } finally { setLoading(false) }
+    try {
+      setLoadError(null)
+      setPools(await listPools())
+    } catch (e: unknown) {
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      toast.error(msg)
+    } finally { setLoading(false) }
   }, [toast])
 
   const loadVolumes = async (pool: string) => {
@@ -213,6 +223,14 @@ export default function StoragePage() {
           <button onClick={loadPools} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
         </div>
       </div>
+      {loadError && (
+        <ErrorBanner
+          title="Could not load storage pools"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          onRetry={loadPools}
+        />
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pools.map((pool) => (
           <div key={pool.name} className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">

@@ -31,8 +31,15 @@ fmt-check: ## Check code formatting
 lint: ## Run clippy lints
 	$(CARGO) clippy --workspace -- -D warnings
 
-test: ## Run tests
+test: ## Run Rust + web unit tests
 	$(CARGO) test --workspace
+	cd web && npm test
+
+web-test: ## Run web unit tests (vitest)
+	cd web && npm test
+
+web-e2e: web ## Build web and run Playwright smoke tests
+	cd web && npm run test:e2e
 
 check: ## Run cargo check
 	$(CARGO) check --workspace
