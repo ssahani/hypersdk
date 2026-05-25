@@ -47,13 +47,13 @@ export default function ErrorBanner({
   return (
     <div
       role="alert"
-      className={`rounded-xl border ${s.border} ${s.bg} light-theme:border-slate-200 light-theme:bg-slate-50 px-4 py-3 space-y-3`}
+      className={`rounded-xl border ${s.border} ${s.bg} px-4 py-3 space-y-3`}
     >
       <div className="flex items-start gap-2">
         <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${tone === 'red' ? 'text-red-400' : 'text-amber-400'}`} />
         <div className="min-w-0 flex-1 space-y-1">
-          <h3 className={`text-sm font-semibold ${s.title} light-theme:text-slate-900`}>{title}</h3>
-          <p className={`text-sm ${s.text} light-theme:text-slate-700 leading-relaxed`}>{headline}</p>
+          <h3 className={`text-sm font-semibold ${s.title}`}>{title}</h3>
+          <p className={`text-sm ${s.text} leading-relaxed`}>{headline}</p>
         </div>
         <div className="flex flex-wrap gap-2 shrink-0">
           {onRetry && (

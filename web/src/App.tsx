@@ -119,8 +119,8 @@ function AuthenticatedApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen light-theme:bg-white light-theme:text-slate-900 bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 light-theme:border-blue-600 border-blue-500" />
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
       </div>
     )
   }
@@ -152,8 +152,8 @@ function AuthenticatedShell() {
   const shellClass =
     theme === 'steel'
       ? 'dashboard-steel min-h-screen flex flex-col text-[#d7dde5]'
-      : theme === 'light'
-        ? 'min-h-screen bg-white text-slate-900'
+      : theme === 'aurora'
+        ? 'dashboard-aurora min-h-screen flex flex-col text-[#e8e4f8]'
         : 'min-h-screen bg-slate-950 text-slate-100'
 
   return (
@@ -171,7 +171,11 @@ function AuthenticatedShell() {
               onCloseHelp={closeHelp}
               onHelpTabChange={setHelpTab}
             />
-            <main id="main-content" className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`} role="main">
+            <main
+              id="main-content"
+              className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`}
+              role="main"
+            >
               <Breadcrumb />
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>

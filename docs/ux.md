@@ -69,7 +69,7 @@ HyperSDK: [`HypersdkStatusBanner`](../web/src/components/HypersdkStatusBanner.ts
 
 ## Theming
 
-New UI should work in dark, light (`light-theme:`), and steel navbar themes. Avoid hard-coded colors that only read on `bg-slate-950`.
+New UI should work in **dark**, **steel**, and **aurora** themes (all dark; aurora uses prismatic accents via `.aurora-theme` in `main.css`). Avoid hard-coded colors that only read on one shell background.
 
 ## Login & accessibility
 

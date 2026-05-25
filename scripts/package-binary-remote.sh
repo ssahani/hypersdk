@@ -255,6 +255,8 @@ for req in HELP.txt START_HERE.txt install.sh uninstall.sh README.txt QUICKSTART
   test-host.sh test-package.sh install-client-deps.sh machina-daemon machina.toml.example; do
   test -e "\${STAGE}/\${req}" || { echo "bundle missing \${req}" >&2; exit 1; }
 done
+chmod +x "\${LIB}/finalize-customer-bundle.sh"
+"\${LIB}/finalize-customer-bundle.sh" "\${STAGE}" "\${BUILD_DIR}" "Machina" "\${VERSION}"
 echo "Customer bundle OK"
 
 cd "\${OUT_DIR}"

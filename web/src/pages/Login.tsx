@@ -17,7 +17,6 @@ import {
   Zap,
   Moon,
   Cloud,
-  Sun,
   Boxes,
   Eye,
   EyeOff,
@@ -122,9 +121,9 @@ export default function LoginPage() {
   const { login } = useAuth()
   const { theme, setTheme } = useTheme()
   const reducedMotion = usePrefersReducedMotion()
-  const isLight = theme === 'light'
   const isSteel = theme === 'steel'
-  const pageThemeClass = isLight ? 'login-page-light' : isSteel ? 'login-page-steel' : ''
+  const isAurora = theme === 'aurora'
+  const pageThemeClass = isSteel ? 'login-page-steel' : isAurora ? 'login-page-aurora' : ''
   const hostLabel = typeof window !== 'undefined' ? window.location.hostname : ''
   const oidcEnabled = providers.oidc.enabled
   const pamEnabled = providers.pam.enabled
@@ -171,7 +170,7 @@ export default function LoginPage() {
       {!reducedMotion && <div className="login-aurora" aria-hidden />}
       {!reducedMotion && <div className="login-scanline" aria-hidden />}
 
-      <ThemeSwitcher theme={theme} setTheme={setTheme} isLight={isLight} isSteel={isSteel} />
+      <ThemeSwitcher theme={theme} setTheme={setTheme} isSteel={isSteel} isAurora={isAurora} />
 
       <aside className="login-hero hidden lg:flex lg:w-[58%] flex-col justify-between p-10 xl:p-12 overflow-hidden relative">
         <div className="login-hero-mesh" aria-hidden />
@@ -290,7 +289,7 @@ export default function LoginPage() {
             <LanguageSwitcher />
           </div>
           <MobileBrand hostLabel={hostLabel} />
-          <DesktopHeading isLight={isLight} hostLabel={hostLabel} />
+          <DesktopHeading hostLabel={hostLabel} />
 
           <form
             onSubmit={(e) => {
@@ -322,7 +321,7 @@ export default function LoginPage() {
               </button>
             )}
 
-            {oidcEnabled && passwordLogin && <OidcDivider isLight={isLight} label="or sign in with password" />}
+            {oidcEnabled && passwordLogin && <OidcDivider label="or sign in with password" />}
 
             {ldapEnabled ? (
               <p className="text-xs text-slate-400 mb-4" role="status">
@@ -440,18 +439,18 @@ export default function LoginPage() {
 function ThemeSwitcher({
   theme,
   setTheme,
-  isLight,
   isSteel,
+  isAurora,
 }: {
   theme: string
-  setTheme: (t: 'dark' | 'steel' | 'light') => void
-  isLight: boolean
+  setTheme: (t: 'dark' | 'steel' | 'aurora') => void
   isSteel: boolean
+  isAurora: boolean
 }) {
-  const shell = isLight
-    ? 'border-slate-300/80 bg-white/90 shadow-lg shadow-slate-200/50'
-    : isSteel
-      ? 'border-[rgba(140,160,190,0.25)] bg-[#1a2230]/92 shadow-lg shadow-black/30'
+  const shell = isSteel
+    ? 'border-[rgba(140,160,190,0.25)] bg-[#1a2230]/92 shadow-lg shadow-black/30'
+    : isAurora
+      ? 'border-[rgba(167,139,250,0.3)] bg-[#0a0618]/92 shadow-lg shadow-violet-900/40'
       : 'border-slate-600/50 bg-slate-900/85 shadow-lg shadow-black/40'
 
   return (
@@ -461,7 +460,7 @@ function ThemeSwitcher({
           [
             { id: 'dark' as const, label: 'Dark', Icon: Moon },
             { id: 'steel' as const, label: 'Steel', Icon: Cloud },
-            { id: 'light' as const, label: 'Light', Icon: Sun },
+            { id: 'aurora' as const, label: 'Aurora', Icon: Sparkles },
           ] as const
         ).map(({ id, label, Icon }) => (
           <button
@@ -470,12 +469,10 @@ function ThemeSwitcher({
             onClick={() => setTheme(id)}
             className={`login-theme-btn rounded-lg border px-2 py-2 text-[10px] font-semibold uppercase tracking-wide flex flex-col items-center gap-1 transition ${
               theme === id
-                ? isLight
-                  ? 'border-blue-500 bg-blue-50 text-blue-800 ring-2 ring-blue-200/80'
+                ? isAurora && id === 'aurora'
+                  ? 'border-cyan-400/80 bg-cyan-500/15 text-cyan-100 ring-2 ring-violet-400/40'
                   : 'border-blue-500/80 bg-blue-500/20 text-blue-100 ring-2 ring-blue-400/30'
-                : isLight
-                  ? 'border-transparent text-slate-600 hover:bg-slate-100'
-                  : 'border-transparent text-slate-400 hover:bg-white/5'
+                : 'border-transparent text-slate-400 hover:bg-white/5'
             }`}
           >
             <Icon className="w-4 h-4" aria-hidden />
@@ -506,11 +503,11 @@ function MobileBrand({ hostLabel }: { hostLabel: string }) {
   )
 }
 
-function DesktopHeading({ isLight, hostLabel }: { isLight: boolean; hostLabel: string }) {
+function DesktopHeading({ hostLabel }: { hostLabel: string }) {
   return (
     <div className="hidden lg:block mb-8">
-      <h2 className={`text-2xl font-bold mb-1 ${isLight ? 'text-slate-800' : 'text-white'}`}>Welcome back</h2>
-      <p className={`text-sm ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+      <h2 className="text-2xl font-bold mb-1 text-white">Welcome back</h2>
+      <p className="text-sm text-slate-400">
         Sign in to libvirt, OpenStack, and automation
         {hostLabel ? (
           <>
@@ -536,11 +533,11 @@ function Field({ label, id, children }: { label: string; id: string; children: R
   )
 }
 
-function OidcDivider({ isLight, label = 'or' }: { isLight: boolean; label?: string }) {
+function OidcDivider({ label = 'or' }: { label?: string }) {
   return (
-    <div className={`relative py-3 mt-4 text-center text-xs uppercase tracking-[0.18em] ${isLight ? 'text-slate-400' : 'text-slate-500'}`}>
-      <span className={`relative px-2 ${isLight ? 'bg-white' : 'bg-slate-900/40'}`}>{label}</span>
-      <div className={`absolute inset-x-0 top-1/2 -translate-y-1/2 border-t ${isLight ? 'border-slate-200' : 'border-slate-700/60'}`} />
+    <div className="relative py-3 mt-4 text-center text-xs uppercase tracking-[0.18em] text-slate-500">
+      <span className="relative px-2 bg-slate-900/40">{label}</span>
+      <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 border-t border-slate-700/60" />
     </div>
   )
 }
