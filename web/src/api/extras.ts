@@ -1,4 +1,5 @@
 import { apiPost, apiPostVoid, apiDelete, readJsonArray, readJsonObject } from './client'
+import { parseResponseError } from './parseResponseError'
 import { VmTemplate } from './vm'
 
 const API = '/api/v1'
@@ -175,6 +176,18 @@ export const getAuditLog = (params?: GetAuditLogParams) => {
   if (params?.limit != null) sp.set('limit', String(params.limit))
   const qs = sp.toString()
   return readJsonArray<AuditEvent>(`${API}/audit${qs ? `?${qs}` : ''}`)
+}
+
+/** Download full audit log as NDJSON for SIEM (requires session cookie). */
+export async function exportAuditNdjson(): Promise<void> {
+  const res = await fetch(`${API}/audit/export`, { credentials: 'same-origin' })
+  if (!res.ok) throw await parseResponseError(res)
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `machina-audit-${new Date().toISOString().slice(0, 10)}.ndjson`
+  a.click()
+  URL.revokeObjectURL(a.href)
 }
 
 // Tags

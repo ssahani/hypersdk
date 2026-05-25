@@ -16,8 +16,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::Semaphore;
 
 use crate::auth::{
-    require_browse_host_paths, require_browser_session_for_host_insight, require_destroy_vm,
-    require_usb_pci, RequestActor,
+    require_api_scope, require_browse_host_paths, require_browser_session_for_host_insight,
+    require_destroy_vm, require_usb_pci, RequestActor,
 };
 use crate::error::AppError;
 
@@ -1014,6 +1014,18 @@ async fn get_audit_log(
     Ok(Json(serde_json::json!(events)))
 }
 
+async fn export_audit_log(
+    Extension(actor): Extension<RequestActor>,
+) -> Result<impl axum::response::IntoResponse, AppError> {
+    require_api_scope(&actor, "audit:read").map_err(AppError::from)?;
+    use axum::http::header;
+    let body = audit::export_audit_ndjson(100_000);
+    Ok((
+        [(header::CONTENT_TYPE, "application/x-ndjson")],
+        body,
+    ))
+}
+
 // ── Tags (all tags summary) ──────────────────────────────────────
 
 async fn get_all_tags_handler(
@@ -1242,6 +1254,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/live/memory/{mb}", post(live_memory_handler))
         // Audit
         .route("/audit", get(get_audit_log))
+        .route("/audit/export", get(export_audit_log))
         // Tags (per-VM tags are in vms.rs)
         .route("/tags", get(get_all_tags_handler))
         // PCI

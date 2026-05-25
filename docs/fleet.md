@@ -7,6 +7,8 @@ Machina can aggregate multiple hypervisor hosts from a single UI entry point.
 ```toml
 [fleet]
 enabled = true
+primary_peer = "hv2"
+standby_peer = "hv3"
 
 [[fleet.peers]]
 name = "hv2"

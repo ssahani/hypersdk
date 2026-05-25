@@ -15,6 +15,8 @@ export default function FleetPage() {
   const [peers, setPeers] = useState<FleetPeerStatus[]>([])
   const [vms, setVms] = useState<FleetVmRow[]>([])
   const [enabled, setEnabled] = useState(false)
+  const [primaryPeer, setPrimaryPeer] = useState('')
+  const [standbyPeer, setStandbyPeer] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -22,6 +24,8 @@ export default function FleetPage() {
     try {
       const [st, vmRows] = await Promise.all([getFleetStatus(), getFleetVms()])
       setEnabled(Boolean(st.enabled))
+      setPrimaryPeer(st.primary_peer ?? '')
+      setStandbyPeer(st.standby_peer ?? '')
       setPeers(st.peers ?? [])
       setVms(vmRows.vms ?? [])
     } catch (e: unknown) {
@@ -76,7 +80,12 @@ export default function FleetPage() {
 
       {!enabled ? (
         <p className="text-slate-400 text-sm">{t('fleet.disabledHint')}</p>
-      ) : null}
+      ) : (
+        <p className="text-slate-400 text-sm">
+          {primaryPeer ? t('fleet.primaryPeer', { name: primaryPeer }) : null}
+          {standbyPeer ? ` · ${t('fleet.standbyPeer', { name: standbyPeer })}` : null}
+        </p>
+      )}
 
       <section aria-labelledby="fleet-peers-heading">
         <h2 id="fleet-peers-heading" className="text-lg font-semibold mb-3">

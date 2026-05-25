@@ -8,7 +8,9 @@ use axum::routing::{delete, get, post};
 use axum::{Extension, Json, Router};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
-use machina_core::libvirt::automation::{get_user_role, load_roles, Role};
+use machina_core::libvirt::automation::{
+    effective_token_scopes, get_user_role, load_roles, token_allows, Role,
+};
 use machina_core::{AuthConfig, LibvirtError, LibvirtManager, OidcConfig, OidcDefaultRole};
 use rand::Rng;
 use serde::Deserialize;
@@ -32,6 +34,22 @@ pub struct RequestActor {
     pub role: Role,
     /// Where the request identity came from.
     pub auth_source: AuthSource,
+    /// API token scopes (empty for browser/OIDC sessions).
+    pub token_scopes: Vec<String>,
+}
+
+/// Enforce scope for bearer-token requests (`vms:write`, `fleet:proxy`, `*`, etc.).
+pub fn require_api_scope(actor: &RequestActor, scope: &str) -> Result<(), LibvirtError> {
+    if !actor.from_api_token {
+        return Ok(());
+    }
+    if token_allows(&actor.token_scopes, scope) {
+        Ok(())
+    } else {
+        Err(LibvirtError::Forbidden(format!(
+            "API token lacks required scope '{scope}'"
+        )))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -293,6 +311,7 @@ fn browser_actor(
         from_api_token: false,
         role,
         auth_source,
+        token_scopes: Vec::new(),
     }
 }
 
@@ -545,12 +564,14 @@ pub async fn auth_middleware(
     {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
             if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
+                let scopes = effective_token_scopes(&api);
                 req.extensions_mut().insert(RequestActor {
                     username: api.username,
                     effective_linux_user: None,
                     from_api_token: true,
                     role: api.role,
                     auth_source: AuthSource::ApiToken,
+                    token_scopes: scopes,
                 });
                 return next.run(req).await;
             }
@@ -665,12 +686,15 @@ async fn login_handler(
     let cfg = &auth.0;
     if cfg.ldap.is_enabled() {
         match crate::ldap_auth::ldap_authenticate(&cfg.ldap, &req.username, &req.password) {
-            Ok(session_user) => {
-                info!("LDAP login successful for user '{}'", session_user);
+            Ok(ldap) => {
+                info!(
+                    "LDAP login successful for user '{}' (role {:?})",
+                    ldap.username, ldap.role
+                );
                 let token = store.create_session(browser_actor(
-                    session_user.clone(),
-                    Some(session_user.clone()),
-                    get_user_role(&session_user),
+                    ldap.username.clone(),
+                    Some(ldap.username.clone()),
+                    ldap.role,
                     AuthSource::Ldap,
                 ));
                 let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
@@ -679,7 +703,8 @@ async fn login_handler(
                     [(header::SET_COOKIE, cookie)],
                     Json(serde_json::json!({
                         "status": "ok",
-                        "username": session_user,
+                        "username": ldap.username,
+                        "role": ldap.role,
                         "auth_source": "ldap"
                     })),
                 )

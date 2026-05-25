@@ -110,6 +110,54 @@ pub struct ApiToken {
     pub username: String,
     pub role: Role,
     pub created: String,
+    /// Fine-grained scopes; empty = defaults from role (see `default_scopes_for_role`).
+    #[serde(default)]
+    pub scopes: Vec<String>,
+}
+
+/// Default API token scopes when `scopes` is empty on the token.
+pub fn default_scopes_for_role(role: &Role) -> Vec<String> {
+    match role {
+        Role::Admin => vec!["*".to_string()],
+        Role::Operator => vec![
+            "vms:read".into(),
+            "vms:write".into(),
+            "networks:read".into(),
+            "storage:read".into(),
+            "fleet:proxy".into(),
+        ],
+        Role::ReadOnly => vec![
+            "vms:read".into(),
+            "networks:read".into(),
+            "storage:read".into(),
+            "audit:read".into(),
+        ],
+    }
+}
+
+pub fn effective_token_scopes(token: &ApiToken) -> Vec<String> {
+    if token.scopes.is_empty() {
+        default_scopes_for_role(&token.role)
+    } else {
+        token.scopes.clone()
+    }
+}
+
+/// `required` may be `vms:write` or `*` (admin).
+pub fn token_allows(scopes: &[String], required: &str) -> bool {
+    if scopes.iter().any(|s| s == "*") {
+        return true;
+    }
+    if scopes.iter().any(|s| s == required) {
+        return true;
+    }
+    if let Some((prefix, _)) = required.split_once(':') {
+        let wild = format!("{prefix}:*");
+        if scopes.iter().any(|s| s == &wild) {
+            return true;
+        }
+    }
+    false
 }
 
 type TokenMap = HashMap<String, ApiToken>; // token -> ApiToken
@@ -135,6 +183,15 @@ fn save_tokens(tokens: &TokenMap) -> Result<(), LibvirtError> {
 }
 
 pub fn create_api_token(name: &str, username: &str, role: Role) -> Result<ApiToken, LibvirtError> {
+    create_api_token_scoped(name, username, role, Vec::new())
+}
+
+pub fn create_api_token_scoped(
+    name: &str,
+    username: &str,
+    role: Role,
+    scopes: Vec<String>,
+) -> Result<ApiToken, LibvirtError> {
     with_json_lock(|| {
         use rand::Rng;
         let mut rng = rand::thread_rng();
@@ -147,6 +204,7 @@ pub fn create_api_token(name: &str, username: &str, role: Role) -> Result<ApiTok
             username: username.to_string(),
             role,
             created: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+            scopes,
         };
 
         let mut tokens = load_tokens();
@@ -167,6 +225,22 @@ pub fn delete_api_token(token: &str) -> Result<(), LibvirtError> {
         tokens.remove(token);
         save_tokens(&tokens)
     })
+}
+
+#[cfg(test)]
+mod token_scope_tests {
+    use super::*;
+
+    #[test]
+    fn wildcard_allows_write() {
+        assert!(token_allows(&["*".into()], "vms:write"));
+    }
+
+    #[test]
+    fn prefix_wildcard() {
+        assert!(token_allows(&["vms:*".into()], "vms:write"));
+        assert!(!token_allows(&["vms:read".into()], "vms:write"));
+    }
 }
 
 pub fn list_api_tokens() -> Vec<ApiToken> {

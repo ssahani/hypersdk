@@ -28,7 +28,9 @@
     "start": "Iniciar en peer",
     "stop": "Apagar forzado en peer",
     "shutdown": "Apagar en peer",
-    "actionOk": "{{action}} enviado a {{vm}} en {{peer}}"
+    "actionOk": "{{action}} enviado a {{vm}} en {{peer}}",
+    "primaryPeer": "Peer principal: {{name}}",
+    "standbyPeer": "Reserva: {{name}}"
   },
   "rdp": {
     "builtin": "RDP",
@@ -44,6 +46,12 @@
     "missingVm": "Se requiere el nombre de la MV"
   },
   "nav": {
-    "fleet": "Flota"
+    "fleet": "Flota",
+    "dashboard": "Panel",
+    "vms": "Máquinas virtuales",
+    "audit": "Registro de auditoría"
+  },
+  "audit": {
+    "exportNdjson": "Exportar NDJSON (SIEM)"
   }
 }

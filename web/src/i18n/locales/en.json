@@ -28,7 +28,9 @@
     "start": "Start on peer",
     "stop": "Force stop on peer",
     "shutdown": "Shutdown on peer",
-    "actionOk": "{{action}} sent to {{vm}} on {{peer}}"
+    "actionOk": "{{action}} sent to {{vm}} on {{peer}}",
+    "primaryPeer": "Primary peer: {{name}}",
+    "standbyPeer": "Standby: {{name}}"
   },
   "rdp": {
     "builtin": "RDP",
@@ -44,6 +46,12 @@
     "missingVm": "VM name required"
   },
   "nav": {
-    "fleet": "Fleet"
+    "fleet": "Fleet",
+    "dashboard": "Dashboard",
+    "vms": "Virtual Machines",
+    "audit": "Audit Log"
+  },
+  "audit": {
+    "exportNdjson": "Export NDJSON (SIEM)"
   }
 }

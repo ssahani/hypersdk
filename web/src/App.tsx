@@ -171,7 +171,7 @@ function AuthenticatedShell() {
               onCloseHelp={closeHelp}
               onHelpTabChange={setHelpTab}
             />
-            <main className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`}>
+            <main id="main-content" className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}`} role="main">
               <Breadcrumb />
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>

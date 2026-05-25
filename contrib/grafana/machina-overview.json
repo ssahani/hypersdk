@@ -1,0 +1,19 @@
+{
+  "title": "Machina overview",
+  "uid": "machina-overview",
+  "panels": [
+    {
+      "title": "Daemon up",
+      "type": "stat",
+      "targets": [{ "expr": "up{job=\"machina\"}", "legendFormat": "up" }]
+    },
+    {
+      "title": "Libvirt domains",
+      "type": "graph",
+      "targets": [{ "expr": "machina_vms_total", "legendFormat": "vms" }]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "description": "Import and wire machina_* metrics from your Prometheus scrape config."
+}

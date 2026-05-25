@@ -70,3 +70,14 @@ pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {
         .rev()
         .collect()
 }
+
+/// Full audit log as newline-delimited JSON (SIEM / archival export).
+pub fn export_audit_ndjson(max: usize) -> String {
+    let events = load_audit_events(max);
+    events
+        .into_iter()
+        .filter_map(|e| serde_json::to_string(&e).ok())
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}

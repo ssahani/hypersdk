@@ -25,9 +25,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Install libvirt clients
         run: sudo apt-get update && sudo apt-get install -y libvirt-clients qemu-utils
-      - run: chmod +x scripts/ci-libvirt-smoke.sh
+      - run: chmod +x scripts/ci-libvirt-smoke.sh scripts/ci-kvm-lifecycle.sh
       - run: ./scripts/ci-libvirt-smoke.sh
-      - run: cargo test -p machina-core config::
+      - run: ./scripts/ci-kvm-lifecycle.sh
+      - run: cargo test -p machina-core
 
   web:
     runs-on: ubuntu-latest

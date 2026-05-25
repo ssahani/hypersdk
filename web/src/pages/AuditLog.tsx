@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
-import { getAuditLog, AuditEvent } from '../api/extras'
+import { getAuditLog, exportAuditNdjson, AuditEvent } from '../api/extras'
+import { useTranslation } from 'react-i18next'
 import { useToastContext } from '../contexts/ToastContext'
 import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
@@ -14,6 +15,7 @@ export default function AuditLogPage() {
   const [actorInp, setActorInp] = useState('')
   const [qInp, setQInp] = useState('')
   const toast = useToastContext()
+  const { t } = useTranslation()
 
   const fetchLog = useCallback(async () => {
     try {
@@ -56,6 +58,9 @@ export default function AuditLogPage() {
           </button>
           <button type="button" onClick={() => downloadJSON(events, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON"><Download className="w-4 h-4" /></button>
           <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
+          <button type="button" onClick={() => void exportAuditNdjson()} className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200" title={t('audit.exportNdjson')}>
+            {t('audit.exportNdjson')}
+          </button>
         </div>
       </div>
 

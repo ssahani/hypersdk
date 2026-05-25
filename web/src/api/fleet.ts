@@ -19,7 +19,12 @@ export interface FleetVmRow {
 }
 
 export function getFleetStatus() {
-  return readJsonObject<{ enabled: boolean; peers: FleetPeerStatus[] }>(`${API}/fleet/status`)
+  return readJsonObject<{
+    enabled: boolean
+    peers: FleetPeerStatus[]
+    primary_peer?: string
+    standby_peer?: string
+  }>(`${API}/fleet/status`)
 }
 
 export function getFleetVms() {

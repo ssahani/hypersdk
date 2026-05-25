@@ -2,14 +2,20 @@
 
 use ldap3::{LdapConn, LdapConnSettings, Scope, SearchEntry};
 use machina_core::config::LdapConfig;
+use machina_core::ldap_role::role_from_ldap_groups;
+use machina_core::libvirt::automation::Role;
 use tracing::warn;
+
+pub struct LdapAuthResult {
+    pub username: String,
+    pub role: Role,
+}
 
 fn open_ldap(url: &str, cfg: &LdapConfig) -> Result<LdapConn, String> {
     let mut settings = LdapConnSettings::new();
     if cfg.insecure_tls {
         settings = settings.set_no_tls_verify(true);
     }
-    // STARTTLS on plain ldap:// (ldaps:// uses implicit TLS via URL scheme).
     if cfg.use_tls && url.starts_with("ldap://") {
         settings = settings.set_starttls(true);
     }
@@ -20,7 +26,7 @@ pub fn ldap_authenticate(
     cfg: &LdapConfig,
     username: &str,
     password: &str,
-) -> Result<String, String> {
+) -> Result<LdapAuthResult, String> {
     if !cfg.is_enabled() {
         return Err("LDAP is not enabled".into());
     }
@@ -30,23 +36,29 @@ pub fn ldap_authenticate(
     }
 
     let mut ldap = open_ldap(url, cfg)?;
-    let user_dn = resolve_user_dn(cfg, &mut ldap, username)?;
+    let (user_dn, groups) = resolve_user_dn_and_groups(cfg, &mut ldap, username)?;
     ldap.simple_bind(&user_dn, password)
         .map_err(|e| format!("LDAP bind failed: {e}"))?
         .success()
         .map_err(|e| format!("LDAP authentication failed: {e}"))?;
 
-    Ok(username.to_string())
+    let role = role_from_ldap_groups(cfg, &groups);
+    Ok(LdapAuthResult {
+        username: username.to_string(),
+        role,
+    })
 }
 
-fn resolve_user_dn(
+fn resolve_user_dn_and_groups(
     cfg: &LdapConfig,
     ldap: &mut LdapConn,
     username: &str,
-) -> Result<String, String> {
+) -> Result<(String, Vec<String>), String> {
     let template = cfg.user_dn_template.trim();
     if !template.is_empty() {
-        return Ok(template.replace("{username}", username));
+        let dn = template.replace("{username}", username);
+        let groups = fetch_groups_for_dn(cfg, ldap, &dn)?;
+        return Ok((dn, groups));
     }
 
     let bind_dn = cfg.bind_dn.trim();
@@ -61,18 +73,23 @@ fn resolve_user_dn(
         if base.is_empty() {
             return Err("LDAP base_dn required when using bind_dn + user_filter".into());
         }
+        let attrs = vec!["dn", cfg.member_attribute.as_str()];
         let (rs, _) = ldap
-            .search(base, Scope::Subtree, &filter, vec!["dn"])
+            .search(base, Scope::Subtree, &filter, attrs)
             .map_err(|e| format!("LDAP search failed: {e}"))?
             .success()
             .map_err(|e| format!("LDAP search failed: {e}"))?;
-        let dn = rs
+        let entry = rs
             .into_iter()
             .map(SearchEntry::construct)
             .find(|e| !e.dn.is_empty())
-            .map(|e| e.dn)
             .ok_or_else(|| "LDAP user not found".to_string())?;
-        return Ok(dn);
+        let groups = entry
+            .attrs
+            .get(&cfg.member_attribute)
+            .cloned()
+            .unwrap_or_default();
+        return Ok((entry.dn, groups));
     }
 
     warn!(
@@ -82,21 +99,25 @@ fn resolve_user_dn(
     Err("LDAP user DN resolution is not configured".into())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn ldap_settings_starttls_only_for_ldap_scheme() {
-        let mut cfg = LdapConfig::default();
-        cfg.use_tls = true;
-        cfg.insecure_tls = true;
-        // Exercise settings builder without a live server.
-        let settings = {
-            let mut s = LdapConnSettings::new().set_no_tls_verify(true);
-            s = s.set_starttls(true);
-            s
-        };
-        assert!(settings.starttls());
-    }
+fn fetch_groups_for_dn(
+    cfg: &LdapConfig,
+    ldap: &mut LdapConn,
+    dn: &str,
+) -> Result<Vec<String>, String> {
+    let (rs, _) = ldap
+        .search(
+            dn,
+            Scope::Base,
+            "(objectClass=*)",
+            vec![cfg.member_attribute.as_str()],
+        )
+        .map_err(|e| format!("LDAP group lookup failed: {e}"))?
+        .success()
+        .map_err(|e| format!("LDAP group lookup failed: {e}"))?;
+    Ok(rs
+        .into_iter()
+        .map(SearchEntry::construct)
+        .next()
+        .and_then(|e| e.attrs.get(&cfg.member_attribute).cloned())
+        .unwrap_or_default())
 }

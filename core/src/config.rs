@@ -463,6 +463,20 @@ pub struct LdapConfig {
     pub use_tls: bool,
     #[serde(default)]
     pub insecure_tls: bool,
+    /// LDAP attribute for group membership (e.g. `memberOf` on AD).
+    #[serde(default = "default_ldap_member_attribute")]
+    pub member_attribute: String,
+    /// If any group DN/name contains one of these substrings → admin role.
+    #[serde(default)]
+    pub admin_group_substrings: Vec<String>,
+    #[serde(default)]
+    pub operator_group_substrings: Vec<String>,
+    #[serde(default)]
+    pub readonly_group_substrings: Vec<String>,
+}
+
+fn default_ldap_member_attribute() -> String {
+    "memberOf".to_string()
 }
 
 fn default_ldap_user_filter() -> String {
@@ -486,6 +500,10 @@ impl Default for LdapConfig {
             username_attribute: default_ldap_username_attr(),
             use_tls: false,
             insecure_tls: false,
+            member_attribute: default_ldap_member_attribute(),
+            admin_group_substrings: Vec::new(),
+            operator_group_substrings: Vec::new(),
+            readonly_group_substrings: Vec::new(),
         }
     }
 }
@@ -513,6 +531,12 @@ pub struct FleetPeer {
 pub struct FleetConfig {
     #[serde(default)]
     pub enabled: bool,
+    /// Name of peer treated as standby/secondary in UI (optional).
+    #[serde(default)]
+    pub standby_peer: String,
+    /// Preferred peer for proxied lifecycle when set and reachable.
+    #[serde(default)]
+    pub primary_peer: String,
     #[serde(default)]
     pub peers: Vec<FleetPeer>,
 }
@@ -521,6 +545,8 @@ impl Default for FleetConfig {
     fn default() -> Self {
         Self {
             enabled: false,
+            standby_peer: String::new(),
+            primary_peer: String::new(),
             peers: Vec::new(),
         }
     }
@@ -727,6 +753,9 @@ impl Default for SshTerminalConfig {
 pub struct GeneralConfig {
     #[serde(default = "default_refresh_interval")]
     pub refresh_interval_secs: u64,
+    /// Optional VM tag prefix for multi-project hosts (e.g. `project:` → tags like `project:team-a`).
+    #[serde(default)]
+    pub default_project_tag: String,
 }
 
 /// HTTP listen port when `[daemon]` has no `port = …` (matches install template & CLI overrides).
@@ -864,6 +893,7 @@ impl Default for GeneralConfig {
     fn default() -> Self {
         Self {
             refresh_interval_secs: default_refresh_interval(),
+            default_project_tag: String::new(),
         }
     }
 }

@@ -11,7 +11,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use tracing::warn;
 
-use crate::auth::RequestActor;
+use crate::auth::{require_api_scope, RequestActor};
 use crate::error::AppError;
 
 #[derive(serde::Serialize)]
@@ -70,7 +70,12 @@ async fn fetch_peer_json(
 async fn fleet_status() -> Json<Value> {
     let cfg = fleet_cfg();
     if !cfg.is_enabled() {
-        return Json(json!({ "enabled": false, "peers": [] }));
+        return Json(json!({
+            "enabled": false,
+            "peers": [],
+            "primary_peer": cfg.primary_peer,
+            "standby_peer": cfg.standby_peer,
+        }));
     }
     let mut peers = Vec::new();
     for p in &cfg.peers {
@@ -100,7 +105,12 @@ async fn fleet_status() -> Json<Value> {
         }
         peers.push(row);
     }
-    Json(json!({ "enabled": true, "peers": peers }))
+    Json(json!({
+        "enabled": true,
+        "primary_peer": cfg.primary_peer,
+        "standby_peer": cfg.standby_peer,
+        "peers": peers
+    }))
 }
 
 async fn fleet_vms(
@@ -157,6 +167,7 @@ async fn fleet_proxy_action(
     Path(peer_name): Path<String>,
     Json(req): Json<FleetProxyBody>,
 ) -> Result<Json<Value>, AppError> {
+    require_api_scope(&actor, "fleet:proxy").map_err(AppError::from)?;
     if actor.role == machina_core::libvirt::automation::Role::ReadOnly {
         return Err(AppError::from(machina_core::LibvirtError::Forbidden(
             "Read-only role cannot proxy fleet actions".into(),

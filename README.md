@@ -79,12 +79,19 @@ machina/   # git checkout directory name
 
 ### Authentication & Security
 - **PAM authentication** — login with system credentials, persistent cookie sessions
+- **LDAP / Active Directory** — optional bind + `memberOf` group → role mapping ([docs/ldap-auth.md](docs/ldap-auth.md))
 - **RBAC** — role-based access control with admin, operator, and readonly roles
-- **API tokens** — Bearer token authentication for automation and scripting
+- **API tokens** — Bearer token authentication with optional **scopes** (`vms:write`, `fleet:proxy`, `audit:read`, `*`)
 - **WebSocket token authentication** — short-lived token-based auth for all console/VNC/SSH WebSocket connections
 - **Session TTL with max session limits** — 24-hour session expiry, max 1000 total sessions, max 10 sessions per user
 - **HTTPS by default** — packaged install enables `[tls]` with self-signed certs (`install.sh` generates `/etc/machina/ssl/`); replace with your CA as needed
 - **Same-origin only** — no CORS (prevents cross-site attacks)
+
+### Fleet, RDP, and packaging
+- **Fleet** — multi-host peer list, merged VM inventory, API proxy ([docs/fleet.md](docs/fleet.md), [docs/fleet-ha.md](docs/fleet-ha.md))
+- **Built-in RDP** — guest endpoint discovery, `.rdp` download, WebSocket TCP proxy ([docs/builtin-rdp.md](docs/builtin-rdp.md))
+- **Customer tarball** — `scripts/package-binary-remote.sh --from-deploy --fetch` ([docs/PACKAGE_BINARY_REMOTE.md](docs/PACKAGE_BINARY_REMOTE.md))
+- **Operator runbook** — [docs/runbook.md](docs/runbook.md) · **Hardening** — [docs/compliance-hardening.md](docs/compliance-hardening.md)
 
 ### Web UI (https://localhost:5092)
 - **Premium login page** — split-screen layout with animated gradient background, floating orbs, feature showcase cards, glassmorphism form
