@@ -4,10 +4,12 @@ import { useToastContext } from '../contexts/ToastContext'
 import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { formatUserError } from '../utils/apiError'
+import ErrorBanner from '../components/ErrorBanner'
 
 export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [actionInp, setActionInp] = useState('')
   const [actorInp, setActorInp] = useState('')
   const [qInp, setQInp] = useState('')
@@ -16,6 +18,7 @@ export default function AuditLogPage() {
   const fetchLog = useCallback(async () => {
     try {
       setLoading(true)
+      setLoadError(null)
       setEvents(
         await getAuditLog({
           action: actionInp.trim() || undefined,
@@ -25,7 +28,9 @@ export default function AuditLogPage() {
         }),
       )
     } catch (e: unknown) {
-      toast.error(`Failed to load audit log: ${formatUserError(e)}`)
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      toast.error(`Failed to load audit log: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -53,6 +58,10 @@ export default function AuditLogPage() {
           <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
         </div>
       </div>
+
+      {loadError && (
+        <ErrorBanner title="Could not load audit log" headline={loadError} onRetry={() => void fetchLog()} />
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="relative">

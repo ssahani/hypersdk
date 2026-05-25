@@ -1,3 +1,6 @@
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 import { useEffect, useState, useCallback } from 'react'
 import { listServices, serviceAction, SystemdService } from '../api/extras'
 import { Search, RefreshCw, Play, Square, RotateCcw, ToggleLeft, ToggleRight } from 'lucide-react'
@@ -5,15 +8,17 @@ import { Search, RefreshCw, Play, Square, RotateCcw, ToggleLeft, ToggleRight } f
 export default function ServicesPage() {
   const [services, setServices] = useState<SystemdService[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [filter, setFilter] = useState('')
   const [acting, setActing] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
+      setLoadError(null)
       const data = await listServices()
       setServices(data)
-    } catch (e) {
-      console.error('Failed to load services:', e)
+    } catch (e: unknown) {
+      setLoadError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -55,6 +60,15 @@ export default function ServicesPage() {
           <RefreshCw className="w-4 h-4" />
         </button>
       </div>
+
+      {loadError && (
+        <ErrorBanner
+          title="Could not load systemd services"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          onRetry={load}
+        />
+      )}
 
       {/* Search */}
       <div className="relative">

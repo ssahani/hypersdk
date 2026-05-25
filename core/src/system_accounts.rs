@@ -5,7 +5,46 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
+use crate::config::RunAsUserConfig;
+use crate::run_as_user;
 use crate::LibvirtError;
+
+fn command(
+    exec_as: Option<(&RunAsUserConfig, &str)>,
+    program: &str,
+    args: &[&str],
+) -> Result<Command, LibvirtError> {
+    match exec_as {
+        Some((cfg, user)) => run_as_user::command_as_user(cfg, user, program, args),
+        None => {
+            let mut c = Command::new(program);
+            c.args(args);
+            Ok(c)
+        }
+    }
+}
+
+fn status(
+    exec_as: Option<(&RunAsUserConfig, &str)>,
+    program: &str,
+    args: &[&str],
+) -> Result<std::process::ExitStatus, LibvirtError> {
+    match exec_as {
+        Some((cfg, user)) => run_as_user::status_as_user(cfg, Some(user), program, args),
+        None => run_as_user::status_as_user(&RunAsUserConfig::default(), None, program, args),
+    }
+}
+
+fn output(
+    exec_as: Option<(&RunAsUserConfig, &str)>,
+    program: &str,
+    args: &[&str],
+) -> Result<std::process::Output, LibvirtError> {
+    match exec_as {
+        Some((cfg, user)) => run_as_user::output_as_user(cfg, Some(user), program, args),
+        None => run_as_user::output_as_user(&RunAsUserConfig::default(), None, program, args),
+    }
+}
 
 /// Groups that conventionally grant `sudo` on common distros (membership checked via NSS).
 const PRIVILEGED_GROUPS: &[&str] = &["wheel", "sudo", "admin"];
@@ -201,6 +240,7 @@ pub fn create_local_user(
     new_username: &str,
     password: &str,
     add_to_libvirt_group: bool,
+    exec_as: Option<(&RunAsUserConfig, &str)>,
 ) -> Result<LocalUserCreateOutcome, LibvirtError> {
     validate_login_username(new_username)?;
     if new_username.eq_ignore_ascii_case("root") {
@@ -225,9 +265,7 @@ pub fn create_local_user(
         )));
     }
 
-    let exists = Command::new("id")
-        .arg(new_username)
-        .status()
+    let exists = status(exec_as, "id", &[new_username])
         .map_err(|e| LibvirtError::Operation(format!("id: {e}")))?;
     if exists.success() {
         return Err(LibvirtError::Invalid(format!(
@@ -257,19 +295,19 @@ pub fn create_local_user(
             libvirt_attached = true;
         }
         args.push(new_username.to_string());
-        let st = Command::new("homectl")
-            .args(args.iter().map(String::as_str))
-            .status()
-            .map_err(|e| LibvirtError::Operation(format!("homectl: {e}")))?;
+        let st = status(
+            exec_as,
+            "homectl",
+            &args.iter().map(String::as_str).collect::<Vec<_>>(),
+        )
+        .map_err(|e| LibvirtError::Operation(format!("homectl: {e}")))?;
         if !st.success() {
             return Err(LibvirtError::Operation(
                 "homectl create failed (see journal for details)".into(),
             ));
         }
     } else {
-        let st = Command::new("useradd")
-            .args(["-m", "-s", "/bin/bash", "--", new_username])
-            .status()
+        let st = status(exec_as, "useradd", &["-m", "-s", "/bin/bash", "--", new_username])
             .map_err(|e| LibvirtError::Operation(format!("useradd: {e}")))?;
         if !st.success() {
             return Err(LibvirtError::Operation(
@@ -277,9 +315,7 @@ pub fn create_local_user(
             ));
         }
         if let Some(g) = sudo_supplementary_group() {
-            let um = Command::new("usermod")
-                .args(["-aG", g, "--", new_username])
-                .output()
+            let um = output(exec_as, "usermod", &["-aG", g, "--", new_username])
                 .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
             if !um.status.success() {
                 let err = String::from_utf8_lossy(&um.stderr);
@@ -290,10 +326,12 @@ pub fn create_local_user(
             }
         }
         if add_to_libvirt_group {
-            let um = Command::new("usermod")
-                .args(["-aG", LIBVIRT_UNIX_GROUP, "--", new_username])
-                .output()
-                .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
+            let um = output(
+                exec_as,
+                "usermod",
+                &["-aG", LIBVIRT_UNIX_GROUP, "--", new_username],
+            )
+            .map_err(|e| LibvirtError::Operation(format!("usermod: {e}")))?;
             if !um.status.success() {
                 let err = String::from_utf8_lossy(&um.stderr);
                 return Err(LibvirtError::Operation(format!(
@@ -306,7 +344,7 @@ pub fn create_local_user(
         }
     }
 
-    let mut child = Command::new("chpasswd")
+    let mut child = command(exec_as, "chpasswd", &[])?
         .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::piped())
@@ -340,15 +378,16 @@ pub fn create_local_user(
 
 /// Remove a local user and home directory. Uses `homectl remove` when the account is managed by
 /// `systemd-homed` (`homectl inspect` succeeds); otherwise `userdel -r`.
-pub fn delete_local_user(username: &str) -> Result<(), LibvirtError> {
+pub fn delete_local_user(
+    username: &str,
+    exec_as: Option<(&RunAsUserConfig, &str)>,
+) -> Result<(), LibvirtError> {
     validate_login_username(username)?;
     if username.eq_ignore_ascii_case("root") {
         return Err(LibvirtError::Invalid("Cannot delete root".into()));
     }
 
-    let exists = Command::new("id")
-        .arg(username)
-        .status()
+    let exists = status(exec_as, "id", &[username])
         .map_err(|e| LibvirtError::Operation(format!("id: {e}")))?;
     if !exists.success() {
         return Err(LibvirtError::NotFound(format!(
@@ -357,9 +396,7 @@ pub fn delete_local_user(username: &str) -> Result<(), LibvirtError> {
     }
 
     if is_homed_managed_user(username) {
-        let st = Command::new("homectl")
-            .args(["remove", username])
-            .status()
+        let st = status(exec_as, "homectl", &["remove", username])
             .map_err(|e| LibvirtError::Operation(format!("homectl: {e}")))?;
         if !st.success() {
             return Err(LibvirtError::Operation(
@@ -367,9 +404,7 @@ pub fn delete_local_user(username: &str) -> Result<(), LibvirtError> {
             ));
         }
     } else {
-        let st = Command::new("userdel")
-            .args(["-r", "--", username])
-            .status()
+        let st = status(exec_as, "userdel", &["-r", "--", username])
             .map_err(|e| LibvirtError::Operation(format!("userdel: {e}")))?;
         if !st.success() {
             return Err(LibvirtError::Operation(

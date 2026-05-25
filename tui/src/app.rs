@@ -687,26 +687,55 @@ impl App {
             return;
         }
         self.state.status_message = "Loading OpenStack catalogs…".to_string();
-        let (flavors, networks, images, keypairs) = tokio::join!(
+        let (flavors_r, networks_r, images_r, keypairs_r) = tokio::join!(
             self.client.openstack_list_flavors(),
             self.client.openstack_list_networks(),
             self.client.openstack_list_images(),
             self.client.openstack_list_keypairs(),
         );
-        let flavors = match flavors {
+        let mut catalog_errors: Vec<String> = Vec::new();
+        let flavors = match flavors_r {
             Ok(f) => f,
             Err(e) => {
-                self.state.status_message = status_err("openstack flavors", &e);
-                return;
+                catalog_errors.push(status_err("flavors", &e));
+                Vec::new()
             }
         };
-        if flavors.is_empty() {
+        if flavors.is_empty() && catalog_errors.is_empty() {
             self.state.status_message = "No Nova flavors available".to_string();
             return;
         }
-        let networks = networks.unwrap_or_default();
-        let images = images.unwrap_or_default();
-        let keypairs = keypairs.unwrap_or_default();
+        if flavors.is_empty() && !catalog_errors.is_empty() {
+            self.state.status_message = catalog_errors.join("; ");
+            return;
+        }
+        let networks = match networks_r {
+            Ok(n) => n,
+            Err(e) => {
+                catalog_errors.push(status_err("networks", &e));
+                Vec::new()
+            }
+        };
+        let images = match images_r {
+            Ok(i) => i,
+            Err(e) => {
+                catalog_errors.push(status_err("images", &e));
+                Vec::new()
+            }
+        };
+        let keypairs = match keypairs_r {
+            Ok(k) => k,
+            Err(e) => {
+                catalog_errors.push(status_err("keypairs", &e));
+                Vec::new()
+            }
+        };
+        if !catalog_errors.is_empty() {
+            self.state.status_message = format!(
+                "Catalog warnings: {} — wizard continues with partial data",
+                catalog_errors.join("; ")
+            );
+        }
         self.state.openstack_images = images.clone();
         self.state.openstack_create_wizard = Some(OpenStackCreateWizard {
             step: OpenStackCreateStep::Name,

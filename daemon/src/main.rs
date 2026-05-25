@@ -100,11 +100,20 @@ async fn main() -> anyhow::Result<()> {
         );
     }
     if config.auth.run_as_user.wants_impersonation() {
-        tracing::warn!(
-            "auth.run_as_user is enabled (mode={:?}) but UNIX impersonation is not implemented yet; \
-             effective_linux_user remains policy-only — see docs/oidc-run-as-user.md",
-            config.auth.run_as_user.mode
-        );
+        use machina_core::config::RunAsUserMode;
+        match config.auth.run_as_user.mode {
+            RunAsUserMode::Sudo => {
+                info!(
+                    "auth.run_as_user sudo mode: OS user create/delete runs as effective_linux_user via sudo -n"
+                );
+            }
+            m => {
+                tracing::warn!(
+                    "auth.run_as_user mode {:?} is not implemented; use mode = \"sudo\" or see docs/oidc-run-as-user.md",
+                    m
+                );
+            }
+        }
     }
 
     inventory_history::spawn_inventory_history_worker(manager.clone(), config.inventory_history.clone());

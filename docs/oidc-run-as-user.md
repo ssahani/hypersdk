@@ -9,8 +9,19 @@ This document describes the planned **execution** model and the config scaffold 
 ```toml
 [auth.run_as_user]
 enabled = false
-mode = "disabled"   # disabled | polkit | setuid_helper
+mode = "disabled"   # disabled | sudo | polkit | setuid_helper
 ```
+
+### `sudo` mode (implemented)
+
+When `enabled = true` and `mode = "sudo"`, OS user create/delete (`POST/DELETE /api/v1/system/os-users`) runs as:
+
+`sudo -n -u <effective_linux_user> -- <useradd|userdel|homectl|…>`
+
+Requirements on the host:
+
+- Passwordless sudo for the mapped user for allow-listed programs (`useradd`, `userdel`, `usermod`, `homectl`, `chpasswd`, `id`, `getent`)
+- Caller session must map to a local user in `wheel`/`sudo`/`admin` (existing policy)
 
 | Field | Meaning |
 |-------|---------|

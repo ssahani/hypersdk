@@ -36,6 +36,7 @@ import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import ErrorBanner from '../components/ErrorBanner'
+import GuacamoleConsoleLink from '../components/GuacamoleConsoleLink'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import { triggerBackup } from '../api/backup'
 import { listUsbDevices, attachUsb, detachUsb, listIsos, UsbDevice, ImageFile, liveSetVcpus, liveSetMemory, getVmTags, setVmTags as apiSetVmTags, listPciDevices, PciDevice, saveVmAsTemplate, listIommuGroups, IommuGroup } from '../api/extras'
@@ -1083,6 +1084,7 @@ export default function VMDetailsPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-end">
           <Link to={vmConsoleRoute(vm.name, conn)} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1"><Terminal className="w-4 h-4" /> Console</Link>
+          <GuacamoleConsoleLink vmName={vm.name} connection={conn} />
           <button
             type="button"
             title="virt-xml --convert-to-vnc (requires virt-xml on host; may change live graphics)"

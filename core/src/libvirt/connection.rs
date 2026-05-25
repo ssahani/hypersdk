@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use virt::connect::Connect;
 
 use crate::config::LibvirtConfig;
+use crate::libvirt::migrate::validate_migrate_uri;
 use crate::libvirt::{domain, metrics};
 use crate::state::{VmInfo, VmMetrics};
 use crate::LibvirtError;
@@ -25,6 +26,27 @@ struct UriSlot {
     conn: Arc<Mutex<Connect>>,
 }
 
+/// Short label for `VmInfo.libvirt_connection` (query param / UI badge).
+fn connection_label(uri: &str) -> String {
+    if uri.contains("///session") {
+        return "session".into();
+    }
+    if uri.contains("///system") && !uri.contains('+') {
+        return "system".into();
+    }
+    for prefix in ["qemu+ssh://", "qemu+tls://", "qemu+tcp://", "qemu://"] {
+        if let Some(rest) = uri.strip_prefix(prefix) {
+            let host = rest.split('/').next().unwrap_or(rest);
+            let host = host.split('@').last().unwrap_or(host);
+            let host = host.split(':').next().unwrap_or(host);
+            if !host.is_empty() {
+                return host.to_string();
+            }
+        }
+    }
+    uri.chars().take(32).collect()
+}
+
 #[derive(Clone)]
 pub struct LibvirtManager {
     dual: bool,
@@ -32,6 +54,9 @@ pub struct LibvirtManager {
     primary_uri: String,
     system: Option<UriSlot>,
     session: Option<UriSlot>,
+    /// Extra hypervisor URIs (read-only merge into VM lists).
+    extra: Vec<UriSlot>,
+    extra_uri_labels: Vec<String>,
 }
 
 impl LibvirtManager {
@@ -68,18 +93,22 @@ impl LibvirtManager {
                 system.is_some(),
                 session.is_some()
             );
+            let (extra, extra_uri_labels) = Self::open_extra_uris(&cfg.extra_uris);
             return Ok(Self {
                 dual: true,
                 primary: None,
                 primary_uri: String::new(),
                 system,
                 session,
+                extra,
+                extra_uri_labels,
             });
         }
 
         let uri = cfg.uri.clone();
         let conn = Connect::open(Some(&uri))
             .map_err(|e| LibvirtError::Connection(format!("Failed to connect to libvirt: {e}")))?;
+        let (extra, extra_uri_labels) = Self::open_extra_uris(&cfg.extra_uris);
         Ok(Self {
             dual: false,
             primary: Some(UriSlot {
@@ -89,7 +118,36 @@ impl LibvirtManager {
             primary_uri: uri,
             system: None,
             session: None,
+            extra,
+            extra_uri_labels,
         })
+    }
+
+    fn open_extra_uris(uris: &[String]) -> (Vec<UriSlot>, Vec<String>) {
+        let mut extra = Vec::new();
+        let mut labels = Vec::new();
+        for uri in uris {
+            let uri = uri.trim();
+            if uri.is_empty() {
+                continue;
+            }
+            if let Err(e) = validate_migrate_uri(uri) {
+                tracing::warn!("libvirt extra_uris: skip invalid URI: {e}");
+                continue;
+            }
+            match Connect::open(Some(uri)) {
+                Ok(c) => {
+                    tracing::info!("libvirt extra URI connected: {uri}");
+                    labels.push(connection_label(uri));
+                    extra.push(UriSlot {
+                        uri: uri.to_string(),
+                        conn: Arc::new(Mutex::new(c)),
+                    });
+                }
+                Err(e) => tracing::warn!("libvirt extra_uris: failed to open {uri}: {e}"),
+            }
+        }
+        (extra, labels)
     }
 
     #[inline]
@@ -198,46 +256,73 @@ impl LibvirtManager {
         self.with_conn_target(self.default_target(), f)
     }
 
+    fn append_extra_vms(&self, out: &mut Vec<VmInfo>) {
+        for (label, slot) in self.extra_uri_labels.iter().zip(self.extra.iter()) {
+            match Self::with_slot(slot, domain::list_vms) {
+                Ok(mut vms) => {
+                    for vm in &mut vms {
+                        vm.libvirt_connection = Some(label.clone());
+                    }
+                    out.extend(vms);
+                }
+                Err(e) => tracing::warn!("list_vms on {}: {e}", slot.uri),
+            }
+        }
+    }
+
     pub fn list_all_vms(&self) -> Result<Vec<VmInfo>, LibvirtError> {
-        if !self.dual {
-            return self.with_conn_target(LibvirtTarget::Primary, domain::list_vms);
-        }
-        let mut out = Vec::new();
-        if let Some(ref slot) = self.system {
-            let mut vms = Self::with_slot(slot, domain::list_vms)?;
-            for vm in &mut vms {
-                vm.libvirt_connection = Some("system".into());
+        let mut out = if !self.dual {
+            self.with_conn_target(LibvirtTarget::Primary, domain::list_vms)?
+        } else {
+            let mut merged = Vec::new();
+            if let Some(ref slot) = self.system {
+                let mut vms = Self::with_slot(slot, domain::list_vms)?;
+                for vm in &mut vms {
+                    vm.libvirt_connection = Some("system".into());
+                }
+                merged.extend(vms);
             }
-            out.extend(vms);
-        }
-        if let Some(ref slot) = self.session {
-            let mut vms = Self::with_slot(slot, domain::list_vms)?;
-            for vm in &mut vms {
-                vm.libvirt_connection = Some("session".into());
+            if let Some(ref slot) = self.session {
+                let mut vms = Self::with_slot(slot, domain::list_vms)?;
+                for vm in &mut vms {
+                    vm.libvirt_connection = Some("session".into());
+                }
+                merged.extend(vms);
             }
-            out.extend(vms);
-        }
+            merged
+        };
+        self.append_extra_vms(&mut out);
         Ok(out)
     }
 
     pub fn merge_all_metrics(&self) -> Result<Vec<VmMetrics>, LibvirtError> {
-        if !self.dual {
-            return self.with_conn_target(LibvirtTarget::Primary, metrics::get_all_vm_metrics);
-        }
-        let mut out = Vec::new();
-        if let Some(ref slot) = self.system {
-            let mut m = Self::with_slot(slot, metrics::get_all_vm_metrics)?;
-            for x in &mut m {
-                x.libvirt_connection = Some("system".into());
+        let mut out = if !self.dual {
+            self.with_conn_target(LibvirtTarget::Primary, metrics::get_all_vm_metrics)?
+        } else {
+            let mut merged = Vec::new();
+            if let Some(ref slot) = self.system {
+                let mut m = Self::with_slot(slot, metrics::get_all_vm_metrics)?;
+                for x in &mut m {
+                    x.libvirt_connection = Some("system".into());
+                }
+                merged.extend(m);
             }
-            out.extend(m);
-        }
-        if let Some(ref slot) = self.session {
-            let mut m = Self::with_slot(slot, metrics::get_all_vm_metrics)?;
-            for x in &mut m {
-                x.libvirt_connection = Some("session".into());
+            if let Some(ref slot) = self.session {
+                let mut m = Self::with_slot(slot, metrics::get_all_vm_metrics)?;
+                for x in &mut m {
+                    x.libvirt_connection = Some("session".into());
+                }
+                merged.extend(m);
             }
-            out.extend(m);
+            merged
+        };
+        for (label, slot) in self.extra_uri_labels.iter().zip(self.extra.iter()) {
+            if let Ok(mut m) = Self::with_slot(slot, metrics::get_all_vm_metrics) {
+                for x in &mut m {
+                    x.libvirt_connection = Some(label.clone());
+                }
+                out.extend(m);
+            }
         }
         Ok(out)
     }
@@ -250,6 +335,8 @@ impl LibvirtManager {
             "qemu_system_connected": self.system.is_some(),
             "qemu_session_connected": self.session.is_some(),
             "configured_uri": self.primary_uri_display(),
+            "extra_uris": self.extra.iter().map(|s| s.uri.clone()).collect::<Vec<_>>(),
+            "extra_uri_labels": self.extra_uri_labels.clone(),
         })
     }
 }

@@ -12,7 +12,7 @@ const ALLOWED_URI_SCHEMES: &[&str] = &[
     "qemu+unix://",
 ];
 
-fn validate_migrate_uri(uri: &str) -> Result<(), LibvirtError> {
+pub fn validate_migrate_uri(uri: &str) -> Result<(), LibvirtError> {
     if !ALLOWED_URI_SCHEMES
         .iter()
         .any(|scheme| uri.starts_with(scheme))

@@ -1,5 +1,6 @@
 pub mod api_error;
 pub mod audit;
+pub mod run_as_user;
 pub mod build_precheck;
 pub mod config;
 pub mod fmt;

@@ -12,6 +12,9 @@ import {
   ChevronRight,
 } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { libvirtErrorHints } from '../utils/libvirtHints'
 import { formatBytes, formatThroughput } from '../utils/vm'
 import {
   Area,
@@ -67,6 +70,7 @@ export default function EventsPage() {
   const [timeline, setTimeline] = useState<TimelineRow[]>([])
   const [vmExtras, setVmExtras] = useState<Record<string, VmExtras>>({})
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const prevRef = useRef<{ byName: Map<string, VmMetrics>; at: number } | null>(null)
 
   const sortedMetrics = useMemo(
@@ -76,6 +80,7 @@ export default function EventsPage() {
 
   const load = useCallback(async () => {
     try {
+      setLoadError(null)
       const list = await getMetrics()
       setMetrics(list)
 
@@ -145,8 +150,8 @@ export default function EventsPage() {
       setTimeline((t) => [...t.slice(-(MAX_POINTS - 1)), row])
       setVmExtras(extras)
       prevRef.current = { byName, at: now }
-    } catch {
-      /* no running VMs */
+    } catch (e: unknown) {
+      setLoadError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -201,7 +206,7 @@ export default function EventsPage() {
             {POLL_MS / 1000}s); cumulative disk/net counters match VM detail views.
           </p>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-2 shrink-0 flex-wrap">
           <button
             type="button"
             onClick={() => downloadJSON(metrics, 'metrics.json')}
@@ -223,6 +228,15 @@ export default function EventsPage() {
           </button>
         </div>
       </div>
+
+      {loadError && (
+        <ErrorBanner
+          title="Could not load metrics"
+          headline={loadError}
+          hints={libvirtErrorHints(loadError)}
+          onRetry={load}
+        />
+      )}
 
       {metrics.length === 0 ? (
         <div className="bg-slate-800/50 rounded-lg border border-slate-700/50 p-12 text-center text-slate-500">

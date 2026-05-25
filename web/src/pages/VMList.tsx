@@ -18,6 +18,7 @@ import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 
 export default function VMList() {
   const [vms, setVMs] = useState<VmInfo[]>([])
@@ -33,6 +34,7 @@ export default function VMList() {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>(() => (localStorage.getItem('vmlist-view') as 'table' | 'grid') || 'table')
   const [pinnedRefresh, setPinnedRefresh] = useState(0)
   const toast = useToastContext()
+  const { info } = usePlatformInfo()
   const { subscribe } = useWebSocketContext()
   const lastLoadErrorToastAt = useRef(0)
 
@@ -180,7 +182,13 @@ export default function VMList() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-bold">Virtual machines</h1>
-          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">QEMU/KVM guests on this hypervisor host (libvirt). Use VM details for optional KubeVirt bundle / cluster actions when configured.</p>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
+            QEMU/KVM guests on this hypervisor host (libvirt).
+            {(info?.libvirt?.extra_uris?.length ?? 0) > 0 && (
+              <> Federated read-only hosts: {info!.libvirt!.extra_uris!.join(', ')}.</>
+            )}
+            {' '}Use VM details for optional KubeVirt bundle / cluster actions when configured.
+          </p>
         </div>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>

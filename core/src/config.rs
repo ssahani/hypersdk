@@ -378,6 +378,9 @@ impl Default for TlsConfig {
 pub enum RunAsUserMode {
     #[serde(alias = "disabled")]
     Disabled,
+    /// Run allow-listed host commands as `effective_linux_user` via `sudo -n -u <user> -- …`.
+    #[serde(alias = "sudo")]
+    Sudo,
     #[serde(alias = "polkit")]
     Polkit,
     #[serde(alias = "setuid_helper")]
@@ -413,6 +416,10 @@ impl Default for RunAsUserConfig {
 impl RunAsUserConfig {
     pub fn wants_impersonation(&self) -> bool {
         self.enabled && self.mode != RunAsUserMode::Disabled
+    }
+
+    pub fn sudo_impersonation_active(&self) -> bool {
+        self.enabled && self.mode == RunAsUserMode::Sudo
     }
 }
 
@@ -668,6 +675,9 @@ pub struct LibvirtConfig {
     /// Connect to **both** `qemu:///system` and `qemu:///session` (Cockpit-style); ignores `uri` when true.
     #[serde(default)]
     pub dual_connection: bool,
+    /// Additional read-only libvirt URIs (e.g. `qemu+ssh://hypervisor2/system`) merged into VM lists.
+    #[serde(default)]
+    pub extra_uris: Vec<String>,
 }
 
 fn default_virt_image_build_max_concurrent() -> usize {
@@ -770,6 +780,7 @@ impl Default for LibvirtConfig {
             virt_image_build_min_free_tmp_bytes: default_virt_image_build_min_free_tmp_bytes(),
             mkosi_allowed: true,
             dual_connection: false,
+            extra_uris: Vec::new(),
         }
     }
 }

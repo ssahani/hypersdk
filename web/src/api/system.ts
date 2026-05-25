@@ -79,7 +79,14 @@ export interface PlatformInfo {
     os_pretty_name?: string
   }
   tls: { enabled: boolean }
-  auth: { pam_service: string; oidc_enabled: boolean }
+  auth: {
+    pam_service: string
+    oidc_enabled: boolean
+    run_as_user_enabled?: boolean
+    run_as_user_mode?: string
+  }
+  guacamole?: { enabled: boolean; base_url: string }
+  libvirt?: { dual_connection: boolean; extra_uris?: string[] }
   kubevirt: {
     exec_enabled: boolean
     default_namespace: string

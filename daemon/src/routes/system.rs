@@ -90,8 +90,18 @@ async fn create_os_user(
         )
         .into());
     }
-    let outcome =
-        system_accounts::create_local_user(&req.username, &req.password, req.add_to_libvirt_group)?;
+    let cfg = MachinaConfig::load();
+    let exec_as = cfg
+        .auth
+        .run_as_user
+        .sudo_impersonation_active()
+        .then_some((&cfg.auth.run_as_user, effective_user));
+    let outcome = system_accounts::create_local_user(
+        &req.username,
+        &req.password,
+        req.add_to_libvirt_group,
+        exec_as.map(|(c, u)| (c, u)),
+    )?;
     info!(
         "OS user '{}' created via machina by session user '{}' (effective linux user '{}', libvirt group: {})",
         req.username, actor.username, effective_user, outcome.libvirt_group_attached
@@ -128,7 +138,13 @@ async fn delete_os_user(
             LibvirtError::Forbidden("Cannot delete the signed-in UNIX account".into()).into(),
         );
     }
-    system_accounts::delete_local_user(&username)?;
+    let cfg = MachinaConfig::load();
+    let exec_as = cfg
+        .auth
+        .run_as_user
+        .sudo_impersonation_active()
+        .then_some((&cfg.auth.run_as_user, effective_user));
+    system_accounts::delete_local_user(&username, exec_as.map(|(c, u)| (c, u)))?;
     info!(
         "OS user '{}' removed via machina by session user '{}' (effective linux user '{}')",
         username, actor.username, effective_user,
@@ -205,6 +221,16 @@ async fn platform_info() -> Json<serde_json::Value> {
         "auth": {
             "pam_service": cfg.auth.pam_service,
             "oidc_enabled": cfg.auth.oidc.is_enabled(),
+            "run_as_user_enabled": cfg.auth.run_as_user.enabled,
+            "run_as_user_mode": format!("{:?}", cfg.auth.run_as_user.mode).to_lowercase(),
+        },
+        "guacamole": {
+            "enabled": cfg.guacamole.enabled && !cfg.guacamole.json_secret_hex.trim().is_empty(),
+            "base_url": cfg.guacamole.base_url.trim(),
+        },
+        "libvirt": {
+            "dual_connection": cfg.libvirt.dual_connection,
+            "extra_uris": cfg.libvirt.extra_uris,
         },
         "kubevirt": {
             "exec_enabled": cfg.kubevirt.exec_enabled,
