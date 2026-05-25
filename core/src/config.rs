@@ -38,6 +38,9 @@ pub struct MachinaConfig {
     /// Optional append-only JSON Lines of Kubernetes cluster inventory (`/var/lib/machina/k8s-cluster-inventory.jsonl`).
     #[serde(default)]
     pub k8s_inventory_history: K8sInventoryHistoryConfig,
+    /// Optional multi-node Machina daemons (aggregate health + VM lists; proxy lifecycle when configured).
+    #[serde(default)]
+    pub fleet: FleetConfig,
 }
 
 /// Snapshots from `GET /k8s/cluster-inventory` for drift / audit (same machine as other Machina state).
@@ -421,6 +424,112 @@ impl RunAsUserConfig {
     pub fn sudo_impersonation_active(&self) -> bool {
         self.enabled && self.mode == RunAsUserMode::Sudo
     }
+
+    pub fn polkit_impersonation_active(&self) -> bool {
+        self.enabled && self.mode == RunAsUserMode::Polkit
+    }
+
+    pub fn impersonation_active(&self) -> bool {
+        self.sudo_impersonation_active() || self.polkit_impersonation_active()
+    }
+}
+
+/// LDAP / Active Directory password authentication (simple bind + optional search).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LdapConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// e.g. `ldap://dc.example.com:389` or `ldaps://dc.example.com:636`
+    #[serde(default)]
+    pub url: String,
+    /// Base DN for user search, e.g. `dc=example,dc=com`
+    #[serde(default)]
+    pub base_dn: String,
+    /// Filter with `{username}` placeholder, e.g. `(sAMAccountName={username})`
+    #[serde(default = "default_ldap_user_filter")]
+    pub user_filter: String,
+    /// Optional service bind DN (search before user bind). Empty = direct bind as `user_dn_template`.
+    #[serde(default)]
+    pub bind_dn: String,
+    #[serde(default)]
+    pub bind_password: String,
+    /// When set, `user_dn` = template with `{username}`, e.g. `uid={username},ou=people,dc=example,dc=com`
+    #[serde(default)]
+    pub user_dn_template: String,
+    /// Attribute used as Machina session username.
+    #[serde(default = "default_ldap_username_attr")]
+    pub username_attribute: String,
+    #[serde(default)]
+    pub use_tls: bool,
+    #[serde(default)]
+    pub insecure_tls: bool,
+}
+
+fn default_ldap_user_filter() -> String {
+    "(uid={username})".to_string()
+}
+
+fn default_ldap_username_attr() -> String {
+    "uid".to_string()
+}
+
+impl Default for LdapConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            url: String::new(),
+            base_dn: String::new(),
+            user_filter: default_ldap_user_filter(),
+            bind_dn: String::new(),
+            bind_password: String::new(),
+            user_dn_template: String::new(),
+            username_attribute: default_ldap_username_attr(),
+            use_tls: false,
+            insecure_tls: false,
+        }
+    }
+}
+
+impl LdapConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.enabled && !self.url.trim().is_empty()
+    }
+}
+
+/// Remote Machina daemon peers for fleet overview (this daemon remains the login/UI entry).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FleetPeer {
+    pub name: String,
+    /// Base URL, e.g. `https://hypervisor2:5092`
+    pub url: String,
+    /// Optional Bearer token for peer API (automation token on the remote host).
+    #[serde(default)]
+    pub api_token: String,
+    #[serde(default)]
+    pub insecure_tls: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FleetConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub peers: Vec<FleetPeer>,
+}
+
+impl Default for FleetConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            peers: Vec::new(),
+        }
+    }
+}
+
+impl FleetConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.enabled && !self.peers.is_empty()
+    }
 }
 
 /// PAM configuration for `machina-daemon` (web sign-in uses the same password as the selected stack).
@@ -436,6 +545,9 @@ pub struct AuthConfig {
     /// Optional run-as-user impersonation (scaffold — see `docs/oidc-run-as-user.md`).
     #[serde(default)]
     pub run_as_user: RunAsUserConfig,
+    /// Optional LDAP / Active Directory bind for password login (tried before PAM when enabled).
+    #[serde(default)]
+    pub ldap: LdapConfig,
 }
 
 fn default_pam_service() -> String {
@@ -563,6 +675,7 @@ impl Default for AuthConfig {
             pam_service: default_pam_service(),
             oidc: OidcConfig::default(),
             run_as_user: RunAsUserConfig::default(),
+            ldap: LdapConfig::default(),
         }
     }
 }

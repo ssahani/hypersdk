@@ -94,7 +94,7 @@ async fn create_os_user(
     let exec_as = cfg
         .auth
         .run_as_user
-        .sudo_impersonation_active()
+        .impersonation_active()
         .then_some((&cfg.auth.run_as_user, effective_user));
     let outcome = system_accounts::create_local_user(
         &req.username,
@@ -142,7 +142,7 @@ async fn delete_os_user(
     let exec_as = cfg
         .auth
         .run_as_user
-        .sudo_impersonation_active()
+        .impersonation_active()
         .then_some((&cfg.auth.run_as_user, effective_user));
     system_accounts::delete_local_user(&username, exec_as.map(|(c, u)| (c, u)))?;
     info!(

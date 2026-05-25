@@ -32,6 +32,7 @@ pub mod node;
 pub mod node_device;
 pub mod numa_tune;
 pub mod nwfilter;
+pub mod rdp;
 pub mod resize;
 pub mod save_restore;
 pub mod secret;

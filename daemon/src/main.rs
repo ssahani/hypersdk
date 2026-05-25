@@ -107,10 +107,15 @@ async fn main() -> anyhow::Result<()> {
                     "auth.run_as_user sudo mode: OS user create/delete runs as effective_linux_user via sudo -n"
                 );
             }
-            m => {
+            RunAsUserMode::Polkit => {
+                info!(
+                    "auth.run_as_user polkit mode: OS user create/delete runs via pkexec --user (install contrib/polkit/machina-run-as-user.rules)"
+                );
+            }
+            RunAsUserMode::SetuidHelper | RunAsUserMode::Disabled => {
                 tracing::warn!(
-                    "auth.run_as_user mode {:?} is not implemented; use mode = \"sudo\" or see docs/oidc-run-as-user.md",
-                    m
+                    "auth.run_as_user mode {:?} is not implemented for host commands; use sudo or polkit",
+                    config.auth.run_as_user.mode
                 );
             }
         }
