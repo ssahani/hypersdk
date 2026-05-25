@@ -687,14 +687,15 @@ async fn login_handler(
     if cfg.ldap.is_enabled() {
         match crate::ldap_auth::ldap_authenticate(&cfg.ldap, &req.username, &req.password) {
             Ok(ldap) => {
+                let role = ldap.role.clone();
                 info!(
                     "LDAP login successful for user '{}' (role {:?})",
-                    ldap.username, ldap.role
+                    ldap.username, role
                 );
                 let token = store.create_session(browser_actor(
                     ldap.username.clone(),
                     Some(ldap.username.clone()),
-                    ldap.role,
+                    role.clone(),
                     AuthSource::Ldap,
                 ));
                 let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
@@ -704,7 +705,7 @@ async fn login_handler(
                     Json(serde_json::json!({
                         "status": "ok",
                         "username": ldap.username,
-                        "role": ldap.role,
+                        "role": role,
                         "auth_source": "ldap"
                     })),
                 )
