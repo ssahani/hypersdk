@@ -1578,7 +1578,7 @@ impl App {
                 self.state.scroll_offset = 0;
                 self.state.view_mode = ViewMode::Xml;
             }
-            Err(e) => self.state.status_message = status_err("Error fetching {kind} XML", &e),
+            Err(e) => self.state.status_message = status_err(&format!("Error fetching {kind} XML"), &e),
         }
     }
 

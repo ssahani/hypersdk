@@ -16,7 +16,7 @@ pub fn ldap_authenticate(
         return Err("LDAP url is not configured".into());
     }
 
-    let (conn, mut ldap) =
+    let mut ldap =
         ldap3::LdapConn::new(url).map_err(|e| format!("LDAP connect failed: {e}"))?;
     if cfg.use_tls {
         let settings = ldap3::TlsSettings {
@@ -27,7 +27,7 @@ pub fn ldap_authenticate(
             .map_err(|e| format!("LDAP STARTTLS failed: {e}"))?;
     }
 
-    let user_dn = resolve_user_dn(cfg, &conn, username)?;
+    let user_dn = resolve_user_dn(cfg, &ldap, username)?;
     ldap.simple_bind(&user_dn, password)
         .map_err(|e| format!("LDAP bind failed: {e}"))?
         .success()
@@ -36,7 +36,11 @@ pub fn ldap_authenticate(
     Ok(username.to_string())
 }
 
-fn resolve_user_dn(cfg: &LdapConfig, conn: &ldap3::LdapConn, username: &str) -> Result<String, String> {
+fn resolve_user_dn(
+    cfg: &LdapConfig,
+    ldap: &ldap3::LdapConn,
+    username: &str,
+) -> Result<String, String> {
     let template = cfg.user_dn_template.trim();
     if !template.is_empty() {
         return Ok(template.replace("{username}", username));
@@ -44,7 +48,7 @@ fn resolve_user_dn(cfg: &LdapConfig, conn: &ldap3::LdapConn, username: &str) -> 
 
     let bind_dn = cfg.bind_dn.trim();
     if !bind_dn.is_empty() {
-        conn.simple_bind(bind_dn, cfg.bind_password.trim())
+        ldap.simple_bind(bind_dn, cfg.bind_password.trim())
             .map_err(|e| format!("LDAP service bind failed: {e}"))?
             .success()
             .map_err(|e| format!("LDAP service bind failed: {e}"))?;
@@ -54,12 +58,12 @@ fn resolve_user_dn(cfg: &LdapConfig, conn: &ldap3::LdapConn, username: &str) -> 
         if base.is_empty() {
             return Err("LDAP base_dn required when using bind_dn + user_filter".into());
         }
-        let (rs, _) = conn
+        let (rs, _) = ldap
             .search(base, ldap3::Scope::Subtree, &filter, vec!["dn"])
             .map_err(|e| format!("LDAP search failed: {e}"))?
             .success()
             .map_err(|e| format!("LDAP search failed: {e}"))?;
-        let entries: Vec<_> = rs.into_iter().filter_map(|e| e.ok()).collect();
+        let entries: Vec<_> = rs.into_iter().collect();
         if entries.is_empty() {
             return Err("LDAP user not found".into());
         }

@@ -157,7 +157,7 @@ async fn fleet_proxy_action(
     Path(peer_name): Path<String>,
     Json(req): Json<FleetProxyBody>,
 ) -> Result<Json<Value>, AppError> {
-    if actor.role == machina_core::libvirt::automation::Role::Readonly {
+    if actor.role == machina_core::libvirt::automation::Role::ReadOnly {
         return Err(AppError::from(machina_core::LibvirtError::Forbidden(
             "Read-only role cannot proxy fleet actions".into(),
         )));
