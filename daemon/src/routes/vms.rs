@@ -1302,4 +1302,23 @@ pub fn vm_routes() -> Router<LibvirtManager> {
             "/vms/{name}/graphics/convert-to-vnc",
             post(convert_spice_to_vnc_handler),
         )
+        .route("/vms/{name}/rdp-info", get(rdp_info_handler))
+}
+
+async fn rdp_info_handler(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let (host, port) = spawn_libvirt(manager, conn_q, move |conn| {
+        machina_core::libvirt::rdp::resolve_rdp_endpoint(conn, &name2)
+    })
+    .await?;
+    Ok(Json(serde_json::json!({
+        "host": host,
+        "port": port,
+        "ws_path": format!("/ws/v1/rdp/{name}"),
+        "builtin": true
+    })))
 }

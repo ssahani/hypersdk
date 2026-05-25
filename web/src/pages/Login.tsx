@@ -3,6 +3,8 @@ import { useAuth } from '../contexts/AuthContext'
 import { useTheme } from '../contexts/ThemeContext'
 import { ZyvorBrandLine } from '../components/ZyvorBrand'
 import { beginOidcLogin, getAuthProviders, type AuthProviders } from '../api/auth'
+import { useTranslation } from 'react-i18next'
+import LanguageSwitcher from '../components/LanguageSwitcher'
 import { usePrefersReducedMotion } from '../hooks/usePrefersReducedMotion'
 import { formatUserError } from '../utils/apiError'
 import {
@@ -113,8 +115,10 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(!!saved)
   const [providers, setProviders] = useState<AuthProviders>({
     pam: { enabled: true },
+    ldap: { enabled: false },
     oidc: { enabled: false, button_label: 'Sign in with SSO' },
   })
+  const { t } = useTranslation()
   const { login } = useAuth()
   const { theme, setTheme } = useTheme()
   const reducedMotion = usePrefersReducedMotion()
@@ -124,6 +128,8 @@ export default function LoginPage() {
   const hostLabel = typeof window !== 'undefined' ? window.location.hostname : ''
   const oidcEnabled = providers.oidc.enabled
   const pamEnabled = providers.pam.enabled
+  const ldapEnabled = providers.ldap.enabled
+  const passwordLogin = pamEnabled || ldapEnabled
 
   useEffect(() => {
     void getAuthProviders().then(setProviders).catch(() => {})
@@ -280,16 +286,20 @@ export default function LoginPage() {
         <div className="login-panel-grid" aria-hidden />
         <div className="login-panel-glow" aria-hidden />
         <div className="w-full max-w-[420px] relative z-10">
+          <div className="flex justify-end mb-2">
+            <LanguageSwitcher />
+          </div>
           <MobileBrand hostLabel={hostLabel} />
           <DesktopHeading isLight={isLight} hostLabel={hostLabel} />
 
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              if (pamEnabled) void handleSubmit(e)
+              if (passwordLogin) void handleSubmit(e)
             }}
             className="login-glass login-glass-border rounded-2xl p-8 shadow-2xl"
-            autoComplete={pamEnabled ? 'on' : 'off'}
+            autoComplete={passwordLogin ? 'on' : 'off'}
+            aria-label={t('login.title')}
           >
             {error && (
               <div
@@ -312,12 +322,18 @@ export default function LoginPage() {
               </button>
             )}
 
-            {oidcEnabled && pamEnabled && <OidcDivider isLight={isLight} label="or sign in with password" />}
+            {oidcEnabled && passwordLogin && <OidcDivider isLight={isLight} label="or sign in with password" />}
 
-            {pamEnabled && (
+            {ldapEnabled ? (
+              <p className="text-xs text-slate-400 mb-4" role="status">
+                {t('login.ldapHint')}
+              </p>
+            ) : null}
+
+            {passwordLogin && (
               <>
                 <div className="space-y-5">
-                  <Field label="Username" id="login-username">
+                  <Field label={t('login.username')} id="login-username">
                     <User className="login-field-icon" />
                     <input
                       id="login-username"

@@ -18,6 +18,17 @@ jobs:
       - run: cargo clippy --workspace -- -D warnings
       - run: cargo test --workspace
 
+  libvirt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Install libvirt clients
+        run: sudo apt-get update && sudo apt-get install -y libvirt-clients qemu-utils
+      - run: chmod +x scripts/ci-libvirt-smoke.sh
+      - run: ./scripts/ci-libvirt-smoke.sh
+      - run: cargo test -p machina-core config::
+
   web:
     runs-on: ubuntu-latest
     defaults:

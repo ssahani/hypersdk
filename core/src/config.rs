@@ -1035,4 +1035,20 @@ mod tests {
         assert!(!k.enabled);
         assert_eq!(k.max_file_mb, 32);
     }
+
+    #[test]
+    fn fleet_and_ldap_defaults() {
+        let c = MachinaConfig::default();
+        assert!(!c.fleet.is_enabled());
+        assert!(!c.auth.ldap.is_enabled());
+    }
+
+    #[test]
+    fn run_as_user_polkit_active() {
+        let mut r = RunAsUserConfig::default();
+        r.enabled = true;
+        r.mode = RunAsUserMode::Polkit;
+        assert!(r.polkit_impersonation_active());
+        assert!(r.impersonation_active());
+    }
 }

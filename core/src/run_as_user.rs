@@ -86,7 +86,7 @@ pub fn status_as_user(
 ) -> Result<std::process::ExitStatus, LibvirtError> {
     let mut cmd = match unix_user {
         Some(u) if cfg.impersonation_active() => command_as_user(cfg, u, program, args)?,
-        None => {
+        Some(_) | None => {
             let mut c = Command::new(program);
             c.args(args);
             c
@@ -104,7 +104,7 @@ pub fn output_as_user(
 ) -> Result<Output, LibvirtError> {
     let mut cmd = match unix_user {
         Some(u) if cfg.impersonation_active() => command_as_user(cfg, u, program, args)?,
-        None => {
+        Some(_) | None => {
             let mut c = Command::new(program);
             c.args(args);
             c

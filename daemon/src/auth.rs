@@ -38,6 +38,7 @@ pub struct RequestActor {
 #[serde(rename_all = "snake_case")]
 pub enum AuthSource {
     Pam,
+    Ldap,
     Oidc,
     ApiToken,
 }
@@ -661,7 +662,37 @@ async fn login_handler(
         return (StatusCode::BAD_REQUEST, Json(serde_json::json!({ "error": "Invalid username characters", "error_code": "invalid_request" }))).into_response();
     }
 
-    match pam_authenticate(&req.username, &req.password, &auth.0.pam_service) {
+    let cfg = &auth.0;
+    if cfg.ldap.is_enabled() {
+        match crate::ldap_auth::ldap_authenticate(&cfg.ldap, &req.username, &req.password) {
+            Ok(session_user) => {
+                info!("LDAP login successful for user '{}'", session_user);
+                let token = store.create_session(browser_actor(
+                    session_user.clone(),
+                    Some(session_user.clone()),
+                    get_user_role(&session_user),
+                    AuthSource::Ldap,
+                ));
+                let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+                return (
+                    StatusCode::OK,
+                    [(header::SET_COOKIE, cookie)],
+                    Json(serde_json::json!({
+                        "status": "ok",
+                        "username": session_user,
+                        "auth_source": "ldap"
+                    })),
+                )
+                    .into_response();
+            }
+            Err(e) => {
+                warn!("LDAP login failed for user '{}': {}", req.username, e);
+                return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Invalid username or password", "error_code": "unauthorized" }))).into_response();
+            }
+        }
+    }
+
+    match pam_authenticate(&req.username, &req.password, &cfg.pam_service) {
         Ok(()) => {
             info!("PAM login successful for user '{}'", req.username);
             let token = store.create_session(browser_actor(
@@ -731,11 +762,14 @@ async fn session_handler(
 }
 
 async fn auth_providers_handler(Extension(auth): Extension<OidcAuth>) -> Response {
-    let oidc = &auth.0.oidc;
+    let cfg = &auth.0;
+    let oidc = &cfg.oidc;
+    let ldap_on = cfg.ldap.is_enabled();
     (
         StatusCode::OK,
         Json(serde_json::json!({
-            "pam": { "enabled": true },
+            "pam": { "enabled": !ldap_on },
+            "ldap": { "enabled": ldap_on },
             "oidc": OidcProviderMetadata {
                 enabled: oidc.is_enabled(),
                 button_label: oidc.button_label.clone(),

@@ -97,6 +97,11 @@ export const navGroups: NavGroup[] = [
       { to: '/vms', icon: React.createElement(Server, { className: 'w-4 h-4' }), label: 'Virtual Machines' },
       { to: '/create', icon: React.createElement(Plus, { className: 'w-4 h-4' }), label: 'Create VM' },
       { to: '/import', icon: React.createElement(Upload, { className: 'w-4 h-4' }), label: 'Import VM' },
+      {
+        to: '/fleet',
+        icon: React.createElement(Server, { className: 'w-4 h-4' }),
+        label: 'Fleet',
+      },
     ],
   },
   {

@@ -1,4 +1,5 @@
 mod auth;
+mod ldap_auth;
 mod cluster_bootstrap;
 mod conn_query;
 mod error;

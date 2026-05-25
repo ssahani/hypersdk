@@ -6,6 +6,7 @@ import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sun, Moon, Bell, Palette
 import { ZYVOR_HELP } from '../config/zyvorHelp'
 import type { HelpTab } from './HelpDialog'
 import ConnectionStatus from './ConnectionStatus'
+import LanguageSwitcher from './LanguageSwitcher'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
@@ -267,6 +268,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-2 sm:gap-x-2 min-w-0 shrink-0 w-full basis-full ml-auto order-2 sm:w-auto sm:basis-auto lg:order-3 lg:w-auto lg:shrink-0">
+            <LanguageSwitcher className="hidden sm:flex" />
             {themeSelect}
             <button
               type="button"

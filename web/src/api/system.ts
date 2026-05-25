@@ -81,10 +81,13 @@ export interface PlatformInfo {
   tls: { enabled: boolean }
   auth: {
     pam_service: string
+    ldap_enabled?: boolean
     oidc_enabled: boolean
     run_as_user_enabled?: boolean
     run_as_user_mode?: string
   }
+  fleet?: { enabled: boolean; peer_count: number }
+  rdp?: { builtin_ws_proxy: boolean }
   guacamole?: { enabled: boolean; base_url: string }
   libvirt?: { dual_connection: boolean; extra_uris?: string[] }
   kubevirt: {

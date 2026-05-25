@@ -38,6 +38,7 @@ async function mockUnauthenticatedApi(page: import('@playwright/test').Page) {
       return route.fulfill({
         json: {
           pam: { enabled: true },
+          ldap: { enabled: false },
           oidc: { enabled: false, button_label: 'Sign in with SSO' },
         },
       })
@@ -66,6 +67,7 @@ async function mockAuthenticatedApi(page: import('@playwright/test').Page) {
       return route.fulfill({
         json: {
           pam: { enabled: true },
+          ldap: { enabled: false },
           oidc: { enabled: false, button_label: 'Sign in with SSO' },
         },
       })
@@ -115,6 +117,19 @@ test('VM list shows empty state when authenticated', async ({ page }) => {
   await mockAuthenticatedApi(page)
   await page.goto('/vms')
   await expect(page.getByRole('heading', { name: /virtual machines/i })).toBeVisible({ timeout: 15_000 })
+})
+
+test('Fleet page loads when authenticated', async ({ page }) => {
+  await mockAuthenticatedApi(page)
+  await page.goto('/fleet')
+  await expect(page.getByRole('heading', { name: /fleet/i })).toBeVisible({ timeout: 15_000 })
+})
+
+test('language switcher changes login label', async ({ page }) => {
+  await mockUnauthenticatedApi(page)
+  await page.goto('/login')
+  await page.getByLabel('Language').selectOption('es')
+  await expect(page.getByLabel('Usuario')).toBeVisible()
 })
 
 test('OpenStack instances shows sanitized error when API returns HTML', async ({ page }) => {

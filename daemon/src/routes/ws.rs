@@ -430,6 +430,119 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, host: String, port: u
     info!("VNC WebSocket proxy closed for VM '{}' port {}", name, port);
 }
 
+// ── RDP WebSocket proxy (TCP 3389, binary frames — use with built-in client or external) ──
+
+async fn rdp_handler(
+    ws: WebSocketUpgrade,
+    Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
+    State(manager): State<LibvirtManager>,
+) -> impl IntoResponse {
+    let cq = conn_q.connection.clone();
+    let mgr = manager.clone();
+    let name2 = name.clone();
+    let resolved = tokio::task::spawn_blocking(move || {
+        let t = mgr.resolve_query(cq.as_deref());
+        mgr.with_conn_target(t, |conn| {
+            machina_core::libvirt::rdp::resolve_rdp_endpoint(conn, &name2)
+        })
+    })
+    .await;
+
+    let resolved = match resolved {
+        Ok(r) => r,
+        Err(e) => {
+            warn!("RDP join failed for VM '{}': {}", name, e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, "task join failed").into_response();
+        }
+    };
+
+    let (host, port) = match resolved {
+        Ok((h, p)) if p > 0 => (h, p),
+        Ok(_) => {
+            return (StatusCode::NOT_FOUND, "No RDP endpoint for this VM").into_response();
+        }
+        Err(e) => {
+            warn!("RDP resolve failed for VM '{}': {}", name, e);
+            return (StatusCode::NOT_FOUND, "No RDP endpoint for this VM").into_response();
+        }
+    };
+
+    ws.on_upgrade(move |socket| handle_rdp_proxy(socket, name, host, port))
+}
+
+async fn handle_rdp_proxy(socket: WebSocket, name: String, host: String, port: u16) {
+    info!(
+        "RDP WebSocket proxy connecting to {}:{} for VM '{}'",
+        host, port, name
+    );
+
+    let tcp = match tokio::net::TcpStream::connect(format!("{}:{}", host, port)).await {
+        Ok(s) => s,
+        Err(e) => {
+            warn!("Failed to connect to RDP {}:{}: {}", host, port, e);
+            let (mut sink, _) = socket.split();
+            let _ = sink.close().await;
+            return;
+        }
+    };
+
+    if let Err(e) = tcp.set_nodelay(true) {
+        warn!(
+            "RDP TCP set_nodelay failed for {}:{} VM '{}': {}",
+            host, port, name, e
+        );
+    }
+
+    let (mut tcp_read, mut tcp_write) = tcp.into_split();
+    let (mut ws_sink, mut ws_stream) = socket.split();
+
+    let mut read_task = tokio::spawn(async move {
+        let mut buf = [0u8; 65536];
+        loop {
+            match tcp_read.read(&mut buf).await {
+                Ok(0) => break,
+                Ok(n) => {
+                    if ws_sink
+                        .send(Message::Binary(buf[..n].to_vec().into()))
+                        .await
+                        .is_err()
+                    {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+    });
+
+    let mut write_task = tokio::spawn(async move {
+        while let Some(Ok(msg)) = ws_stream.next().await {
+            match msg {
+                Message::Binary(data) => {
+                    if tcp_write.write_all(&data).await.is_err() {
+                        break;
+                    }
+                }
+                Message::Text(text) => {
+                    if tcp_write.write_all(text.as_bytes()).await.is_err() {
+                        break;
+                    }
+                }
+                Message::Ping(_) | Message::Pong(_) => {}
+                Message::Close(_) => break,
+            }
+        }
+    });
+
+    tokio::select! {
+        _ = &mut read_task => { write_task.abort(); }
+        _ = &mut write_task => { read_task.abort(); }
+    }
+
+    info!("RDP WebSocket proxy closed for VM '{}' port {}", name, port);
+}
+
 // ── SPICE WebSocket proxy ──────────────────────────────────────────
 
 async fn spice_handler(
@@ -734,6 +847,7 @@ pub fn ws_routes() -> Router<LibvirtManager> {
         )
         .route("/console/{name}", get(console_handler))
         .route("/vnc/{name}", get(vnc_handler))
+        .route("/rdp/{name}", get(rdp_handler))
         .route("/spice/{name}", get(spice_handler))
         .route("/terminal/{session_id}", get(terminal_ws_handler))
         .route("/ssh/{host}", get(ssh_handler))

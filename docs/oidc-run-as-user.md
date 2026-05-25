@@ -23,12 +23,26 @@ Requirements on the host:
 - Passwordless sudo for the mapped user for allow-listed programs (`useradd`, `userdel`, `usermod`, `homectl`, `chpasswd`, `id`, `getent`)
 - Caller session must map to a local user in `wheel`/`sudo`/`admin` (existing policy)
 
+### `polkit` mode (implemented)
+
+When `enabled = true` and `mode = "polkit"`:
+
+`pkexec --user <effective_linux_user> -- <allow-listed program>`
+
+Install policy:
+
+```bash
+sudo cp contrib/polkit/machina-run-as-user.rules /etc/polkit-1/rules.d/50-machina-run-as-user.rules
+```
+
+Adjust `subject.user` in the rules file if the daemon does not run as `machina`.
+
 | Field | Meaning |
 |-------|---------|
-| `enabled` | Operator intent to use impersonation when implemented |
-| `mode` | Intended backend (`polkit` or `setuid_helper`) |
+| `enabled` | Turn on impersonation for supported routes |
+| `mode` | `sudo`, `polkit`, or `setuid_helper` (helper not implemented) |
 
-When `enabled = true` and `mode` is not `disabled`, the daemon logs a **startup warning** and continues in policy-only mode until a runner exists.
+When `enabled = true` and `mode` is `setuid_helper`, the daemon logs a startup warning.
 
 ## Requirements for a real implementation
 

@@ -4,6 +4,7 @@ mod backup;
 mod console;
 pub(crate) mod events;
 mod extras;
+mod fleet;
 mod guacamole;
 mod guest_images;
 mod health;
@@ -55,6 +56,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(extras::extras_routes())
         .merge(automation::automation_routes())
         .merge(system::system_routes())
+        .merge(fleet::fleet_routes())
 }
 
 pub fn websocket_routes() -> Router<LibvirtManager> {

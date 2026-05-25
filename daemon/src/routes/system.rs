@@ -220,9 +220,17 @@ async fn platform_info() -> Json<serde_json::Value> {
         },
         "auth": {
             "pam_service": cfg.auth.pam_service,
+            "ldap_enabled": cfg.auth.ldap.is_enabled(),
             "oidc_enabled": cfg.auth.oidc.is_enabled(),
             "run_as_user_enabled": cfg.auth.run_as_user.enabled,
             "run_as_user_mode": format!("{:?}", cfg.auth.run_as_user.mode).to_lowercase(),
+        },
+        "fleet": {
+            "enabled": cfg.fleet.is_enabled(),
+            "peer_count": cfg.fleet.peers.len(),
+        },
+        "rdp": {
+            "builtin_ws_proxy": true,
         },
         "guacamole": {
             "enabled": cfg.guacamole.enabled && !cfg.guacamole.json_secret_hex.trim().is_empty(),

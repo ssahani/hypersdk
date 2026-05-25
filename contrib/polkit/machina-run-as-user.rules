@@ -1,0 +1,27 @@
+// PolicyKit rules for Machina OIDC run-as-user (mode = "polkit").
+// Install: sudo cp contrib/polkit/machina-run-as-user.rules /etc/polkit-1/rules.d/50-machina-run-as-user.rules
+//
+// Allows the machina-daemon UNIX user to run pkexec --user <mapped_user> for allow-listed
+// account-management commands when invoked by machina-core run_as_user.
+
+polkit.addRule(function(action, subject) {
+    if (action.id != "org.freedesktop.policykit.exec") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (subject.user != "machina" && subject.user != "root") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var argv = action.lookup("argv");
+    if (!argv || argv.length < 4) {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (argv[0] != "pkexec" || argv[1] != "--user") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var prog = argv[3];
+    var allowed = ["useradd", "userdel", "usermod", "homectl", "chpasswd", "id", "getent"];
+    if (allowed.indexOf(prog) === -1) {
+        return polkit.Result.NOT_HANDLED;
+    }
+    return polkit.Result.YES;
+});

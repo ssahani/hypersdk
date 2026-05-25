@@ -1,0 +1,134 @@
+import { useEffect, useRef, useState } from 'react'
+import { useParams, useSearchParams, Link } from 'react-router'
+import { ArrowLeft, Monitor } from 'lucide-react'
+import { getRdpInfo } from '../api/rdp'
+import { getWsToken } from '../api/client'
+import { appendVmConnection } from '../api/vm'
+import ErrorBanner from '../components/ErrorBanner'
+import { formatUserError } from '../utils/apiError'
+import { useTranslation } from 'react-i18next'
+
+function wsConnQs(connection: string | null): string {
+  if (!connection || connection === 'system') return ''
+  return `&connection=${encodeURIComponent(connection)}`
+}
+
+/** Binary WebSocket tunnel to guest RDP (port 3389). Pair with an RDP client or future WASM decoder. */
+export default function RdpConsolePage() {
+  const { name } = useParams<{ name: string }>()
+  const [searchParams] = useSearchParams()
+  const connection = searchParams.get('connection')
+  const { t } = useTranslation()
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [info, setInfo] = useState<{ host: string; port: number } | null>(null)
+  const [status, setStatus] = useState<'idle' | 'connecting' | 'connected' | 'error'>('idle')
+  const wsRef = useRef<WebSocket | null>(null)
+  const bytesRef = useRef({ in: 0, out: 0 })
+
+  useEffect(() => {
+    if (!name) return
+    let cancelled = false
+    setLoadError(null)
+    getRdpInfo(name, connection)
+      .then((r) => {
+        if (!cancelled) setInfo({ host: r.host, port: r.port })
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setLoadError(formatUserError(e))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [name, connection])
+
+  useEffect(() => {
+    if (!name || !info) return
+    let cancelled = false
+
+    async function connect() {
+      setStatus('connecting')
+      try {
+        const token = await getWsToken()
+        if (cancelled) return
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        const cq = wsConnQs(connection)
+        const url = `${protocol}//${window.location.host}/ws/v1/rdp/${encodeURIComponent(name!)}?token=${encodeURIComponent(token)}${cq}`
+        const ws = new WebSocket(url)
+        ws.binaryType = 'arraybuffer'
+        wsRef.current = ws
+        ws.onopen = () => {
+          if (!cancelled) setStatus('connected')
+        }
+        ws.onmessage = (ev) => {
+          if (ev.data instanceof ArrayBuffer) {
+            bytesRef.current.in += ev.data.byteLength
+          }
+        }
+        ws.onerror = () => {
+          if (!cancelled) setStatus('error')
+        }
+        ws.onclose = () => {
+          if (!cancelled) setStatus('idle')
+        }
+      } catch {
+        if (!cancelled) setStatus('error')
+      }
+    }
+
+    void connect()
+    return () => {
+      cancelled = true
+      wsRef.current?.close()
+      wsRef.current = null
+    }
+  }, [name, connection, info])
+
+  if (!name) {
+    return <p className="text-slate-400">{t('rdp.missingVm')}</p>
+  }
+
+  const back = appendVmConnection(`/vms/${encodeURIComponent(name)}`, connection)
+
+  return (
+    <div className="space-y-4 max-w-3xl">
+      <Link to={back} className="inline-flex items-center gap-2 text-sm text-slate-400 hover:text-slate-200">
+        <ArrowLeft className="w-4 h-4" />
+        {t('rdp.back')}
+      </Link>
+      <h1 className="text-2xl font-semibold flex items-center gap-2">
+        <Monitor className="w-7 h-7 text-sky-400" aria-hidden />
+        {t('rdp.pageTitle', { name })}
+      </h1>
+
+      {loadError ? (
+        <ErrorBanner title={t('rdp.pageTitle', { name })} headline={loadError} />
+      ) : null}
+
+      {info ? (
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-2 text-sm">
+          <p>
+            <span className="text-slate-500">{t('rdp.endpoint')}:</span>{' '}
+            <code className="text-sky-300">
+              {info.host}:{info.port}
+            </code>
+          </p>
+          <p className="text-slate-400">{t('rdp.tunnelNote')}</p>
+          <p>
+            <span className="text-slate-500">{t('rdp.wsStatus')}:</span>{' '}
+            <span
+              className={
+                status === 'connected'
+                  ? 'text-emerald-400'
+                  : status === 'error'
+                    ? 'text-red-400'
+                    : 'text-amber-400'
+              }
+            >
+              {status}
+            </span>
+          </p>
+        </div>
+      ) : null}
+    </div>
+  )
+}

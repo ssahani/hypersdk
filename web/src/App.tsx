@@ -55,6 +55,8 @@ const OpenStackInstanceDetail = lazy(() => import('./pages/OpenStackInstanceDeta
 const OpenStackCreateInstance = lazy(() => import('./pages/OpenStackCreateInstance'))
 const OpenStackImages = lazy(() => import('./pages/OpenStackImages'))
 const OpenStackMigrations = lazy(() => import('./pages/OpenStackMigrations'))
+const Fleet = lazy(() => import('./pages/Fleet'))
+const RdpConsole = lazy(() => import('./pages/RdpConsole'))
 
 function AppZyvorFooter() {
   const { info } = usePlatformInfo()
@@ -177,6 +179,8 @@ function AuthenticatedShell() {
                 <Route path="/vms" element={<VMList />} />
                 <Route path="/vms/:name" element={<VMDetails />} />
                 <Route path="/vms/:name/console" element={<Console />} />
+                <Route path="/vms/:name/rdp" element={<RdpConsole />} />
+                <Route path="/fleet" element={<Fleet />} />
                 <Route path="/create" element={<CreateVM />} />
                 <Route path="/jobs/:jobId" element={<Jobs />} />
                 <Route path="/jobs" element={<Jobs />} />

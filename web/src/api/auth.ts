@@ -4,7 +4,7 @@ const API = '/api/v1'
 
 /** RBAC role from session or API token (daemon `roles.json` / token metadata). */
 export type SessionRole = 'admin' | 'operator' | 'readonly'
-export type SessionAuthSource = 'pam' | 'oidc' | 'api_token'
+export type SessionAuthSource = 'pam' | 'ldap' | 'oidc' | 'api_token'
 
 export interface AuthSession {
   authenticated: boolean
@@ -19,11 +19,13 @@ export interface AuthSession {
 
 export interface AuthProviders {
   pam: { enabled: boolean }
+  ldap: { enabled: boolean }
   oidc: { enabled: boolean; button_label: string }
 }
 
 const DEFAULT_PROVIDERS: AuthProviders = {
   pam: { enabled: true },
+  ldap: { enabled: false },
   oidc: { enabled: false, button_label: 'Sign in with SSO' },
 }
 
@@ -37,10 +39,10 @@ export function parseSessionRole(value: unknown): SessionRole | undefined {
 }
 
 function parseAuthSource(value: unknown): SessionAuthSource | undefined {
-  if (value === 'pam' || value === 'oidc' || value === 'api_token') return value
+  if (value === 'pam' || value === 'ldap' || value === 'oidc' || value === 'api_token') return value
   if (typeof value !== 'string') return undefined
   const x = value.trim().toLowerCase()
-  if (x === 'pam' || x === 'oidc' || x === 'api_token') return x as SessionAuthSource
+  if (x === 'pam' || x === 'ldap' || x === 'oidc' || x === 'api_token') return x as SessionAuthSource
   return undefined
 }
 
@@ -83,12 +85,18 @@ function normalizeAuthProviders(raw: unknown): AuthProviders {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return DEFAULT_PROVIDERS
   const o = raw as Record<string, unknown>
   const pamIn = o.pam
+  const ldapIn = o.ldap
   const oidcIn = o.oidc
+
+  const ldapEnabled =
+    typeof ldapIn === 'object' && ldapIn !== null && 'enabled' in ldapIn
+      ? Boolean((ldapIn as { enabled?: unknown }).enabled)
+      : false
 
   const pamEnabled =
     typeof pamIn === 'object' && pamIn !== null && 'enabled' in pamIn
       ? Boolean((pamIn as { enabled?: unknown }).enabled)
-      : true
+      : !ldapEnabled
 
   let oidcEnabled = false
   let buttonLabel = DEFAULT_PROVIDERS.oidc.button_label
@@ -100,6 +108,7 @@ function normalizeAuthProviders(raw: unknown): AuthProviders {
 
   return {
     pam: { enabled: pamEnabled },
+    ldap: { enabled: ldapEnabled },
     oidc: { enabled: oidcEnabled, button_label: buttonLabel },
   }
 }
