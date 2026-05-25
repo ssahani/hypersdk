@@ -326,6 +326,14 @@ else
 fi
 
 REMOTE="${USER}@${HOST}"
+
+# Full install defaults: remote IPv4 targets must listen on 0.0.0.0 and open :5092 unless overridden.
+if [[ -z "$BIND" ]] && [[ "$HOST" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] && [[ "$HOST" != "127.0.0.1" ]]; then
+    BIND="0.0.0.0"
+    OPEN_FW=true
+    tip "Remote IPv4 deploy: using --bind 0.0.0.0 --open-firewall (override with --bind 127.0.0.1)"
+fi
+
 declare -a INSTALL_ARGS=()
 if ((${#REST[@]} > 0)); then
     INSTALL_ARGS=("${REST[@]}")
@@ -448,14 +456,17 @@ if ((${#INSTALL_ARGS[@]} > 0)); then
 fi
 
 if $QUICK; then
-    phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web && sudo make install · cargo stays on user PATH"
-    # Build as SSH user (rustup cargo on PATH); only `make install` needs root (install + systemctl).
+    phase 3 "$TOTAL_STEPS" "Build & install (quick path)" "make release web && sudo install.sh --no-tests · cargo stays on user PATH"
+    QUICK_OPTS=" --no-tests"
+    [[ -n "$BIND" ]] && QUICK_OPTS+=" --bind $BIND"
+    $OPEN_FW && QUICK_OPTS+=" --open-firewall"
+    # Build as SSH user (rustup cargo on PATH); install.sh applies bind/firewall/systemd like full deploy.
     ssh_r_bash "$REMOTE" "
 set -euo pipefail
 export PATH=\"\${HOME}/.cargo/bin:/usr/local/cargo/bin:/usr/local/bin:/usr/bin:\${PATH}\"
 cd $REMOTE_DIR
 make release web
-sudo make install
+sudo bash install.sh${QUICK_OPTS}
 " || die "quick build failed"
     phase 4 "$TOTAL_STEPS" "Reload systemd & try-restart machina-daemon" "daemon-reload — restarts only if the unit was already active"
     ssh_r_bash "$REMOTE" "sudo systemctl daemon-reload && sudo systemctl try-restart machina-daemon" || die "service reload failed"
