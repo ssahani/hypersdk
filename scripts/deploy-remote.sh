@@ -19,55 +19,24 @@ STRICT="${STRICT:-0}"
 # Default matches VM-style layout: rsync here → build on server → install to /usr/local + systemd
 REMOTE_DIR="${REMOTE_DIR:-~/.deployment/machina}"
 
-# ── Terminal styling (NO_COLOR + non-TTY safe) ────────────────────────────────
-if [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]]; then
-    BOLD=$'\033[1m'
-    DIM=$'\033[2m'
-    RESET=$'\033[0m'
-    CYAN=$'\033[36m'
-    GREEN=$'\033[32m'
-    YELLOW=$'\033[33m'
-    MAGENTA=$'\033[35m'
-    BLUE=$'\033[34m'
-else
-    BOLD='' DIM='' RESET='' CYAN='' GREEN='' YELLOW='' MAGENTA='' BLUE=''
-fi
-
-_bar72() { printf '%s' '────────────────────────────────────────────────────────────────────────'; }
-
-info() { printf '%bℹ️  %s%b\n' "$BLUE" "$*" "$RESET"; }
+info() { deploy_ui_info_b "$@"; }
 ok()   { deploy_ui_info "$@"; }
 warn() { deploy_ui_warn "$@"; }
 die()  { deploy_ui_error "$@"; }
-
-hr() { printf '\n%b%s%b\n' "$DIM" "$(_bar72)" "$RESET"; }
-
-# Usage: phase step total "Title" "optional subtitle"
-phase() {
-    local step="$1" total="$2" title="$3"
-    local sub="${4:-}"
-    local emoji
-    emoji=$(deploy_ui_step_emoji "$title")
-    printf '\n'
-    printf '%b╭%s╮%b\n' "$CYAN" "$(_bar72)" "$RESET"
-    printf '%b│%b  %s/%s  %s %b%s%b' "$CYAN" "$DIM" "$step" "$total" "$emoji" "$BOLD" "$title" "$RESET"
-    [[ -n "$sub" ]] && printf '\n%b│%b    %s%b' "$CYAN" "$DIM" "$sub" "$RESET"
-    printf '\n'
-    printf '%b╰%s╯%b\n' "$CYAN" "$(_bar72)" "$RESET"
-}
+hr()   { deploy_ui_hr; }
+phase() { deploy_ui_phase "$@"; }
+tip()  { deploy_ui_note "$@"; }
 
 banner_deploy() {
     local host="$1" user="$2" rdir="$3" mode="$4"
     local ver="${MACHINA_VERSION:-dev}" commit="${MACHINA_COMMIT:-?}"
-    deploy_ui_banner "Remote deploy" "${ver} (${commit}) → ${user}@${host}" "🤖"
+    deploy_ui_banner "Remote deploy → ${user}@${host}" "${ver} · ${commit}"
     deploy_ui_kv "🎯" "SSH target" "${user}@${host}"
     deploy_ui_kv "📁" "Remote tree" "$rdir"
     deploy_ui_kv "📋" "Plan" "$mode"
     deploy_ui_kv "💚" "Health" "${HEALTH_URL}"
     deploy_ui_note "Build runs on the server (sources rsync'd — not compiled locally)"
 }
-
-tip() { printf '%b💡 %s%b\n' "$DIM" "$*" "$RESET"; }
 
 elapsed_fmt() { machina_elapsed_fmt "$1"; }
 
@@ -109,6 +78,7 @@ Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpas
 Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 185.165.240.5 --quick
+  deploy-remote.sh 185.165.240.5 sus --quick    # HOST USER (auto-swapped)
   VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
   deploy-remote.sh sus@host --remote-build   # full release build on server, then exit
@@ -174,7 +144,7 @@ rsync_r() {
 
 check_body() {
     EXIT_CODE=0
-    printf '\n%b  🩺 Local machina health snapshot%b\n' "$BOLD$CYAN" "$RESET"
+    deploy_ui_highlight "🩺 Local machina health snapshot"
     hr
     unit_line() {
         local n="$1" a e
@@ -185,7 +155,7 @@ check_body() {
     if ! command -v systemctl &>/dev/null; then
         warn "systemctl not found — skip unit checks"
     else
-        printf '\n%b⚙️  Systemd units%b\n' "$BOLD" "$RESET"
+        deploy_ui_highlight "⚙️  Systemd units"
         unit_line libvirtd.service
         unit_line machina-daemon.service
         unit_line machina-backup.timer
@@ -198,12 +168,12 @@ check_body() {
         [[ "$ad" == active ]] && ok "machina-daemon active"
     fi
     if command -v systemctl &>/dev/null; then
-        printf '\n%b📋 machina-daemon — systemctl status%b\n' "$BOLD" "$RESET"
+        deploy_ui_highlight "📋 machina-daemon — systemctl status"
         systemctl status machina-daemon --no-pager 2>/dev/null || warn "cannot read machina-daemon status"
-        printf '\n%b📋 libvirtd — systemctl status%b\n' "$BOLD" "$RESET"
+        deploy_ui_highlight "📋 libvirtd — systemctl status"
         systemctl status libvirtd --no-pager 2>/dev/null || warn "cannot read libvirtd status"
     fi
-    printf '\n%b💚 API health%b  %s\n' "$BOLD$GREEN" "$RESET" "$HEALTH_URL"
+    deploy_ui_highlight "💚 API health — $HEALTH_URL"
     if command -v curl &>/dev/null; then
         curl -sfk --connect-timeout 3 "$HEALTH_URL" >/dev/null 2>&1 && ok "GET $HEALTH_URL" || {
             warn "cannot reach $HEALTH_URL"; [[ "$STRICT" == 1 ]] && EXIT_CODE=1; }
@@ -216,7 +186,7 @@ check_body() {
 
 check_remote() {
     local r="$1"
-    printf '\n%b  🩺 Remote health check%b\n' "$BOLD$CYAN" "$RESET"
+    deploy_ui_highlight "🩺 Remote health check"
     hr
     info "SSH target → $r"
     ssh_r "$r" env STRICT="$STRICT" HEALTH_URL="$HEALTH_URL" bash -s <<'EOS'
@@ -314,9 +284,9 @@ if [[ $# -ge 1 && "$1" == *@* ]]; then
 elif [[ $# -ge 2 ]]; then
     # Common mistake: HOST USER (e.g. IP first). We only auto-fix when $1 looks like IPv4 and $2 does not.
     if [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] && [[ ! "$2" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
-        warn "first token looks like an IPv4 address — expected USER HOST, not HOST USER. Using «$2» @ «$1»."
         USER="$2"
         HOST="$1"
+        deploy_ui_target_swap "$USER" "$HOST"
     else
         USER="$1"
         HOST="$2"
@@ -346,15 +316,21 @@ fi
 [[ -n "${SSHPASS:-}" ]] && ! command -v sshpass &>/dev/null && die "install sshpass for password auth"
 command -v rsync &>/dev/null || die "rsync required"
 
-[[ -n "${SSHPASS:-}" ]] && info "SSH auth: password (SSHPASS / sshpass)" || info "SSH auth: keys or agent"
+if [[ -n "${SSHPASS:-}" ]]; then
+    info "SSH auth: 🔑 password (SSHPASS / sshpass)"
+else
+    info "SSH auth: 🗝️  keys or agent"
+fi
 
-REMOTE_HOSTNAME="$(ssh_r_bash "$REMOTE" 'hostname')" || die "cannot SSH to $REMOTE"
-ok "Connected — remote hostname: $REMOTE_HOSTNAME"
+deploy_ui_spinner_start "Connecting to ${REMOTE}…"
+REMOTE_HOSTNAME="$(ssh_r_bash "$REMOTE" 'hostname')" || { deploy_ui_spinner_stop; die "cannot SSH to $REMOTE"; }
+deploy_ui_spinner_stop
+ok "Connected — 🖥️  ${REMOTE_HOSTNAME} (${REMOTE})"
 
 if [[ "$USER" != "root" ]]; then
     if ssh_r_bash "$REMOTE" "sudo -n true" 2>/dev/null; then
         DEPLOY_SSH_TTY_OPTS=()
-        ok "Passwordless sudo — non-TTY SSH for long installs"
+        ok "Passwordless sudo — 🔓 non-TTY SSH for long installs"
     else
         DEPLOY_SSH_TTY_OPTS=(-tt)
     fi
@@ -434,7 +410,7 @@ EOS
     ok "Remote compile finished — run without --remote-build/--remote-check to install"
     machina_save_deploy_last "$REPO" "$HOST" "$USER" "remote-${mk_target}"
     hr
-    deploy_ui_note "✨ Finished in $(machina_elapsed_fmt $((SECONDS - DEPLOY_T0)))"
+    deploy_ui_celebrate "Compile finished in $(machina_elapsed_fmt $((SECONDS - DEPLOY_T0)))"
     tip "Next: ./scripts/deploy remote ${USER}@${HOST}   # full install on same tree"
     exit 0
 fi
@@ -442,7 +418,7 @@ fi
 if [[ "${SYNC_ONLY:-0}" == 1 ]] || $SKIP_INSTALL; then
     machina_save_deploy_last "$REPO" "$HOST" "$USER" "sync-only"
     hr
-    deploy_ui_note "✨ Sync finished in $(machina_elapsed_fmt $((SECONDS - DEPLOY_T0)))"
+    deploy_ui_celebrate "Sync finished in $(machina_elapsed_fmt $((SECONDS - DEPLOY_T0)))"
     tip "Sources live on the server under ${REMOTE_DIR} — run full deploy when ready."
     exit 0
 fi
@@ -515,19 +491,20 @@ deploy_ui_highlight "📋 Post-deploy checklist"
 deploy_ui_checklist "machina-daemon" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-daemon 2>/dev/null || echo unknown' | tr -d '\r')"
 deploy_ui_checklist "libvirtd" "$(ssh_r_bash "$REMOTE" 'systemctl is-active libvirtd 2>/dev/null || echo unknown' | tr -d '\r')"
 
-machina_print_success "$HOST" "$ELAPSED" "$USER"
+deploy_ui_celebrate "Ship it!"
+machina_print_success "$HOST" "$ELAPSED" "./scripts/deploy remote ${USER}@${HOST} --quick"
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
+deploy_ui_kv "🌐" "UI" "https://${HOST}:5092/"
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
-tip "Redeploy: ./scripts/deploy remote --quick"
+tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --quick"
 
 if $RUN_E2E; then
     if [[ -z "${VSPASS:-}" && -z "${SSHPASS:-}" ]]; then
         warn "--e2e skipped: set VSPASS (or SSHPASS) for API login"
     else
-        info "Post-deploy E2E (e2e-test-remote.sh)"
-        E2E_PASS="${VSPASS:-${SSHPASS:-}}"
+        deploy_ui_highlight "🧪 Post-deploy E2E"
         if "${SCRIPT_DIR}/e2e-test-remote.sh" "$USER" "$HOST"; then
-            ok "E2E passed"
+            deploy_ui_celebrate "E2E passed"
         else
             warn "E2E failed (deploy itself succeeded)"
         fi

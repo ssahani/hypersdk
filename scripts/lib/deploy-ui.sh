@@ -7,18 +7,34 @@ DEPLOY_UI_PROJECT="${DEPLOY_UI_PROJECT:-Machina}"
 DEPLOY_UI_ICON="${DEPLOY_UI_ICON:-🤖}"
 DEPLOY_UI_ICON_UNINSTALL="${DEPLOY_UI_ICON_UNINSTALL:-🗑️}"
 DEPLOY_UI_ICON_MAGIC="${DEPLOY_UI_ICON_MAGIC:-✨}"
+DEPLOY_UI_ICON_ROCKET="${DEPLOY_UI_ICON_ROCKET:-🚀}"
 DEPLOY_UI_PORT="${DEPLOY_UI_PORT:-5092}"
 DEPLOY_UI_SCHEME="${DEPLOY_UI_SCHEME:-https}"
 DEPLOY_UI_DASH_PATH="${DEPLOY_UI_DASH_PATH:-/}"
 DEPLOY_UI_HEALTH_PATH="${DEPLOY_UI_HEALTH_PATH:-/api/v1/health}"
 
-if [ -t 1 ] && command -v tput &>/dev/null && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
+_deploy_ui_color_on() {
+    [[ -t 1 ]] && [[ -z "${NO_COLOR:-}" ]] && command -v tput &>/dev/null && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]
+}
+
+if _deploy_ui_color_on; then
     _C_RESET=$'\033[0m' _C_BOLD=$'\033[1m' _C_DIM=$'\033[2m'
     _C_CYAN=$'\033[36m' _C_GREEN=$'\033[32m' _C_YELLOW=$'\033[33m'
     _C_RED=$'\033[31m' _C_MAGENTA=$'\033[35m' _C_BLUE=$'\033[34m'
+    _C_WHITE=$'\033[97m' _C_BRIGHT_CYAN=$'\033[96m' _C_BRIGHT_GREEN=$'\033[92m'
+    _C_BRIGHT_MAGENTA=$'\033[95m'
 else
     _C_RESET='' _C_BOLD='' _C_DIM='' _C_CYAN='' _C_GREEN='' _C_YELLOW='' _C_RED='' _C_MAGENTA='' _C_BLUE=''
+    _C_WHITE='' _C_BRIGHT_CYAN='' _C_BRIGHT_GREEN='' _C_BRIGHT_MAGENTA=''
 fi
+
+_deploy_ui_bar_width=58
+
+_deploy_ui_repeat() {
+    local ch="$1" n="$2" i out=""
+    for ((i = 0; i < n; i++)); do out+="$ch"; done
+    printf '%s' "$out"
+}
 
 deploy_ui_step_emoji() {
     local t
@@ -26,42 +42,80 @@ deploy_ui_step_emoji() {
     case "$t" in
         *preflight*|*ssh*|*connect*)       echo "🔌" ;;
         *build*|*compile*|*cargo*|*rust*)  echo "🔨" ;;
-        *sync*|*rsync*|*upload*|*push*)     echo "📤" ;;
-        *install*|*deps*|*package*)         echo "📦" ;;
+        *rsync*|*upload*|*push*)           echo "📤" ;;
+        *sync*)                            echo "📤" ;;
+        *uninstall*)                       echo "🗑️" ;;
+        *deps*|*package*)                  echo "📦" ;;
+        *install*)                         echo "📦" ;;
         *mkosi*)                           echo "💿" ;;
         *dashboard*|*web*|*npm*)           echo "🌐" ;;
-        *systemd*|*service*|*daemon*)      echo "⚙️" ;;
+        *systemd*|*service*|*daemon*|*reload*) echo "⚙️" ;;
         *libvirt*|*kvm*|*qemu*)            echo "🖥️" ;;
-        *verify*|*smoke*|*test*|*health*)   echo "🩺" ;;
+        *verify*|*smoke*|*test*|*health*|*e2e*|*post-flight*) echo "🩺" ;;
         *clean*|*nuke*)                    echo "🧹" ;;
         *detect*|*runtime*)                 echo "🔍" ;;
         *firewall*)                        echo "🔥" ;;
         *writable*|*chown*)               echo "🔐" ;;
-        *uninstall*)                       echo "🗑️" ;;
+        *snapshot*)                        echo "📸" ;;
         *)                                 echo "🔧" ;;
     esac
 }
 
-deploy_ui_info()  { printf '  %s✅%s %s\n' "$_C_GREEN" "$_C_RESET" "$*"; }
+deploy_ui_info()  { printf '  %s✅%s %s\n' "$_C_BRIGHT_GREEN" "$_C_RESET" "$*"; }
 deploy_ui_warn()  { printf '  %s⚠️ %s%s\n' "$_C_YELLOW" "$_C_RESET" "$*"; }
 deploy_ui_error() { printf '  %s❌%s %s\n' "$_C_RED" "$_C_RESET" "$*"; exit 1; }
 deploy_ui_note()  { printf '  %s💡%s %s\n' "$_C_BLUE" "$_C_RESET" "$*"; }
+deploy_ui_info_b() { printf '  %sℹ️  %s%s\n' "$_C_BRIGHT_CYAN" "$*" "$_C_RESET"; }
 
 deploy_ui_kv() {
     local icon="$1" label="$2" value="$3"
-    printf '  %s%-14s%s %s\n' "$_C_DIM" "${icon} ${label}" "$_C_RESET" "$value"
+    printf '  %s%-16s%s %s%s%s\n' "$_C_DIM" "${icon} ${label}" "$_C_RESET" "$_C_WHITE" "$value" "$_C_RESET"
+}
+
+deploy_ui_hr() {
+    printf '\n%b%s%b\n' "$_C_DIM" "$(_deploy_ui_repeat '─' "$_deploy_ui_bar_width")" "$_C_RESET"
+}
+
+deploy_ui_progress() {
+    local step="$1" total="$2"
+    local width=28 filled empty bar="" i
+    (( total < 1 )) && total=1
+    filled=$(( step * width / total ))
+    empty=$(( width - filled ))
+    for ((i = 0; i < filled; i++)); do bar+='█'; done
+    for ((i = 0; i < empty; i++)); do bar+='░'; done
+    printf '  %s%s %s%s %s/%s%s\n' \
+        "$_C_BRIGHT_MAGENTA" "$bar" "$_C_RESET" "$_C_DIM" "$step" "$total" "$_C_RESET"
+}
+
+# Fancy step header: emoji + title + optional subtitle + progress bar
+deploy_ui_phase() {
+    local step="$1" total="$2" title="$3"
+    local sub="${4:-}"
+    local emoji
+    emoji=$(deploy_ui_step_emoji "$title")
+    printf '\n'
+    printf '  %s╔%s╗%s\n' "$_C_CYAN" "$(_deploy_ui_repeat '═' "$_deploy_ui_bar_width")" "$_C_RESET"
+    printf '  %s║%s  %s %b%s%b\n' "$_C_CYAN" "$_C_RESET" "$emoji" "$_C_BOLD" "$title" "$_C_RESET"
+    if [[ -n "$sub" ]]; then
+        printf '  %s║%s     %s%s%s\n' "$_C_CYAN" "$_C_RESET" "$_C_DIM" "$sub" "$_C_RESET"
+    fi
+    printf '  %s╚%s╝%s\n' "$_C_CYAN" "$(_deploy_ui_repeat '═' "$_deploy_ui_bar_width")" "$_C_RESET"
+    deploy_ui_progress "$step" "$total"
 }
 
 deploy_ui_banner() {
     local title="$1" subtitle="${2:-}"
     local icon="${3:-$DEPLOY_UI_ICON}"
+    local w=58
     printf '\n'
-    printf '  %s╔══════════════════════════════════════════════════════════╗%s\n' "$_C_MAGENTA" "$_C_RESET"
-    printf '  %s║%s %s %-53s %s║%s\n' "$_C_MAGENTA" "$_C_RESET" "$icon" "$title" "$_C_MAGENTA" "$_C_RESET"
-    if [ -n "$subtitle" ]; then
-        printf '  %s║%s %s %-53s %s║%s\n' "$_C_MAGENTA" "$_C_RESET" "  " "$subtitle" "$_C_MAGENTA" "$_C_RESET"
+    printf '  %s%s %s %s%s\n' "$_C_BRIGHT_MAGENTA" "$(_deploy_ui_repeat '═' "$w")" "$DEPLOY_UI_ICON_ROCKET" "$(_deploy_ui_repeat '═' "$w")" "$_C_RESET"
+    printf '  %s║%s %s %-52s %s║%s\n' "$_C_MAGENTA" "$_C_RESET" "$icon" "$title" "$_C_MAGENTA" "$_C_RESET"
+    if [[ -n "$subtitle" ]]; then
+        printf '  %s║%s   %s%-52s%s %s║%s\n' \
+            "$_C_MAGENTA" "$_C_RESET" "$_C_DIM" "$subtitle" "$_C_RESET" "$_C_MAGENTA" "$_C_RESET"
     fi
-    printf '  %s╚══════════════════════════════════════════════════════════╝%s\n' "$_C_MAGENTA" "$_C_RESET"
+    printf '  %s%s %s %s%s\n' "$_C_BRIGHT_MAGENTA" "$(_deploy_ui_repeat '═' "$w")" "$DEPLOY_UI_ICON_MAGIC" "$(_deploy_ui_repeat '═' "$w")" "$_C_RESET"
     printf '\n'
 }
 
@@ -70,18 +124,26 @@ deploy_ui_uninstall_banner() {
 }
 
 deploy_ui_highlight() {
-    printf '\n  %s── %s ──%s\n' "$_C_DIM" "$*" "$_C_RESET"
+    printf '\n  %s━━ %s ━━%s\n' "$_C_BRIGHT_CYAN" "$*" "$_C_RESET"
+}
+
+deploy_ui_target_swap() {
+    local user="$1" host="$2"
+    printf '\n'
+    deploy_ui_warn "You passed HOST then USER — using ${user}@${host}"
+    deploy_ui_note "Tip: ./scripts/deploy-remote.sh ${user} ${host}   (USER HOST is canonical)"
+    printf '\n'
 }
 
 _deploy_ui_spinner_pid=""
 deploy_ui_spinner_start() {
     local msg="$1"
-    [ -t 1 ] || return 0
+    [[ -t 1 ]] || return 0
     (
         local frames=('🌑' '🌒' '🌓' '🌔' '🌕' '🌖' '🌗' '🌘')
         local i=0
         while true; do
-            printf '\r  %s %s %s' "${frames[$i]}" "$msg" "$_C_DIM···$_C_RESET"
+            printf '\r  %s %s %s···%s' "${frames[$i]}" "$msg" "$_C_DIM" "$_C_RESET"
             i=$(( (i + 1) % 8 ))
             sleep 0.12
         done
@@ -90,7 +152,7 @@ deploy_ui_spinner_start() {
 }
 
 deploy_ui_spinner_stop() {
-    if [ -n "$_deploy_ui_spinner_pid" ]; then
+    if [[ -n "$_deploy_ui_spinner_pid" ]]; then
         kill "$_deploy_ui_spinner_pid" 2>/dev/null || true
         wait "$_deploy_ui_spinner_pid" 2>/dev/null || true
         _deploy_ui_spinner_pid=""
@@ -106,7 +168,7 @@ deploy_ui_step_start() {
     local now emoji
     now=$(date +%s)
     emoji=$(deploy_ui_step_emoji "$title")
-    if [ -n "${DEPLOY_UI_CURRENT_STEP:-}" ] && [ "${DEPLOY_UI_STEP_TS:-0}" -gt 0 ]; then
+    if [[ -n "${DEPLOY_UI_CURRENT_STEP:-}" ]] && [[ "${DEPLOY_UI_STEP_TS:-0}" -gt 0 ]]; then
         deploy_ui_info "${DEPLOY_UI_CURRENT_STEP} done in $((now - DEPLOY_UI_STEP_TS))s"
     fi
     DEPLOY_UI_CURRENT_STEP="$title"
@@ -118,7 +180,7 @@ deploy_ui_step_start() {
 deploy_ui_step_finish() {
     local now
     now=$(date +%s)
-    if [ -n "${DEPLOY_UI_CURRENT_STEP:-}" ] && [ "${DEPLOY_UI_STEP_TS:-0}" -gt 0 ]; then
+    if [[ -n "${DEPLOY_UI_CURRENT_STEP:-}" ]] && [[ "${DEPLOY_UI_STEP_TS:-0}" -gt 0 ]]; then
         deploy_ui_info "${DEPLOY_UI_CURRENT_STEP} done in $((now - DEPLOY_UI_STEP_TS))s"
     fi
     DEPLOY_UI_CURRENT_STEP=""
@@ -130,44 +192,56 @@ deploy_ui_dry_run() {
     deploy_ui_banner "${DEPLOY_UI_ICON_MAGIC} Dry run" "no changes will be made"
     deploy_ui_kv "🎯" "Target" "${user}@${host}"
     deploy_ui_kv "📁" "Remote dir" "$remote_dir"
-    deploy_ui_kv "⚡" "Mode" "$([ "$quick" = true ] && echo 'quick' || echo 'full')"
-    echo ""
+    deploy_ui_kv "⚡" "Mode" "$([ "$quick" = true ] && echo 'quick ⚡' || echo 'full 📦')"
+    printf '\n'
     deploy_ui_note "Would: rsync → remote build (cargo/npm) → install → restart"
-    echo ""
+    printf '\n'
 }
 
 deploy_ui_checklist() {
     local label="$1" status="$2"
-    local icon="✅"
+    local icon="✅" color="$_C_BRIGHT_GREEN"
     case "$status" in
-        OK|ok|active|200) icon="✅" ;;
-        WARN*|warn*)      icon="⚠️" ;;
-        *)                icon="❌" ;;
+        OK|ok|active|200) icon="✅" color="$_C_BRIGHT_GREEN" ;;
+        WARN*|warn*|unknown) icon="⚠️" color="$_C_YELLOW" ;;
+        *) icon="❌" color="$_C_RED" ;;
     esac
-    printf '    %s %-14s %s\n' "$icon" "$label" "$status"
+    printf '    %s %-16s %s%s%s\n' "$icon" "$label" "$color" "$status" "$_C_RESET"
 }
 
 deploy_ui_success() {
     local host="${1:-localhost}" secs="${2:-0}" extra_cmd="${3:-}"
     local base="${DEPLOY_UI_SCHEME}://${host}:${DEPLOY_UI_PORT}"
     printf '\n'
-    printf '  %s  %s %s deploy complete! %s %s%s\n' "$DEPLOY_UI_ICON" "$_C_CYAN" "$DEPLOY_UI_PROJECT" "$DEPLOY_UI_ICON_MAGIC" "$_C_RESET"
-    printf '  %s   ╭──────────────────────────────────────────────╮%s\n' "$_C_GREEN" "$_C_RESET"
-    printf '  %s   │ 🌐 Dashboard  %-30s │%s\n' "$_C_GREEN" "${base}${DEPLOY_UI_DASH_PATH}" "$_C_RESET"
-    printf '  %s   │ 💚 Health API  %-30s │%s\n' "$_C_GREEN" "${base}${DEPLOY_UI_HEALTH_PATH}" "$_C_RESET"
-    printf '  %s   ╰──────────────────────────────────────────────╯%s\n' "$_C_GREEN" "$_C_RESET"
-    [ -n "$secs" ] && [ "$secs" -gt 0 ] 2>/dev/null && printf '  %s⏱️  %ss total%s\n' "$_C_DIM" "$secs" "$_C_RESET"
-    if [ -n "$extra_cmd" ]; then
-        printf '  %s🔁%s %s\n' "$_C_DIM" "$_C_RESET" "$extra_cmd"
+    printf '  %s╔══════════════════════════════════════════════════════════╗%s\n' "$_C_BRIGHT_GREEN" "$_C_RESET"
+    printf '  %s║%s  %s %s deploy complete! %s %s  %s║%s\n' \
+        "$_C_BRIGHT_GREEN" "$_C_RESET" "$DEPLOY_UI_ICON" "$DEPLOY_UI_PROJECT" "$DEPLOY_UI_ICON_MAGIC" "$DEPLOY_UI_ICON_ROCKET" \
+        "$_C_BRIGHT_GREEN" "$_C_RESET"
+    printf '  %s╠══════════════════════════════════════════════════════════╣%s\n' "$_C_BRIGHT_GREEN" "$_C_RESET"
+    printf '  %s║%s 🌐 Dashboard    %s%-26s%s %s║%s\n' \
+        "$_C_BRIGHT_GREEN" "$_C_RESET" "$_C_WHITE" "${base}${DEPLOY_UI_DASH_PATH}" "$_C_RESET" "$_C_BRIGHT_GREEN" "$_C_RESET"
+    printf '  %s║%s 💚 Health API   %s%-26s%s %s║%s\n' \
+        "$_C_BRIGHT_GREEN" "$_C_RESET" "$_C_WHITE" "${base}${DEPLOY_UI_HEALTH_PATH}" "$_C_RESET" "$_C_BRIGHT_GREEN" "$_C_RESET"
+    printf '  %s╚══════════════════════════════════════════════════════════╝%s\n' "$_C_BRIGHT_GREEN" "$_C_RESET"
+    if [[ -n "$secs" ]] && [[ "$secs" -gt 0 ]] 2>/dev/null; then
+        printf '  %s⏱️  Finished in %ss%s\n' "$_C_DIM" "$secs" "$_C_RESET"
+    fi
+    if [[ -n "$extra_cmd" ]]; then
+        printf '  %s🔁 Quick redeploy:%s %s\n' "$_C_DIM" "$_C_RESET" "$extra_cmd"
     fi
     printf '\n'
+}
+
+deploy_ui_celebrate() {
+  local msg="${1:-All systems go}"
+  printf '  %s🎉 %s 🎊%s\n' "$_C_BRIGHT_MAGENTA" "$msg" "$_C_RESET"
 }
 
 deploy_ui_fail() {
     local action="${1:-unknown}" line="${2:-?}" log="${3:-}"
     printf '\n'
     deploy_ui_error "Deploy failed at: ${action} (line ${line})"
-    [ -n "$log" ] && [ -f "$log" ] && deploy_ui_note "Log: ${log}"
+    [[ -n "$log" ]] && [[ -f "$log" ]] && deploy_ui_note "Log: ${log}"
 }
 
 deploy_ui_parse_target() {
@@ -203,7 +277,7 @@ EOF
 deploy_ui_load_deploy_last() {
     local repo_dir="$1" f
     f=$(deploy_ui_deploy_state_file "$repo_dir")
-    [ -f "$f" ] || return 1
+    [[ -f "$f" ]] || return 1
     # shellcheck disable=SC1090
     source "$f"
     return 0
