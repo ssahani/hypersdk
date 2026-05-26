@@ -3761,6 +3761,7 @@ async fn k8s_metrics(
     }
 
     let metrics_available = !nodes_top.is_empty() || !pods_top.is_empty();
+    crate::k8s_metrics_cache::record_k8s_metrics_probe(metrics_available);
 
     Ok(Json(serde_json::json!({
         "metrics_available": metrics_available,

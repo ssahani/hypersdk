@@ -163,6 +163,18 @@ async fn host_problems() -> Json<serde_json::Value> {
             }
         }
     }
+    if let Some(ts) = crate::automation_worker::automation_last_tick_unix() {
+        let age = chrono::Utc::now().timestamp() - ts;
+        if age > 300 {
+            items.push(json!({
+                "id": "automation_worker_stale",
+                "severity": "warning",
+                "title": "Automation worker stale",
+                "detail": format!("Last tick was {age}s ago (expected every ~60s)."),
+                "doc_url": "docs/guides/integrations.md",
+            }));
+        }
+    }
     if let Ok(rep) = linux_audit::gather_linux_audit_configured() {
         if rep.available {
             let th = linux_audit::health_avc_threshold();

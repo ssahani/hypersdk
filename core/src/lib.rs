@@ -4,7 +4,9 @@ pub mod audit_ship;
 pub mod bpf_probe;
 pub mod linux_audit;
 pub mod observability_settings;
+pub mod fleet_placement;
 pub mod k8s_top;
+pub mod prometheus_text;
 pub mod trace_context;
 pub mod otlp;
 pub mod run_as_user;
@@ -27,7 +29,9 @@ pub mod validate;
 pub mod xml;
 
 pub use api_error::{format_http_error_body, format_user_error, friendly_error_code, sanitize_error_text};
+pub use fleet_placement::{fleet_capacity_score, placement_adjusted_score};
 pub use k8s_top::{parse_kubectl_top_line, K8sTopRow};
+pub use prometheus_text::{host_percents_from_samples, parse_prometheus_text, PrometheusSample};
 pub use trace_context::{format_traceparent, trace_context_from_headers, HttpTraceContext};
 pub use observability_settings::{
     apply_observability_patch, settings_view_from_config, AuditObservabilityView,

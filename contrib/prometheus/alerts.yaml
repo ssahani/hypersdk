@@ -39,6 +39,20 @@ groups:
           severity: info
         annotations:
           summary: "Unacknowledged Machina automation alerts"
+      - alert: MachinaAutomationWorkerStale
+        expr: (time() - machina_automation_last_tick_unix) > 300
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Automation worker has not ticked in 5+ minutes ({{ $labels.instance }})"
+      - alert: MachinaK8sMetricsUnavailable
+        expr: machina_k8s_metrics_available == 0
+        for: 15m
+        labels:
+          severity: info
+        annotations:
+          summary: "kubectl top / metrics-server unavailable ({{ $labels.instance }})"
 
   - name: machina-vm
     rules:

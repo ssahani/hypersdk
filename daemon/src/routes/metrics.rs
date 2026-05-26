@@ -1,12 +1,16 @@
 use axum::extract::{Extension, Path, Query, State};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
-
+use machina_core::libvirt::extras::get_host_stats;
 use machina_core::libvirt::metrics;
-use machina_core::{LibvirtError, LibvirtManager, VmMetrics};
+use machina_core::metrics_history::MetricsHistoryPoint;
+use machina_core::{
+    host_percents_from_samples, parse_prometheus_text, LibvirtError, LibvirtManager, VmMetrics,
+};
 
 use crate::conn_query::ConnQuery;
 use crate::error::AppError;
+use crate::http_metrics::HttpMetrics;
 use crate::metrics_history::MetricsHistoryStore;
 
 async fn get_all_metrics(
@@ -53,9 +57,90 @@ async fn get_metrics_history(
     }))
 }
 
+#[derive(serde::Deserialize)]
+struct TracesQuery {
+    limit: Option<usize>,
+}
+
+async fn get_metrics_traces(
+    Extension(http_metrics): Extension<std::sync::Arc<HttpMetrics>>,
+    Query(q): Query<TracesQuery>,
+) -> Json<serde_json::Value> {
+    let limit = q.limit.unwrap_or(64).min(256);
+    let traces = http_metrics.recent_traces(limit);
+    Json(serde_json::json!({ "traces": traces, "count": traces.len() }))
+}
+
+#[derive(serde::Deserialize)]
+struct BatchIngestRequest {
+    points: Vec<MetricsHistoryPoint>,
+}
+
+async fn post_metrics_ingest_batch(
+    Extension(store): Extension<MetricsHistoryStore>,
+    Json(req): Json<BatchIngestRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if req.points.is_empty() {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "points array must not be empty".into(),
+        )));
+    }
+    if req.points.len() > 500 {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "at most 500 points per batch".into(),
+        )));
+    }
+    for p in &req.points {
+        store.push(p.clone());
+    }
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "ingested": req.points.len(),
+    })))
+}
+
+async fn post_metrics_ingest_prometheus(
+    Extension(store): Extension<MetricsHistoryStore>,
+    body: String,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let samples = parse_prometheus_text(&body);
+    if samples.is_empty() {
+        return Err(AppError::from(LibvirtError::Invalid(
+            "no Prometheus samples parsed from body".into(),
+        )));
+    }
+    let mut ingested = 0usize;
+    if let Some((cpu, mem, disk)) = host_percents_from_samples(&samples) {
+        let host = get_host_stats();
+        store.push(MetricsHistoryPoint {
+            timestamp_ms: chrono::Utc::now().timestamp_millis(),
+            host_cpu_percent: cpu,
+            host_memory_percent: mem,
+            host_disk_percent: disk,
+            load_1: host.load_1,
+            vms_running: 0,
+            vm_count: 0,
+            vm_metrics: Vec::new(),
+        });
+        ingested = 1;
+    }
+    Ok(Json(serde_json::json!({
+        "status": "ok",
+        "samples_parsed": samples.len(),
+        "history_points_added": ingested,
+        "recognized_host_metrics": ingested > 0,
+    })))
+}
+
 pub fn metrics_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/metrics", get(get_all_metrics))
         .route("/metrics/history", get(get_metrics_history))
+        .route("/metrics/traces", get(get_metrics_traces))
+        .route("/metrics/ingest/batch", post(post_metrics_ingest_batch))
+        .route(
+            "/metrics/ingest/prometheus",
+            post(post_metrics_ingest_prometheus),
+        )
         .route("/metrics/{name}", get(get_vm_metrics))
 }

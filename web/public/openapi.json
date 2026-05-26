@@ -1295,6 +1295,45 @@
         "responses": { "200": { "description": "Proxy result or local-create hint" } }
       }
     },
+    "/metrics/traces": {
+      "get": {
+        "summary": "Recent HTTP request traces (W3C trace IDs)",
+        "tags": ["Metrics"],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 64 } }
+        ],
+        "responses": { "200": { "description": "Trace span list" } }
+      }
+    },
+    "/metrics/ingest/batch": {
+      "post": {
+        "summary": "Append metrics history points (JSON batch)",
+        "tags": ["Metrics"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "points": { "type": "array", "items": { "type": "object" } }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Ingested count" } }
+      }
+    },
+    "/metrics/ingest/prometheus": {
+      "post": {
+        "summary": "Parse Prometheus text exposition; map machina_host_* gauges into history",
+        "tags": ["Metrics"],
+        "requestBody": {
+          "content": { "text/plain": { "schema": { "type": "string" } } }
+        },
+        "responses": { "200": { "description": "Parse result" } }
+      }
+    },
     "/integrations/status": {
       "get": {
         "summary": "Unified health for OpenStack, KubeVirt, automation, k8s, and run-as-user",

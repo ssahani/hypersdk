@@ -30,6 +30,7 @@ import {
   verifyAuditLog,
   type ObservabilitySettingsView,
 } from '../api/observability'
+import { getMetricsTraces, type HttpTraceSpan } from '../api/metrics'
 type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
 export default function SettingsPage() {
@@ -81,6 +82,8 @@ export default function SettingsPage() {
   const [auditVerifyResult, setAuditVerifyResult] = useState<string | null>(null)
   const [otlpAuthInput, setOtlpAuthInput] = useState('')
   const [remoteWriteAuthInput, setRemoteWriteAuthInput] = useState('')
+  const [httpTraces, setHttpTraces] = useState<HttpTraceSpan[] | null>(null)
+  const [tracesLoading, setTracesLoading] = useState(false)
 
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -299,6 +302,16 @@ export default function SettingsPage() {
             </div>
           </dl>
           <div className="flex flex-wrap gap-2 text-sm">
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700"
+              onClick={() => {
+                void navigator.clipboard.writeText(JSON.stringify(integrations, null, 2))
+                toast.success('Copied integrations JSON')
+              }}
+            >
+              Copy JSON
+            </button>
             <Link to="/k8s" className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700">
               Kubernetes
             </Link>
@@ -531,6 +544,42 @@ export default function SettingsPage() {
           {auditVerifyResult ? (
             <p className="text-xs text-slate-400 font-mono">{auditVerifyResult}</p>
           ) : null}
+          <div className="border-t border-slate-700/50 pt-3 space-y-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-slate-400">Recent HTTP traces</span>
+              <button
+                type="button"
+                disabled={tracesLoading}
+                className="px-2 py-1 rounded border border-slate-600 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+                onClick={async () => {
+                  setTracesLoading(true)
+                  try {
+                    const r = await getMetricsTraces(24)
+                    setHttpTraces(r.traces)
+                  } catch (e: unknown) {
+                    toast.error(formatUserError(e))
+                    setHttpTraces(null)
+                  } finally {
+                    setTracesLoading(false)
+                  }
+                }}
+              >
+                {tracesLoading ? 'Loading…' : 'Load traces'}
+              </button>
+            </div>
+            {httpTraces && httpTraces.length > 0 ? (
+              <ul className="text-xs font-mono text-slate-400 space-y-1 max-h-40 overflow-y-auto">
+                {httpTraces.map((t, i) => (
+                  <li key={`${t.trace_id}-${i}`}>
+                    {t.method} {t.route} → {t.status} ({t.duration_ms}ms){' '}
+                    <span className="text-slate-500">{t.trace_id.slice(0, 16)}…</span>
+                  </li>
+                ))}
+              </ul>
+            ) : httpTraces ? (
+              <p className="text-xs text-slate-500">No traces in buffer yet.</p>
+            ) : null}
+          </div>
         </section>
       ) : null}
 

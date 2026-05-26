@@ -18,14 +18,30 @@ Deep links: OpenStack `GET /api/v1/openstack/status`, run-as-user `GET /api/v1/a
 
 `GET /api/v1/k8s/metrics?context=` runs `kubectl top nodes` and `kubectl top pods -A` (requires **metrics-server**). The K8s Overview page shows a live utilization panel.
 
+## Metrics ingest (beyond JSON remote_write)
+
+| Endpoint | Body | Purpose |
+|----------|------|---------|
+| `POST /api/v1/metrics/ingest/batch` | `{ "points": [ MetricsHistoryPoint, … ] }` | Append up to 500 history samples |
+| `POST /api/v1/metrics/ingest/prometheus` | Prometheus text exposition | Parse `machina_host_*_percent` gauges into one history point |
+| `GET /api/v1/metrics/traces` | — | Recent HTTP spans (W3C trace IDs) for debugging |
+
 ## Prometheus
 
 On scrape, the daemon exports:
 
 - `machina_automation_last_tick_unix` — last successful automation worker tick
 - `machina_run_as_user_active` — `1` when `[auth.run_as_user]` impersonation is active
+- `machina_k8s_metrics_available` / `machina_k8s_last_probe_unix` — last `kubectl top` probe
+- `machina_openstack_configured` — when OpenStack is enabled in config
 
-See `contrib/grafana/machina-overview.json` (v4+).
+See `contrib/grafana/machina-overview.json` (v4+) and `contrib/prometheus/alerts.yaml`.
+
+## CLI
+
+```bash
+./machinactl integrations
+```
 
 ## Run-as-user
 

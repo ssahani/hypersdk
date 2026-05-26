@@ -798,6 +798,8 @@ async fn session_handler(
     if let Some(token) = extract_token(&req) {
         if let Some(actor) = store.validate_session(&token) {
             let session_id = store.session_public_id(&token);
+            let run_as = machina_core::MachinaConfig::load().auth.run_as_user;
+            let mode = serde_json::to_value(&run_as.mode).unwrap_or(serde_json::json!("disabled"));
             return (
                 StatusCode::OK,
                 Json(serde_json::json!({
@@ -807,6 +809,12 @@ async fn session_handler(
                     "session_id": session_id,
                     "role": actor.role,
                     "auth_source": actor.auth_source,
+                    "run_as_user": {
+                        "enabled": run_as.wants_impersonation(),
+                        "mode": mode,
+                        "impersonation_active": run_as.impersonation_active(),
+                        "prefer_session_libvirt_on_impersonation": run_as.prefer_session_libvirt_on_impersonation,
+                    },
                 })),
             )
                 .into_response();

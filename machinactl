@@ -28,6 +28,7 @@
 #   tls             Generate self-signed TLS certificate
 #   demo            Run interactive API demo
 #   audit verify    Verify signed audit log (API or local file)
+#   integrations    Show OpenStack/KubeVirt/k8s/automation integration status
 #   help            Show this help
 #
 # Web UI sign-in uses PAM (Linux accounts on this host), not a separate machina password.
@@ -414,6 +415,15 @@ cmd_verify() {
         ((failures++)) || true
     fi
 
+    info "Checking integrations status..."
+    local int_code
+    int_code=$(curl -sk -o /dev/null -w "%{http_code}" "$API_URL/api/$API_VERSION/integrations/status" --max-time 5 2>/dev/null) || int_code="000"
+    if [[ "$int_code" == "200" ]]; then
+        ok "Integrations status (HTTP $int_code)"
+    else
+        warn "Integrations status HTTP $int_code"
+    fi
+
     info "Checking VM list..."
     local vm_response
     vm_response=$(curl -sk "$API_URL/api/$API_VERSION/vms" --max-time 5 2>/dev/null)
@@ -738,6 +748,17 @@ cmd_tls() {
     info "Key:  $key_file"
 }
 
+# ── integrations status ────────────────────────────────────────────────
+cmd_integrations() {
+    step "Integration status"
+    if ! curl -sfk "$API_URL/api/$API_VERSION/health" &>/dev/null; then
+        err "machina-daemon is not running at $API_URL"
+        exit 1
+    fi
+    curl -sk "$API_URL/api/$API_VERSION/integrations/status" | jq '.' 2>/dev/null || \
+        curl -sk "$API_URL/api/$API_VERSION/integrations/status"
+}
+
 # ── audit verify ───────────────────────────────────────────────────────
 cmd_audit_verify() {
     step "Audit log signature verification"
@@ -847,6 +868,7 @@ cmd_help() {
     echo "  tls               Generate self-signed TLS certificate (auto-sudo)"
     echo "  demo              Run interactive API demo"
     echo "  audit verify      Verify audit.log sha256 signatures (API or local)"
+    echo "  integrations      Integration status (OpenStack, k8s, automation, …)"
     echo "  help              Show this help"
     echo ""
     echo "🚀 Quick start:"
@@ -891,6 +913,7 @@ main() {
                 *) err "Usage: machinactl audit verify [max_lines]"; exit 1 ;;
             esac
             ;;
+        integrations) cmd_integrations "$@" ;;
         help|--help|-h) cmd_help ;;
         *)
             err "Unknown command: $cmd"

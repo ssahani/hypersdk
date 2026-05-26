@@ -181,22 +181,8 @@ async fn fleet_vms(
     Ok(Json(json!({ "enabled": cfg.is_enabled(), "vms": rows })))
 }
 
-/// Headroom score from host CPU, memory, and root disk utilization (0–100, higher is better).
-pub(crate) fn fleet_capacity_score(cpu: f64, mem: f64, disk: f64) -> (f64, &'static str) {
-    let score =
-        ((100.0 - cpu).max(0.0) + (100.0 - mem).max(0.0) + (100.0 - disk).max(0.0)) / 3.0;
-    let label = if score >= 40.0 {
-        "high"
-    } else if score >= 20.0 {
-        "medium"
-    } else {
-        "low"
-    };
-    ((score * 10.0).round() / 10.0, label)
-}
-
 fn fleet_capacity(cpu: f64, mem: f64, disk: f64) -> Value {
-    let (score, label) = fleet_capacity_score(cpu, mem, disk);
+    let (score, label) = machina_core::fleet_capacity_score(cpu, mem, disk);
     json!({
         "score": score,
         "label": label,
@@ -324,12 +310,6 @@ struct PlacementCandidate {
     error: Option<String>,
 }
 
-fn placement_adjusted_score(base: f64, vcpus: u32, memory_mb: u64) -> f64 {
-    let mem_gb = memory_mb as f64 / 1024.0;
-    let penalty = (vcpus as f64 * 3.0) + (mem_gb * 2.0);
-    ((base - penalty) * 10.0).round() / 10.0
-}
-
 async fn compute_placement_candidates(
     manager: &LibvirtManager,
     vcpus: u32,
@@ -338,12 +318,12 @@ async fn compute_placement_candidates(
     let cfg = fleet_cfg();
     let local_stats = machina_core::libvirt::extras::get_host_stats();
     let local_vms = manager.list_all_vms()?;
-    let (base_score, _) = fleet_capacity_score(
+    let (base_score, _) = machina_core::fleet_capacity_score(
         local_stats.cpu_percent,
         local_stats.memory_percent,
         local_stats.disk_percent,
     );
-    let adjusted = placement_adjusted_score(base_score, vcpus, memory_mb);
+    let adjusted = machina_core::placement_adjusted_score(base_score, vcpus, memory_mb);
     let mut local_cap = fleet_capacity(
         local_stats.cpu_percent,
         local_stats.memory_percent,
@@ -398,8 +378,8 @@ async fn compute_placement_candidates(
                 row.host_cpu_percent = Some(cpu);
                 row.host_memory_percent = Some(mem);
                 row.host_disk_percent = Some(disk);
-                let (base, _) = fleet_capacity_score(cpu, mem, disk);
-                let adj = placement_adjusted_score(base, vcpus, memory_mb);
+                let (base, _) = machina_core::fleet_capacity_score(cpu, mem, disk);
+                let adj = machina_core::placement_adjusted_score(base, vcpus, memory_mb);
                 let mut cap = fleet_capacity(cpu, mem, disk);
                 if let Some(obj) = cap.as_object_mut() {
                     obj.insert("adjusted_score".into(), json!(adj));
@@ -740,21 +720,3 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::fleet_capacity_score;
-
-    #[test]
-    fn capacity_high_when_host_has_headroom() {
-        let (score, label) = fleet_capacity_score(20.0, 25.0, 30.0);
-        assert!(score > 40.0);
-        assert_eq!(label, "high");
-    }
-
-    #[test]
-    fn capacity_low_when_host_is_saturated() {
-        let (score, label) = fleet_capacity_score(95.0, 92.0, 90.0);
-        assert!(score < 20.0);
-        assert_eq!(label, "low");
-    }
-}

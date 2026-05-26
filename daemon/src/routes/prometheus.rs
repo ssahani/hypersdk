@@ -15,7 +15,8 @@ use machina_core::bpf_probe;
 use machina_core::libvirt::automation;
 use machina_core::obs_counters;
 use machina_core::{
-    LibvirtManager, MachinaConfig, VmBlockDeviceMetrics, VmInfo, VmMetrics, VmNetDeviceMetrics,
+    is_openstack_configured, LibvirtManager, MachinaConfig, VmBlockDeviceMetrics, VmInfo,
+    VmMetrics, VmNetDeviceMetrics,
 };
 
 use crate::daemon_stats::DaemonStats;
@@ -582,13 +583,40 @@ async fn prometheus_metrics(
             ts.max(0) as u64,
         );
     }
-    let run_as = MachinaConfig::load().auth.run_as_user;
+    let cfg = MachinaConfig::load();
+    let run_as = &cfg.auth.run_as_user;
     add_gauge(
         &mut output,
         "machina_run_as_user_active",
         "1 when OIDC run-as-user impersonation is active",
         if run_as.impersonation_active() { 1 } else { 0 },
     );
+    if is_openstack_configured(&cfg.openstack) {
+        add_gauge(
+            &mut output,
+            "machina_openstack_configured",
+            "1 when OpenStack is configured in machina config",
+            1,
+        );
+    }
+    add_gauge(
+        &mut output,
+        "machina_k8s_metrics_available",
+        "1 when the last kubectl top probe succeeded",
+        if crate::k8s_metrics_cache::k8s_metrics_available() {
+            1
+        } else {
+            0
+        },
+    );
+    if let Some(ts) = crate::k8s_metrics_cache::k8s_last_probe_unix() {
+        add_gauge(
+            &mut output,
+            "machina_k8s_last_probe_unix",
+            "Unix timestamp of last kubectl top probe",
+            ts.max(0) as u64,
+        );
+    }
 
     let bpf = bpf_probe::probe_bpf_summary();
     if bpf.available {

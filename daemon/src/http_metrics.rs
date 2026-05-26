@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Recent HTTP request for OTLP trace export.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct HttpTraceSpan {
     pub trace_id: String,
     pub span_id: String,

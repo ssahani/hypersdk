@@ -158,4 +158,21 @@ mod tests {
         assert_eq!(cfg.observability.otlp.endpoint, "http://127.0.0.1:4318");
         assert!(cfg.audit.sign_lines);
     }
+
+    #[test]
+    fn patch_remote_write_and_masks_secrets() {
+        let mut cfg = MachinaConfig::default();
+        apply_observability_patch(
+            &mut cfg,
+            &ObservabilitySettingsPatch {
+                metrics_history_remote_write_url: Some("http://127.0.0.1:9/ingest".into()),
+                metrics_history_remote_write_authorization: Some("Bearer secret-token-xyz".into()),
+                ..Default::default()
+            },
+        );
+        let view = settings_view_from_config(&cfg);
+        assert_eq!(view.metrics_history.remote_write_url, "http://127.0.0.1:9/ingest");
+        assert!(view.metrics_history.remote_write_authorization_set);
+        assert!(view.metrics_history.remote_write_authorization.contains('…'));
+    }
 }
