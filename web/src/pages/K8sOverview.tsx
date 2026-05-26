@@ -18,7 +18,9 @@ import {
   getK8sEnvironment,
   getK8sClusterInventory,
   getK8sClusterInventoryHistory,
+  getK8sMetrics,
   getK8sOverview,
+  K8sMetricsResponse,
   K8sClusterInventoryHistoryResponse,
   K8sClusterInventoryResponse,
   K8sEnvironment,
@@ -281,6 +283,7 @@ export default function K8sOverviewPage() {
   const [environment, setEnvironment] = useState<K8sEnvironment | null>(null)
   const [nodes, setNodes] = useState<K8sNodeInfo[]>([])
   const [clusterInventory, setClusterInventory] = useState<K8sClusterInventoryResponse | null>(null)
+  const [k8sMetrics, setK8sMetrics] = useState<K8sMetricsResponse | null>(null)
   const [acting, setActing] = useState<string | null>(null)
   const [lastCommand, setLastCommand] = useState('')
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -303,9 +306,14 @@ export default function K8sOverviewPage() {
   const load = useCallback(async (background = false) => {
     if (background) setRefreshing(true)
     try {
-      const [ov, inv] = await Promise.all([getK8sOverview(ctxTrim), getK8sClusterInventory(ctxTrim)])
+      const [ov, inv, metrics] = await Promise.all([
+        getK8sOverview(ctxTrim),
+        getK8sClusterInventory(ctxTrim),
+        getK8sMetrics(ctxTrim).catch(() => null),
+      ])
       setOverview(ov)
       setClusterInventory(inv)
+      setK8sMetrics(metrics)
       setNodes(inv.nodes)
       setLoadError(null)
       try {
@@ -584,6 +592,52 @@ export default function K8sOverviewPage() {
           </div>
         ))}
       </div>
+
+      {k8sMetrics && (
+        <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-3">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Live utilization (metrics-server)</h2>
+            <p className="text-xs text-slate-400 mt-1">
+              From <code className="text-slate-300">kubectl top</code>. Install metrics-server if empty.
+            </p>
+          </div>
+          {!k8sMetrics.metrics_available && (
+            <p className="text-sm text-amber-200/90">
+              {k8sMetrics.nodes_error || k8sMetrics.pods_error || k8sMetrics.metrics_server_hint || 'No metrics yet.'}
+            </p>
+          )}
+          {k8sMetrics.metrics_available && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 text-sm">
+              <div>
+                <h3 className="text-xs font-medium text-slate-400 uppercase mb-2">Nodes</h3>
+                <ul className="space-y-1 text-slate-200">
+                  {k8sMetrics.nodes_top.slice(0, 12).map((row) => (
+                    <li key={row.name} className="flex justify-between gap-2 font-mono text-xs">
+                      <span>{row.name}</span>
+                      <span className="text-slate-400">
+                        {row.cpu} ({row.cpu_percent}) · {row.memory} ({row.memory_percent})
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="text-xs font-medium text-slate-400 uppercase mb-2">Pods (top 12)</h3>
+                <ul className="space-y-1 text-slate-200">
+                  {k8sMetrics.pods_top.slice(0, 12).map((row) => (
+                    <li key={row.name} className="flex justify-between gap-2 font-mono text-xs">
+                      <span className="truncate">{row.name}</span>
+                      <span className="text-slate-400 shrink-0">
+                        {row.cpu} · {row.memory}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {clusterInventory && (
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">

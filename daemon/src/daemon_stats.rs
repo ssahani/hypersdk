@@ -35,6 +35,9 @@ impl DaemonStats {
     pub fn inc_auth_attempt(&self, method: &str, result: &str) {
         let method = method.to_ascii_lowercase();
         let result = result.to_ascii_lowercase();
+        if result == "failure" {
+            self.auth_failures.fetch_add(1, Ordering::Relaxed);
+        }
         let mut guard = self.auth_attempts.lock().unwrap_or_else(|e| e.into_inner());
         guard
             .entry(method)
@@ -42,9 +45,6 @@ impl DaemonStats {
             .entry(result)
             .and_modify(|c| *c += 1)
             .or_insert(1);
-        if result == "failure" {
-            self.auth_failures.fetch_add(1, Ordering::Relaxed);
-        }
     }
 
     pub fn inc_prometheus_scrape(&self) {
@@ -80,7 +80,7 @@ impl DaemonStats {
             "# HELP machina_daemon_auth_attempts_total Login attempts by method and result\n\
              # TYPE machina_daemon_auth_attempts_total counter\n",
         );
-        for (method, results) in &guard {
+        for (method, results) in guard.iter() {
             for (result, count) in results {
                 let _ = writeln!(
                     out,

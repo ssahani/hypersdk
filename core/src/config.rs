@@ -592,7 +592,7 @@ impl Default for TlsConfig {
     }
 }
 
-/// Future: execute libvirt/host helpers as the OIDC-mapped local user (not implemented — see `docs/oidc-run-as-user.md`).
+/// Execute allow-listed host commands as the OIDC-mapped local user (`docs/oidc-run-as-user.md`).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum RunAsUserMode {
@@ -613,15 +613,24 @@ impl Default for RunAsUserMode {
     }
 }
 
-/// Scaffold for per-session UNIX impersonation (policy flag only until a runner is implemented).
+/// Per-session UNIX impersonation for allow-listed host commands (OS user lifecycle today).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RunAsUserConfig {
-    /// When true, routes that support impersonation will require `run_as_user.mode` to be implemented.
+    /// When true, supported routes run allow-listed host programs as `effective_linux_user`.
     #[serde(default)]
     pub enabled: bool,
-    /// Intended backend. `polkit` and `setuid_helper` are documented; daemon rejects them until implemented.
     #[serde(default)]
     pub mode: RunAsUserMode,
+    /// Setuid-root helper binary (`run-as-user-helper` crate). Used when `mode = "setuid_helper"`.
+    #[serde(default = "default_setuid_helper_path")]
+    pub setuid_helper_path: String,
+    /// When dual libvirt is enabled, default VM create to `qemu:///session` for impersonated OIDC users.
+    #[serde(default)]
+    pub prefer_session_libvirt_on_impersonation: bool,
+}
+
+fn default_setuid_helper_path() -> String {
+    "/usr/local/libexec/machina-run-as-user".to_string()
 }
 
 impl Default for RunAsUserConfig {
@@ -629,6 +638,8 @@ impl Default for RunAsUserConfig {
         Self {
             enabled: false,
             mode: RunAsUserMode::Disabled,
+            setuid_helper_path: default_setuid_helper_path(),
+            prefer_session_libvirt_on_impersonation: false,
         }
     }
 }
@@ -646,8 +657,14 @@ impl RunAsUserConfig {
         self.enabled && self.mode == RunAsUserMode::Polkit
     }
 
+    pub fn setuid_helper_impersonation_active(&self) -> bool {
+        self.enabled && self.mode == RunAsUserMode::SetuidHelper
+    }
+
     pub fn impersonation_active(&self) -> bool {
-        self.sudo_impersonation_active() || self.polkit_impersonation_active()
+        self.sudo_impersonation_active()
+            || self.polkit_impersonation_active()
+            || self.setuid_helper_impersonation_active()
     }
 }
 
@@ -785,7 +802,7 @@ pub struct AuthConfig {
     /// Optional OpenID Connect login backend. When enabled, the web UI can redirect users to an external IdP.
     #[serde(default)]
     pub oidc: OidcConfig,
-    /// Optional run-as-user impersonation (scaffold — see `docs/oidc-run-as-user.md`).
+    /// Optional run-as-user impersonation (`docs/oidc-run-as-user.md`).
     #[serde(default)]
     pub run_as_user: RunAsUserConfig,
     /// Optional LDAP / Active Directory bind for password login (tried before PAM when enabled).
@@ -1322,5 +1339,15 @@ mod tests {
         r.mode = RunAsUserMode::Polkit;
         assert!(r.polkit_impersonation_active());
         assert!(r.impersonation_active());
+    }
+
+    #[test]
+    fn run_as_user_setuid_active() {
+        let mut r = RunAsUserConfig::default();
+        r.enabled = true;
+        r.mode = RunAsUserMode::SetuidHelper;
+        assert!(r.setuid_helper_impersonation_active());
+        assert!(r.impersonation_active());
+        assert!(!r.setuid_helper_path.is_empty());
     }
 }

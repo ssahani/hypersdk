@@ -4,6 +4,8 @@ mod automation_worker;
 mod daemon_stats;
 mod http_metrics;
 mod metrics_history;
+mod obs_reload;
+mod obs_workers;
 mod otlp_worker;
 mod cluster_bootstrap;
 mod conn_query;
@@ -123,12 +125,13 @@ async fn main() -> anyhow::Result<()> {
                     "auth.run_as_user polkit mode: OS user create/delete runs via pkexec --user (install contrib/polkit/machina-run-as-user.rules)"
                 );
             }
-            RunAsUserMode::SetuidHelper | RunAsUserMode::Disabled => {
-                tracing::warn!(
-                    "auth.run_as_user mode {:?} is not implemented for host commands; use sudo or polkit",
-                    config.auth.run_as_user.mode
+            RunAsUserMode::SetuidHelper => {
+                info!(
+                    "auth.run_as_user setuid_helper mode: allow-listed commands via {} (install with contrib/run-as-user/README.md)",
+                    config.auth.run_as_user.setuid_helper_path
                 );
             }
+            RunAsUserMode::Disabled => {}
         }
     }
 

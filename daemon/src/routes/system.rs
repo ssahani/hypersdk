@@ -1,4 +1,5 @@
-use axum::extract::{Extension, Path};
+use axum::extract::{Extension, Path, State};
+use std::sync::Arc;
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::system_accounts;
@@ -11,7 +12,11 @@ use serde_json::json;
 use tracing::info;
 
 use crate::auth::{effective_linux_user, RequestActor};
+use crate::daemon_stats::DaemonStats;
 use crate::error::AppError;
+use crate::http_metrics::HttpMetrics;
+use crate::metrics_history::MetricsHistoryStore;
+use crate::obs_workers::ObservabilityWorkers;
 
 fn os_user_capability_json(actor: &RequestActor) -> serde_json::Value {
     let libvirt_ok = system_accounts::libvirt_unix_group_exists();
@@ -293,6 +298,11 @@ async fn get_observability_settings(
 
 async fn put_observability_settings(
     Extension(actor): Extension<RequestActor>,
+    Extension(workers): Extension<Arc<ObservabilityWorkers>>,
+    State(manager): State<LibvirtManager>,
+    Extension(store): Extension<MetricsHistoryStore>,
+    Extension(stats): Extension<Arc<DaemonStats>>,
+    Extension(http_metrics): Extension<Arc<HttpMetrics>>,
     Json(patch): Json<ObservabilitySettingsPatch>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     if !actor.role.can_manage_users() {
@@ -310,11 +320,13 @@ async fn put_observability_settings(
     machina_core::linux_audit::configure_linux_audit(cfg.observability.linux_audit.clone());
     let view = settings_view_from_config(&cfg);
     info!("observability settings saved to {}", view.config_path);
+    workers.reload(&manager, &cfg, &store, &stats, &http_metrics);
     Ok(Json(serde_json::json!({
         "status": "saved",
-        "restart_recommended": true,
-        "note": "Restart machina-daemon to apply OTLP export and metrics-history remote_write worker changes.",
-        "settings": settings_view_from_config(&cfg),
+        "restart_recommended": false,
+        "workers_reloaded": true,
+        "note": "OTLP and metrics-history workers reloaded from config.",
+        "settings": view,
     })))
 }
 

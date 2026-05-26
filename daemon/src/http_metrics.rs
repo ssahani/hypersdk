@@ -4,6 +4,8 @@ use axum::body::Body;
 use axum::extract::{Extension, Request};
 use axum::middleware::Next;
 use axum::response::Response;
+use http::header::{HeaderName, HeaderValue};
+use machina_core::{format_traceparent, trace_context_from_headers};
 use std::collections::{HashMap, VecDeque};
 use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
@@ -12,6 +14,8 @@ use std::time::{Duration, Instant};
 /// Recent HTTP request for OTLP trace export.
 #[derive(Clone, Debug)]
 pub struct HttpTraceSpan {
+    pub trace_id: String,
+    pub span_id: String,
     pub method: String,
     pub route: String,
     pub status: u16,
@@ -75,20 +79,30 @@ impl HttpMetrics {
         }
     }
 
-    pub fn record(&self, method: &str, route: &str, status: u16, duration: Duration) {
+    pub fn record(
+        &self,
+        method: &str,
+        route: &str,
+        status: u16,
+        duration: Duration,
+        trace_id: &str,
+        span_id: &str,
+    ) {
         let key = RouteKey {
             method: method.to_ascii_uppercase(),
             route: route.to_string(),
         };
         let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         guard
-            .entry(key)
+            .entry(key.clone())
             .or_insert_with(RouteStats::new)
             .observe(duration, status);
         let mut traces = self.traces.lock().unwrap_or_else(|e| e.into_inner());
         traces.push_back(HttpTraceSpan {
-            method: key.method.clone(),
-            route: key.route.clone(),
+            trace_id: trace_id.to_string(),
+            span_id: span_id.to_string(),
+            method: key.method,
+            route: key.route,
             status,
             duration_ms: duration.as_millis() as u64,
             timestamp_ms: chrono::Utc::now().timestamp_millis(),
@@ -238,6 +252,11 @@ pub async fn record_request(
 ) -> Response {
     let method = req.method().as_str().to_string();
     let route = normalize_path(req.uri().path());
+    let traceparent_in = req
+        .headers()
+        .get("traceparent")
+        .and_then(|v| v.to_str().ok());
+    let trace_ctx = trace_context_from_headers(traceparent_in);
     let start = Instant::now();
     let response = next.run(req).await;
     metrics.record(
@@ -245,7 +264,15 @@ pub async fn record_request(
         &route,
         response.status().as_u16(),
         start.elapsed(),
+        &trace_ctx.trace_id,
+        &trace_ctx.span_id,
     );
+    let mut response = response;
+    if let Ok(val) = HeaderValue::from_str(&format_traceparent(&trace_ctx)) {
+        response
+            .headers_mut()
+            .insert(HeaderName::from_static("traceparent"), val);
+    }
     response
 }
 

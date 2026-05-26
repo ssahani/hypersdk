@@ -7,12 +7,14 @@ use machina_core::otlp::{
     build_logs_export_payload, build_metrics_export_payload, build_traces_export_payload,
     OtlpHttpSpan,
 };
-use machina_core::{audit_ship, LibvirtManager};
+use machina_core::{audit_ship, LibvirtManager, MachinaConfig};
 use std::sync::Arc;
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
 
 use crate::daemon_stats::DaemonStats;
 use crate::http_metrics::HttpMetrics;
+use crate::obs_reload::observability_reload_generation;
 
 fn normalize_endpoint(base: &str, path: &str) -> String {
     let base = base.trim_end_matches('/');
@@ -23,7 +25,7 @@ fn normalize_endpoint(base: &str, path: &str) -> String {
     }
 }
 
-fn post_otlp(
+async fn post_otlp(
     client: &reqwest::Client,
     url: &str,
     auth: &str,
@@ -38,6 +40,7 @@ fn post_otlp(
     }
     let res = req
         .send()
+        .await
         .map_err(|e| format!("request: {e}"))?;
     if res.status().is_success() {
         Ok(())
@@ -69,20 +72,10 @@ fn sample_point(manager: &LibvirtManager) -> MetricsHistoryPoint {
 
 pub fn spawn_otlp_worker(
     manager: LibvirtManager,
-    cfg: OtlpExportConfig,
     stats: Arc<DaemonStats>,
     http_metrics: Arc<HttpMetrics>,
+    cancel: CancellationToken,
 ) {
-    if !cfg.is_enabled() {
-        return;
-    }
-    let interval = Duration::from_secs(cfg.interval_secs.max(30));
-    let endpoint = cfg.endpoint.clone();
-    let auth = cfg.authorization.clone();
-    let export_metrics = cfg.export_metrics;
-    let export_logs = cfg.export_logs;
-    let export_traces = cfg.export_traces;
-
     tokio::spawn(async move {
         let client = match reqwest::Client::builder()
             .timeout(Duration::from_secs(20))
@@ -94,87 +87,126 @@ pub fn spawn_otlp_worker(
                 return;
             }
         };
-        let metrics_url = normalize_endpoint(&endpoint, "/v1/metrics");
-        let logs_url = normalize_endpoint(&endpoint, "/v1/logs");
-        let traces_url = normalize_endpoint(&endpoint, "/v1/traces");
-        tracing::info!(
-            "OTLP export every {:?} → metrics={} logs={} traces={}",
-            interval,
-            metrics_url,
-            logs_url,
-            traces_url
-        );
-
         let hostname = std::fs::read_to_string("/etc/hostname")
             .ok()
             .map(|s| s.trim().to_string())
             .filter(|s| !s.is_empty())
             .unwrap_or_else(|| "machina-host".into());
-        let hostname2 = hostname.clone();
 
+        let mut reload_gen = observability_reload_generation();
+        let mut cfg = MachinaConfig::load().observability.otlp;
+        let mut interval = worker_interval(&cfg);
         let mut tick = tokio::time::interval(interval);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
-        loop {
-            tick.tick().await;
-            let mgr = manager.clone();
-            let client2 = client.clone();
-            let metrics_url2 = metrics_url.clone();
-            let logs_url2 = logs_url.clone();
-            let auth2 = auth.clone();
-            let hostname3 = hostname2.clone();
-            let stats2 = stats.clone();
-            let http_metrics2 = http_metrics.clone();
-            let export_metrics2 = export_metrics;
-            let export_logs2 = export_logs;
-            let export_traces2 = export_traces;
-            let traces_url2 = traces_url.clone();
+        log_otlp_start(&cfg, interval);
 
-            let _ = tokio::task::spawn_blocking(move || {
-                if export_metrics2 {
+        loop {
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::info!("OTLP export worker stopped");
+                    break;
+                }
+                _ = tick.tick() => {}
+            }
+
+            let gen = observability_reload_generation();
+            if gen != reload_gen {
+                reload_gen = gen;
+                cfg = MachinaConfig::load().observability.otlp;
+                interval = worker_interval(&cfg);
+                tick = tokio::time::interval(interval);
+                tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                log_otlp_start(&cfg, interval);
+            }
+
+            if !cfg.is_enabled() {
+                continue;
+            }
+
+            let metrics_url = normalize_endpoint(&cfg.endpoint, "/v1/metrics");
+            let logs_url = normalize_endpoint(&cfg.endpoint, "/v1/logs");
+            let traces_url = normalize_endpoint(&cfg.endpoint, "/v1/traces");
+            let auth = cfg.authorization.clone();
+            let export_metrics = cfg.export_metrics;
+            let export_logs = cfg.export_logs;
+            let export_traces = cfg.export_traces;
+
+            if export_metrics {
+                let mgr = manager.clone();
+                let hostname3 = hostname.clone();
+                let stats2 = stats.clone();
+                let body = tokio::task::spawn_blocking(move || {
                     let point = sample_point(&mgr);
-                    let body = build_metrics_export_payload(
+                    build_metrics_export_payload(
                         &hostname3,
                         &point,
                         stats2.uptime_seconds(),
                         stats2.auth_failures(),
-                    );
-                    match post_otlp(&client2, &metrics_url2, &auth2, body) {
+                    )
+                })
+                .await;
+                match body {
+                    Ok(body) => match post_otlp(&client, &metrics_url, &auth, body).await {
                         Ok(()) => tracing::debug!("OTLP metrics export ok"),
                         Err(e) => tracing::warn!("OTLP metrics export failed: {e}"),
+                    },
+                    Err(e) => tracing::warn!("OTLP metrics sample failed: {e}"),
+                }
+            }
+            if export_logs {
+                let events = audit_ship::recent_events_for_otlp(80);
+                if !events.is_empty() {
+                    let body = build_logs_export_payload(&hostname, &events);
+                    match post_otlp(&client, &logs_url, &auth, body).await {
+                        Ok(()) => tracing::debug!("OTLP logs export ok ({} events)", events.len()),
+                        Err(e) => tracing::warn!("OTLP logs export failed: {e}"),
                     }
                 }
-                if export_logs2 {
-                    let events = audit_ship::recent_events_for_otlp(80);
-                    if !events.is_empty() {
-                        let body = build_logs_export_payload(&hostname3, &events);
-                        match post_otlp(&client2, &logs_url2, &auth2, body) {
-                            Ok(()) => tracing::debug!("OTLP logs export ok ({} events)", events.len()),
-                            Err(e) => tracing::warn!("OTLP logs export failed: {e}"),
-                        }
+            }
+            if export_traces {
+                let spans: Vec<OtlpHttpSpan> = http_metrics
+                    .recent_traces(64)
+                    .into_iter()
+                    .map(|s| OtlpHttpSpan {
+                        trace_id: s.trace_id,
+                        span_id: s.span_id,
+                        method: s.method,
+                        route: s.route,
+                        status: s.status,
+                        duration_ms: s.duration_ms,
+                        timestamp_ms: s.timestamp_ms,
+                    })
+                    .collect();
+                if !spans.is_empty() {
+                    let body = build_traces_export_payload(&hostname, &spans);
+                    match post_otlp(&client, &traces_url, &auth, body).await {
+                        Ok(()) => tracing::debug!("OTLP traces export ok ({} spans)", spans.len()),
+                        Err(e) => tracing::warn!("OTLP traces export failed: {e}"),
                     }
                 }
-                if export_traces2 {
-                    let spans: Vec<OtlpHttpSpan> = http_metrics2
-                        .recent_traces(64)
-                        .into_iter()
-                        .map(|s| OtlpHttpSpan {
-                            method: s.method,
-                            route: s.route,
-                            status: s.status,
-                            duration_ms: s.duration_ms,
-                            timestamp_ms: s.timestamp_ms,
-                        })
-                        .collect();
-                    if !spans.is_empty() {
-                        let body = build_traces_export_payload(&hostname3, &spans);
-                        match post_otlp(&client2, &traces_url2, &auth2, body) {
-                            Ok(()) => tracing::debug!("OTLP traces export ok ({} spans)", spans.len()),
-                            Err(e) => tracing::warn!("OTLP traces export failed: {e}"),
-                        }
-                    }
-                }
-            })
-            .await;
+            }
         }
     });
+}
+
+fn worker_interval(cfg: &OtlpExportConfig) -> Duration {
+    Duration::from_secs(cfg.interval_secs.max(30))
+}
+
+fn log_otlp_start(cfg: &OtlpExportConfig, interval: Duration) {
+    if !cfg.is_enabled() {
+        tracing::info!("OTLP export disabled");
+        return;
+    }
+    let endpoint = cfg.endpoint.trim();
+    let metrics_url = normalize_endpoint(endpoint, "/v1/metrics");
+    let logs_url = normalize_endpoint(endpoint, "/v1/logs");
+    let traces_url = normalize_endpoint(endpoint, "/v1/traces");
+    tracing::info!(
+        "OTLP export every {:?} → metrics={} logs={} traces={}",
+        interval,
+        metrics_url,
+        logs_url,
+        traces_url
+    );
 }

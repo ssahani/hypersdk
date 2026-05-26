@@ -1607,6 +1607,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "machina-run-as-user-helper"
+version = "0.1.0"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "machina-tui"
 version = "0.1.0"
 dependencies = [

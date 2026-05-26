@@ -191,6 +191,8 @@ pub fn build_logs_export_payload(hostname: &str, events: &[AuditEvent]) -> Value
 /// One HTTP request span for OTLP trace export.
 #[derive(Debug, Clone)]
 pub struct OtlpHttpSpan {
+    pub trace_id: String,
+    pub span_id: String,
     pub method: String,
     pub route: String,
     pub status: u16,
@@ -208,8 +210,8 @@ pub fn build_traces_export_payload(hostname: &str, spans: &[OtlpHttpSpan]) -> Va
                 .max(0)
                 .saturating_mul(1_000_000);
             json!({
-                "traceId": "00000000000000000000000000000001",
-                "spanId": format!("{:016x}", s.timestamp_ms as u64 ^ s.route.len() as u64),
+                "traceId": s.trace_id,
+                "spanId": s.span_id,
                 "name": name,
                 "kind": 2,
                 "startTimeUnixNano": start_ns.to_string(),
@@ -266,6 +268,8 @@ mod tests {
     #[test]
     fn traces_payload_has_http_span() {
         let spans = vec![OtlpHttpSpan {
+            trace_id: "4bf92f3577b34da6a3ce929d0e0e4736".into(),
+            span_id: "00f067aa0ba902b7".into(),
             method: "GET".into(),
             route: "/api/v1/vms".into(),
             status: 200,

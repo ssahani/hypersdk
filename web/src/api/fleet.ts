@@ -110,6 +110,26 @@ export function postFleetPlacement(vcpus = 2, memoryMb = 2048) {
   }>(`${API}/fleet/placement`, { vcpus, memory_mb: memoryMb })
 }
 
+export function postFleetCreateVm(
+  create: Record<string, unknown>,
+  opts?: { peer?: string; autoPlace?: boolean; placementVcpus?: number; placementMemoryMb?: number },
+) {
+  return apiPost<{
+    peer: string
+    proxied: boolean
+    status?: number
+    body?: unknown
+    action?: string
+    message?: string
+  }>(`${API}/fleet/create-vm`, {
+    peer: opts?.peer,
+    auto_place: opts?.autoPlace ?? !opts?.peer,
+    placement_vcpus: opts?.placementVcpus ?? 2,
+    placement_memory_mb: opts?.placementMemoryMb ?? 2048,
+    create,
+  })
+}
+
 export function getFleetPrometheusTargets() {
   return readJsonObject<{
     enabled: boolean

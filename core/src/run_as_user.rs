@@ -42,6 +42,12 @@ fn wrap_command(
             "Program '{program}' is not allowed for run-as-user execution"
         )));
     }
+    if cfg.setuid_helper_impersonation_active() {
+        let mut c = Command::new(&cfg.setuid_helper_path);
+        c.arg(unix_user).arg(program);
+        c.args(args);
+        return Ok(c);
+    }
     if cfg.polkit_impersonation_active() {
         let mut c = Command::new("pkexec");
         c.arg("--user").arg(unix_user).arg("--").arg(program);

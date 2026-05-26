@@ -64,7 +64,7 @@ export_logs = true
 export_traces = true
 ```
 
-Compatible with OpenTelemetry Collector and Grafana Alloy (`/v1/metrics`, `/v1/logs`, `/v1/traces`).
+Compatible with OpenTelemetry Collector and Grafana Alloy (`/v1/metrics`, `/v1/logs`, `/v1/traces`). API responses include a W3C `traceparent` header; OTLP trace export uses random trace/span IDs per request.
 
 Example alert rules: `contrib/prometheus/alerts.yaml`.
 
@@ -99,7 +99,11 @@ Enable `[fleet]` peers in config, then use `/fleet/status`, `/fleet/metrics`, `/
 
 ## Settings UI (admin)
 
-**Settings → Observability** edits OTLP export, metrics JSON `remote_write_url`, and `audit.sign_lines` in `/etc/machina/config.toml` (restart daemon for OTLP / remote-write workers).
+**Settings → Observability** edits OTLP export, metrics JSON `remote_write_url`, and `audit.sign_lines` in `/etc/machina/config.toml` (workers reload without restart).
+
+`POST /api/v1/fleet/create-vm` with `auto_place` and a create payload proxies VM creation to the best fleet peer (`peer: "local"` → use `POST /api/v1/vms` locally).
+
+Example JSON ingest receiver: `contrib/ingest/machina-metrics-ingest.py`.
 
 `GET /api/v1/audit/verify` checks `sha256:` prefixes on `/var/lib/machina/audit.log`. CLI: `./machinactl audit verify`.
 

@@ -308,6 +308,26 @@ export const getK8sClusterInventory = (context?: string) =>
     withK8sContext(`${API}/k8s/cluster-inventory`, context),
   )
 
+export interface K8sTopRow {
+  name: string
+  cpu: string
+  cpu_percent: string
+  memory: string
+  memory_percent: string
+}
+
+export interface K8sMetricsResponse {
+  metrics_available: boolean
+  metrics_server_hint?: string
+  nodes_top: K8sTopRow[]
+  pods_top: K8sTopRow[]
+  nodes_error?: string | null
+  pods_error?: string | null
+}
+
+export const getK8sMetrics = (context?: string) =>
+  readJsonObject<K8sMetricsResponse>(withK8sContext(`${API}/k8s/metrics`, context))
+
 export interface K8sClusterInventoryHistoryResponse {
   path: string
   entries: Record<string, unknown>[]

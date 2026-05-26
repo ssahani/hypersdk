@@ -253,9 +253,8 @@ export default function SettingsPage() {
             Observability
           </h2>
           <p className="text-xs text-slate-500">
-            Writes <code className="text-slate-400">{obsSettings.config_path}</code>. Restart{' '}
-            <code className="text-slate-400">machina-daemon</code> after saving OTLP or metrics remote-write changes.
-            Admin role required.
+            Writes <code className="text-slate-400">{obsSettings.config_path}</code>. Workers reload
+            automatically after save. Admin role required.
           </p>
           <div className="grid sm:grid-cols-2 gap-3 text-sm">
             <label className="flex items-center gap-2">
@@ -284,8 +283,65 @@ export default function SettingsPage() {
               />
               Sign audit log lines (sha256)
             </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={obsSettings.otlp.export_metrics}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    otlp: { ...obsSettings.otlp, export_metrics: e.target.checked },
+                  })
+                }
+              />
+              OTLP export metrics
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={obsSettings.otlp.export_logs}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    otlp: { ...obsSettings.otlp, export_logs: e.target.checked },
+                  })
+                }
+              />
+              OTLP export logs
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={obsSettings.otlp.export_traces}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    otlp: { ...obsSettings.otlp, export_traces: e.target.checked },
+                  })
+                }
+              />
+              OTLP export traces
+            </label>
           </div>
           <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-500">OTLP interval (seconds)</label>
+              <input
+                type="number"
+                min={30}
+                className="input-field w-full mt-1"
+                value={obsSettings.otlp.interval_secs}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    otlp: {
+                      ...obsSettings.otlp,
+                      interval_secs: Math.max(30, Number(e.target.value) || 30),
+                    },
+                  })
+                }
+              />
+            </div>
             <div>
               <label className="text-xs text-slate-500">OTLP endpoint</label>
               <input
@@ -356,6 +412,7 @@ export default function SettingsPage() {
                   const patch: Record<string, unknown> = {
                     otlp_enabled: obsSettings.otlp.enabled,
                     otlp_endpoint: obsSettings.otlp.endpoint,
+                    otlp_interval_secs: obsSettings.otlp.interval_secs,
                     otlp_export_metrics: obsSettings.otlp.export_metrics,
                     otlp_export_logs: obsSettings.otlp.export_logs,
                     otlp_export_traces: obsSettings.otlp.export_traces,
@@ -372,7 +429,9 @@ export default function SettingsPage() {
                   setObsSettings(res.settings)
                   setOtlpAuthInput('')
                   setRemoteWriteAuthInput('')
-                  toast.success(res.restart_recommended ? 'Saved — restart daemon for workers' : 'Saved')
+                  toast.success(
+                    res.workers_reloaded ? 'Saved — observability workers reloaded' : 'Saved',
+                  )
                 } catch (e: unknown) {
                   toast.error(formatUserError(e))
                 } finally {

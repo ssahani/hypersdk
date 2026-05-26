@@ -330,10 +330,11 @@ fn placement_adjusted_score(base: f64, vcpus: u32, memory_mb: u64) -> f64 {
     ((base - penalty) * 10.0).round() / 10.0
 }
 
-async fn fleet_placement(
-    State(manager): State<LibvirtManager>,
-    Json(req): Json<FleetPlacementRequest>,
-) -> Result<Json<Value>, AppError> {
+async fn compute_placement_candidates(
+    manager: &LibvirtManager,
+    vcpus: u32,
+    memory_mb: u64,
+) -> Result<(bool, Vec<PlacementCandidate>), AppError> {
     let cfg = fleet_cfg();
     let local_stats = machina_core::libvirt::extras::get_host_stats();
     let local_vms = manager.list_all_vms()?;
@@ -342,7 +343,7 @@ async fn fleet_placement(
         local_stats.memory_percent,
         local_stats.disk_percent,
     );
-    let adjusted = placement_adjusted_score(base_score, req.vcpus, req.memory_mb);
+    let adjusted = placement_adjusted_score(base_score, vcpus, memory_mb);
     let mut local_cap = fleet_capacity(
         local_stats.cpu_percent,
         local_stats.memory_percent,
@@ -398,7 +399,7 @@ async fn fleet_placement(
                 row.host_memory_percent = Some(mem);
                 row.host_disk_percent = Some(disk);
                 let (base, _) = fleet_capacity_score(cpu, mem, disk);
-                let adj = placement_adjusted_score(base, req.vcpus, req.memory_mb);
+                let adj = placement_adjusted_score(base, vcpus, memory_mb);
                 let mut cap = fleet_capacity(cpu, mem, disk);
                 if let Some(obj) = cap.as_object_mut() {
                     obj.insert("adjusted_score".into(), json!(adj));
@@ -440,10 +441,114 @@ async fn fleet_placement(
         best.recommended = true;
     }
 
+    Ok((cfg.is_enabled(), candidates))
+}
+
+async fn fleet_placement(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<FleetPlacementRequest>,
+) -> Result<Json<Value>, AppError> {
+    let (enabled, candidates) =
+        compute_placement_candidates(&manager, req.vcpus, req.memory_mb).await?;
     Ok(Json(json!({
-        "enabled": cfg.is_enabled(),
+        "enabled": enabled,
         "request": { "vcpus": req.vcpus, "memory_mb": req.memory_mb },
         "candidates": candidates,
+    })))
+}
+
+#[derive(Deserialize)]
+struct FleetCreateVmRequest {
+    #[serde(default)]
+    peer: Option<String>,
+    #[serde(default)]
+    auto_place: bool,
+    #[serde(default = "default_placement_vcpus")]
+    placement_vcpus: u32,
+    #[serde(default = "default_placement_memory_mb")]
+    placement_memory_mb: u64,
+    create: Value,
+}
+
+async fn fleet_create_vm(
+    Extension(actor): Extension<RequestActor>,
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<FleetCreateVmRequest>,
+) -> Result<Json<Value>, AppError> {
+    require_api_scope(&actor, "fleet:proxy").map_err(AppError::from)?;
+    if actor.role == machina_core::libvirt::automation::Role::ReadOnly {
+        return Err(AppError::from(machina_core::LibvirtError::Forbidden(
+            "Read-only role cannot create VMs on fleet peers".into(),
+        )));
+    }
+    let cfg = fleet_cfg();
+    if !cfg.is_enabled() && req.peer.as_deref() != Some("local") {
+        return Err(AppError::from(machina_core::LibvirtError::NotFound(
+            "Fleet is not enabled".into(),
+        )));
+    }
+
+    let peer_name = match req.peer {
+        Some(p) => p,
+        None if req.auto_place => {
+            let (_, candidates) = compute_placement_candidates(
+                &manager,
+                req.placement_vcpus,
+                req.placement_memory_mb,
+            )
+            .await?;
+            candidates
+                .into_iter()
+                .find(|c| c.recommended)
+                .map(|c| c.peer)
+                .ok_or_else(|| {
+                    AppError::from(machina_core::LibvirtError::Operation(
+                        "No reachable fleet peer for placement".into(),
+                    ))
+                })?
+        }
+        None => {
+            return Err(AppError::from(machina_core::LibvirtError::Invalid(
+                "Specify peer or set auto_place=true".into(),
+            )));
+        }
+    };
+
+    if peer_name == "local" {
+        return Ok(Json(json!({
+            "peer": "local",
+            "proxied": false,
+            "action": "create_local",
+            "message": "Use POST /api/v1/vms on this daemon to create the VM locally.",
+        })));
+    }
+
+    let peer = cfg.peers.iter().find(|p| p.name == peer_name).ok_or_else(|| {
+        AppError::from(machina_core::LibvirtError::NotFound(format!(
+            "Unknown fleet peer '{peer_name}'"
+        )))
+    })?;
+
+    let base = peer.url.trim().trim_end_matches('/');
+    let url = format!("{base}/api/v1/vms");
+    let client = peer_client(peer);
+    let mut rb = client.post(&url);
+    let token = peer.api_token.trim();
+    if !token.is_empty() {
+        rb = rb.bearer_auth(token);
+    }
+    let res = rb
+        .json(&req.create)
+        .send()
+        .await
+        .map_err(|e| AppError::from(machina_core::LibvirtError::Operation(e.to_string())))?;
+    let status = res.status().as_u16();
+    let body: Value = res.json().await.unwrap_or(json!({}));
+    Ok(Json(json!({
+        "peer": peer_name,
+        "proxied": true,
+        "status": status,
+        "body": body,
     })))
 }
 
@@ -629,6 +734,7 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
         .route("/fleet/metrics", get(fleet_metrics))
         .route("/fleet/alerts", get(fleet_alerts))
         .route("/fleet/placement", post(fleet_placement))
+        .route("/fleet/create-vm", post(fleet_create_vm))
         .route("/fleet/prometheus-targets", get(fleet_prometheus_targets))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))

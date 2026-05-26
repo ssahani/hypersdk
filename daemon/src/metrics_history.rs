@@ -7,24 +7,44 @@ use machina_core::metrics_history::{
     MetricsHistoryPoint,
 };
 use machina_core::LibvirtManager;
+use machina_core::MachinaConfig;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio_util::sync::CancellationToken;
+
+use crate::obs_reload::observability_reload_generation;
 
 pub use machina_core::metrics_history::MetricsHistoryPoint as HistoryPoint;
 
 #[derive(Clone)]
 pub struct MetricsHistoryStore {
     inner: Arc<Mutex<VecDeque<MetricsHistoryPoint>>>,
-    max_points: usize,
+    max_points: Arc<Mutex<usize>>,
 }
 
 impl MetricsHistoryStore {
     pub fn new(max_points: usize) -> Self {
         Self {
             inner: Arc::new(Mutex::new(VecDeque::new())),
-            max_points: max_points.max(16),
+            max_points: Arc::new(Mutex::new(max_points.max(16))),
         }
+    }
+
+    pub fn set_max_points(&self, max_points: usize) {
+        let n = max_points.max(16);
+        *self.max_points.lock().unwrap_or_else(|e| e.into_inner()) = n;
+        let mut q = self.inner.lock().unwrap_or_else(|e| e.into_inner());
+        while q.len() > n {
+            q.pop_front();
+        }
+    }
+
+    fn max_points(&self) -> usize {
+        self.max_points
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .max(16)
     }
 
     pub fn load_from_disk(&self, limit: usize) {
@@ -37,7 +57,8 @@ impl MetricsHistoryStore {
         for p in points {
             q.push_back(p);
         }
-        while q.len() > self.max_points {
+        let max = self.max_points();
+        while q.len() > max {
             q.pop_front();
         }
         tracing::info!(
@@ -50,7 +71,8 @@ impl MetricsHistoryStore {
     pub fn push(&self, point: MetricsHistoryPoint) {
         let mut q = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         q.push_back(point);
-        while q.len() > self.max_points {
+        let max = self.max_points();
+        while q.len() > max {
             q.pop_front();
         }
     }
@@ -72,66 +94,50 @@ impl MetricsHistoryStore {
 pub fn spawn_metrics_history_worker(
     manager: LibvirtManager,
     store: MetricsHistoryStore,
-    cfg: MetricsHistoryConfig,
+    cancel: CancellationToken,
 ) {
-    if !cfg.enabled || cfg.interval_secs == 0 {
-        tracing::info!("metrics history disabled");
-        return;
-    }
-    if cfg.persist {
-        store.load_from_disk(cfg.max_points);
-    }
-    let interval = Duration::from_secs(cfg.interval_secs.max(15));
-    let store2 = store.clone();
-    let persist = cfg.persist;
-    let max_file_mb = cfg.max_file_mb;
-    let remote_write_url = cfg.remote_write_url.trim().to_string();
-    let remote_write_auth = cfg.remote_write_authorization.clone();
     tokio::spawn(async move {
-        let persist_note = if persist {
-            format!(
-                ", persist → {} (max {} MiB)",
-                metrics_history_jsonl_path().display(),
-                max_file_mb
-            )
-        } else {
-            String::new()
-        };
-        let remote_note = if remote_write_url.is_empty() {
-            String::new()
-        } else {
-            format!(", remote_write → {remote_write_url}")
-        };
-        tracing::info!(
-            "metrics history: sample every {:?}, retain {} points{}{}",
-            interval,
-            cfg.max_points,
-            persist_note,
-            remote_note
-        );
-        let client = if remote_write_url.is_empty() {
-            None
-        } else {
-            match reqwest::Client::builder()
-                .timeout(Duration::from_secs(15))
-                .build()
-            {
-                Ok(c) => Some(c),
-                Err(e) => {
-                    tracing::error!("metrics history remote_write client: {e}");
-                    None
-                }
-            }
-        };
+        let mut reload_gen = observability_reload_generation();
+        let mut cfg = MachinaConfig::load().metrics_history;
+        if cfg.persist {
+            store.load_from_disk(cfg.max_points);
+        }
+        store.set_max_points(cfg.max_points);
+        let mut interval = worker_interval(&cfg);
         let mut tick = tokio::time::interval(interval);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        log_metrics_start(&cfg, interval);
+
         loop {
-            tick.tick().await;
+            tokio::select! {
+                _ = cancel.cancelled() => {
+                    tracing::info!("metrics history worker stopped");
+                    break;
+                }
+                _ = tick.tick() => {}
+            }
+
+            let gen = observability_reload_generation();
+            if gen != reload_gen {
+                reload_gen = gen;
+                cfg = MachinaConfig::load().metrics_history;
+                store.set_max_points(cfg.max_points);
+                interval = worker_interval(&cfg);
+                tick = tokio::time::interval(interval);
+                tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+                log_metrics_start(&cfg, interval);
+            }
+
+            if !cfg.enabled || cfg.interval_secs == 0 {
+                continue;
+            }
+
+            let persist = cfg.persist;
+            let max_file_mb = cfg.max_file_mb;
+            let rw_url = cfg.remote_write_url.trim().to_string();
+            let rw_auth = cfg.remote_write_authorization.clone();
             let mgr = manager.clone();
-            let st = store2.clone();
-            let rw_url = remote_write_url.clone();
-            let rw_auth = remote_write_auth.clone();
-            let client2 = client.clone();
+            let st = store.clone();
             let point = match tokio::task::spawn_blocking(move || {
                 sample_once(&mgr, &st, persist, max_file_mb)
             })
@@ -143,26 +149,63 @@ pub fn spawn_metrics_history_worker(
                     None
                 }
             };
-            // Custom JSON ingest (MetricsHistoryPoint), not Prometheus remote_write protobuf.
-            if let (Some(client), Some(point)) = (client2, point) {
+
+            if let Some(point) = point {
                 if !rw_url.is_empty() {
-                    let mut req = client.post(&rw_url).json(&point);
-                    if !rw_auth.is_empty() {
-                        req = req.header("Authorization", &rw_auth);
-                    }
-                    match req.send().await {
-                        Ok(res) if res.status().is_success() => {
-                            tracing::debug!("metrics history remote_write ok");
+                    let client = reqwest::Client::builder()
+                        .timeout(Duration::from_secs(15))
+                        .build();
+                    if let Ok(client) = client {
+                        let mut req = client.post(&rw_url).json(&point);
+                        if !rw_auth.is_empty() {
+                            req = req.header("Authorization", &rw_auth);
                         }
-                        Ok(res) => {
-                            tracing::warn!("metrics history remote_write HTTP {}", res.status());
+                        match req.send().await {
+                            Ok(res) if res.status().is_success() => {
+                                tracing::debug!("metrics history remote_write ok");
+                            }
+                            Ok(res) => {
+                                tracing::warn!("metrics history remote_write HTTP {}", res.status());
+                            }
+                            Err(e) => tracing::warn!("metrics history remote_write failed: {e}"),
                         }
-                        Err(e) => tracing::warn!("metrics history remote_write failed: {e}"),
                     }
                 }
             }
         }
     });
+}
+
+fn worker_interval(cfg: &MetricsHistoryConfig) -> Duration {
+    Duration::from_secs(cfg.interval_secs.max(15))
+}
+
+fn log_metrics_start(cfg: &MetricsHistoryConfig, interval: Duration) {
+    if !cfg.enabled || cfg.interval_secs == 0 {
+        tracing::info!("metrics history disabled");
+        return;
+    }
+    let persist_note = if cfg.persist {
+        format!(
+            ", persist → {} (max {} MiB)",
+            metrics_history_jsonl_path().display(),
+            cfg.max_file_mb
+        )
+    } else {
+        String::new()
+    };
+    let remote_note = if cfg.remote_write_url.trim().is_empty() {
+        String::new()
+    } else {
+        format!(", remote_write → {}", cfg.remote_write_url.trim())
+    };
+    tracing::info!(
+        "metrics history: sample every {:?}, retain {} points{}{}",
+        interval,
+        cfg.max_points,
+        persist_note,
+        remote_note
+    );
 }
 
 fn sample_once(

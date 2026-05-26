@@ -808,6 +808,25 @@ async fn clone_vm_handler(
     ))
 }
 
+fn apply_impersonation_create_defaults(
+    cfg: &MachinaConfig,
+    actor: &RequestActor,
+    req: &mut CreateVmRequest,
+) {
+    if !cfg.auth.run_as_user.prefer_session_libvirt_on_impersonation {
+        return;
+    }
+    if !cfg.auth.run_as_user.impersonation_active() || !cfg.libvirt.dual_connection {
+        return;
+    }
+    if effective_linux_user(actor).is_none() {
+        return;
+    }
+    if req.libvirt_connection.trim().is_empty() {
+        req.libvirt_connection = "session".into();
+    }
+}
+
 fn libvirt_uri_for_create(cfg: &MachinaConfig, req: &CreateVmRequest) -> String {
     if cfg.libvirt.dual_connection {
         if req.libvirt_connection.trim() == "session" {
@@ -844,11 +863,12 @@ fn ensure_session_libvirt_identity(
 async fn create_vm_handler(
     State(_manager): State<LibvirtManager>,
     Extension(actor): Extension<RequestActor>,
-    Json(req): Json<CreateVmRequest>,
+    Json(mut req): Json<CreateVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     validate_create_vm_payload(&req)?;
     let name = req.name.clone();
     let cfg = MachinaConfig::load();
+    apply_impersonation_create_defaults(&cfg, &actor, &mut req);
     ensure_session_libvirt_identity(&actor, &cfg, &req)?;
     let backend = match req.create_backend.trim() {
         "virt_install" => VmCreateBackend::VirtInstall,
@@ -904,12 +924,13 @@ async fn create_vm_stream_handler(
     State(_manager): State<LibvirtManager>,
     Extension(jobs): Extension<std::sync::Arc<JobRegistry>>,
     Extension(actor): Extension<RequestActor>,
-    Json(req): Json<CreateVmRequest>,
+    Json(mut req): Json<CreateVmRequest>,
 ) -> Result<Sse<impl futures_util::Stream<Item = Result<Event, Infallible>> + Send>, AppError> {
     validate_create_vm_payload(&req)?;
 
     let name = req.name.clone();
     let cfg = MachinaConfig::load();
+    apply_impersonation_create_defaults(&cfg, &actor, &mut req);
     ensure_session_libvirt_identity(&actor, &cfg, &req)?;
     let backend = match req.create_backend.trim() {
         "virt_install" => VmCreateBackend::VirtInstall,

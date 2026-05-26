@@ -17,7 +17,7 @@ use crate::daemon_stats::DaemonStats;
 use crate::http_metrics::{self, HttpMetrics};
 use crate::job_registry::JobRegistry;
 use crate::metrics_history::MetricsHistoryStore;
-use crate::otlp_worker;
+use crate::obs_workers::ObservabilityWorkers;
 use crate::routes;
 use crate::terminal::{self, TerminalSessionStore};
 
@@ -31,16 +31,13 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let http_metrics = Arc::new(HttpMetrics::new());
     let metrics_history_store =
         MetricsHistoryStore::new(config.metrics_history.max_points);
-    crate::metrics_history::spawn_metrics_history_worker(
-        manager.clone(),
-        metrics_history_store.clone(),
-        config.metrics_history.clone(),
-    );
-    otlp_worker::spawn_otlp_worker(
-        manager.clone(),
-        config.observability.otlp.clone(),
-        daemon_stats.clone(),
-        http_metrics.clone(),
+    let obs_workers = Arc::new(ObservabilityWorkers::new());
+    obs_workers.start(
+        &manager,
+        &config,
+        &metrics_history_store,
+        &daemon_stats,
+        &http_metrics,
     );
     let terminal_store = TerminalSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();
@@ -68,6 +65,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .layer(Extension(daemon_stats.clone()))
         .layer(Extension(http_metrics.clone()))
         .layer(Extension(metrics_history_store.clone()))
+        .layer(Extension(obs_workers.clone()))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,

@@ -45,6 +45,7 @@ export function putObservabilitySettings(patch: ObservabilitySettingsPatch) {
   return apiPut<{
     status: string
     restart_recommended: boolean
+    workers_reloaded?: boolean
     note: string
     settings: ObservabilitySettingsView
   }>(`${API}/system/observability-settings`, patch)

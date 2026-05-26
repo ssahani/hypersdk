@@ -1272,6 +1272,29 @@
         "responses": { "200": { "description": "Prometheus static_configs JSON" } }
       }
     },
+    "/fleet/create-vm": {
+      "post": {
+        "summary": "Create a VM on a fleet peer (or suggest local create)",
+        "tags": ["Fleet"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "peer": { "type": "string" },
+                  "auto_place": { "type": "boolean" },
+                  "placement_vcpus": { "type": "integer" },
+                  "placement_memory_mb": { "type": "integer" },
+                  "create": { "type": "object" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Proxy result or local-create hint" } }
+      }
+    },
     "/fleet/placement": {
       "post": {
         "summary": "Rank fleet peers for VM placement by capacity",

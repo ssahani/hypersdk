@@ -734,6 +734,20 @@ async fn login_handler(
         }
     }
 
+    #[cfg(not(target_os = "linux"))]
+    {
+        if !cfg.ldap.is_enabled() {
+            return (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(serde_json::json!({
+                    "error": "Password login via PAM is only available when machina-daemon runs on Linux",
+                    "error_code": "pam_unavailable"
+                })),
+            )
+                .into_response();
+        }
+    }
+
     match pam_authenticate(&req.username, &req.password, &cfg.pam_service) {
         Ok(()) => {
             info!("PAM login successful for user '{}'", req.username);
@@ -1089,6 +1103,7 @@ async fn admin_revoke_session(
     }
 }
 
+#[cfg(target_os = "linux")]
 fn pam_authenticate(username: &str, password: &str, pam_service: &str) -> Result<(), String> {
     let mut client = pam::Client::with_password(pam_service)
         .map_err(|e| format!("PAM init failed ({pam_service}): {e}"))?;
@@ -1103,11 +1118,31 @@ fn pam_authenticate(username: &str, password: &str, pam_service: &str) -> Result
     Ok(())
 }
 
+#[cfg(not(target_os = "linux"))]
+fn pam_authenticate(_username: &str, _password: &str, _pam_service: &str) -> Result<(), String> {
+    Err("PAM authentication is only compiled on Linux".into())
+}
+
+async fn run_as_user_status_handler(Extension(auth): Extension<OidcAuth>) -> Response {
+    let cfg = &auth.0.run_as_user;
+    let mode = serde_json::to_value(&cfg.mode).unwrap_or(serde_json::json!("disabled"));
+    Json(serde_json::json!({
+        "enabled": cfg.wants_impersonation(),
+        "mode": mode,
+        "impersonation_active": cfg.impersonation_active(),
+        "setuid_helper_path": cfg.setuid_helper_path,
+        "prefer_session_libvirt_on_impersonation": cfg.prefer_session_libvirt_on_impersonation,
+        "supported_programs": ["useradd", "userdel", "usermod", "homectl", "chpasswd", "id", "getent"],
+    }))
+    .into_response()
+}
+
 /// Auth routes — these use Extension<SessionStore> so they can be merged
 /// into Router<LibvirtManager> without state conflicts.
 pub fn auth_routes(session_store: SessionStore, auth_cfg: AuthConfig) -> Router<LibvirtManager> {
     Router::new()
         .route("/auth/providers", get(auth_providers_handler))
+        .route("/auth/run-as-user", get(run_as_user_status_handler))
         .route("/auth/login", post(login_handler))
         .route("/auth/oidc/login", get(oidc_login_handler))
         .route("/auth/oidc/callback", get(oidc_callback_handler))

@@ -9,6 +9,7 @@ import {
   getFleetMetrics,
   getFleetAlerts,
   postFleetPlacement,
+  postFleetCreateVm,
   fleetPeerProxy,
   type FleetPeerStatus,
   type FleetVmRow,
@@ -37,6 +38,8 @@ export default function FleetPage() {
   const [placementMemMb, setPlacementMemMb] = useState(2048)
   const [placement, setPlacement] = useState<PlacementCandidate[] | null>(null)
   const [placementBusy, setPlacementBusy] = useState(false)
+  const [createVmName, setCreateVmName] = useState('')
+  const [createBusy, setCreateBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -205,6 +208,50 @@ export default function FleetPage() {
             }}
           >
             {placementBusy ? 'Ranking…' : 'Suggest peer'}
+          </button>
+          <label className="flex flex-col gap-1">
+            <span className="text-xs text-slate-500">VM name (peer create)</span>
+            <input
+              className="input-field w-40"
+              value={createVmName}
+              onChange={(e) => setCreateVmName(e.target.value)}
+              placeholder="my-vm"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={createBusy || !createVmName.trim()}
+            className="btn-secondary"
+            onClick={async () => {
+              setCreateBusy(true)
+              try {
+                const res = await postFleetCreateVm(
+                  {
+                    name: createVmName.trim(),
+                    vcpus: placementVcpus,
+                    memory_mb: placementMemMb,
+                    disk_gb: 20,
+                  },
+                  {
+                    autoPlace: true,
+                    placementVcpus,
+                    placementMemoryMb: placementMemMb,
+                  },
+                )
+                if (res.action === 'create_local') {
+                  toast.info(res.message ?? 'Create this VM on the local host via VMs → Create')
+                } else {
+                  toast.success(`Create proxied to ${res.peer} (HTTP ${res.status ?? '?'})`)
+                }
+                await load()
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              } finally {
+                setCreateBusy(false)
+              }
+            }}
+          >
+            {createBusy ? 'Creating…' : 'Create on best peer'}
           </button>
         </div>
         {placement && placement.length > 0 ? (

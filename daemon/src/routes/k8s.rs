@@ -3681,6 +3681,103 @@ async fn k8s_cluster_bootstrap(
     }))
 }
 
+#[derive(Debug, Deserialize)]
+struct K8sMetricsQuery {
+    #[serde(default)]
+    context: Option<String>,
+}
+
+fn parse_kubectl_top_line(line: &str) -> Option<serde_json::Value> {
+    let parts: Vec<&str> = line.split_whitespace().collect();
+    if parts.len() < 5 {
+        return None;
+    }
+    Some(serde_json::json!({
+        "name": parts[0],
+        "cpu": parts[1],
+        "cpu_percent": parts[2],
+        "memory": parts[3],
+        "memory_percent": parts[4],
+    }))
+}
+
+/// Live cluster utilization via `kubectl top` (requires metrics-server).
+async fn k8s_metrics(
+    Query(q): Query<K8sMetricsQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let ctx = q.context.as_deref();
+    let nodes_res = run_kubectl_timeout(
+        &["top".into(), "nodes".into(), "--no-headers".into()],
+        25,
+        ctx,
+    )
+    .await;
+    let pods_res = run_kubectl_timeout(
+        &[
+            "top".into(),
+            "pods".into(),
+            "-A".into(),
+            "--no-headers".into(),
+        ],
+        45,
+        ctx,
+    )
+    .await;
+
+    let mut nodes_top: Vec<serde_json::Value> = Vec::new();
+    let mut nodes_error: Option<String> = None;
+    if let Ok(res) = &nodes_res {
+        if res.ok {
+            for line in res.stdout.lines() {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                if let Some(row) = parse_kubectl_top_line(line) {
+                    nodes_top.push(row);
+                }
+            }
+        } else {
+            nodes_error = Some(truncate_snippet(&res.stderr));
+        }
+    } else if let Err(e) = &nodes_res {
+        nodes_error = Some(e.to_string());
+    }
+
+    let mut pods_top: Vec<serde_json::Value> = Vec::new();
+    let mut pods_error: Option<String> = None;
+    if let Ok(res) = &pods_res {
+        if res.ok {
+            for line in res.stdout.lines() {
+                let line = line.trim();
+                if line.is_empty() {
+                    continue;
+                }
+                if let Some(row) = parse_kubectl_top_line(line) {
+                    pods_top.push(row);
+                }
+            }
+        } else {
+            pods_error = Some(truncate_snippet(&res.stderr));
+        }
+    } else if let Err(e) = &pods_res {
+        pods_error = Some(e.to_string());
+    }
+
+    let metrics_available = !nodes_top.is_empty() || !pods_top.is_empty();
+
+    Ok(Json(serde_json::json!({
+        "metrics_available": metrics_available,
+        "metrics_server_hint": "Install metrics-server (cluster bootstrap phase metrics or helm) when kubectl top fails",
+        "nodes_top": nodes_top,
+        "pods_top": pods_top,
+        "nodes_error": nodes_error,
+        "pods_error": pods_error,
+        "nodes_command": nodes_res.ok().map(|r| r.command),
+        "pods_command": pods_res.ok().map(|r| r.command),
+    })))
+}
+
 pub fn k8s_routes() -> Router<LibvirtManager> {
     let apply = Router::new()
         .route("/k8s/apply", post(k8s_apply_manifest))
@@ -3698,6 +3795,7 @@ pub fn k8s_routes() -> Router<LibvirtManager> {
             get(k8s_cluster_inventory_history),
         )
         .route("/k8s/cluster-inventory", get(k8s_cluster_inventory))
+        .route("/k8s/metrics", get(k8s_metrics))
         .route("/k8s/nodes", get(k8s_nodes))
         .route("/k8s/namespaces", get(k8s_namespaces))
         .route("/k8s/pods", get(k8s_pods))
