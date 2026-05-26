@@ -29,6 +29,8 @@ refresh_interval_secs = 5
 # enabled = true
 # interval_secs = 30
 # max_points = 120
+# persist = true
+# max_file_mb = 32
 #
 # Prometheus (GET /api/v1/prometheus): host/VM gauges, per-disk/NIC counters,
 # machina_http_request_duration_seconds histogram, and daemon self-metrics.

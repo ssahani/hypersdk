@@ -5,6 +5,7 @@ pub mod build_precheck;
 pub mod config;
 pub mod fmt;
 pub mod host_inventory;
+pub mod metrics_history;
 pub mod host_linux_obs;
 pub mod host_platform;
 pub mod host_virt;

@@ -47,7 +47,10 @@ async fn get_metrics_history(
 ) -> Json<serde_json::Value> {
     let limit = q.limit.unwrap_or(60).min(500);
     let points = store.snapshot(limit);
-    Json(serde_json::json!({ "points": points }))
+    Json(serde_json::json!({
+        "points": points,
+        "persist_path": machina_core::metrics_history::metrics_history_jsonl_path().to_string_lossy(),
+    }))
 }
 
 pub fn metrics_routes() -> Router<LibvirtManager> {

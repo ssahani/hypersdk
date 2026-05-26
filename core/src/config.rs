@@ -77,7 +77,7 @@ impl Default for AuditLogConfig {
     }
 }
 
-/// Ring buffer of recent host/VM metrics in the daemon process (not persisted across restarts).
+/// Ring buffer of recent host/VM metrics; optional JSON Lines persistence across restarts.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MetricsHistoryConfig {
     #[serde(default = "default_metrics_history_enabled")]
@@ -85,9 +85,15 @@ pub struct MetricsHistoryConfig {
     /// Seconds between samples (minimum 15 when enabled).
     #[serde(default = "default_metrics_history_interval_secs")]
     pub interval_secs: u64,
-    /// Maximum points retained (oldest dropped).
+    /// Maximum points retained in memory (oldest dropped).
     #[serde(default = "default_metrics_history_max_points")]
     pub max_points: usize,
+    /// Append samples to `/var/lib/machina/metrics-history.jsonl`.
+    #[serde(default = "default_metrics_history_persist")]
+    pub persist: bool,
+    /// Trim persisted file when it exceeds this size (only when `persist` is true).
+    #[serde(default = "default_metrics_history_max_file_mb")]
+    pub max_file_mb: u64,
 }
 
 fn default_metrics_history_enabled() -> bool {
@@ -102,12 +108,22 @@ fn default_metrics_history_max_points() -> usize {
     120
 }
 
+fn default_metrics_history_persist() -> bool {
+    true
+}
+
+fn default_metrics_history_max_file_mb() -> u64 {
+    32
+}
+
 impl Default for MetricsHistoryConfig {
     fn default() -> Self {
         Self {
             enabled: default_metrics_history_enabled(),
             interval_secs: default_metrics_history_interval_secs(),
             max_points: default_metrics_history_max_points(),
+            persist: default_metrics_history_persist(),
+            max_file_mb: default_metrics_history_max_file_mb(),
         }
     }
 }
@@ -1141,6 +1157,8 @@ mod tests {
         assert!(m.enabled);
         assert_eq!(m.interval_secs, 30);
         assert_eq!(m.max_points, 120);
+        assert!(m.persist);
+        assert_eq!(m.max_file_mb, 32);
     }
 
     #[test]

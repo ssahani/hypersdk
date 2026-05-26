@@ -13,11 +13,13 @@ enabled = true
 interval_secs = 3600
 max_file_mb = 64
 
-# In-memory metrics ring buffer (GET /api/v1/metrics/history); not persisted across daemon restarts.
+# Metrics ring buffer (GET /api/v1/metrics/history); persisted to JSON Lines when persist = true.
 [metrics_history]
 enabled = true
 interval_secs = 30
 max_points = 120
+persist = true
+max_file_mb = 32
 
 [audit]
 max_file_mb = 64
