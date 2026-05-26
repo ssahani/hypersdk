@@ -227,11 +227,15 @@ export default function Dashboard() {
             <div className="min-w-0 text-sm text-amber-100/95">
               <p className="font-medium text-amber-50">Virtualization readiness</p>
               <p className="mt-1 text-amber-100/80">{virtHost.hint}</p>
-              {libSummary?.dual_connection && (
+              {libSummary?.dual_connection ? (
                 <p className="mt-2 text-xs text-amber-200/70">
-                  Dual libvirt: system {libSummary.qemu_system_connected ? 'connected' : 'down'}, session {libSummary.qemu_session_connected ? 'connected' : 'down'} (configured URI: {libSummary.configured_uri}).
+                  Dual libvirt: system {libSummary.qemu_system_connected ? 'connected' : 'down'}, session {libSummary.qemu_session_connected ? 'connected' : 'down'} ({libSummary.configured_uri}).
                 </p>
-              )}
+              ) : libSummary?.configured_uri ? (
+                <p className="mt-2 text-xs text-amber-200/70">
+                  Libvirt URI: {libSummary.configured_uri}
+                </p>
+              ) : null}
             </div>
           </div>
           <button

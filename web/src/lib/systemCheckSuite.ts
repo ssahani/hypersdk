@@ -191,15 +191,26 @@ async function runHostChecks(): Promise<CheckResult[]> {
   out.push(
     await timedCheck('host-libvirt-summary', 'host', 'Libvirt connection summary', async () => {
       const s = await getLibvirtSummary()
-      if (!s.qemu_system_connected && !s.qemu_session_connected) {
-        return { status: 'fail', message: 'No QEMU connection', detail: s }
+      const connected =
+        s.libvirt_connected ??
+        s.primary_connected ??
+        (s.qemu_system_connected || s.qemu_session_connected)
+      if (!connected) {
+        return {
+          status: 'fail',
+          message:
+            'Daemon has no libvirt connection (check [libvirt] uri in config and machina-daemon logs)',
+          detail: s,
+        }
       }
       const parts: string[] = []
+      if (s.primary_connected || (!s.dual_connection && connected)) parts.push('primary')
       if (s.qemu_system_connected) parts.push('system')
       if (s.qemu_session_connected) parts.push('session')
+      const label = parts.length > 0 ? parts.join(', ') : 'connected'
       return {
         status: 'pass',
-        message: `Connected (${parts.join(', ')}) · ${s.configured_uri}`,
+        message: `${label} · ${s.configured_uri}`,
         detail: s,
       }
     }),

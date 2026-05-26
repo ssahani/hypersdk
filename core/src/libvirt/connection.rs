@@ -330,10 +330,15 @@ impl LibvirtManager {
     /// UI / discovery: dual mode and which sockets opened at daemon start.
     #[must_use]
     pub fn api_connection_summary(&self) -> serde_json::Value {
+        let primary_connected = self.primary.is_some();
+        let qemu_system_connected = self.system.is_some();
+        let qemu_session_connected = self.session.is_some();
         serde_json::json!({
             "dual_connection": self.dual,
-            "qemu_system_connected": self.system.is_some(),
-            "qemu_session_connected": self.session.is_some(),
+            "primary_connected": primary_connected,
+            "qemu_system_connected": qemu_system_connected,
+            "qemu_session_connected": qemu_session_connected,
+            "libvirt_connected": primary_connected || qemu_system_connected || qemu_session_connected,
             "configured_uri": self.primary_uri_display(),
             "extra_uris": self.extra.iter().map(|s| s.uri.clone()).collect::<Vec<_>>(),
             "extra_uri_labels": self.extra_uri_labels.clone(),

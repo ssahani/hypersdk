@@ -16,15 +16,21 @@ export async function getHostVirtualization(): Promise<VirtualizationHostStatus>
 
 export async function getLibvirtSummary(): Promise<{
   dual_connection: boolean
+  primary_connected?: boolean
   qemu_system_connected: boolean
   qemu_session_connected: boolean
+  libvirt_connected?: boolean
   configured_uri: string
+  extra_uris?: string[]
 }> {
   return readJsonObject<{
     dual_connection: boolean
+    primary_connected?: boolean
     qemu_system_connected: boolean
     qemu_session_connected: boolean
+    libvirt_connected?: boolean
     configured_uri: string
+    extra_uris?: string[]
   }>(`${API}/libvirt/summary`)
 }
 
