@@ -1,6 +1,6 @@
 //! Cockpit-parity helpers: send keys, screenshot, TPM, firmware, device tuning, extra devices.
 
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::{get, post};
@@ -10,6 +10,8 @@ use std::collections::HashMap;
 use machina_core::libvirt::{device_tune, domain, extra_devices, firmware, guest_input, vnc};
 use machina_core::{LibvirtError, LibvirtManager};
 
+use crate::auth::RequestActor;
+use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 use machina_core::xml::{extract_attr, split_blocks};
 
@@ -28,6 +30,8 @@ fn default_hold() -> u32 {
 
 async fn send_key_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<SendKeyRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -51,26 +55,26 @@ async fn send_key_handler(
     };
     let name2 = name.clone();
     let ht = req.holdtime_ms;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| guest_input::send_linux_keycodes(conn, &name2, &codes, ht))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        guest_input::send_linux_keycodes(conn, &name2, &codes, ht)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
 async fn screenshot_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Query(q): Query<HashMap<String, String>>,
 ) -> Result<impl IntoResponse, AppError> {
     let screen: u32 = q.get("screen").and_then(|s| s.parse().ok()).unwrap_or(0);
     let name2 = name.clone();
-    let (bytes, mime) = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| guest_input::screenshot(conn, &name2, screen))
+    let (bytes, mime) = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        guest_input::screenshot(conn, &name2, screen)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     let hv = HeaderValue::from_str(&mime)
         .unwrap_or_else(|_| HeaderValue::from_static("application/octet-stream"));
     Ok(([(header::CONTENT_TYPE, hv)], bytes))
@@ -84,16 +88,17 @@ struct FirmwareRequest {
 
 async fn set_firmware_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<FirmwareRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let uefi = req.uefi;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| firmware::set_guest_firmware(conn, &name2, uefi))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        firmware::set_guest_firmware(conn, &name2, uefi)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "uefi": req.uefi }),
     ))
@@ -101,14 +106,15 @@ async fn set_firmware_handler(
 
 async fn attach_tpm_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| extra_devices::attach_tpm_emulator(conn, &name2))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        extra_devices::attach_tpm_emulator(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "tpm": "attached" }),
     ))
@@ -116,14 +122,15 @@ async fn attach_tpm_handler(
 
 async fn detach_tpm_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| extra_devices::detach_tpm(conn, &name2))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        extra_devices::detach_tpm(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "tpm": "detached" }),
     ))
@@ -137,17 +144,18 @@ struct WatchdogRequest {
 
 async fn attach_watchdog_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<WatchdogRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let model = req.model.clone();
     let action = req.action.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| extra_devices::attach_watchdog(conn, &name2, &model, &action))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        extra_devices::attach_watchdog(conn, &name2, &model, &action)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -158,16 +166,17 @@ struct SoundRequest {
 
 async fn attach_sound_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<SoundRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let model = req.model.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| extra_devices::attach_sound(conn, &name2, &model))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        extra_devices::attach_sound(conn, &name2, &model)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -178,16 +187,17 @@ struct SerialPortRequest {
 
 async fn attach_serial_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<SerialPortRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let port = req.port;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| extra_devices::attach_serial_pty(conn, &name2, port))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        extra_devices::attach_serial_pty(conn, &name2, port)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "port": port }),
     ))
@@ -200,16 +210,17 @@ struct VideoModelRequest {
 
 async fn set_video_model_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<VideoModelRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let model = req.model.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device_tune::set_video_model(conn, &name2, &model))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        device_tune::set_video_model(conn, &name2, &model)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "model": req.model }),
     ))
@@ -217,50 +228,51 @@ async fn set_video_model_handler(
 
 async fn disk_tune_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<device_tune::DiskTuneRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let tune = req.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device_tune::update_disk_tune(conn, &name2, &tune))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        device_tune::update_disk_tune(conn, &name2, &tune)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
 async fn nic_tune_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<device_tune::NicTuneRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let tune = req.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| device_tune::update_nic_tune(conn, &name2, &tune))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        device_tune::update_nic_tune(conn, &name2, &tune)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
 /// Virt-Viewer `.vv` file (SPICE or VNC).
 async fn virt_viewer_vv_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     let name2 = name.clone();
-    let (xml, vnc_resolved) = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
-            let xml = domain::get_vm_xml(conn, &name2)?;
-            let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
-            Ok::<_, LibvirtError>((xml, vnc))
-        })
+    let (xml, vnc_resolved) = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        let xml = domain::get_vm_xml(conn, &name2)?;
+        let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
+        Ok::<_, LibvirtError>((xml, vnc))
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
 
     let mut console_type = String::from("vnc");
     let mut port: i32 = -1;

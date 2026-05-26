@@ -141,16 +141,14 @@ fn default_cdrom_target() -> String {
 
 async fn insert_cdrom_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<CdromRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target = req.target.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| cdrom::insert_cdrom(conn, &name2, &req.iso_path, &req.target))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| cdrom::insert_cdrom(conn, &name2, &req.iso_path, &req.target)).await?;
     Ok(Json(
         serde_json::json!({ "status": "inserted", "name": name, "target": target }),
     ))
@@ -158,15 +156,13 @@ async fn insert_cdrom_handler(
 
 async fn eject_cdrom_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path((name, target)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target2 = target.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| cdrom::eject_cdrom(conn, &name2, &target2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| cdrom::eject_cdrom(conn, &name2, &target2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "ejected", "name": name, "target": target }),
     ))
@@ -184,18 +180,16 @@ struct ShareRequest {
 
 async fn add_share_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<ShareRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let tag = req.mount_tag.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
             filesystem::add_virtiofs_share(conn, &name2, &req.source_dir, &req.mount_tag, req.xattr)
-        })
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        }).await?;
     Ok(Json(
         serde_json::json!({ "status": "shared", "name": name, "mount_tag": tag }),
     ))
@@ -203,15 +197,13 @@ async fn add_share_handler(
 
 async fn remove_share_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path((name, mount_tag)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let tag2 = mount_tag.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| filesystem::remove_share(conn, &name2, &tag2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| filesystem::remove_share(conn, &name2, &tag2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "removed", "name": name, "mount_tag": mount_tag }),
     ))
@@ -221,27 +213,23 @@ async fn remove_share_handler(
 
 async fn managed_save_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| save_restore::managed_save(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| save_restore::managed_save(conn, &name2)).await?;
     Ok(Json(serde_json::json!({ "status": "saved", "name": name })))
 }
 
 async fn managed_save_remove_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| save_restore::managed_save_remove(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| save_restore::managed_save_remove(conn, &name2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "removed", "name": name }),
     ))
@@ -249,14 +237,12 @@ async fn managed_save_remove_handler(
 
 async fn has_managed_save_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| save_restore::has_managed_save(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| save_restore::has_managed_save(conn, &name2)).await;
     let has_save = result?;
     Ok(Json(
         serde_json::json!({ "name": name, "has_managed_save": has_save }),
@@ -267,13 +253,11 @@ async fn has_managed_save_handler(
 
 async fn get_boot_config_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| boot::get_boot_config(conn, &name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| boot::get_boot_config(conn, &name)).await;
     Ok(Json(serde_json::json!(result?)))
 }
 
@@ -284,16 +268,14 @@ struct BootOrderRequest {
 
 async fn set_boot_order_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<BootOrderRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let devices = req.devices.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| boot::set_boot_order(conn, &name2, &devices))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| boot::set_boot_order(conn, &name2, &devices)).await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "boot_devices": req.devices }),
     ))
@@ -325,6 +307,8 @@ struct MigrateRequest {
 
 async fn migrate_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<MigrateRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -349,13 +333,9 @@ async fn migrate_handler(
     if req.paused {
         xf |= virt::sys::VIR_MIGRATE_PAUSED;
     }
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
             migrate::migrate_vm_uri(conn, &name2, &dest_uri, live, params.as_ref(), xf)
-        })
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        }).await?;
     Ok(Json(
         serde_json::json!({ "status": "migrated", "name": name, "destination": destination }),
     ))
@@ -363,14 +343,12 @@ async fn migrate_handler(
 
 async fn migrate_get_max_speed_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let mib = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| migrate::migrate_get_max_speed(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let mib = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| migrate::migrate_get_max_speed(conn, &name2)).await;
     Ok(Json(
         serde_json::json!({ "name": name, "mib_per_sec": mib? }),
     ))
@@ -383,16 +361,14 @@ struct MigrateBandwidthBody {
 
 async fn migrate_set_max_speed_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<MigrateBandwidthBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let mib = req.mib_per_sec;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| migrate::migrate_set_max_speed(conn, &name2, mib))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| migrate::migrate_set_max_speed(conn, &name2, mib)).await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "mib_per_sec": mib }),
     ))
@@ -405,16 +381,14 @@ struct MigrateDowntimeBody {
 
 async fn migrate_set_max_downtime_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<MigrateDowntimeBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let ns = req.downtime_ns;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| migrate::migrate_set_max_downtime(conn, &name2, ns))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| migrate::migrate_set_max_downtime(conn, &name2, ns)).await?;
     Ok(Json(
         serde_json::json!({ "status": "ok", "name": name, "downtime_ns": ns }),
     ))
@@ -422,29 +396,25 @@ async fn migrate_set_max_downtime_handler(
 
 async fn get_numa_tune_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| numa_tune::get_numa_tune(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| numa_tune::get_numa_tune(conn, &name2)).await;
     Ok(Json(serde_json::json!(result?)))
 }
 
 async fn set_numa_tune_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<numa_tune::SetNumaTuneRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let body = req;
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| numa_tune::set_numa_tune(conn, &name2, &body))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| numa_tune::set_numa_tune(conn, &name2, &body)).await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -455,16 +425,14 @@ struct EmulatorPinBody {
 
 async fn pin_emulator_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<EmulatorPinBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let cpus = req.cpus.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| emulator::pin_emulator(conn, &name2, &cpus))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| emulator::pin_emulator(conn, &name2, &cpus)).await?;
     Ok(Json(serde_json::json!({ "status": "ok", "name": name })))
 }
 
@@ -477,28 +445,24 @@ struct CpuCompareBody {
 
 async fn compare_cpu_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CpuCompareBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let xml = req.cpu_xml.clone();
     let flags = req.flags;
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| host_cpu::compare_cpu(conn, &xml, flags))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| host_cpu::compare_cpu(conn, &xml, flags)).await;
     Ok(Json(serde_json::json!(result?)))
 }
 
 async fn job_info_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain_job::job_info(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain_job::job_info(conn, &name2)).await;
     Ok(Json(result?))
 }
 
@@ -510,16 +474,14 @@ struct JobStatsQuery {
 
 async fn job_stats_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Query(query): Query<JobStatsQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let flags = query.flags;
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| domain_job::job_stats_u32(conn, &name2, flags))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain_job::job_stats_u32(conn, &name2, flags)).await;
     Ok(Json(result?))
 }
 
@@ -527,19 +489,22 @@ async fn job_stats_handler(
 
 async fn get_capabilities_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let result =
-        tokio::task::spawn_blocking(move || manager.with_conn(capabilities::get_capabilities))
-            .await
-            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!(result?)))
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, capabilities::get_capabilities).await?;
+    Ok(Json(serde_json::json!(result)))
 }
 
-async fn get_sysinfo_handler(State(manager): State<LibvirtManager>) -> Result<Xml, AppError> {
-    let result = tokio::task::spawn_blocking(move || manager.with_conn(capabilities::get_sysinfo))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Xml(result?))
+async fn get_sysinfo_handler(
+    State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
+) -> Result<Xml, AppError> {
+    let result =
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, capabilities::get_sysinfo).await?;
+    Ok(Xml(result))
 }
 
 // ── Node Devices ────────────────────────────────────────────────────
@@ -552,25 +517,25 @@ struct DeviceQuery {
 
 async fn list_node_devices_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Query(query): Query<DeviceQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| node_device::list_node_devices(conn, query.capability.as_deref()))
+    let cap = query.capability.clone();
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        node_device::list_node_devices(conn, cap.as_deref())
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!(result?)))
+    .await?;
+    Ok(Json(serde_json::json!(result)))
 }
 
 async fn get_node_device_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| node_device::get_node_device_xml(conn, &name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| node_device::get_node_device_xml(conn, &name)).await;
     Ok(Xml(result?))
 }
 
@@ -578,35 +543,32 @@ async fn get_node_device_handler(
 
 async fn list_nwfilters_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || manager.with_conn(nwfilter::list_nwfilters))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!(result?)))
+    let result =
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, nwfilter::list_nwfilters).await?;
+    Ok(Json(serde_json::json!(result)))
 }
 
 async fn get_nwfilter_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| nwfilter::get_nwfilter_xml(conn, &name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| nwfilter::get_nwfilter_xml(conn, &name)).await;
     Ok(Xml(result?))
 }
 
 async fn delete_nwfilter_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| nwfilter::delete_nwfilter(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| nwfilter::delete_nwfilter(conn, &name2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "deleted", "name": name }),
     ))
@@ -619,14 +581,12 @@ struct DefineNwfilterRequest {
 
 async fn define_nwfilter_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<DefineNwfilterRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let xml = req.xml;
-    let name = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| nwfilter::define_nwfilter(conn, &xml))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    let name =     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| nwfilter::define_nwfilter(conn, &xml)).await?;
     Ok(Json(
         serde_json::json!({ "status": "defined", "name": name }),
     ))
@@ -636,23 +596,22 @@ async fn define_nwfilter_handler(
 
 async fn list_secrets_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
-    let result = tokio::task::spawn_blocking(move || manager.with_conn(secret::list_secrets))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(serde_json::json!(result?)))
+    let result =
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, secret::list_secrets).await?;
+    Ok(Json(serde_json::json!(result)))
 }
 
 async fn delete_secret_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(uuid): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let uuid2 = uuid.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| secret::delete_secret(conn, &uuid2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| secret::delete_secret(conn, &uuid2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "deleted", "uuid": uuid }),
     ))
@@ -671,6 +630,8 @@ struct DefineSecretRequest {
 
 async fn define_secret_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<DefineSecretRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     use base64::Engine;
@@ -686,13 +647,9 @@ async fn define_secret_handler(
     let xml = req.xml.clone();
     let validate = req.validate_xml;
     let svf = req.set_value_flags;
-    let uuid = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
+    let uuid =     spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
             secret::define_secret_with_value(conn, &xml, value_bytes.as_deref(), validate, svf)
-        })
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        }).await?;
     Ok(Json(
         serde_json::json!({ "status": "defined", "uuid": uuid }),
     ))
@@ -706,6 +663,7 @@ struct PciHostdevBody {
 async fn attach_pci_hostdev_handler(
     Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<PciHostdevBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -713,11 +671,7 @@ async fn attach_pci_hostdev_handler(
     let pci = req.pci.clone();
     let pci_for_task = pci.clone();
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| hostdev_pci::attach_pci_hostdev(conn, &name2, &pci_for_task))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| hostdev_pci::attach_pci_hostdev(conn, &name2, &pci_for_task)).await?;
     Ok(Json(
         serde_json::json!({ "status": "pci_attached", "name": name, "pci": pci }),
     ))
@@ -726,6 +680,7 @@ async fn attach_pci_hostdev_handler(
 async fn detach_pci_hostdev_handler(
     Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(req): Json<PciHostdevBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -733,11 +688,7 @@ async fn detach_pci_hostdev_handler(
     let pci = req.pci.clone();
     let pci_for_task = pci.clone();
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| hostdev_pci::detach_pci_hostdev(conn, &name2, &pci_for_task))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| hostdev_pci::detach_pci_hostdev(conn, &name2, &pci_for_task)).await?;
     Ok(Json(
         serde_json::json!({ "status": "pci_detached", "name": name, "pci": pci }),
     ))
@@ -746,15 +697,12 @@ async fn detach_pci_hostdev_handler(
 async fn detach_nodedev_handler(
     Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<ConnQuery>,
     Path(devname): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_usb_pci(&actor)?;
     let dev = devname.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| node_device::detach_node_device(conn, &dev))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| node_device::detach_node_device(conn, &dev)).await?;
     Ok(Json(
         serde_json::json!({ "status": "nodedev_detached", "name": devname }),
     ))
@@ -763,15 +711,12 @@ async fn detach_nodedev_handler(
 async fn reattach_nodedev_handler(
     Extension(actor): Extension<RequestActor>,
     State(manager): State<LibvirtManager>,
+    Query(conn_q): Query<ConnQuery>,
     Path(devname): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     require_usb_pci(&actor)?;
     let dev = devname.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| node_device::reattach_node_device(conn, &dev))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| node_device::reattach_node_device(conn, &dev)).await?;
     Ok(Json(
         serde_json::json!({ "status": "nodedev_reattached", "name": devname }),
     ))
@@ -793,16 +738,14 @@ fn default_pool_type() -> String {
 
 async fn create_pool_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CreatePoolRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let req_name = req.name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
             storage::create_pool(conn, &req.name, &req.pool_type, &req.target_path)
-        })
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        }).await?;
     Ok(Json(
         serde_json::json!({ "status": "created", "name": req_name }),
     ))
@@ -810,14 +753,12 @@ async fn create_pool_handler(
 
 async fn delete_pool_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| storage::delete_pool(conn, &name2))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| storage::delete_pool(conn, &name2)).await?;
     Ok(Json(
         serde_json::json!({ "status": "deleted", "name": name }),
     ))
@@ -825,13 +766,11 @@ async fn delete_pool_handler(
 
 async fn get_pool_xml_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| storage::get_pool_xml(conn, &name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| storage::get_pool_xml(conn, &name)).await;
     Ok(Xml(result?))
 }
 
@@ -844,6 +783,8 @@ struct ResizeVolumeRequest {
 
 async fn resize_volume_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path((pool, vol)): Path<(String, String)>,
     Json(req): Json<ResizeVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -856,11 +797,7 @@ async fn resize_volume_handler(
     let capacity = req.capacity_gb.ceil() as u64;
     let pool2 = pool.clone();
     let vol2 = vol.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| storage::resize_volume(conn, &pool2, &vol2, capacity))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| storage::resize_volume(conn, &pool2, &vol2, capacity)).await?;
     Ok(Json(
         serde_json::json!({ "status": "resized", "pool": pool, "volume": vol, "capacity_gb": capacity }),
     ))
@@ -873,17 +810,15 @@ struct CloneVolumeRequest {
 
 async fn clone_volume_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path((pool, vol)): Path<(String, String)>,
     Json(req): Json<CloneVolumeRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let pool2 = pool.clone();
     let vol2 = vol.clone();
     let new_name = req.new_name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| storage::clone_volume(conn, &pool2, &vol2, &new_name))
-    })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| storage::clone_volume(conn, &pool2, &vol2, &new_name)).await?;
     Ok(Json(
         serde_json::json!({ "status": "cloned", "pool": pool, "source": vol, "clone": req.new_name }),
     ))

@@ -25,3 +25,5 @@ remote_write_url = "http://127.0.0.1:9099/ingest"
 ```
 
 Each POST appends one JSON line (`MetricsHistoryPoint`). For production, use your own service or Grafana Alloy — see `contrib/alloy/README.md` for Prometheus/Mimir scrape.
+
+**Scope:** `remote-write` and `ingest/prometheus` on the daemon only store `machina_host_*_percent` into the history ring, not arbitrary time series. See `docs/guides/observability.md`.

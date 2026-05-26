@@ -38,6 +38,4 @@ Use this when preparing Machina for security review (not a certification).
 
 ## Not in scope today
 
-- FIPS-validated crypto modules
-- Built-in license/entitlement server
-- HashiCorp Vault integration for secrets
+See [enterprise-backlog.md](enterprise-backlog.md) for the full list (FIPS, Vault, MFA, fleet HA automation, etc.).

@@ -65,6 +65,8 @@ Accepts **remote_write 1.0** (`prometheus.WriteRequest`) and **2.0** when sender
 
 Maps `machina_host_cpu_percent`, `machina_host_memory_percent`, and `machina_host_disk_percent` into the metrics history ring. Response JSON includes `protocol` (`v1` or `v2`). See `contrib/alloy/machina-remote-write-receiver.alloy` and `contrib/ingest/test-remote-write.sh`.
 
+**Ingest scope (intentional):** Machina is not a Prometheus-compatible time-series database. Batch, Prometheus text, and remote_write endpoints decode payloads but only promote the three `machina_host_*_percent` gauges into [`MetricsHistoryPoint`](../../core/src/metrics_history.rs). Other sample names are counted in the JSON response but not persisted or re-exported on `GET /prometheus`. For full metrics storage, scrape `GET /api/v1/prometheus` (or `GET /api/v1/fleet/prometheus`) into Mimir/Cortex/Grafana Cloud via Alloy — see `contrib/alloy/README.md`.
+
 File: `/var/lib/machina/metrics-history.jsonl`
 
 ## OTLP export

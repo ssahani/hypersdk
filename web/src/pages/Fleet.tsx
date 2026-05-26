@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Server, RefreshCw, Play, Square, Power } from 'lucide-react'
+import { Server, RefreshCw, Play, Square, Power, BarChart3 } from 'lucide-react'
 import PageHeader from '../components/PageHeader'
 import ErrorBanner from '../components/ErrorBanner'
+import CopyButton from '../components/CopyButton'
 import {
   getFleetStatus,
   getFleetVms,
@@ -11,6 +12,7 @@ import {
   postFleetPlacement,
   postFleetCreateVm,
   fleetPeerProxy,
+  fleetPrometheusAggregateUrl,
   type FleetPeerStatus,
   type FleetVmRow,
   type FleetMetricsResponse,
@@ -164,6 +166,39 @@ export default function FleetPage() {
           ))}
         </div>
       </section>
+
+      {enabled ? (
+        <section
+          className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3"
+          aria-labelledby="fleet-prometheus-heading"
+        >
+          <h2
+            id="fleet-prometheus-heading"
+            className="text-lg font-semibold flex items-center gap-2"
+          >
+            <BarChart3 className="w-5 h-5 text-sky-400" />
+            {t('fleet.prometheusTitle')}
+          </h2>
+          <p className="text-xs text-slate-500">{t('fleet.prometheusHint')}</p>
+          <code className="block text-xs text-slate-300 break-all bg-slate-900/60 rounded-lg px-3 py-2 border border-slate-700/40">
+            {fleetPrometheusAggregateUrl()}
+          </code>
+          <div className="flex flex-wrap gap-2">
+            <CopyButton
+              text={fleetPrometheusAggregateUrl()}
+              label={t('fleet.prometheusCopyUrl')}
+            />
+            <a
+              href={fleetPrometheusAggregateUrl()}
+              target="_blank"
+              rel="noreferrer"
+              className="btn-secondary text-sm"
+            >
+              {t('fleet.prometheusOpen')}
+            </a>
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
         <h2 className="text-lg font-semibold">VM placement</h2>

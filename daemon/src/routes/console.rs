@@ -1,4 +1,4 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::http::header::HeaderValue;
 use axum::http::{header, HeaderMap};
 use axum::response::IntoResponse;
@@ -8,9 +8,10 @@ use axum::{Json, Router};
 use machina_core::libvirt::domain;
 use machina_core::libvirt::vnc;
 use machina_core::xml::{extract_attr, split_blocks};
-use machina_core::{LibvirtError, LibvirtManager};
+use machina_core::LibvirtManager;
 
-use crate::conn_query::ConnQuery;
+use crate::auth::RequestActor;
+use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 
 #[derive(serde::Serialize)]
@@ -24,23 +25,18 @@ struct ConsoleInfo {
 
 async fn get_console_info(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     headers: HeaderMap,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<ConsoleInfo>, AppError> {
     let name2 = name.clone();
-    let cq = conn_q.connection.clone();
-    let manager2 = manager.clone();
-    let (xml, vnc_resolved) = tokio::task::spawn_blocking(move || {
-        let t = manager2.resolve_query(cq.as_deref());
-        manager2.with_conn_target(t, |conn| {
-            let xml = domain::get_vm_xml(conn, &name2)?;
-            let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
-            Ok((xml, vnc))
-        })
+    let (xml, vnc_resolved) = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        let xml = domain::get_vm_xml(conn, &name2)?;
+        let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
+        Ok((xml, vnc))
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
 
     // Find VNC graphics first, then fall back to any graphics type
     let mut console_type = machina_core::unknown_string();
@@ -102,23 +98,18 @@ async fn get_console_info(
 /// Download a `virt-viewer` / Remote Desktop `.vv` file (same idea as Cockpit-machines).
 async fn viewer_vv_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     headers: HeaderMap,
 ) -> Result<impl IntoResponse, AppError> {
     let name2 = name.clone();
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
-    let (xml, vnc_resolved) = tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |conn| {
-            let xml = domain::get_vm_xml(conn, &name2)?;
-            let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
-            Ok((xml, vnc))
-        })
+    let (xml, vnc_resolved) = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        let xml = domain::get_vm_xml(conn, &name2)?;
+        let vnc = vnc::resolve_vnc_tcp_xml(conn, &name2, &xml).ok();
+        Ok((xml, vnc))
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
 
     let mut console_type = machina_core::unknown_string();
     let mut port: i32 = -1;

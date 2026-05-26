@@ -30,7 +30,11 @@
     "shutdown": "Shutdown on peer",
     "actionOk": "{{action}} sent to {{vm}} on {{peer}}",
     "primaryPeer": "Primary peer: {{name}}",
-    "standbyPeer": "Standby: {{name}}"
+    "standbyPeer": "Standby: {{name}}",
+    "prometheusTitle": "Prometheus (aggregated scrape)",
+    "prometheusHint": "Single job for local + all fleet peers. Each series includes machina_peer (local or peer name). Use a read-only API token as Bearer auth.",
+    "prometheusCopyUrl": "Copy scrape URL",
+    "prometheusOpen": "Open in browser"
   },
   "rdp": {
     "builtin": "RDP",

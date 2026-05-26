@@ -25,4 +25,4 @@ Use API tokens on peers with least privilege (`operator` role recommended).
 
 ## Web UI
 
-Open **Fleet** in the Core nav group for peer status and cross-host start/stop/shutdown.
+Open **Fleet** in the Core nav group for peer status, cross-host start/stop/shutdown, and **Prometheus (aggregated scrape)** — copy the `GET /api/v1/fleet/prometheus` URL for a single job covering local + peers (`machina_peer` label).

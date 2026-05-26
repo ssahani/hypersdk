@@ -1,86 +1,100 @@
-use axum::extract::{Path, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use serde::Deserialize;
 
 use machina_core::libvirt::network;
-use machina_core::{CreateNetworkRequest, LibvirtError, LibvirtManager, NetworkInfo};
+use machina_core::{CreateNetworkRequest, LibvirtManager, NetworkInfo};
 
+use crate::auth::RequestActor;
+use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 
 async fn list_networks(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<Vec<NetworkInfo>>, AppError> {
-    let result = tokio::task::spawn_blocking(move || manager.with_conn(network::list_networks))
-        .await
-        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(result?))
+    let rows =
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, network::list_networks).await?;
+    Ok(Json(rows))
 }
 
 async fn create_network(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CreateNetworkRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name = req.name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| {
-            network::create_network(conn, &req.name, &req.subnet, &req.dhcp_start, &req.dhcp_end)
-        })
+    let req2 = req.clone();
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::create_network(
+            conn,
+            &req2.name,
+            &req2.subnet,
+            &req2.dhcp_start,
+            &req2.dhcp_end,
+        )
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(ok_json("created", &name))
 }
 
 async fn delete_network_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| network::delete_network(conn, &name2))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::delete_network(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(ok_json("deleted", &name))
 }
 
 async fn start_network(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| network::start_network(conn, &name2))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::start_network(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(ok_json("started", &name))
 }
 
 async fn stop_network(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| network::stop_network(conn, &name2))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::stop_network(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(ok_json("stopped", &name))
 }
 
 async fn get_network_xml(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
 ) -> Result<Xml, AppError> {
-    let result = tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| network::get_network_xml(conn, &name))
+    let name2 = name.clone();
+    let xml = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::get_network_xml(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Xml(result?))
+    .await?;
+    Ok(Xml(xml))
 }
 
 #[derive(Deserialize)]
@@ -90,30 +104,32 @@ struct UpdateNetworkXmlBody {
 
 async fn update_network_xml(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path(name): Path<String>,
     Json(body): Json<UpdateNetworkXmlBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let xml = body.xml;
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| network::update_network_xml(conn, &name2, &xml))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::update_network_xml(conn, &name2, &xml)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     Ok(ok_json("updated", &name))
 }
 
 async fn set_network_autostart(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
     Path((name, enabled)): Path<(String, String)>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let autostart = enabled == "true" || enabled == "1";
     let name2 = name.clone();
-    tokio::task::spawn_blocking(move || {
-        manager.with_conn(|conn| network::set_network_autostart(conn, &name2, autostart))
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        network::set_network_autostart(conn, &name2, autostart)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
     let label = if autostart { "enabled" } else { "disabled" };
     Ok(ok_json(label, &name))
 }

@@ -139,6 +139,14 @@ export function getFleetPrometheusTargets() {
   }>(`${API}/fleet/prometheus-targets`)
 }
 
+/** Same-origin URL for GET /api/v1/fleet/prometheus (text exposition). */
+export function fleetPrometheusAggregateUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return `${window.location.origin}${API}/fleet/prometheus`
+  }
+  return `${API}/fleet/prometheus`
+}
+
 export function fleetPeerProxy(
   peer: string,
   method: string,

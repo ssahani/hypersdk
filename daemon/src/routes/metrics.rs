@@ -1,3 +1,6 @@
+//! Metrics API and ingest. Remote-write / Prometheus-text ingest only map
+//! `machina_host_{cpu,memory,disk}_percent` into the in-memory history ring — not a full TSDB.
+
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Extension, Path, Query, State};
 use axum::http::HeaderMap;

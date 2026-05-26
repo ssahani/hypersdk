@@ -4,7 +4,7 @@ Machina distinguishes three strings:
 
 - **Session username** — what the UI and RBAC use (`RequestActor.username`).
 - **Effective Linux user** — optional mapping used for sudo-gated host actions and optional `qemu:///session` policy (`RequestActor.effective_linux_user`).
-- **Daemon OS identity** — the UNIX user running `machina-daemon`; libvirt connections still use this process identity unless a future run-as-user mechanism exists.
+- **Daemon OS identity** — the UNIX user running `machina-daemon`. Libvirt RPC still uses this process unless `[auth.run_as_user]` session URI policy selects `qemu:///session` (see [`oidc-run-as-user.md`](oidc-run-as-user.md)).
 
 ## Defaults (out of the box)
 
@@ -23,13 +23,13 @@ There is **no fixed default OIDC “Unix username”** across deployments: it is
 
 ## Policy alignment vs impersonation
 
-Today’s behavior is **policy alignment** plus optional **run-as-user** for allow-listed host commands. See [`oidc-run-as-user.md`](oidc-run-as-user.md).
+Behavior is **policy alignment** plus optional **run-as-user** for allow-listed host commands. Full detail: [`oidc-run-as-user.md`](oidc-run-as-user.md).
 
-When `[auth.run_as_user]` is enabled with `sudo`, `polkit`, or `setuid_helper`:
+When `[auth.run_as_user]` is enabled (`sudo`, `polkit`, or `setuid_helper`):
 
 - `POST/DELETE /api/v1/system/os-users` runs `useradd` / `userdel` / `homectl` as `effective_linux_user`
-- With `prefer_session_libvirt_on_impersonation` and dual libvirt, VM create defaults to `qemu:///session`
+- With `prefer_session_libvirt_on_impersonation` and `[libvirt] dual_connection = true`, empty `?connection=` defaults to **session** on libvirt routes that use `spawn_libvirt_actor` (VMs, snapshots, advanced, guest devices, networks, storage, consoles, extras VM paths)
 
-The daemon process still owns the libvirt connection unless you use session URI; libvirt XML is not executed as the mapped user except via that session default.
+The daemon process still opens libvirt as its own UID; session policy chooses **which URI** (`qemu:///system` vs `qemu:///session`), not a full libvirt re-exec as the mapped user.
 
 Status: `GET /api/v1/auth/run-as-user`

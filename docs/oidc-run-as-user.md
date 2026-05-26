@@ -44,14 +44,28 @@ Install: `contrib/run-as-user/README.md`
 ## Supported routes today
 
 - `POST/DELETE /api/v1/system/os-users` — OS account lifecycle as the mapped user
-- **VM libvirt (session default)** — when `prefer_session_libvirt_on_impersonation` is set and the OIDC user maps to a Linux account, empty `?connection=` selects `qemu:///session` for list, lifecycle, disks, snapshots, resize, and related handlers (not only create)
-- `POST /api/v1/vms` (and `/vms/stream`) — create still honors explicit `?connection=system`
-- `GET /api/v1/vms` — when session-only policy applies, lists domains on the session connection instead of merging system+session
+- **Libvirt session default** — when `prefer_session_libvirt_on_impersonation` is set and the OIDC user maps to a Linux account, empty `?connection=` selects `qemu:///session` on routes wired through `spawn_libvirt_actor` (see matrix below)
+- Explicit `?connection=system` or `?connection=session` always wins
+
+### Route coverage (`spawn_libvirt_actor` + session default)
+
+| Route group | Session default when policy active |
+|-------------|-------------------------------------|
+| `/api/v1/vms/*` | Yes — list, lifecycle, disks, resize, clone, … |
+| `/api/v1/vms/{name}/guest/*`, firmware, devices, tune | Yes — `vm_guest` routes |
+| `/api/v1/advanced/*` (CD-ROM, migrate, boot, PCI, pools, …) | Yes |
+| `/api/v1/networks/*`, `/api/v1/storage/*` | Yes |
+| `/api/v1/snapshots/*` | Yes |
+| `/api/v1/console/*`, `/api/v1/vms/{name}/virt-viewer.vv` | Yes |
+| Extras: USB, cloud-init, import, live resize, DHCP, templates, virt-image-build | Yes (VM/storage paths) |
+| OpenStack, K8s, fleet proxy, host-only extras (package updates, inventory) | No — not libvirt session policy |
+| `[libvirt] extra_uris` federated list | Read-only; no session write path |
 
 ## Related docs
 
 - [`oidc-effective-linux-user.md`](oidc-effective-linux-user.md) — mapping claims to local users
 - [`macos-build.md`](macos-build.md) — building the daemon without Linux PAM
+- [`enterprise-backlog.md`](enterprise-backlog.md) — Vault, MFA, FIPS, fleet HA automation (not on `main`)
 
 ## Out of scope
 
