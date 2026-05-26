@@ -40,6 +40,7 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         manager.clone(),
         config.observability.otlp.clone(),
         daemon_stats.clone(),
+        http_metrics.clone(),
     );
     let terminal_store = TerminalSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();

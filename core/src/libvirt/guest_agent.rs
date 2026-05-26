@@ -17,6 +17,10 @@ pub struct GuestInfo {
     pub hostname: String,
     pub os_type: String,
     pub os_version: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_pretty_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud_init_status: Option<String>,
     pub ip_addresses: Vec<GuestIpAddress>,
     pub filesystems: Vec<GuestFilesystem>,
 }
@@ -259,11 +263,97 @@ pub fn get_guest_observability(conn: &Connect, name: &str) -> Result<GuestInfo, 
     let hostname = get_guest_hostname(conn, name).unwrap_or_default();
     let ip_addresses = get_guest_interfaces(conn, name).unwrap_or_default();
     let filesystems = get_guest_filesystems(conn, name).unwrap_or_default();
+    let (os_type, os_version, os_pretty_name) = probe_guest_osinfo(name);
+    let cloud_init_status = probe_cloud_init_status(name);
     Ok(GuestInfo {
         hostname,
-        os_type: String::new(),
-        os_version: String::new(),
+        os_type,
+        os_version,
+        os_pretty_name,
+        cloud_init_status,
         ip_addresses,
         filesystems,
     })
+}
+
+pub fn probe_guest_osinfo(vm_name: &str) -> (String, String, Option<String>) {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = vm_name;
+        return (String::new(), String::new(), None);
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let Some(v) = qemu_agent_json(
+            vm_name,
+            r#"{"execute":"guest-get-osinfo","arguments":{}}"#,
+        ) else {
+            return (String::new(), String::new(), None);
+        };
+        let ret = v.get("return").unwrap_or(&v);
+        let id = ret
+            .get("id")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let name = ret
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let pretty = ret
+            .get("pretty-name")
+            .or_else(|| ret.get("pretty_name"))
+            .and_then(|x| x.as_str())
+            .map(|s| s.to_string());
+        (id, name, pretty)
+    }
+}
+
+pub fn probe_cloud_init_status(vm_name: &str) -> Option<String> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = vm_name;
+        return None;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let v = qemu_agent_json(
+            vm_name,
+            r#"{"execute":"guest-exec","arguments":{"path":"cloud-init","arg":["status","--long"],"capture-output":true}}"#,
+        )?;
+        let pid = v.get("return")?.get("pid")?.as_u64()?;
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        let st = qemu_agent_json(
+            vm_name,
+            &format!(r#"{{"execute":"guest-exec-status","arguments":{{"pid":{pid}}}}}"#),
+        )?;
+        let out_b64 = st
+            .get("return")?
+            .get("out-data")
+            .and_then(|x| x.as_str())?;
+        let decoded = base64_decode(out_b64)?;
+        let text = String::from_utf8_lossy(&decoded);
+        Some(text.lines().next().unwrap_or("").chars().take(200).collect())
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn qemu_agent_json(vm_name: &str, cmd_json: &str) -> Option<serde_json::Value> {
+    use std::process::Command;
+    let out = Command::new("virsh")
+        .args(["qemu-agent-command", vm_name, cmd_json])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&out.stdout);
+    serde_json::from_str(&text).ok()
+}
+
+#[cfg(target_os = "linux")]
+fn base64_decode(s: &str) -> Option<Vec<u8>> {
+  use base64::Engine;
+  base64::engine::general_purpose::STANDARD.decode(s.trim()).ok()
 }

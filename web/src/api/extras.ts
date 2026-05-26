@@ -467,6 +467,7 @@ export interface HostSecuritySummary {
   firewall_backend: string
   ufw_status_line: string | null
   firewalld_default_zone: string | null
+  selinux_mode?: string | null
 }
 
 export const getHostSecuritySummary = () => readJsonObject<HostSecuritySummary>(`${API}/host/security-summary`)

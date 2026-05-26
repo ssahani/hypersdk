@@ -1343,6 +1343,10 @@ export default function VMDetailsPage() {
               <div className="text-xs text-slate-400">
                 Agent {guestHealth.agent_reachable ? 'reachable' : 'unreachable'}
                 {guestHealth.metrics_available ? ' · metrics ok' : ''}
+                {guestHealth.os_pretty_name ? ` · ${guestHealth.os_pretty_name}` : ''}
+                {guestHealth.cloud_init_status
+                  ? ` · cloud-init: ${guestHealth.cloud_init_status}`
+                  : ''}
               </div>
               {guestHealth.issues.length > 0 ? (
                 <ul className="mt-2 text-xs text-amber-200/90 list-disc pl-4">

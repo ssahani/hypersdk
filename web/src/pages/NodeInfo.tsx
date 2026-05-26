@@ -1441,6 +1441,9 @@ export default function NodeInfoPage() {
             {securitySummary.firewalld_default_zone && (
               <div className="sm:col-span-2"><span className="text-slate-500">firewalld default zone:</span> <code className="text-cyan-300/90">{securitySummary.firewalld_default_zone}</code></div>
             )}
+            {securitySummary.selinux_mode && (
+              <div><span className="text-slate-500">SELinux:</span> <code className="text-cyan-300/90">{securitySummary.selinux_mode}</code></div>
+            )}
           </div>
         </div>
       )}

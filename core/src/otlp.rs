@@ -187,3 +187,50 @@ pub fn build_logs_export_payload(hostname: &str, events: &[AuditEvent]) -> Value
         }]
     })
 }
+
+/// One HTTP request span for OTLP trace export.
+#[derive(Debug, Clone)]
+pub struct OtlpHttpSpan {
+    pub method: String,
+    pub route: String,
+    pub status: u16,
+    pub duration_ms: u64,
+    pub timestamp_ms: i64,
+}
+
+/// OTLP traces JSON (HTTP server spans).
+pub fn build_traces_export_payload(hostname: &str, spans: &[OtlpHttpSpan]) -> Value {
+    let spans_json: Vec<Value> = spans
+        .iter()
+        .map(|s| {
+            let name = format!("{} {}", s.method, s.route);
+            let start_ns = (s.timestamp_ms as i128 - s.duration_ms as i128)
+                .max(0)
+                .saturating_mul(1_000_000);
+            json!({
+                "traceId": "00000000000000000000000000000001",
+                "spanId": format!("{:016x}", s.timestamp_ms as u64 ^ s.route.len() as u64),
+                "name": name,
+                "kind": 2,
+                "startTimeUnixNano": start_ns.to_string(),
+                "endTimeUnixNano": (s.timestamp_ms as i128 * 1_000_000).to_string(),
+                "attributes": [
+                    attr_str("http.method", &s.method),
+                    attr_str("http.route", &s.route),
+                    attr_str("http.status_code", &s.status.to_string()),
+                ],
+                "status": { "code": if s.status < 400 { 1 } else { 2 } }
+            })
+        })
+        .collect();
+
+    json!({
+        "resourceSpans": [{
+            "resource": { "attributes": resource_attrs("machina-daemon", hostname) },
+            "scopeSpans": [{
+                "scope": { "name": "machina.http" },
+                "spans": spans_json
+            }]
+        }]
+    })
+}

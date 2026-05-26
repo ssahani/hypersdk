@@ -34,6 +34,11 @@ export function getFleetVms() {
   return readJsonObject<{ enabled: boolean; vms: FleetVmRow[] }>(`${API}/fleet/vms`)
 }
 
+export interface FleetCapacity {
+  score: number
+  label: 'low' | 'medium' | 'high' | string
+}
+
 export interface FleetMetricsResponse {
   enabled: boolean
   local: {
@@ -42,6 +47,7 @@ export interface FleetMetricsResponse {
     load_1: number
     vm_count: number
     vms_running: number
+    capacity?: FleetCapacity
   }
   peers: Array<{
     name: string
@@ -51,11 +57,34 @@ export interface FleetMetricsResponse {
     host_memory_percent?: number
     vm_count?: number
     vms_running?: number
+    capacity?: FleetCapacity
   }>
 }
 
 export function getFleetMetrics() {
   return readJsonObject<FleetMetricsResponse>(`${API}/fleet/metrics`)
+}
+
+export interface FleetAlertPeer {
+  peer: string
+  error?: string
+  alerts: Array<{
+    id: string
+    rule_name: string
+    message: string
+    severity: string
+    timestamp: string
+    acknowledged: boolean
+  }>
+  unacknowledged: number
+}
+
+export function getFleetAlerts() {
+  return readJsonObject<{
+    enabled: boolean
+    total_unacknowledged: number
+    peers: FleetAlertPeer[]
+  }>(`${API}/fleet/alerts`)
 }
 
 export function getFleetPrometheusTargets() {

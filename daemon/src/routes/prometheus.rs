@@ -202,6 +202,64 @@ fn emit_net_metric(
     );
 }
 
+fn add_vm_vcpu_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
+    let mut any = false;
+    for m in vm_metrics {
+        if !m.vcpus_detail.is_empty() {
+            any = true;
+            break;
+        }
+    }
+    if !any {
+        return;
+    }
+    output.push_str(
+        "# HELP machina_vm_vcpu_cpu_time_seconds_total Per-vCPU CPU time\n\
+         # TYPE machina_vm_vcpu_cpu_time_seconds_total counter\n",
+    );
+    for m in vm_metrics {
+        let vm = escape_label(&vm_prom_label(m));
+        for v in &m.vcpus_detail {
+            let labels = format!("vm=\"{vm}\",vcpu=\"{}\"", v.vcpu);
+            add_labeled(
+                output,
+                "machina_vm_vcpu_cpu_time_seconds_total",
+                &labels,
+                format!("{:.3}", v.cpu_time_ns as f64 / 1_000_000_000.0),
+            );
+        }
+    }
+}
+
+fn add_vm_disk_ops_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
+    output.push_str(
+        "# HELP machina_vm_disk_read_ops_total VM aggregate disk read ops\n\
+         # TYPE machina_vm_disk_read_ops_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_disk_write_ops_total VM aggregate disk write ops\n\
+         # TYPE machina_vm_disk_write_ops_total counter\n",
+    );
+    for m in vm_metrics {
+        if !m.running {
+            continue;
+        }
+        let label = escape_label(&vm_prom_label(m));
+        add_labeled(
+            output,
+            "machina_vm_disk_read_ops_total",
+            &format!("vm=\"{label}\""),
+            m.disk_rd_ops,
+        );
+        add_labeled(
+            output,
+            "machina_vm_disk_write_ops_total",
+            &format!("vm=\"{label}\""),
+            m.disk_wr_ops,
+        );
+    }
+}
+
 fn add_vm_cgroup_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
     let mut any = false;
     for m in vm_metrics {
@@ -268,6 +326,7 @@ async fn prometheus_metrics(
     Extension(stats): Extension<Arc<DaemonStats>>,
     Extension(http_metrics): Extension<Arc<HttpMetrics>>,
 ) -> impl IntoResponse {
+    let scrape_start = Instant::now();
     stats.inc_prometheus_scrape();
     let mut output = String::new();
 
@@ -442,7 +501,9 @@ async fn prometheus_metrics(
             |m| m.net_tx_bytes.to_string(),
         );
         add_vm_disk_metrics(&mut output, &vm_metrics);
+        add_vm_disk_ops_metrics(&mut output, &vm_metrics);
         add_vm_net_metrics(&mut output, &vm_metrics);
+        add_vm_vcpu_metrics(&mut output, &vm_metrics);
         add_vm_cgroup_metrics(&mut output, &vm_metrics);
     }
 
@@ -469,6 +530,14 @@ async fn prometheus_metrics(
         "machina_daemon_prometheus_scrapes_total",
         "Prometheus scrape requests served",
         stats.prometheus_scrapes(),
+    );
+    let scrape_ms = scrape_start.elapsed().as_secs_f64() * 1000.0;
+    obs_counters::record_prometheus_scrape(scrape_ms as u64);
+    add_gauge(
+        &mut output,
+        "machina_prometheus_last_scrape_duration_ms",
+        "Duration of the last Prometheus scrape in milliseconds",
+        scrape_ms as u64,
     );
     add_gauge(
         &mut output,

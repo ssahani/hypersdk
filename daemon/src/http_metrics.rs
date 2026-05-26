@@ -4,10 +4,20 @@ use axum::body::Body;
 use axum::extract::{Extension, Request};
 use axum::middleware::Next;
 use axum::response::Response;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt::Write as _;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
+
+/// Recent HTTP request for OTLP trace export.
+#[derive(Clone, Debug)]
+pub struct HttpTraceSpan {
+    pub method: String,
+    pub route: String,
+    pub status: u16,
+    pub duration_ms: u64,
+    pub timestamp_ms: i64,
+}
 
 /// Prometheus histogram bucket upper bounds in seconds.
 pub const HISTOGRAM_BUCKETS_SEC: &[f64] = &[
@@ -49,15 +59,19 @@ impl RouteStats {
     }
 }
 
+const MAX_TRACE_SPANS: usize = 256;
+
 #[derive(Clone)]
 pub struct HttpMetrics {
     inner: Arc<Mutex<HashMap<RouteKey, RouteStats>>>,
+    traces: Arc<Mutex<VecDeque<HttpTraceSpan>>>,
 }
 
 impl HttpMetrics {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(Mutex::new(HashMap::new())),
+            traces: Arc::new(Mutex::new(VecDeque::new())),
         }
     }
 
@@ -71,6 +85,23 @@ impl HttpMetrics {
             .entry(key)
             .or_insert_with(RouteStats::new)
             .observe(duration, status);
+        let mut traces = self.traces.lock().unwrap_or_else(|e| e.into_inner());
+        traces.push_back(HttpTraceSpan {
+            method: key.method.clone(),
+            route: key.route.clone(),
+            status,
+            duration_ms: duration.as_millis() as u64,
+            timestamp_ms: chrono::Utc::now().timestamp_millis(),
+        });
+        while traces.len() > MAX_TRACE_SPANS {
+            traces.pop_front();
+        }
+    }
+
+    pub fn recent_traces(&self, limit: usize) -> Vec<HttpTraceSpan> {
+        let traces = self.traces.lock().unwrap_or_else(|e| e.into_inner());
+        let lim = limit.min(traces.len());
+        traces.iter().rev().take(lim).cloned().collect()
     }
 
     pub fn render_prometheus(&self) -> String {

@@ -16,6 +16,16 @@ fn rotation_cfg() -> AuditLogConfig {
     ROTATION.get().cloned().unwrap_or_default()
 }
 
+fn maybe_sign_audit_line(line: &str, sign: bool) -> String {
+    if !sign {
+        return line.to_string();
+    }
+    use sha2::{Digest, Sha256};
+    let digest = Sha256::digest(line.as_bytes());
+    let hash = hex::encode(digest);
+    format!("sha256:{hash}\t{line}")
+}
+
 pub fn audit_log_path() -> PathBuf {
     PathBuf::from("/var/lib/machina/audit.log")
 }
@@ -75,6 +85,7 @@ pub fn write_audit_event(event: &AuditEvent) {
             event.timestamp, event.action, event.target, event.result, event.actor
         )
     };
+    let line = maybe_sign_audit_line(&line, rotation_cfg().sign_lines);
 
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
         let _ = file.write_all(line.as_bytes());

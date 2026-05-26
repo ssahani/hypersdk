@@ -7,10 +7,12 @@ import {
   getFleetStatus,
   getFleetVms,
   getFleetMetrics,
+  getFleetAlerts,
   fleetPeerProxy,
   type FleetPeerStatus,
   type FleetVmRow,
   type FleetMetricsResponse,
+  type FleetAlertPeer,
 } from '../api/fleet'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
@@ -27,14 +29,17 @@ export default function FleetPage() {
   const [standbyPeer, setStandbyPeer] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
   const [metrics, setMetrics] = useState<FleetMetricsResponse | null>(null)
+  const [fleetAlerts, setFleetAlerts] = useState<FleetAlertPeer[]>([])
+  const [fleetAlertsTotal, setFleetAlertsTotal] = useState(0)
 
   const load = useCallback(async () => {
     setLoadError(null)
     try {
-      const [st, vmRows, met] = await Promise.all([
+      const [st, vmRows, met, alerts] = await Promise.all([
         getFleetStatus(),
         getFleetVms(),
         getFleetMetrics(),
+        getFleetAlerts(),
       ])
       setEnabled(Boolean(st.enabled))
       setPrimaryPeer(st.primary_peer ?? '')
@@ -42,6 +47,8 @@ export default function FleetPage() {
       setPeers(st.peers ?? [])
       setVms(vmRows.vms ?? [])
       setMetrics(met)
+      setFleetAlerts(alerts.peers ?? [])
+      setFleetAlertsTotal(alerts.total_unacknowledged ?? 0)
     } catch (e: unknown) {
       setLoadError(formatUserError(e))
     }
@@ -152,7 +159,7 @@ export default function FleetPage() {
       {metrics ? (
         <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
           <h2 className="text-lg font-semibold mb-3">Fleet capacity</h2>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-3 text-sm">
             <div>
               <div className="text-slate-500 text-xs">Local CPU</div>
               <div className="text-slate-100">{metrics.local.host_cpu_percent.toFixed(1)}%</div>
@@ -171,6 +178,64 @@ export default function FleetPage() {
               <div className="text-slate-500 text-xs">Load (1m)</div>
               <div className="text-slate-100">{metrics.local.load_1.toFixed(2)}</div>
             </div>
+            {metrics.local.capacity ? (
+              <div>
+                <div className="text-slate-500 text-xs">Capacity score</div>
+                <div className="text-slate-100">
+                  {metrics.local.capacity.score} ({metrics.local.capacity.label})
+                </div>
+              </div>
+            ) : null}
+          </div>
+          {metrics.peers.some((p) => p.capacity) ? (
+            <ul className="mt-3 text-xs text-slate-400 space-y-1">
+              {metrics.peers
+                .filter((p) => p.capacity)
+                .map((p) => (
+                  <li key={p.name}>
+                    {p.name}: capacity {p.capacity!.score} ({p.capacity!.label})
+                    {p.host_cpu_percent != null
+                      ? ` · CPU ${p.host_cpu_percent.toFixed(0)}%`
+                      : ''}
+                  </li>
+                ))}
+            </ul>
+          ) : null}
+        </section>
+      ) : null}
+
+      {fleetAlerts.length > 0 ? (
+        <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
+          <h2 className="text-lg font-semibold mb-2">
+            Fleet alerts
+            {fleetAlertsTotal > 0 ? (
+              <span className="ml-2 text-sm font-normal text-amber-400">
+                {fleetAlertsTotal} unacknowledged
+              </span>
+            ) : null}
+          </h2>
+          <div className="space-y-3 text-sm">
+            {fleetAlerts.map((row) => (
+              <div key={row.peer}>
+                <div className="font-medium text-slate-200">{row.peer}</div>
+                {row.error ? (
+                  <p className="text-xs text-amber-400/90">{row.error}</p>
+                ) : row.alerts.length === 0 ? (
+                  <p className="text-xs text-slate-500">No alerts</p>
+                ) : (
+                  <ul className="mt-1 text-xs text-slate-400 list-disc pl-4">
+                    {row.alerts
+                      .filter((a) => !a.acknowledged)
+                      .slice(0, 5)
+                      .map((a) => (
+                        <li key={a.id}>
+                          [{a.severity}] {a.message}
+                        </li>
+                      ))}
+                  </ul>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       ) : null}

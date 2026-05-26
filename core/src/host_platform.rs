@@ -632,6 +632,7 @@ pub struct HostSecuritySummary {
     pub firewall_backend: String,
     pub ufw_status_line: Option<String>,
     pub firewalld_default_zone: Option<String>,
+    pub selinux_mode: Option<String>,
 }
 
 pub fn host_security_summary() -> Result<HostSecuritySummary, LibvirtError> {
@@ -642,6 +643,7 @@ pub fn host_security_summary() -> Result<HostSecuritySummary, LibvirtError> {
             firewall_backend: "unknown".into(),
             ufw_status_line: None,
             firewalld_default_zone: None,
+            selinux_mode: None,
         });
     }
     #[cfg(target_os = "linux")]
@@ -670,11 +672,18 @@ pub fn host_security_summary() -> Result<HostSecuritySummary, LibvirtError> {
                 }
             }
         }
+        let selinux_mode = Command::new(find_bin("getenforce"))
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty());
         Ok(HostSecuritySummary {
             network_backend: net,
             firewall_backend: fw,
             ufw_status_line,
             firewalld_default_zone,
+            selinux_mode,
         })
     }
 }

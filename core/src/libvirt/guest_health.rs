@@ -22,6 +22,10 @@ pub struct GuestHealthReport {
     pub guest: Option<GuestInfo>,
     pub issues: Vec<String>,
     pub healthy: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub os_pretty_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cloud_init_status: Option<String>,
 }
 
 pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthReport, LibvirtError> {
@@ -55,6 +59,19 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
             issues.push(format!("memory utilization {:.0}%", m.memory_pct));
         }
     }
+    let os_pretty_name = guest
+        .as_ref()
+        .and_then(|g| g.os_pretty_name.clone())
+        .filter(|s| !s.is_empty());
+    let cloud_init_status = guest
+        .as_ref()
+        .and_then(|g| g.cloud_init_status.clone())
+        .filter(|s| !s.is_empty());
+    if let Some(ref st) = cloud_init_status {
+        if st.to_ascii_lowercase().contains("error") || st.to_ascii_lowercase().contains("failed") {
+            issues.push(format!("cloud-init: {st}"));
+        }
+    }
     if let Some(g) = &guest {
         for fs in &g.filesystems {
             if fs.total_bytes > 0 {
@@ -80,5 +97,7 @@ pub fn gather_guest_health(conn: &Connect, name: &str) -> Result<GuestHealthRepo
         guest,
         issues,
         healthy,
+        os_pretty_name,
+        cloud_init_status,
     })
 }

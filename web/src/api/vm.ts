@@ -149,8 +149,16 @@ export interface VmNetDeviceMetrics {
   tx_packets: number
 }
 
+export interface VmVcpuMetrics {
+  vcpu: number
+  cpu_time_ns: number
+  state: string
+}
+
 export interface VmMetrics {
   name: string
+  state?: string
+  running?: boolean
   cpu_time_ns: number
   vcpus: number
   memory_total_mb: number
@@ -158,8 +166,11 @@ export interface VmMetrics {
   memory_pct: number
   disk_rd_bytes: number
   disk_wr_bytes: number
+  disk_rd_ops?: number
+  disk_wr_ops?: number
   net_rx_bytes: number
   net_tx_bytes: number
+  vcpus_detail?: VmVcpuMetrics[]
   disks?: VmBlockDeviceMetrics[]
   nets?: VmNetDeviceMetrics[]
   cgroup?: VmCgroupStats | null
@@ -631,6 +642,8 @@ export interface GuestHealthReport {
   guest?: GuestObservability | null
   issues: string[]
   healthy: boolean
+  os_pretty_name?: string | null
+  cloud_init_status?: string | null
 }
 
 export const getGuestHealth = (name: string, connection?: string | null) =>

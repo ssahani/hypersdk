@@ -85,6 +85,8 @@ pub fn spawn_metrics_history_worker(
     let store2 = store.clone();
     let persist = cfg.persist;
     let max_file_mb = cfg.max_file_mb;
+    let remote_write_url = cfg.remote_write_url.trim().to_string();
+    let remote_write_auth = cfg.remote_write_authorization.clone();
     tokio::spawn(async move {
         let persist_note = if persist {
             format!(
@@ -95,22 +97,69 @@ pub fn spawn_metrics_history_worker(
         } else {
             String::new()
         };
+        let remote_note = if remote_write_url.is_empty() {
+            String::new()
+        } else {
+            format!(", remote_write → {remote_write_url}")
+        };
         tracing::info!(
-            "metrics history: sample every {:?}, retain {} points{}",
+            "metrics history: sample every {:?}, retain {} points{}{}",
             interval,
             cfg.max_points,
-            persist_note
+            persist_note,
+            remote_note
         );
+        let client = if remote_write_url.is_empty() {
+            None
+        } else {
+            match reqwest::Client::builder()
+                .timeout(Duration::from_secs(15))
+                .build()
+            {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    tracing::error!("metrics history remote_write client: {e}");
+                    None
+                }
+            }
+        };
         let mut tick = tokio::time::interval(interval);
         tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
         loop {
             tick.tick().await;
             let mgr = manager.clone();
             let st = store2.clone();
-            let _ = tokio::task::spawn_blocking(move || {
+            let rw_url = remote_write_url.clone();
+            let rw_auth = remote_write_auth.clone();
+            let client2 = client.clone();
+            let point = match tokio::task::spawn_blocking(move || {
                 sample_once(&mgr, &st, persist, max_file_mb)
             })
-            .await;
+            .await
+            {
+                Ok(p) => Some(p),
+                Err(e) => {
+                    tracing::warn!("metrics history sample task failed: {e}");
+                    None
+                }
+            };
+            if let (Some(client), Some(point)) = (client2, point) {
+                if !rw_url.is_empty() {
+                    let mut req = client.post(&rw_url).json(&point);
+                    if !rw_auth.is_empty() {
+                        req = req.header("Authorization", &rw_auth);
+                    }
+                    match req.send().await {
+                        Ok(res) if res.status().is_success() => {
+                            tracing::debug!("metrics history remote_write ok");
+                        }
+                        Ok(res) => {
+                            tracing::warn!("metrics history remote_write HTTP {}", res.status());
+                        }
+                        Err(e) => tracing::warn!("metrics history remote_write failed: {e}"),
+                    }
+                }
+            }
         }
     });
 }
@@ -120,7 +169,7 @@ fn sample_once(
     store: &MetricsHistoryStore,
     persist: bool,
     max_file_mb: u64,
-) {
+) -> MetricsHistoryPoint {
     let host = get_host_stats();
     let vms = manager.list_all_vms().unwrap_or_default();
     let vm_count = vms.len() as u32;
@@ -145,4 +194,5 @@ fn sample_once(
             tracing::warn!("metrics history persist failed: {e}");
         }
     }
+    point
 }

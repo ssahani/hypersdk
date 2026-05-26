@@ -84,6 +84,8 @@ pub struct OtlpExportConfig {
     pub export_metrics: bool,
     #[serde(default = "default_otlp_export_logs")]
     pub export_logs: bool,
+    #[serde(default = "default_otlp_export_traces")]
+    pub export_traces: bool,
     /// Optional `Authorization` header value (e.g. `Bearer …`).
     #[serde(default)]
     pub authorization: String,
@@ -101,6 +103,10 @@ fn default_otlp_export_logs() -> bool {
     true
 }
 
+fn default_otlp_export_traces() -> bool {
+    true
+}
+
 impl Default for OtlpExportConfig {
     fn default() -> Self {
         Self {
@@ -109,6 +115,7 @@ impl Default for OtlpExportConfig {
             interval_secs: default_otlp_interval_secs(),
             export_metrics: default_otlp_export_metrics(),
             export_logs: default_otlp_export_logs(),
+            export_traces: default_otlp_export_traces(),
             authorization: String::new(),
         }
     }
@@ -168,6 +175,9 @@ pub struct AuditLogConfig {
     /// Optional `Authorization` header for the webhook.
     #[serde(default)]
     pub webhook_authorization: String,
+    /// Append `sha256:<hex>` prefix to each audit line for tamper detection.
+    #[serde(default)]
+    pub sign_lines: bool,
 }
 
 fn default_audit_max_file_mb() -> u64 {
@@ -186,6 +196,7 @@ impl Default for AuditLogConfig {
             syslog_enabled: false,
             http_webhook_url: String::new(),
             webhook_authorization: String::new(),
+            sign_lines: false,
         }
     }
 }
@@ -207,6 +218,11 @@ pub struct MetricsHistoryConfig {
     /// Trim persisted file when it exceeds this size (only when `persist` is true).
     #[serde(default = "default_metrics_history_max_file_mb")]
     pub max_file_mb: u64,
+    /// Optional webhook URL to POST the latest sample as JSON (metrics gateway / custom ingest).
+    #[serde(default)]
+    pub remote_write_url: String,
+    #[serde(default)]
+    pub remote_write_authorization: String,
 }
 
 fn default_metrics_history_enabled() -> bool {
@@ -237,6 +253,8 @@ impl Default for MetricsHistoryConfig {
             max_points: default_metrics_history_max_points(),
             persist: default_metrics_history_persist(),
             max_file_mb: default_metrics_history_max_file_mb(),
+            remote_write_url: String::new(),
+            remote_write_authorization: String::new(),
         }
     }
 }

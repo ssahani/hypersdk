@@ -4,6 +4,7 @@ use axum::extract::{Extension, Path, State};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use machina_core::config::{FleetConfig, MachinaConfig};
+use machina_core::libvirt::automation::{self, Alert};
 use machina_core::{LibvirtManager, VmInfo};
 use reqwest::Client;
 use serde::Deserialize;
@@ -180,6 +181,21 @@ async fn fleet_vms(
     Ok(Json(json!({ "enabled": cfg.is_enabled(), "vms": rows })))
 }
 
+fn fleet_capacity(cpu: f64, mem: f64) -> Value {
+    let score = ((100.0 - cpu).max(0.0) + (100.0 - mem).max(0.0)) / 2.0;
+    let label = if score >= 40.0 {
+        "high"
+    } else if score >= 20.0 {
+        "medium"
+    } else {
+        "low"
+    };
+    json!({
+        "score": (score * 10.0).round() / 10.0,
+        "label": label,
+    })
+}
+
 async fn fleet_metrics(
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<Value>, AppError> {
@@ -190,6 +206,7 @@ async fn fleet_metrics(
         .iter()
         .filter(|v| v.state.eq_ignore_ascii_case("running"))
         .count();
+    let local_capacity = fleet_capacity(local_stats.cpu_percent, local_stats.memory_percent);
     let mut peers: Vec<Value> = Vec::new();
     if cfg.is_enabled() {
         for p in &cfg.peers {
@@ -200,10 +217,15 @@ async fn fleet_metrics(
             });
             if let Ok(stats) = fetch_peer_json(p, "/host/stats").await {
                 row["reachable"] = json!(true);
-                row["host_cpu_percent"] = stats.get("cpu_percent").cloned().unwrap_or(json!(null));
-                row["host_memory_percent"] =
-                    stats.get("memory_percent").cloned().unwrap_or(json!(null));
+                let cpu = stats.get("cpu_percent").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let mem = stats
+                    .get("memory_percent")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                row["host_cpu_percent"] = json!(cpu);
+                row["host_memory_percent"] = json!(mem);
                 row["load_1"] = stats.get("load_1").cloned().unwrap_or(json!(null));
+                row["capacity"] = fleet_capacity(cpu, mem);
             }
             if let Ok(vms) = fetch_peer_json(p, "/vms").await {
                 row["reachable"] = json!(true);
@@ -228,9 +250,62 @@ async fn fleet_metrics(
             "load_1": local_stats.load_1,
             "vm_count": local_vms.len(),
             "vms_running": local_running,
+            "capacity": local_capacity,
         },
         "peers": peers,
     })))
+}
+
+#[derive(serde::Serialize)]
+struct FleetAlertRow {
+    peer: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+    alerts: Vec<Alert>,
+    unacknowledged: usize,
+}
+
+async fn fleet_alerts() -> Json<Value> {
+    let cfg = fleet_cfg();
+    let mut rows: Vec<FleetAlertRow> = Vec::new();
+    let local = automation::load_alerts();
+    let local_unacked = local.iter().filter(|a| !a.acknowledged).count();
+    rows.push(FleetAlertRow {
+        peer: "local".into(),
+        error: None,
+        unacknowledged: local_unacked,
+        alerts: local,
+    });
+
+    if cfg.is_enabled() {
+        for p in &cfg.peers {
+            let mut row = FleetAlertRow {
+                peer: p.name.clone(),
+                error: None,
+                alerts: Vec::new(),
+                unacknowledged: 0,
+            };
+            match fetch_peer_json(p, "/alerts").await {
+                Ok(body) => {
+                    if let Ok(alerts) = serde_json::from_value::<Vec<Alert>>(body) {
+                        row.unacknowledged = alerts.iter().filter(|a| !a.acknowledged).count();
+                        row.alerts = alerts;
+                    } else {
+                        row.error = Some("invalid alerts JSON".into());
+                    }
+                }
+                Err(e) => row.error = Some(e),
+            }
+            rows.push(row);
+        }
+    }
+
+    let total_unacked: usize = rows.iter().map(|r| r.unacknowledged).sum();
+    Json(json!({
+        "enabled": cfg.is_enabled(),
+        "total_unacknowledged": total_unacked,
+        "peers": rows,
+    }))
 }
 
 fn prom_scrape_target(url: &str) -> (String, &'static str) {
@@ -361,6 +436,7 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/fleet/status", get(fleet_status))
         .route("/fleet/metrics", get(fleet_metrics))
+        .route("/fleet/alerts", get(fleet_alerts))
         .route("/fleet/prometheus-targets", get(fleet_prometheus_targets))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))

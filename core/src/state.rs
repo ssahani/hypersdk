@@ -245,6 +245,13 @@ pub struct VmBlockDeviceMetrics {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct VmVcpuMetrics {
+    pub vcpu: u32,
+    pub cpu_time_ns: u64,
+    pub state: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct VmNetDeviceMetrics {
     /// libvirt interface target dev (e.g. vnet0).
     pub device: String,
@@ -257,6 +264,9 @@ pub struct VmNetDeviceMetrics {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VmMetrics {
     pub name: String,
+    /// libvirt state: running, shutoff, paused, etc.
+    pub state: String,
+    pub running: bool,
     pub cpu_time_ns: u64,
     pub vcpus: u32,
     pub memory_total_mb: u64,
@@ -264,8 +274,12 @@ pub struct VmMetrics {
     pub memory_pct: f64,
     pub disk_rd_bytes: u64,
     pub disk_wr_bytes: u64,
+    pub disk_rd_ops: u64,
+    pub disk_wr_ops: u64,
     pub net_rx_bytes: u64,
     pub net_tx_bytes: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vcpus_detail: Vec<VmVcpuMetrics>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub disks: Vec<VmBlockDeviceMetrics>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
