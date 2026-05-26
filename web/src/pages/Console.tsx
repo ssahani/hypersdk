@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useState, useEffect } from 'react'
 import { useParams, Link, useSearchParams } from 'react-router'
 import { ArrowLeft, Terminal as TerminalIcon, Monitor, Keyboard, Camera, Download } from 'lucide-react'

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Optional `kubectl` / `virtctl` execution for KubeVirt migration ([`machina_core::config::KubeVirtConfig`]).
 //! Disabled unless `[kubevirt] exec_enabled = true`.
 

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 export const WIRE_SCRIPT =
   'sudo /usr/local/share/machina/scripts/openstack-bootstrap-machina.sh /root/keystonerc_admin $(hostname -I | awk "{print $1}")\n# or: openstack-wire-cloud.sh + systemctl restart machina-daemon'
 

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! LDAP / Active Directory simple-bind authentication for web login.
 
 use ldap3::{LdapConn, LdapConnSettings, Scope, SearchEntry};

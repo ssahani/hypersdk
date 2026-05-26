@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! `GET /api/v1/vms/{name}/guacamole-auth` — encrypted JSON auth blob for Apache Guacamole (optional).
 
 use axum::extract::{Path, State};

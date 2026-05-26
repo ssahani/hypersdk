@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! `rvb` — minimal **Rust control plane** over the **mkosi** CLI (image engine).
 //! See workspace `rvb/templates/catalog.yaml` for the builtin template catalog.
 

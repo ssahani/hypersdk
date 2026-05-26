@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Optional integration with systemd `Type=notify` and `WatchdogSec=`.
 //!
 //! When `NOTIFY_SOCKET` is set, we send `READY=1` after the HTTP listener is bound

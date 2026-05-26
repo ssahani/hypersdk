@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useCallback, useEffect, useState, useRef, useMemo, Fragment } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router'
 import {

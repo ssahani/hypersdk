@@ -1,5 +1,8 @@
 [workspace]
-members = [
+members = 
+[workspace.package]
+license = "LicenseRef-Zyvor-Proprietary"
+[
     "core",
     "daemon",
     "tui",

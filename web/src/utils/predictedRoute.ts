@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /** Heuristic default-gateway guess for IPv4 + prefix (common libvirt NAT uses `.1`). */
 export function predictedIpv4Gateway(ip: string, prefix: number): string | null {
   if (prefix <= 0 || prefix > 32) return null

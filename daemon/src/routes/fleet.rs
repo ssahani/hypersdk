@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Multi-daemon fleet overview: peer health, aggregated VM lists, proxied lifecycle.
 
 use axum::extract::{Extension, Path, State};

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Resolve guest RDP endpoints (IPv4 on port 3389) for built-in TCP/WebSocket proxy.
 
 use virt::connect::Connect;

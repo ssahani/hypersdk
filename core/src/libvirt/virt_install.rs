@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Optional `virt-install` backend for VM create (hyper2kvm-style), plus Cockpit-machines-style flags.
 
 use std::path::Path;

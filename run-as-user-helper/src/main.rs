@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Install setuid-root: `chown root:root && chmod u+s /usr/local/libexec/machina-run-as-user`
 //!
 //! Usage: machina-run-as-user <unix-user> <program> [args...]

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /// Escape special XML characters in a string.
 pub fn escape(s: &str) -> String {
     s.replace('&', "&amp;")

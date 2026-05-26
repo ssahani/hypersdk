@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 const BYTES_PER_KB: f64 = 1024.0;
 const BYTES_PER_MB: f64 = 1_048_576.0;
 const BYTES_PER_GB: f64 = 1_073_741_824.0;

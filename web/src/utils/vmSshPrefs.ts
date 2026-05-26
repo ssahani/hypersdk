@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /** Remember last SSH target for a VM (browser sessionStorage). */
 
 const storageKey = (vmName: string) => `machina:vm-ssh:${encodeURIComponent(vmName)}`

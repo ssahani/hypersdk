@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Linux host observability: PSI, block I/O (`/proc/diskstats`), optional SMART.
 
 use serde::{Deserialize, Serialize};

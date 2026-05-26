@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Host cluster bootstrap (k3s → Cilium → metrics-server → KubeVirt/CDI/virtctl).
 //! Mirrors the former `scripts/install-k3s-cilium.sh`; invoked from `POST /api/v1/k8s/cluster-bootstrap`.
 //!

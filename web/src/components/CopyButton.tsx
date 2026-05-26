@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { copyText } from '../utils/copyText'

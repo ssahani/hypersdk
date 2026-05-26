@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /** Renders libvirt `<sysinfo type='smbios'>` (or similar) as readable cards. */
 
 const SECTION_LABELS: Record<string, string> = {

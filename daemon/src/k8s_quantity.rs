@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Parse Kubernetes resource.Quantity strings (`cpu`, `memory`) from Node status.
 
 /// CPU quantity → millicores (`2500m`, `8` → 8000).

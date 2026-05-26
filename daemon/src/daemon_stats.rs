@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Daemon process counters for Prometheus and health dashboards.
 
 use machina_core::obs_counters::LIBVIRT_RECONNECTS;

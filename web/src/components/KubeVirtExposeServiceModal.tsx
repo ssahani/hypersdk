@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useCallback, useMemo, useState } from 'react'
 import { Copy, Network, Plus, Trash2, X } from 'lucide-react'
 import type { K8sService } from '../api/k8s'

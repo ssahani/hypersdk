@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 use axum::extract::{Extension, Path, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};

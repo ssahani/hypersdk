@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /**
  * Golden-image guests for `contrib/packer/build-linux-image.sh` and
  * matching `virt-install --install os=…` short-ids (libosinfo).

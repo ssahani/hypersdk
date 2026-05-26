@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Generate KubeVirt + CDI manifests to migrate a libvirt qcow2 (or raw) root disk to Kubernetes,
 //! following the same layering as [hyper2kvm](https://github.com/ssahani/hyper2kvm) docs: DataVolume
 //! for the root image, `VirtualMachine` with virtio disks, guest-OS profiles (Linux SSH / Windows RDP),

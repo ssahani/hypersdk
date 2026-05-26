@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /** Stable daemon `error_code` values → short user-facing labels. */
 export const API_ERROR_LABELS: Record<string, string> = {
   operation_failed: 'The operation failed on the server',

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 /** Actionable hints for libvirt / VM API errors shown in ErrorBanner. */
 export function libvirtErrorHints(error: string | undefined): string[] {
   const e = (error || '').toLowerCase()

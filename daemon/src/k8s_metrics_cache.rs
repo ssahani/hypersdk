@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Last `kubectl top` probe result for Prometheus and health checks.
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};

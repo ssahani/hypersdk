@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Fleet placement scoring helpers (unit-tested, no I/O).
 
 /// Headroom score from host CPU, memory, and root disk utilization (0–100, higher is better).

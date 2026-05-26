@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! WebSocket proxy from the machina UI to KubeVirt VNC / serial console subresources.
 //! Spawns a short-lived `kubectl proxy` on localhost (uses kubeconfig auth) and dials the
 //! upstream `ws://127.0.0.1:…/apis/subresources.kubevirt.io/…/virtualmachineinstances/…/{vnc,console}`.

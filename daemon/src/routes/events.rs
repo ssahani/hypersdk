@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! In-process event bus + SSE stream `/api/v1/events/stream`.
 //!
 //! Lightweight pub/sub using `tokio::sync::broadcast` so any route handler can

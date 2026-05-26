@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Block layer jobs (`virDomainBlockCommit`, `virDomainBlockPull`, job info/abort) via libvirt.
 //! Used for snapshot backing-chain maintenance (flatten / merge).
 

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Resolve libvirt guest disks for OpenStack Glance upload.
 
 use crate::kubevirt::pick_root_boot_disk;

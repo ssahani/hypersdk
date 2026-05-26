@@ -3,7 +3,7 @@ name = "libvirt-guac-bridge"
 version = "0.1.0"
 edition = "2021"
 description = "MVP: libvirt display (virsh domdisplay) → Guacamole VNC connection + encrypted JSON auth"
-license = "MIT OR Apache-2.0"
+license = "LicenseRef-Zyvor-Proprietary"
 publish = false
 
 [lib]

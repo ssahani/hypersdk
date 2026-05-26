@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import type { Toast } from '../hooks/useToast'
 import { formatUserError } from '../utils/apiError'

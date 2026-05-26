@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Stream stdout/stderr from long-running host commands into the VM create log (web UI / SSE).
 //!
 //! Uses [`std::sync::mpsc::SyncSender`] so a bounded queue applies backpressure (slow consumers

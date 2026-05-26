@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Libvirt connections: single configured URI or dual `qemu:///system` + `qemu:///session`.
 
 use std::sync::{Arc, Mutex};

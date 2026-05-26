@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Linux auditd event probes (`/var/log/audit/audit.log` or `ausearch`).
 
 use serde::{Deserialize, Serialize};

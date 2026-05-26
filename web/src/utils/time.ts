@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 export function timeAgo(ts: number): string {
   const secs = Math.floor((Date.now() - ts) / 1000)
   if (secs < 10) return 'just now'

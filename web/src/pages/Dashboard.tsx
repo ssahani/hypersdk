@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useEffect, useState, useCallback } from 'react'
 import { Link } from 'react-router'
 import { listVMs, getMetrics, startVM, shutdownVM, VmInfo, VmMetrics, vmDetailRoute, vmConsoleRoute, vmScopeKey } from '../api/vm'

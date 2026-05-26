@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Optional libguestfs integration: `virt-builder` disk images, optional `virt-customize` / `virt-sysprep`.
 //! Root passwords are passed only as `--root-password file:…` (never `password:` on the process argv).
 //!

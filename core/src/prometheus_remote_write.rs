@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Decode Prometheus Remote Write 1.0 and 2.0 (Snappy block compression).
 
 use prom_remote_api::types::{Label, Sample, TimeSeries, WriteRequest};

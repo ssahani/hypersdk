@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Distro-aware host insight: package updates, accounts, network counters, firewall summary.
 //! Targets common families: Debian/Ubuntu (apt), Fedora/RHEL (dnf/microdnf/yum), Arch (pacman),
 //! openSUSE (zypper). Probes are read-only; [`package_upgrade`], [`package_install`], and

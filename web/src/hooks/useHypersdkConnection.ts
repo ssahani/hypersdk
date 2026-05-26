@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useCallback, useEffect, useState } from 'react'
 import { getHypersdkStatus, type HypersdkStatus } from '../api/hypersdk'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'

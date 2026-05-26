@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! YAML template catalog (distro + release + packages → mkosi `[Distribution]` / `[Content]`).
 
 use std::collections::HashMap;

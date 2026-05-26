@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+# Proprietary software — see LICENSE in the repository root.
+# https://zyvor.dev · info@zyvor.dev
+
 """Minimal HTTP receiver for Machina [metrics_history].remote_write_url JSON samples.
 
 Each POST body is one MetricsHistoryPoint (see core/src/metrics_history.rs).

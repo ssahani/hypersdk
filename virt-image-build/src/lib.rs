@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Library API for building VM disk images with `virt-builder` (same behavior as the `virt-image-build` CLI).
 //!
 //! Root passwords are never passed on argv — only `file:…` from a host path or a temp file from `root_password_inline`

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { getPlatformInfo, type PlatformInfo } from '../api/system'
 import { getAuthProviders, type AuthProviders } from '../api/auth'

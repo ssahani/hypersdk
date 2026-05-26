@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! In-memory registry for long-running tasks (virt-image-build, VM create with logs).
 //! Survives navigation away from the web UI while jobs run; cleared on daemon restart.
 

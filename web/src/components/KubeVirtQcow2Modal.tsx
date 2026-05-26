@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Boxes, Copy, Loader2, X } from 'lucide-react'
 import {

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Optional [mkosi](https://github.com/systemd/mkosi) integration: build a disk image from a workspace
 //! containing `mkosi.conf`, then attach it as the VM root volume (alternative to virt-builder / golden images).
 //!

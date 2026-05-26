@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Background worker for alerts, schedules, and snapshot schedules.
 
 use machina_core::libvirt::automation_runner::run_automation_tick;

@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Standalone HTTP bridge (optional): `GET /bridge/{vm}` → same JSON as machina `/api/v1/vms/.../guacamole-auth`.
 
 use anyhow::Context;

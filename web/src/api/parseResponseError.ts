@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { formatHttpErrorBody } from '../utils/apiError'
 
 /** Build a thrown Error from a non-OK fetch Response (JSON, HTML, or plain text). */

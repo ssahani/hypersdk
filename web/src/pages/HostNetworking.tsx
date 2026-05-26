@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { listVMs, VmInfo, getInterfaces, GuestIpAddress, vmScopeKey } from '../api/vm'
 import { listNetworks, NetworkInfo } from '../api/network'

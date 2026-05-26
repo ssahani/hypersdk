@@ -1,3 +1,7 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+// Proprietary software — see LICENSE in the repository root.
+// https://zyvor.dev · info@zyvor.dev
+
 //! Bump counter so background observability workers reload config from disk.
 
 use std::sync::atomic::{AtomicU64, Ordering};
