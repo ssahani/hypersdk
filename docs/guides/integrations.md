@@ -24,6 +24,7 @@ Deep links: OpenStack `GET /api/v1/openstack/status`, run-as-user `GET /api/v1/a
 |----------|------|---------|
 | `POST /api/v1/metrics/ingest/batch` | `{ "points": [ MetricsHistoryPoint, … ] }` | Append up to 500 history samples |
 | `POST /api/v1/metrics/ingest/prometheus` | Prometheus text exposition | Parse `machina_host_*_percent` gauges into one history point |
+| `POST /api/v1/metrics/ingest/remote-write` | Snappy `prometheus.WriteRequest` | Native Prometheus remote_write 1.0 ingest |
 | `GET /api/v1/metrics/traces` | — | Recent HTTP spans (W3C trace IDs) for debugging |
 
 ## Prometheus

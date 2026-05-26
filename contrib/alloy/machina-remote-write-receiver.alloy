@@ -1,0 +1,44 @@
+// Grafana Alloy: scrape Machina Prometheus and loop back via native remote_write
+// into Machina metrics history (Snappy protobuf).
+//
+// Usage:
+//   export MACHINA_HOST=127.0.0.1:5092
+//   export MACHINA_SCHEME=https
+//   export MACHINA_TOKEN=mach_…
+//   alloy run contrib/alloy/machina-remote-write-receiver.alloy
+
+prometheus.scrape "machina" {
+  targets = [{
+    __address__ = coalesce(env("MACHINA_HOST"), "127.0.0.1:5092"),
+  }]
+  scheme          = coalesce(env("MACHINA_SCHEME"), "https")
+  metrics_path    = "/api/v1/prometheus"
+  scrape_interval = coalesce(env("SCRAPE_INTERVAL"), "30s")
+  forward_to      = [prometheus.remote_write.machina_history.receiver]
+
+  authorization {
+    type        = "Bearer"
+    credentials = env("MACHINA_TOKEN")
+  }
+
+  tls_config {
+    insecure_skip_verify = true
+  }
+}
+
+prometheus.remote_write "machina_history" {
+  endpoint {
+    url = coalesce(
+      env("MACHINA_REMOTE_WRITE_URL"),
+      "https://127.0.0.1:5092/api/v1/metrics/ingest/remote-write",
+    )
+
+    headers = {
+      Authorization = "Bearer " + env("MACHINA_TOKEN"),
+    }
+
+    tls_config {
+      insecure_skip_verify = true
+    }
+  }
+}

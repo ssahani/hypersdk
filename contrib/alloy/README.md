@@ -9,8 +9,9 @@ Machina’s built-in `[metrics_history].remote_write_url` sends **JSON** (`Metri
 | Goal | Approach |
 |------|----------|
 | JSON samples to custom ingest | `[metrics_history] remote_write_url` in `/etc/machina/config.toml` |
-| Full Prometheus metrics in Mimir | This Alloy file + `PROM_REMOTE_WRITE_URL` |
-| Both | Daemon JSON POST + Alloy scrape → Mimir |
+| Native Prometheus remote_write into Machina history | `POST /api/v1/metrics/ingest/remote-write` or `contrib/alloy/machina-remote-write-receiver.alloy` |
+| Full Prometheus metrics in Mimir | `machina-metrics-forwarder.alloy` + `PROM_REMOTE_WRITE_URL` |
+| Both | Daemon JSON POST + Alloy scrape → Mimir or loopback remote_write |
 
 Environment:
 

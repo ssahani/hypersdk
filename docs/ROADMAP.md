@@ -17,12 +17,12 @@ Phases below were delivered on `main` in batches through observability, integrat
 | 11 | `GET /integrations/status` + Settings panel | Done |
 | 12 | Core `k8s_top` parser tests + fleet placement tests | Done |
 | 13 | Prometheus integration gauges + Grafana v4 | Done |
-| 14 | Metrics traces API, batch ingest, Prometheus text ingest | Done |
+| 14 | Metrics traces API, batch ingest, Prometheus text + **remote_write protobuf** ingest | Done |
 | 15 | machinactl integrations, health probes, example config, ROADMAP | Done |
 
 ## Follow-ups (not numbered phases)
 
-- Full Prometheus **protobuf** remote_write receiver (today: JSON + text exposition ingest)
+- Prometheus remote_write **2.0** (`io.prometheus.write.v2.Request`) when senders adopt it widely
 - Broader run-as-user (libvirt session automation beyond create default)
 - Multi-host fleet metrics aggregation in one scrape
 

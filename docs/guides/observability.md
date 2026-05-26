@@ -46,6 +46,16 @@ max_file_mb = 32
 # Optional: POST each sample as Machina JSON (NOT Prometheus remote_write protobuf)
 remote_write_url = "https://metrics.example/ingest/machina"
 remote_write_authorization = "Bearer …"
+
+**Native Prometheus remote_write (Snappy + `prometheus.WriteRequest`):**
+
+```bash
+POST /api/v1/metrics/ingest/remote-write
+Content-Type: application/x-protobuf
+Authorization: Bearer <api-token>
+```
+
+Maps `machina_host_cpu_percent`, `machina_host_memory_percent`, and `machina_host_disk_percent` into the in-memory metrics history ring. See `contrib/alloy/machina-remote-write-receiver.alloy` and `contrib/ingest/test-remote-write.sh`.
 ```
 
 Each POST body is one [`MetricsHistoryPoint`](../../core/src/metrics_history.rs) object (`timestamp_ms`, host percentages, `vm_metrics`, …). Use a custom receiver, Grafana Alloy `http` input, or a small forwarder if you need Prometheus/Mimir native remote write.

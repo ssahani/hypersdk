@@ -1334,6 +1334,18 @@
         "responses": { "200": { "description": "Parse result" } }
       }
     },
+    "/metrics/ingest/remote-write": {
+      "post": {
+        "summary": "Prometheus remote_write 1.0 (Snappy protobuf WriteRequest)",
+        "tags": ["Metrics"],
+        "requestBody": {
+          "content": {
+            "application/x-protobuf": { "schema": { "type": "string", "format": "binary" } }
+          }
+        },
+        "responses": { "200": { "description": "Decode stats and history ingest result" } }
+      }
+    },
     "/integrations/status": {
       "get": {
         "summary": "Unified health for OpenStack, KubeVirt, automation, k8s, and run-as-user",
