@@ -57,6 +57,7 @@ const OpenStackImages = lazy(() => import('./pages/OpenStackImages'))
 const OpenStackMigrations = lazy(() => import('./pages/OpenStackMigrations'))
 const Fleet = lazy(() => import('./pages/Fleet'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
+const SystemCheck = lazy(() => import('./pages/SystemCheck'))
 
 function AppZyvorFooter() {
   const { info } = usePlatformInfo()
@@ -217,6 +218,7 @@ function AuthenticatedShell() {
                 <Route path="/ssh" element={<SSHPage />} />
                 <Route path="/api-docs" element={<ApiDocs />} />
                 <Route path="/services" element={<Services />} />
+                <Route path="/system-check" element={<SystemCheck />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/settings" element={<SettingsPage />} />
                 <Route path="/admin/sessions" element={<AdminSessions />} />

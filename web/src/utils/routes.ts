@@ -6,6 +6,7 @@ import {
   Boxes,
   Package,
   Cloud,
+  Stethoscope,
 } from 'lucide-react'
 
 export interface NavItem {
@@ -143,6 +144,7 @@ export const navGroups: NavGroup[] = [
       { to: '/jobs', icon: React.createElement(ClipboardList, { className: 'w-4 h-4' }), label: 'Jobs' },
       { to: '/node', icon: React.createElement(Cpu, { className: 'w-4 h-4' }), label: 'Host overview' },
       { to: '/events', icon: React.createElement(Activity, { className: 'w-4 h-4' }), label: 'Live Metrics' },
+      { to: '/system-check', icon: React.createElement(Stethoscope, { className: 'w-4 h-4' }), label: 'System Check' },
       { to: '/capabilities', icon: React.createElement(MonitorCog, { className: 'w-4 h-4' }), label: 'Capabilities' },
       { to: '/devices', icon: React.createElement(Usb, { className: 'w-4 h-4' }), label: 'Node Devices' },
       { to: '/services', icon: React.createElement(Cog, { className: 'w-4 h-4' }), label: 'Services' },
@@ -164,6 +166,7 @@ export const routeLabels: Record<string, string> = {
   '/snapshots': 'Snapshots',
   '/node': 'Host overview',
   '/events': 'Live Metrics',
+  '/system-check': 'System Check',
   '/jobs': 'Jobs',
   '/capabilities': 'Capabilities',
   '/devices': 'Node Devices',

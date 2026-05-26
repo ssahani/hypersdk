@@ -9,7 +9,7 @@ import { getHostStats, HostStats } from '../api/extras'
 import { getStateColor, getStateBadgeClasses } from '../utils/vm'
 import { getRecentVMs } from '../utils/recentVMs'
 import { timeAgo } from '../utils/time'
-import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw, Cloud, Boxes } from 'lucide-react'
+import { Activity, Cpu, HardDrive, Server, Network, Database, Camera, ArrowRight, MonitorPlay, ChevronRight, Clock, Gauge, Power, RotateCcw, Play, Terminal, Plus, Trash2, AlertTriangle, X, RefreshCw, Cloud, Boxes, Stethoscope } from 'lucide-react'
 import { hostShutdown, hostReboot } from '../api/extras'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
@@ -163,6 +163,15 @@ export default function Dashboard() {
         title={`Dashboard${node?.hostname ? ` · ${node.hostname}` : ''}`}
         subtitle="Live virtualization, network, storage, and KubeVirt status from this hypervisor."
         icon={<Activity className="w-6 h-6" />}
+        actions={
+          <Link
+            to="/system-check"
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-sky-500/40 bg-sky-600/20 text-sky-200 hover:bg-sky-600/30 text-sm font-medium transition"
+          >
+            <Stethoscope className="w-4 h-4" />
+            System Check
+          </Link>
+        }
       />
 
       {loadError && (
@@ -200,6 +209,14 @@ export default function Dashboard() {
               </li>
             ))}
           </ul>
+          <Link
+            to="/system-check"
+            className="inline-flex items-center gap-1.5 text-sm text-sky-400 hover:text-sky-300 mt-2"
+          >
+            <Stethoscope className="w-4 h-4" />
+            Run full system check
+            <ChevronRight className="w-4 h-4" />
+          </Link>
         </div>
       )}
 
