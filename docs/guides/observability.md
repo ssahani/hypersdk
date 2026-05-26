@@ -89,7 +89,7 @@ sign_lines = true   # prefix each line with sha256:<hex> for tamper detection
 
 Background worker evaluates alert rules, runs schedules, and fires webhooks on VM lifecycle events. Configure rules/channels in the UI **Settings → Automation** or via `/api/v1/automation/*`.
 
-Prometheus gauges: `machina_alerts_unacknowledged`, `machina_alert_rules_enabled`.
+Prometheus gauges: `machina_alerts_unacknowledged`, `machina_alert_rules_enabled`, `machina_automation_last_tick_unix`, `machina_run_as_user_active`.
 
 ## Fleet
 

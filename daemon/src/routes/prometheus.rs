@@ -15,7 +15,7 @@ use machina_core::bpf_probe;
 use machina_core::libvirt::automation;
 use machina_core::obs_counters;
 use machina_core::{
-    LibvirtManager, VmBlockDeviceMetrics, VmInfo, VmMetrics, VmNetDeviceMetrics,
+    LibvirtManager, MachinaConfig, VmBlockDeviceMetrics, VmInfo, VmMetrics, VmNetDeviceMetrics,
 };
 
 use crate::daemon_stats::DaemonStats;
@@ -573,6 +573,21 @@ async fn prometheus_metrics(
         "machina_alert_rules_enabled",
         "Enabled alert rules",
         rules_enabled,
+    );
+    if let Some(ts) = crate::automation_worker::automation_last_tick_unix() {
+        add_gauge(
+            &mut output,
+            "machina_automation_last_tick_unix",
+            "Unix timestamp of last automation worker tick",
+            ts.max(0) as u64,
+        );
+    }
+    let run_as = MachinaConfig::load().auth.run_as_user;
+    add_gauge(
+        &mut output,
+        "machina_run_as_user_active",
+        "1 when OIDC run-as-user impersonation is active",
+        if run_as.impersonation_active() { 1 } else { 0 },
     );
 
     let bpf = bpf_probe::probe_bpf_summary();

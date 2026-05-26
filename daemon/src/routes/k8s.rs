@@ -3687,18 +3687,14 @@ struct K8sMetricsQuery {
     context: Option<String>,
 }
 
-fn parse_kubectl_top_line(line: &str) -> Option<serde_json::Value> {
-    let parts: Vec<&str> = line.split_whitespace().collect();
-    if parts.len() < 5 {
-        return None;
-    }
-    Some(serde_json::json!({
-        "name": parts[0],
-        "cpu": parts[1],
-        "cpu_percent": parts[2],
-        "memory": parts[3],
-        "memory_percent": parts[4],
-    }))
+fn top_row_json(row: machina_core::K8sTopRow) -> serde_json::Value {
+    serde_json::json!({
+        "name": row.name,
+        "cpu": row.cpu,
+        "cpu_percent": row.cpu_percent,
+        "memory": row.memory,
+        "memory_percent": row.memory_percent,
+    })
 }
 
 /// Live cluster utilization via `kubectl top` (requires metrics-server).
@@ -3733,8 +3729,8 @@ async fn k8s_metrics(
                 if line.is_empty() {
                     continue;
                 }
-                if let Some(row) = parse_kubectl_top_line(line) {
-                    nodes_top.push(row);
+                if let Some(row) = machina_core::parse_kubectl_top_line(line) {
+                    nodes_top.push(top_row_json(row));
                 }
             }
         } else {
@@ -3753,8 +3749,8 @@ async fn k8s_metrics(
                 if line.is_empty() {
                     continue;
                 }
-                if let Some(row) = parse_kubectl_top_line(line) {
-                    pods_top.push(row);
+                if let Some(row) = machina_core::parse_kubectl_top_line(line) {
+                    pods_top.push(top_row_json(row));
                 }
             }
         } else {

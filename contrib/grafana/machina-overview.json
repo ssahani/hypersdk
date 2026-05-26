@@ -159,9 +159,19 @@
         { "expr": "machina_bpf_programs", "legendFormat": "progs" },
         { "expr": "machina_bpf_maps", "legendFormat": "maps" }
       ]
+    },
+    {
+      "title": "Automation last tick (unix)",
+      "type": "stat",
+      "targets": [{ "expr": "machina_automation_last_tick_unix", "legendFormat": "tick" }]
+    },
+    {
+      "title": "Run-as-user active",
+      "type": "stat",
+      "targets": [{ "expr": "machina_run_as_user_active", "legendFormat": "active" }]
     }
   ],
   "schemaVersion": 38,
-  "version": 3,
+  "version": 4,
   "description": "Scrape GET /api/v1/prometheus on each Machina daemon (Bearer token). Import contrib/prometheus/alerts.yaml for Alertmanager rules."
 }
