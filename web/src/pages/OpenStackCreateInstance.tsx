@@ -13,6 +13,7 @@ import {
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { ArrowLeft, Cloud, Disc, Loader2, Network, RefreshCw } from 'lucide-react'
 import OpenStackFooter from '../components/OpenStackFooter'
@@ -39,9 +40,11 @@ function OpenStackCreateInstanceContent() {
   const navigate = useNavigate()
   const toast = useToastContext()
   const { info } = usePlatformInfo()
+  const { computeLive, connectionHint } = useOpenStackConnection()
   const [step, setStep] = useState(0)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [createError, setCreateError] = useState<string | null>(null)
   const [catalogErrors, setCatalogErrors] = useState<Partial<Record<CatalogKey, string>>>({})
 
   const [flavors, setFlavors] = useState<OpenStackFlavor[]>([])
@@ -169,6 +172,7 @@ function OpenStackCreateInstanceContent() {
       return
     }
     setSubmitting(true)
+    setCreateError(null)
     try {
       const sgList = securityGroups
         .split(',')
@@ -189,6 +193,7 @@ function OpenStackCreateInstanceContent() {
       navigate(`/openstack/instances/${encodeURIComponent(resp.id)}`)
     } catch (e: unknown) {
       const msg = formatUserError(e)
+      setCreateError(msg)
       toast.error(`Create failed: ${msg}`)
     } finally {
       setSubmitting(false)
@@ -212,6 +217,23 @@ function OpenStackCreateInstanceContent() {
     <div className="space-y-6 max-w-3xl">
       <OpenStackSubNav />
       <OpenStackStatusBar />
+
+      {!computeLive && connectionHint && (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+          {connectionHint}
+        </div>
+      )}
+
+      {createError && (
+        <ErrorBanner
+          title="Create instance failed"
+          headline={createError}
+          hints={openStackErrorHints(createError)}
+          technicalDetail={createError}
+          tone="red"
+          onDismiss={() => setCreateError(null)}
+        />
+      )}
 
       {catalogErrorSummary && (
         <ErrorBanner

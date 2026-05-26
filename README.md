@@ -286,6 +286,7 @@ Open **https://localhost:5092** or run `machina` for the TUI.
 ```bash
 ./machinactl status          # Check service status
 ./machinactl verify          # Post-install smoke test (API, VMs, libvirt)
+VSPASS=… ./scripts/e2e-test.sh https://HOST:5092 USER  # Full E2E: health, libvirt VM, OpenStack API
 ./machinactl health          # Deep health check (disk, libvirt, timers)
 ./machinactl logs            # Follow logs
 ./machinactl restart         # Restart service (auto-sudo)

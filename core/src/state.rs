@@ -38,6 +38,9 @@ pub struct VmDetails {
     /// `system` / `session` when bound to a specific libvirt scope.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub libvirt_connection: Option<String>,
+    /// Best-effort guest IPv4 from DHCP lease, ARP, or qemu-guest-agent (when running).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub guest_ip: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

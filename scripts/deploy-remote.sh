@@ -88,7 +88,7 @@ DEPLOY_SSH_TTY_OPTS=()
 
 usage() {
     cat <<'EOF'
-deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--cleanup|--dry-run]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--e2e|--cleanup|--dry-run]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall] [--no-start] [--deps-only] [extra install.sh args...]
 
 Prefer: ./scripts/deploy remote USER@HOST [flags]  |  ./scripts/deploy status
@@ -109,6 +109,7 @@ Auth: SSH keys/agent by default; optional PASSWORD arg or SSHPASS env → sshpas
 Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 185.165.240.5 --quick
+  VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
   deploy-remote.sh sus@host --remote-build   # full release build on server, then exit
   # Full install passes --no-tests to install.sh (no post-install curl suite on the server).
@@ -267,12 +268,14 @@ DEPS_ONLY=false
 REMOTE_BUILD=false
 REMOTE_CHECK=false
 DRY_RUN=false
+RUN_E2E=false
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --sync-only) SKIP_INSTALL=true; shift ;;
             --quick) QUICK=true; shift ;;
+            --e2e) RUN_E2E=true; shift ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
             --no-start) NO_START=true; shift ;;
@@ -516,4 +519,18 @@ machina_print_success "$HOST" "$ELAPSED" "$USER"
 deploy_ui_kv "🔗" "SSH" "ssh ${USER}@${HOST}"
 tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstream."
 tip "Redeploy: ./scripts/deploy remote --quick"
+
+if $RUN_E2E; then
+    if [[ -z "${VSPASS:-}" && -z "${SSHPASS:-}" ]]; then
+        warn "--e2e skipped: set VSPASS (or SSHPASS) for API login"
+    else
+        info "Post-deploy E2E (e2e-test-remote.sh)"
+        E2E_PASS="${VSPASS:-${SSHPASS:-}}"
+        if "${SCRIPT_DIR}/e2e-test-remote.sh" "$USER" "$HOST"; then
+            ok "E2E passed"
+        else
+            warn "E2E failed (deploy itself succeeded)"
+        fi
+    fi
+fi
 printf '\n'

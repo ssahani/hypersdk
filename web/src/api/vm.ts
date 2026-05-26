@@ -76,6 +76,8 @@ export interface VmDetails {
   disks: DiskInfo[]
   filesystems?: FilesystemInfo[]
   libvirt_connection?: string
+  /** Best-effort IPv4 from libvirt lease / ARP / guest agent. */
+  guest_ip?: string | null
 }
 
 /** Append `?connection=` for dual-hypervisor APIs when scoped to session. */

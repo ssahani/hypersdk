@@ -1070,6 +1070,11 @@ export default function VMDetailsPage() {
               </span>
             )}
             <span className="text-sm text-slate-500 font-mono">{vm.uuid}</span>
+            {vm.guest_ip && (
+              <span className="text-sm text-emerald-400/90 font-mono" title="From libvirt lease / ARP / guest agent">
+                · {vm.guest_ip}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             {vmTags.map((t) => (

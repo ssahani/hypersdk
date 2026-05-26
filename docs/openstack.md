@@ -5,7 +5,11 @@ Machina manages OpenStack Nova instances and Glance images from the same UI as l
 ## First-boot checklist
 
 1. Install or finish OpenStack on the host (Packstack, RDO, DevStack, etc.) and confirm Keystone answers on port 5000.
-2. Wire Machina to the cloud:
+2. Wire Machina to the cloud (Packstack-partial / minimal: use the all-in-one bootstrap — see [openstack-minimal.md](openstack-minimal.md)):
+   ```bash
+   sudo /usr/local/share/machina/scripts/openstack-bootstrap-machina.sh /root/keystonerc_admin <CONTROLLER_IP>
+   ```
+   Or wire only:
    ```bash
    sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack
    sudo systemctl restart machina-daemon

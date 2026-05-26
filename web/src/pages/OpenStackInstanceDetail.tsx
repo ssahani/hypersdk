@@ -24,6 +24,8 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { formatUserError } from '../utils/apiError'
+import { openStackErrorHints } from '../utils/openstackHints'
+import ErrorBanner from '../components/ErrorBanner'
 
 function CopyBtn({ text }: { text: string }) {
   const toast = useToastContext()
@@ -142,6 +144,26 @@ function OpenStackInstanceDetailContent() {
     <div className="space-y-6 max-w-4xl">
       <OpenStackSubNav />
       <OpenStackStatusBar />
+
+      {inst.status.toUpperCase() === 'ERROR' && (
+        <ErrorBanner
+          title="Instance in ERROR state"
+          headline="Nova reported ERROR for this server. Guest may not exist if compute uses fake.FakeDriver."
+          hints={[
+            'On the hypervisor: openstack server show ' + inst.id,
+            'Check: journalctl -u openstack-nova-compute -n 40',
+            ...openStackErrorHints('entered error'),
+          ]}
+          tone="red"
+        />
+      )}
+
+      {inst.status.toUpperCase() === 'BUILD' && (
+        <div className="rounded-xl border border-amber-500/35 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+          Instance is still building — refresh in a few seconds. Neutron will assign addresses when ACTIVE.
+        </div>
+      )}
+
       <Link to="/openstack/instances" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm">
         <ArrowLeft className="w-4 h-4" />
         Instances

@@ -62,6 +62,15 @@ export function useOpenStackConnection() {
 
   const phase = openStackPhaseFrom(Boolean(os?.enabled), Boolean(os?.configured), status)
 
+  const connectionHint =
+    phase === 'needsWire'
+      ? 'Wire clouds.yaml and restart machina-daemon (Settings → OpenStack).'
+      : phase === 'unreachable'
+        ? status?.error || 'Keystone unreachable — check auth_url and firewall to port 5000.'
+        : phase === 'live' && !isOpenStackComputeLive(status)
+          ? 'Keystone OK; Nova compute API is down or nova-compute uses fake.FakeDriver (no real guests).'
+          : null
+
   return {
     phase,
     configured,
@@ -72,5 +81,6 @@ export function useOpenStackConnection() {
     cloudName: status?.cloud_name || os?.cloud_name || '',
     computeLive: isOpenStackComputeLive(status),
     glanceLive: isOpenStackGlanceLive(status),
+    connectionHint,
   }
 }

@@ -135,7 +135,9 @@ else
   log "Glance: image list failed (check /var/log/glance/api.log)"
 fi
 
-log "Done. Re-wire Machina if needed:"
+log "Done. For full Machina E2E (OVN, compute, catalog), run:"
+echo "  sudo ./scripts/openstack-bootstrap-machina.sh $RC_FILE $CONTROLLER_HOST"
+echo "Or re-wire only:"
 echo "  sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh $RC_FILE packstack"
 echo "  sudo systemctl restart machina-daemon"
 echo "  curl -sk https://127.0.0.1:5092/api/v1/openstack/status  # after UI login"

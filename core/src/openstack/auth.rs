@@ -168,7 +168,17 @@ pub async fn connect_session(cfg: &OpenStackConfig) -> Result<Session, LibvirtEr
 }
 
 pub(crate) fn map_osauth_err(e: osauth::Error) -> LibvirtError {
-    LibvirtError::Operation(e.to_string())
+    let mut msg = e.to_string();
+    if let Some(first) = msg.lines().next() {
+        if msg.lines().count() > 4 {
+            msg = first.to_string();
+        }
+    }
+    if msg.len() > 600 {
+        msg.truncate(600);
+        msg.push('…');
+    }
+    LibvirtError::Operation(msg)
 }
 
 #[cfg(test)]

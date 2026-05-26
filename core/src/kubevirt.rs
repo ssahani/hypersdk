@@ -511,6 +511,7 @@ mod tests {
             ],
             filesystems: vec![],
             libvirt_connection: None,
+            guest_ip: None,
         };
         let disk = pick_root_boot_disk(&d).unwrap();
         assert!(disk.source.ends_with(".qcow2"));

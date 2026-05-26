@@ -180,10 +180,21 @@ pub async fn create_instance(
     }
     let waiter = builder.create().await.map_err(map_openstack_err)?;
     let server = if req.wait_until_active {
-        waiter.wait().await.map_err(map_openstack_err)?
+        waiter.wait().await.map_err(|e| {
+            let detail = map_openstack_err(e);
+            LibvirtError::Operation(format!("instance did not reach ACTIVE: {detail}"))
+        })?
     } else {
         waiter.current_state().clone()
     };
+    let status_label = format!("{:?}", server.status());
+    if status_label.contains("Error") {
+        return Err(LibvirtError::Operation(format!(
+            "instance '{}' entered ERROR — on the host: openstack server show {}",
+            name,
+            server.id()
+        )));
+    }
     if let Some(ref groups) = req.security_groups {
         for g in groups {
             let name = g.trim();

@@ -10,7 +10,8 @@ import { formatUserError, sanitizeErrorText } from '../utils/apiError'
 export default function OpenStackStatusBar() {
   const { info } = usePlatformInfo()
   const toast = useToastContext()
-  const { phase, status, testConnection, cloudName, computeLive, glanceLive } = useOpenStackConnection()
+  const { phase, status, testConnection, cloudName, computeLive, glanceLive, connectionHint } =
+    useOpenStackConnection()
   const [testing, setTesting] = useState(false)
 
   if (phase === 'off' || phase === 'needsWire') {
@@ -59,6 +60,11 @@ export default function OpenStackStatusBar() {
           Keystone
           {computeLive ? ' · Nova' : ' · Nova off'}
           {glanceLive ? ' · Glance' : ' · Glance off'}
+        </span>
+      )}
+      {reachable && !computeLive && connectionHint && (
+        <span className="text-xs text-amber-200/90 max-w-lg" title={connectionHint}>
+          {connectionHint}
         </span>
       )}
       {reachable && computeLive && status?.instance_count != null && (

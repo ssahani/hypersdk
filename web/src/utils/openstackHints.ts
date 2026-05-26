@@ -1,5 +1,5 @@
 export const WIRE_SCRIPT =
-  'sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack\nsudo systemctl restart machina-daemon'
+  'sudo /usr/local/share/machina/scripts/openstack-bootstrap-machina.sh /root/keystonerc_admin $(hostname -I | awk "{print $1}")\n# or: openstack-wire-cloud.sh + systemctl restart machina-daemon'
 
 export const VERIFY_COMMANDS =
   'source /root/keystonerc_admin && openstack token issue\nopenstack server list'
@@ -29,6 +29,13 @@ export function openStackErrorHints(error: string | undefined): string[] {
   }
   if (e.includes('timeout') || e.includes('timed out')) {
     hints.push('Increase connect_timeout_secs in /etc/machina/config.toml or fix firewall to port 5000.')
+  }
+  if (e.includes('fake') || e.includes('did not reach active') || e.includes('entered error')) {
+    hints.push('Nova may be using fake.FakeDriver — instances get IPs but no real VM. Enable libvirt compute or add a second compute node (docs/openstack-minimal.md).')
+    hints.push('On host: sudo ./scripts/openstack-enable-libvirt-compute.sh --check-only')
+  }
+  if (e.includes('compute') && (e.includes('unavailable') || e.includes('nova off'))) {
+    hints.push('Start openstack-nova-api and openstack-nova-compute; re-run openstack-bootstrap-machina.sh if needed.')
   }
   if (e.includes('operation failed') || e.includes('operation_failed')) {
     hints.push('Read the technical details below, then fix the failing OpenStack service on the host.')

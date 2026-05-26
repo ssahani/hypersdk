@@ -5,6 +5,7 @@ use virt::connect::Connect;
 use virt::domain::Domain;
 use virt::sys;
 
+use crate::libvirt::guest_agent::get_guest_interfaces;
 use crate::state::{DiskInfo, FilesystemInfo, InterfaceInfo, VmDetails, VmInfo};
 use crate::xml;
 use crate::LibvirtError;
@@ -87,6 +88,14 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
     let interfaces = parse_interfaces(&xml_str);
     let disks = parse_disks(&xml_str);
     let filesystems = parse_filesystems(&xml_str);
+    let guest_ip = get_guest_interfaces(conn, name)
+        .ok()
+        .and_then(|addrs| {
+            addrs
+                .iter()
+                .find(|a| a.ip_type == "ipv4" && !a.address.starts_with("127."))
+                .map(|a| a.address.clone())
+        });
 
     Ok(VmDetails {
         name: name.to_string(),
@@ -102,6 +111,7 @@ pub fn get_vm_details(conn: &Connect, name: &str) -> Result<VmDetails, LibvirtEr
         disks,
         filesystems,
         libvirt_connection: None,
+        guest_ip,
     })
 }
 
