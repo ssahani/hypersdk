@@ -234,7 +234,7 @@ pub fn probe_smart_health(devices: &[String]) -> Vec<SmartDiskHealth> {
                     let passed = lower.contains("passed")
                         || lower.contains("ok")
                         || o.status.success();
-                    let summary = text
+                    let summary: String = text
                         .lines()
                         .find(|l| {
                             l.contains("PASSED")

@@ -253,10 +253,13 @@ pub fn collect_vcpu_stats(vm_name: &str) -> Vec<VmVcpuMetrics> {
 #[cfg(target_os = "linux")]
 fn collect_vcpu_stats_linux(vm_name: &str) -> Vec<VmVcpuMetrics> {
     use std::process::Command;
-    let output = Command::new("virsh")
+    let Some(output) = Command::new("virsh")
         .args(["domstats", vm_name, "--vcpu"])
         .output()
-        .ok()?;
+        .ok()
+    else {
+        return Vec::new();
+    };
     if !output.status.success() {
         return Vec::new();
     }

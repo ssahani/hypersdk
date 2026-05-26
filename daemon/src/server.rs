@@ -109,9 +109,10 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         router = router.fallback_service(static_ui);
     }
 
+    // Outermost layer is listed last: Trace → Extension → record_request → routes.
     router
-        .layer(Extension(http_metrics))
         .layer(middleware::from_fn(http_metrics::record_request))
+        .layer(Extension(http_metrics))
         .layer(TraceLayer::new_for_http())
 }
 
