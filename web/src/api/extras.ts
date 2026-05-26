@@ -238,6 +238,70 @@ export interface HostStats {
 }
 export const getHostStats = () => readJsonObject<HostStats>(`${API}/host/stats`)
 
+export interface PressureAvg {
+  some: number
+  full: number
+  total: number
+}
+
+export interface HostPressureStats {
+  cpu: PressureAvg
+  memory: PressureAvg
+  io: PressureAvg
+  available: boolean
+}
+
+export interface DiskIoStat {
+  device: string
+  read_bytes: number
+  write_bytes: number
+  read_ios: number
+  write_ios: number
+}
+
+export interface SmartDiskHealth {
+  device: string
+  passed: boolean
+  summary: string
+  probed: boolean
+}
+
+export interface CgroupV2Stats {
+  unified_path: string
+  memory_current_bytes?: number | null
+  memory_max_bytes?: number | null
+  cpu_usage_usec?: number | null
+  available: boolean
+}
+
+export interface VmCgroupStats {
+  vm_name: string
+  cgroup_path: string
+  memory_current_bytes?: number | null
+  memory_max_bytes?: number | null
+  cpu_usage_usec?: number | null
+  available: boolean
+}
+
+export interface HwmonTemp {
+  sensor: string
+  label: string
+  temp_celsius: number
+  critical_celsius?: number | null
+}
+
+export interface LinuxHostObservability {
+  pressure: HostPressureStats
+  disk_io: DiskIoStat[]
+  smart: SmartDiskHealth[]
+  cgroup: CgroupV2Stats
+  thermal?: HwmonTemp[]
+  vm_cgroups?: VmCgroupStats[]
+}
+
+export const getHostLinuxObservability = () =>
+  readJsonObject<LinuxHostObservability>(`${API}/host/linux-observability`)
+
 /** Per-mount usage from `df` (Linux hypervisor). */
 export interface HostFilesystem {
   source: string

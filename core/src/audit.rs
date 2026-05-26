@@ -1,11 +1,61 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
+use std::sync::OnceLock;
 
+use crate::config::AuditLogConfig;
 use crate::state::AuditEvent;
+
+static ROTATION: OnceLock<AuditLogConfig> = OnceLock::new();
+
+pub fn configure_rotation(cfg: AuditLogConfig) {
+    let _ = ROTATION.set(cfg);
+}
+
+fn rotation_cfg() -> AuditLogConfig {
+    ROTATION.get().cloned().unwrap_or_default()
+}
 
 pub fn audit_log_path() -> PathBuf {
     PathBuf::from("/var/lib/machina/audit.log")
+}
+
+fn maybe_rotate_audit_log(cfg: &AuditLogConfig) {
+    if cfg.max_file_mb == 0 {
+        return;
+    }
+    let path = audit_log_path();
+    let Ok(meta) = fs::metadata(&path) else {
+        return;
+    };
+    let max_bytes = cfg.max_file_mb.saturating_mul(1024 * 1024);
+    if meta.len() < max_bytes {
+        return;
+    }
+    let Some(parent) = path.parent() else {
+        return;
+    };
+    let keep = cfg.rotate_keep.max(1) as usize;
+    if keep > 1 {
+        let oldest = parent.join(format!("audit.log.{keep}"));
+        let _ = fs::remove_file(oldest);
+    }
+    for i in (1..keep).rev() {
+        let from = if i == 1 {
+            path.clone()
+        } else {
+            parent.join(format!("audit.log.{}", i - 1))
+        };
+        let to = parent.join(format!("audit.log.{i}"));
+        if from.exists() {
+            let _ = fs::rename(&from, &to);
+        }
+    }
+    tracing::info!(
+        "rotated audit log (limit {} MiB, keep {})",
+        cfg.max_file_mb,
+        keep
+    );
 }
 
 pub fn write_audit_event(event: &AuditEvent) {
@@ -29,6 +79,7 @@ pub fn write_audit_event(event: &AuditEvent) {
     if let Ok(mut file) = OpenOptions::new().create(true).append(true).open(&path) {
         let _ = file.write_all(line.as_bytes());
     }
+    maybe_rotate_audit_log(&rotation_cfg());
 }
 
 pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {

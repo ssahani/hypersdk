@@ -24,6 +24,18 @@ refresh_interval_secs = 5
 # [k8s_inventory_history]
 # enabled = false
 # max_file_mb = 32
+#
+# [metrics_history]
+# enabled = true
+# interval_secs = 30
+# max_points = 120
+#
+# Prometheus (GET /api/v1/prometheus): host/VM gauges, per-disk/NIC counters,
+# machina_http_request_duration_seconds histogram, and daemon self-metrics.
+#
+# [audit]
+# max_file_mb = 64
+# rotate_keep = 5
 
 [guacamole]
 # Optional Apache Guacamole encrypted JSON auth — same 32 hex chars as Docker JSON_SECRET_KEY.

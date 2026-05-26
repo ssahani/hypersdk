@@ -234,6 +234,26 @@ pub struct NodeInfo {
 
 // ── Metrics Types ───────────────────────────────────────────────────────
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct VmBlockDeviceMetrics {
+    /// libvirt block target dev (e.g. vda, sda).
+    pub device: String,
+    pub rd_bytes: u64,
+    pub wr_bytes: u64,
+    pub rd_ops: u64,
+    pub wr_ops: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct VmNetDeviceMetrics {
+    /// libvirt interface target dev (e.g. vnet0).
+    pub device: String,
+    pub rx_bytes: u64,
+    pub tx_bytes: u64,
+    pub rx_packets: u64,
+    pub tx_packets: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VmMetrics {
     pub name: String,
@@ -246,6 +266,12 @@ pub struct VmMetrics {
     pub disk_wr_bytes: u64,
     pub net_rx_bytes: u64,
     pub net_tx_bytes: u64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub disks: Vec<VmBlockDeviceMetrics>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub nets: Vec<VmNetDeviceMetrics>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cgroup: Option<crate::host_linux_obs::VmCgroupStats>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub libvirt_connection: Option<String>,
 }

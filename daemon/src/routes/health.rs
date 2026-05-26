@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use machina_core::{host_virt, LibvirtManager};
+use machina_core::{host_linux_obs, host_virt, LibvirtManager};
 use serde_json::json;
 
 async fn health_check(State(manager): State<LibvirtManager>) -> impl IntoResponse {
@@ -105,6 +105,61 @@ async fn host_problems() -> Json<serde_json::Value> {
                     "detail": format!("df reports about {pct}% used — free space before provisioning."),
                     "doc_url": null,
                 }));
+            }
+        }
+    }
+    if let Ok(obs) = host_linux_obs::gather_linux_observability() {
+        if obs.pressure.available {
+            if obs.pressure.memory.some >= 10.0 {
+                items.push(json!({
+                    "id": "psi_memory",
+                    "severity": if obs.pressure.memory.some >= 25.0 { "critical" } else { "warning" },
+                    "title": "Memory pressure (PSI)",
+                    "detail": format!("some={:.1}% full={:.1}% — host is stalling on memory.", obs.pressure.memory.some, obs.pressure.memory.full),
+                    "doc_url": null,
+                }));
+            }
+            if obs.pressure.io.some >= 15.0 {
+                items.push(json!({
+                    "id": "psi_io",
+                    "severity": "warning",
+                    "title": "I/O pressure (PSI)",
+                    "detail": format!("some={:.1}% — block I/O contention on the hypervisor.", obs.pressure.io.some),
+                    "doc_url": null,
+                }));
+            }
+        }
+        for smart in obs.smart {
+            if smart.probed && !smart.passed {
+                items.push(json!({
+                    "id": format!("smart_{}", smart.device),
+                    "severity": "critical",
+                    "title": format!("SMART health failed on {}", smart.device),
+                    "detail": smart.summary,
+                    "doc_url": null,
+                }));
+            }
+        }
+        if obs.cgroup.available {
+            if let (Some(cur), Some(max)) = (
+                obs.cgroup.memory_current_bytes,
+                obs.cgroup.memory_max_bytes,
+            ) {
+                if max > 0 {
+                    let pct = (cur as f64 / max as f64) * 100.0;
+                    if pct >= 90.0 {
+                        items.push(json!({
+                            "id": "cgroup_memory",
+                            "severity": if pct >= 98.0 { "critical" } else { "warning" },
+                            "title": "Daemon cgroup memory high",
+                            "detail": format!(
+                                "machina-daemon cgroup ({}) at {:.0}% of memory.max",
+                                obs.cgroup.unified_path, pct
+                            ),
+                            "doc_url": null,
+                        }));
+                    }
+                }
             }
         }
     }

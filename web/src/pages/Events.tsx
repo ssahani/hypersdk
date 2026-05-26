@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router'
-import { getMetrics, VmMetrics, vmDetailRoute } from '../api/vm'
+import { getMetrics, getMetricsHistory, VmMetrics, vmDetailRoute } from '../api/vm'
 import {
   Activity,
   RefreshCw,
@@ -72,6 +72,37 @@ export default function EventsPage() {
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const prevRef = useRef<{ byName: Map<string, VmMetrics>; at: number } | null>(null)
+  const historySeeded = useRef(false)
+
+  useEffect(() => {
+    if (historySeeded.current) return
+    historySeeded.current = true
+    getMetricsHistory(MAX_POINTS)
+      .then((h) => {
+        if (!h.points?.length) return
+        const rows: TimelineRow[] = h.points.map((p) => {
+          const timeStr = new Date(p.timestamp_ms).toLocaleTimeString([], {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+          })
+          const row: TimelineRow = { time: timeStr }
+          for (const m of p.vm_metrics) {
+            row[chartMemKey(m.name)] = parseFloat(m.memory_pct.toFixed(1))
+          }
+          return row
+        })
+        setTimeline(rows.slice(-MAX_POINTS))
+        const last = h.points[h.points.length - 1]
+        if (last?.vm_metrics?.length) {
+          prevRef.current = {
+            byName: new Map(last.vm_metrics.map((m) => [m.name, m])),
+            at: last.timestamp_ms,
+          }
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const sortedMetrics = useMemo(
     () => [...metrics].sort((a, b) => a.name.localeCompare(b.name)),

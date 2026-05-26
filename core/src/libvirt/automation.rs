@@ -313,6 +313,27 @@ fn default_alert_rules() -> Vec<AlertRule> {
             threshold: 85.0,
             enabled: true,
         },
+        AlertRule {
+            id: "vm-mem-high".into(),
+            name: "VM High Memory".into(),
+            condition: "vm_memory_percent".into(),
+            threshold: 90.0,
+            enabled: false,
+        },
+        AlertRule {
+            id: "vm-cpu-high".into(),
+            name: "VM High CPU".into(),
+            condition: "vm_cpu_percent".into(),
+            threshold: 90.0,
+            enabled: false,
+        },
+        AlertRule {
+            id: "vm-down".into(),
+            name: "Autostart VM Down".into(),
+            condition: "vm_down".into(),
+            threshold: 0.0,
+            enabled: false,
+        },
     ]
 }
 
@@ -430,6 +451,22 @@ pub fn fire_webhook(event: &str, payload: &serde_json::Value) {
                 .output();
         });
     }
+}
+
+/// Emit a VM lifecycle webhook (`vm_started`, `vm_stopped`, etc.).
+pub fn fire_vm_event(event: &str, vm_name: &str, extra: &serde_json::Value) {
+    let mut payload = serde_json::json!({
+        "vm": vm_name,
+        "timestamp": chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+    });
+    if let Some(obj) = payload.as_object_mut() {
+        if let Some(map) = extra.as_object() {
+            for (k, v) in map {
+                obj.insert(k.clone(), v.clone());
+            }
+        }
+    }
+    fire_webhook(event, &payload);
 }
 
 // ── Scheduled Actions ──────────────────────────────────────────────

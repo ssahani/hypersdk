@@ -41,6 +41,75 @@ pub struct MachinaConfig {
     /// Optional multi-node Machina daemons (aggregate health + VM lists; proxy lifecycle when configured).
     #[serde(default)]
     pub fleet: FleetConfig,
+    /// In-memory ring buffer of host + VM metric samples (served at `GET /api/v1/metrics/history`).
+    #[serde(default)]
+    pub metrics_history: MetricsHistoryConfig,
+    /// Persistent audit log rotation under `/var/lib/machina/audit.log`.
+    #[serde(default)]
+    pub audit: AuditLogConfig,
+}
+
+/// Rotation for the append-only audit log (`/var/lib/machina/audit.log`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditLogConfig {
+    /// Rotate when the active log exceeds this size (0 = no rotation).
+    #[serde(default = "default_audit_max_file_mb")]
+    pub max_file_mb: u64,
+    /// Number of rotated files to retain (`audit.log.1` … `audit.log.N`).
+    #[serde(default = "default_audit_rotate_keep")]
+    pub rotate_keep: u32,
+}
+
+fn default_audit_max_file_mb() -> u64 {
+    64
+}
+
+fn default_audit_rotate_keep() -> u32 {
+    5
+}
+
+impl Default for AuditLogConfig {
+    fn default() -> Self {
+        Self {
+            max_file_mb: default_audit_max_file_mb(),
+            rotate_keep: default_audit_rotate_keep(),
+        }
+    }
+}
+
+/// Ring buffer of recent host/VM metrics in the daemon process (not persisted across restarts).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MetricsHistoryConfig {
+    #[serde(default = "default_metrics_history_enabled")]
+    pub enabled: bool,
+    /// Seconds between samples (minimum 15 when enabled).
+    #[serde(default = "default_metrics_history_interval_secs")]
+    pub interval_secs: u64,
+    /// Maximum points retained (oldest dropped).
+    #[serde(default = "default_metrics_history_max_points")]
+    pub max_points: usize,
+}
+
+fn default_metrics_history_enabled() -> bool {
+    true
+}
+
+fn default_metrics_history_interval_secs() -> u64 {
+    30
+}
+
+fn default_metrics_history_max_points() -> usize {
+    120
+}
+
+impl Default for MetricsHistoryConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_metrics_history_enabled(),
+            interval_secs: default_metrics_history_interval_secs(),
+            max_points: default_metrics_history_max_points(),
+        }
+    }
 }
 
 /// Snapshots from `GET /k8s/cluster-inventory` for drift / audit (same machine as other Machina state).
@@ -1057,6 +1126,21 @@ mod tests {
         assert!(i.enabled);
         assert_eq!(i.interval_secs, 3600);
         assert_eq!(i.max_file_mb, 64);
+    }
+
+    #[test]
+    fn audit_log_defaults() {
+        let a = AuditLogConfig::default();
+        assert_eq!(a.max_file_mb, 64);
+        assert_eq!(a.rotate_keep, 5);
+    }
+
+    #[test]
+    fn metrics_history_defaults() {
+        let m = MetricsHistoryConfig::default();
+        assert!(m.enabled);
+        assert_eq!(m.interval_secs, 30);
+        assert_eq!(m.max_points, 120);
     }
 
     #[test]

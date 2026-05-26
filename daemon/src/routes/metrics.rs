@@ -1,4 +1,4 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::routing::get;
 use axum::{Json, Router};
 
@@ -7,6 +7,7 @@ use machina_core::{LibvirtError, LibvirtManager, VmMetrics};
 
 use crate::conn_query::ConnQuery;
 use crate::error::AppError;
+use crate::metrics_history::MetricsHistoryStore;
 
 async fn get_all_metrics(
     State(manager): State<LibvirtManager>,
@@ -35,8 +36,23 @@ async fn get_vm_metrics(
     Ok(Json(m))
 }
 
+#[derive(serde::Deserialize)]
+struct HistoryQuery {
+    limit: Option<usize>,
+}
+
+async fn get_metrics_history(
+    Extension(store): Extension<MetricsHistoryStore>,
+    Query(q): Query<HistoryQuery>,
+) -> Json<serde_json::Value> {
+    let limit = q.limit.unwrap_or(60).min(500);
+    let points = store.snapshot(limit);
+    Json(serde_json::json!({ "points": points }))
+}
+
 pub fn metrics_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/metrics", get(get_all_metrics))
+        .route("/metrics/history", get(get_metrics_history))
         .route("/metrics/{name}", get(get_vm_metrics))
 }

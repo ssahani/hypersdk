@@ -168,3 +168,102 @@ pub fn get_guest_hostname(conn: &Connect, name: &str) -> Result<String, LibvirtE
         .get_hostname(0)
         .map_err(LibvirtError::map_op("Failed to get guest hostname"))
 }
+
+/// Guest filesystem usage via qemu-guest-agent (`guest-get-fsinfo`).
+pub fn get_guest_filesystems(conn: &Connect, name: &str) -> Result<Vec<GuestFilesystem>, LibvirtError> {
+    let domain = lookup_domain(conn, name)?;
+    if !domain.is_active().unwrap_or(false) {
+        return Ok(Vec::new());
+    }
+    guest_fsinfo_via_agent(name)
+}
+
+#[cfg(target_os = "linux")]
+fn guest_fsinfo_via_agent(vm_name: &str) -> Result<Vec<GuestFilesystem>, LibvirtError> {
+    use std::process::Command;
+    let output = Command::new("virsh")
+        .args([
+            "qemu-agent-command",
+            vm_name,
+            r#"{"execute":"guest-get-fsinfo"}"#,
+        ])
+        .output()
+        .map_err(|e| LibvirtError::Operation(format!("virsh qemu-agent-command: {e}")))?;
+    if !output.status.success() {
+        return Ok(Vec::new());
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let v: serde_json::Value =
+        serde_json::from_str(&text).map_err(|e| LibvirtError::Operation(format!("agent JSON: {e}")))?;
+    let Some(arr) = v.get("return").and_then(|r| r.as_array()) else {
+        return Ok(Vec::new());
+    };
+    let mut out = Vec::new();
+    for item in arr {
+        let mountpoint = item
+            .get("mountpoint")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let fstype = item
+            .get("type")
+            .or_else(|| item.get("fstype"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let name = item
+            .get("name")
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string();
+        let (total_bytes, used_bytes) = item
+            .get("total-bytes")
+            .and_then(|x| x.as_u64())
+            .map(|total| {
+                let used = item
+                    .get("used-bytes")
+                    .and_then(|x| x.as_u64())
+                    .unwrap_or(0);
+                (total, used)
+            })
+            .or_else(|| {
+                item.get("disk")
+                    .and_then(|d| {
+                        let total = d.get("total-bytes")?.as_u64()?;
+                        let used = d.get("used-bytes").and_then(|x| x.as_u64()).unwrap_or(0);
+                        Some((total, used))
+                    })
+            })
+            .unwrap_or((0, 0));
+        if mountpoint.is_empty() {
+            continue;
+        }
+        out.push(GuestFilesystem {
+            mountpoint,
+            name,
+            fs_type: fstype,
+            total_bytes,
+            used_bytes,
+        });
+    }
+    Ok(out)
+}
+
+#[cfg(not(target_os = "linux"))]
+fn guest_fsinfo_via_agent(_vm_name: &str) -> Result<Vec<GuestFilesystem>, LibvirtError> {
+    Ok(Vec::new())
+}
+
+/// Combined guest agent snapshot for observability APIs.
+pub fn get_guest_observability(conn: &Connect, name: &str) -> Result<GuestInfo, LibvirtError> {
+    let hostname = get_guest_hostname(conn, name).unwrap_or_default();
+    let ip_addresses = get_guest_interfaces(conn, name).unwrap_or_default();
+    let filesystems = get_guest_filesystems(conn, name).unwrap_or_default();
+    Ok(GuestInfo {
+        hostname,
+        os_type: String::new(),
+        os_version: String::new(),
+        ip_addresses,
+        filesystems,
+    })
+}

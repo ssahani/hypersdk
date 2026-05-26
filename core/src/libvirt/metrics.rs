@@ -3,7 +3,8 @@ use virt::connect::Connect;
 use virt::domain::Domain;
 
 use super::domain::lookup_domain;
-use crate::state::VmMetrics;
+use crate::host_linux_obs;
+use crate::state::{VmBlockDeviceMetrics, VmMetrics, VmNetDeviceMetrics};
 use crate::LibvirtError;
 
 // libvirt memory stat tag constants
@@ -100,11 +101,16 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
         0.0
     };
 
-    // Block (disk) stats — try common targets
-    let (disk_rd_bytes, disk_wr_bytes) = collect_block_stats(domain);
-
-    // Network stats — try common interfaces
-    let (net_rx_bytes, net_tx_bytes) = collect_net_stats(domain);
+    let (disks, disk_rd_bytes, disk_wr_bytes) = collect_block_stats(domain);
+    let (nets, net_rx_bytes, net_tx_bytes) = collect_net_stats(domain);
+    let cgroup = {
+        let cg = host_linux_obs::read_vm_cgroup_v2(name);
+        if cg.available {
+            Some(cg)
+        } else {
+            None
+        }
+    };
 
     Ok(VmMetrics {
         name: name.to_string(),
@@ -117,52 +123,71 @@ fn collect_domain_metrics(domain: &Domain, name: &str) -> Result<VmMetrics, Libv
         disk_wr_bytes,
         net_rx_bytes,
         net_tx_bytes,
+        disks,
+        nets,
+        cgroup,
         libvirt_connection: None,
     })
 }
 
-fn collect_block_stats(domain: &Domain) -> (u64, u64) {
+fn collect_block_stats(domain: &Domain) -> (Vec<VmBlockDeviceMetrics>, u64, u64) {
+    let mut disks = Vec::new();
     let mut rd_total: u64 = 0;
     let mut wr_total: u64 = 0;
 
-    // Get actual block device targets from VM XML instead of hardcoded list
     if let Ok(xml) = domain.get_xml_desc(0) {
         for block in crate::xml::split_blocks(&xml, "disk") {
             if let Some(target) = crate::xml::extract_attr(&block, "target", "dev") {
                 if let Ok(stats) = domain.get_block_stats(&target) {
-                    if stats.rd_bytes > 0 {
-                        rd_total += stats.rd_bytes as u64;
-                    }
-                    if stats.wr_bytes > 0 {
-                        wr_total += stats.wr_bytes as u64;
-                    }
+                    let rd_bytes = stats.rd_bytes.max(0) as u64;
+                    let wr_bytes = stats.wr_bytes.max(0) as u64;
+                    let rd_ops = stats.rd_req.max(0) as u64;
+                    let wr_ops = stats.wr_req.max(0) as u64;
+                    rd_total += rd_bytes;
+                    wr_total += wr_bytes;
+                    disks.push(VmBlockDeviceMetrics {
+                        device: target,
+                        rd_bytes,
+                        wr_bytes,
+                        rd_ops,
+                        wr_ops,
+                    });
                 }
             }
         }
     }
 
-    (rd_total, wr_total)
+    disks.sort_by(|a, b| a.device.cmp(&b.device));
+    (disks, rd_total, wr_total)
 }
 
-fn collect_net_stats(domain: &Domain) -> (u64, u64) {
+fn collect_net_stats(domain: &Domain) -> (Vec<VmNetDeviceMetrics>, u64, u64) {
+    let mut nets = Vec::new();
     let mut rx_total: u64 = 0;
     let mut tx_total: u64 = 0;
 
-    // Get actual interface names from VM XML to avoid hardcoded list
     if let Ok(xml) = domain.get_xml_desc(0) {
         for block in crate::xml::split_blocks(&xml, "interface") {
             if let Some(target) = crate::xml::extract_attr(&block, "target", "dev") {
                 if let Ok(stats) = domain.interface_stats(&target) {
-                    if stats.rx_bytes > 0 {
-                        rx_total += stats.rx_bytes as u64;
-                    }
-                    if stats.tx_bytes > 0 {
-                        tx_total += stats.tx_bytes as u64;
-                    }
+                    let rx_bytes = stats.rx_bytes.max(0) as u64;
+                    let tx_bytes = stats.tx_bytes.max(0) as u64;
+                    let rx_packets = stats.rx_packets.max(0) as u64;
+                    let tx_packets = stats.tx_packets.max(0) as u64;
+                    rx_total += rx_bytes;
+                    tx_total += tx_bytes;
+                    nets.push(VmNetDeviceMetrics {
+                        device: target,
+                        rx_bytes,
+                        tx_bytes,
+                        rx_packets,
+                        tx_packets,
+                    });
                 }
             }
         }
     }
 
-    (rx_total, tx_total)
+    nets.sort_by(|a, b| a.device.cmp(&b.device));
+    (nets, rx_total, tx_total)
 }

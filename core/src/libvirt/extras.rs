@@ -1107,8 +1107,7 @@ devtmpfs       devtmpfs   4047020032            0   4047020032   0% /dev\n\
     }
 }
 
-fn parse_cpu_percent() -> f64 {
-    // Read /proc/stat for cpu line
+fn read_cpu_jiffies() -> (u64, u64) {
     let stat = std::fs::read_to_string("/proc/stat").unwrap_or_default();
     let line = stat.lines().next().unwrap_or("");
     let vals: Vec<u64> = line
@@ -1119,14 +1118,40 @@ fn parse_cpu_percent() -> f64 {
     if vals.len() >= 4 {
         let total: u64 = vals.iter().sum();
         let idle = vals[3];
-        if total > 0 {
-            ((total - idle) as f64 / total as f64 * 100.0).min(100.0)
+        (total, idle)
+    } else {
+        (0, 0)
+    }
+}
+
+static LAST_CPU_SAMPLE: std::sync::Mutex<Option<(std::time::Instant, u64, u64)>> =
+    std::sync::Mutex::new(None);
+
+fn parse_cpu_percent() -> f64 {
+    let (total, idle) = read_cpu_jiffies();
+    if total == 0 {
+        return 0.0;
+    }
+    let now = std::time::Instant::now();
+    let mut guard = LAST_CPU_SAMPLE.lock().unwrap_or_else(|e| e.into_inner());
+    let pct = if let Some((t0, tot0, idle0)) = guard.as_ref() {
+        let dt = now.duration_since(*t0).as_secs_f64();
+        if dt >= 0.05 {
+            let dtotal = total.saturating_sub(*tot0) as f64;
+            let didle = idle.saturating_sub(*idle0) as f64;
+            if dtotal > 0.0 {
+                ((dtotal - didle) / dtotal * 100.0).min(100.0)
+            } else {
+                0.0
+            }
         } else {
             0.0
         }
     } else {
         0.0
-    }
+    };
+    *guard = Some((now, total, idle));
+    pct
 }
 
 fn parse_meminfo() -> (u64, u64, u64, u64) {

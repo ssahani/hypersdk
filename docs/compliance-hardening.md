@@ -26,7 +26,7 @@ Use this when preparing Machina for security review (not a certification).
 
 ## Observability
 
-- [ ] Prometheus scrape configured (`/metrics` if enabled)
+- [ ] Prometheus scrape configured (`GET /api/v1/prometheus`)
 - [ ] Optional Grafana dashboard: `contrib/grafana/machina-overview.json`
 
 ## Data

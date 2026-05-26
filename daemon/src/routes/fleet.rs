@@ -25,6 +25,12 @@ struct FleetPeerStatus {
     version: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     vm_count: Option<usize>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    host_cpu_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    host_memory_percent: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    vms_running: Option<u32>,
 }
 
 #[derive(serde::Serialize)]
@@ -86,6 +92,9 @@ async fn fleet_status() -> Json<Value> {
             error: None,
             version: None,
             vm_count: None,
+            host_cpu_percent: None,
+            host_memory_percent: None,
+            vms_running: None,
         };
         match fetch_peer_json(p, "/system/platform-info").await {
             Ok(info) => {
@@ -96,9 +105,26 @@ async fn fleet_status() -> Json<Value> {
                     .map(|s| s.to_string());
                 match fetch_peer_json(p, "/vms").await {
                     Ok(vms) => {
-                        row.vm_count = vms.as_array().map(|a| a.len());
+                        if let Some(arr) = vms.as_array() {
+                            row.vm_count = Some(arr.len());
+                            row.vms_running = Some(
+                                arr.iter()
+                                    .filter(|v| {
+                                        v.get("state")
+                                            .and_then(|s| s.as_str())
+                                            .map(|s| s.eq_ignore_ascii_case("running"))
+                                            .unwrap_or(false)
+                                    })
+                                    .count() as u32,
+                            );
+                        }
                     }
                     Err(e) => row.error = Some(format!("vms: {e}")),
+                }
+                if let Ok(stats) = fetch_peer_json(p, "/host/stats").await {
+                    row.host_cpu_percent = stats.get("cpu_percent").and_then(|v| v.as_f64());
+                    row.host_memory_percent =
+                        stats.get("memory_percent").and_then(|v| v.as_f64());
                 }
             }
             Err(e) => row.error = Some(e),
@@ -152,6 +178,59 @@ async fn fleet_vms(
     }
 
     Ok(Json(json!({ "enabled": cfg.is_enabled(), "vms": rows })))
+}
+
+async fn fleet_metrics(
+    State(manager): State<LibvirtManager>,
+) -> Result<Json<Value>, AppError> {
+    let cfg = fleet_cfg();
+    let local_stats = machina_core::libvirt::extras::get_host_stats();
+    let local_vms = manager.list_all_vms()?;
+    let local_running = local_vms
+        .iter()
+        .filter(|v| v.state.eq_ignore_ascii_case("running"))
+        .count();
+    let mut peers: Vec<Value> = Vec::new();
+    if cfg.is_enabled() {
+        for p in &cfg.peers {
+            let mut row = json!({
+                "name": p.name,
+                "url": p.url,
+                "reachable": false,
+            });
+            if let Ok(stats) = fetch_peer_json(p, "/host/stats").await {
+                row["reachable"] = json!(true);
+                row["host_cpu_percent"] = stats.get("cpu_percent").cloned().unwrap_or(json!(null));
+                row["host_memory_percent"] =
+                    stats.get("memory_percent").cloned().unwrap_or(json!(null));
+                row["load_1"] = stats.get("load_1").cloned().unwrap_or(json!(null));
+            }
+            if let Ok(vms) = fetch_peer_json(p, "/vms").await {
+                row["reachable"] = json!(true);
+                if let Some(arr) = vms.as_array() {
+                    row["vm_count"] = json!(arr.len());
+                    row["vms_running"] = json!(arr.iter().filter(|v| {
+                        v.get("state")
+                            .and_then(|s| s.as_str())
+                            .map(|s| s.eq_ignore_ascii_case("running"))
+                            .unwrap_or(false)
+                    }).count());
+                }
+            }
+            peers.push(row);
+        }
+    }
+    Ok(Json(json!({
+        "enabled": cfg.is_enabled(),
+        "local": {
+            "host_cpu_percent": local_stats.cpu_percent,
+            "host_memory_percent": local_stats.memory_percent,
+            "load_1": local_stats.load_1,
+            "vm_count": local_vms.len(),
+            "vms_running": local_running,
+        },
+        "peers": peers,
+    })))
 }
 
 #[derive(Deserialize)]
@@ -230,6 +309,7 @@ async fn fleet_proxy_action(
 pub fn fleet_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/fleet/status", get(fleet_status))
+        .route("/fleet/metrics", get(fleet_metrics))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))
 }

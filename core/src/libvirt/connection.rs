@@ -226,6 +226,7 @@ impl LibvirtManager {
         }
 
         tracing::warn!("Libvirt connection lost, reconnecting to {}", slot.uri);
+        crate::obs_counters::inc_libvirt_reconnect();
         let _ = conn.close();
         match Self::open_uri(&slot.uri) {
             Ok(new_conn) => {

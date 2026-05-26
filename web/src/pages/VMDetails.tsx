@@ -5,6 +5,7 @@ import {
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
+  getGuestObservability, type GuestObservability,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, convertGraphicsSpiceToVnc, appendVmConnection,
@@ -108,6 +109,7 @@ export default function VMDetailsPage() {
   const [metricsHistory, setMetricsHistory] = useState<MetricsPoint[]>([])
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [guestIps, setGuestIps] = useState<GuestIpAddress[]>([])
+  const [guestObs, setGuestObs] = useState<GuestObservability | null>(null)
   const [networkGateways, setNetworkGateways] = useState<Record<string, string>>({})
   const [guestIfQueriedAt, setGuestIfQueriedAt] = useState<string | null>(null)
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
@@ -293,9 +295,15 @@ export default function VMDetailsPage() {
           setGuestIfQueriedAt(null)
           setNetworkGateways({})
         }
+        try {
+          setGuestObs(await getGuestObservability(name, conn))
+        } catch {
+          setGuestObs(null)
+        }
       } else {
         setMetrics(null)
         setGuestIps([])
+        setGuestObs(null)
         setNetworkGateways({})
         setGuestIfQueriedAt(null)
       }
@@ -1316,6 +1324,40 @@ export default function VMDetailsPage() {
             </div>
           )}
 
+          {guestObs && guestObs.filesystems.length > 0 && (
+            <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
+              <h3 className="text-lg font-semibold">Guest filesystems (qemu-guest-agent)</h3>
+              {guestObs.hostname && (
+                <InfoRow label="Guest hostname" value={guestObs.hostname} />
+              )}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-slate-400 border-b border-slate-700/50">
+                      <th className="py-2 pr-4 font-medium">Mount</th>
+                      <th className="py-2 pr-4 font-medium">Type</th>
+                      <th className="py-2 pr-4 font-medium text-right">Used</th>
+                      <th className="py-2 font-medium text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/40">
+                    {guestObs.filesystems.map((fs) => {
+                      const pct = fs.total_bytes > 0 ? (fs.used_bytes / fs.total_bytes) * 100 : 0
+                      return (
+                        <tr key={fs.mountpoint}>
+                          <td className="py-2 pr-4 font-mono text-slate-200">{fs.mountpoint}</td>
+                          <td className="py-2 pr-4 text-slate-400">{fs.fs_type || '—'}</td>
+                          <td className="py-2 pr-4 text-right text-slate-300">{formatBytes(fs.used_bytes)}</td>
+                          <td className="py-2 text-right text-slate-400">{formatBytes(fs.total_bytes)} ({pct.toFixed(0)}%)</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {metrics && (
             <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
               <h3 className="text-lg font-semibold">Live Metrics</h3>
@@ -1324,6 +1366,16 @@ export default function VMDetailsPage() {
               <InfoRow label="Disk Write" value={formatBytes(metrics.disk_wr_bytes)} />
               <InfoRow label="Net RX" value={formatBytes(metrics.net_rx_bytes)} />
               <InfoRow label="Net TX" value={formatBytes(metrics.net_tx_bytes)} />
+              {metrics.cgroup?.available && metrics.cgroup.memory_current_bytes != null && (
+                <InfoRow
+                  label="Cgroup memory"
+                  value={`${formatBytes(metrics.cgroup.memory_current_bytes)}${
+                    metrics.cgroup.memory_max_bytes != null
+                      ? ` / ${formatBytes(metrics.cgroup.memory_max_bytes)}`
+                      : ''
+                  }`}
+                />
+              )}
               <div className="mt-2">
                 <div className="flex justify-between text-xs text-slate-400 mb-1"><span>Memory</span><span>{metrics.memory_pct.toFixed(0)}%</span></div>
                 <div className="w-full bg-slate-700 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${metrics.memory_pct}%` }} /></div>

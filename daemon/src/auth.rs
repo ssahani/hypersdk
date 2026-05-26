@@ -124,6 +124,15 @@ impl SessionStore {
         }
     }
 
+    /// Non-expired browser cookie sessions (API tokens are not counted).
+    pub fn active_session_count(&self) -> usize {
+        let sessions = self.sessions.lock().unwrap_or_else(|e| e.into_inner());
+        sessions
+            .values()
+            .filter(|d| d.created_at.elapsed().as_secs() < SESSION_TTL_SECS)
+            .count()
+    }
+
     fn create_session(&self, actor: RequestActor) -> String {
         let mut rng = rand::thread_rng();
         let token_bytes: [u8; 32] = rng.gen();
@@ -669,6 +678,7 @@ struct LoginRequest {
 async fn login_handler(
     Extension(store): Extension<SessionStore>,
     Extension(auth): Extension<OidcAuth>,
+    Extension(stats): Extension<std::sync::Arc<crate::daemon_stats::DaemonStats>>,
     Json(req): Json<LoginRequest>,
 ) -> Response {
     if req.username.is_empty() || req.password.is_empty() {
@@ -699,6 +709,7 @@ async fn login_handler(
                     AuthSource::Ldap,
                 ));
                 let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+                stats.inc_auth_attempt("ldap", "success");
                 return (
                     StatusCode::OK,
                     [(header::SET_COOKIE, cookie)],
@@ -713,6 +724,7 @@ async fn login_handler(
             }
             Err(e) => {
                 warn!("LDAP login failed for user '{}': {}", req.username, e);
+                stats.inc_auth_attempt("ldap", "failure");
                 return (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Invalid username or password", "error_code": "unauthorized" }))).into_response();
             }
         }
@@ -728,6 +740,7 @@ async fn login_handler(
                 AuthSource::Pam,
             ));
             let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
+            stats.inc_auth_attempt("pam", "success");
             (
                 StatusCode::OK,
                 [(header::SET_COOKIE, cookie)],
@@ -741,6 +754,7 @@ async fn login_handler(
         }
         Err(e) => {
             warn!("PAM login failed for user '{}': {}", req.username, e);
+            stats.inc_auth_attempt("pam", "failure");
             (StatusCode::UNAUTHORIZED, Json(serde_json::json!({ "error": "Invalid username or password", "error_code": "unauthorized" }))).into_response()
         }
     }
@@ -855,6 +869,7 @@ async fn oidc_login_handler(
 async fn oidc_callback_handler(
     Extension(store): Extension<SessionStore>,
     Extension(auth): Extension<OidcAuth>,
+    Extension(stats): Extension<std::sync::Arc<crate::daemon_stats::DaemonStats>>,
     Query(query): Query<OidcCallbackQuery>,
 ) -> Response {
     let cfg = &auth.0.oidc;
@@ -870,12 +885,14 @@ async fn oidc_callback_handler(
             .error_description
             .unwrap_or_else(|| "OIDC provider rejected the login".to_string());
         warn!("OIDC callback error '{}': {}", err, msg);
+        stats.inc_auth_attempt("oidc", "failure");
         return axum::response::Redirect::temporary("/login?error=oidc").into_response();
     }
 
     let state = match query.state {
         Some(state) if !state.is_empty() => state,
         _ => {
+            stats.inc_auth_attempt("oidc", "failure");
             return AppError::from(LibvirtError::Forbidden(
                 "OIDC callback missing state".into(),
             ))
@@ -885,6 +902,7 @@ async fn oidc_callback_handler(
     let expected_nonce = match store.take_oidc_state(&state) {
         Some(nonce) => nonce,
         None => {
+            stats.inc_auth_attempt("oidc", "failure");
             return AppError::from(LibvirtError::Forbidden(
                 "OIDC state is invalid or expired".into(),
             ))
@@ -894,6 +912,7 @@ async fn oidc_callback_handler(
     let code = match query.code {
         Some(code) if !code.is_empty() => code,
         _ => {
+            stats.inc_auth_attempt("oidc", "failure");
             return AppError::from(LibvirtError::Forbidden("OIDC callback missing code".into()))
                 .into_response();
         }
@@ -925,6 +944,7 @@ async fn oidc_callback_handler(
         }
     };
     if !token_res.status().is_success() {
+        stats.inc_auth_attempt("oidc", "failure");
         return AppError::from(LibvirtError::Forbidden(format!(
             "OIDC token endpoint returned HTTP {}",
             token_res.status()
@@ -943,6 +963,7 @@ async fn oidc_callback_handler(
     let id_token = match token_body.id_token {
         Some(token) if !token.is_empty() => token,
         _ => {
+            stats.inc_auth_attempt("oidc", "failure");
             return AppError::from(LibvirtError::Forbidden(
                 "OIDC token response did not include id_token".into(),
             ))
@@ -956,7 +977,10 @@ async fn oidc_callback_handler(
     let (username, effective_linux_user, role) =
         match validate_oidc_id_token(&id_token, &jwks, &discovery, cfg, &expected_nonce) {
             Ok(actor) => actor,
-            Err(e) => return e.into_response(),
+            Err(e) => {
+                stats.inc_auth_attempt("oidc", "failure");
+                return e.into_response();
+            }
         };
 
     let token = store.create_session(browser_actor(
@@ -967,6 +991,7 @@ async fn oidc_callback_handler(
     ));
     let cookie = format!("machina_session={token}; Path=/; HttpOnly; SameSite=Strict");
     info!("OIDC login successful for user '{}'", username);
+    stats.inc_auth_attempt("oidc", "success");
     (
         StatusCode::TEMPORARY_REDIRECT,
         [(header::SET_COOKIE, cookie), (header::LOCATION, "/".to_string())],

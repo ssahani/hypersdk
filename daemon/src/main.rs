@@ -1,5 +1,9 @@
 mod auth;
 mod ldap_auth;
+mod automation_worker;
+mod daemon_stats;
+mod http_metrics;
+mod metrics_history;
 mod cluster_bootstrap;
 mod conn_query;
 mod error;
@@ -16,6 +20,7 @@ mod server;
 mod systemd;
 mod terminal;
 mod virt_image_validate;
+mod vm_events;
 
 use clap::Parser;
 use machina_core::{LibvirtManager, MachinaConfig};
@@ -83,6 +88,8 @@ async fn main() -> anyhow::Result<()> {
         config.libvirt.uri = uri;
     }
 
+    machina_core::audit::configure_rotation(config.audit.clone());
+
     let manager = LibvirtManager::new(&config.libvirt).map_err(|e| anyhow::anyhow!("{e}"))?;
 
     info!("Connected to libvirt ({})", manager.primary_uri_display());
@@ -123,6 +130,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     inventory_history::spawn_inventory_history_worker(manager.clone(), config.inventory_history.clone());
+    automation_worker::spawn_automation_worker(manager.clone());
 
     let bind_addr = config.bind_addr();
     let tls_enabled =

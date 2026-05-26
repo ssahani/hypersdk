@@ -29,6 +29,7 @@ use crate::job_registry::JobRegistry;
 use crate::hyper2kvm_exec;
 use crate::kubevirt_exec;
 use crate::routes::events::{EventBus, MachinaEvent};
+use crate::vm_events;
 use std::sync::Arc;
 
 /// Bounded queue between host log producers and the SSE bridge (backpressure; avoids unbounded RAM).
@@ -458,6 +459,7 @@ async fn start_vm(
     let name2 = name.clone();
     spawn_libvirt(manager, conn_q, move |conn| domain::start_vm(conn, &name2)).await?;
     log_audit("start", &name, "ok");
+    vm_events::emit_vm_started(&name);
     Ok(ok_json("started", &name))
 }
 
@@ -469,6 +471,7 @@ async fn stop_vm(
     let name2 = name.clone();
     spawn_libvirt(manager, conn_q, move |conn| domain::stop_vm(conn, &name2)).await?;
     log_audit("stop", &name, "ok");
+    vm_events::emit_vm_stopped(&name);
     Ok(ok_json("stopped", &name))
 }
 
@@ -483,6 +486,7 @@ async fn shutdown_vm(
     })
     .await?;
     log_audit("shutdown", &name, "ok");
+    vm_events::emit_vm_shutdown(&name);
     Ok(ok_json("shutting down", &name))
 }
 
@@ -493,6 +497,7 @@ async fn reboot_vm(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     spawn_libvirt(manager, conn_q, move |conn| domain::reboot_vm(conn, &name2)).await?;
+    vm_events::emit_vm_reboot(&name);
     Ok(ok_json("rebooting", &name))
 }
 
@@ -503,6 +508,7 @@ async fn pause_vm(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     spawn_libvirt(manager, conn_q, move |conn| domain::pause_vm(conn, &name2)).await?;
+    vm_events::emit_vm_paused(&name);
     Ok(ok_json("paused", &name))
 }
 
@@ -513,6 +519,7 @@ async fn resume_vm(
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     spawn_libvirt(manager, conn_q, move |conn| domain::resume_vm(conn, &name2)).await?;
+    vm_events::emit_vm_resumed(&name);
     Ok(ok_json("resumed", &name))
 }
 
@@ -561,6 +568,7 @@ async fn delete_vm_handler(
     })
     .await?;
     log_audit_with_actor(Some(&actor.username), "delete", &name, "ok");
+    vm_events::emit_vm_deleted(&name);
     Ok(ok_json("deleted", &name))
 }
 

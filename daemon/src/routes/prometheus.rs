@@ -1,12 +1,24 @@
-use axum::extract::State;
+use axum::extract::{Extension, State};
 use axum::http::header;
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::Router;
+use std::collections::HashMap;
 use std::fmt::Display;
+use std::sync::{Arc, Mutex};
+use std::time::Instant;
 
+use machina_core::host_linux_obs;
+use machina_core::libvirt::extras::get_host_stats;
 use machina_core::libvirt::node;
-use machina_core::LibvirtManager;
+use machina_core::{
+    LibvirtManager, VmBlockDeviceMetrics, VmInfo, VmMetrics, VmNetDeviceMetrics,
+};
+
+use crate::daemon_stats::DaemonStats;
+use crate::http_metrics::HttpMetrics;
+
+static LAST_VM_CPU: Mutex<Option<HashMap<String, (Instant, u64)>>> = Mutex::new(None);
 
 fn add_gauge(output: &mut String, name: &str, help: &str, value: impl Display) {
     output.push_str(&format!(
@@ -20,18 +32,54 @@ fn escape_label(s: &str) -> String {
         .replace('\n', "\\n")
 }
 
-fn add_labeled(output: &mut String, name: &str, label: &str, value: impl Display) {
-    output.push_str(&format!(
-        "{name}{{vm=\"{}\"}} {value}\n",
-        escape_label(label)
-    ));
+fn add_labeled(output: &mut String, name: &str, labels: &str, value: impl Display) {
+    output.push_str(&format!("{name}{{{labels}}} {value}\n"));
 }
 
-fn vm_prom_label(m: &machina_core::VmMetrics) -> String {
+fn vm_prom_label(m: &VmMetrics) -> String {
     match &m.libvirt_connection {
         Some(c) => format!("{c}/{}", m.name),
         None => m.name.clone(),
     }
+}
+
+fn vm_info_label(vm: &VmInfo) -> String {
+    match &vm.libvirt_connection {
+        Some(c) => format!("{c}/{}", vm.name),
+        None => vm.name.clone(),
+    }
+}
+
+fn vm_state_code(state: &str) -> u32 {
+    match state.to_ascii_lowercase().as_str() {
+        "running" => 1,
+        "paused" => 2,
+        "shutting down" => 3,
+        "shutoff" => 0,
+        "crashed" => 4,
+        "blocked" => 5,
+        "suspended" => 6,
+        _ => 99,
+    }
+}
+
+fn vm_cpu_util_pct(m: &VmMetrics) -> f64 {
+    let mut guard = LAST_VM_CPU.lock().unwrap_or_else(|e| e.into_inner());
+    let map = guard.get_or_insert_with(HashMap::new);
+    let now = Instant::now();
+    let pct = if let Some((t0, cpu0)) = map.get(&m.name) {
+        let dt = now.duration_since(*t0).as_secs_f64();
+        if dt > 0.1 {
+            let dcpu = m.cpu_time_ns.saturating_sub(*cpu0) as f64 / 1_000_000_000.0;
+            (dcpu / dt / m.vcpus.max(1) as f64 * 100.0).min(100.0)
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+    map.insert(m.name.clone(), (now, m.cpu_time_ns));
+    pct
 }
 
 fn add_vm_metric(
@@ -39,29 +87,198 @@ fn add_vm_metric(
     name: &str,
     help: &str,
     metric_type: &str,
-    vm_metrics: &[machina_core::VmMetrics],
-    extract: impl Fn(&machina_core::VmMetrics) -> String,
+    vm_metrics: &[VmMetrics],
+    extract: impl Fn(&VmMetrics) -> String,
 ) {
     output.push_str(&format!(
         "# HELP {name} {help}\n# TYPE {name} {metric_type}\n"
     ));
     for m in vm_metrics {
-        add_labeled(output, name, &vm_prom_label(m), extract(m));
+        let label = escape_label(&vm_prom_label(m));
+        add_labeled(output, name, &format!("vm=\"{label}\""), extract(m));
     }
 }
 
-async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoResponse {
+fn add_vm_disk_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
+    output.push_str(
+        "# HELP machina_vm_disk_read_bytes_total Per-disk read bytes\n\
+         # TYPE machina_vm_disk_read_bytes_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_disk_write_bytes_total Per-disk write bytes\n\
+         # TYPE machina_vm_disk_write_bytes_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_disk_read_ops_total Per-disk read operations\n\
+         # TYPE machina_vm_disk_read_ops_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_disk_write_ops_total Per-disk write operations\n\
+         # TYPE machina_vm_disk_write_ops_total counter\n",
+    );
+    for m in vm_metrics {
+        let vm = escape_label(&vm_prom_label(m));
+        for d in &m.disks {
+            emit_disk_metric(output, "machina_vm_disk_read_bytes_total", &vm, d, d.rd_bytes);
+            emit_disk_metric(output, "machina_vm_disk_write_bytes_total", &vm, d, d.wr_bytes);
+            emit_disk_metric(output, "machina_vm_disk_read_ops_total", &vm, d, d.rd_ops);
+            emit_disk_metric(output, "machina_vm_disk_write_ops_total", &vm, d, d.wr_ops);
+        }
+    }
+}
+
+fn emit_disk_metric(
+    output: &mut String,
+    name: &str,
+    vm: &str,
+    d: &VmBlockDeviceMetrics,
+    value: u64,
+) {
+    let device = escape_label(&d.device);
+    add_labeled(
+        output,
+        name,
+        &format!("vm=\"{vm}\",device=\"{device}\""),
+        value,
+    );
+}
+
+fn add_vm_net_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
+    output.push_str(
+        "# HELP machina_vm_net_rx_bytes_total Per-interface RX bytes\n\
+         # TYPE machina_vm_net_rx_bytes_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_net_tx_bytes_total Per-interface TX bytes\n\
+         # TYPE machina_vm_net_tx_bytes_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_net_rx_packets_total Per-interface RX packets\n\
+         # TYPE machina_vm_net_rx_packets_total counter\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_net_tx_packets_total Per-interface TX packets\n\
+         # TYPE machina_vm_net_tx_packets_total counter\n",
+    );
+    for m in vm_metrics {
+        let vm = escape_label(&vm_prom_label(m));
+        for n in &m.nets {
+            emit_net_metric(output, "machina_vm_net_rx_bytes_total", &vm, n, n.rx_bytes);
+            emit_net_metric(output, "machina_vm_net_tx_bytes_total", &vm, n, n.tx_bytes);
+            emit_net_metric(
+                output,
+                "machina_vm_net_rx_packets_total",
+                &vm,
+                n,
+                n.rx_packets,
+            );
+            emit_net_metric(
+                output,
+                "machina_vm_net_tx_packets_total",
+                &vm,
+                n,
+                n.tx_packets,
+            );
+        }
+    }
+}
+
+fn emit_net_metric(
+    output: &mut String,
+    name: &str,
+    vm: &str,
+    n: &VmNetDeviceMetrics,
+    value: u64,
+) {
+    let device = escape_label(&n.device);
+    add_labeled(
+        output,
+        name,
+        &format!("vm=\"{vm}\",device=\"{device}\""),
+        value,
+    );
+}
+
+fn add_vm_cgroup_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
+    let mut any = false;
+    for m in vm_metrics {
+        if let Some(cg) = &m.cgroup {
+            if !cg.available {
+                continue;
+            }
+            any = true;
+            break;
+        }
+    }
+    if !any {
+        return;
+    }
+    output.push_str(
+        "# HELP machina_vm_cgroup_memory_current_bytes VM cgroup memory.current\n\
+         # TYPE machina_vm_cgroup_memory_current_bytes gauge\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_cgroup_memory_max_bytes VM cgroup memory.max\n\
+         # TYPE machina_vm_cgroup_memory_max_bytes gauge\n",
+    );
+    output.push_str(
+        "# HELP machina_vm_cgroup_cpu_usage_seconds_total VM cgroup CPU usage seconds\n\
+         # TYPE machina_vm_cgroup_cpu_usage_seconds_total gauge\n",
+    );
+    for m in vm_metrics {
+        let Some(cg) = m.cgroup.as_ref() else {
+            continue;
+        };
+        if !cg.available {
+            continue;
+        }
+        let vm = escape_label(&vm_prom_label(m));
+        if let Some(b) = cg.memory_current_bytes {
+            add_labeled(
+                output,
+                "machina_vm_cgroup_memory_current_bytes",
+                &format!("vm=\"{vm}\""),
+                b,
+            );
+        }
+        if let Some(b) = cg.memory_max_bytes {
+            add_labeled(
+                output,
+                "machina_vm_cgroup_memory_max_bytes",
+                &format!("vm=\"{vm}\""),
+                b,
+            );
+        }
+        if let Some(u) = cg.cpu_usage_usec {
+            add_labeled(
+                output,
+                "machina_vm_cgroup_cpu_usage_seconds_total",
+                &format!("vm=\"{vm}\""),
+                format!("{:.3}", u as f64 / 1_000_000.0),
+            );
+        }
+    }
+}
+
+async fn prometheus_metrics(
+    State(manager): State<LibvirtManager>,
+    Extension(stats): Extension<Arc<DaemonStats>>,
+    Extension(http_metrics): Extension<Arc<HttpMetrics>>,
+) -> impl IntoResponse {
+    stats.inc_prometheus_scrape();
     let mut output = String::new();
 
-    // Collect both node info and VM metrics in a single spawn_blocking call
     let m = manager.clone();
     let data = tokio::task::spawn_blocking(move || {
         let node_info = m.with_conn(node::get_node_info).ok();
         let vm_metrics = m.merge_all_metrics().ok();
-        (node_info, vm_metrics)
+        let vms = m.list_all_vms().ok();
+        let host_stats = Some(get_host_stats());
+        let cgroup = host_linux_obs::read_cgroup_v2_self();
+        (node_info, vm_metrics, vms, host_stats, cgroup)
     })
     .await
-    .unwrap_or((None, None));
+    .unwrap_or((None, None, None, None, host_linux_obs::CgroupV2Stats::default()));
 
     if let Some(info) = data.0 {
         add_gauge(
@@ -90,6 +307,64 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
         );
     }
 
+    if let Some(h) = data.3 {
+        add_gauge(
+            &mut output,
+            "machina_host_cpu_percent",
+            "Host CPU utilization percent",
+            format!("{:.2}", h.cpu_percent),
+        );
+        add_gauge(
+            &mut output,
+            "machina_host_memory_percent",
+            "Host memory utilization percent",
+            format!("{:.2}", h.memory_percent),
+        );
+        add_gauge(
+            &mut output,
+            "machina_host_disk_percent",
+            "Root filesystem utilization percent",
+            format!("{:.2}", h.disk_percent),
+        );
+        add_gauge(
+            &mut output,
+            "machina_host_load_1",
+            "1-minute load average",
+            format!("{:.2}", h.load_1),
+        );
+        add_gauge(
+            &mut output,
+            "machina_host_load_5",
+            "5-minute load average",
+            format!("{:.2}", h.load_5),
+        );
+        add_gauge(
+            &mut output,
+            "machina_host_uptime_seconds",
+            "Host uptime seconds",
+            h.uptime_secs,
+        );
+        add_gauge(
+            &mut output,
+            "machina_host_processes",
+            "Process count",
+            h.processes,
+        );
+    }
+
+    if let Some(vms) = &data.2 {
+        output.push_str("# HELP machina_vm_state VM state code (0=shutoff 1=running 2=paused)\n# TYPE machina_vm_state gauge\n");
+        for vm in vms {
+            let label = escape_label(&vm_info_label(vm));
+            add_labeled(
+                &mut output,
+                "machina_vm_state",
+                &format!("vm=\"{label}\""),
+                vm_state_code(&vm.state),
+            );
+        }
+    }
+
     if let Some(vm_metrics) = data.1 {
         add_vm_metric(
             &mut output,
@@ -98,6 +373,14 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
             "counter",
             &vm_metrics,
             |m| format!("{:.3}", m.cpu_time_ns as f64 / 1_000_000_000.0),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_cpu_percent",
+            "Derived VM CPU utilization percent",
+            "gauge",
+            &vm_metrics,
+            |m| format!("{:.2}", vm_cpu_util_pct(m)),
         );
         add_vm_metric(
             &mut output,
@@ -114,6 +397,14 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
             "gauge",
             &vm_metrics,
             |m| m.memory_total_mb.to_string(),
+        );
+        add_vm_metric(
+            &mut output,
+            "machina_vm_memory_percent",
+            "Memory utilization percent",
+            "gauge",
+            &vm_metrics,
+            |m| format!("{:.2}", m.memory_pct),
         );
         add_vm_metric(
             &mut output,
@@ -147,7 +438,89 @@ async fn prometheus_metrics(State(manager): State<LibvirtManager>) -> impl IntoR
             &vm_metrics,
             |m| m.net_tx_bytes.to_string(),
         );
+        add_vm_disk_metrics(&mut output, &vm_metrics);
+        add_vm_net_metrics(&mut output, &vm_metrics);
+        add_vm_cgroup_metrics(&mut output, &vm_metrics);
     }
+
+    add_gauge(
+        &mut output,
+        "machina_daemon_uptime_seconds",
+        "Daemon process uptime",
+        stats.uptime_seconds(),
+    );
+    add_gauge(
+        &mut output,
+        "machina_daemon_active_sessions",
+        "Active browser cookie sessions",
+        stats.active_sessions(),
+    );
+    add_gauge(
+        &mut output,
+        "machina_daemon_auth_failures_total",
+        "Cumulative failed login attempts",
+        stats.auth_failures(),
+    );
+    add_gauge(
+        &mut output,
+        "machina_daemon_prometheus_scrapes_total",
+        "Prometheus scrape requests served",
+        stats.prometheus_scrapes(),
+    );
+    add_gauge(
+        &mut output,
+        "machina_libvirt_reconnects_total",
+        "Libvirt reconnect attempts",
+        stats.libvirt_reconnects(),
+    );
+
+    let cgroup = data.4;
+    if cgroup.available {
+        if let Some(b) = cgroup.memory_current_bytes {
+            add_gauge(
+                &mut output,
+                "machina_cgroup_memory_current_bytes",
+                "Daemon cgroup memory.current",
+                b,
+            );
+        }
+        if let Some(b) = cgroup.memory_max_bytes {
+            add_gauge(
+                &mut output,
+                "machina_cgroup_memory_max_bytes",
+                "Daemon cgroup memory.max",
+                b,
+            );
+        }
+        if let Some(u) = cgroup.cpu_usage_usec {
+            add_gauge(
+                &mut output,
+                "machina_cgroup_cpu_usage_seconds_total",
+                "Daemon cgroup CPU usage seconds",
+                format!("{:.3}", u as f64 / 1_000_000.0),
+            );
+        }
+    }
+
+    let thermal = host_linux_obs::read_hwmon_temps();
+    if !thermal.is_empty() {
+        output.push_str(
+            "# HELP machina_host_hwmon_temp_celsius Hardware temperature from /sys/class/hwmon\n\
+             # TYPE machina_host_hwmon_temp_celsius gauge\n",
+        );
+        for t in thermal {
+            let labels = format!("sensor=\"{}\"", escape_label(&t.sensor));
+            add_labeled(
+                &mut output,
+                "machina_host_hwmon_temp_celsius",
+                &labels,
+                format!("{:.2}", t.temp_celsius),
+            );
+        }
+    }
+
+    output.push_str(&http_metrics.render_prometheus());
+    output.push_str(&stats.render_auth_prometheus());
 
     (
         [(

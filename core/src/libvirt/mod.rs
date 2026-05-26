@@ -1,4 +1,5 @@
 pub mod automation;
+pub mod automation_runner;
 pub mod block_jobs;
 pub mod boot;
 pub mod capabilities;

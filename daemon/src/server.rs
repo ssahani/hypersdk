@@ -13,13 +13,28 @@ use tower_http::set_header::SetResponseHeaderLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::auth::{self, SessionStore};
+use crate::daemon_stats::DaemonStats;
+use crate::http_metrics::{self, HttpMetrics};
 use crate::job_registry::JobRegistry;
+use crate::metrics_history::MetricsHistoryStore;
 use crate::routes;
 use crate::terminal::{self, TerminalSessionStore};
 
 pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
     let web_dir = find_web_dist();
     let session_store = SessionStore::new();
+    let daemon_stats = Arc::new(DaemonStats::new({
+        let s = session_store.clone();
+        move || s.active_session_count()
+    }));
+    let http_metrics = Arc::new(HttpMetrics::new());
+    let metrics_history_store =
+        MetricsHistoryStore::new(config.metrics_history.max_points);
+    crate::metrics_history::spawn_metrics_history_worker(
+        manager.clone(),
+        metrics_history_store.clone(),
+        config.metrics_history.clone(),
+    );
     let terminal_store = TerminalSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();
     let auth_cfg = config.auth.clone();
@@ -43,6 +58,9 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         .layer(Extension(event_bus))
         .layer(Extension(vib_build_slots))
         .layer(Extension(k8s_inventory_history_cfg.clone()))
+        .layer(Extension(daemon_stats.clone()))
+        .layer(Extension(http_metrics.clone()))
+        .layer(Extension(metrics_history_store.clone()))
         .route_layer(middleware::from_fn_with_state(
             session_store.clone(),
             auth::auth_middleware,
@@ -86,7 +104,10 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         router = router.fallback_service(static_ui);
     }
 
-    router.layer(TraceLayer::new_for_http())
+    router
+        .layer(Extension(http_metrics))
+        .layer(middleware::from_fn(http_metrics::record_request))
+        .layer(TraceLayer::new_for_http())
 }
 
 fn find_web_dist() -> Option<PathBuf> {

@@ -7,6 +7,7 @@ import {
   readJsonObject,
   apiGetText,
 } from './client'
+import type { VmCgroupStats } from './extras'
 import { streamResponseError } from './streamResponseError'
 import { formatUserError } from '../utils/apiError'
 
@@ -132,6 +133,22 @@ export interface FilesystemInfo {
   xattr?: boolean
 }
 
+export interface VmBlockDeviceMetrics {
+  device: string
+  rd_bytes: number
+  wr_bytes: number
+  rd_ops: number
+  wr_ops: number
+}
+
+export interface VmNetDeviceMetrics {
+  device: string
+  rx_bytes: number
+  tx_bytes: number
+  rx_packets: number
+  tx_packets: number
+}
+
 export interface VmMetrics {
   name: string
   cpu_time_ns: number
@@ -143,6 +160,9 @@ export interface VmMetrics {
   disk_wr_bytes: number
   net_rx_bytes: number
   net_tx_bytes: number
+  disks?: VmBlockDeviceMetrics[]
+  nets?: VmNetDeviceMetrics[]
+  cgroup?: VmCgroupStats | null
   /** When dual libvirt is enabled (`system` | `session`). */
   libvirt_connection?: string | null
 }
@@ -516,6 +536,20 @@ export const renameVM = (name: string, newName: string, connection?: string | nu
 export const getMetrics = () => readJsonArray<VmMetrics>(`${API}/metrics`)
 export const getVMMetrics = (name: string, connection?: string | null) =>
   readJsonObject<VmMetrics>(appendVmConnection(`${API}/metrics/${encodeURIComponent(name)}`, connection))
+
+export interface MetricsHistoryPoint {
+  timestamp_ms: number
+  host_cpu_percent: number
+  host_memory_percent: number
+  host_disk_percent: number
+  load_1: number
+  vms_running: number
+  vm_count: number
+  vm_metrics: VmMetrics[]
+}
+
+export const getMetricsHistory = (limit = 60) =>
+  readJsonObject<{ points: MetricsHistoryPoint[] }>(`${API}/metrics/history?limit=${limit}`)
 export const getTemplates = () => readJsonArray<VmTemplate>(`${API}/templates`)
 
 export interface GuestIpAddress {
@@ -565,6 +599,27 @@ export const getInterfaces = (name: string, connection?: string | null) =>
 export const getHostname = (name: string, connection?: string | null) =>
   readJsonObject<{ hostname: string }>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/hostname`, connection),
+  )
+
+export interface GuestFilesystemMetric {
+  mountpoint: string
+  name: string
+  fs_type: string
+  total_bytes: number
+  used_bytes: number
+}
+
+export interface GuestObservability {
+  hostname: string
+  os_type: string
+  os_version: string
+  ip_addresses: GuestIpAddress[]
+  filesystems: GuestFilesystemMetric[]
+}
+
+export const getGuestObservability = (name: string, connection?: string | null) =>
+  readJsonObject<GuestObservability>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest-observability`, connection),
   )
 export const insertCdrom = (name: string, isoPath: string, target: string, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, connection), {

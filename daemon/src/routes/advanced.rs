@@ -95,6 +95,19 @@ async fn get_hostname(
     Ok(Json(serde_json::json!({ "hostname": h })))
 }
 
+async fn get_guest_observability(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let info = spawn_libvirt(manager, conn_q, move |conn| {
+        guest_agent::get_guest_observability(conn, &name2)
+    })
+    .await?;
+    Ok(Json(serde_json::json!(info)))
+}
+
 // ── CD-ROM ──────────────────────────────────────────────────────────
 
 #[derive(serde::Deserialize)]
@@ -883,6 +896,7 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         // Guest agent
         .route("/vms/{name}/interfaces", get(get_interfaces))
         .route("/vms/{name}/hostname", get(get_hostname))
+        .route("/vms/{name}/guest-observability", get(get_guest_observability))
         // CD-ROM
         .route("/vms/{name}/cdrom/insert", post(insert_cdrom_handler))
         .route(

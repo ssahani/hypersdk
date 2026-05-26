@@ -20,7 +20,7 @@ const VIR_DOMAIN_SHUTOFF: u32 = 5;
 const VIR_DOMAIN_CRASHED: u32 = 6;
 const VIR_DOMAIN_PMSUSPENDED: u32 = 7;
 
-fn state_to_string(state: u32) -> String {
+pub(crate) fn state_to_string(state: u32) -> String {
     match state {
         VIR_DOMAIN_NOSTATE => "no state".to_string(),
         VIR_DOMAIN_RUNNING => "running".to_string(),

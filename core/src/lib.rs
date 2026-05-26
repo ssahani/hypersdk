@@ -5,9 +5,11 @@ pub mod build_precheck;
 pub mod config;
 pub mod fmt;
 pub mod host_inventory;
+pub mod host_linux_obs;
 pub mod host_platform;
 pub mod host_virt;
 pub mod ldap_role;
+pub mod obs_counters;
 pub mod kubevirt;
 pub mod openstack;
 pub mod libvirt;
@@ -54,7 +56,7 @@ pub use state::{
     NodeInfo, NotifyLevel, ObjectTab, RenameVmRequest, ResourceView, RestoreRequest,
     OpenStackCreateStep, OpenStackCreateWizard, SidebarCategory, SidebarItem, SnapshotInfo,
     SortColumn, SortDirection, StoragePoolInfo, StorageVolumeInfo, ViewMode, VmDetails, VmInfo,
-    VmMetrics, VmTemplate,
+    VmBlockDeviceMetrics, VmMetrics, VmNetDeviceMetrics, VmTemplate,
 };
 
 pub const UNKNOWN: &str = "unknown";

@@ -3,6 +3,8 @@ import { Link } from 'react-router'
 import { getNodeInfo, getHealth, NodeInfo, HealthStatus } from '../api/node'
 import {
   getHostStats,
+  getHostLinuxObservability,
+  type LinuxHostObservability,
   HostStats,
   getSystemInfo,
   setHostname,
@@ -185,6 +187,7 @@ export default function NodeInfoPage() {
   const [hardwareInventory, setHardwareInventory] = useState<HardwareInventoryReport | null>(null)
   const [hardwareInventoryHistory, setHardwareInventoryHistory] =
     useState<HardwareInventoryHistoryResponse | null>(null)
+  const [linuxObs, setLinuxObs] = useState<LinuxHostObservability | null>(null)
 
   const canKillHostProcess = sessionRole === 'admin'
 
@@ -205,8 +208,9 @@ export default function NodeInfoPage() {
       getHostLibvirtBoot(),
       getHardwareInventory(),
       getHardwareInventoryHistory(48),
+      getHostLinuxObservability(),
     ])
-      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb, hi, hh]) => {
+      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb, hi, hh, lo]) => {
         if (n.status === 'fulfilled') setNode(n.value)
         if (h.status === 'fulfilled') setHealth(h.value)
         if (si.status === 'fulfilled') setSysInfo(si.value)
@@ -243,6 +247,8 @@ export default function NodeInfoPage() {
         else setHardwareInventory(null)
         if (hh.status === 'fulfilled') setHardwareInventoryHistory(hh.value)
         else setHardwareInventoryHistory(null)
+        if (lo.status === 'fulfilled') setLinuxObs(lo.value)
+        else setLinuxObs(null)
         if (s.status === 'fulfilled') {
           setStats(s.value)
           const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -1277,6 +1283,121 @@ export default function NodeInfoPage() {
                   {pkgActionResult.stderr ? `--- stderr ---\n${pkgActionResult.stderr}` : ''}
                 </pre>
               )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {linuxObs?.pressure.available && (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-3">
+          <h3 className="text-lg font-semibold">Resource pressure (PSI)</h3>
+          <p className="text-xs text-slate-500">From <code className="text-slate-600">/proc/pressure/*</code> — Linux kernel stall metrics (same on all distros with PSI enabled).</p>
+          <div className="grid sm:grid-cols-3 gap-4 text-sm">
+            <div>
+              <div className="text-slate-500 mb-1">CPU</div>
+              <div className="text-slate-200">some {linuxObs.pressure.cpu.some.toFixed(1)}% · full {linuxObs.pressure.cpu.full.toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-slate-500 mb-1">Memory</div>
+              <div className="text-slate-200">some {linuxObs.pressure.memory.some.toFixed(1)}% · full {linuxObs.pressure.memory.full.toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-slate-500 mb-1">I/O</div>
+              <div className="text-slate-200">some {linuxObs.pressure.io.some.toFixed(1)}% · full {linuxObs.pressure.io.full.toFixed(1)}%</div>
+            </div>
+          </div>
+          {linuxObs.disk_io.length > 0 && (
+            <div className="pt-2 border-t border-slate-700/50">
+              <div className="text-slate-500 text-xs mb-2">Block devices (/proc/diskstats)</div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-slate-400 text-left">
+                      <th className="py-1 pr-3">Device</th>
+                      <th className="py-1 pr-3 text-right">Read</th>
+                      <th className="py-1 text-right">Write</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linuxObs.disk_io.slice(0, 8).map((d) => (
+                      <tr key={d.device} className="border-t border-slate-700/30">
+                        <td className="py-1 pr-3 font-mono text-slate-300">{d.device}</td>
+                        <td className="py-1 pr-3 text-right text-slate-400">{formatBytes(d.read_bytes)}</td>
+                        <td className="py-1 text-right text-slate-400">{formatBytes(d.write_bytes)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+          {linuxObs.smart.some((s) => s.probed) && (
+            <div className="pt-2 border-t border-slate-700/50 space-y-1">
+              <div className="text-slate-500 text-xs">SMART (smartctl -H)</div>
+              {linuxObs.smart.filter((s) => s.probed).map((s) => (
+                <div key={s.device} className={`text-xs ${s.passed ? 'text-green-400' : 'text-red-400'}`}>
+                  {s.device}: {s.summary || (s.passed ? 'PASSED' : 'FAILED')}
+                </div>
+              ))}
+            </div>
+          )}
+          {linuxObs.cgroup?.available && (
+            <div className="pt-2 border-t border-slate-700/50 text-sm">
+              <div className="text-slate-500 text-xs mb-1">Daemon cgroup v2 ({linuxObs.cgroup.unified_path || 'self'})</div>
+              {linuxObs.cgroup.memory_current_bytes != null && (
+                <div className="text-slate-300">
+                  memory.current {formatBytes(linuxObs.cgroup.memory_current_bytes)}
+                  {linuxObs.cgroup.memory_max_bytes != null
+                    ? ` / ${formatBytes(linuxObs.cgroup.memory_max_bytes)}`
+                    : ''}
+                </div>
+              )}
+            </div>
+          )}
+          {(linuxObs.thermal?.length ?? 0) > 0 && (
+            <div className="pt-2 border-t border-slate-700/50 text-sm">
+              <div className="text-slate-500 text-xs mb-2">Hardware temperature (hwmon)</div>
+              <div className="grid sm:grid-cols-2 gap-2">
+                {linuxObs.thermal!.map((t) => (
+                  <div key={t.sensor} className="text-slate-300 text-xs">
+                    <span className="text-slate-400">{t.sensor}:</span>{' '}
+                    {t.temp_celsius.toFixed(1)} °C
+                    {t.critical_celsius != null ? ` (crit ${t.critical_celsius.toFixed(0)} °C)` : ''}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {(linuxObs.vm_cgroups?.length ?? 0) > 0 && (
+            <div className="pt-2 border-t border-slate-700/50 text-sm overflow-x-auto">
+              <div className="text-slate-500 text-xs mb-2">VM cgroups (machine-qemu)</div>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-slate-500 text-left">
+                    <th className="pr-3 pb-1">VM</th>
+                    <th className="pr-3 pb-1">Memory</th>
+                    <th className="pb-1">CPU use</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linuxObs.vm_cgroups!.map((cg) => (
+                    <tr key={cg.vm_name} className="text-slate-300">
+                      <td className="pr-3 py-0.5 font-mono">{cg.vm_name}</td>
+                      <td className="pr-3 py-0.5">
+                        {cg.memory_current_bytes != null
+                          ? formatBytes(cg.memory_current_bytes)
+                          : '—'}
+                        {cg.memory_max_bytes != null ? ` / ${formatBytes(cg.memory_max_bytes)}` : ''}
+                      </td>
+                      <td className="py-0.5">
+                        {cg.cpu_usage_usec != null
+                          ? `${(cg.cpu_usage_usec / 1_000_000).toFixed(1)} s`
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

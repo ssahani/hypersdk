@@ -8,10 +8,20 @@
 refresh_interval_secs = 5
 
 # Periodic hardware inventory JSON Lines under /var/lib/machina/hardware-inventory.jsonl (VMware-style audit trail).
-# [inventory_history]
-# enabled = true
-# interval_secs = 3600
-# max_file_mb = 64
+[inventory_history]
+enabled = true
+interval_secs = 3600
+max_file_mb = 64
+
+# In-memory metrics ring buffer (GET /api/v1/metrics/history); not persisted across daemon restarts.
+[metrics_history]
+enabled = true
+interval_secs = 30
+max_points = 120
+
+[audit]
+max_file_mb = 64
+rotate_keep = 5
 
 # Append-only JSON Lines of GET /k8s/cluster-inventory under /var/lib/machina/k8s-cluster-inventory.jsonl (audit / drift).
 # [k8s_inventory_history]
