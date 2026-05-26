@@ -38,6 +38,19 @@ refresh_interval_secs = 5
 # [audit]
 # max_file_mb = 64
 # rotate_keep = 5
+# syslog_enabled = false
+# http_webhook_url = ""
+# webhook_authorization = ""
+#
+# [observability.otlp]
+# enabled = false
+# endpoint = "http://127.0.0.1:4318"
+# interval_secs = 60
+#
+# [observability.linux_audit]
+# enabled = true
+# max_events = 200
+# health_avc_threshold = 0
 
 [guacamole]
 # Optional Apache Guacamole encrypted JSON auth — same 32 hex chars as Docker JSON_SECRET_KEY.

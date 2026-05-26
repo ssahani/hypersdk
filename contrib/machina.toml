@@ -24,6 +24,22 @@ max_file_mb = 32
 [audit]
 max_file_mb = 64
 rotate_keep = 5
+# syslog_enabled = true
+# http_webhook_url = "https://your-log-ingest.example/events"
+# webhook_authorization = "Bearer …"
+
+# OTLP/HTTP export (Grafana Alloy, OpenTelemetry Collector, etc.)
+# [observability.otlp]
+# enabled = true
+# endpoint = "http://127.0.0.1:4318"
+# interval_secs = 60
+# export_metrics = true
+# export_logs = true
+
+[observability.linux_audit]
+enabled = true
+max_events = 200
+# health_avc_threshold = 5
 
 # Append-only JSON Lines of GET /k8s/cluster-inventory under /var/lib/machina/k8s-cluster-inventory.jsonl (audit / drift).
 # [k8s_inventory_history]

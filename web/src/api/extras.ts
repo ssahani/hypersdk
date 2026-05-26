@@ -302,6 +302,23 @@ export interface LinuxHostObservability {
 export const getHostLinuxObservability = () =>
   readJsonObject<LinuxHostObservability>(`${API}/host/linux-observability`)
 
+export interface LinuxAuditEvent {
+  timestamp: string
+  event_type: string
+  summary: string
+  raw: string
+}
+
+export interface LinuxAuditReport {
+  available: boolean
+  source: string
+  events: LinuxAuditEvent[]
+  avc_count: number
+}
+
+export const getHostLinuxAudit = () =>
+  readJsonObject<LinuxAuditReport>(`${API}/host/linux-audit`)
+
 /** Per-mount usage from `df` (Linux hypervisor). */
 export interface HostFilesystem {
   source: string

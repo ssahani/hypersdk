@@ -1,5 +1,8 @@
 pub mod api_error;
 pub mod audit;
+pub mod audit_ship;
+pub mod linux_audit;
+pub mod otlp;
 pub mod run_as_user;
 pub mod build_precheck;
 pub mod config;

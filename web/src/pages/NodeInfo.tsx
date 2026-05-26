@@ -4,7 +4,9 @@ import { getNodeInfo, getHealth, NodeInfo, HealthStatus } from '../api/node'
 import {
   getHostStats,
   getHostLinuxObservability,
+  getHostLinuxAudit,
   type LinuxHostObservability,
+  type LinuxAuditReport,
   HostStats,
   getSystemInfo,
   setHostname,
@@ -188,6 +190,7 @@ export default function NodeInfoPage() {
   const [hardwareInventoryHistory, setHardwareInventoryHistory] =
     useState<HardwareInventoryHistoryResponse | null>(null)
   const [linuxObs, setLinuxObs] = useState<LinuxHostObservability | null>(null)
+  const [linuxAudit, setLinuxAudit] = useState<LinuxAuditReport | null>(null)
 
   const canKillHostProcess = sessionRole === 'admin'
 
@@ -209,8 +212,9 @@ export default function NodeInfoPage() {
       getHardwareInventory(),
       getHardwareInventoryHistory(48),
       getHostLinuxObservability(),
+      getHostLinuxAudit(),
     ])
-      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb, hi, hh, lo]) => {
+      .then(([n, h, s, si, fs, tp, tpc, pk, nc, pw, gr, sec, lb, hi, hh, lo, la]) => {
         if (n.status === 'fulfilled') setNode(n.value)
         if (h.status === 'fulfilled') setHealth(h.value)
         if (si.status === 'fulfilled') setSysInfo(si.value)
@@ -249,6 +253,8 @@ export default function NodeInfoPage() {
         else setHardwareInventoryHistory(null)
         if (lo.status === 'fulfilled') setLinuxObs(lo.value)
         else setLinuxObs(null)
+        if (la.status === 'fulfilled') setLinuxAudit(la.value)
+        else setLinuxAudit(null)
         if (s.status === 'fulfilled') {
           setStats(s.value)
           const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -1366,6 +1372,19 @@ export default function NodeInfoPage() {
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+          {linuxAudit?.available && (linuxAudit.events?.length ?? 0) > 0 && (
+            <div className="pt-2 border-t border-slate-700/50 text-sm overflow-x-auto max-h-48 overflow-y-auto">
+              <div className="text-slate-500 text-xs mb-2">
+                Linux auditd ({linuxAudit.source}) — {linuxAudit.avc_count} AVC in window
+              </div>
+              {linuxAudit.events.slice(-12).map((ev, i) => (
+                <div key={`${ev.timestamp}-${i}`} className="text-xs text-slate-400 font-mono mb-1">
+                  <span className="text-amber-400/90">{ev.event_type}</span>{' '}
+                  {ev.summary}
+                </div>
+              ))}
             </div>
           )}
           {(linuxObs.vm_cgroups?.length ?? 0) > 0 && (

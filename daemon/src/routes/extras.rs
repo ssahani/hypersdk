@@ -643,6 +643,15 @@ async fn get_host_linux_observability(
     Ok(Json(serde_json::json!(obs)))
 }
 
+async fn get_host_linux_audit(
+    State(_m): State<LibvirtManager>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let report = tokio::task::spawn_blocking(machina_core::linux_audit::gather_linux_audit_configured)
+        .await
+        .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    Ok(Json(serde_json::json!(report)))
+}
+
 async fn get_host_filesystems(
     State(_m): State<LibvirtManager>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -1273,6 +1282,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         // Host stats + DHCP
         .route("/host/stats", get(get_host_stats))
         .route("/host/linux-observability", get(get_host_linux_observability))
+        .route("/host/linux-audit", get(get_host_linux_audit))
         .route("/host/filesystems", get(get_host_filesystems))
         .route("/host/processes", get(get_host_processes))
         .route("/host/processes/kill", post(post_host_kill_process))

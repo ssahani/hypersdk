@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
 
-use machina_core::{host_linux_obs, host_virt, LibvirtManager};
+use machina_core::{host_linux_obs, host_virt, linux_audit, LibvirtManager};
 use serde_json::json;
 
 async fn health_check(State(manager): State<LibvirtManager>) -> impl IntoResponse {
@@ -160,6 +160,23 @@ async fn host_problems() -> Json<serde_json::Value> {
                         }));
                     }
                 }
+            }
+        }
+    }
+    if let Ok(rep) = linux_audit::gather_linux_audit_configured() {
+        if rep.available {
+            let th = linux_audit::health_avc_threshold();
+            if th > 0 && rep.avc_count >= th {
+                items.push(json!({
+                    "id": "linux_audit_avc",
+                    "severity": "warning",
+                    "title": "SELinux/AppArmor denials (auditd)",
+                    "detail": format!(
+                        "{} AVC event(s) in recent audit log (source: {}, threshold {}).",
+                        rep.avc_count, rep.source, th
+                    ),
+                    "doc_url": null,
+                }));
             }
         }
     }

@@ -21,7 +21,9 @@ Use this when preparing Machina for security review (not a certification).
 
 - [ ] Daemon runs as dedicated user where possible (default install: root for libvirt)
 - [ ] `NoNewPrivileges` in systemd unit (see `contrib/machina-daemon.service`)
-- [ ] Audit log retained: `/var/lib/machina/audit.log`
+- [ ] Audit log retained: `/var/lib/machina/audit.log` (optional rotation, syslog, HTTP webhook in `[audit]`)
+- [ ] OTLP export configured (`[observability.otlp]` → Alloy / OpenTelemetry Collector)
+- [ ] Linux auditd visible via `GET /api/v1/host/linux-audit` and optional `health_avc_threshold`
 - [ ] Export audit via `GET /api/v1/audit/export` (NDJSON) to SIEM
 
 ## Observability

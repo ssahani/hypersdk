@@ -17,6 +17,7 @@ use crate::daemon_stats::DaemonStats;
 use crate::http_metrics::{self, HttpMetrics};
 use crate::job_registry::JobRegistry;
 use crate::metrics_history::MetricsHistoryStore;
+use crate::otlp_worker;
 use crate::routes;
 use crate::terminal::{self, TerminalSessionStore};
 
@@ -34,6 +35,11 @@ pub fn create_app(manager: LibvirtManager, config: MachinaConfig) -> Router {
         manager.clone(),
         metrics_history_store.clone(),
         config.metrics_history.clone(),
+    );
+    otlp_worker::spawn_otlp_worker(
+        manager.clone(),
+        config.observability.otlp.clone(),
+        daemon_stats.clone(),
     );
     let terminal_store = TerminalSessionStore::new();
     let ssh_terminal_cfg = config.ssh_terminal.clone();

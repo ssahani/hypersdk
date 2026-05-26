@@ -47,9 +47,110 @@ pub struct MachinaConfig {
     /// Persistent audit log rotation under `/var/lib/machina/audit.log`.
     #[serde(default)]
     pub audit: AuditLogConfig,
+    /// OTLP export, Linux auditd probes, and related integrations.
+    #[serde(default)]
+    pub observability: ObservabilityConfig,
 }
 
-/// Rotation for the append-only audit log (`/var/lib/machina/audit.log`).
+/// OpenTelemetry Protocol (HTTP) export and host audit integration.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ObservabilityConfig {
+    #[serde(default)]
+    pub otlp: OtlpExportConfig,
+    #[serde(default)]
+    pub linux_audit: LinuxAuditConfig,
+}
+
+impl Default for ObservabilityConfig {
+    fn default() -> Self {
+        Self {
+            otlp: OtlpExportConfig::default(),
+            linux_audit: LinuxAuditConfig::default(),
+        }
+    }
+}
+
+/// Push metrics (and optional audit logs) to an OTLP/HTTP collector (e.g. Grafana Alloy, otelcol).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OtlpExportConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    /// Base URL, e.g. `http://127.0.0.1:4318` (paths `/v1/metrics` and `/v1/logs` are appended).
+    #[serde(default)]
+    pub endpoint: String,
+    #[serde(default = "default_otlp_interval_secs")]
+    pub interval_secs: u64,
+    #[serde(default = "default_otlp_export_metrics")]
+    pub export_metrics: bool,
+    #[serde(default = "default_otlp_export_logs")]
+    pub export_logs: bool,
+    /// Optional `Authorization` header value (e.g. `Bearer …`).
+    #[serde(default)]
+    pub authorization: String,
+}
+
+fn default_otlp_interval_secs() -> u64 {
+    60
+}
+
+fn default_otlp_export_metrics() -> bool {
+    true
+}
+
+fn default_otlp_export_logs() -> bool {
+    true
+}
+
+impl Default for OtlpExportConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            endpoint: String::new(),
+            interval_secs: default_otlp_interval_secs(),
+            export_metrics: default_otlp_export_metrics(),
+            export_logs: default_otlp_export_logs(),
+            authorization: String::new(),
+        }
+    }
+}
+
+impl OtlpExportConfig {
+    pub fn is_enabled(&self) -> bool {
+        self.enabled && !self.endpoint.trim().is_empty()
+    }
+}
+
+/// Read recent Linux auditd events (`/var/log/audit/audit.log` or `ausearch`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LinuxAuditConfig {
+    #[serde(default = "default_linux_audit_enabled")]
+    pub enabled: bool,
+    #[serde(default = "default_linux_audit_max_events")]
+    pub max_events: usize,
+    /// Emit `/health/problems` when AVC count in the probe window exceeds this (0 = off).
+    #[serde(default)]
+    pub health_avc_threshold: u32,
+}
+
+fn default_linux_audit_enabled() -> bool {
+    true
+}
+
+fn default_linux_audit_max_events() -> usize {
+    200
+}
+
+impl Default for LinuxAuditConfig {
+    fn default() -> Self {
+        Self {
+            enabled: default_linux_audit_enabled(),
+            max_events: default_linux_audit_max_events(),
+            health_avc_threshold: 0,
+        }
+    }
+}
+
+/// Rotation and optional remote shipping for `/var/lib/machina/audit.log`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditLogConfig {
     /// Rotate when the active log exceeds this size (0 = no rotation).
@@ -58,6 +159,15 @@ pub struct AuditLogConfig {
     /// Number of rotated files to retain (`audit.log.1` … `audit.log.N`).
     #[serde(default = "default_audit_rotate_keep")]
     pub rotate_keep: u32,
+    /// Mirror each event to syslog (`LOG_AUTHPRIV`).
+    #[serde(default)]
+    pub syslog_enabled: bool,
+    /// POST JSON `AuditEvent` to this URL (S3 pre-signed PUT, Loki, Splunk HEC, etc.).
+    #[serde(default)]
+    pub http_webhook_url: String,
+    /// Optional `Authorization` header for the webhook.
+    #[serde(default)]
+    pub webhook_authorization: String,
 }
 
 fn default_audit_max_file_mb() -> u64 {
@@ -73,6 +183,9 @@ impl Default for AuditLogConfig {
         Self {
             max_file_mb: default_audit_max_file_mb(),
             rotate_keep: default_audit_rotate_keep(),
+            syslog_enabled: false,
+            http_webhook_url: String::new(),
+            webhook_authorization: String::new(),
         }
     }
 }
@@ -1149,6 +1262,14 @@ mod tests {
         let a = AuditLogConfig::default();
         assert_eq!(a.max_file_mb, 64);
         assert_eq!(a.rotate_keep, 5);
+    }
+
+    #[test]
+    fn observability_defaults() {
+        let o = ObservabilityConfig::default();
+        assert!(!o.otlp.enabled);
+        assert!(o.linux_audit.enabled);
+        assert_eq!(o.linux_audit.max_events, 200);
     }
 
     #[test]

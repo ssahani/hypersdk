@@ -4,6 +4,7 @@ mod automation_worker;
 mod daemon_stats;
 mod http_metrics;
 mod metrics_history;
+mod otlp_worker;
 mod cluster_bootstrap;
 mod conn_query;
 mod error;
@@ -89,6 +90,8 @@ async fn main() -> anyhow::Result<()> {
     }
 
     machina_core::audit::configure_rotation(config.audit.clone());
+    machina_core::audit_ship::configure_ship(config.audit.clone());
+    machina_core::linux_audit::configure_linux_audit(config.observability.linux_audit.clone());
 
     let manager = LibvirtManager::new(&config.libvirt).map_err(|e| anyhow::anyhow!("{e}"))?;
 

@@ -80,6 +80,7 @@ pub fn write_audit_event(event: &AuditEvent) {
         let _ = file.write_all(line.as_bytes());
     }
     maybe_rotate_audit_log(&rotation_cfg());
+    crate::audit_ship::ship_audit_event(event);
 }
 
 pub fn load_audit_events(max: usize) -> Vec<AuditEvent> {
