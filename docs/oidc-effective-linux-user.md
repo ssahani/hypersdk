@@ -23,16 +23,13 @@ There is **no fixed default OIDC “Unix username”** across deployments: it is
 
 ## Policy alignment vs impersonation
 
-Today’s behavior is **policy alignment**: routes can require “this OIDC identity maps to a real local account” before allowing certain operations. The daemon does **not** switch its effective UID or spawn libvirt/tooling as that user.
+Today’s behavior is **policy alignment** plus optional **run-as-user** for allow-listed host commands. See [`oidc-run-as-user.md`](oidc-run-as-user.md).
 
-## Future: run-as-user (not implemented)
+When `[auth.run_as_user]` is enabled with `sudo`, `polkit`, or `setuid_helper`:
 
-See [`oidc-run-as-user.md`](oidc-run-as-user.md) for the config scaffold (`[auth.run_as_user]`) and implementation plan.
+- `POST/DELETE /api/v1/system/os-users` runs `useradd` / `userdel` / `homectl` as `effective_linux_user`
+- With `prefer_session_libvirt_on_impersonation` and dual libvirt, VM create defaults to `qemu:///session`
 
-To actually run libvirt or helpers as the mapped UNIX user would require an explicit design, for example:
+The daemon process still owns the libvirt connection unless you use session URI; libvirt XML is not executed as the mapped user except via that session default.
 
-- A setuid helper or polkit-backed action runner acceptable to your threat model
-- Per-session credential bridging where technically feasible
-- Clear audit events tying OIDC subject → chosen local user → executed command
-
-Until then, treat `effective_linux_user` as authorization context, not execution identity.
+Status: `GET /api/v1/auth/run-as-user`

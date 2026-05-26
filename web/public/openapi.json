@@ -1295,6 +1295,20 @@
         "responses": { "200": { "description": "Proxy result or local-create hint" } }
       }
     },
+    "/integrations/status": {
+      "get": {
+        "summary": "Unified health for OpenStack, KubeVirt, automation, k8s, and run-as-user",
+        "tags": ["Integrations"],
+        "responses": { "200": { "description": "Integration summaries and deep-link routes" } }
+      }
+    },
+    "/auth/run-as-user": {
+      "get": {
+        "summary": "OIDC run-as-user impersonation mode and supported programs",
+        "tags": ["Auth"],
+        "responses": { "200": { "description": "Run-as-user status" } }
+      }
+    },
     "/fleet/placement": {
       "post": {
         "summary": "Rank fleet peers for VM placement by capacity",
@@ -2954,6 +2968,26 @@
           { "name": "context", "in": "query", "required": false, "schema": { "type": "string" }, "description": "kubectl --context" }
         ],
         "responses": { "200": { "description": "JSON overview" } }
+      }
+    },
+    "/k8s/metrics": {
+      "get": {
+        "summary": "Live cluster CPU/memory via kubectl top (metrics-server)",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "nodes_top and pods_top tables" } }
+      }
+    },
+    "/k8s/cluster-inventory": {
+      "get": {
+        "summary": "Cluster hardware capacity rollup from node capacity",
+        "tags": ["Kubernetes"],
+        "parameters": [
+          { "name": "context", "in": "query", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "Inventory rollups" } }
       }
     },
     "/k8s/environment": {

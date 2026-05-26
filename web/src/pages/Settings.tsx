@@ -11,6 +11,7 @@ import {
 } from '../api/automation'
 import { getOsUserCapability, createOsUser, deleteOsUser, OsUserCapability } from '../api/system'
 import { getOpenStackStatus, postOpenStackTestConnection, type OpenStackConnectionStatus } from '../api/openstack'
+import { getIntegrationsStatus, type IntegrationsStatus } from '../api/integrations'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { isOpenStackConfigured } from '../utils/routes'
 import CopyButton from '../components/CopyButton'
@@ -71,6 +72,7 @@ export default function SettingsPage() {
   const [deleteOsUsername, setDeleteOsUsername] = useState('')
   const [addOsUserToLibvirt, setAddOsUserToLibvirt] = useState(true)
   const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
+  const [integrations, setIntegrations] = useState<IntegrationsStatus | null>(null)
   const [openstackTesting, setOpenstackTesting] = useState(false)
   const openstackAutoTested = useRef(false)
   const [obsSettings, setObsSettings] = useState<ObservabilitySettingsView | null>(null)
@@ -88,6 +90,7 @@ export default function SettingsPage() {
       getOsUserCapability(),
       getOpenStackStatus(),
       getObservabilitySettings(),
+      getIntegrationsStatus(),
     ])
     if (results[0].status === 'fulfilled') setRoles(results[0].value)
     if (results[1].status === 'fulfilled') setTokens(results[1].value)
@@ -104,6 +107,8 @@ export default function SettingsPage() {
     else setOpenstackStatus(null)
     if (results[11].status === 'fulfilled') setObsSettings(results[11].value)
     else setObsSettings(null)
+    if (results[12].status === 'fulfilled') setIntegrations(results[12].value)
+    else setIntegrations(null)
     setLoading(false)
   }, [])
 
@@ -245,6 +250,66 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {integrations && (
+        <section id="integrations-status" className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3 scroll-mt-24">
+          <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-emerald-400" />
+            Integrations
+          </h2>
+          <p className="text-xs text-slate-500">
+            Summary from <code className="text-slate-400">GET /api/v1/integrations/status</code>.
+          </p>
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
+            <div>
+              <dt className="text-slate-500 text-xs">Automation worker</dt>
+              <dd>
+                {integrations.automation.last_tick_unix
+                  ? `tick ${new Date(integrations.automation.last_tick_unix * 1000).toLocaleString()}`
+                  : 'no tick yet'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs">Alerts (unacked)</dt>
+              <dd>{integrations.automation.alerts_unacknowledged}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs">Alert rules</dt>
+              <dd>
+                {integrations.automation.alert_rules_enabled}/{integrations.automation.alert_rules_total} enabled
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs">KubeVirt exec</dt>
+              <dd>{integrations.kubevirt.exec_enabled ? 'yes' : 'no'}</dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs">K8s kubeconfig</dt>
+              <dd className="font-mono text-xs break-all">
+                {integrations.k8s.kubeconfig_auto_selected ?? 'default'}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-slate-500 text-xs">Run-as-user</dt>
+              <dd>
+                {integrations.run_as_user.impersonation_active
+                  ? String(integrations.run_as_user.mode)
+                  : 'off'}
+              </dd>
+            </div>
+          </dl>
+          <div className="flex flex-wrap gap-2 text-sm">
+            <Link to="/k8s" className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700">
+              Kubernetes
+            </Link>
+            {isOpenStackConfigured(info?.openstack) && (
+              <Link to="/openstack/instances" className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-700">
+                OpenStack
+              </Link>
+            )}
+          </div>
+        </section>
+      )}
 
       {obsSettings ? (
         <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-4">
