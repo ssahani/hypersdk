@@ -6,7 +6,7 @@ The daemon also supports:
 
 - `POST /api/v1/metrics/ingest/batch` — JSON array of `MetricsHistoryPoint`
 - `POST /api/v1/metrics/ingest/prometheus` — Prometheus text with `machina_host_*_percent` gauges
-- `POST /api/v1/metrics/ingest/remote-write` — Snappy `prometheus.WriteRequest` (native remote_write 1.0)
+- `POST /api/v1/metrics/ingest/remote-write` — Snappy protobuf (remote_write **1.0** or **2.0** via `Content-Type` proto parameter)
 
 Test remote_write:
 

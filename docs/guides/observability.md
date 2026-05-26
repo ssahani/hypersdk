@@ -15,6 +15,7 @@ Machina exposes host, VM, guest, fleet, and daemon telemetry for Linux KVM hyper
 | `GET /api/v1/fleet/metrics` | Multi-node host CPU/memory + capacity score |
 | `GET /api/v1/fleet/alerts` | Aggregated automation alerts across fleet peers |
 | `GET /api/v1/fleet/prometheus-targets` | Starter Prometheus `scrape_configs` for fleet |
+| `GET /api/v1/fleet/prometheus` | Single scrape: local + all peers (adds `machina_peer` label) |
 
 ## Prometheus
 
@@ -46,19 +47,23 @@ max_file_mb = 32
 # Optional: POST each sample as Machina JSON (NOT Prometheus remote_write protobuf)
 remote_write_url = "https://metrics.example/ingest/machina"
 remote_write_authorization = "Bearer …"
+```
 
-**Native Prometheus remote_write (Snappy + `prometheus.WriteRequest`):**
+Each JSON POST body is one [`MetricsHistoryPoint`](../../core/src/metrics_history.rs) object (`timestamp_ms`, host percentages, `vm_metrics`, …).
 
-```bash
+**Native Prometheus remote_write (Snappy protobuf):**
+
+```http
 POST /api/v1/metrics/ingest/remote-write
 Content-Type: application/x-protobuf
 Authorization: Bearer <api-token>
 ```
 
-Maps `machina_host_cpu_percent`, `machina_host_memory_percent`, and `machina_host_disk_percent` into the in-memory metrics history ring. See `contrib/alloy/machina-remote-write-receiver.alloy` and `contrib/ingest/test-remote-write.sh`.
-```
+Accepts **remote_write 1.0** (`prometheus.WriteRequest`) and **2.0** when senders set:
 
-Each POST body is one [`MetricsHistoryPoint`](../../core/src/metrics_history.rs) object (`timestamp_ms`, host percentages, `vm_metrics`, …). Use a custom receiver, Grafana Alloy `http` input, or a small forwarder if you need Prometheus/Mimir native remote write.
+`Content-Type: application/x-protobuf; proto=io.prometheus.write.v2.Request`
+
+Maps `machina_host_cpu_percent`, `machina_host_memory_percent`, and `machina_host_disk_percent` into the metrics history ring. Response JSON includes `protocol` (`v1` or `v2`). See `contrib/alloy/machina-remote-write-receiver.alloy` and `contrib/ingest/test-remote-write.sh`.
 
 File: `/var/lib/machina/metrics-history.jsonl`
 
@@ -103,7 +108,22 @@ Prometheus gauges: `machina_alerts_unacknowledged`, `machina_alert_rules_enabled
 
 ## Fleet
 
-Enable `[fleet]` peers in config, then use `/fleet/status`, `/fleet/metrics`, `/fleet/alerts`, `/fleet/placement`, and `/fleet/prometheus-targets` for multi-hypervisor views.
+Enable `[fleet]` peers in config, then use `/fleet/status`, `/fleet/metrics`, `/fleet/alerts`, `/fleet/placement`, `/fleet/prometheus-targets`, and `/fleet/prometheus` for multi-hypervisor views.
+
+For a single Prometheus job instead of per-peer scrapes:
+
+```yaml
+scrape_configs:
+  - job_name: machina-fleet
+    metrics_path: /api/v1/fleet/prometheus
+    static_configs:
+      - targets: ['controller.example:5092']
+    authorization:
+      type: Bearer
+      credentials: '<mach_… token>'
+```
+
+Peer series are labeled `machina_peer="<peer-name>"`; the local node uses `machina_peer="local"`.
 
 `POST /api/v1/fleet/placement` ranks local + peer nodes by capacity headroom for a requested VM size (`vcpus`, `memory_mb`).
 

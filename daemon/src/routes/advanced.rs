@@ -14,7 +14,7 @@ use machina_core::libvirt::{
 use machina_core::{LibvirtError, LibvirtManager};
 
 use crate::auth::{require_usb_pci, RequestActor};
-use crate::conn_query::{spawn_libvirt, ConnQuery};
+use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::{AppError, Xml};
 
 fn enrich_dns_ptr(mut addrs: Vec<GuestIpAddress>) -> Vec<GuestIpAddress> {
@@ -46,12 +46,13 @@ fn enrich_dns_ptr(mut addrs: Vec<GuestIpAddress>) -> Vec<GuestIpAddress> {
 
 async fn get_interfaces(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let (addrs, net_gw): (Vec<GuestIpAddress>, HashMap<String, String>) =
-        spawn_libvirt(manager, conn_q, move |conn| {
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
             let mut addrs = guest_agent::get_guest_interfaces(conn, &name2)?;
             let leases = extras::list_dhcp_leases(conn).unwrap_or_default();
             addrs = guest_agent::enrich_with_dhcp_leases(addrs, &leases);
@@ -85,11 +86,12 @@ async fn get_interfaces(
 
 async fn get_hostname(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let h = spawn_libvirt(manager, conn_q, move |conn| {
+    let h = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         guest_agent::get_guest_hostname(conn, &name2)
     })
     .await?;
@@ -98,11 +100,12 @@ async fn get_hostname(
 
 async fn get_guest_observability(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let info = spawn_libvirt(manager, conn_q, move |conn| {
+    let info = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         guest_agent::get_guest_observability(conn, &name2)
     })
     .await?;
@@ -111,11 +114,12 @@ async fn get_guest_observability(
 
 async fn get_guest_health(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let report = spawn_libvirt(manager, conn_q, move |conn| {
+    let report = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         guest_health::gather_guest_health(conn, &name2)
     })
     .await?;

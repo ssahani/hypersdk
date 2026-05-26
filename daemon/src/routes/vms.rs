@@ -23,7 +23,7 @@ use machina_core::{
 };
 
 use crate::auth::{effective_linux_user, require_destroy_vm, RequestActor};
-use crate::conn_query::{connection_label, spawn_libvirt, ConnQuery};
+use crate::conn_query::{connection_label, spawn_libvirt_actor, ConnQuery};
 use crate::error::{ok_json, AppError, Xml};
 use crate::job_registry::JobRegistry;
 use crate::hyper2kvm_exec;
@@ -71,7 +71,21 @@ fn log_audit_with_actor(actor: Option<&str>, action: &str, target: &str, result:
     audit::write_audit_event(&event);
 }
 
-async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmInfo>>, AppError> {
+async fn list_vms(
+    State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<Vec<VmInfo>>, AppError> {
+    if crate::conn_query::impersonation_prefers_session_only(&actor) {
+        let conn_q = crate::conn_query::apply_impersonation_session_default(
+            &actor,
+            ConnQuery::default(),
+        );
+        let vms = spawn_libvirt_actor(manager, Some(&actor), conn_q, |conn| {
+            machina_core::libvirt::domain::list_vms(conn)
+        })
+        .await?;
+        return Ok(Json(vms));
+    }
     let result = tokio::task::spawn_blocking(move || manager.list_all_vms())
         .await
         .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
@@ -80,6 +94,7 @@ async fn list_vms(State(manager): State<LibvirtManager>) -> Result<Json<Vec<VmIn
 
 async fn get_vm_details(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<VmDetails>, AppError> {
@@ -103,6 +118,7 @@ async fn get_vm_details(
 
 async fn get_vm_xml(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Xml, AppError> {
@@ -453,11 +469,12 @@ async fn kubevirt_start_handler(
 
 async fn start_vm(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::start_vm(conn, &name2)).await?;
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::start_vm(conn, &name2)).await?;
     log_audit("start", &name, "ok");
     vm_events::emit_vm_started(&name);
     Ok(ok_json("started", &name))
@@ -465,11 +482,12 @@ async fn start_vm(
 
 async fn stop_vm(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::stop_vm(conn, &name2)).await?;
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::stop_vm(conn, &name2)).await?;
     log_audit("stop", &name, "ok");
     vm_events::emit_vm_stopped(&name);
     Ok(ok_json("stopped", &name))
@@ -477,11 +495,12 @@ async fn stop_vm(
 
 async fn shutdown_vm(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         domain::shutdown_vm(conn, &name2)
     })
     .await?;
@@ -492,33 +511,36 @@ async fn shutdown_vm(
 
 async fn reboot_vm(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::reboot_vm(conn, &name2)).await?;
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::reboot_vm(conn, &name2)).await?;
     vm_events::emit_vm_reboot(&name);
     Ok(ok_json("rebooting", &name))
 }
 
 async fn pause_vm(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::pause_vm(conn, &name2)).await?;
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::pause_vm(conn, &name2)).await?;
     vm_events::emit_vm_paused(&name);
     Ok(ok_json("paused", &name))
 }
 
 async fn resume_vm(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| domain::resume_vm(conn, &name2)).await?;
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| domain::resume_vm(conn, &name2)).await?;
     vm_events::emit_vm_resumed(&name);
     Ok(ok_json("resumed", &name))
 }
@@ -563,7 +585,7 @@ async fn delete_vm_handler(
         delete_disks: q.delete_disks,
     };
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         domain::delete_vm_with_options(conn, &name2, &opts)
     })
     .await?;
@@ -595,6 +617,7 @@ struct BlockCommitBody {
 
 async fn block_commit_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockCommitBody>,
@@ -611,7 +634,7 @@ async fn block_commit_handler(
     let top = req.top.clone();
     let bandwidth = req.bandwidth;
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         block_jobs::block_commit(
             conn,
             &name2,
@@ -639,6 +662,7 @@ struct BlockPullBody {
 
 async fn block_pull_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockPullBody>,
@@ -647,7 +671,7 @@ async fn block_pull_handler(
     let disk = req.disk.clone();
     let bandwidth = req.bandwidth;
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         block_jobs::block_pull(conn, &name2, &disk, bandwidth, flags)
     })
     .await?;
@@ -665,6 +689,7 @@ struct BlockJobQuery {
 
 async fn block_job_info_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Query(q): Query<BlockJobQuery>,
@@ -672,7 +697,7 @@ async fn block_job_info_handler(
     let disk = q.disk.clone();
     let flags = block_jobs::block_job_info_flags(q.bandwidth_bytes);
     let name2 = name.clone();
-    let result = spawn_libvirt(manager, conn_q, move |conn| {
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         block_jobs::block_job_info(conn, &name2, &disk, flags)
     })
     .await?;
@@ -690,6 +715,7 @@ struct BlockJobAbortBody {
 
 async fn block_job_abort_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<BlockJobAbortBody>,
@@ -697,7 +723,7 @@ async fn block_job_abort_handler(
     let flags = block_jobs::block_job_abort_flags(req.r#async, req.pivot);
     let disk = req.disk.clone();
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         block_jobs::block_job_abort(conn, &name2, &disk, flags)
     })
     .await?;
@@ -708,13 +734,14 @@ async fn block_job_abort_handler(
 
 async fn set_memtune_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<MemTuneInfo>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let req2 = req.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         resize::set_memtune_kb(conn, &name2, &req2)
     })
     .await?;
@@ -735,6 +762,7 @@ struct SchedulerTuneBody {
 
 async fn set_scheduler_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<SchedulerTuneBody>,
@@ -743,7 +771,7 @@ async fn set_scheduler_handler(
     let cpu_shares = req.cpu_shares;
     let vcpu_period = req.vcpu_period;
     let vcpu_quota = req.vcpu_quota;
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         resize::set_cpu_scheduler_partial(conn, &name2, cpu_shares, vcpu_period, vcpu_quota)
     })
     .await?;
@@ -759,13 +787,14 @@ struct PinVcpuBody {
 
 async fn pin_vcpu_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, vcpu)): Path<(String, u32)>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<PinVcpuBody>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let cpus = req.cpus.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         resize::pin_vcpu(conn, &name2, vcpu, &cpus)
     })
     .await?;
@@ -776,12 +805,13 @@ async fn pin_vcpu_handler(
 
 async fn set_autostart(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, enabled)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let autostart = enabled == "true" || enabled == "1";
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         domain::set_autostart(conn, &name2, autostart)
     })
     .await?;
@@ -792,13 +822,14 @@ async fn set_autostart(
 
 async fn clone_vm_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CloneVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         clone::clone_vm(conn, &name2, &new_name)
     })
     .await?;
@@ -1022,12 +1053,13 @@ async fn create_vm_stream_handler(
 
 async fn set_vcpus(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, count)): Path<(String, u32)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     machina_core::validate::validate_vcpus(count)?;
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         resize::set_vcpus(conn, &name2, count)
     })
     .await?;
@@ -1038,12 +1070,13 @@ async fn set_vcpus(
 
 async fn set_memory(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, mb)): Path<(String, u64)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     machina_core::validate::validate_memory_mb(mb)?;
     let name2 = name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         resize::set_memory(conn, &name2, mb)
     })
     .await?;
@@ -1054,6 +1087,7 @@ async fn set_memory(
 
 async fn attach_disk_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<AttachDiskRequest>,
@@ -1061,7 +1095,7 @@ async fn attach_disk_handler(
     let name2 = name.clone();
     let target = req.target.clone();
     let req2 = req.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         device::attach_disk(conn, &name2, &req2)
     })
     .await?;
@@ -1072,12 +1106,13 @@ async fn attach_disk_handler(
 
 async fn detach_disk_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, target)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let target2 = target.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         device::detach_disk(conn, &name2, &target2)
     })
     .await?;
@@ -1088,13 +1123,14 @@ async fn detach_disk_handler(
 
 async fn rename_vm_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<RenameVmRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let new_name = req.new_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         domain::rename_vm(conn, &name2, &new_name)
     })
     .await?;
@@ -1110,6 +1146,7 @@ struct ResizeDiskRequest {
 
 async fn resize_disk_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, target)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<ResizeDiskRequest>,
@@ -1117,7 +1154,7 @@ async fn resize_disk_handler(
     let name2 = name.clone();
     let target2 = target.clone();
     let size_gb = req.size_gb;
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         device::resize_block_device(conn, &name2, &target2, size_gb)
     })
     .await?;
@@ -1138,6 +1175,7 @@ fn default_nic_model() -> String {
 
 async fn attach_interface_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<AttachInterfaceRequest>,
@@ -1146,7 +1184,7 @@ async fn attach_interface_handler(
     let network = req.network.clone();
     let model = req.model.clone();
     let net = req.network.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         device::attach_interface(conn, &name2, &net, &model)
     })
     .await?;
@@ -1157,12 +1195,13 @@ async fn attach_interface_handler(
 
 async fn detach_interface_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((name, mac)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
     let mac2 = mac.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         device::detach_interface(conn, &name2, &mac2)
     })
     .await?;
@@ -1228,27 +1267,30 @@ async fn get_vm_logs(
 }
 
 async fn get_cputune_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<CpuTuneInfo>, AppError> {
     let name2 = name.clone();
-    let result = spawn_libvirt(manager, conn_q, move |c| resize::get_cputune(c, &name2)).await?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |c| resize::get_cputune(c, &name2)).await?;
     Ok(Json(result))
 }
 
 async fn get_memtune_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> Result<Json<MemTuneInfo>, AppError> {
     let name2 = name.clone();
-    let result = spawn_libvirt(manager, conn_q, move |c| resize::get_memtune(c, &name2)).await?;
+    let result = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |c| resize::get_memtune(c, &name2)).await?;
     Ok(Json(result))
 }
 
 async fn convert_spice_to_vnc_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -1336,11 +1378,12 @@ pub fn vm_routes() -> Router<LibvirtManager> {
 
 async fn rdp_info_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let name2 = name.clone();
-    let (host, port) = spawn_libvirt(manager, conn_q, move |conn| {
+    let (host, port) = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         machina_core::libvirt::rdp::resolve_rdp_endpoint(conn, &name2)
     })
     .await?;

@@ -55,6 +55,25 @@ fn peer_client(peer: &machina_core::config::FleetPeer) -> Client {
     b.build().unwrap_or_else(|_| Client::new())
 }
 
+async fn fetch_peer_text(
+    peer: &machina_core::config::FleetPeer,
+    path: &str,
+) -> Result<String, String> {
+    let base = peer.url.trim().trim_end_matches('/');
+    let url = format!("{base}/api/v1{path}");
+    let client = peer_client(peer);
+    let mut req = client.get(&url);
+    let token = peer.api_token.trim();
+    if !token.is_empty() {
+        req = req.bearer_auth(token);
+    }
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    if !res.status().is_success() {
+        return Err(format!("HTTP {}", res.status()));
+    }
+    res.text().await.map_err(|e| e.to_string())
+}
+
 async fn fetch_peer_json(
     peer: &machina_core::config::FleetPeer,
     path: &str,
@@ -595,6 +614,49 @@ fn prom_scrape_target(url: &str) -> (String, &'static str) {
     }
 }
 
+async fn fleet_prometheus_aggregate(
+    State(manager): State<LibvirtManager>,
+    Extension(stats): Extension<std::sync::Arc<crate::daemon_stats::DaemonStats>>,
+    Extension(http_metrics): Extension<std::sync::Arc<crate::http_metrics::HttpMetrics>>,
+) -> impl axum::response::IntoResponse {
+    use axum::http::header;
+    use machina_core::inject_peer_label;
+
+    let cfg = fleet_cfg();
+    let mut out = String::new();
+    let local = crate::routes::prometheus::collect_prometheus_exposition(
+        manager.clone(),
+        stats.clone(),
+        http_metrics.clone(),
+    )
+    .await;
+    out.push_str(&format!(
+        "# machina fleet prometheus aggregate (local + {} peers)\n",
+        cfg.peers.len()
+    ));
+    out.push_str(&inject_peer_label(&local, "local"));
+    if cfg.is_enabled() {
+        for p in &cfg.peers {
+            match fetch_peer_text(p, "/prometheus").await {
+                Ok(text) => out.push_str(&inject_peer_label(&text, &p.name)),
+                Err(e) => {
+                    out.push_str(&format!(
+                        "# peer {} unreachable for /prometheus: {e}\n",
+                        p.name
+                    ));
+                }
+            }
+        }
+    }
+    (
+        [(
+            header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
+        out,
+    )
+}
+
 async fn fleet_prometheus_targets() -> Json<Value> {
     let cfg = fleet_cfg();
     let machina = MachinaConfig::load();
@@ -716,6 +778,7 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
         .route("/fleet/placement", post(fleet_placement))
         .route("/fleet/create-vm", post(fleet_create_vm))
         .route("/fleet/prometheus-targets", get(fleet_prometheus_targets))
+        .route("/fleet/prometheus", get(fleet_prometheus_aggregate))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))
 }

@@ -1272,6 +1272,18 @@
         "responses": { "200": { "description": "Prometheus static_configs JSON" } }
       }
     },
+    "/fleet/prometheus": {
+      "get": {
+        "summary": "Aggregated Prometheus text (local + fleet peers, machina_peer label)",
+        "tags": ["Fleet"],
+        "responses": {
+          "200": {
+            "description": "text/plain; version=0.0.4 exposition",
+            "content": { "text/plain": { "schema": { "type": "string" } } }
+          }
+        }
+      }
+    },
     "/fleet/create-vm": {
       "post": {
         "summary": "Create a VM on a fleet peer (or suggest local create)",
@@ -1336,14 +1348,15 @@
     },
     "/metrics/ingest/remote-write": {
       "post": {
-        "summary": "Prometheus remote_write 1.0 (Snappy protobuf WriteRequest)",
+        "summary": "Prometheus remote_write 1.0 or 2.0 (Snappy protobuf)",
+        "description": "Accepts prometheus.WriteRequest (v1) or io.prometheus.write.v2.Request when Content-Type includes proto=io.prometheus.write.v2.Request",
         "tags": ["Metrics"],
         "requestBody": {
           "content": {
             "application/x-protobuf": { "schema": { "type": "string", "format": "binary" } }
           }
         },
-        "responses": { "200": { "description": "Decode stats and history ingest result" } }
+        "responses": { "200": { "description": "protocol (v1|v2), decode stats, history ingest result" } }
       }
     },
     "/integrations/status": {

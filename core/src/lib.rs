@@ -33,10 +33,13 @@ pub use api_error::{format_http_error_body, format_user_error, friendly_error_co
 pub use fleet_placement::{fleet_capacity_score, placement_adjusted_score};
 pub use k8s_top::{parse_kubectl_top_line, K8sTopRow};
 pub use prometheus_remote_write::{
-    decode_remote_write_body, encode_remote_write_body, host_percents_from_remote_write,
-    samples_from_write_request, write_request_with_gauge, RemoteWriteDecodeResult,
+    decode_remote_write_body, encode_remote_write_body, encode_remote_write_v2_body,
+    host_percents_from_remote_write, samples_from_write_request, write_request_v2_with_gauge,
+    write_request_with_gauge, RemoteWriteDecodeResult,
 };
-pub use prometheus_text::{host_percents_from_samples, parse_prometheus_text, PrometheusSample};
+pub use prometheus_text::{
+    host_percents_from_samples, inject_peer_label, parse_prometheus_text, PrometheusSample,
+};
 pub use trace_context::{format_traceparent, trace_context_from_headers, HttpTraceContext};
 pub use observability_settings::{
     apply_observability_patch, settings_view_from_config, AuditObservabilityView,

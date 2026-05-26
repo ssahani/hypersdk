@@ -17,7 +17,7 @@ prefer_session_libvirt_on_impersonation = false
 | `enabled` | Turn on impersonation for supported routes |
 | `mode` | `sudo`, `polkit`, or `setuid_helper` |
 | `setuid_helper_path` | Setuid helper binary (see `contrib/run-as-user/README.md`) |
-| `prefer_session_libvirt_on_impersonation` | When `[libvirt] dual_connection = true`, default VM create to `qemu:///session` for mapped OIDC users |
+| `prefer_session_libvirt_on_impersonation` | When `[libvirt] dual_connection = true`, default empty `?connection=` to `session` for mapped OIDC users on VM routes |
 
 Status: `GET /api/v1/auth/run-as-user`
 
@@ -44,7 +44,9 @@ Install: `contrib/run-as-user/README.md`
 ## Supported routes today
 
 - `POST/DELETE /api/v1/system/os-users` — OS account lifecycle as the mapped user
-- `POST /api/v1/vms` (and `/vms/stream`) — optional session libvirt default when `prefer_session_libvirt_on_impersonation` is set
+- **VM libvirt (session default)** — when `prefer_session_libvirt_on_impersonation` is set and the OIDC user maps to a Linux account, empty `?connection=` selects `qemu:///session` for list, lifecycle, disks, snapshots, resize, and related handlers (not only create)
+- `POST /api/v1/vms` (and `/vms/stream`) — create still honors explicit `?connection=system`
+- `GET /api/v1/vms` — when session-only policy applies, lists domains on the session connection instead of merging system+session
 
 ## Related docs
 

@@ -3,8 +3,9 @@
 use serde::Deserialize;
 use virt::connect::Connect;
 
-use machina_core::{LibvirtError, LibvirtManager, LibvirtTarget};
+use machina_core::{LibvirtError, LibvirtManager, LibvirtTarget, MachinaConfig};
 
+use crate::auth::{effective_linux_user, RequestActor};
 use crate::error::AppError;
 
 #[derive(Debug, Clone, Deserialize, Default)]
@@ -32,6 +33,43 @@ pub fn connection_label(dual: bool, target: LibvirtTarget) -> Option<String> {
     )
 }
 
+/// When OIDC run-as-user impersonation is active, default empty `?connection=` to session.
+pub fn apply_impersonation_session_default(
+    actor: &RequestActor,
+    mut conn_q: ConnQuery,
+) -> ConnQuery {
+    let cfg = MachinaConfig::load();
+    if !cfg.auth.run_as_user.prefer_session_libvirt_on_impersonation {
+        return conn_q;
+    }
+    if !cfg.auth.run_as_user.impersonation_active() {
+        return conn_q;
+    }
+    if effective_linux_user(actor).is_none() {
+        return conn_q;
+    }
+    if !cfg.libvirt.dual_connection {
+        return conn_q;
+    }
+    let empty = conn_q
+        .connection
+        .as_deref()
+        .map(|s| s.trim().is_empty())
+        .unwrap_or(true);
+    if empty {
+        conn_q.connection = Some("session".into());
+    }
+    conn_q
+}
+
+pub fn impersonation_prefers_session_only(actor: &RequestActor) -> bool {
+    let cfg = MachinaConfig::load();
+    cfg.auth.run_as_user.prefer_session_libvirt_on_impersonation
+        && cfg.auth.run_as_user.impersonation_active()
+        && effective_linux_user(actor).is_some()
+        && cfg.libvirt.dual_connection
+}
+
 /// Run a libvirt call on the hypervisor selected by [`ConnQuery`] (blocking pool).
 pub async fn spawn_libvirt<R>(
     manager: LibvirtManager,
@@ -41,6 +79,23 @@ pub async fn spawn_libvirt<R>(
 where
     R: Send + 'static,
 {
+    spawn_libvirt_actor(manager, None, conn_q, op).await
+}
+
+/// Like [`spawn_libvirt`] but applies session defaults for impersonated OIDC users.
+pub async fn spawn_libvirt_actor<R>(
+    manager: LibvirtManager,
+    actor: Option<&RequestActor>,
+    conn_q: ConnQuery,
+    op: impl FnOnce(&Connect) -> Result<R, LibvirtError> + Send + 'static,
+) -> Result<R, AppError>
+where
+    R: Send + 'static,
+{
+    let conn_q = match actor {
+        Some(a) => apply_impersonation_session_default(a, conn_q),
+        None => conn_q,
+    };
     let mgr = manager;
     tokio::task::spawn_blocking(move || {
         let t = conn_q.target(&mgr);

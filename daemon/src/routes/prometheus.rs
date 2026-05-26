@@ -322,13 +322,12 @@ fn add_vm_cgroup_metrics(output: &mut String, vm_metrics: &[VmMetrics]) {
     }
 }
 
-async fn prometheus_metrics(
-    State(manager): State<LibvirtManager>,
-    Extension(stats): Extension<Arc<DaemonStats>>,
-    Extension(http_metrics): Extension<Arc<HttpMetrics>>,
-) -> impl IntoResponse {
+pub(crate) async fn collect_prometheus_exposition(
+    manager: LibvirtManager,
+    stats: Arc<DaemonStats>,
+    http_metrics: Arc<HttpMetrics>,
+) -> String {
     let scrape_start = Instant::now();
-    stats.inc_prometheus_scrape();
     let mut output = String::new();
 
     let m = manager.clone();
@@ -687,7 +686,17 @@ async fn prometheus_metrics(
 
     output.push_str(&http_metrics.render_prometheus());
     output.push_str(&stats.render_auth_prometheus());
+    output
+}
 
+async fn prometheus_metrics(
+    State(manager): State<LibvirtManager>,
+    Extension(stats): Extension<Arc<DaemonStats>>,
+    Extension(http_metrics): Extension<Arc<HttpMetrics>>,
+) -> impl IntoResponse {
+    stats.inc_prometheus_scrape();
+    let output =
+        collect_prometheus_exposition(manager, stats, http_metrics).await;
     (
         [(
             header::CONTENT_TYPE,

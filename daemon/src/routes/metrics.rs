@@ -123,7 +123,7 @@ async fn post_metrics_ingest_remote_write(
             "Content-Type must be application/x-protobuf (got {content_type})"
         ))));
     }
-    let decoded = decode_remote_write_body(&body)
+    let decoded = decode_remote_write_body(&body, Some(content_type))
         .map_err(|e| LibvirtError::Invalid(format!("remote_write decode: {e}")))?;
     let mut history_points_added = 0usize;
     if let Some((cpu, mem, disk)) = host_percents_from_remote_write(&decoded) {
@@ -142,7 +142,7 @@ async fn post_metrics_ingest_remote_write(
     }
     Ok(Json(serde_json::json!({
         "status": "ok",
-        "protocol": "prometheus.WriteRequest",
+        "protocol": decoded.protocol,
         "compression": "snappy",
         "timeseries_count": decoded.timeseries_count,
         "sample_count": decoded.sample_count,

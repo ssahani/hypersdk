@@ -1,11 +1,12 @@
-use axum::extract::{Path, Query, State};
+use axum::extract::{Extension, Path, Query, State};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use machina_core::libvirt::snapshot;
 use machina_core::{CreateSnapshotRequest, LibvirtError, LibvirtManager, SnapshotInfo};
 
-use crate::conn_query::{spawn_libvirt, ConnQuery};
+use crate::auth::RequestActor;
+use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 
 async fn list_all_snapshots(
@@ -20,11 +21,12 @@ async fn list_all_snapshots(
 
 async fn list_vm_snapshots(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(vm_name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<Vec<SnapshotInfo>>, AppError> {
     let vm2 = vm_name.clone();
-    let rows = spawn_libvirt(manager, conn_q, move |conn| {
+    let rows = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         snapshot::list_snapshots(conn, &vm2)
     })
     .await?;
@@ -33,6 +35,7 @@ async fn list_vm_snapshots(
 
 async fn create_snapshot_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(vm_name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     Json(req): Json<CreateSnapshotRequest>,
@@ -40,7 +43,7 @@ async fn create_snapshot_handler(
     let vm2 = vm_name.clone();
     let snap_name = req.name.clone();
     let req2 = req.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         snapshot::create_snapshot(conn, &vm2, &req2)
     })
     .await?;
@@ -51,12 +54,13 @@ async fn create_snapshot_handler(
 
 async fn delete_snapshot_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((vm_name, snap_name)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let vm2 = vm_name.clone();
     let snap2 = snap_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         snapshot::delete_snapshot(conn, &vm2, &snap2)
     })
     .await?;
@@ -67,12 +71,13 @@ async fn delete_snapshot_handler(
 
 async fn revert_snapshot_handler(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path((vm_name, snap_name)): Path<(String, String)>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<serde_json::Value>, AppError> {
     let vm2 = vm_name.clone();
     let snap2 = snap_name.clone();
-    spawn_libvirt(manager, conn_q, move |conn| {
+    spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
         snapshot::revert_snapshot(conn, &vm2, &snap2)
     })
     .await?;
