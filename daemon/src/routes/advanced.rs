@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use machina_core::libvirt::guest_agent::GuestIpAddress;
 use machina_core::libvirt::{
     boot, capabilities, cdrom, domain, domain_job, emulator, extras, filesystem, guest_agent,
+    guest_health,
     host_cpu, hostdev_pci, migrate, net_xml, network, node_device, numa_tune, nwfilter,
     save_restore, secret, storage,
 };
@@ -106,6 +107,19 @@ async fn get_guest_observability(
     })
     .await?;
     Ok(Json(serde_json::json!(info)))
+}
+
+async fn get_guest_health(
+    State(manager): State<LibvirtManager>,
+    Path(name): Path<String>,
+    Query(conn_q): Query<ConnQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let name2 = name.clone();
+    let report = spawn_libvirt(manager, conn_q, move |conn| {
+        guest_health::gather_guest_health(conn, &name2)
+    })
+    .await?;
+    Ok(Json(serde_json::json!(report)))
 }
 
 // ── CD-ROM ──────────────────────────────────────────────────────────
@@ -897,6 +911,7 @@ pub fn advanced_routes() -> Router<LibvirtManager> {
         .route("/vms/{name}/interfaces", get(get_interfaces))
         .route("/vms/{name}/hostname", get(get_hostname))
         .route("/vms/{name}/guest-observability", get(get_guest_observability))
+        .route("/vms/{name}/guest-health", get(get_guest_health))
         // CD-ROM
         .route("/vms/{name}/cdrom/insert", post(insert_cdrom_handler))
         .route(

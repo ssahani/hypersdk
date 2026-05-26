@@ -8,6 +8,7 @@ use std::path::Path;
 #[cfg(target_os = "linux")]
 use std::process::Command;
 
+use crate::bpf_probe::BpfProbeSummary;
 use crate::LibvirtError;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -86,6 +87,7 @@ pub struct LinuxHostObservability {
     pub thermal: Vec<HwmonTemp>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub vm_cgroups: Vec<VmCgroupStats>,
+    pub bpf: BpfProbeSummary,
 }
 
 #[cfg(target_os = "linux")]
@@ -492,6 +494,7 @@ pub fn gather_linux_observability() -> Result<LinuxHostObservability, LibvirtErr
     let cgroup = read_cgroup_v2_self();
     let thermal = read_hwmon_temps();
     let vm_cgroups = list_vm_cgroup_stats();
+    let bpf = crate::bpf_probe::probe_bpf_summary();
     let block_devs: Vec<String> = disk_io
         .iter()
         .filter(|d| {
@@ -510,6 +513,7 @@ pub fn gather_linux_observability() -> Result<LinuxHostObservability, LibvirtErr
         cgroup,
         thermal,
         vm_cgroups,
+        bpf,
     })
 }
 

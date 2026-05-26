@@ -290,6 +290,16 @@ export interface HwmonTemp {
   critical_celsius?: number | null
 }
 
+export interface BpfProbeSummary {
+  available: boolean
+  bpftool_path: string
+  program_count: number
+  map_count: number
+  cgroup_program_count: number
+  tracepoint_count: number
+  notes: string[]
+}
+
 export interface LinuxHostObservability {
   pressure: HostPressureStats
   disk_io: DiskIoStat[]
@@ -297,6 +307,7 @@ export interface LinuxHostObservability {
   cgroup: CgroupV2Stats
   thermal?: HwmonTemp[]
   vm_cgroups?: VmCgroupStats[]
+  bpf: BpfProbeSummary
 }
 
 export const getHostLinuxObservability = () =>

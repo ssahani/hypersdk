@@ -1374,6 +1374,15 @@ export default function NodeInfoPage() {
               </div>
             </div>
           )}
+          {linuxObs.bpf?.available && (
+            <div className="pt-2 border-t border-slate-700/50 text-sm">
+              <div className="text-slate-500 text-xs mb-1">eBPF (bpftool)</div>
+              <div className="text-slate-300 text-xs">
+                {linuxObs.bpf.program_count} programs · {linuxObs.bpf.map_count} maps ·{' '}
+                {linuxObs.bpf.cgroup_program_count} cgroup
+              </div>
+            </div>
+          )}
           {linuxAudit?.available && (linuxAudit.events?.length ?? 0) > 0 && (
             <div className="pt-2 border-t border-slate-700/50 text-sm overflow-x-auto max-h-48 overflow-y-auto">
               <div className="text-slate-500 text-xs mb-2">

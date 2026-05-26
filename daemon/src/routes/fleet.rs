@@ -233,6 +233,57 @@ async fn fleet_metrics(
     })))
 }
 
+fn prom_scrape_target(url: &str) -> (String, &'static str) {
+    let u = url.trim().trim_end_matches('/');
+    if let Some(rest) = u.strip_prefix("https://") {
+        (rest.to_string(), "https")
+    } else if let Some(rest) = u.strip_prefix("http://") {
+        (rest.to_string(), "http")
+    } else {
+        (u.to_string(), "http")
+    }
+}
+
+async fn fleet_prometheus_targets() -> Json<Value> {
+    let cfg = fleet_cfg();
+    let machina = MachinaConfig::load();
+    let metrics_path = "/api/v1/prometheus";
+    let (local_target, local_scheme) = prom_scrape_target(&machina.daemon_url());
+    let local_target = if local_target.starts_with("0.0.0.0:") {
+        local_target.replacen("0.0.0.0", "127.0.0.1", 1)
+    } else {
+        local_target
+    };
+
+    let mut static_configs: Vec<Value> = Vec::new();
+    static_configs.push(json!({
+        "targets": [local_target],
+        "labels": { "machina_peer": "local" }
+    }));
+
+    if cfg.is_enabled() {
+        for p in &cfg.peers {
+            let (target, _) = prom_scrape_target(&p.url);
+            static_configs.push(json!({
+                "targets": [target],
+                "labels": { "machina_peer": p.name }
+            }));
+        }
+    }
+
+    Json(json!({
+        "enabled": cfg.is_enabled(),
+        "metrics_path": metrics_path,
+        "note": "Prometheus scrape requires Bearer API token; add authorization to scrape_config or use a dedicated read-only token.",
+        "scrape_configs": [{
+            "job_name": "machina-fleet",
+            "metrics_path": metrics_path,
+            "scheme": local_scheme,
+            "static_configs": static_configs,
+        }]
+    }))
+}
+
 #[derive(Deserialize)]
 struct FleetProxyBody {
     method: String,
@@ -310,6 +361,7 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/fleet/status", get(fleet_status))
         .route("/fleet/metrics", get(fleet_metrics))
+        .route("/fleet/prometheus-targets", get(fleet_prometheus_targets))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))
 }

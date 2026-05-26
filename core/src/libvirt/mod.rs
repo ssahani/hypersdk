@@ -19,6 +19,7 @@ pub mod filesystem;
 pub mod firmware;
 pub mod graphics_convert;
 pub mod guest_agent;
+pub mod guest_health;
 pub mod guest_input;
 pub mod host_cpu;
 pub mod host_network;

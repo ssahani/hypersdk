@@ -18,7 +18,7 @@ A **Rust daemon** exposes REST and WebSocket APIs; a **web UI** delivers VNC, SP
 | 🔐 **Enterprise Security** | PAM authentication, RBAC roles, API tokens, session management, optional TLS |
 | 🖥️ **Multiple Interfaces** | Web UI with console access, Terminal UI (vim-style), REST API + webhooks, or raw libvirt commands |
 | ⚡ **Live Operations** | Real-time metrics, console proxies (VNC/SPICE/Serial/SSH), batch operations, job timelines |
-| 📊 **Observability** | Prometheus metrics, alerting, webhooks, audit logs, systemd journal browser |
+| 📊 **Observability** | Prometheus, OTLP export, alerts/webhooks, PSI/cgroups/auditd, fleet metrics — see [docs/guides/observability.md](docs/guides/observability.md) |
 | 🚀 **Automation Ready** | Scheduled actions, cron-based operations, API-first design, `machinactl` CLI for remote ops |
 | 🔗 **Kubernetes-Ready** | Optional KubeVirt integration, YAML bundles, `kubectl` support for cluster migration |
 

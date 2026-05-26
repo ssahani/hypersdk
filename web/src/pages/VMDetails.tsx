@@ -5,7 +5,7 @@ import {
   setAutostart, setVcpus, setMemory, setMemoryBalloon, setBootOrder,
   cloneVM, renameVM, migrateVM, resizeDisk, attachInterface, detachInterface,
   getInterfaces, getBootConfig, hasManagedSave, managedSave, managedSaveRemove,
-  getGuestObservability, type GuestObservability,
+  getGuestObservability, getGuestHealth, type GuestObservability, type GuestHealthReport,
   insertCdrom, ejectCdrom, getVMLogs, getCpuTune, getMemTune, getKubeVirtBundle, KubeVirtBundle,
   postKubeVirtApply, postKubeVirtUpload, postKubeVirtStart, type KubeVirtClusterExecResult,
   getBlockJobInfo, blockCommit, blockPull, blockJobAbort, vmDetailRoute, vmConsoleRoute, convertGraphicsSpiceToVnc, appendVmConnection,
@@ -110,6 +110,7 @@ export default function VMDetailsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
   const [guestIps, setGuestIps] = useState<GuestIpAddress[]>([])
   const [guestObs, setGuestObs] = useState<GuestObservability | null>(null)
+  const [guestHealth, setGuestHealth] = useState<GuestHealthReport | null>(null)
   const [networkGateways, setNetworkGateways] = useState<Record<string, string>>({})
   const [guestIfQueriedAt, setGuestIfQueriedAt] = useState<string | null>(null)
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
@@ -300,10 +301,16 @@ export default function VMDetailsPage() {
         } catch {
           setGuestObs(null)
         }
+        try {
+          setGuestHealth(await getGuestHealth(name, conn))
+        } catch {
+          setGuestHealth(null)
+        }
       } else {
         setMetrics(null)
         setGuestIps([])
         setGuestObs(null)
+        setGuestHealth(null)
         setNetworkGateways({})
         setGuestIfQueriedAt(null)
       }
@@ -1321,6 +1328,31 @@ export default function VMDetailsPage() {
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {guestHealth && (
+            <div
+              className={`rounded-xl p-4 border ${
+                guestHealth.healthy
+                  ? 'border-emerald-700/50 bg-emerald-950/30'
+                  : 'border-amber-700/50 bg-amber-950/20'
+              }`}
+            >
+              <div className="text-sm font-medium text-slate-100 mb-1">Guest health</div>
+              <div className="text-xs text-slate-400">
+                Agent {guestHealth.agent_reachable ? 'reachable' : 'unreachable'}
+                {guestHealth.metrics_available ? ' · metrics ok' : ''}
+              </div>
+              {guestHealth.issues.length > 0 ? (
+                <ul className="mt-2 text-xs text-amber-200/90 list-disc pl-4">
+                  {guestHealth.issues.map((issue) => (
+                    <li key={issue}>{issue}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-1 text-xs text-emerald-400/90">No issues detected</p>
+              )}
             </div>
           )}
 

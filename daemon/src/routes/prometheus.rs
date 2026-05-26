@@ -11,6 +11,9 @@ use std::time::Instant;
 use machina_core::host_linux_obs;
 use machina_core::libvirt::extras::get_host_stats;
 use machina_core::libvirt::node;
+use machina_core::bpf_probe;
+use machina_core::libvirt::automation;
+use machina_core::obs_counters;
 use machina_core::{
     LibvirtManager, VmBlockDeviceMetrics, VmInfo, VmMetrics, VmNetDeviceMetrics,
 };
@@ -473,6 +476,57 @@ async fn prometheus_metrics(
         "Libvirt reconnect attempts",
         stats.libvirt_reconnects(),
     );
+    add_gauge(
+        &mut output,
+        "machina_api_token_auth_ok_total",
+        "Successful API token authentications",
+        obs_counters::API_TOKEN_AUTH_OK.load(std::sync::atomic::Ordering::Relaxed),
+    );
+    add_gauge(
+        &mut output,
+        "machina_api_token_auth_fail_total",
+        "Rejected API token authentications",
+        obs_counters::API_TOKEN_AUTH_FAIL.load(std::sync::atomic::Ordering::Relaxed),
+    );
+
+    let alerts = automation::load_alerts();
+    let unacked = alerts.iter().filter(|a| !a.acknowledged).count();
+    let rules = automation::load_alert_rules();
+    let rules_enabled = rules.iter().filter(|r| r.enabled).count();
+    add_gauge(
+        &mut output,
+        "machina_alerts_unacknowledged",
+        "Unacknowledged Machina alerts",
+        unacked,
+    );
+    add_gauge(
+        &mut output,
+        "machina_alert_rules_enabled",
+        "Enabled alert rules",
+        rules_enabled,
+    );
+
+    let bpf = bpf_probe::probe_bpf_summary();
+    if bpf.available {
+        add_gauge(
+            &mut output,
+            "machina_bpf_programs",
+            "BPF programs on host (bpftool)",
+            bpf.program_count,
+        );
+        add_gauge(
+            &mut output,
+            "machina_bpf_maps",
+            "BPF maps on host (bpftool)",
+            bpf.map_count,
+        );
+        add_gauge(
+            &mut output,
+            "machina_bpf_cgroup_programs",
+            "cgroup BPF programs on host",
+            bpf.cgroup_program_count,
+        );
+    }
 
     let cgroup = data.4;
     if cgroup.available {

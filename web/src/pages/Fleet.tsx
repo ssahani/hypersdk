@@ -3,7 +3,15 @@ import { Link } from 'react-router'
 import { Server, RefreshCw, Play, Square, Power } from 'lucide-react'
 import PageHeader from '../components/PageHeader'
 import ErrorBanner from '../components/ErrorBanner'
-import { getFleetStatus, getFleetVms, fleetPeerProxy, type FleetPeerStatus, type FleetVmRow } from '../api/fleet'
+import {
+  getFleetStatus,
+  getFleetVms,
+  getFleetMetrics,
+  fleetPeerProxy,
+  type FleetPeerStatus,
+  type FleetVmRow,
+  type FleetMetricsResponse,
+} from '../api/fleet'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { useTranslation } from 'react-i18next'
@@ -18,16 +26,22 @@ export default function FleetPage() {
   const [primaryPeer, setPrimaryPeer] = useState('')
   const [standbyPeer, setStandbyPeer] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [metrics, setMetrics] = useState<FleetMetricsResponse | null>(null)
 
   const load = useCallback(async () => {
     setLoadError(null)
     try {
-      const [st, vmRows] = await Promise.all([getFleetStatus(), getFleetVms()])
+      const [st, vmRows, met] = await Promise.all([
+        getFleetStatus(),
+        getFleetVms(),
+        getFleetMetrics(),
+      ])
       setEnabled(Boolean(st.enabled))
       setPrimaryPeer(st.primary_peer ?? '')
       setStandbyPeer(st.standby_peer ?? '')
       setPeers(st.peers ?? [])
       setVms(vmRows.vms ?? [])
+      setMetrics(met)
     } catch (e: unknown) {
       setLoadError(formatUserError(e))
     }
@@ -118,6 +132,15 @@ export default function FleetPage() {
                   </span>
                 ) : null}
               </div>
+              {p.host_cpu_percent != null ? (
+                <div className="mt-2 text-xs text-slate-400">
+                  CPU {p.host_cpu_percent.toFixed(0)}%
+                  {p.host_memory_percent != null
+                    ? ` · mem ${p.host_memory_percent.toFixed(0)}%`
+                    : ''}
+                  {p.vms_running != null ? ` · ${p.vms_running} running` : ''}
+                </div>
+              ) : null}
               {p.error ? (
                 <p className="text-xs text-amber-400/90 mt-1">{p.error}</p>
               ) : null}
@@ -125,6 +148,32 @@ export default function FleetPage() {
           ))}
         </div>
       </section>
+
+      {metrics ? (
+        <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
+          <h2 className="text-lg font-semibold mb-3">Fleet capacity</h2>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+            <div>
+              <div className="text-slate-500 text-xs">Local CPU</div>
+              <div className="text-slate-100">{metrics.local.host_cpu_percent.toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-slate-500 text-xs">Local memory</div>
+              <div className="text-slate-100">{metrics.local.host_memory_percent.toFixed(1)}%</div>
+            </div>
+            <div>
+              <div className="text-slate-500 text-xs">Local VMs</div>
+              <div className="text-slate-100">
+                {metrics.local.vms_running} / {metrics.local.vm_count} running
+              </div>
+            </div>
+            <div>
+              <div className="text-slate-500 text-xs">Load (1m)</div>
+              <div className="text-slate-100">{metrics.local.load_1.toFixed(2)}</div>
+            </div>
+          </div>
+        </section>
+      ) : null}
 
       <section aria-labelledby="fleet-vms-heading">
         <h2 id="fleet-vms-heading" className="text-lg font-semibold mb-3">

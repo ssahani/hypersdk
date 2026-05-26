@@ -97,6 +97,16 @@
         "expr": "sum by (method, result) (rate(machina_daemon_auth_attempts_total[5m])) * 60",
         "legendFormat": "{{method}} {{result}}"
       }]
+    },
+    {
+      "title": "Unacknowledged alerts",
+      "type": "stat",
+      "targets": [{ "expr": "machina_alerts_unacknowledged", "legendFormat": "alerts" }]
+    },
+    {
+      "title": "BPF programs",
+      "type": "stat",
+      "targets": [{ "expr": "machina_bpf_programs", "legendFormat": "progs" }]
     }
   ],
   "schemaVersion": 38,

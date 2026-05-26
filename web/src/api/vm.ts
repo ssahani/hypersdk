@@ -621,6 +621,22 @@ export const getGuestObservability = (name: string, connection?: string | null) 
   readJsonObject<GuestObservability>(
     appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest-observability`, connection),
   )
+
+export interface GuestHealthReport {
+  vm_name: string
+  state: string
+  agent_reachable: boolean
+  metrics_available: boolean
+  metrics?: VmMetrics | null
+  guest?: GuestObservability | null
+  issues: string[]
+  healthy: boolean
+}
+
+export const getGuestHealth = (name: string, connection?: string | null) =>
+  readJsonObject<GuestHealthReport>(
+    appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/guest-health`, connection),
+  )
 export const insertCdrom = (name: string, isoPath: string, target: string, connection?: string | null) =>
   apiPostVoid(appendVmConnection(`${API}/vms/${encodeURIComponent(name)}/cdrom/insert`, connection), {
     iso_path: isoPath,

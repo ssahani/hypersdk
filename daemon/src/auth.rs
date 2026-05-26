@@ -572,17 +572,21 @@ pub async fn auth_middleware(
         .and_then(|v| v.to_str().ok())
     {
         if let Some(token) = auth_header.strip_prefix("Bearer ") {
-            if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
-                let scopes = effective_token_scopes(&api);
-                req.extensions_mut().insert(RequestActor {
-                    username: api.username,
-                    effective_linux_user: None,
-                    from_api_token: true,
-                    role: api.role,
-                    auth_source: AuthSource::ApiToken,
-                    token_scopes: scopes,
-                });
-                return next.run(req).await;
+            let token = token.trim();
+            if token.starts_with("mach_") || token.starts_with("vs_") {
+                if let Some(api) = machina_core::libvirt::automation::validate_api_token(token) {
+                    let scopes = effective_token_scopes(&api);
+                    req.extensions_mut().insert(RequestActor {
+                        username: api.username,
+                        effective_linux_user: None,
+                        from_api_token: true,
+                        role: api.role,
+                        auth_source: AuthSource::ApiToken,
+                        token_scopes: scopes,
+                    });
+                    return next.run(req).await;
+                }
+                machina_core::obs_counters::inc_api_token_fail();
             }
         }
     }
