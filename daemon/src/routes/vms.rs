@@ -99,21 +99,16 @@ async fn get_vm_details(
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<VmDetails>, AppError> {
     let dual = manager.dual_enabled();
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
+    let conn_q = crate::conn_query::apply_impersonation_session_default(&actor, conn_q);
+    let target = manager.resolve_query(conn_q.connection.as_deref());
+    let label = connection_label(dual, target);
     let name2 = name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        let target = mgr.resolve_query(cq.as_deref());
-        let label = connection_label(dual, target);
-        mgr.with_conn_target(target, |conn| {
-            let mut d = domain::get_vm_details(conn, &name2)?;
-            d.libvirt_connection = label.clone();
-            Ok(d)
-        })
+    let mut d = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        domain::get_vm_details(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(result?))
+    .await?;
+    d.libvirt_connection = label;
+    Ok(Json(d))
 }
 
 async fn get_vm_xml(
@@ -122,16 +117,12 @@ async fn get_vm_xml(
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
 ) -> Result<Xml, AppError> {
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
     let name2 = name.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        let target = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(target, |conn| domain::get_vm_xml(conn, &name2))
+    let xml = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        domain::get_vm_xml(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Xml(result?))
+    .await?;
+    Ok(Xml(xml))
 }
 
 fn default_true() -> bool {
@@ -160,20 +151,20 @@ struct KubeVirtBundleParams {
 }
 
 async fn kubevirt_bundle_handler(
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     State(manager): State<LibvirtManager>,
     Query(q): Query<KubeVirtBundleParams>,
 ) -> Result<Json<KubeVirtBundle>, AppError> {
     let cfg = MachinaConfig::load();
-    let cq = q.connection.clone();
-    let mgr = manager.clone();
     let name2 = name.clone();
-    let details = tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |c| domain::get_vm_details(c, &name2))
+    let conn_q = ConnQuery {
+        connection: q.connection.clone(),
+    };
+    let details = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |c| {
+        domain::get_vm_details(c, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
+    .await?;
 
     let bundle = kubevirt_bundle_from_libvirt_vm(
         &details,

@@ -104,7 +104,7 @@ const MAX_SESSIONS: usize = 1000;
 const MAX_SESSIONS_PER_USER: usize = 10;
 
 struct WsTokenData {
-    username: String,
+    actor: RequestActor,
     created_at: Instant,
 }
 
@@ -249,7 +249,7 @@ impl SessionStore {
     }
 
     /// Create a single-use WebSocket token valid for 60 seconds.
-    pub fn create_ws_token(&self, username: &str) -> String {
+    pub fn create_ws_token(&self, actor: &RequestActor) -> String {
         let mut rng = rand::thread_rng();
         let token_bytes: [u8; 32] = rng.gen();
         let token = hex::encode(token_bytes);
@@ -260,7 +260,7 @@ impl SessionStore {
         ws_tokens.insert(
             token.clone(),
             WsTokenData {
-                username: username.to_string(),
+                actor: actor.clone(),
                 created_at: Instant::now(),
             },
         );
@@ -268,12 +268,12 @@ impl SessionStore {
     }
 
     /// Validate and consume a single-use WebSocket token.
-    /// Returns the username if the token exists and is less than 60 seconds old.
-    pub fn validate_ws_token(&self, token: &str) -> Option<String> {
+    /// Returns the authenticated actor if the token exists and is less than 60 seconds old.
+    pub fn validate_ws_token(&self, token: &str) -> Option<RequestActor> {
         let mut ws_tokens = self.ws_tokens.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(data) = ws_tokens.remove(token) {
             if data.created_at.elapsed().as_secs() < 60 {
-                return Some(data.username);
+                return Some(data.actor);
             }
         }
         None
@@ -607,8 +607,7 @@ pub async fn ws_token_handler(
     Extension(sessions): Extension<SessionStore>,
     headers: axum::http::HeaderMap,
 ) -> impl IntoResponse {
-    // Extract username from session cookie
-    let username = headers
+    let actor = headers
         .get(header::COOKIE)
         .and_then(|v| v.to_str().ok())
         .and_then(|cookie_header| {
@@ -617,27 +616,34 @@ pub async fn ws_token_handler(
                 if let Some(value) = part.strip_prefix("machina_session=") {
                     let token = value.trim();
                     if !token.is_empty() {
-                        return sessions.validate_session(token).map(|actor| actor.username);
+                        return sessions.validate_session(token);
                     }
                 }
             }
             None
         })
         .or_else(|| {
-            // Fall back to Authorization header (Bearer API token)
             headers
                 .get("authorization")
                 .and_then(|v| v.to_str().ok())
                 .and_then(|auth| auth.strip_prefix("Bearer "))
                 .and_then(|token| {
-                    machina_core::libvirt::automation::validate_api_token(token)
-                        .map(|api_token| api_token.username)
+                    let api = machina_core::libvirt::automation::validate_api_token(token)?;
+                    let scopes = effective_token_scopes(&api);
+                    Some(RequestActor {
+                        username: api.username,
+                        effective_linux_user: None,
+                        from_api_token: true,
+                        role: api.role,
+                        auth_source: AuthSource::ApiToken,
+                        token_scopes: scopes,
+                    })
                 })
         });
 
-    match username {
-        Some(user) => {
-            let token = sessions.create_ws_token(&user);
+    match actor {
+        Some(actor) => {
+            let token = sessions.create_ws_token(&actor);
             (StatusCode::OK, Json(serde_json::json!({ "token": token }))).into_response()
         }
         None => {
@@ -649,7 +655,7 @@ pub async fn ws_token_handler(
 /// WebSocket auth middleware — checks for `?token=` query parameter.
 pub async fn ws_auth_middleware(
     State(store): State<SessionStore>,
-    req: Request<Body>,
+    mut req: Request<Body>,
     next: Next,
 ) -> Response {
     // Extract token from query string
@@ -659,7 +665,8 @@ pub async fn ws_auth_middleware(
     });
 
     if let Some(ref tok) = token {
-        if store.validate_ws_token(tok).is_some() {
+        if let Some(actor) = store.validate_ws_token(tok) {
+            req.extensions_mut().insert(actor);
             return next.run(req).await;
         }
     }

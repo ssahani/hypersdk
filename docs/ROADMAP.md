@@ -28,4 +28,14 @@ Phases below were delivered on `main` in batches through observability, integrat
 | Broader run-as-user session libvirt | Done — `prefer_session_libvirt_on_impersonation` applies to VM list/lifecycle/snapshot routes via `spawn_libvirt_actor` |
 | Multi-host fleet Prometheus in one scrape | Done — `GET /api/v1/fleet/prometheus` merges local + peer `/prometheus` with `machina_peer` label |
 
-See `docs/guides/observability.md` and `docs/guides/integrations.md`.
+## Gap-plan batch (delivered)
+
+| Item | Status |
+|------|--------|
+| Session libvirt on advanced / networks / storage / guest / extras / console / WS | Done |
+| Fleet UI copy-link for `GET /fleet/prometheus` | Done |
+| Metrics ingest scope documented (host triplet only) | Done |
+| OIDC route matrix + `docs/enterprise-backlog.md` | Done |
+| WebSocket tokens carry full `RequestActor` for console/VNC/SPICE/RDP | Done |
+
+See `docs/guides/observability.md`, `docs/guides/integrations.md`, and `docs/oidc-run-as-user.md`.

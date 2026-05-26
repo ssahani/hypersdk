@@ -56,7 +56,8 @@ Install: `contrib/run-as-user/README.md`
 | `/api/v1/advanced/*` (CD-ROM, migrate, boot, PCI, pools, …) | Yes |
 | `/api/v1/networks/*`, `/api/v1/storage/*` | Yes |
 | `/api/v1/snapshots/*` | Yes |
-| `/api/v1/console/*`, `/api/v1/vms/{name}/virt-viewer.vv` | Yes |
+| `/api/v1/console/*`, `/ws/v1/console|vnc|spice|rdp/*` | Yes — WS tokens carry full `RequestActor` |
+| `/api/v1/vms/{name}/virt-viewer.vv` | Yes |
 | Extras: USB, cloud-init, import, live resize, DHCP, templates, virt-image-build | Yes (VM/storage paths) |
 | OpenStack, K8s, fleet proxy, host-only extras (package updates, inventory) | No — not libvirt session policy |
 | `[libvirt] extra_uris` federated list | Read-only; no session write path |

@@ -3,7 +3,7 @@ use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 
 use machina_core::libvirt::snapshot;
-use machina_core::{CreateSnapshotRequest, LibvirtError, LibvirtManager, SnapshotInfo};
+use machina_core::{CreateSnapshotRequest, LibvirtManager, SnapshotInfo};
 
 use crate::auth::RequestActor;
 use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
@@ -11,12 +11,12 @@ use crate::error::AppError;
 
 async fn list_all_snapshots(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
+    Query(conn_q): Query<ConnQuery>,
 ) -> Result<Json<Vec<SnapshotInfo>>, AppError> {
-    let result =
-        tokio::task::spawn_blocking(move || manager.with_conn(snapshot::list_all_snapshots))
-            .await
-            .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))?;
-    Ok(Json(result?))
+    let rows =
+        spawn_libvirt_actor(manager, Some(&actor), conn_q, snapshot::list_all_snapshots).await?;
+    Ok(Json(rows))
 }
 
 async fn list_vm_snapshots(

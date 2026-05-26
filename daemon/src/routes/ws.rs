@@ -20,7 +20,8 @@ fn vm_watch_key(vm: &VmInfo) -> String {
     }
 }
 
-use crate::conn_query::ConnQuery;
+use crate::auth::RequestActor;
+use crate::conn_query::{spawn_libvirt_actor, ConnQuery};
 use crate::kubevirt_k8s_ws_proxy;
 use crate::terminal::{run_ssh_terminal, TerminalSessionStore};
 
@@ -148,41 +149,33 @@ async fn handle_socket(mut socket: WebSocket, manager: LibvirtManager) {
 
 async fn console_handler(
     ws: WebSocketUpgrade,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
     let name_xml = name.clone();
-    let pty_path = match tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |conn| {
-            let xml = domain::get_vm_xml(conn, &name_xml)?;
-            let path = machina_core::xml::extract_attr(&xml, "console", "tty")
-                .filter(|s| !s.is_empty())
-                .or_else(|| {
-                    for block in machina_core::xml::split_blocks(&xml, "console") {
-                        if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
-                            if !p.is_empty() {
-                                return Some(p);
-                            }
+    let pty_path = match spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        let xml = domain::get_vm_xml(conn, &name_xml)?;
+        let path = machina_core::xml::extract_attr(&xml, "console", "tty")
+            .filter(|s| !s.is_empty())
+            .or_else(|| {
+                for block in machina_core::xml::split_blocks(&xml, "console") {
+                    if let Some(p) = machina_core::xml::extract_attr(&block, "source", "path") {
+                        if !p.is_empty() {
+                            return Some(p);
                         }
                     }
-                    None
-                });
-            Ok(path)
-        })
+                }
+                None
+            });
+        Ok(path)
     })
     .await
     {
-        Ok(Ok(path)) => path,
-        Ok(Err(e)) => {
-            warn!("Failed to get console info for VM '{}': {}", name, e);
-            None
-        }
-        Err(e) => {
-            warn!("Console task join for VM '{}': {}", name, e);
+        Ok(path) => path,
+        Err(_) => {
+            warn!("Failed to get console info for VM '{}'", name);
             None
         }
     };
@@ -317,36 +310,24 @@ async fn handle_console(socket: WebSocket, name: String, pty_path: Option<String
 
 async fn vnc_handler(
     ws: WebSocketUpgrade,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
     let name2 = name.clone();
-    let resolved = tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |conn| {
-            machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name2)
-        })
+    let resolved = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        machina_core::libvirt::vnc::resolve_vnc_tcp(conn, &name2)
     })
     .await;
-
-    let resolved = match resolved {
-        Ok(r) => r,
-        Err(e) => {
-            warn!("VNC join failed for VM '{}': {}", name, e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "task join failed").into_response();
-        }
-    };
 
     let (host, port) = match resolved {
         Ok((h, p)) if p > 0 => (h, p),
         Ok(_) => {
             return (StatusCode::NOT_FOUND, "No VNC display for this VM").into_response();
         }
-        Err(e) => {
-            warn!("VNC resolve failed for VM '{}': {}", name, e);
+        Err(_) => {
+            warn!("VNC resolve failed for VM '{}'", name);
             return (StatusCode::NOT_FOUND, "No VNC display for this VM").into_response();
         }
     };
@@ -434,36 +415,24 @@ async fn handle_vnc_proxy(socket: WebSocket, name: String, host: String, port: u
 
 async fn rdp_handler(
     ws: WebSocketUpgrade,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
     let name2 = name.clone();
-    let resolved = tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |conn| {
-            machina_core::libvirt::rdp::resolve_rdp_endpoint(conn, &name2)
-        })
+    let resolved = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        machina_core::libvirt::rdp::resolve_rdp_endpoint(conn, &name2)
     })
     .await;
-
-    let resolved = match resolved {
-        Ok(r) => r,
-        Err(e) => {
-            warn!("RDP join failed for VM '{}': {}", name, e);
-            return (StatusCode::INTERNAL_SERVER_ERROR, "task join failed").into_response();
-        }
-    };
 
     let (host, port) = match resolved {
         Ok((h, p)) if p > 0 => (h, p),
         Ok(_) => {
             return (StatusCode::NOT_FOUND, "No RDP endpoint for this VM").into_response();
         }
-        Err(e) => {
-            warn!("RDP resolve failed for VM '{}': {}", name, e);
+        Err(_) => {
+            warn!("RDP resolve failed for VM '{}'", name);
             return (StatusCode::NOT_FOUND, "No RDP endpoint for this VM").into_response();
         }
     };
@@ -547,40 +516,32 @@ async fn handle_rdp_proxy(socket: WebSocket, name: String, host: String, port: u
 
 async fn spice_handler(
     ws: WebSocketUpgrade,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(conn_q): Query<ConnQuery>,
     State(manager): State<LibvirtManager>,
 ) -> impl IntoResponse {
-    let cq = conn_q.connection.clone();
-    let mgr = manager.clone();
     let name2 = name.clone();
-    let port = match tokio::task::spawn_blocking(move || {
-        let t = mgr.resolve_query(cq.as_deref());
-        mgr.with_conn_target(t, |conn| {
-            let xml = domain::get_vm_xml(conn, &name2)?;
-            let mut port = 0u16;
-            for block in machina_core::xml::split_blocks(&xml, "graphics") {
-                let gtype =
-                    machina_core::xml::extract_attr(&block, "graphics", "type").unwrap_or_default();
-                if gtype == "spice" {
-                    port = machina_core::xml::extract_attr(&block, "graphics", "port")
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(0);
-                    break;
-                }
+    let port = match spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        let xml = domain::get_vm_xml(conn, &name2)?;
+        let mut port = 0u16;
+        for block in machina_core::xml::split_blocks(&xml, "graphics") {
+            let gtype =
+                machina_core::xml::extract_attr(&block, "graphics", "type").unwrap_or_default();
+            if gtype == "spice" {
+                port = machina_core::xml::extract_attr(&block, "graphics", "port")
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(0);
+                break;
             }
-            Ok(port)
-        })
+        }
+        Ok(port)
     })
     .await
     {
-        Ok(Ok(p)) => p,
-        Ok(Err(e)) => {
-            warn!("SPICE port for VM '{}': {}", name, e);
-            0u16
-        }
-        Err(e) => {
-            warn!("SPICE task join for VM '{}': {}", name, e);
+        Ok(p) => p,
+        Err(_) => {
+            warn!("SPICE port lookup failed for VM '{}'", name);
             0u16
         }
     };

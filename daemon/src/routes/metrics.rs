@@ -16,7 +16,8 @@ use machina_core::{
 
 const REMOTE_WRITE_MAX_BYTES: usize = 16 * 1024 * 1024;
 
-use crate::conn_query::ConnQuery;
+use crate::auth::RequestActor;
+use crate::conn_query::{apply_impersonation_session_default, spawn_libvirt_actor, ConnQuery};
 use crate::error::AppError;
 use crate::http_metrics::HttpMetrics;
 use crate::metrics_history::MetricsHistoryStore;
@@ -32,19 +33,20 @@ async fn get_all_metrics(
 
 async fn get_vm_metrics(
     State(manager): State<LibvirtManager>,
+    Extension(actor): Extension<RequestActor>,
     Path(name): Path<String>,
     Query(q): Query<ConnQuery>,
 ) -> Result<Json<VmMetrics>, AppError> {
     let dual = manager.dual_enabled();
-    let target = manager.resolve_query(q.connection.as_deref());
-    let mgr = manager.clone();
+    let conn_q = apply_impersonation_session_default(&actor, q);
+    let target = manager.resolve_query(conn_q.connection.as_deref());
+    let label = crate::conn_query::connection_label(dual, target);
     let name2 = name.clone();
-    let mut m = tokio::task::spawn_blocking(move || {
-        mgr.with_conn_target(target, |conn| metrics::get_vm_metrics(conn, &name2))
+    let mut m = spawn_libvirt_actor(manager, Some(&actor), conn_q, move |conn| {
+        metrics::get_vm_metrics(conn, &name2)
     })
-    .await
-    .map_err(|e| AppError::from(LibvirtError::Internal(format!("Task failed: {e}"))))??;
-    m.libvirt_connection = crate::conn_query::connection_label(dual, target);
+    .await?;
+    m.libvirt_connection = label;
     Ok(Json(m))
 }
 
