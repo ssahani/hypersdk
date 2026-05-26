@@ -1,18 +1,29 @@
 //! Optional remote shipping for Machina audit events (syslog + HTTP webhook).
 
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
 
 use crate::config::AuditLogConfig;
 use crate::state::AuditEvent;
 
-static SHIP_CFG: OnceLock<AuditLogConfig> = OnceLock::new();
+static SHIP_CFG: OnceLock<RwLock<AuditLogConfig>> = OnceLock::new();
+
+fn ship_lock() -> &'static RwLock<AuditLogConfig> {
+    SHIP_CFG.get_or_init(|| RwLock::new(AuditLogConfig::default()))
+}
 
 pub fn configure_ship(cfg: AuditLogConfig) {
-    let _ = SHIP_CFG.set(cfg);
+    if let Some(lock) = SHIP_CFG.get() {
+        *lock.write().unwrap_or_else(|e| e.into_inner()) = cfg;
+    } else {
+        let _ = SHIP_CFG.set(RwLock::new(cfg));
+    }
 }
 
 fn ship_cfg() -> AuditLogConfig {
-    SHIP_CFG.get().cloned().unwrap_or_default()
+    ship_lock()
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
 }
 
 #[cfg(target_os = "linux")]

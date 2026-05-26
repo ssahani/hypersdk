@@ -3,6 +3,7 @@ pub mod audit;
 pub mod audit_ship;
 pub mod bpf_probe;
 pub mod linux_audit;
+pub mod observability_settings;
 pub mod otlp;
 pub mod run_as_user;
 pub mod build_precheck;
@@ -24,6 +25,11 @@ pub mod validate;
 pub mod xml;
 
 pub use api_error::{format_http_error_body, format_user_error, friendly_error_code, sanitize_error_text};
+pub use observability_settings::{
+    apply_observability_patch, settings_view_from_config, AuditObservabilityView,
+    MetricsHistoryRemoteView, ObservabilitySettingsPatch, ObservabilitySettingsView,
+    OtlpSettingsView,
+};
 pub use config::{
     AuthConfig, FleetConfig, FleetPeer, HypersdkConfig, KubeVirtConfig, LdapConfig, MachinaConfig,
     OpenStackConfig, OidcConfig, OidcDefaultRole, RunAsUserConfig, SshTerminalConfig,

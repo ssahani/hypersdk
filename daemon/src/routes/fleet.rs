@@ -7,7 +7,7 @@ use machina_core::config::{FleetConfig, MachinaConfig};
 use machina_core::libvirt::automation::{self, Alert};
 use machina_core::{LibvirtManager, VmInfo};
 use reqwest::Client;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::Duration;
 use tracing::warn;
@@ -293,6 +293,160 @@ struct FleetAlertRow {
     unacknowledged: usize,
 }
 
+#[derive(Deserialize)]
+struct FleetPlacementRequest {
+    #[serde(default = "default_placement_vcpus")]
+    vcpus: u32,
+    #[serde(default = "default_placement_memory_mb")]
+    memory_mb: u64,
+}
+
+fn default_placement_vcpus() -> u32 {
+    2
+}
+
+fn default_placement_memory_mb() -> u64 {
+    2048
+}
+
+#[derive(Serialize)]
+struct PlacementCandidate {
+    peer: String,
+    reachable: bool,
+    recommended: bool,
+    capacity: Value,
+    host_cpu_percent: Option<f64>,
+    host_memory_percent: Option<f64>,
+    host_disk_percent: Option<f64>,
+    vm_count: Option<usize>,
+    vms_running: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+fn placement_adjusted_score(base: f64, vcpus: u32, memory_mb: u64) -> f64 {
+    let mem_gb = memory_mb as f64 / 1024.0;
+    let penalty = (vcpus as f64 * 3.0) + (mem_gb * 2.0);
+    ((base - penalty) * 10.0).round() / 10.0
+}
+
+async fn fleet_placement(
+    State(manager): State<LibvirtManager>,
+    Json(req): Json<FleetPlacementRequest>,
+) -> Result<Json<Value>, AppError> {
+    let cfg = fleet_cfg();
+    let local_stats = machina_core::libvirt::extras::get_host_stats();
+    let local_vms = manager.list_all_vms()?;
+    let (base_score, _) = fleet_capacity_score(
+        local_stats.cpu_percent,
+        local_stats.memory_percent,
+        local_stats.disk_percent,
+    );
+    let adjusted = placement_adjusted_score(base_score, req.vcpus, req.memory_mb);
+    let mut local_cap = fleet_capacity(
+        local_stats.cpu_percent,
+        local_stats.memory_percent,
+        local_stats.disk_percent,
+    );
+    if let Some(obj) = local_cap.as_object_mut() {
+        obj.insert("adjusted_score".into(), json!(adjusted));
+    }
+    let mut candidates = vec![PlacementCandidate {
+        peer: "local".into(),
+        reachable: true,
+        recommended: false,
+        capacity: local_cap,
+        host_cpu_percent: Some(local_stats.cpu_percent),
+        host_memory_percent: Some(local_stats.memory_percent),
+        host_disk_percent: Some(local_stats.disk_percent),
+        vm_count: Some(local_vms.len()),
+        vms_running: Some(
+            local_vms
+                .iter()
+                .filter(|v| v.state.eq_ignore_ascii_case("running"))
+                .count() as u32,
+        ),
+        error: None,
+    }];
+
+    if cfg.is_enabled() {
+        for p in &cfg.peers {
+            let mut row = PlacementCandidate {
+                peer: p.name.clone(),
+                reachable: false,
+                recommended: false,
+                capacity: json!({}),
+                host_cpu_percent: None,
+                host_memory_percent: None,
+                host_disk_percent: None,
+                vm_count: None,
+                vms_running: None,
+                error: None,
+            };
+            if let Ok(stats) = fetch_peer_json(p, "/host/stats").await {
+                row.reachable = true;
+                let cpu = stats.get("cpu_percent").and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let mem = stats
+                    .get("memory_percent")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                let disk = stats
+                    .get("disk_percent")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
+                row.host_cpu_percent = Some(cpu);
+                row.host_memory_percent = Some(mem);
+                row.host_disk_percent = Some(disk);
+                let (base, _) = fleet_capacity_score(cpu, mem, disk);
+                let adj = placement_adjusted_score(base, req.vcpus, req.memory_mb);
+                let mut cap = fleet_capacity(cpu, mem, disk);
+                if let Some(obj) = cap.as_object_mut() {
+                    obj.insert("adjusted_score".into(), json!(adj));
+                }
+                row.capacity = cap;
+            } else {
+                row.error = match fetch_peer_json(p, "/system/platform-info").await {
+                    Err(e) => Some(e),
+                    Ok(_) => Some("host stats unavailable".into()),
+                };
+            }
+            if row.reachable {
+                if let Ok(vms) = fetch_peer_json(p, "/vms").await {
+                    if let Some(arr) = vms.as_array() {
+                        row.vm_count = Some(arr.len());
+                        row.vms_running = Some(
+                            arr.iter()
+                                .filter(|v| {
+                                    v.get("state")
+                                        .and_then(|s| s.as_str())
+                                        .map(|s| s.eq_ignore_ascii_case("running"))
+                                        .unwrap_or(false)
+                                })
+                                .count() as u32,
+                        );
+                    }
+                }
+            }
+            candidates.push(row);
+        }
+    }
+
+    candidates.sort_by(|a, b| {
+        let sa = a.capacity.get("adjusted_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        let sb = b.capacity.get("adjusted_score").and_then(|v| v.as_f64()).unwrap_or(0.0);
+        sb.partial_cmp(&sa).unwrap_or(std::cmp::Ordering::Equal)
+    });
+    if let Some(best) = candidates.iter_mut().find(|c| c.reachable) {
+        best.recommended = true;
+    }
+
+    Ok(Json(json!({
+        "enabled": cfg.is_enabled(),
+        "request": { "vcpus": req.vcpus, "memory_mb": req.memory_mb },
+        "candidates": candidates,
+    })))
+}
+
 async fn fleet_alerts() -> Json<Value> {
     let cfg = fleet_cfg();
     let mut rows: Vec<FleetAlertRow> = Vec::new();
@@ -474,6 +628,7 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
         .route("/fleet/status", get(fleet_status))
         .route("/fleet/metrics", get(fleet_metrics))
         .route("/fleet/alerts", get(fleet_alerts))
+        .route("/fleet/placement", post(fleet_placement))
         .route("/fleet/prometheus-targets", get(fleet_prometheus_targets))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))

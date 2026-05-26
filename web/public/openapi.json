@@ -1272,6 +1272,48 @@
         "responses": { "200": { "description": "Prometheus static_configs JSON" } }
       }
     },
+    "/fleet/placement": {
+      "post": {
+        "summary": "Rank fleet peers for VM placement by capacity",
+        "tags": ["Fleet"],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "vcpus": { "type": "integer", "default": 2 },
+                  "memory_mb": { "type": "integer", "default": 2048 }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Ranked placement candidates" } }
+      }
+    },
+    "/system/observability-settings": {
+      "get": {
+        "summary": "Observability config subset (admin)",
+        "tags": ["System"],
+        "responses": { "200": { "description": "OTLP, metrics remote_write, audit signing" } }
+      },
+      "put": {
+        "summary": "Update observability config and save config.toml (admin)",
+        "tags": ["System"],
+        "responses": { "200": { "description": "Saved settings" } }
+      }
+    },
+    "/audit/verify": {
+      "get": {
+        "summary": "Verify sha256 signatures on audit.log lines",
+        "tags": ["Audit"],
+        "parameters": [
+          { "name": "max_lines", "in": "query", "schema": { "type": "integer", "default": 50000 } }
+        ],
+        "responses": { "200": { "description": "Verification counts" } }
+      }
+    },
     "/snapshots": {
       "get": {
         "summary": "List all snapshots across all VMs",

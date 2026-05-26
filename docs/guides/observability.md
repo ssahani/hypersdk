@@ -93,4 +93,16 @@ Prometheus gauges: `machina_alerts_unacknowledged`, `machina_alert_rules_enabled
 
 ## Fleet
 
-Enable `[fleet]` peers in config, then use `/fleet/status`, `/fleet/metrics`, and `/fleet/prometheus-targets` for multi-hypervisor views.
+Enable `[fleet]` peers in config, then use `/fleet/status`, `/fleet/metrics`, `/fleet/alerts`, `/fleet/placement`, and `/fleet/prometheus-targets` for multi-hypervisor views.
+
+`POST /api/v1/fleet/placement` ranks local + peer nodes by capacity headroom for a requested VM size (`vcpus`, `memory_mb`).
+
+## Settings UI (admin)
+
+**Settings → Observability** edits OTLP export, metrics JSON `remote_write_url`, and `audit.sign_lines` in `/etc/machina/config.toml` (restart daemon for OTLP / remote-write workers).
+
+`GET /api/v1/audit/verify` checks `sha256:` prefixes on `/var/lib/machina/audit.log`. CLI: `./machinactl audit verify`.
+
+## Alloy / Mimir
+
+See `contrib/alloy/README.md` for scraping Prometheus and forwarding to a **native** `remote_write` endpoint (separate from Machina JSON ingest).

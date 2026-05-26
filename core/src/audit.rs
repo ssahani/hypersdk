@@ -1,19 +1,32 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::PathBuf;
-use std::sync::OnceLock;
+use std::sync::{OnceLock, RwLock};
+
+use serde::Serialize;
 
 use crate::config::AuditLogConfig;
 use crate::state::AuditEvent;
 
-static ROTATION: OnceLock<AuditLogConfig> = OnceLock::new();
+static ROTATION: OnceLock<RwLock<AuditLogConfig>> = OnceLock::new();
+
+fn rotation_lock() -> &'static RwLock<AuditLogConfig> {
+    ROTATION.get_or_init(|| RwLock::new(AuditLogConfig::default()))
+}
 
 pub fn configure_rotation(cfg: AuditLogConfig) {
-    let _ = ROTATION.set(cfg);
+    if let Some(lock) = ROTATION.get() {
+        *lock.write().unwrap_or_else(|e| e.into_inner()) = cfg;
+    } else {
+        let _ = ROTATION.set(RwLock::new(cfg));
+    }
 }
 
 fn rotation_cfg() -> AuditLogConfig {
-    ROTATION.get().cloned().unwrap_or_default()
+    rotation_lock()
+        .read()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone()
 }
 
 fn maybe_sign_audit_line(line: &str, sign: bool) -> String {
@@ -30,6 +43,48 @@ fn audit_line_sha256_hex(line: &str) -> String {
 }
 
 /// Returns true when `line` is `sha256:<hex>\\t<payload>` and the hash matches `payload`.
+#[derive(Debug, Clone, Serialize, Default)]
+pub struct AuditVerifyReport {
+    pub total_lines: usize,
+    pub signed_valid: usize,
+    pub signed_invalid: usize,
+    pub unsigned: usize,
+    pub invalid_samples: Vec<String>,
+}
+
+/// Verify signed lines in the audit log (up to `max_lines` from the end of the file).
+pub fn verify_audit_log(max_lines: usize) -> AuditVerifyReport {
+    let path = audit_log_path();
+    let content = match fs::read_to_string(&path) {
+        Ok(c) => c,
+        Err(_) => return AuditVerifyReport::default(),
+    };
+    let max_lines = max_lines.max(1).min(500_000);
+    let lines: Vec<&str> = content.lines().rev().take(max_lines).collect();
+    let mut report = AuditVerifyReport {
+        total_lines: lines.len(),
+        ..Default::default()
+    };
+    for line in lines.into_iter().rev() {
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("sha256:") {
+            if verify_signed_audit_line(line) {
+                report.signed_valid += 1;
+            } else {
+                report.signed_invalid += 1;
+                if report.invalid_samples.len() < 20 {
+                    report.invalid_samples.push(line.chars().take(200).collect());
+                }
+            }
+        } else {
+            report.unsigned += 1;
+        }
+    }
+    report
+}
+
 pub fn verify_signed_audit_line(line: &str) -> bool {
     let Some(hex_and_rest) = line.strip_prefix("sha256:") else {
         return false;
@@ -182,4 +237,5 @@ mod tests {
         signed = signed.replace("vm.stop", "vm.start");
         assert!(!verify_signed_audit_line(&signed));
     }
+
 }

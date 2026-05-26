@@ -8,11 +8,13 @@ import {
   getFleetVms,
   getFleetMetrics,
   getFleetAlerts,
+  postFleetPlacement,
   fleetPeerProxy,
   type FleetPeerStatus,
   type FleetVmRow,
   type FleetMetricsResponse,
   type FleetAlertPeer,
+  type PlacementCandidate,
 } from '../api/fleet'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
@@ -31,6 +33,10 @@ export default function FleetPage() {
   const [metrics, setMetrics] = useState<FleetMetricsResponse | null>(null)
   const [fleetAlerts, setFleetAlerts] = useState<FleetAlertPeer[]>([])
   const [fleetAlertsTotal, setFleetAlertsTotal] = useState(0)
+  const [placementVcpus, setPlacementVcpus] = useState(2)
+  const [placementMemMb, setPlacementMemMb] = useState(2048)
+  const [placement, setPlacement] = useState<PlacementCandidate[] | null>(null)
+  const [placementBusy, setPlacementBusy] = useState(false)
 
   const load = useCallback(async () => {
     setLoadError(null)
@@ -154,6 +160,69 @@ export default function FleetPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3">
+        <h2 className="text-lg font-semibold">VM placement</h2>
+        <p className="text-xs text-slate-500">
+          Rank hypervisors by capacity headroom (CPU, memory, disk) minus requested VM size.
+        </p>
+        <div className="flex flex-wrap gap-3 items-end text-sm">
+          <label>
+            <span className="text-xs text-slate-500">vCPUs</span>
+            <input
+              type="number"
+              min={1}
+              className="input-field block mt-1 w-20"
+              value={placementVcpus}
+              onChange={(e) => setPlacementVcpus(Number(e.target.value) || 1)}
+            />
+          </label>
+          <label>
+            <span className="text-xs text-slate-500">Memory (MiB)</span>
+            <input
+              type="number"
+              min={256}
+              className="input-field block mt-1 w-28"
+              value={placementMemMb}
+              onChange={(e) => setPlacementMemMb(Number(e.target.value) || 256)}
+            />
+          </label>
+          <button
+            type="button"
+            disabled={placementBusy}
+            className="btn-secondary"
+            onClick={async () => {
+              setPlacementBusy(true)
+              try {
+                const res = await postFleetPlacement(placementVcpus, placementMemMb)
+                setPlacement(res.candidates ?? [])
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              } finally {
+                setPlacementBusy(false)
+              }
+            }}
+          >
+            {placementBusy ? 'Ranking…' : 'Suggest peer'}
+          </button>
+        </div>
+        {placement && placement.length > 0 ? (
+          <ul className="text-xs text-slate-400 space-y-1">
+            {placement.map((c) => (
+              <li key={c.peer}>
+                <span className={c.recommended ? 'text-emerald-400 font-medium' : ''}>
+                  {c.peer}
+                  {c.recommended ? ' ← recommended' : ''}
+                </span>
+                {c.reachable && c.capacity.adjusted_score != null
+                  ? ` · score ${c.capacity.adjusted_score} (${c.capacity.label})`
+                  : ''}
+                {c.error ? ` · ${c.error}` : ''}
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </section>
 
       {metrics ? (

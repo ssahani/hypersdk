@@ -89,6 +89,27 @@ export function getFleetAlerts() {
   }>(`${API}/fleet/alerts`)
 }
 
+export interface PlacementCandidate {
+  peer: string
+  reachable: boolean
+  recommended: boolean
+  capacity: FleetCapacity & { adjusted_score?: number }
+  host_cpu_percent?: number
+  host_memory_percent?: number
+  host_disk_percent?: number
+  vm_count?: number
+  vms_running?: number
+  error?: string
+}
+
+export function postFleetPlacement(vcpus = 2, memoryMb = 2048) {
+  return apiPost<{
+    enabled: boolean
+    request: { vcpus: number; memory_mb: number }
+    candidates: PlacementCandidate[]
+  }>(`${API}/fleet/placement`, { vcpus, memory_mb: memoryMb })
+}
+
 export function getFleetPrometheusTargets() {
   return readJsonObject<{
     enabled: boolean

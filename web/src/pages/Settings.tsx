@@ -19,11 +19,16 @@ import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import {
   Settings, Users, Key, Bell, Webhook, Clock, Plus, Trash2, RefreshCw,
-  Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare, Cloud, ExternalLink,
+  Check, X, Shield, AlertCircle, Eye, Send, Camera, MessageSquare, Cloud, ExternalLink, Activity,
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { formatUserError } from '../utils/apiError'
-
+import {
+  getObservabilitySettings,
+  putObservabilitySettings,
+  verifyAuditLog,
+  type ObservabilitySettingsView,
+} from '../api/observability'
 type Tab = 'roles' | 'tokens' | 'alerts' | 'webhooks' | 'schedules' | 'notifications' | 'snapshots'
 
 export default function SettingsPage() {
@@ -68,6 +73,12 @@ export default function SettingsPage() {
   const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [openstackTesting, setOpenstackTesting] = useState(false)
   const openstackAutoTested = useRef(false)
+  const [obsSettings, setObsSettings] = useState<ObservabilitySettingsView | null>(null)
+  const [obsSaving, setObsSaving] = useState(false)
+  const [auditVerifyBusy, setAuditVerifyBusy] = useState(false)
+  const [auditVerifyResult, setAuditVerifyResult] = useState<string | null>(null)
+  const [otlpAuthInput, setOtlpAuthInput] = useState('')
+  const [remoteWriteAuthInput, setRemoteWriteAuthInput] = useState('')
 
   const load = useCallback(async () => {
     const results = await Promise.allSettled([
@@ -76,6 +87,7 @@ export default function SettingsPage() {
       listNotificationChannels(), listSnapshotSchedules(),
       getOsUserCapability(),
       getOpenStackStatus(),
+      getObservabilitySettings(),
     ])
     if (results[0].status === 'fulfilled') setRoles(results[0].value)
     if (results[1].status === 'fulfilled') setTokens(results[1].value)
@@ -90,6 +102,8 @@ export default function SettingsPage() {
     else setOsUserCap(null)
     if (results[10].status === 'fulfilled') setOpenstackStatus(results[10].value)
     else setOpenstackStatus(null)
+    if (results[11].status === 'fulfilled') setObsSettings(results[11].value)
+    else setObsSettings(null)
     setLoading(false)
   }, [])
 
@@ -231,6 +245,170 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {obsSettings ? (
+        <section className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-4">
+          <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <Activity className="w-4 h-4 text-violet-400" />
+            Observability
+          </h2>
+          <p className="text-xs text-slate-500">
+            Writes <code className="text-slate-400">{obsSettings.config_path}</code>. Restart{' '}
+            <code className="text-slate-400">machina-daemon</code> after saving OTLP or metrics remote-write changes.
+            Admin role required.
+          </p>
+          <div className="grid sm:grid-cols-2 gap-3 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={obsSettings.otlp.enabled}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    otlp: { ...obsSettings.otlp, enabled: e.target.checked },
+                  })
+                }
+              />
+              OTLP export enabled
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={obsSettings.audit.sign_lines}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    audit: { sign_lines: e.target.checked },
+                  })
+                }
+              />
+              Sign audit log lines (sha256)
+            </label>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-slate-500">OTLP endpoint</label>
+              <input
+                className="input-field w-full mt-1"
+                value={obsSettings.otlp.endpoint}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    otlp: { ...obsSettings.otlp, endpoint: e.target.value },
+                  })
+                }
+                placeholder="http://127.0.0.1:4318"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">
+                OTLP authorization {obsSettings.otlp.authorization_set ? `(set: ${obsSettings.otlp.authorization})` : ''}
+              </label>
+              <input
+                className="input-field w-full mt-1"
+                type="password"
+                value={otlpAuthInput}
+                placeholder={obsSettings.otlp.authorization_set ? 'Leave blank to keep' : 'Bearer …'}
+                onChange={(e) => setOtlpAuthInput(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">Metrics JSON remote_write URL</label>
+              <input
+                className="input-field w-full mt-1"
+                value={obsSettings.metrics_history.remote_write_url}
+                onChange={(e) =>
+                  setObsSettings({
+                    ...obsSettings,
+                    metrics_history: {
+                      ...obsSettings.metrics_history,
+                      remote_write_url: e.target.value,
+                    },
+                  })
+                }
+              />
+            </div>
+            <div>
+              <label className="text-xs text-slate-500">
+                Remote_write auth{' '}
+                {obsSettings.metrics_history.remote_write_authorization_set
+                  ? `(set: ${obsSettings.metrics_history.remote_write_authorization})`
+                  : ''}
+              </label>
+              <input
+                className="input-field w-full mt-1"
+                type="password"
+                value={remoteWriteAuthInput}
+                placeholder="Bearer …"
+                onChange={(e) => setRemoteWriteAuthInput(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={obsSaving}
+              className="px-3 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm disabled:opacity-50"
+              onClick={async () => {
+                if (!obsSettings) return
+                setObsSaving(true)
+                try {
+                  const patch: Record<string, unknown> = {
+                    otlp_enabled: obsSettings.otlp.enabled,
+                    otlp_endpoint: obsSettings.otlp.endpoint,
+                    otlp_export_metrics: obsSettings.otlp.export_metrics,
+                    otlp_export_logs: obsSettings.otlp.export_logs,
+                    otlp_export_traces: obsSettings.otlp.export_traces,
+                    audit_sign_lines: obsSettings.audit.sign_lines,
+                    metrics_history_remote_write_url: obsSettings.metrics_history.remote_write_url,
+                  }
+                  if (otlpAuthInput) {
+                    patch.otlp_authorization = otlpAuthInput
+                  }
+                  if (remoteWriteAuthInput) {
+                    patch.metrics_history_remote_write_authorization = remoteWriteAuthInput
+                  }
+                  const res = await putObservabilitySettings(patch)
+                  setObsSettings(res.settings)
+                  setOtlpAuthInput('')
+                  setRemoteWriteAuthInput('')
+                  toast.success(res.restart_recommended ? 'Saved — restart daemon for workers' : 'Saved')
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                } finally {
+                  setObsSaving(false)
+                }
+              }}
+            >
+              {obsSaving ? 'Saving…' : 'Save observability settings'}
+            </button>
+            <button
+              type="button"
+              disabled={auditVerifyBusy}
+              className="px-3 py-2 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-700 disabled:opacity-50"
+              onClick={async () => {
+                setAuditVerifyBusy(true)
+                setAuditVerifyResult(null)
+                try {
+                  const r = await verifyAuditLog()
+                  setAuditVerifyResult(
+                    `${r.signed_valid} valid signed, ${r.signed_invalid} invalid, ${r.unsigned} unsigned (${r.total_lines} lines)`,
+                  )
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                } finally {
+                  setAuditVerifyBusy(false)
+                }
+              }}
+            >
+              {auditVerifyBusy ? 'Verifying…' : 'Verify audit log'}
+            </button>
+          </div>
+          {auditVerifyResult ? (
+            <p className="text-xs text-slate-400 font-mono">{auditVerifyResult}</p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div>
         <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide mb-2">Section</h2>

@@ -2,7 +2,10 @@ use axum::extract::{Extension, Path};
 use axum::routing::{delete, get, post};
 use axum::{Json, Router};
 use machina_core::system_accounts;
-use machina_core::{LibvirtError, LibvirtManager, MachinaConfig};
+use machina_core::{
+    apply_observability_patch, audit, audit_ship, settings_view_from_config, LibvirtError,
+    LibvirtManager, MachinaConfig, ObservabilitySettingsPatch,
+};
 use serde::Deserialize;
 use serde_json::json;
 use tracing::info;
@@ -275,6 +278,46 @@ async fn platform_info() -> Json<serde_json::Value> {
     }))
 }
 
+async fn get_observability_settings(
+    Extension(actor): Extension<RequestActor>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_manage_users() {
+        return Err(LibvirtError::Forbidden(
+            "Observability settings require the admin role.".into(),
+        )
+        .into());
+    }
+    let cfg = MachinaConfig::load();
+    Ok(Json(serde_json::json!(settings_view_from_config(&cfg))))
+}
+
+async fn put_observability_settings(
+    Extension(actor): Extension<RequestActor>,
+    Json(patch): Json<ObservabilitySettingsPatch>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    if !actor.role.can_manage_users() {
+        return Err(LibvirtError::Forbidden(
+            "Observability settings require the admin role.".into(),
+        )
+        .into());
+    }
+    let mut cfg = MachinaConfig::load();
+    apply_observability_patch(&mut cfg, &patch);
+    cfg.save()
+        .map_err(|e| AppError::from(LibvirtError::Operation(format!("save config: {e}"))))?;
+    audit::configure_rotation(cfg.audit.clone());
+    audit_ship::configure_ship(cfg.audit.clone());
+    machina_core::linux_audit::configure_linux_audit(cfg.observability.linux_audit.clone());
+    let view = settings_view_from_config(&cfg);
+    info!("observability settings saved to {}", view.config_path);
+    Ok(Json(serde_json::json!({
+        "status": "saved",
+        "restart_recommended": true,
+        "note": "Restart machina-daemon to apply OTLP export and metrics-history remote_write worker changes.",
+        "settings": settings_view_from_config(&cfg),
+    })))
+}
+
 pub fn system_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/system/platform-info", get(platform_info))
@@ -284,5 +327,9 @@ pub fn system_routes() -> Router<LibvirtManager> {
         .route(
             "/system/create-vm-defaults",
             get(get_create_vm_defaults).put(put_create_vm_defaults),
+        )
+        .route(
+            "/system/observability-settings",
+            get(get_observability_settings).put(put_observability_settings),
         )
 }

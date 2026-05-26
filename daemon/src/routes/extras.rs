@@ -1044,6 +1044,25 @@ async fn export_audit_log(
     ))
 }
 
+#[derive(Deserialize)]
+struct AuditVerifyQuery {
+    #[serde(default = "default_audit_verify_max")]
+    max_lines: usize,
+}
+
+fn default_audit_verify_max() -> usize {
+    50_000
+}
+
+async fn verify_audit_log_handler(
+    Extension(actor): Extension<RequestActor>,
+    Query(q): Query<AuditVerifyQuery>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    require_api_scope(&actor, "audit:read").map_err(AppError::from)?;
+    let report = audit::verify_audit_log(q.max_lines);
+    Ok(Json(serde_json::json!(report)))
+}
+
 // ── Tags (all tags summary) ──────────────────────────────────────
 
 async fn get_all_tags_handler(
@@ -1273,6 +1292,7 @@ pub fn extras_routes() -> Router<LibvirtManager> {
         // Audit
         .route("/audit", get(get_audit_log))
         .route("/audit/export", get(export_audit_log))
+        .route("/audit/verify", get(verify_audit_log_handler))
         // Tags (per-VM tags are in vms.rs)
         .route("/tags", get(get_all_tags_handler))
         // PCI
