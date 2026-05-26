@@ -181,8 +181,10 @@ async fn fleet_vms(
     Ok(Json(json!({ "enabled": cfg.is_enabled(), "vms": rows })))
 }
 
-fn fleet_capacity(cpu: f64, mem: f64) -> Value {
-    let score = ((100.0 - cpu).max(0.0) + (100.0 - mem).max(0.0)) / 2.0;
+/// Headroom score from host CPU, memory, and root disk utilization (0–100, higher is better).
+pub(crate) fn fleet_capacity_score(cpu: f64, mem: f64, disk: f64) -> (f64, &'static str) {
+    let score =
+        ((100.0 - cpu).max(0.0) + (100.0 - mem).max(0.0) + (100.0 - disk).max(0.0)) / 3.0;
     let label = if score >= 40.0 {
         "high"
     } else if score >= 20.0 {
@@ -190,10 +192,26 @@ fn fleet_capacity(cpu: f64, mem: f64) -> Value {
     } else {
         "low"
     };
+    ((score * 10.0).round() / 10.0, label)
+}
+
+fn fleet_capacity(cpu: f64, mem: f64, disk: f64) -> Value {
+    let (score, label) = fleet_capacity_score(cpu, mem, disk);
     json!({
-        "score": (score * 10.0).round() / 10.0,
+        "score": score,
         "label": label,
     })
+}
+
+fn synthetic_peer_unreachable_alert(peer_name: &str, peer_url: &str) -> Alert {
+    Alert {
+        id: format!("fleet-peer-{peer_name}-unreachable"),
+        rule_name: "Fleet peer unreachable".into(),
+        message: format!("Peer '{peer_name}' at {peer_url} is not reachable"),
+        severity: "critical".into(),
+        timestamp: chrono::Utc::now().to_rfc3339(),
+        acknowledged: false,
+    }
 }
 
 async fn fleet_metrics(
@@ -206,7 +224,11 @@ async fn fleet_metrics(
         .iter()
         .filter(|v| v.state.eq_ignore_ascii_case("running"))
         .count();
-    let local_capacity = fleet_capacity(local_stats.cpu_percent, local_stats.memory_percent);
+    let local_capacity = fleet_capacity(
+        local_stats.cpu_percent,
+        local_stats.memory_percent,
+        local_stats.disk_percent,
+    );
     let mut peers: Vec<Value> = Vec::new();
     if cfg.is_enabled() {
         for p in &cfg.peers {
@@ -222,10 +244,15 @@ async fn fleet_metrics(
                     .get("memory_percent")
                     .and_then(|v| v.as_f64())
                     .unwrap_or(0.0);
+                let disk = stats
+                    .get("disk_percent")
+                    .and_then(|v| v.as_f64())
+                    .unwrap_or(0.0);
                 row["host_cpu_percent"] = json!(cpu);
                 row["host_memory_percent"] = json!(mem);
+                row["host_disk_percent"] = json!(disk);
                 row["load_1"] = stats.get("load_1").cloned().unwrap_or(json!(null));
-                row["capacity"] = fleet_capacity(cpu, mem);
+                row["capacity"] = fleet_capacity(cpu, mem, disk);
             }
             if let Ok(vms) = fetch_peer_json(p, "/vms").await {
                 row["reachable"] = json!(true);
@@ -247,6 +274,7 @@ async fn fleet_metrics(
         "local": {
             "host_cpu_percent": local_stats.cpu_percent,
             "host_memory_percent": local_stats.memory_percent,
+            "host_disk_percent": local_stats.disk_percent,
             "load_1": local_stats.load_1,
             "vm_count": local_vms.len(),
             "vms_running": local_running,
@@ -285,16 +313,25 @@ async fn fleet_alerts() -> Json<Value> {
                 alerts: Vec::new(),
                 unacknowledged: 0,
             };
-            match fetch_peer_json(p, "/alerts").await {
-                Ok(body) => {
-                    if let Ok(alerts) = serde_json::from_value::<Vec<Alert>>(body) {
-                        row.unacknowledged = alerts.iter().filter(|a| !a.acknowledged).count();
-                        row.alerts = alerts;
-                    } else {
-                        row.error = Some("invalid alerts JSON".into());
+            let reachable = fetch_peer_json(p, "/system/platform-info").await.is_ok();
+            if !reachable {
+                let alert = synthetic_peer_unreachable_alert(&p.name, &p.url);
+                row.unacknowledged = 1;
+                row.alerts = vec![alert];
+                row.error = Some("peer unreachable".into());
+            } else {
+                match fetch_peer_json(p, "/alerts").await {
+                    Ok(body) => {
+                        if let Ok(alerts) = serde_json::from_value::<Vec<Alert>>(body) {
+                            row.unacknowledged =
+                                alerts.iter().filter(|a| !a.acknowledged).count();
+                            row.alerts = alerts;
+                        } else {
+                            row.error = Some("invalid alerts JSON".into());
+                        }
                     }
+                    Err(e) => row.error = Some(e),
                 }
-                Err(e) => row.error = Some(e),
             }
             rows.push(row);
         }
@@ -440,4 +477,23 @@ pub fn fleet_routes() -> Router<LibvirtManager> {
         .route("/fleet/prometheus-targets", get(fleet_prometheus_targets))
         .route("/fleet/vms", get(fleet_vms))
         .route("/fleet/peers/{peer}/proxy", post(fleet_proxy_action))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fleet_capacity_score;
+
+    #[test]
+    fn capacity_high_when_host_has_headroom() {
+        let (score, label) = fleet_capacity_score(20.0, 25.0, 30.0);
+        assert!(score > 40.0);
+        assert_eq!(label, "high");
+    }
+
+    #[test]
+    fn capacity_low_when_host_is_saturated() {
+        let (score, label) = fleet_capacity_score(95.0, 92.0, 90.0);
+        assert!(score < 20.0);
+        assert_eq!(label, "low");
+    }
 }

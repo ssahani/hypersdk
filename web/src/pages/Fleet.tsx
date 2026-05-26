@@ -168,6 +168,12 @@ export default function FleetPage() {
               <div className="text-slate-500 text-xs">Local memory</div>
               <div className="text-slate-100">{metrics.local.host_memory_percent.toFixed(1)}%</div>
             </div>
+            {metrics.local.host_disk_percent != null ? (
+              <div>
+                <div className="text-slate-500 text-xs">Local disk</div>
+                <div className="text-slate-100">{metrics.local.host_disk_percent.toFixed(1)}%</div>
+              </div>
+            ) : null}
             <div>
               <div className="text-slate-500 text-xs">Local VMs</div>
               <div className="text-slate-100">

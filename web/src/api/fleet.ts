@@ -44,6 +44,7 @@ export interface FleetMetricsResponse {
   local: {
     host_cpu_percent: number
     host_memory_percent: number
+    host_disk_percent?: number
     load_1: number
     vm_count: number
     vms_running: number
@@ -55,6 +56,7 @@ export interface FleetMetricsResponse {
     reachable: boolean
     host_cpu_percent?: number
     host_memory_percent?: number
+    host_disk_percent?: number
     vm_count?: number
     vms_running?: number
     capacity?: FleetCapacity

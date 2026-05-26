@@ -20,10 +20,27 @@ fn maybe_sign_audit_line(line: &str, sign: bool) -> String {
     if !sign {
         return line.to_string();
     }
-    use sha2::{Digest, Sha256};
-    let digest = Sha256::digest(line.as_bytes());
-    let hash = hex::encode(digest);
+    let hash = audit_line_sha256_hex(line);
     format!("sha256:{hash}\t{line}")
+}
+
+fn audit_line_sha256_hex(line: &str) -> String {
+    use sha2::{Digest, Sha256};
+    hex::encode(Sha256::digest(line.as_bytes()))
+}
+
+/// Returns true when `line` is `sha256:<hex>\\t<payload>` and the hash matches `payload`.
+pub fn verify_signed_audit_line(line: &str) -> bool {
+    let Some(hex_and_rest) = line.strip_prefix("sha256:") else {
+        return false;
+    };
+    let Some((hex, payload)) = hex_and_rest.split_once('\t') else {
+        return false;
+    };
+    if hex.len() != 64 || !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        return false;
+    }
+    audit_line_sha256_hex(payload).eq_ignore_ascii_case(hex)
 }
 
 pub fn audit_log_path() -> PathBuf {
@@ -143,4 +160,26 @@ pub fn export_audit_ndjson(max: usize) -> String {
         .collect::<Vec<_>>()
         .join("\n")
         + "\n"
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn signed_audit_line_roundtrip() {
+        let raw = "2026-05-26T12:00:00Z\tvm.start\tmy-vm\tok\n";
+        let signed = maybe_sign_audit_line(raw, true);
+        assert!(signed.starts_with("sha256:"));
+        assert!(verify_signed_audit_line(&signed));
+        assert!(!verify_signed_audit_line(raw));
+    }
+
+    #[test]
+    fn tampered_signed_line_fails_verify() {
+        let raw = "2026-05-26T12:00:00Z\tvm.stop\tmy-vm\tok\n";
+        let mut signed = maybe_sign_audit_line(raw, true);
+        signed = signed.replace("vm.stop", "vm.start");
+        assert!(!verify_signed_audit_line(&signed));
+    }
 }

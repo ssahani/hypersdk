@@ -218,7 +218,8 @@ pub struct MetricsHistoryConfig {
     /// Trim persisted file when it exceeds this size (only when `persist` is true).
     #[serde(default = "default_metrics_history_max_file_mb")]
     pub max_file_mb: u64,
-    /// Optional webhook URL to POST the latest sample as JSON (metrics gateway / custom ingest).
+    /// Optional URL to POST each sample as JSON (`MetricsHistoryPoint`).
+    /// This is **not** Prometheus remote_write (protobuf); use a custom ingest or forwarder.
     #[serde(default)]
     pub remote_write_url: String,
     #[serde(default)]

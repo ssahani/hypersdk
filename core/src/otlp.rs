@@ -234,3 +234,49 @@ pub fn build_traces_export_payload(hostname: &str, spans: &[OtlpHttpSpan]) -> Va
         }]
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn metrics_payload_includes_host_gauges() {
+        let point = MetricsHistoryPoint {
+            timestamp_ms: 1,
+            host_cpu_percent: 10.0,
+            host_memory_percent: 20.0,
+            host_disk_percent: 30.0,
+            load_1: 0.5,
+            vms_running: 2,
+            vm_count: 4,
+            vm_metrics: vec![],
+        };
+        let body = build_metrics_export_payload("host1", &point, 100, 3);
+        let names: Vec<String> = body["resourceMetrics"][0]["scopeMetrics"][0]["metrics"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|m| m.get("name").and_then(|n| n.as_str()))
+            .map(str::to_string)
+            .collect();
+        assert!(names.iter().any(|n| n == "machina.host.cpu_percent"));
+        assert!(names.iter().any(|n| n == "machina.vms.running"));
+    }
+
+    #[test]
+    fn traces_payload_has_http_span() {
+        let spans = vec![OtlpHttpSpan {
+            method: "GET".into(),
+            route: "/api/v1/vms".into(),
+            status: 200,
+            duration_ms: 12,
+            timestamp_ms: 1_700_000_000_000,
+        }];
+        let body = build_traces_export_payload("host1", &spans);
+        let out = body["resourceSpans"][0]["scopeSpans"][0]["spans"]
+            .as_array()
+            .unwrap();
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0]["name"], "GET /api/v1/vms");
+    }
+}

@@ -13,6 +13,11 @@
       "targets": [{ "expr": "machina_host_memory_percent", "legendFormat": "mem" }]
     },
     {
+      "title": "Host disk %",
+      "type": "stat",
+      "targets": [{ "expr": "machina_host_disk_percent", "legendFormat": "disk" }]
+    },
+    {
       "title": "Defined VMs",
       "type": "stat",
       "targets": [{ "expr": "machina_vms_defined", "legendFormat": "defined" }]
@@ -21,6 +26,11 @@
       "title": "Active VMs",
       "type": "stat",
       "targets": [{ "expr": "machina_vms_active", "legendFormat": "active" }]
+    },
+    {
+      "title": "Unacknowledged alerts",
+      "type": "stat",
+      "targets": [{ "expr": "machina_alerts_unacknowledged", "legendFormat": "alerts" }]
     },
     {
       "title": "VM memory %",
@@ -33,9 +43,43 @@
       "targets": [{ "expr": "machina_vm_cpu_percent", "legendFormat": "{{vm}}" }]
     },
     {
+      "title": "VM state",
+      "type": "timeseries",
+      "targets": [{ "expr": "machina_vm_state", "legendFormat": "{{vm}}" }]
+    },
+    {
+      "title": "VM disk read ops/s",
+      "type": "timeseries",
+      "targets": [{
+        "expr": "sum by (vm) (rate(machina_vm_disk_read_ops_total[5m]))",
+        "legendFormat": "{{vm}}"
+      }]
+    },
+    {
+      "title": "VM disk write ops/s",
+      "type": "timeseries",
+      "targets": [{
+        "expr": "sum by (vm) (rate(machina_vm_disk_write_ops_total[5m]))",
+        "legendFormat": "{{vm}}"
+      }]
+    },
+    {
+      "title": "VM vCPU time rate",
+      "type": "timeseries",
+      "targets": [{
+        "expr": "sum by (vm, vcpu) (rate(machina_vm_vcpu_cpu_time_seconds_total[5m]))",
+        "legendFormat": "{{vm}} vcpu{{vcpu}}"
+      }]
+    },
+    {
       "title": "Daemon uptime (s)",
       "type": "stat",
       "targets": [{ "expr": "machina_daemon_uptime_seconds", "legendFormat": "uptime" }]
+    },
+    {
+      "title": "Prometheus scrape duration (ms)",
+      "type": "stat",
+      "targets": [{ "expr": "machina_prometheus_last_scrape_duration_ms", "legendFormat": "ms" }]
     },
     {
       "title": "Active sessions",
@@ -57,6 +101,11 @@
         "expr": "sum(rate(machina_http_requests_total[5m]))",
         "legendFormat": "req/s"
       }]
+    },
+    {
+      "title": "API token auth failures",
+      "type": "stat",
+      "targets": [{ "expr": "machina_api_token_auth_fail_total", "legendFormat": "fail" }]
     },
     {
       "title": "VM disk read (by device)",
@@ -99,17 +148,20 @@
       }]
     },
     {
-      "title": "Unacknowledged alerts",
+      "title": "Enabled alert rules",
       "type": "stat",
-      "targets": [{ "expr": "machina_alerts_unacknowledged", "legendFormat": "alerts" }]
+      "targets": [{ "expr": "machina_alert_rules_enabled", "legendFormat": "rules" }]
     },
     {
-      "title": "BPF programs",
+      "title": "BPF programs / maps",
       "type": "stat",
-      "targets": [{ "expr": "machina_bpf_programs", "legendFormat": "progs" }]
+      "targets": [
+        { "expr": "machina_bpf_programs", "legendFormat": "progs" },
+        { "expr": "machina_bpf_maps", "legendFormat": "maps" }
+      ]
     }
   ],
   "schemaVersion": 38,
-  "version": 2,
-  "description": "Scrape GET /api/v1/prometheus on each Machina daemon (job label machina)."
+  "version": 3,
+  "description": "Scrape GET /api/v1/prometheus on each Machina daemon (Bearer token). Import contrib/prometheus/alerts.yaml for Alertmanager rules."
 }

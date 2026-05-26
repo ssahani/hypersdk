@@ -143,6 +143,7 @@ pub fn spawn_metrics_history_worker(
                     None
                 }
             };
+            // Custom JSON ingest (MetricsHistoryPoint), not Prometheus remote_write protobuf.
             if let (Some(client), Some(point)) = (client2, point) {
                 if !rw_url.is_empty() {
                     let mut req = client.post(&rw_url).json(&point);

@@ -201,13 +201,66 @@
       "VmMetrics": {
         "type": "object",
         "properties": {
+          "name": { "type": "string" },
+          "state": { "type": "string", "description": "libvirt state: running, shutoff, paused, …" },
+          "running": { "type": "boolean" },
+          "cpu_time_ns": { "type": "integer" },
+          "vcpus": { "type": "integer" },
           "memory_used_mb": { "type": "integer" },
           "memory_total_mb": { "type": "integer" },
           "memory_pct": { "type": "number" },
           "disk_rd_bytes": { "type": "integer" },
           "disk_wr_bytes": { "type": "integer" },
+          "disk_rd_ops": { "type": "integer" },
+          "disk_wr_ops": { "type": "integer" },
           "net_rx_bytes": { "type": "integer" },
-          "net_tx_bytes": { "type": "integer" }
+          "net_tx_bytes": { "type": "integer" },
+          "vcpus_detail": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "vcpu": { "type": "integer" },
+                "cpu_time_ns": { "type": "integer" },
+                "state": { "type": "string" }
+              }
+            }
+          },
+          "libvirt_connection": { "type": "string", "nullable": true }
+        }
+      },
+      "GuestHealthReport": {
+        "type": "object",
+        "properties": {
+          "vm_name": { "type": "string" },
+          "state": { "type": "string" },
+          "agent_reachable": { "type": "boolean" },
+          "metrics_available": { "type": "boolean" },
+          "metrics": { "$ref": "#/components/schemas/VmMetrics", "nullable": true },
+          "issues": { "type": "array", "items": { "type": "string" } },
+          "healthy": { "type": "boolean" },
+          "os_pretty_name": { "type": "string", "nullable": true },
+          "cloud_init_status": { "type": "string", "nullable": true }
+        }
+      },
+      "FleetCapacity": {
+        "type": "object",
+        "properties": {
+          "score": { "type": "number", "description": "0–100 headroom score (CPU, memory, disk)" },
+          "label": { "type": "string", "enum": ["low", "medium", "high"] }
+        }
+      },
+      "MetricsHistoryPoint": {
+        "type": "object",
+        "properties": {
+          "timestamp_ms": { "type": "integer" },
+          "host_cpu_percent": { "type": "number" },
+          "host_memory_percent": { "type": "number" },
+          "host_disk_percent": { "type": "number" },
+          "load_1": { "type": "number" },
+          "vms_running": { "type": "integer" },
+          "vm_count": { "type": "integer" },
+          "vm_metrics": { "type": "array", "items": { "$ref": "#/components/schemas/VmMetrics" } }
         }
       },
       "SnapshotInfo": {
@@ -445,7 +498,8 @@
           "network_backend": { "type": "string" },
           "firewall_backend": { "type": "string" },
           "ufw_status_line": { "type": "string", "nullable": true },
-          "firewalld_default_zone": { "type": "string", "nullable": true }
+          "firewalld_default_zone": { "type": "string", "nullable": true },
+          "selinux_mode": { "type": "string", "nullable": true, "description": "getenforce on Linux (Enforcing, Permissive, Disabled)" }
         }
       },
       "PciDevice": {
@@ -1148,6 +1202,74 @@
         "summary": "Get metrics in Prometheus text format",
         "tags": ["Metrics"],
         "responses": { "200": { "description": "Prometheus metrics text" } }
+      }
+    },
+    "/metrics/history": {
+      "get": {
+        "summary": "Recent host + VM metric samples (ring buffer)",
+        "tags": ["Metrics"],
+        "parameters": [
+          { "name": "limit", "in": "query", "schema": { "type": "integer", "default": 60 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Time series points",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "points": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/MetricsHistoryPoint" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/vms/{name}/guest-health": {
+      "get": {
+        "summary": "Guest agent reachability, metrics, and health issues",
+        "tags": ["VMs"],
+        "parameters": [{ "name": "name", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": {
+            "description": "Guest health report",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/GuestHealthReport" } } }
+          }
+        }
+      }
+    },
+    "/fleet/status": {
+      "get": {
+        "summary": "Fleet peer reachability and summary",
+        "tags": ["Fleet"],
+        "responses": { "200": { "description": "Fleet status JSON" } }
+      }
+    },
+    "/fleet/metrics": {
+      "get": {
+        "summary": "Aggregated host metrics and capacity scores",
+        "tags": ["Fleet"],
+        "responses": { "200": { "description": "Local + peer metrics with capacity" } }
+      }
+    },
+    "/fleet/alerts": {
+      "get": {
+        "summary": "Automation alerts from local node and fleet peers",
+        "tags": ["Fleet"],
+        "responses": { "200": { "description": "Aggregated alerts per peer" } }
+      }
+    },
+    "/fleet/prometheus-targets": {
+      "get": {
+        "summary": "Starter Prometheus scrape_configs for fleet daemons",
+        "tags": ["Fleet"],
+        "responses": { "200": { "description": "Prometheus static_configs JSON" } }
       }
     },
     "/snapshots": {

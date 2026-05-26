@@ -43,10 +43,12 @@ interval_secs = 30
 max_points = 120
 persist = true
 max_file_mb = 32
-# Optional: POST each sample JSON to a metrics gateway or custom ingest
+# Optional: POST each sample as Machina JSON (NOT Prometheus remote_write protobuf)
 remote_write_url = "https://metrics.example/ingest/machina"
 remote_write_authorization = "Bearer …"
 ```
+
+Each POST body is one [`MetricsHistoryPoint`](../../core/src/metrics_history.rs) object (`timestamp_ms`, host percentages, `vm_metrics`, …). Use a custom receiver, Grafana Alloy `http` input, or a small forwarder if you need Prometheus/Mimir native remote write.
 
 File: `/var/lib/machina/metrics-history.jsonl`
 
