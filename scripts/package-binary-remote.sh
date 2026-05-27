@@ -251,7 +251,7 @@ FLAGS (install-full.sh): --deps-only --bind 0.0.0.0 --open-firewall (no source t
 UNINSTALL: ./uninstall.sh --yes [--remove-dir]
 README_EOF
 
-for req in HELP.txt START_HERE.txt install.sh uninstall.sh README.txt QUICKSTART.txt HOST_SETUP.txt PREREQUISITES.txt \
+for req in LICENSE LEGAL-INDEX.txt HELP.txt START_HERE.txt install.sh uninstall.sh README.txt QUICKSTART.txt HOST_SETUP.txt PREREQUISITES.txt \
   test-host.sh test-package.sh install-client-deps.sh machina-daemon machina.toml.example; do
   test -e "\${STAGE}/\${req}" || { echo "bundle missing \${req}" >&2; exit 1; }
 done
