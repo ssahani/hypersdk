@@ -50,6 +50,8 @@ function OpenStackPortDetailContent() {
     )
   }
 
+  const adminUp = port.admin_state_up !== false
+
   return (
     <div className="space-y-6 max-w-3xl">
       <OpenStackSubNav />
@@ -63,6 +65,7 @@ function OpenStackPortDetailContent() {
       <dl className="grid sm:grid-cols-2 gap-4 rounded-xl border border-slate-700 p-4 text-sm">
         <div><dt className="text-xs text-slate-500 uppercase">ID</dt><dd className="font-mono text-slate-200 mt-1 break-all">{port.id}</dd></div>
         <div><dt className="text-xs text-slate-500 uppercase">Status</dt><dd className="text-slate-200 mt-1">{port.status}</dd></div>
+        <div><dt className="text-xs text-slate-500 uppercase">Admin state</dt><dd className="text-slate-200 mt-1">{adminUp ? 'Up' : 'Down'}</dd></div>
         <div><dt className="text-xs text-slate-500 uppercase">Network</dt><dd className="font-mono text-xs mt-1">
           <Link to={`/openstack/networks/${port.network_id}`} className="text-sky-400 hover:underline">{port.network_id}</Link>
         </dd></div>
@@ -84,14 +87,26 @@ function OpenStackPortDetailContent() {
               void load()
             } catch (e: unknown) { toast.error(formatUserError(e)) }
           }}>Rename</button>
-        <button type="button" className="px-3 py-1.5 rounded-lg border border-violet-600/50 text-violet-200 text-sm"
-          onClick={async () => {
-            try {
-              await updateOpenStackPort(port.id, { admin_state_up: true })
-              toast.success('Admin up')
-              void load()
-            } catch (e: unknown) { toast.error(formatUserError(e)) }
-          }}>Admin up</button>
+        {adminUp ? (
+          <button type="button" className="px-3 py-1.5 rounded-lg border border-amber-600/50 text-amber-200 text-sm"
+            onClick={async () => {
+              if (!confirm('Set port admin state down? Traffic may stop on this port.')) return
+              try {
+                await updateOpenStackPort(port.id, { admin_state_up: false })
+                toast.success('Admin down')
+                void load()
+              } catch (e: unknown) { toast.error(formatUserError(e)) }
+            }}>Admin down</button>
+        ) : (
+          <button type="button" className="px-3 py-1.5 rounded-lg border border-violet-600/50 text-violet-200 text-sm"
+            onClick={async () => {
+              try {
+                await updateOpenStackPort(port.id, { admin_state_up: true })
+                toast.success('Admin up')
+                void load()
+              } catch (e: unknown) { toast.error(formatUserError(e)) }
+            }}>Admin up</button>
+        )}
       </div>
       <OpenStackFooter />
     </div>

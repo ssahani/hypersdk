@@ -12,6 +12,10 @@ use crate::LibvirtError;
 
 use super::auth::{connect_session, map_json_err, map_osauth_err};
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpenStackSubnet {
     pub id: String,
@@ -20,6 +24,8 @@ pub struct OpenStackSubnet {
     pub cidr: String,
     pub ip_version: u8,
     pub gateway_ip: Option<String>,
+    #[serde(default = "default_true")]
+    pub enable_dhcp: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -38,6 +44,8 @@ pub struct OpenStackPort {
     pub status: String,
     pub device_id: Option<String>,
     pub fixed_ips: Vec<String>,
+    #[serde(default = "default_true")]
+    pub admin_state_up: bool,
 }
 
 pub async fn list_subnets(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSubnet>, LibvirtError> {
@@ -54,6 +62,8 @@ pub async fn list_subnets(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSubnet>,
         cidr: String,
         ip_version: u8,
         gateway_ip: Option<String>,
+        #[serde(default = "default_true")]
+        enable_dhcp: bool,
     }
     let resp = session.get(NETWORK, &["subnets"]).send().await.map_err(map_osauth_err)?;
     let body: Resp = resp.json().await.map_err(map_json_err)?;
@@ -67,6 +77,7 @@ pub async fn list_subnets(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSubnet>,
             cidr: s.cidr,
             ip_version: s.ip_version,
             gateway_ip: s.gateway_ip,
+            enable_dhcp: s.enable_dhcp,
         })
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -91,6 +102,8 @@ pub async fn get_subnet(cfg: &OpenStackConfig, subnet_id: &str) -> Result<OpenSt
         cidr: String,
         ip_version: u8,
         gateway_ip: Option<String>,
+        #[serde(default = "default_true")]
+        enable_dhcp: bool,
     }
     let resp = session
         .get(NETWORK, &["subnets", id])
@@ -105,6 +118,7 @@ pub async fn get_subnet(cfg: &OpenStackConfig, subnet_id: &str) -> Result<OpenSt
         cidr: body.subnet.cidr,
         ip_version: body.subnet.ip_version,
         gateway_ip: body.subnet.gateway_ip,
+        enable_dhcp: body.subnet.enable_dhcp,
     })
 }
 
@@ -194,6 +208,8 @@ pub async fn list_ports(
         device_id: Option<String>,
         #[serde(default)]
         fixed_ips: Vec<FixedIp>,
+        #[serde(default = "default_true")]
+        admin_state_up: bool,
     }
     #[derive(Deserialize)]
     struct FixedIp {
@@ -211,6 +227,7 @@ pub async fn list_ports(
             status: p.status,
             device_id: p.device_id,
             fixed_ips: p.fixed_ips.into_iter().map(|f| f.ip_address).collect(),
+            admin_state_up: p.admin_state_up,
         })
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -236,6 +253,8 @@ pub async fn get_port(cfg: &OpenStackConfig, port_id: &str) -> Result<OpenStackP
         device_id: Option<String>,
         #[serde(default)]
         fixed_ips: Vec<FixedIp>,
+        #[serde(default = "default_true")]
+        admin_state_up: bool,
     }
     #[derive(Deserialize)]
     struct FixedIp {
@@ -254,6 +273,7 @@ pub async fn get_port(cfg: &OpenStackConfig, port_id: &str) -> Result<OpenStackP
         status: body.port.status,
         device_id: body.port.device_id,
         fixed_ips: body.port.fixed_ips.into_iter().map(|f| f.ip_address).collect(),
+        admin_state_up: body.port.admin_state_up,
     })
 }
 
@@ -362,6 +382,8 @@ pub async fn create_subnet(
         cidr: String,
         ip_version: u8,
         gateway_ip: Option<String>,
+        #[serde(default = "default_true")]
+        enable_dhcp: bool,
     }
     let resp = session
         .post(NETWORK, &["subnets"])
@@ -378,6 +400,7 @@ pub async fn create_subnet(
         cidr: s.cidr,
         ip_version: s.ip_version,
         gateway_ip: s.gateway_ip,
+        enable_dhcp: s.enable_dhcp,
     })
 }
 
@@ -603,6 +626,8 @@ pub async fn update_subnet(
         cidr: String,
         ip_version: u8,
         gateway_ip: Option<String>,
+        #[serde(default = "default_true")]
+        enable_dhcp: bool,
     }
     let resp = session
         .put(NETWORK, &["subnets", id])
@@ -619,6 +644,7 @@ pub async fn update_subnet(
         cidr: s.cidr,
         ip_version: s.ip_version,
         gateway_ip: s.gateway_ip,
+        enable_dhcp: s.enable_dhcp,
     })
 }
 

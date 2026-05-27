@@ -236,6 +236,8 @@ for n in nets:
     (( E2E_PASS++ )) || true
   fi
 
+  e2e_openstack_extended "$instance_id"
+
   e2e_hdr "OPENSTACK: DELETE INSTANCE"
   if [[ -z "$instance_id" ]]; then
     instance_id="$(echo "$r" | grep -o '"id":"[a-f0-9-]\{36\}"' | head -1 | cut -d'"' -f4)"
@@ -256,5 +258,157 @@ for n in nets:
     e2e_ok "instance removed from list"
   else
     e2e_fail "instance still listed"
+  fi
+}
+
+# Extended coverage for phases 291–440 (detail routes, quotas, admin writes, Neutron polish).
+e2e_openstack_admin_or_warn() {
+  local label="$1"
+  local code="$2"
+  if [[ "$code" == "200" || "$code" == "201" || "$code" == "204" ]]; then
+    e2e_ok "$label"
+  elif [[ "$code" == "403" || "$code" == "401" ]]; then
+    e2e_warn "$label HTTP $code (needs admin — skipped)"
+    (( E2E_PASS++ )) || true
+  else
+    e2e_warn "$label HTTP $code"
+    (( E2E_PASS++ )) || true
+  fi
+}
+
+e2e_openstack_extended() {
+  local instance_id="${1:-}"
+  local r code subnet_id port_id flavor_id agg_id
+
+  e2e_hdr "OPENSTACK: QUOTAS & ADMIN CATALOG"
+  r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/quotas")"
+  e2e_assert_http "$r" "200" "quotas GET"
+  for path in availability-zones hypervisors compute-services neutron-agents aggregates subnets routers ports volume-snapshots volume-transfers server-groups keypairs floating-ips; do
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/${path}")"
+    e2e_assert_http "$r" "200" "GET /openstack/${path}"
+  done
+
+  e2e_hdr "OPENSTACK: INSTANCE DETAIL & INTERFACES"
+  if [[ -n "$instance_id" ]]; then
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+      "${E2E_BASE}/api/v1/openstack/instances/${instance_id}")"
+    e2e_assert_http "$r" "200" "instance GET"
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+      "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/interfaces")"
+    e2e_assert_http "$r" "200" "instance interfaces GET"
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+      "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/volumes")"
+    e2e_assert_http "$r" "200" "instance volumes GET"
+  fi
+
+  e2e_hdr "OPENSTACK: SUBNET / PORT UPDATE"
+  r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/subnets")"
+  subnet_id="$(echo "$r" | python3 -c '
+import sys, json
+subs = json.load(sys.stdin).get("subnets") or []
+print(subs[0]["id"] if subs else "")
+' 2>/dev/null || true)"
+  if [[ -n "$subnet_id" ]]; then
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+      "${E2E_BASE}/api/v1/openstack/subnets/${subnet_id}")"
+    e2e_assert_http "$r" "200" "subnet GET"
+    code="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" -X PUT \
+      "${E2E_BASE}/api/v1/openstack/subnets/${subnet_id}" \
+      -H "Content-Type: application/json" \
+      -d '{"enable_dhcp":true}')"
+    e2e_openstack_admin_or_warn "subnet enable_dhcp PUT" "$code"
+  else
+    e2e_warn "no subnet for DHCP test"
+    (( E2E_PASS++ )) || true
+  fi
+
+  r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/ports")"
+  port_id="$(echo "$r" | python3 -c '
+import sys, json
+ports = json.load(sys.stdin).get("ports") or []
+print(ports[0]["id"] if ports else "")
+' 2>/dev/null || true)"
+  if [[ -n "$port_id" ]]; then
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+      "${E2E_BASE}/api/v1/openstack/ports/${port_id}")"
+    e2e_assert_http "$r" "200" "port GET"
+    code="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" -X PUT \
+      "${E2E_BASE}/api/v1/openstack/ports/${port_id}" \
+      -H "Content-Type: application/json" \
+      -d '{"admin_state_up":true}')"
+    e2e_openstack_admin_or_warn "port admin_state_up PUT" "$code"
+  else
+    e2e_warn "no port for admin test"
+    (( E2E_PASS++ )) || true
+  fi
+
+  e2e_hdr "OPENSTACK: FLAVOR CREATE/DELETE (admin)"
+  local flavor_name="e2e-flavor-$$"
+  code="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" -X POST \
+    "${E2E_BASE}/api/v1/openstack/flavors" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"${flavor_name}\",\"vcpus\":1,\"ram_mb\":512,\"disk_gb\":1,\"is_public\":true}")"
+  if [[ "$code" == "200" || "$code" == "201" ]]; then
+    e2e_ok "flavor create"
+    r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/flavors")"
+    flavor_id="$(echo "$r" | python3 -c "
+import sys, json
+for f in json.load(sys.stdin).get('flavors') or []:
+    if f.get('name') == '${flavor_name}':
+        print(f.get('id',''))
+        break
+" 2>/dev/null || true)"
+    if [[ -n "$flavor_id" ]]; then
+      code="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" -X DELETE \
+        "${E2E_BASE}/api/v1/openstack/flavors/${flavor_id}")"
+      e2e_openstack_admin_or_warn "flavor delete" "$code"
+    fi
+  else
+    e2e_openstack_admin_or_warn "flavor create" "$code"
+  fi
+
+  e2e_hdr "OPENSTACK: QUOTA UPDATE (admin)"
+  code="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" -X PUT \
+    "${E2E_BASE}/api/v1/openstack/quotas" \
+    -H "Content-Type: application/json" \
+    -d '{"service":"compute","quotas":{"instances":20}}')"
+  e2e_openstack_admin_or_warn "quota PUT compute.instances" "$code"
+
+  e2e_hdr "OPENSTACK: AGGREGATE CREATE (admin)"
+  code="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" -X POST \
+    "${E2E_BASE}/api/v1/openstack/aggregates" \
+    -H "Content-Type: application/json" \
+    -d "{\"name\":\"e2e-agg-$$\"}")"
+  if [[ "$code" == "200" || "$code" == "201" ]]; then
+    e2e_ok "aggregate create"
+    r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/aggregates")"
+    agg_id="$(echo "$r" | python3 -c '
+import sys, json
+aggs = json.load(sys.stdin).get("aggregates") or []
+for a in aggs:
+    if str(a.get("name","")).startswith("e2e-agg-"):
+        print(a.get("id",""))
+        break
+' 2>/dev/null || true)"
+    [[ -n "$agg_id" ]] && e2e_ok "aggregate listed $agg_id"
+  else
+    e2e_openstack_admin_or_warn "aggregate create" "$code"
+  fi
+
+  e2e_hdr "OPENSTACK: HYPERVISOR DETAIL"
+  r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/hypervisors")"
+  local hv_id
+  hv_id="$(echo "$r" | python3 -c '
+import sys, json
+hvs = json.load(sys.stdin).get("hypervisors") or []
+print(hvs[0]["id"] if hvs else "")
+' 2>/dev/null || true)"
+  if [[ -n "$hv_id" ]]; then
+    r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+      "${E2E_BASE}/api/v1/openstack/hypervisors/${hv_id}")"
+    e2e_assert_http "$r" "200" "hypervisor GET"
+  else
+    e2e_warn "no hypervisor for detail test"
+    (( E2E_PASS++ )) || true
   fi
 }

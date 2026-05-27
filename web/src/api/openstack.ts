@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { apiPost, readJsonObject } from './client'
+import { apiPost, apiDelete, readJsonObject } from './client'
 import { parseResponseError } from './parseResponseError'
 
 const API = '/api/v1'
@@ -448,6 +448,21 @@ export function createOpenStackInstance(
 
 export function listOpenStackFlavors(): Promise<{ flavors: OpenStackFlavor[] }> {
   return readJsonObject(`${API}/openstack/flavors`)
+}
+
+export function createOpenStackFlavor(body: {
+  name: string
+  vcpus: number
+  ram_mb: number
+  disk_gb: number
+  id?: string
+  is_public?: boolean
+}): Promise<{ flavor: OpenStackFlavor }> {
+  return apiPost(`${API}/openstack/flavors`, body)
+}
+
+export async function deleteOpenStackFlavor(id: string): Promise<void> {
+  await apiDelete(`${API}/openstack/flavors/${inst(id)}`)
 }
 
 export function getOpenStackFlavor(id: string): Promise<{ flavor: OpenStackFlavor }> {

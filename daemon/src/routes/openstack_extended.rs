@@ -15,28 +15,29 @@ use axum::{
     Extension, Json, Router,
 };
 use machina_core::{
-    accept_volume_transfer, add_image_member, add_router_interface, attach_interface, backup_instance,
-    clone_cinder_volume, create_keypair, create_port, create_security_group, create_router, create_server_group,
+    accept_volume_transfer, add_aggregate_host, add_image_member, add_router_interface, attach_interface, backup_instance,
+    clone_cinder_volume, create_keypair, create_host_aggregate, create_port, create_security_group, create_router, create_server_group,
     create_subnet, create_volume_from_image, create_volume_from_snapshot, create_volume_transfer,
     delete_cinder_snapshot, delete_port, delete_router, delete_server_group, delete_subnet,
     delete_volume_transfer, extend_cinder_volume, force_delete_instance, get_cinder_snapshot, get_hypervisor,
     get_port, get_quota_summary, get_router, get_server_group, get_subnet, get_volume_transfer, instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
     list_host_aggregates, list_hypervisors, list_image_members, list_instance_interfaces, list_neutron_agents, list_ports,
     list_cinder_snapshots, list_routers, list_server_groups, list_subnets, list_volume_transfers,
-    list_volume_types, lock_instance, migrate_instance, remote_console_with_tunnel, remove_router_interface,
+    list_volume_types, lock_instance, migrate_instance, remote_console_with_tunnel, remove_aggregate_host, remove_router_interface,
     rename_instance, retype_cinder_volume, reset_instance_state, rescue_instance, resolve_console_token,
-    unlock_instance, unrescue_instance, unshelve_instance, shelve_instance, snapshot_cinder_volume,
+    set_compute_service_state, set_hypervisor_maintenance, set_neutron_agent_admin, unlock_instance, unrescue_instance,
+    unshelve_instance, shelve_instance, snapshot_cinder_volume, update_host_aggregate, update_quotas,
     set_volume_bootable, update_cinder_volume, update_image_metadata, update_image_visibility,
     update_network, update_port, update_router, update_subnet, upload_volume_to_image,
     AcceptVolumeTransferRequest, AddImageMemberRequest, AttachInterfaceRequest, BackupInstanceRequest,
-    CloneVolumeRequest, CreateKeypairRequest, CreateSecurityGroupRequest, CreateSecurityGroupRuleRequest,
+    CloneVolumeRequest, CreateAggregateRequest, CreateKeypairRequest, CreateSecurityGroupRequest, CreateSecurityGroupRuleRequest,
     CreateServerGroupRequest, CreateVolumeFromImageRequest, CreateVolumeTransferRequest, ExtendVolumeRequest,
     LibvirtManager, MigrateInstanceRequest, AddRouterInterfaceRequest, CreatePortRequest,
     OpenStackCreateRouterRequest, OpenStackCreateSubnetRequest, RemoveRouterInterfaceRequest,
     CreateVolumeFromSnapshotRequest, RenameInstanceRequest, RescueInstanceRequest, RetypeVolumeRequest,
-    SnapshotVolumeRequest, UpdateImageMetadataRequest, UpdateImageVisibilityRequest, UpdateNetworkRequest,
-    UpdatePortRequest, UpdateRouterRequest, UpdateSubnetRequest, UpdateVolumeRequest,
-    UploadVolumeToImageRequest,
+    SetComputeServiceRequest, SnapshotVolumeRequest, UpdateAggregateRequest, UpdateImageMetadataRequest,
+    UpdateImageVisibilityRequest, UpdateNetworkRequest, UpdatePortRequest, UpdateQuotasRequest, UpdateRouterRequest,
+    UpdateSubnetRequest, UpdateVolumeRequest, UploadVolumeToImageRequest,
     create_security_group_rule, delete_image_member, delete_keypair, delete_security_group,
     delete_security_group_rule, detach_interface,
 };
@@ -67,17 +68,23 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/openstack/clouds", get(os_list_clouds))
         .route("/openstack/cloud", post(os_select_cloud))
-        .route("/openstack/quotas", get(os_quotas))
+        .route("/openstack/quotas", get(os_quotas).put(os_update_quotas))
         .route("/openstack/subnets", get(os_subnets).post(os_create_subnet))
         .route("/openstack/subnets/{id}", get(os_get_subnet).put(os_update_subnet).delete(os_delete_subnet))
         .route("/openstack/routers/{id}", get(os_get_router).delete(os_delete_router).put(os_update_router))
         .route("/openstack/routers", get(os_routers).post(os_create_router))
         .route("/openstack/availability-zones", get(os_availability_zones))
         .route("/openstack/hypervisors", get(os_hypervisors))
-        .route("/openstack/hypervisors/{id}", get(os_get_hypervisor))
+        .route("/openstack/hypervisors/{id}", get(os_get_hypervisor).put(os_hypervisor_maintenance))
         .route("/openstack/compute-services", get(os_compute_services))
+        .route("/openstack/compute-services/enable", post(os_enable_compute_service))
+        .route("/openstack/compute-services/disable", post(os_disable_compute_service))
         .route("/openstack/neutron-agents", get(os_neutron_agents))
-        .route("/openstack/aggregates", get(os_aggregates))
+        .route("/openstack/neutron-agents/{id}", put(os_update_neutron_agent))
+        .route("/openstack/aggregates", get(os_aggregates).post(os_create_aggregate))
+        .route("/openstack/aggregates/{id}", put(os_update_aggregate))
+        .route("/openstack/aggregates/{id}/add-host", post(os_aggregate_add_host))
+        .route("/openstack/aggregates/{id}/remove-host", post(os_aggregate_remove_host))
         .route("/openstack/volume-snapshots", get(os_list_volume_snapshots))
         .route("/openstack/volumes/from-image", post(os_volume_from_image))
         .route("/openstack/volumes/clone", post(os_clone_volume))
@@ -178,6 +185,118 @@ async fn os_quotas() -> Result<Json<serde_json::Value>, AppError> {
     ensure_openstack_enabled(&cfg)?;
     let q = get_quota_summary(&cfg).await?;
     Ok(Json(serde_json::json!({ "quotas": q })))
+}
+
+async fn os_update_quotas(Json(req): Json<UpdateQuotasRequest>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let result = update_quotas(&cfg, &req).await?;
+    log_audit("openstack.quota.update", &req.service, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok", "result": result })))
+}
+
+#[derive(Deserialize)]
+struct AgentAdminBody {
+    admin_state_up: bool,
+}
+
+async fn os_update_neutron_agent(
+    Path(id): Path<String>,
+    Json(body): Json<AgentAdminBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    set_neutron_agent_admin(&cfg, &id, body.admin_state_up).await?;
+    log_audit("openstack.agent.update", &id, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id, "admin_state_up": body.admin_state_up })))
+}
+
+#[derive(Deserialize)]
+struct MaintenanceBody {
+    maintenance: bool,
+}
+
+async fn os_hypervisor_maintenance(
+    Path(id): Path<String>,
+    Json(body): Json<MaintenanceBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    set_hypervisor_maintenance(&cfg, &id, body.maintenance).await?;
+    log_audit("openstack.hypervisor.maintenance", &id, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id, "maintenance": body.maintenance })))
+}
+
+async fn os_enable_compute_service(
+    Json(req): Json<SetComputeServiceRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let mut r = req;
+    r.disabled = false;
+    set_compute_service_state(&cfg, &r).await?;
+    log_audit("openstack.service.enable", &r.host, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+async fn os_disable_compute_service(
+    Json(req): Json<SetComputeServiceRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let mut r = req;
+    r.disabled = true;
+    set_compute_service_state(&cfg, &r).await?;
+    log_audit("openstack.service.disable", &r.host, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok" })))
+}
+
+async fn os_create_aggregate(
+    Json(req): Json<CreateAggregateRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let agg = create_host_aggregate(&cfg, &req).await?;
+    log_audit("openstack.aggregate.create", &agg.id, "ok");
+    Ok(Json(serde_json::json!({ "aggregate": agg })))
+}
+
+async fn os_update_aggregate(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateAggregateRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let agg = update_host_aggregate(&cfg, &id, &req).await?;
+    log_audit("openstack.aggregate.update", &id, "ok");
+    Ok(Json(serde_json::json!({ "aggregate": agg })))
+}
+
+#[derive(Deserialize)]
+struct AggregateHostBody {
+    host: String,
+}
+
+async fn os_aggregate_add_host(
+    Path(id): Path<String>,
+    Json(body): Json<AggregateHostBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let agg = add_aggregate_host(&cfg, &id, &body.host).await?;
+    log_audit("openstack.aggregate.add_host", &id, "ok");
+    Ok(Json(serde_json::json!({ "aggregate": agg })))
+}
+
+async fn os_aggregate_remove_host(
+    Path(id): Path<String>,
+    Json(body): Json<AggregateHostBody>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let agg = remove_aggregate_host(&cfg, &id, &body.host).await?;
+    log_audit("openstack.aggregate.remove_host", &id, "ok");
+    Ok(Json(serde_json::json!({ "aggregate": agg })))
 }
 
 async fn os_subnets() -> Result<Json<serde_json::Value>, AppError> {

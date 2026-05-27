@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { apiPost, apiPut, readJsonObject } from './client'
+import { apiPost, apiPut, apiDelete, readJsonObject } from './client'
 import { parseResponseError } from './parseResponseError'
 
 const API = '/api/v1'
@@ -20,6 +20,7 @@ export interface OpenStackSubnet {
   cidr: string
   ip_version: number
   gateway_ip?: string
+  enable_dhcp?: boolean
 }
 
 export interface OpenStackRouter {
@@ -36,6 +37,7 @@ export interface OpenStackPort {
   status: string
   device_id?: string
   fixed_ips: string[]
+  admin_state_up?: boolean
 }
 
 export interface OpenStackVolumeType {
@@ -601,4 +603,47 @@ export function uploadOpenStackVolumeToImage(
   body: { image_name: string; disk_format?: string; force?: boolean },
 ): Promise<{ upload: { image_id: string; status: string } }> {
   return apiPost(`${API}/openstack/volumes/${inst(volumeId)}/upload-image`, body)
+}
+
+export function updateOpenStackQuotas(body: {
+  service: 'compute' | 'cinder' | 'neutron'
+  project_id?: string
+  quotas: Record<string, number>
+}): Promise<{ status: string }> {
+  return apiPut(`${API}/openstack/quotas`, body)
+}
+
+export function enableOpenStackComputeService(body: { binary: string; host: string }): Promise<{ status: string }> {
+  return apiPost(`${API}/openstack/compute-services/enable`, { ...body, disabled: false })
+}
+
+export function disableOpenStackComputeService(body: { binary: string; host: string }): Promise<{ status: string }> {
+  return apiPost(`${API}/openstack/compute-services/disable`, { ...body, disabled: true })
+}
+
+export function setOpenStackNeutronAgentAdmin(agentId: string, admin_state_up: boolean): Promise<{ status: string }> {
+  return apiPut(`${API}/openstack/neutron-agents/${inst(agentId)}`, { admin_state_up })
+}
+
+export function setOpenStackHypervisorMaintenance(hypervisorId: string, maintenance: boolean): Promise<{ status: string }> {
+  return apiPut(`${API}/openstack/hypervisors/${inst(hypervisorId)}`, { maintenance })
+}
+
+export function createOpenStackAggregate(body: { name: string; availability_zone?: string }): Promise<{ aggregate: OpenStackHostAggregate }> {
+  return apiPost(`${API}/openstack/aggregates`, body)
+}
+
+export function updateOpenStackAggregate(
+  id: string,
+  body: { name?: string; availability_zone?: string },
+): Promise<{ aggregate: OpenStackHostAggregate }> {
+  return apiPut(`${API}/openstack/aggregates/${inst(id)}`, body)
+}
+
+export function addOpenStackAggregateHost(aggregateId: string, host: string): Promise<{ aggregate: OpenStackHostAggregate }> {
+  return apiPost(`${API}/openstack/aggregates/${inst(aggregateId)}/add-host`, { host })
+}
+
+export function removeOpenStackAggregateHost(aggregateId: string, host: string): Promise<{ aggregate: OpenStackHostAggregate }> {
+  return apiPost(`${API}/openstack/aggregates/${inst(aggregateId)}/remove-host`, { host })
 }

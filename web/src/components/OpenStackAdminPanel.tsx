@@ -2,12 +2,20 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import {
+  addOpenStackAggregateHost,
+  createOpenStackAggregate,
+  disableOpenStackComputeService,
+  enableOpenStackComputeService,
   listOpenStackAvailabilityZones,
   listOpenStackComputeServices,
   listOpenStackHostAggregates,
   listOpenStackHypervisors,
   listOpenStackNeutronAgents,
   getOpenStackHypervisor,
+  removeOpenStackAggregateHost,
+  setOpenStackHypervisorMaintenance,
+  setOpenStackNeutronAgentAdmin,
+  updateOpenStackAggregate,
   type OpenStackAvailabilityZone,
   type OpenStackComputeService,
   type OpenStackHostAggregate,
@@ -15,9 +23,11 @@ import {
   type OpenStackNeutronAgent,
 } from '../api/openstackExtras'
 import { formatUserError } from '../utils/apiError'
-import { Loader2, Server } from 'lucide-react'
+import { useToastContext } from '../contexts/ToastContext'
+import { Loader2, Plus, Server } from 'lucide-react'
 
 export default function OpenStackAdminPanel() {
+  const toast = useToastContext()
   const [azs, setAzs] = useState<OpenStackAvailabilityZone[]>([])
   const [hvs, setHvs] = useState<OpenStackHypervisor[]>([])
   const [services, setServices] = useState<OpenStackComputeService[]>([])
@@ -66,12 +76,22 @@ export default function OpenStackAdminPanel() {
     ? agents.filter((a) => !a.alive || !a.admin_state_up)
     : agents
 
+  const run = async (fn: () => Promise<unknown>, ok: string) => {
+    try {
+      await fn()
+      toast.success(ok)
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
   return (
     <div className="rounded-xl border border-slate-700 p-4 space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-sm font-medium text-slate-300 flex items-center gap-2">
           <Server className="w-4 h-4 text-sky-400" />
-          Compute catalog (read-only)
+          Compute admin
         </h2>
         <label className="inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
           <input type="checkbox" checked={downOnly} onChange={(e) => setDownOnly(e.target.checked)}
@@ -79,6 +99,7 @@ export default function OpenStackAdminPanel() {
           Show down only
         </label>
       </div>
+      <p className="text-xs text-slate-500">Admin write operations — requires cloud admin role.</p>
       {error && <p className="text-sm text-red-300">{error}</p>}
       <div className="grid md:grid-cols-2 gap-4 text-sm">
         <div>
@@ -94,7 +115,7 @@ export default function OpenStackAdminPanel() {
           <h3 className="text-xs uppercase text-slate-500 mb-2">Hypervisors</h3>
           <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
             {hvs.map((h) => (
-              <li key={h.id}>
+              <li key={h.id} className="flex flex-wrap items-center gap-2">
                 <button type="button" className="text-left hover:text-sky-300" onClick={async () => {
                   try {
                     const r = await getOpenStackHypervisor(h.id)
@@ -109,13 +130,54 @@ export default function OpenStackAdminPanel() {
           </ul>
         </div>
         <div>
-          <h3 className="text-xs uppercase text-slate-500 mb-2">Host aggregates</h3>
-          <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h3 className="text-xs uppercase text-slate-500">Host aggregates</h3>
+            <button type="button" className="text-xs text-sky-400 hover:underline inline-flex items-center gap-1"
+              onClick={async () => {
+                const name = prompt('Aggregate name')
+                if (!name?.trim()) return
+                const az = prompt('Availability zone (optional)', '') ?? ''
+                await run(
+                  () => createOpenStackAggregate({ name: name.trim(), availability_zone: az.trim() || undefined }),
+                  'Aggregate created',
+                )
+              }}>
+              <Plus className="w-3 h-3" /> New
+            </button>
+          </div>
+          <ul className="space-y-2 font-mono text-slate-300 max-h-48 overflow-y-auto">
             {aggregates.map((a) => (
-              <li key={a.id}>
-                {a.name}
-                {a.availability_zone ? ` · ${a.availability_zone}` : ''}
-                {a.hosts.length > 0 ? ` · ${a.hosts.length} host(s)` : ''}
+              <li key={a.id} className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>{a.name}</span>
+                  {a.availability_zone && <span className="text-slate-500">· {a.availability_zone}</span>}
+                  <button type="button" className="text-xs text-sky-400 hover:underline"
+                    onClick={() => void run(async () => {
+                      const n = prompt('Rename aggregate', a.name)
+                      if (n === null || !n.trim()) return
+                      await updateOpenStackAggregate(a.id, { name: n.trim() })
+                    }, 'Aggregate updated')}>Rename</button>
+                  <button type="button" className="text-xs text-violet-400 hover:underline"
+                    onClick={() => void run(async () => {
+                      const host = prompt('Host to add')
+                      if (!host?.trim()) return
+                      await addOpenStackAggregateHost(a.id, host.trim())
+                    }, 'Host added')}>+ host</button>
+                </div>
+                {a.hosts.length > 0 && (
+                  <ul className="pl-3 text-xs text-slate-500 space-y-0.5">
+                    {a.hosts.map((h) => (
+                      <li key={h} className="flex items-center gap-2">
+                        {h}
+                        <button type="button" className="text-red-400 hover:underline"
+                          onClick={() => void run(
+                            () => removeOpenStackAggregateHost(a.id, h),
+                            'Host removed',
+                          )}>remove</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
             {aggregates.length === 0 && <li className="text-slate-500">No aggregates</li>}
@@ -123,10 +185,23 @@ export default function OpenStackAdminPanel() {
         </div>
         <div>
           <h3 className="text-xs uppercase text-slate-500 mb-2">Compute services</h3>
-          <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
+          <ul className="space-y-1 font-mono text-slate-300 max-h-48 overflow-y-auto">
             {visibleServices.map((s) => (
-              <li key={s.id}>
-                {s.binary} @ {s.host} · {s.state}/{s.status}
+              <li key={s.id} className="flex flex-wrap items-center gap-2">
+                <span>{s.binary} @ {s.host} · {s.state}/{s.status}</span>
+                {s.status === 'enabled' ? (
+                  <button type="button" className="text-xs text-amber-400 hover:underline"
+                    onClick={() => void run(
+                      () => disableOpenStackComputeService({ binary: s.binary, host: s.host }),
+                      'Service disabled',
+                    )}>Disable</button>
+                ) : (
+                  <button type="button" className="text-xs text-emerald-400 hover:underline"
+                    onClick={() => void run(
+                      () => enableOpenStackComputeService({ binary: s.binary, host: s.host }),
+                      'Service enabled',
+                    )}>Enable</button>
+                )}
               </li>
             ))}
             {visibleServices.length === 0 && <li className="text-slate-500">{downOnly ? 'All services up' : 'No service data'}</li>}
@@ -134,10 +209,23 @@ export default function OpenStackAdminPanel() {
         </div>
         <div className="md:col-span-2">
           <h3 className="text-xs uppercase text-slate-500 mb-2">Neutron agents</h3>
-          <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
+          <ul className="space-y-1 font-mono text-slate-300 max-h-48 overflow-y-auto">
             {visibleAgents.map((a) => (
-              <li key={a.id}>
-                {a.agent_type} @ {a.host} · {a.alive ? 'alive' : 'down'} · admin {a.admin_state_up ? 'up' : 'down'}
+              <li key={a.id} className="flex flex-wrap items-center gap-2">
+                <span>{a.agent_type} @ {a.host} · {a.alive ? 'alive' : 'down'} · admin {a.admin_state_up ? 'up' : 'down'}</span>
+                {a.admin_state_up ? (
+                  <button type="button" className="text-xs text-amber-400 hover:underline"
+                    onClick={() => void run(
+                      () => setOpenStackNeutronAgentAdmin(a.id, false),
+                      'Agent admin down',
+                    )}>Admin down</button>
+                ) : (
+                  <button type="button" className="text-xs text-emerald-400 hover:underline"
+                    onClick={() => void run(
+                      () => setOpenStackNeutronAgentAdmin(a.id, true),
+                      'Agent admin up',
+                    )}>Admin up</button>
+                )}
               </li>
             ))}
             {visibleAgents.length === 0 && <li className="text-slate-500">{downOnly ? 'All agents healthy' : 'No agent data'}</li>}
@@ -145,9 +233,26 @@ export default function OpenStackAdminPanel() {
         </div>
       </div>
       {hvDetail && (
-        <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 text-xs font-mono text-slate-300">
-          {hvDetail.hostname} · {hvDetail.state}/{hvDetail.status} · {hvDetail.memory_mb_used}/{hvDetail.memory_mb} MB RAM
-          <button type="button" className="ml-2 text-slate-500 hover:underline" onClick={() => setHvDetail(null)}>Dismiss</button>
+        <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 text-xs font-mono text-slate-300 space-y-2">
+          <div>
+            {hvDetail.hostname} · {hvDetail.state}/{hvDetail.status} · {hvDetail.memory_mb_used}/{hvDetail.memory_mb} MB RAM
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {hvDetail.status === 'disabled' ? (
+              <button type="button" className="text-emerald-400 hover:underline"
+                onClick={() => void run(
+                  () => setOpenStackHypervisorMaintenance(hvDetail.id, false),
+                  'Maintenance off',
+                )}>Exit maintenance</button>
+            ) : (
+              <button type="button" className="text-amber-400 hover:underline"
+                onClick={() => void run(
+                  () => setOpenStackHypervisorMaintenance(hvDetail.id, true),
+                  'Maintenance on',
+                )}>Enter maintenance</button>
+            )}
+            <button type="button" className="text-slate-500 hover:underline" onClick={() => setHvDetail(null)}>Dismiss</button>
+          </div>
         </div>
       )}
     </div>

@@ -25,9 +25,12 @@ mod topology;
 mod volumes;
 
 pub use admin::{
-    list_availability_zones, list_compute_services, list_host_aggregates, list_hypervisors, get_hypervisor,
-    list_neutron_agents, OpenStackAvailabilityZone, OpenStackComputeService, OpenStackHostAggregate,
-    OpenStackHypervisor, OpenStackNeutronAgent,
+    add_aggregate_host, create_host_aggregate, list_availability_zones, list_compute_services,
+    list_host_aggregates, list_hypervisors, get_hypervisor, list_neutron_agents,
+    remove_aggregate_host, set_compute_service_state, set_hypervisor_maintenance,
+    set_neutron_agent_admin, update_host_aggregate, CreateAggregateRequest,
+    OpenStackAvailabilityZone, OpenStackComputeService, OpenStackHostAggregate,
+    OpenStackHypervisor, OpenStackNeutronAgent, SetComputeServiceRequest, UpdateAggregateRequest,
 };
 pub use auth::{
     connect_session, default_cloud_from_yaml, effective_cloud_name_for_config,
@@ -90,7 +93,7 @@ pub use topology::{
     RemoveRouterInterfaceRequest, UpdateNetworkRequest, UpdatePortRequest, UpdateRouterRequest,
     UpdateSubnetRequest,
 };
-pub use quotas::{get_quota_summary, probe_cinder_reachable, OpenStackQuotaSummary};
+pub use quotas::{get_quota_summary, probe_cinder_reachable, update_quotas, OpenStackQuotaSummary, UpdateQuotasRequest};
 pub use catalogs_ext::{
     create_server_group, delete_server_group, get_flavor, get_server_group, list_server_groups, list_volume_types,
     CreateServerGroupRequest, OpenStackServerGroup, OpenStackVolumeType,
@@ -113,9 +116,8 @@ pub use networking::{
     OpenStackFloatingIp,
 };
 pub use resources::{
-    create_instance, enrich_instance_flavor, get_image, get_network, list_flavors, list_images, list_instance_volumes,
-    list_cinder_volumes, list_keypairs, list_networks, snapshot_instance, wait_glance_image_by_name,
-    CreateInstanceRequest,
-    CreateInstanceResponse,
+    create_flavor, create_instance, delete_flavor, enrich_instance_flavor, get_image, get_network, list_flavors,
+    list_images, list_instance_volumes, list_cinder_volumes, list_keypairs, list_networks, snapshot_instance,
+    wait_glance_image_by_name, CreateFlavorRequest, CreateInstanceRequest, CreateInstanceResponse,
     OpenStackAttachedVolume, OpenStackFlavor, OpenStackImage, OpenStackKeyPair, OpenStackNetwork,
 };

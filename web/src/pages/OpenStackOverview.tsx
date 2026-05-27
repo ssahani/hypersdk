@@ -49,7 +49,7 @@ const QUICK_LINKS = [
     to: '/openstack/flavors',
     icon: Cloud,
     title: 'Nova flavors',
-    description: 'Read-only flavor catalog for sizing instances.',
+    description: 'Nova flavor catalog — create and delete with admin role.',
   },
   {
     to: '/openstack/floating-ips',

@@ -2598,6 +2598,75 @@ impl App {
                 )
                 .await;
             },
+            ["openstack", "port-update", id, field, value] | ["os", "port-update", id, field, value] => {
+                let r = self.client.openstack_update_port(id, field, value).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Port {id} {field}={value}"),
+                    "openstack-port-update",
+                    id,
+                    false,
+                )
+                .await;
+            },
+            ["openstack", "flavor-create", name, vcpus, ram, disk] | ["os", "flavor-create", name, vcpus, ram, disk] => {
+                let r = self.client.openstack_create_flavor(
+                    name,
+                    vcpus.parse().unwrap_or(1),
+                    ram.parse().unwrap_or(2048),
+                    disk.parse().unwrap_or(20),
+                ).await;
+                self.report_cmd_result(r, &format!("Created flavor {name}"), "openstack-flavor-create", name, false).await;
+            },
+            ["openstack", "flavor-delete", id] | ["os", "flavor-delete", id] => {
+                let r = self.client.openstack_delete_flavor(id).await;
+                self.report_cmd_result(r, &format!("Deleted flavor {id}"), "openstack-flavor-delete", id, false).await;
+            },
+            ["openstack", "quota-set", service, key, limit] | ["os", "quota-set", service, key, limit] => {
+                let r = self.client.openstack_update_quotas(service, key, limit.parse().unwrap_or(-1)).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Quota {service}.{key}={limit}"),
+                    "openstack-quota-set",
+                    service,
+                    false,
+                )
+                .await;
+            },
+            ["openstack", "svc-enable", binary, host] | ["os", "svc-enable", binary, host] => {
+                let r = self.client.openstack_set_compute_service(binary, host, true).await;
+                self.report_cmd_result(r, &format!("Enabled {binary}@{host}"), "openstack-svc-enable", host, false).await;
+            },
+            ["openstack", "svc-disable", binary, host] | ["os", "svc-disable", binary, host] => {
+                let r = self.client.openstack_set_compute_service(binary, host, false).await;
+                self.report_cmd_result(r, &format!("Disabled {binary}@{host}"), "openstack-svc-disable", host, false).await;
+            },
+            ["openstack", "agent-admin", id, state] | ["os", "agent-admin", id, state] => {
+                let up = matches!(state.to_lowercase().as_str(), "up" | "1" | "true" | "on" | "yes");
+                let r = self.client.openstack_set_agent_admin(id, up).await;
+                self.report_cmd_result(r, &format!("Agent {id} admin={state}"), "openstack-agent-admin", id, false).await;
+            },
+            ["openstack", "hv-maintenance", id, state] | ["os", "hv-maintenance", id, state] => {
+                let on = matches!(state.to_lowercase().as_str(), "on" | "1" | "true" | "yes");
+                let r = self.client.openstack_set_hv_maintenance(id, on).await;
+                self.report_cmd_result(r, &format!("Hypervisor {id} maintenance={state}"), "openstack-hv-maint", id, false).await;
+            },
+            ["openstack", "aggregate-create", name] | ["os", "aggregate-create", name] => {
+                let r = self.client.openstack_create_aggregate(name, None).await;
+                self.report_cmd_result(r, &format!("Created aggregate {name}"), "openstack-agg-create", name, false).await;
+            },
+            ["openstack", "aggregate-create", name, az] | ["os", "aggregate-create", name, az] => {
+                let r = self.client.openstack_create_aggregate(name, Some(az)).await;
+                self.report_cmd_result(r, &format!("Created aggregate {name}"), "openstack-agg-create", name, false).await;
+            },
+            ["openstack", "aggregate-add-host", id, host] | ["os", "aggregate-add-host", id, host] => {
+                let r = self.client.openstack_aggregate_add_host(id, host).await;
+                self.report_cmd_result(r, &format!("Added {host} → aggregate {id}"), "openstack-agg-add", id, false).await;
+            },
+            ["openstack", "aggregate-remove-host", id, host] | ["os", "aggregate-remove-host", id, host] => {
+                let r = self.client.openstack_aggregate_remove_host(id, host).await;
+                self.report_cmd_result(r, &format!("Removed {host} from aggregate {id}"), "openstack-agg-rm", id, false).await;
+            },
             ["openstack", "create", name, flavor, image, network] => {
                 let req = CreateInstanceRequest {
                     name: name.to_string(),

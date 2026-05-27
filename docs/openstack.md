@@ -170,9 +170,17 @@ Catalog APIs for the create wizard:
 - `POST .../instances/{id}/rename|lock|unlock|reset-state|force-delete` · `GET|POST .../server-groups`
 - `PUT .../subnets/{id}` — rename, gateway, `enable_dhcp` · `PUT .../routers/{id}` — rename, external gateway set/clear
 - `POST .../volumes/{id}/upload-image` — Cinder volume → Glance image (`image_name`, optional `disk_format`, `force`)
+- `PUT /api/v1/openstack/quotas` — update Nova/Cinder/Neutron project quotas (admin)
+- `POST|DELETE /api/v1/openstack/flavors` · `POST /openstack/aggregates` · `PUT .../aggregates/{id}`
+- `POST .../aggregates/{id}/add-host|remove-host` · `POST .../compute-services/enable|disable`
+- `PUT .../neutron-agents/{id}` · `PUT .../hypervisors/{id}` — maintenance `{ "maintenance": true|false }`
 - `PUT .../networks/{id}` · `PUT .../ports/{id}` · `GET|POST /api/v1/openstack/clouds` · `POST .../cloud` (session cloud switch)
 
 Phases **291–340** (Tier 1 polish): port/transfer detail pages; instance **locked** badge; Neutron quota panel; dedicated SG/FIP/snapshot detail routes; router subnet interface UX on router detail; Neutron project id fallback for quotas; TUI migrate/backup/rebuild/shelve/rescue/interfaces/vol-upload/subnet-update; OpenAPI sweep for routes 141–340.
+
+Phases **341–390** (Tier 1 follow-up): subnet **DHCP** toggle on subnet detail; port **admin down** on port detail and networking list; volume **upload-to-Glance** progress polling with link to image detail; instance list **client pagination** (25 per page); instance detail **shelve/unshelve** toolbar actions; Nova list uses one GET per server for **locked** (no duplicate fetch); TUI `port-update`.
+
+Phases **391–440** (Tier 2 admin writes): **quota editing** (`PUT /openstack/quotas`); **flavor create/delete**; **host aggregate** create/rename/add-host/remove-host; **compute service** enable/disable; **Neutron agent** admin up/down; **hypervisor maintenance** mode; admin panel + quotas panel UI; TUI `flavor-create|delete`, `quota-set`, `svc-enable|disable`, `agent-admin`, `hv-maintenance`, `aggregate-*`.
 
 Phases **41–140** (operator UX): GET detail APIs for volumes/network/subnet/router/port; Glance image detail page; clouds.yaml cloud picker in nav; Neutron network/port rename; volume transfer cancel; extended TUI.
 
@@ -216,6 +224,6 @@ Optional `use_hyper2kvm` on VM push delegates to hyper2kvm for guest-fix and dep
 - Neutron topology editor, Heat stacks, Octavia load balancers, identity project admin
 - Full HyperSDK dashboard features (Machina proxies list/submit/jobs; advanced flows use hypervisord UI)
 
-TUI commands (`:` prefix): `openstack` / `os` (status), `openstack list`, `openstack start|stop|delete <id>`, `openstack quotas|snapshots`, `openstack attach|detach <inst> <vol>`, `openstack fips`, `openstack fip-allocate <net>`, `openstack fip-release <id>`, `openstack port-delete <id>`, `openstack migrate|migrate-live|backup|rebuild`, `openstack shelve|unshelve|rescue|unrescue`, `openstack interfaces|interface-attach|interface-detach`, `openstack vol-upload-image <vol> <name>`, `openstack subnet-update <id> <field> <value>`, `openstack network|subnet|router|port|fip|volume|image|server-group <id>`, `openstack confirm-resize|revert-resize`, `openstack lock|unlock|force-delete`, `openstack clouds|cloud <name>`.
+TUI commands (`:` prefix): `openstack` / `os` (status), `openstack list`, `openstack start|stop|delete <id>`, `openstack quotas|snapshots`, `openstack attach|detach <inst> <vol>`, `openstack fips`, `openstack fip-allocate <net>`, `openstack fip-release <id>`, `openstack port-delete <id>`, `openstack migrate|migrate-live|backup|rebuild`, `openstack shelve|unshelve|rescue|unrescue`, `openstack interfaces|interface-attach|interface-detach`, `openstack vol-upload-image <vol> <name>`, `openstack subnet-update <id> <field> <value>`, `openstack port-update <id> <field> <value>`, `openstack flavor-create <name> <vcpus> <ram_mb> <disk_gb>`, `openstack flavor-delete <id>`, `openstack quota-set <compute|cinder|neutron> <key> <limit>`, `openstack svc-enable|svc-disable <binary> <host>`, `openstack agent-admin <id> <up|down>`, `openstack hv-maintenance <id> <on|off>`, `openstack aggregate-create <name> [az]`, `openstack aggregate-add-host|aggregate-remove-host <id> <host>`, `openstack network|subnet|router|port|fip|volume|image|server-group <id>`, `openstack confirm-resize|revert-resize`, `openstack lock|unlock|force-delete`, `openstack clouds|cloud <name>`.
 
 Neutron topology editing, Heat, Octavia, identity project admin—use Horizon or the OpenStack CLI for those tasks.

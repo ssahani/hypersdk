@@ -6,15 +6,14 @@
 
 use std::collections::HashMap;
 
-use openstack::compute::{RebootType, Server};
+use openstack::compute::RebootType;
 use openstack::Cloud;
 use osauth::services::COMPUTE;
-use serde::Deserialize;
 
 use crate::config::OpenStackConfig;
 use crate::LibvirtError;
 
-use super::auth::{connect_session, effective_cloud_name_for_config};
+use super::auth::{connect_session, effective_cloud_name_for_config, map_json_err, map_osauth_err};
 
 /// Serializable instance row for API responses.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -165,8 +164,7 @@ pub async fn list_instances(
                 continue;
             }
         }
-        let server = cloud.get_server(&id).await.map_err(map_openstack_err)?;
-        let mut inst = instance_from_server(&server)?;
+        let mut inst = fetch_nova_server(&session, &id).await?;
         if let Some(ref fid) = inst.flavor_id {
             if let Some(fname) = flavor_cache.get(fid) {
                 inst.flavor_name = Some(fname.clone());
@@ -177,7 +175,6 @@ pub async fn list_instances(
                 continue;
             }
         }
-        inst.locked = server_locked(&session, &id).await;
         out.push(inst);
     }
     Ok(out)
@@ -185,38 +182,23 @@ pub async fn list_instances(
 
 pub async fn get_instance(cfg: &OpenStackConfig, id: &str) -> Result<OpenStackInstance, LibvirtError> {
     let session = connect_session(cfg).await?;
-    let cloud = Cloud::from(session.clone());
-    let server = cloud
-        .get_server(id.trim())
-        .await
-        .map_err(map_openstack_err)?;
-    let mut inst = instance_from_server(&server)?;
-    inst.locked = server_locked(&session, id).await;
-    Ok(inst)
+    fetch_nova_server(&session, id).await
 }
 
-async fn server_locked(session: &osauth::Session, id: &str) -> bool {
-    #[derive(Deserialize)]
-    struct ServerResp {
-        server: ServerLock,
-    }
-    #[derive(Deserialize)]
-    struct ServerLock {
-        #[serde(default)]
-        locked: bool,
-    }
-    match session
+async fn fetch_nova_server(
+    session: &osauth::Session,
+    id: &str,
+) -> Result<OpenStackInstance, LibvirtError> {
+    let resp = session
         .get(COMPUTE, &["servers", id.trim()])
         .send()
         .await
-    {
-        Ok(resp) => resp
-            .json::<ServerResp>()
-            .await
-            .map(|s| s.server.locked)
-            .unwrap_or(false),
-        Err(_) => false,
-    }
+        .map_err(map_osauth_err)?;
+    let body: serde_json::Value = resp.json().await.map_err(map_json_err)?;
+    let server = body
+        .get("server")
+        .ok_or_else(|| LibvirtError::Invalid("Nova response missing server".into()))?;
+    instance_from_nova_json(server)
 }
 
 pub async fn start_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
@@ -269,67 +251,129 @@ pub async fn force_delete_instance(cfg: &OpenStackConfig, id: &str) -> Result<()
     Ok(())
 }
 
-fn instance_from_server(server: &Server) -> Result<OpenStackInstance, LibvirtError> {
-    let status = format!("{:?}", server.status());
-    let power_state = format!("{:?}", server.power_state());
-    let mut ips = Vec::new();
-    for addrs in server.addresses().values() {
-        for a in addrs {
-            ips.push(a.addr.to_string());
-        }
+fn instance_from_nova_json(server: &serde_json::Value) -> Result<OpenStackInstance, LibvirtError> {
+    let id = server
+        .get("id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("Nova server missing id".into()));
     }
+    let name = server
+        .get("name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let status = server
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or("UNKNOWN")
+        .to_string();
+    let power_state = server
+        .get("OS-EXT-STS:power_state")
+        .and_then(|v| v.as_u64())
+        .map(power_state_label)
+        .unwrap_or_else(|| "unknown".to_string());
 
-    let mut security_groups = Vec::new();
-    if let Some(sg) = server.metadata().get("security_groups") {
-        for part in sg.split(',') {
-            let t = part.trim();
-            if !t.is_empty() {
-                security_groups.push(t.to_string());
+    let mut ips = Vec::new();
+    if let Some(addrs) = server.get("addresses").and_then(|v| v.as_object()) {
+        for arr in addrs.values() {
+            if let Some(arr) = arr.as_array() {
+                for a in arr {
+                    if let Some(ip) = a.get("addr").and_then(|v| v.as_str()) {
+                        ips.push(ip.to_string());
+                    }
+                }
             }
         }
     }
 
-    let flavor_id = server.flavor_id().cloned();
-    let flavor_name = None; // resolved on detail fetch if needed
+    let mut security_groups = Vec::new();
+    if let Some(sgs) = server.get("security_groups").and_then(|v| v.as_array()) {
+        for sg in sgs {
+            if let Some(name) = sg.get("name").and_then(|v| v.as_str()) {
+                let t = name.trim();
+                if !t.is_empty() {
+                    security_groups.push(t.to_string());
+                }
+            }
+        }
+    }
+
+    let flavor_id = server
+        .get("flavor")
+        .and_then(|f| f.get("id"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let availability_zone = server
+        .get("OS-EXT-AZ:availability_zone")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let key_name = server
+        .get("key_name")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let image_id = server
+        .get("image")
+        .and_then(|i| i.get("id"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let created_at = server
+        .get("created")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+    let updated_at = server
+        .get("updated")
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
+    let mut metadata = HashMap::new();
+    if let Some(m) = server.get("metadata").and_then(|v| v.as_object()) {
+        for (k, v) in m {
+            if let Some(s) = v.as_str() {
+                metadata.insert(k.clone(), s.to_string());
+            }
+        }
+    }
+
+    let locked = server
+        .get("locked")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     Ok(OpenStackInstance {
-        id: server.id().clone(),
-        name: server.name().clone(),
-        status: normalize_status(&status),
-        power_state: power_state.to_lowercase(),
+        id,
+        name,
+        status,
+        power_state,
         flavor_id,
-        flavor_name,
-        availability_zone: server.availability_zone().clone(),
-        project_id: server.metadata().get("project_id").cloned(),
-        key_name: server.key_pair_name().as_ref().cloned(),
-        image_id: server.image_id().cloned(),
-        created_at: Some(server.created_at().to_rfc3339()),
-        updated_at: Some(server.updated_at().to_rfc3339()),
+        flavor_name: None,
+        availability_zone,
+        project_id: metadata.get("project_id").cloned(),
+        key_name,
+        image_id,
+        created_at,
+        updated_at,
         ip_addresses: ips,
         security_groups,
-        metadata: server.metadata().clone(),
-        locked: false,
+        metadata,
+        locked,
     })
 }
 
-fn normalize_status(debug_status: &str) -> String {
-    // ServerStatus debug format may be "Active" or "ACTIVE"
-    let s = debug_status.trim();
-    if s.chars().all(|c| c.is_uppercase() || c == '_') {
-        s.to_string()
-    } else {
-        // PascalCase → SHOUTY_SNAKE
-        s.chars()
-            .enumerate()
-            .flat_map(|(i, c)| {
-                if c.is_uppercase() && i > 0 {
-                    vec!['_', c]
-                } else {
-                    vec![c.to_ascii_uppercase()]
-                }
-            })
-            .collect()
+fn power_state_label(code: u64) -> String {
+    match code {
+        0 => "nostate",
+        1 => "running",
+        3 => "paused",
+        4 => "shutdown",
+        6 => "crashed",
+        7 => "suspended",
+        _ => "unknown",
     }
+    .to_string()
 }
 
 pub(crate) async fn flavor_name_cache(cloud: &Cloud) -> HashMap<String, String> {

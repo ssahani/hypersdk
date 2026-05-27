@@ -50,6 +50,8 @@ function OpenStackSubnetDetailContent() {
     )
   }
 
+  const dhcpOn = subnet.enable_dhcp !== false
+
   return (
     <div className="space-y-6 max-w-3xl">
       <OpenStackSubNav />
@@ -68,6 +70,7 @@ function OpenStackSubnetDetailContent() {
         </dd></div>
         <div><dt className="text-xs text-slate-500 uppercase">Gateway</dt><dd className="text-slate-200 mt-1">{subnet.gateway_ip || '—'}</dd></div>
         <div><dt className="text-xs text-slate-500 uppercase">IP version</dt><dd className="text-slate-200 mt-1">{subnet.ip_version}</dd></div>
+        <div><dt className="text-xs text-slate-500 uppercase">DHCP</dt><dd className="text-slate-200 mt-1">{dhcpOn ? 'Enabled' : 'Disabled'}</dd></div>
       </dl>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm"
@@ -90,6 +93,16 @@ function OpenStackSubnetDetailContent() {
               void load()
             } catch (e: unknown) { toast.error(formatUserError(e)) }
           }}>Set gateway</button>
+        <button type="button" className="px-3 py-1.5 rounded-lg border border-violet-600/50 text-violet-200 text-sm"
+          onClick={async () => {
+            const next = !dhcpOn
+            if (!confirm(`${next ? 'Enable' : 'Disable'} DHCP on this subnet?`)) return
+            try {
+              await updateOpenStackSubnet(subnet.id, { enable_dhcp: next })
+              toast.success(next ? 'DHCP enabled' : 'DHCP disabled')
+              void load()
+            } catch (e: unknown) { toast.error(formatUserError(e)) }
+          }}>{dhcpOn ? 'Disable DHCP' : 'Enable DHCP'}</button>
       </div>
       <OpenStackFooter />
     </div>

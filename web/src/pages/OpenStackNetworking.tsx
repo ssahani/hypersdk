@@ -467,12 +467,14 @@ function OpenStackNetworkingContent() {
                     catch (e: unknown) { toast.error(formatUserError(e)) }
                   }}>Rename</button>
                   <button type="button" className="text-violet-400 text-xs hover:underline" onClick={async () => {
+                    const up = p.admin_state_up !== false
+                    if (up && !confirm('Set port admin state down?')) return
                     try {
-                      await updateOpenStackPort(p.id, { admin_state_up: true })
-                      toast.success('Admin up')
+                      await updateOpenStackPort(p.id, { admin_state_up: !up })
+                      toast.success(up ? 'Admin down' : 'Admin up')
                       void load()
                     } catch (e: unknown) { toast.error(formatUserError(e)) }
-                  }}>Admin up</button>
+                  }}>{p.admin_state_up === false ? 'Admin up' : 'Admin down'}</button>
                   {!p.device_id && (
                     <button
                       type="button"

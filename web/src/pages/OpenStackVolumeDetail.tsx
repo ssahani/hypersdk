@@ -1,8 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
-import { ArrowLeft, Disc, Loader2 } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router'
+import { ArrowLeft, Disc, ExternalLink, Loader2 } from 'lucide-react'
+import { getOpenStackImage } from '../api/openstack'
 import { getOpenStackVolume, setOpenStackVolumeBootable, updateOpenStackVolume, uploadOpenStackVolumeToImage } from '../api/openstackExtras'
 import type { OpenStackAttachedVolume } from '../api/openstack'
 import OpenStackGate from '../components/OpenStackGate'
@@ -21,9 +22,14 @@ export default function OpenStackVolumeDetailPage() {
 
 function OpenStackVolumeDetailContent() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const toast = useToastContext()
   const [vol, setVol] = useState<OpenStackAttachedVolume | null>(null)
   const [loading, setLoading] = useState(true)
+  const [uploadBusy, setUploadBusy] = useState(false)
+  const [uploadImageId, setUploadImageId] = useState<string | null>(null)
+  const [uploadStatus, setUploadStatus] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -42,6 +48,41 @@ function OpenStackVolumeDetailContent() {
   useEffect(() => {
     void load()
   }, [load])
+
+  useEffect(() => {
+    if (!uploadImageId) return
+    let cancelled = false
+
+    const poll = async () => {
+      try {
+        const { image } = await getOpenStackImage(uploadImageId)
+        if (cancelled) return
+        setUploadStatus(image.status)
+        const st = image.status.toLowerCase()
+        if (st === 'active') {
+          if (pollRef.current) clearInterval(pollRef.current)
+          pollRef.current = null
+          setUploadBusy(false)
+          toast.success('Glance image is active')
+        } else if (st === 'killed' || st === 'deleted' || st.includes('error')) {
+          if (pollRef.current) clearInterval(pollRef.current)
+          pollRef.current = null
+          setUploadBusy(false)
+          toast.error(`Glance upload failed: ${image.status}`)
+        }
+      } catch {
+        // keep polling — image may not appear in Glance immediately
+      }
+    }
+
+    void poll()
+    pollRef.current = setInterval(() => { void poll() }, 5000)
+    return () => {
+      cancelled = true
+      if (pollRef.current) clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+  }, [uploadImageId, toast])
 
   if (loading) return <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto py-12" />
   if (!vol) {
@@ -96,14 +137,37 @@ function OpenStackVolumeDetailContent() {
       <section className="rounded-xl border border-slate-700 p-4 space-y-3">
         <h2 className="text-sm font-medium text-slate-300">Create Glance image from volume</h2>
         <p className="text-xs text-slate-500">Upload this Cinder volume to Glance (Cinder os-volume_upload_image).</p>
-        <button type="button" className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm"
+        {uploadImageId && (
+          <div className="text-sm text-slate-300 space-y-1">
+            <p>
+              Image <span className="font-mono text-sky-300">{uploadImageId}</span>
+              {uploadStatus && <> · status <span className="text-violet-300">{uploadStatus}</span></>}
+              {uploadBusy && <Loader2 className="inline w-4 h-4 ml-2 animate-spin text-sky-400" />}
+            </p>
+            {!uploadBusy && uploadStatus?.toLowerCase() === 'active' && (
+              <button type="button" className="inline-flex items-center gap-1 text-sky-400 hover:underline text-sm"
+                onClick={() => navigate(`/openstack/images/${uploadImageId}`)}>
+                Open image detail <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        )}
+        <button type="button" disabled={uploadBusy}
+          className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm disabled:opacity-50"
           onClick={async () => {
             const name = prompt('Glance image name', vol.name ? `${vol.name}-image` : 'volume-image')
             if (!name?.trim()) return
             try {
+              setUploadBusy(true)
+              setUploadStatus(null)
               const r = await uploadOpenStackVolumeToImage(vol.id, { image_name: name.trim() })
-              toast.success(`Upload started — image ${r.upload.image_id} (${r.upload.status})`)
-            } catch (e: unknown) { toast.error(formatUserError(e)) }
+              setUploadImageId(r.upload.image_id)
+              setUploadStatus(r.upload.status)
+              toast.success(`Upload started — polling Glance for ${r.upload.image_id}`)
+            } catch (e: unknown) {
+              setUploadBusy(false)
+              toast.error(formatUserError(e))
+            }
           }}>Upload to Glance</button>
       </section>
       <OpenStackFooter />

@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use openstack::compute::ServerAction;
 use openstack::waiter::Waiter;
+use serde::Deserialize;
 use tokio::time::sleep;
 
 use crate::config::OpenStackConfig;
@@ -96,6 +97,85 @@ pub async fn list_flavors(cfg: &OpenStackConfig) -> Result<Vec<OpenStackFlavor>,
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreateFlavorRequest {
+    pub name: String,
+    pub vcpus: u32,
+    pub ram_mb: u64,
+    pub disk_gb: u64,
+    pub id: Option<String>,
+    #[serde(default)]
+    pub is_public: bool,
+}
+
+pub async fn create_flavor(
+    cfg: &OpenStackConfig,
+    req: &CreateFlavorRequest,
+) -> Result<OpenStackFlavor, LibvirtError> {
+    use osauth::services::COMPUTE;
+    use super::auth::{connect_session, map_json_err, map_osauth_err};
+    let name = req.name.trim();
+    if name.is_empty() {
+        return Err(LibvirtError::Invalid("flavor name is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut flavor = serde_json::json!({
+        "name": name,
+        "ram": req.ram_mb,
+        "vcpus": req.vcpus,
+        "disk": req.disk_gb,
+        "os-flavor-access:is_public": req.is_public,
+    });
+    if let Some(ref id) = req.id {
+        let t = id.trim();
+        if !t.is_empty() {
+            flavor["id"] = serde_json::json!(t);
+        }
+    }
+    #[derive(Deserialize)]
+    struct Resp {
+        flavor: FlavorOut,
+    }
+    #[derive(Deserialize)]
+    struct FlavorOut {
+        id: String,
+        name: String,
+        vcpus: u32,
+        ram: u64,
+        disk: u64,
+    }
+    let resp = session
+        .post(COMPUTE, &["flavors"])
+        .json(&serde_json::json!({ "flavor": flavor }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackFlavor {
+        id: body.flavor.id,
+        name: body.flavor.name,
+        vcpus: body.flavor.vcpus,
+        ram_mb: body.flavor.ram,
+        disk_gb: body.flavor.disk,
+    })
+}
+
+pub async fn delete_flavor(cfg: &OpenStackConfig, flavor_id: &str) -> Result<(), LibvirtError> {
+    use osauth::services::COMPUTE;
+    use super::auth::{connect_session, map_osauth_err};
+    let id = flavor_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("flavor id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    session
+        .delete(COMPUTE, &["flavors", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
 }
 
 pub async fn list_networks(cfg: &OpenStackConfig) -> Result<Vec<OpenStackNetwork>, LibvirtError> {

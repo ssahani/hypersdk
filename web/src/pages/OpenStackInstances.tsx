@@ -27,6 +27,7 @@ import { formatUserError } from '../utils/apiError'
 import { openStackErrorHints } from '../utils/openstackHints'
 
 const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
+const PAGE_SIZE = 25
 
 function statusBadge(status: string) {
   const s = status.toUpperCase()
@@ -53,6 +54,7 @@ function OpenStackInstancesContent() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
+  const [page, setPage] = useState(0)
   const toast = useToastContext()
   const { lastEvent, refreshKey } = usePlatformInfo()
 
@@ -82,6 +84,10 @@ function OpenStackInstancesContent() {
   }, [search, statusFilter, toast, computeLive])
 
   useEffect(() => {
+    setPage(0)
+  }, [search, statusFilter])
+
+  useEffect(() => {
     setLoading(true)
     const t = setTimeout(() => { load() }, search ? 300 : 0)
     return () => clearTimeout(t)
@@ -105,6 +111,10 @@ function OpenStackInstancesContent() {
       toast.error(`${label} failed: ${formatUserError(e)}`)
     }
   }
+
+  const pageCount = Math.max(1, Math.ceil(instances.length / PAGE_SIZE))
+  const safePage = Math.min(page, pageCount - 1)
+  const pageInstances = instances.slice(safePage * PAGE_SIZE, safePage * PAGE_SIZE + PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -236,7 +246,7 @@ function OpenStackInstancesContent() {
                 </td>
               </tr>
             )}
-            {instances.map((inst) => (
+            {pageInstances.map((inst) => (
               <tr key={inst.id} className="hover:bg-slate-800/40">
                 <td className="px-4 py-3">
                   <Link
@@ -296,6 +306,21 @@ function OpenStackInstancesContent() {
           </tbody>
         </table>
       </div>
+      {instances.length > PAGE_SIZE && (
+        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-slate-400">
+          <span>
+            Showing {safePage * PAGE_SIZE + 1}–{Math.min((safePage + 1) * PAGE_SIZE, instances.length)} of {instances.length}
+          </span>
+          <div className="flex gap-2">
+            <button type="button" disabled={safePage <= 0}
+              className="px-3 py-1.5 rounded-lg border border-slate-600 disabled:opacity-40 hover:bg-slate-800"
+              onClick={() => setPage((p) => Math.max(0, p - 1))}>Previous</button>
+            <button type="button" disabled={safePage >= pageCount - 1}
+              className="px-3 py-1.5 rounded-lg border border-slate-600 disabled:opacity-40 hover:bg-slate-800"
+              onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}>Next</button>
+          </div>
+        </div>
+      )}
         </>
       )}
 

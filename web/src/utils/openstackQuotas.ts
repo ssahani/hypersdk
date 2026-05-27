@@ -4,10 +4,43 @@ export interface QuotaRow {
   label: string
   used: number
   max: number
+  /** API field for PUT quota updates */
+  key?: string
+  service?: 'compute' | 'cinder' | 'neutron'
+}
+
+const NOVA_LIMIT_KEYS: Record<string, string> = {
+  Instances: 'instances',
+  Cores: 'cores',
+  RAMSize: 'ram',
+  FloatingIps: 'floating_ips',
+  SecurityGroups: 'security_groups',
+  SecurityGroupsRules: 'security_group_rules',
+  KeyPairs: 'key_pairs',
+  ServerGroups: 'server_groups',
+  ServerMeta: 'metadata_items',
+  ImageMeta: 'metadata_items',
+}
+
+const CINDER_LIMIT_KEYS: Record<string, string> = {
+  VolumeGigabytes: 'gigabytes',
+  Volumes: 'volumes',
+  Snapshots: 'snapshots',
+  Backups: 'backups',
+  BackupGigabytes: 'backup_gigabytes',
+}
+
+function limitKeyFromMaxKey(maxKey: string, service: 'compute' | 'cinder'): string | undefined {
+  const m = maxKey.match(/^maxTotal(.+)$/i)
+  if (!m) return undefined
+  const stem = m[1]
+  const map = service === 'cinder' ? CINDER_LIMIT_KEYS : NOVA_LIMIT_KEYS
+  if (map[stem]) return map[stem]
+  return stem.replace(/([A-Z])/g, '_$1').toLowerCase().replace(/^_/, '')
 }
 
 /** Extract used/max rows from Nova or Cinder limits JSON. */
-export function parseQuotaRows(limits: unknown): QuotaRow[] {
+export function parseQuotaRows(limits: unknown, service: 'compute' | 'cinder'): QuotaRow[] {
   if (!limits || typeof limits !== 'object') return []
   const root = limits as Record<string, unknown>
   const bag =
@@ -28,7 +61,13 @@ export function parseQuotaRows(limits: unknown): QuotaRow[] {
       )
       const maxVal = maxKey && typeof bag[maxKey] === 'number' ? (bag[maxKey] as number) : -1
       const label = stem.replace(/([A-Z])/g, ' $1').trim()
-      rows.push({ label, used: val, max: maxVal })
+      rows.push({
+        label,
+        used: val,
+        max: maxVal,
+        key: maxKey ? limitKeyFromMaxKey(maxKey, service) : undefined,
+        service,
+      })
       seen.add(stem.toLowerCase())
       continue
     }
@@ -43,6 +82,8 @@ export function parseQuotaRows(limits: unknown): QuotaRow[] {
           label: stem.replace(/([A-Z])/g, ' $1').trim(),
           used: 0,
           max: val,
+          key: limitKeyFromMaxKey(key, service),
+          service,
         })
       }
     }
@@ -69,9 +110,17 @@ export function parseNeutronQuotaRows(quotas: unknown): QuotaRow[] {
         label: key.replace(/_/g, ' '),
         used: d.used,
         max: d.limit,
+        key,
+        service: 'neutron',
       })
     } else if (typeof val === 'number') {
-      rows.push({ label: key.replace(/_/g, ' '), used: 0, max: val })
+      rows.push({
+        label: key.replace(/_/g, ' '),
+        used: 0,
+        max: val,
+        key,
+        service: 'neutron',
+      })
     }
   }
   rows.sort((a, b) => a.label.localeCompare(b.label))

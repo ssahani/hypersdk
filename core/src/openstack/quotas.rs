@@ -5,7 +5,7 @@
 //! Nova/Cinder/Neutron limits and quota usage (read-only).
 
 use osauth::services::{BLOCK_STORAGE, COMPUTE, NETWORK};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::config::OpenStackConfig;
 use crate::LibvirtError;
@@ -116,4 +116,69 @@ pub async fn get_quota_summary(cfg: &OpenStackConfig) -> Result<OpenStackQuotaSu
         cinder,
         neutron,
     })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateQuotasRequest {
+    /// `compute`, `cinder`, or `neutron`
+    pub service: String,
+    #[serde(default)]
+    pub project_id: Option<String>,
+    pub quotas: serde_json::Map<String, serde_json::Value>,
+}
+
+pub async fn update_quotas(
+    cfg: &OpenStackConfig,
+    req: &UpdateQuotasRequest,
+) -> Result<serde_json::Value, LibvirtError> {
+    if req.quotas.is_empty() {
+        return Err(LibvirtError::Invalid("quotas map is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut project_id = req
+        .project_id
+        .as_deref()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .map(String::from)
+        .or_else(|| resolve_project_id_from_env());
+    if project_id.is_none() {
+        project_id = resolve_project_id_from_nova(&session).await;
+    }
+    let project_id = project_id
+        .ok_or_else(|| LibvirtError::Invalid("project_id is required for quota updates".into()))?;
+
+    let service = req.service.trim().to_lowercase();
+    let resp = match service.as_str() {
+        "compute" | "nova" => {
+            session
+                .put(COMPUTE, &["os-quota-sets", &project_id])
+                .json(&serde_json::json!({ "quota_set": req.quotas }))
+                .send()
+                .await
+                .map_err(map_osauth_err)?
+        }
+        "cinder" | "block-storage" => {
+            session
+                .put(BLOCK_STORAGE, &["os-quota-sets", &project_id])
+                .json(&serde_json::json!({ "quota_set": req.quotas }))
+                .send()
+                .await
+                .map_err(map_osauth_err)?
+        }
+        "neutron" | "network" => {
+            session
+                .put(NETWORK, &["quotas", &project_id])
+                .json(&serde_json::json!({ "quota": req.quotas }))
+                .send()
+                .await
+                .map_err(map_osauth_err)?
+        }
+        _ => {
+            return Err(LibvirtError::Invalid(
+                "service must be compute, cinder, or neutron".into(),
+            ));
+        }
+    };
+    resp.json().await.map_err(map_json_err)
 }

@@ -20,9 +20,9 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
-  ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive, Layers, Lock, Network,
+  ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive, Layers, Lock, Network, Archive,
 } from 'lucide-react'
-import { getOpenStackInstanceStack } from '../api/openstackExtras'
+import { getOpenStackInstanceStack, shelveOpenStackInstance, unshelveOpenStackInstance } from '../api/openstackExtras'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackInstanceAdvanced from '../components/OpenStackInstanceAdvanced'
 import OpenStackExportModal from '../components/OpenStackExportModal'
@@ -162,6 +162,10 @@ function OpenStackInstanceDetailContent() {
     )
   }
 
+  const statusUp = inst.status.toUpperCase()
+  const canShelve = ['ACTIVE', 'SHUTOFF', 'PAUSED'].includes(statusUp)
+  const canUnshelve = statusUp.startsWith('SHELVED')
+
   return (
     <div className="space-y-6 max-w-4xl">
       <OpenStackSubNav />
@@ -237,6 +241,18 @@ function OpenStackInstanceDetailContent() {
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-amber-600/50 text-amber-200 hover:bg-amber-500/10 text-sm">
             <RotateCcw className="w-4 h-4" /> Hard reboot
           </button>
+          {canShelve && (
+            <button type="button" onClick={() => runAction(() => shelveOpenStackInstance(inst.id), 'Shelve')}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-slate-600 hover:bg-slate-800 text-sm">
+              <Archive className="w-4 h-4" /> Shelve
+            </button>
+          )}
+          {canUnshelve && (
+            <button type="button" onClick={() => runAction(() => unshelveOpenStackInstance(inst.id), 'Unshelve')}
+              className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-sky-600/50 text-sky-200 hover:bg-sky-500/10 text-sm">
+              <Archive className="w-4 h-4" /> Unshelve
+            </button>
+          )}
           <button type="button" onClick={() => setDeleteOpen(true)}
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-sm">
             <Trash2 className="w-4 h-4" /> Delete

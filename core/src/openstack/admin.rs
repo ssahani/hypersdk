@@ -299,3 +299,240 @@ pub async fn list_host_aggregates(
         })
         .collect())
 }
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SetComputeServiceRequest {
+    pub binary: String,
+    pub host: String,
+    pub disabled: bool,
+}
+
+pub async fn set_compute_service_state(
+    cfg: &OpenStackConfig,
+    req: &SetComputeServiceRequest,
+) -> Result<(), LibvirtError> {
+    let binary = req.binary.trim();
+    let host = req.host.trim();
+    if binary.is_empty() || host.is_empty() {
+        return Err(LibvirtError::Invalid("binary and host are required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let action = if req.disabled { "disable" } else { "enable" };
+    session
+        .post(COMPUTE, &["os-services", action])
+        .json(&serde_json::json!({ "binary": binary, "host": host }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+pub async fn set_neutron_agent_admin(
+    cfg: &OpenStackConfig,
+    agent_id: &str,
+    admin_state_up: bool,
+) -> Result<(), LibvirtError> {
+    let id = agent_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("agent id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    session
+        .put(NETWORK, &["agents", id])
+        .json(&serde_json::json!({ "agent": { "admin_state_up": admin_state_up } }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+pub async fn set_hypervisor_maintenance(
+    cfg: &OpenStackConfig,
+    hypervisor_id: &str,
+    maintenance: bool,
+) -> Result<(), LibvirtError> {
+    let id = hypervisor_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("hypervisor id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let status = if maintenance { "disabled" } else { "enabled" };
+    session
+        .put(COMPUTE, &["os-hypervisors", id])
+        .json(&serde_json::json!({ "status": status }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CreateAggregateRequest {
+    pub name: String,
+    pub availability_zone: Option<String>,
+}
+
+pub async fn create_host_aggregate(
+    cfg: &OpenStackConfig,
+    req: &CreateAggregateRequest,
+) -> Result<OpenStackHostAggregate, LibvirtError> {
+    let name = req.name.trim();
+    if name.is_empty() {
+        return Err(LibvirtError::Invalid("aggregate name is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut aggregate = serde_json::json!({ "name": name });
+    if let Some(ref az) = req.availability_zone {
+        let t = az.trim();
+        if !t.is_empty() {
+            aggregate["availability_zone"] = serde_json::json!(t);
+        }
+    }
+    #[derive(Deserialize)]
+    struct Resp {
+        aggregate: AggOut,
+    }
+    #[derive(Deserialize)]
+    struct AggOut {
+        id: u64,
+        name: String,
+        #[serde(default)]
+        availability_zone: Option<String>,
+        #[serde(default)]
+        hosts: Vec<String>,
+    }
+    let resp = session
+        .post(COMPUTE, &["os-aggregates"])
+        .json(&serde_json::json!({ "aggregate": aggregate }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackHostAggregate {
+        id: body.aggregate.id.to_string(),
+        name: body.aggregate.name,
+        availability_zone: body.aggregate.availability_zone,
+        hosts: body.aggregate.hosts,
+    })
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UpdateAggregateRequest {
+    pub name: Option<String>,
+    pub availability_zone: Option<String>,
+}
+
+pub async fn update_host_aggregate(
+    cfg: &OpenStackConfig,
+    aggregate_id: &str,
+    req: &UpdateAggregateRequest,
+) -> Result<OpenStackHostAggregate, LibvirtError> {
+    let id = aggregate_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("aggregate id is required".into()));
+    }
+    let mut aggregate = serde_json::Map::new();
+    if let Some(ref n) = req.name {
+        let t = n.trim();
+        if !t.is_empty() {
+            aggregate.insert("name".into(), serde_json::json!(t));
+        }
+    }
+    if let Some(ref az) = req.availability_zone {
+        let t = az.trim();
+        aggregate.insert("availability_zone".into(), serde_json::json!(t));
+    }
+    if aggregate.is_empty() {
+        return Err(LibvirtError::Invalid("name or availability_zone required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        aggregate: AggOut,
+    }
+    #[derive(Deserialize)]
+    struct AggOut {
+        id: u64,
+        name: String,
+        #[serde(default)]
+        availability_zone: Option<String>,
+        #[serde(default)]
+        hosts: Vec<String>,
+    }
+    let resp = session
+        .put(COMPUTE, &["os-aggregates", id])
+        .json(&serde_json::json!({ "aggregate": aggregate }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackHostAggregate {
+        id: body.aggregate.id.to_string(),
+        name: body.aggregate.name,
+        availability_zone: body.aggregate.availability_zone,
+        hosts: body.aggregate.hosts,
+    })
+}
+
+async fn aggregate_action(
+    session: &osauth::Session,
+    aggregate_id: &str,
+    action: &str,
+    host: &str,
+) -> Result<OpenStackHostAggregate, LibvirtError> {
+    #[derive(Deserialize)]
+    struct Resp {
+        aggregate: AggOut,
+    }
+    #[derive(Deserialize)]
+    struct AggOut {
+        id: u64,
+        name: String,
+        #[serde(default)]
+        availability_zone: Option<String>,
+        #[serde(default)]
+        hosts: Vec<String>,
+    }
+    let body = serde_json::json!({ action: { "host": host } });
+    let resp = session
+        .post(COMPUTE, &["os-aggregates", aggregate_id, "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackHostAggregate {
+        id: parsed.aggregate.id.to_string(),
+        name: parsed.aggregate.name,
+        availability_zone: parsed.aggregate.availability_zone,
+        hosts: parsed.aggregate.hosts,
+    })
+}
+
+pub async fn add_aggregate_host(
+    cfg: &OpenStackConfig,
+    aggregate_id: &str,
+    host: &str,
+) -> Result<OpenStackHostAggregate, LibvirtError> {
+    let id = aggregate_id.trim();
+    let h = host.trim();
+    if id.is_empty() || h.is_empty() {
+        return Err(LibvirtError::Invalid("aggregate id and host are required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    aggregate_action(&session, id, "add_host", h).await
+}
+
+pub async fn remove_aggregate_host(
+    cfg: &OpenStackConfig,
+    aggregate_id: &str,
+    host: &str,
+) -> Result<OpenStackHostAggregate, LibvirtError> {
+    let id = aggregate_id.trim();
+    let h = host.trim();
+    if id.is_empty() || h.is_empty() {
+        return Err(LibvirtError::Invalid("aggregate id and host are required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    aggregate_action(&session, id, "remove_host", h).await
+}

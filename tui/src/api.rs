@@ -866,6 +866,128 @@ impl DaemonClient {
         .await
     }
 
+    pub async fn openstack_update_port(
+        &self,
+        port_id: &str,
+        field: &str,
+        value: &str,
+    ) -> Result<()> {
+        let mut body = serde_json::Map::new();
+        match field {
+            "name" => {
+                body.insert("name".into(), serde_json::json!(value));
+            }
+            "admin" | "admin_state_up" | "admin_up" => {
+                let on = matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on" | "up");
+                body.insert("admin_state_up".into(), serde_json::json!(on));
+            }
+            _ => anyhow::bail!("port field must be name or admin"),
+        }
+        self.put_json(
+            &format!("/api/v1/openstack/ports/{port_id}"),
+            &serde_json::Value::Object(body),
+        )
+        .await
+    }
+
+    pub async fn openstack_create_flavor(
+        &self,
+        name: &str,
+        vcpus: u32,
+        ram_mb: u64,
+        disk_gb: u64,
+    ) -> Result<()> {
+        self.post_json(
+            "/api/v1/openstack/flavors",
+            &serde_json::json!({
+                "name": name,
+                "vcpus": vcpus,
+                "ram_mb": ram_mb,
+                "disk_gb": disk_gb,
+                "is_public": true,
+            }),
+        )
+        .await
+    }
+
+    pub async fn openstack_delete_flavor(&self, flavor_id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/openstack/flavors/{flavor_id}"))
+            .await
+    }
+
+    pub async fn openstack_update_quotas(
+        &self,
+        service: &str,
+        key: &str,
+        limit: i64,
+    ) -> Result<()> {
+        let mut quotas = serde_json::Map::new();
+        quotas.insert(key.into(), serde_json::json!(limit));
+        self.put_json(
+            "/api/v1/openstack/quotas",
+            &serde_json::json!({ "service": service, "quotas": quotas }),
+        )
+        .await
+    }
+
+    pub async fn openstack_set_compute_service(
+        &self,
+        binary: &str,
+        host: &str,
+        enable: bool,
+    ) -> Result<()> {
+        let path = if enable {
+            "enable"
+        } else {
+            "disable"
+        };
+        self.post_json(
+            &format!("/api/v1/openstack/compute-services/{path}"),
+            &serde_json::json!({ "binary": binary, "host": host, "disabled": !enable }),
+        )
+        .await
+    }
+
+    pub async fn openstack_set_agent_admin(&self, agent_id: &str, up: bool) -> Result<()> {
+        self.put_json(
+            &format!("/api/v1/openstack/neutron-agents/{agent_id}"),
+            &serde_json::json!({ "admin_state_up": up }),
+        )
+        .await
+    }
+
+    pub async fn openstack_set_hv_maintenance(&self, hv_id: &str, on: bool) -> Result<()> {
+        self.put_json(
+            &format!("/api/v1/openstack/hypervisors/{hv_id}"),
+            &serde_json::json!({ "maintenance": on }),
+        )
+        .await
+    }
+
+    pub async fn openstack_create_aggregate(&self, name: &str, az: Option<&str>) -> Result<()> {
+        let mut body = serde_json::json!({ "name": name });
+        if let Some(z) = az.filter(|s| !s.is_empty()) {
+            body["availability_zone"] = serde_json::json!(z);
+        }
+        self.post_json("/api/v1/openstack/aggregates", &body).await
+    }
+
+    pub async fn openstack_aggregate_add_host(&self, agg_id: &str, host: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/aggregates/{agg_id}/add-host"),
+            &serde_json::json!({ "host": host }),
+        )
+        .await
+    }
+
+    pub async fn openstack_aggregate_remove_host(&self, agg_id: &str, host: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/aggregates/{agg_id}/remove-host"),
+            &serde_json::json!({ "host": host }),
+        )
+        .await
+    }
+
     pub async fn kubevirt_cluster_exec(
         &self,
         vm: &str,

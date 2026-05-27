@@ -13,7 +13,8 @@ use axum::{
 };
 use machina_core::{
     add_security_group, associate_floating_ip, attach_volume, audit, connection_status_skeleton,
-    create_cinder_volume, create_instance, create_network, delete_cinder_volume, delete_glance_image,
+    create_cinder_volume, create_flavor, create_instance, create_network, delete_cinder_volume, delete_flavor,
+    delete_glance_image,
     create_floating_ip, delete_floating_ip, delete_instance, delete_network, detach_volume, dissociate_floating_ip,
     pull_glance_image_to_disk,
     enrich_instance_flavor, export_instance_plan, export_instance_to_disk, get_console_output,
@@ -28,7 +29,7 @@ use machina_core::{
     suspend_instance, test_connection, unpause_instance, update_instance_metadata,
     upload_qcow2_to_glance, AssociateFloatingIpRequest, AttachVolumeRequest, AuditEvent,
     CreateFloatingIpRequest,
-    CreateInstanceRequest, CreateInstanceResponse, OpenStackCreateNetworkRequest, GlancePullRequest,
+    CreateFlavorRequest, CreateInstanceRequest, CreateInstanceResponse, OpenStackCreateNetworkRequest, GlancePullRequest,
     OpenStackCreateVolumeRequest,
     GlancePullResult, GlanceUploadPreview, GlanceUploadRequest, GlanceUploadResult, LibvirtError,
     LibvirtManager, MachinaConfig, OpenStackConnectionStatus, OpenStackInstance, RebuildInstanceRequest,
@@ -217,6 +218,24 @@ async fn openstack_list_flavors() -> Result<Json<serde_json::Value>, AppError> {
     ensure_openstack_enabled(&cfg)?;
     let flavors = list_flavors(&cfg).await?;
     Ok(Json(serde_json::json!({ "flavors": flavors })))
+}
+
+async fn openstack_create_flavor(
+    Json(req): Json<CreateFlavorRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let flavor = create_flavor(&cfg, &req).await?;
+    log_audit("openstack.flavor.create", &flavor.id, "ok");
+    Ok(Json(serde_json::json!({ "flavor": flavor })))
+}
+
+async fn openstack_delete_flavor(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    delete_flavor(&cfg, &id).await?;
+    log_audit("openstack.flavor.delete", &id, "ok");
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id })))
 }
 
 async fn openstack_list_networks() -> Result<Json<serde_json::Value>, AppError> {
@@ -826,8 +845,8 @@ pub fn openstack_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/openstack/status", get(openstack_status))
         .route("/openstack/test-connection", post(openstack_test_connection))
-        .route("/openstack/flavors", get(openstack_list_flavors))
-        .route("/openstack/flavors/{id}", get(openstack_get_flavor))
+        .route("/openstack/flavors", get(openstack_list_flavors).post(openstack_create_flavor))
+        .route("/openstack/flavors/{id}", get(openstack_get_flavor).delete(openstack_delete_flavor))
         .route(
             "/openstack/networks",
             get(openstack_list_networks).post(openstack_create_network),
