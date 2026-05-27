@@ -12,7 +12,6 @@ resolver = "2"
 
 [workspace.package]
 license = "LicenseRef-Zyvor-Proprietary"
-
 [workspace.dependencies]
 virt = "0.4"
 axum = { version = "0.8", features = ["ws"] }
