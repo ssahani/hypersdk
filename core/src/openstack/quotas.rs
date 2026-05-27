@@ -19,7 +19,7 @@ pub struct OpenStackQuotaSummary {
     pub neutron: Option<serde_json::Value>,
 }
 
-fn resolve_project_id() -> Option<String> {
+fn resolve_project_id_from_env() -> Option<String> {
     for key in ["OS_PROJECT_ID", "OS_TENANT_ID"] {
         if let Ok(id) = std::env::var(key) {
             let t = id.trim();
@@ -31,8 +31,44 @@ fn resolve_project_id() -> Option<String> {
     None
 }
 
+async fn resolve_project_id_from_nova(session: &osauth::Session) -> Option<String> {
+    #[derive(Deserialize)]
+    struct ListResp {
+        servers: Vec<ServerRow>,
+    }
+    #[derive(Deserialize)]
+    struct ServerRow {
+        #[serde(default)]
+        tenant_id: Option<String>,
+        #[serde(default)]
+        project_id: Option<String>,
+    }
+    let resp = session
+        .get(COMPUTE, &["servers"])
+        .query(&[("limit", "1")])
+        .send()
+        .await
+        .ok()?;
+    let body: ListResp = resp.json().await.ok()?;
+    body.servers
+        .into_iter()
+        .find_map(|s| {
+            s.tenant_id
+                .or(s.project_id)
+                .map(|id| id.trim().to_string())
+                .filter(|id| !id.is_empty())
+        })
+}
+
+async fn resolve_project_id(session: &osauth::Session) -> Option<String> {
+    if let Some(id) = resolve_project_id_from_env() {
+        return Some(id);
+    }
+    resolve_project_id_from_nova(session).await
+}
+
 async fn fetch_neutron_quotas(session: &osauth::Session) -> Option<serde_json::Value> {
-    let project_id = resolve_project_id()?;
+    let project_id = resolve_project_id(session).await?;
     session
         .get(NETWORK, &["quotas", &project_id, "details"])
         .send()

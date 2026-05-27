@@ -98,6 +98,17 @@ impl DaemonClient {
         Ok(())
     }
 
+    async fn put_json<T: serde::Serialize>(&self, path: &str, body: &T) -> Result<()> {
+        let url = format!("{}{}", self.base_url, path);
+        let resp = self.client.put(&url).json(body).send().await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Self::http_error(status, &body));
+        }
+        Ok(())
+    }
+
     fn error_suggests_nvram_undefine_needed(msg: &str) -> bool {
         let m = msg.to_lowercase();
         m.contains("nvram") && (m.contains("undefine") || m.contains("cannot remove domain"))
@@ -763,6 +774,94 @@ impl DaemonClient {
         self.post_json(
             &format!("/api/v1/openstack/instances/{id}/rebuild"),
             &serde_json::json!({ "image": image }),
+        )
+        .await
+    }
+
+    pub async fn openstack_shelve_instance(&self, id: &str) -> Result<()> {
+        self.post_json(&format!("/api/v1/openstack/instances/{id}/shelve"), &serde_json::json!({}))
+            .await
+    }
+
+    pub async fn openstack_unshelve_instance(&self, id: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/unshelve"),
+            &serde_json::json!({}),
+        )
+        .await
+    }
+
+    pub async fn openstack_rescue_instance(&self, id: &str, image: Option<&str>) -> Result<()> {
+        let mut body = serde_json::json!({});
+        if let Some(img) = image.filter(|s| !s.is_empty()) {
+            body["image"] = serde_json::json!(img);
+        }
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/rescue"),
+            &body,
+        )
+        .await
+    }
+
+    pub async fn openstack_unrescue_instance(&self, id: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/unrescue"),
+            &serde_json::json!({}),
+        )
+        .await
+    }
+
+    pub async fn openstack_list_instance_interfaces(&self, id: &str) -> Result<serde_json::Value> {
+        self.get_json(&format!("/api/v1/openstack/instances/{id}/interfaces"))
+            .await
+    }
+
+    pub async fn openstack_attach_interface(&self, id: &str, network_id: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/interfaces"),
+            &serde_json::json!({ "network_id": network_id }),
+        )
+        .await
+    }
+
+    pub async fn openstack_detach_interface(&self, instance_id: &str, port_id: &str) -> Result<()> {
+        self.delete_action(&format!(
+            "/api/v1/openstack/instances/{instance_id}/interfaces/{port_id}"
+        ))
+        .await
+    }
+
+    pub async fn openstack_upload_volume_image(&self, volume_id: &str, image_name: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/volumes/{volume_id}/upload-image"),
+            &serde_json::json!({ "image_name": image_name }),
+        )
+        .await
+    }
+
+    pub async fn openstack_update_subnet(
+        &self,
+        subnet_id: &str,
+        field: &str,
+        value: &str,
+    ) -> Result<()> {
+        let mut body = serde_json::Map::new();
+        match field {
+            "name" => {
+                body.insert("name".into(), serde_json::json!(value));
+            }
+            "gateway" | "gateway_ip" => {
+                body.insert("gateway_ip".into(), serde_json::json!(value));
+            }
+            "dhcp" | "enable_dhcp" => {
+                let on = matches!(value.to_lowercase().as_str(), "1" | "true" | "yes" | "on");
+                body.insert("enable_dhcp".into(), serde_json::json!(on));
+            }
+            _ => anyhow::bail!("subnet field must be name, gateway, or dhcp"),
+        }
+        self.put_json(
+            &format!("/api/v1/openstack/subnets/{subnet_id}"),
+            &serde_json::Value::Object(body),
         )
         .await
     }

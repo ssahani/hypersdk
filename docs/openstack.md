@@ -92,12 +92,23 @@ connect_timeout_secs = 30
 |-----|------|
 | OpenStack | `/openstack/instances` — list, search, start/stop/reboot (nav when configured) |
 | Instance detail | `/openstack/instances/{id}` — lifecycle, console, FIPs, Cinder attach/detach, resize, security groups, export |
+| Instance interfaces | `/openstack/instances/{id}/interfaces` — attach/detach NICs |
 | Embedded console | `/openstack/instances/{id}/console?type=novnc` — iframe to Nova remote console URL |
 | Create wizard | `/openstack/create` — Glance image, existing Cinder boot volume, or new volume from image; flavor, network, keypair |
 | Glance images | `/openstack/images` — pull to hypervisor, import as libvirt |
+| Glance image detail | `/openstack/images/{id}` |
 | Security groups | `/openstack/security-groups` — list, create group, add/delete rules |
+| Security group detail | `/openstack/security-groups/{id}` |
 | Cinder volumes | `/openstack/volumes` — create, extend, snapshot, delete |
+| Volume detail | `/openstack/volumes/{id}` — bootable toggle, upload to Glance |
+| Volume snapshots | `/openstack/volume-snapshots` — list, restore, delete |
+| Volume snapshot detail | `/openstack/volume-snapshots/{id}` |
+| Volume transfer detail | `/openstack/volume-transfers/{id}` — auth key copy |
+| Floating IPs | `/openstack/floating-ips` — allocate, associate, release |
+| Floating IP detail | `/openstack/floating-ips/{id}` |
 | Networking | `/openstack/networking` — lab create (network/subnet/router/port/FIP) + topology lists |
+| Network / subnet / router / port detail | `/openstack/networks/{id}` · `/openstack/subnets/{id}` · `/openstack/routers/{id}` · `/openstack/ports/{id}` |
+| Flavors / server groups | `/openstack/flavors/{id}` · `/openstack/server-groups/{id}` |
 | SSH keypairs | `/openstack/keypairs` — list, create/import, delete |
 | Bulk migrations | `/openstack/migrations` — HyperSDK proxy (when `[hypersdk] enabled`) |
 
@@ -145,7 +156,7 @@ Catalog APIs for the create wizard:
 - `POST /api/v1/vms/{name}/openstack-push` — upload VM root disk (native or hyper2kvm)
 - `GET /api/v1/openstack/keypairs`
 - `POST /api/v1/openstack/instances` — create instance; boot from **one of**: `image`, `boot_volume_id`, `boot_volume_image` + `boot_volume_size_gb`, or UI flow that creates a volume from a Cinder snapshot first; optional `networks[]`, `server_group`, `availability_zone`, `security_groups`, `user_data`
-- `GET /api/v1/openstack/quotas` — Nova/Cinder limits summary
+- `GET /api/v1/openstack/quotas` — Nova/Cinder/Neutron limits summary (read-only)
 - `GET /api/v1/openstack/clouds` · `POST /api/v1/openstack/cloud` — list/select `clouds.yaml` entry (session override)
 - `GET /api/v1/openstack/subnets` · `POST /api/v1/openstack/subnets` · `GET /api/v1/openstack/routers` · `POST /api/v1/openstack/routers` · `GET|POST /api/v1/openstack/ports` · `DELETE .../ports/{id}`
 - `GET /api/v1/openstack/volume-snapshots` · `DELETE /api/v1/openstack/volume-snapshots/{id}` · `POST /api/v1/openstack/volumes/from-snapshot` · `POST /api/v1/openstack/volumes/{id}/retype`
@@ -157,7 +168,11 @@ Catalog APIs for the create wizard:
 - `POST /api/v1/openstack/volumes/clone` · `POST .../volumes/from-image` · `PUT .../volumes/{id}` · `POST .../volumes/{id}/bootable`
 - `GET|POST .../volume-transfers` · `POST .../volume-transfers/accept`
 - `POST .../instances/{id}/rename|lock|unlock|reset-state|force-delete` · `GET|POST .../server-groups`
+- `PUT .../subnets/{id}` — rename, gateway, `enable_dhcp` · `PUT .../routers/{id}` — rename, external gateway set/clear
+- `POST .../volumes/{id}/upload-image` — Cinder volume → Glance image (`image_name`, optional `disk_format`, `force`)
 - `PUT .../networks/{id}` · `PUT .../ports/{id}` · `GET|POST /api/v1/openstack/clouds` · `POST .../cloud` (session cloud switch)
+
+Phases **291–340** (Tier 1 polish): port/transfer detail pages; instance **locked** badge; Neutron quota panel; dedicated SG/FIP/snapshot detail routes; router subnet interface UX on router detail; Neutron project id fallback for quotas; TUI migrate/backup/rebuild/shelve/rescue/interfaces/vol-upload/subnet-update; OpenAPI sweep for routes 141–340.
 
 Phases **41–140** (operator UX): GET detail APIs for volumes/network/subnet/router/port; Glance image detail page; clouds.yaml cloud picker in nav; Neutron network/port rename; volume transfer cancel; extended TUI.
 
@@ -201,6 +216,6 @@ Optional `use_hyper2kvm` on VM push delegates to hyper2kvm for guest-fix and dep
 - Neutron topology editor, Heat stacks, Octavia load balancers, identity project admin
 - Full HyperSDK dashboard features (Machina proxies list/submit/jobs; advanced flows use hypervisord UI)
 
-TUI commands (`:` prefix): `openstack` / `os` (status), `openstack list`, `openstack start|stop|delete <id>`, `openstack quotas|snapshots`, `openstack attach|detach <inst> <vol>`, `openstack fips`, `openstack fip-allocate <net>`, `openstack fip-release <id>`, `openstack port-delete <id>`.
+TUI commands (`:` prefix): `openstack` / `os` (status), `openstack list`, `openstack start|stop|delete <id>`, `openstack quotas|snapshots`, `openstack attach|detach <inst> <vol>`, `openstack fips`, `openstack fip-allocate <net>`, `openstack fip-release <id>`, `openstack port-delete <id>`, `openstack migrate|migrate-live|backup|rebuild`, `openstack shelve|unshelve|rescue|unrescue`, `openstack interfaces|interface-attach|interface-detach`, `openstack vol-upload-image <vol> <name>`, `openstack subnet-update <id> <field> <value>`, `openstack network|subnet|router|port|fip|volume|image|server-group <id>`, `openstack confirm-resize|revert-resize`, `openstack lock|unlock|force-delete`, `openstack clouds|cloud <name>`.
 
 Neutron topology editing, Heat, Octavia, identity project admin—use Horizon or the OpenStack CLI for those tasks.

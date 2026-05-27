@@ -172,7 +172,9 @@ function OpenStackSecurityGroupsContent() {
             {active ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-2">
-                  <h2 className="text-lg font-medium text-slate-100">{active.name}</h2>
+                  <h2 className="text-lg font-medium text-slate-100">
+                    <Link to={`/openstack/security-groups/${active.id}`} className="text-sky-300 hover:underline">{active.name}</Link>
+                  </h2>
                   <button
                     type="button"
                     className="text-xs text-red-400 hover:underline"

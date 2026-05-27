@@ -5,7 +5,6 @@ import { Link } from 'react-router'
 import {
   deleteOpenStackFloatingIp,
   dissociateOpenStackFloatingIp,
-  getOpenStackFloatingIp,
   listOpenStackFloatingIps,
   listOpenStackInstances,
   listOpenStackNetworks,
@@ -37,7 +36,6 @@ function OpenStackFloatingIpsContent() {
   const [extNet, setExtNet] = useState('')
   const [assocFip, setAssocFip] = useState('')
   const [assocInst, setAssocInst] = useState('')
-  const [detail, setDetail] = useState<OpenStackFloatingIp | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -140,7 +138,9 @@ function OpenStackFloatingIpsContent() {
             <tbody className="divide-y divide-slate-800">
               {fips.map((fip) => (
                 <tr key={fip.id}>
-                  <td className="px-3 py-2 font-mono text-slate-200">{fip.address}</td>
+                  <td className="px-3 py-2 font-mono text-slate-200">
+                    <Link to={`/openstack/floating-ips/${fip.id}`} className="text-sky-300 hover:underline">{fip.address}</Link>
+                  </td>
                   <td className="px-3 py-2 text-slate-400">{fip.status}</td>
                   <td className="px-3 py-2">
                     {fip.instance_id ? (
@@ -150,13 +150,7 @@ function OpenStackFloatingIpsContent() {
                     ) : '—'}
                   </td>
                   <td className="px-3 py-2 flex flex-wrap gap-2">
-                    <button type="button" className="text-xs text-violet-400 hover:underline"
-                      onClick={async () => {
-                        try {
-                          const { floating_ip } = await getOpenStackFloatingIp(fip.id)
-                          setDetail(floating_ip)
-                        } catch (e: unknown) { toast.error(formatUserError(e)) }
-                      }}>Detail</button>
+                    <Link to={`/openstack/floating-ips/${fip.id}`} className="text-xs text-violet-400 hover:underline">Detail</Link>
                     {fip.instance_id && (
                       <button type="button" className="text-xs text-amber-400 hover:underline"
                         onClick={async () => {
@@ -182,14 +176,6 @@ function OpenStackFloatingIpsContent() {
             </tbody>
           </table>
           {fips.length === 0 && <p className="p-6 text-center text-slate-500">No floating IPs.</p>}
-        </div>
-      )}
-      {detail && (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 p-4 text-sm font-mono space-y-1">
-          <p className="text-slate-200">{detail.address} · {detail.status}</p>
-          <p className="text-slate-400 text-xs">id {detail.id}</p>
-          {detail.fixed_address && <p className="text-slate-400 text-xs">fixed {detail.fixed_address}</p>}
-          <button type="button" className="text-xs text-slate-400 hover:underline mt-2" onClick={() => setDetail(null)}>Dismiss</button>
         </div>
       )}
       <OpenStackFooter />

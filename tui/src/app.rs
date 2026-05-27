@@ -2524,6 +2524,80 @@ impl App {
                     .await;
                 self.refresh_openstack().await;
             },
+            ["openstack", "shelve", id] | ["os", "shelve", id] => {
+                let r = self.client.openstack_shelve_instance(id).await;
+                self.report_cmd_result(r, &format!("Shelved {id}"), "openstack-shelve", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "unshelve", id] | ["os", "unshelve", id] => {
+                let r = self.client.openstack_unshelve_instance(id).await;
+                self.report_cmd_result(r, &format!("Unshelved {id}"), "openstack-unshelve", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "rescue", id] => {
+                let r = self.client.openstack_rescue_instance(id, None).await;
+                self.report_cmd_result(r, &format!("Rescue {id}"), "openstack-rescue", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "rescue", id, image] => {
+                let r = self.client.openstack_rescue_instance(id, Some(image)).await;
+                self.report_cmd_result(r, &format!("Rescue {id} with {image}"), "openstack-rescue", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "unrescue", id] | ["os", "unrescue", id] => {
+                let r = self.client.openstack_unrescue_instance(id).await;
+                self.report_cmd_result(r, &format!("Unrescued {id}"), "openstack-unrescue", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "interfaces", id] | ["os", "interfaces", id] => {
+                match self.client.openstack_list_instance_interfaces(id).await {
+                    Ok(v) => self.show_json_overlay(&format!("Interfaces on {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack interfaces", &e),
+                }
+            },
+            ["openstack", "interface-attach", id, net] | ["os", "interface-attach", id, net] => {
+                let r = self.client.openstack_attach_interface(id, net).await;
+                self.report_cmd_result(r, &format!("Attached {net} → {id}"), "openstack-if-attach", id, false)
+                    .await;
+            },
+            ["openstack", "interface-detach", id, port] | ["os", "interface-detach", id, port] => {
+                let r = self.client.openstack_detach_interface(id, port).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Detached port {port} from {id}"),
+                    "openstack-if-detach",
+                    id,
+                    false,
+                )
+                .await;
+            },
+            ["openstack", "vol-upload-image", vol, name] | ["os", "vol-upload-image", vol, name] => {
+                let r = self.client.openstack_upload_volume_image(vol, name).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Upload volume {vol} → Glance {name}"),
+                    "openstack-vol-upload",
+                    vol,
+                    false,
+                )
+                .await;
+            },
+            ["openstack", "subnet-update", id, field, value] | ["os", "subnet-update", id, field, value] => {
+                let r = self.client.openstack_update_subnet(id, field, value).await;
+                self.report_cmd_result(
+                    r,
+                    &format!("Subnet {id} {field}={value}"),
+                    "openstack-subnet-update",
+                    id,
+                    false,
+                )
+                .await;
+            },
             ["openstack", "create", name, flavor, image, network] => {
                 let req = CreateInstanceRequest {
                     name: name.to_string(),

@@ -4,7 +4,15 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Loader2, GitBranch } from 'lucide-react'
 import { listOpenStackNetworks, type OpenStackNetwork } from '../api/openstack'
-import { getOpenStackRouter, updateOpenStackRouter, type OpenStackRouter } from '../api/openstackExtras'
+import {
+  addOpenStackRouterInterface,
+  getOpenStackRouter,
+  listOpenStackSubnets,
+  removeOpenStackRouterInterface,
+  updateOpenStackRouter,
+  type OpenStackRouter,
+  type OpenStackSubnet,
+} from '../api/openstackExtras'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
@@ -24,18 +32,23 @@ function OpenStackRouterDetailContent() {
   const toast = useToastContext()
   const [router, setRouter] = useState<OpenStackRouter | null>(null)
   const [networks, setNetworks] = useState<OpenStackNetwork[]>([])
+  const [subnets, setSubnets] = useState<OpenStackSubnet[]>([])
+  const [linkSubnetId, setLinkSubnetId] = useState('')
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
     try {
-      const [{ router: r }, nets] = await Promise.all([
+      const [{ router: r }, nets, subs] = await Promise.all([
         getOpenStackRouter(id),
         listOpenStackNetworks().catch(() => ({ networks: [] as OpenStackNetwork[] })),
+        listOpenStackSubnets().catch(() => ({ subnets: [] as OpenStackSubnet[] })),
       ])
       setRouter(r)
       setNetworks(nets.networks)
+      setSubnets(subs.subnets)
+      if (subs.subnets.length > 0) setLinkSubnetId(subs.subnets[0].id)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
       setRouter(null)
@@ -118,6 +131,35 @@ function OpenStackRouterDetailContent() {
           )}
         </div>
       </div>
+      <section className="rounded-xl border border-slate-700 p-4 space-y-3">
+        <h2 className="text-sm font-medium text-slate-300">Subnet interfaces</h2>
+        <p className="text-xs text-slate-500">Connect internal subnets to this router for east-west and NAT routing.</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <select value={linkSubnetId} onChange={(e) => setLinkSubnetId(e.target.value)}
+            className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm min-w-[14rem]">
+            <option value="">Select subnet…</option>
+            {subnets.map((s) => (
+              <option key={s.id} value={s.id}>{s.name || s.cidr} · {s.cidr}</option>
+            ))}
+          </select>
+          <button type="button" disabled={!linkSubnetId}
+            className="px-3 py-1.5 rounded-lg bg-violet-600 text-white text-sm disabled:opacity-40"
+            onClick={async () => {
+              try {
+                await addOpenStackRouterInterface({ router_id: router.id, subnet_id: linkSubnetId })
+                toast.success('Subnet linked')
+              } catch (e: unknown) { toast.error(formatUserError(e)) }
+            }}>Link subnet</button>
+          <button type="button" disabled={!linkSubnetId}
+            className="px-3 py-1.5 rounded-lg border border-red-500/50 text-red-300 text-sm disabled:opacity-40"
+            onClick={async () => {
+              try {
+                await removeOpenStackRouterInterface({ router_id: router.id, subnet_id: linkSubnetId })
+                toast.success('Subnet unlinked')
+              } catch (e: unknown) { toast.error(formatUserError(e)) }
+            }}>Unlink subnet</button>
+        </div>
+      </section>
       <OpenStackFooter />
     </div>
   )

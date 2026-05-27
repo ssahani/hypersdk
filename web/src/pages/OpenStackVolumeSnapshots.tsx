@@ -5,7 +5,6 @@ import { Link } from 'react-router'
 import {
   createOpenStackVolumeFromSnapshot,
   deleteOpenStackVolumeSnapshot,
-  getOpenStackVolumeSnapshot,
   listOpenStackVolumeSnapshots,
   type OpenStackVolumeSnapshot,
 } from '../api/openstackExtras'
@@ -28,8 +27,6 @@ function OpenStackVolumeSnapshotsContent() {
   const toast = useToastContext()
   const [snapshots, setSnapshots] = useState<OpenStackVolumeSnapshot[]>([])
   const [loading, setLoading] = useState(true)
-  const [detail, setDetail] = useState<OpenStackVolumeSnapshot | null>(null)
-  const [restoreName, setRestoreName] = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -74,20 +71,16 @@ function OpenStackVolumeSnapshotsContent() {
             <tbody className="divide-y divide-slate-800 font-mono text-xs">
               {snapshots.map((s) => (
                 <tr key={s.id}>
-                  <td className="px-3 py-2 text-slate-200">{s.name || s.id.slice(0, 8)}</td>
+                  <td className="px-3 py-2 text-slate-200">
+                    <Link to={`/openstack/volume-snapshots/${s.id}`} className="text-sky-300 hover:underline">{s.name || s.id.slice(0, 8)}</Link>
+                  </td>
                   <td className="px-3 py-2">
                     <Link to={`/openstack/volumes/${s.volume_id}`} className="text-sky-400 hover:underline">{s.volume_id.slice(0, 8)}</Link>
                   </td>
                   <td className="px-3 py-2">{s.size_gb} GB</td>
                   <td className="px-3 py-2 text-slate-400">{s.status}</td>
                   <td className="px-3 py-2 flex flex-wrap gap-2">
-                    <button type="button" className="text-violet-400 hover:underline" onClick={async () => {
-                      try {
-                        const { snapshot } = await getOpenStackVolumeSnapshot(s.id)
-                        setDetail(snapshot)
-                        setRestoreName(`${snapshot.name || 'vol'}-restored`)
-                      } catch (e: unknown) { toast.error(formatUserError(e)) }
-                    }}>Detail</button>
+                    <Link to={`/openstack/volume-snapshots/${s.id}`} className="text-violet-400 hover:underline">Detail</Link>
                     <button type="button" className="text-sky-400 hover:underline" onClick={async () => {
                       const n = prompt('New volume name', `${s.name || 'vol'}-restored`)
                       if (!n) return
@@ -110,25 +103,6 @@ function OpenStackVolumeSnapshotsContent() {
             </tbody>
           </table>
           {snapshots.length === 0 && <p className="p-6 text-center text-slate-500">No snapshots.</p>}
-        </div>
-      )}
-      {detail && (
-        <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 p-4 text-sm space-y-3">
-          <p className="font-mono text-slate-200">{detail.name} · {detail.status}</p>
-          <p className="text-xs text-slate-400">id {detail.id} · volume {detail.volume_id}</p>
-          <div className="flex gap-2 items-end">
-            <input value={restoreName} onChange={(e) => setRestoreName(e.target.value)} placeholder="Volume name"
-              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm" />
-            <button type="button" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white text-sm"
-              onClick={async () => {
-                try {
-                  await createOpenStackVolumeFromSnapshot({ snapshot_id: detail.id, name: restoreName.trim() || undefined })
-                  toast.success('Volume created')
-                  setDetail(null)
-                } catch (e: unknown) { toast.error(formatUserError(e)) }
-              }}>Create volume</button>
-          </div>
-          <button type="button" className="text-xs text-slate-400 hover:underline" onClick={() => setDetail(null)}>Dismiss</button>
         </div>
       )}
       <OpenStackFooter />
