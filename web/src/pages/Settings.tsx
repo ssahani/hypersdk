@@ -15,6 +15,8 @@ import {
 } from '../api/automation'
 import { getOsUserCapability, createOsUser, deleteOsUser, OsUserCapability } from '../api/system'
 import { getOpenStackStatus, postOpenStackTestConnection, type OpenStackConnectionStatus } from '../api/openstack'
+import { listOpenStackClouds, selectOpenStackCloud } from '../api/openstackExtras'
+import OpenStackQuotasPanel from '../components/OpenStackQuotasPanel'
 import { getIntegrationsStatus, type IntegrationsStatus } from '../api/integrations'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { isOpenStackConfigured } from '../utils/routes'
@@ -79,6 +81,8 @@ export default function SettingsPage() {
   const [openstackStatus, setOpenstackStatus] = useState<OpenStackConnectionStatus | null>(null)
   const [integrations, setIntegrations] = useState<IntegrationsStatus | null>(null)
   const [openstackTesting, setOpenstackTesting] = useState(false)
+  const [openstackClouds, setOpenstackClouds] = useState<{ name: string; active: boolean }[]>([])
+  const [cloudPick, setCloudPick] = useState('')
   const openstackAutoTested = useRef(false)
   const [obsSettings, setObsSettings] = useState<ObservabilitySettingsView | null>(null)
   const [obsSaving, setObsSaving] = useState(false)
@@ -195,6 +199,14 @@ export default function SettingsPage() {
             <div><dt className="text-slate-500 text-xs">Keystone</dt><dd>{openstackStatus.keystone_reachable ?? openstackStatus.reachable ? 'yes' : 'no'}</dd></div>
             <div><dt className="text-slate-500 text-xs">Nova</dt><dd>{openstackStatus.compute_reachable ? 'yes' : 'no'}</dd></div>
             <div><dt className="text-slate-500 text-xs">Glance</dt><dd>{openstackStatus.glance_reachable ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Neutron</dt><dd>{openstackStatus.neutron_reachable ? 'yes' : 'no'}</dd></div>
+            <div><dt className="text-slate-500 text-xs">Cinder</dt><dd>{openstackStatus.cinder_reachable ? 'yes' : 'no'}</dd></div>
+            {info?.openstack && (
+              <div>
+                <dt className="text-slate-500 text-xs">Glance upload</dt>
+                <dd>{info.openstack.upload_enabled ? 'enabled' : 'disabled (config)'}</dd>
+              </div>
+            )}
             {info?.openstack?.clouds_yaml && (
               <div className="col-span-2">
                 <dt className="text-slate-500 text-xs">clouds.yaml</dt>
@@ -202,6 +214,40 @@ export default function SettingsPage() {
               </div>
             )}
           </dl>
+        )}
+        {openstackStatus?.reachable && openstackClouds.length > 0 && (
+          <div className="flex flex-wrap gap-2 items-end text-sm">
+            <div>
+              <label className="block text-xs text-slate-500 mb-1">Session cloud (clouds.yaml)</label>
+              <select
+                value={cloudPick || openstackStatus.cloud_name}
+                onChange={(e) => setCloudPick(e.target.value)}
+                className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm min-w-[10rem]"
+              >
+                {openstackClouds.map((c) => (
+                  <option key={c.name} value={c.name}>{c.name}{c.active ? ' (active)' : ''}</option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              className="px-3 py-2 rounded-lg border border-slate-600 text-slate-300 text-sm hover:bg-slate-700"
+              onClick={async () => {
+                try {
+                  await selectOpenStackCloud(cloudPick || openstackStatus.cloud_name)
+                  const s = await postOpenStackTestConnection()
+                  setOpenstackStatus(s)
+                  toast.success(`Using cloud ${cloudPick || openstackStatus.cloud_name}`)
+                  const { clouds } = await listOpenStackClouds()
+                  setOpenstackClouds(clouds)
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              Apply cloud
+            </button>
+          </div>
         )}
         <div className="flex flex-wrap gap-2">
           <CopyButton text={WIRE_SCRIPT} label="Copy wire script" />
@@ -257,6 +303,10 @@ export default function SettingsPage() {
           )}
         </div>
       </section>
+
+      {openstackStatus?.reachable && (
+        <OpenStackQuotasPanel compact />
+      )}
 
       {integrations && (
         <section id="integrations-status" className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3 scroll-mt-24">

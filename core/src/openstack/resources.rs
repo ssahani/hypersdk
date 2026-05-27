@@ -138,6 +138,25 @@ pub async fn list_images(cfg: &OpenStackConfig) -> Result<Vec<OpenStackImage>, L
     Ok(out)
 }
 
+pub async fn get_image(cfg: &OpenStackConfig, image_id: &str) -> Result<OpenStackImage, LibvirtError> {
+    let id = image_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("image id is required".into()));
+    }
+    let cloud = connect_cloud(cfg).await?;
+    let img = cloud.get_image(id).await.map_err(map_openstack_err)?;
+    let status = format!("{:?}", img.status());
+    Ok(OpenStackImage {
+        id: img.id().clone(),
+        name: img.name().clone(),
+        status: normalize_debug_status(&status),
+        min_disk_gb: img.minimum_required_disk(),
+        min_ram_mb: img.minimum_required_ram(),
+        size_bytes: img.size(),
+        created_at: Some(img.created_at().to_rfc3339()),
+    })
+}
+
 pub async fn list_keypairs(cfg: &OpenStackConfig) -> Result<Vec<OpenStackKeyPair>, LibvirtError> {
     let cloud = connect_cloud(cfg).await?;
     let pairs = cloud.list_keypairs().await.map_err(map_openstack_err)?;
@@ -217,7 +236,7 @@ pub async fn create_instance(
             }
         }
     }
-    for net in net_ids {
+    for net in &net_ids {
         builder = builder.with_network(net.as_str());
     }
     if let Some(ref key) = req.key_name {
@@ -230,27 +249,29 @@ pub async fn create_instance(
             builder = builder.with_availability_zone(az.trim());
         }
     }
-    if let Some(ref sg) = req.server_group {
-        let g = sg.trim();
-        if !g.is_empty() {
-            builder
-                .metadata()
-                .insert("machina_server_group".into(), g.to_string());
-        }
-    }
+    let server_group_id = req
+        .server_group
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .map(str::to_string);
     if let Some(ref ud) = req.user_data {
         if !ud.trim().is_empty() {
             builder = builder.with_user_data(ud.trim());
         }
     }
-    let waiter = builder.create().await.map_err(map_openstack_err)?;
-    let server = if req.wait_until_active {
-        waiter.wait().await.map_err(|e| {
-            let detail = map_openstack_err(e);
-            LibvirtError::Operation(format!("instance did not reach ACTIVE: {detail}"))
-        })?
+    let server = if let Some(ref sg) = server_group_id {
+        create_instance_with_server_group(cfg, req, sg, &net_ids, boot_vol, boot_img).await?
     } else {
-        waiter.current_state().clone()
+        let waiter = builder.create().await.map_err(map_openstack_err)?;
+        if req.wait_until_active {
+            waiter.wait().await.map_err(|e| {
+                let detail = map_openstack_err(e);
+                LibvirtError::Operation(format!("instance did not reach ACTIVE: {detail}"))
+            })?
+        } else {
+            waiter.current_state().clone()
+        }
     };
     let status_label = format!("{:?}", server.status());
     if status_label.contains("Error") {
@@ -267,7 +288,6 @@ pub async fn create_instance(
                 continue;
             }
             let mut s = cloud.get_server(server.id()).await.map_err(map_openstack_err)?;
-            use openstack::compute::ServerAction;
             let _ = s
                 .action(ServerAction::AddSecurityGroup {
                     name: name.to_string(),
@@ -281,6 +301,120 @@ pub async fn create_instance(
         name: server.name().clone(),
         status: format!("{:?}", server.status()),
     })
+}
+
+async fn create_instance_with_server_group(
+    cfg: &OpenStackConfig,
+    req: &CreateInstanceRequest,
+    server_group_id: &str,
+    net_ids: &[String],
+    boot_vol: Option<&str>,
+    boot_img: Option<&str>,
+) -> Result<openstack::compute::Server, LibvirtError> {
+    use base64::Engine;
+    use osauth::services::COMPUTE;
+    use super::auth::{connect_session, map_json_err, map_osauth_err};
+
+    let session = connect_session(cfg).await?;
+    let mut server = serde_json::json!({
+        "name": req.name.trim(),
+        "flavorRef": req.flavor.trim(),
+    });
+    if let Some(vol) = boot_vol {
+        server["block_device_mapping_v2"] = serde_json::json!([{
+            "boot_index": 0,
+            "uuid": vol,
+            "source_type": "volume",
+            "destination_type": "volume",
+            "delete_on_termination": false
+        }]);
+    } else if let Some(img) = boot_img {
+        let size = req.boot_volume_size_gb.unwrap_or(1);
+        server["block_device_mapping_v2"] = serde_json::json!([{
+            "boot_index": 0,
+            "uuid": img,
+            "source_type": "image",
+            "destination_type": "volume",
+            "volume_size": size,
+            "delete_on_termination": true
+        }]);
+    } else if let Some(ref image) = req.image {
+        if !image.trim().is_empty() {
+            server["imageRef"] = serde_json::json!(image.trim());
+        }
+    }
+    if !net_ids.is_empty() {
+        server["networks"] = serde_json::json!(
+            net_ids.iter().map(|n| serde_json::json!({ "uuid": n })).collect::<Vec<_>>()
+        );
+    }
+    if let Some(ref key) = req.key_name {
+        if !key.trim().is_empty() {
+            server["key_name"] = serde_json::json!(key.trim());
+        }
+    }
+    if let Some(ref az) = req.availability_zone {
+        if !az.trim().is_empty() {
+            server["availability_zone"] = serde_json::json!(az.trim());
+        }
+    }
+    if let Some(ref ud) = req.user_data {
+        if !ud.trim().is_empty() {
+            server["user_data"] =
+                serde_json::json!(base64::engine::general_purpose::STANDARD.encode(ud.trim()));
+        }
+    }
+    let body = serde_json::json!({
+        "server": server,
+        "os:scheduler_hints": { "group": server_group_id }
+    });
+    let resp = session
+        .post(COMPUTE, &["servers"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    #[derive(serde::Deserialize)]
+    struct Resp {
+        server: ServerJson,
+    }
+    #[derive(serde::Deserialize)]
+    struct ServerJson {
+        id: String,
+    }
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    let cloud = connect_cloud(cfg).await?;
+    let mut s = cloud
+        .get_server(&parsed.server.id)
+        .await
+        .map_err(map_openstack_err)?;
+    if req.wait_until_active {
+        let deadline = Instant::now() + Duration::from_secs(600);
+        loop {
+            let st = format!("{:?}", s.status());
+            if st.contains("ACTIVE") {
+                break;
+            }
+            if st.contains("ERROR") {
+                return Err(LibvirtError::Operation(format!(
+                    "instance {} entered ERROR",
+                    parsed.server.id
+                )));
+            }
+            if Instant::now() >= deadline {
+                return Err(LibvirtError::Operation(format!(
+                    "timeout waiting for instance {} to become ACTIVE",
+                    parsed.server.id
+                )));
+            }
+            sleep(Duration::from_secs(3)).await;
+            s = cloud
+                .get_server(&parsed.server.id)
+                .await
+                .map_err(map_openstack_err)?;
+        }
+    }
+    Ok(s)
 }
 
 /// Poll Glance until an image with the given name reaches ACTIVE (Nova snapshot).
@@ -345,6 +479,9 @@ pub struct OpenStackAttachedVolume {
     pub size_gb: u64,
     pub device: String,
     pub bootable: bool,
+    /// Nova server id when the volume is attached (project volume list).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub server_id: Option<String>,
 }
 
 /// Cinder volumes attached to a Nova instance (read-only).
@@ -354,12 +491,14 @@ pub async fn list_cinder_volumes(cfg: &OpenStackConfig) -> Result<Vec<OpenStackA
     let volumes = cloud.list_volumes().await.map_err(map_openstack_err)?;
     let mut out = Vec::new();
     for vol in volumes {
+        let att = vol.attachments().into_iter().next();
         out.push(OpenStackAttachedVolume {
             id: vol.id().clone(),
             name: vol.name().clone(),
             size_gb: vol.size(),
-            device: String::new(),
+            device: att.as_ref().map(|a| a.device.clone()).unwrap_or_default(),
             bootable: vol.bootable(),
+            server_id: att.map(|a| a.server_id.clone()),
         });
     }
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -382,6 +521,7 @@ pub async fn list_instance_volumes(
                     size_gb: vol.size(),
                     device: att.device.clone(),
                     bootable: vol.bootable(),
+                    server_id: Some(att.server_id.clone()),
                 });
             }
         }

@@ -51,6 +51,8 @@ pub struct OpenStackConnectionStatus {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_count: Option<usize>,
     pub glance_reachable: bool,
+    pub neutron_reachable: bool,
+    pub cinder_reachable: bool,
 }
 
 pub fn is_openstack_configured(cfg: &OpenStackConfig) -> bool {
@@ -79,6 +81,8 @@ pub async fn test_connection(cfg: &OpenStackConfig) -> OpenStackConnectionStatus
             let images = cloud.list_images().await;
             let compute_reachable = servers.is_ok();
             let glance_reachable = images.is_ok();
+            let neutron_reachable = cloud.list_networks().await.is_ok();
+            let cinder_reachable = super::quotas::probe_cinder_reachable(cfg).await;
             let instance_count = servers.as_ref().ok().map(|s| s.len());
             let image_count = images.as_ref().ok().map(|s| s.len());
             let mut error = None;
@@ -100,6 +104,8 @@ pub async fn test_connection(cfg: &OpenStackConfig) -> OpenStackConnectionStatus
                 instance_count,
                 image_count,
                 glance_reachable,
+                neutron_reachable,
+                cinder_reachable,
                 error,
                 ..base
             }
@@ -126,6 +132,8 @@ pub fn connection_status_skeleton(cfg: &OpenStackConfig) -> OpenStackConnectionS
         instance_count: None,
         image_count: None,
         glance_reachable: false,
+        neutron_reachable: false,
+        cinder_reachable: false,
     }
 }
 
@@ -212,6 +220,19 @@ pub async fn delete_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), Libv
     let cloud = connect_cloud(cfg).await?;
     let server = cloud.get_server(id).await.map_err(map_openstack_err)?;
     server.delete().await.map_err(map_openstack_err)?;
+    Ok(())
+}
+
+pub async fn force_delete_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
+    use osauth::services::COMPUTE;
+    use super::auth::{connect_session, map_osauth_err};
+    let session = connect_session(cfg).await?;
+    session
+        .post(COMPUTE, &["servers", id.trim(), "action"])
+        .json(&serde_json::json!({ "forceDelete": null }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
     Ok(())
 }
 

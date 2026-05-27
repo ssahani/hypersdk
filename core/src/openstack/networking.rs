@@ -130,6 +130,46 @@ pub async fn associate_floating_ip(
     Ok(fip_row(&fip, Some(instance_id.trim().to_string())))
 }
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct CreateFloatingIpRequest {
+    pub floating_network_id: String,
+}
+
+pub async fn create_floating_ip(
+    cfg: &OpenStackConfig,
+    req: &CreateFloatingIpRequest,
+) -> Result<OpenStackFloatingIp, LibvirtError> {
+    let net = req.floating_network_id.trim();
+    if net.is_empty() {
+        return Err(LibvirtError::Invalid("floating_network_id is required".into()));
+    }
+    let cloud = connect_cloud(cfg).await?;
+    let fip = cloud
+        .new_floating_ip(net)
+        .create()
+        .await
+        .map_err(map_openstack_err)?;
+    Ok(fip_row(&fip, None))
+}
+
+pub async fn delete_floating_ip(cfg: &OpenStackConfig, floating_ip_id: &str) -> Result<(), LibvirtError> {
+    let id = floating_ip_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("floating_ip_id is required".into()));
+    }
+    // Dissociate first so Neutron allows delete on busy clouds.
+    let _ = dissociate_floating_ip(cfg, id).await;
+    use osauth::services::NETWORK;
+    use super::auth::{connect_session, map_osauth_err};
+    let session = connect_session(cfg).await?;
+    session
+        .delete(NETWORK, &["floatingips", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
 pub async fn dissociate_floating_ip(
     cfg: &OpenStackConfig,
     floating_ip_id: &str,

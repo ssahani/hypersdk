@@ -2,9 +2,10 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-//! Cinder volume create, extend, snapshot.
+//! Cinder volume create, extend, snapshot, list snapshots, restore from snapshot.
 
 use osauth::services::BLOCK_STORAGE;
+use serde::Deserialize;
 
 use crate::config::OpenStackConfig;
 use crate::LibvirtError;
@@ -30,6 +31,34 @@ pub struct ExtendVolumeRequest {
 pub struct SnapshotVolumeRequest {
     pub name: String,
     pub force: Option<bool>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpenStackVolumeSnapshot {
+    pub id: String,
+    pub name: String,
+    pub volume_id: String,
+    pub size_gb: u64,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct CreateVolumeFromSnapshotRequest {
+    pub snapshot_id: String,
+    pub name: Option<String>,
+    /// Optional size (must be >= snapshot size).
+    pub size_gb: Option<u64>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct RetypeVolumeRequest {
+    pub new_type: String,
+    #[serde(default = "default_migration_policy")]
+    pub migration_policy: String,
+}
+
+fn default_migration_policy() -> String {
+    "on-demand".into()
 }
 
 pub async fn create_cinder_volume(
@@ -66,6 +95,7 @@ pub async fn create_cinder_volume(
         size_gb: vol.size(),
         device: String::new(),
         bootable: vol.bootable(),
+        server_id: None,
     })
 }
 
@@ -104,6 +134,7 @@ pub async fn extend_cinder_volume(
         size_gb: vol.size(),
         device: String::new(),
         bootable: vol.bootable(),
+        server_id: None,
     })
 }
 
@@ -133,4 +164,469 @@ pub async fn snapshot_cinder_volume(
         .map_err(map_osauth_err)?;
     let val: serde_json::Value = resp.json().await.map_err(map_json_err)?;
     Ok(val)
+}
+
+pub async fn list_cinder_snapshots(
+    cfg: &OpenStackConfig,
+) -> Result<Vec<OpenStackVolumeSnapshot>, LibvirtError> {
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        snapshots: Vec<SnapJson>,
+    }
+    #[derive(Deserialize)]
+    struct SnapJson {
+        id: String,
+        name: String,
+        volume_id: String,
+        size: u64,
+        status: String,
+    }
+    let resp = session
+        .get(BLOCK_STORAGE, &["snapshots", "detail"])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    let mut out: Vec<_> = body
+        .snapshots
+        .into_iter()
+        .map(|s| OpenStackVolumeSnapshot {
+            id: s.id,
+            name: s.name,
+            volume_id: s.volume_id,
+            size_gb: s.size,
+            status: s.status,
+        })
+        .collect();
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    Ok(out)
+}
+
+pub async fn create_volume_from_snapshot(
+    cfg: &OpenStackConfig,
+    req: &CreateVolumeFromSnapshotRequest,
+) -> Result<OpenStackAttachedVolume, LibvirtError> {
+    let snap_id = req.snapshot_id.trim();
+    if snap_id.is_empty() {
+        return Err(LibvirtError::Invalid("snapshot_id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut volume = serde_json::json!({ "snapshot_id": snap_id });
+    if let Some(ref n) = req.name {
+        let t = n.trim();
+        if !t.is_empty() {
+            volume["name"] = serde_json::json!(t);
+        }
+    }
+    if let Some(sz) = req.size_gb {
+        if sz > 0 {
+            volume["size"] = serde_json::json!(sz);
+        }
+    }
+    let body = serde_json::json!({ "volume": volume });
+    #[derive(Deserialize)]
+    struct Resp {
+        volume: VolJson,
+    }
+    #[derive(Deserialize)]
+    struct VolJson {
+        id: String,
+        name: String,
+        size: u64,
+        #[serde(default)]
+        bootable: bool,
+    }
+    let resp = session
+        .post(BLOCK_STORAGE, &["volumes"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackAttachedVolume {
+        id: parsed.volume.id,
+        name: parsed.volume.name,
+        size_gb: parsed.volume.size,
+        device: String::new(),
+        bootable: parsed.volume.bootable,
+        server_id: None,
+    })
+}
+
+pub async fn retype_cinder_volume(
+    cfg: &OpenStackConfig,
+    volume_id: &str,
+    req: &RetypeVolumeRequest,
+) -> Result<OpenStackAttachedVolume, LibvirtError> {
+    let new_type = req.new_type.trim();
+    if new_type.is_empty() {
+        return Err(LibvirtError::Invalid("new_type is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({
+        "os-retype": {
+            "new_type": new_type,
+            "migration_policy": req.migration_policy.trim()
+        }
+    });
+    session
+        .post(BLOCK_STORAGE, &["volumes", volume_id.trim(), "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let cloud = connect_cloud(cfg).await?;
+    let vol = cloud.get_volume(volume_id).await.map_err(map_openstack_err)?;
+    Ok(OpenStackAttachedVolume {
+        id: vol.id().clone(),
+        name: vol.name().clone(),
+        size_gb: vol.size(),
+        device: String::new(),
+        bootable: vol.bootable(),
+        server_id: vol
+            .attachments()
+            .into_iter()
+            .next()
+            .map(|a| a.server_id.clone()),
+    })
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct CloneVolumeRequest {
+    pub source_volume_id: String,
+    pub name: Option<String>,
+    pub size_gb: Option<u64>,
+}
+
+pub async fn clone_cinder_volume(
+    cfg: &OpenStackConfig,
+    req: &CloneVolumeRequest,
+) -> Result<OpenStackAttachedVolume, LibvirtError> {
+    let src = req.source_volume_id.trim();
+    if src.is_empty() {
+        return Err(LibvirtError::Invalid("source_volume_id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut volume = serde_json::json!({ "source_volid": src });
+    if let Some(ref n) = req.name {
+        let t = n.trim();
+        if !t.is_empty() {
+            volume["name"] = serde_json::json!(t);
+        }
+    }
+    if let Some(sz) = req.size_gb {
+        if sz > 0 {
+            volume["size"] = serde_json::json!(sz);
+        }
+    }
+    #[derive(Deserialize)]
+    struct Resp {
+        volume: VolJson,
+    }
+    #[derive(Deserialize)]
+    struct VolJson {
+        id: String,
+        name: String,
+        size: u64,
+        #[serde(default)]
+        bootable: bool,
+    }
+    let resp = session
+        .post(BLOCK_STORAGE, &["volumes"])
+        .json(&serde_json::json!({ "volume": volume }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackAttachedVolume {
+        id: parsed.volume.id,
+        name: parsed.volume.name,
+        size_gb: parsed.volume.size,
+        device: String::new(),
+        bootable: parsed.volume.bootable,
+        server_id: None,
+    })
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct OpenStackVolumeTransfer {
+    pub id: String,
+    pub name: String,
+    pub volume_id: String,
+    pub auth_key: Option<String>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct CreateVolumeTransferRequest {
+    pub volume_id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct AcceptVolumeTransferRequest {
+    pub transfer_id: String,
+    pub auth_key: String,
+}
+
+pub async fn list_volume_transfers(
+    cfg: &OpenStackConfig,
+) -> Result<Vec<OpenStackVolumeTransfer>, LibvirtError> {
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        transfers: Vec<TrJson>,
+    }
+    #[derive(Deserialize)]
+    struct TrJson {
+        id: String,
+        name: String,
+        volume_id: String,
+        auth_key: Option<String>,
+    }
+    let resp = session
+        .get(BLOCK_STORAGE, &["os-volume-transfer"])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(body
+        .transfers
+        .into_iter()
+        .map(|t| OpenStackVolumeTransfer {
+            id: t.id,
+            name: t.name,
+            volume_id: t.volume_id,
+            auth_key: t.auth_key,
+        })
+        .collect())
+}
+
+pub async fn create_volume_transfer(
+    cfg: &OpenStackConfig,
+    req: &CreateVolumeTransferRequest,
+) -> Result<OpenStackVolumeTransfer, LibvirtError> {
+    let vol = req.volume_id.trim();
+    let name = req.name.trim();
+    if vol.is_empty() || name.is_empty() {
+        return Err(LibvirtError::Invalid("volume_id and name are required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({
+        "os-begin_transfer": {
+            "name": name,
+            "volume_id": vol
+        }
+    });
+    #[derive(Deserialize)]
+    struct Resp {
+        transfer: TrJson,
+    }
+    #[derive(Deserialize)]
+    struct TrJson {
+        id: String,
+        name: String,
+        volume_id: String,
+        auth_key: Option<String>,
+    }
+    let resp = session
+        .post(BLOCK_STORAGE, &["os-volume-transfer"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackVolumeTransfer {
+        id: parsed.transfer.id,
+        name: parsed.transfer.name,
+        volume_id: parsed.transfer.volume_id,
+        auth_key: parsed.transfer.auth_key,
+    })
+}
+
+pub async fn accept_volume_transfer(
+    cfg: &OpenStackConfig,
+    req: &AcceptVolumeTransferRequest,
+) -> Result<OpenStackVolumeTransfer, LibvirtError> {
+    let tid = req.transfer_id.trim();
+    let key = req.auth_key.trim();
+    if tid.is_empty() || key.is_empty() {
+        return Err(LibvirtError::Invalid("transfer_id and auth_key are required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({
+        "accept": {
+            "transfer_id": tid,
+            "auth_key": key
+        }
+    });
+    #[derive(Deserialize)]
+    struct Resp {
+        transfer: TrJson,
+    }
+    #[derive(Deserialize)]
+    struct TrJson {
+        id: String,
+        name: String,
+        volume_id: String,
+        auth_key: Option<String>,
+    }
+    let resp = session
+        .post(BLOCK_STORAGE, &["os-volume-transfer", tid, "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackVolumeTransfer {
+        id: parsed.transfer.id,
+        name: parsed.transfer.name,
+        volume_id: parsed.transfer.volume_id,
+        auth_key: parsed.transfer.auth_key,
+    })
+}
+
+pub async fn delete_volume_transfer(cfg: &OpenStackConfig, transfer_id: &str) -> Result<(), LibvirtError> {
+    let id = transfer_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("transfer_id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    session
+        .delete(BLOCK_STORAGE, &["os-volume-transfer", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct UpdateVolumeRequest {
+    pub name: Option<String>,
+    pub description: Option<String>,
+}
+
+pub async fn update_cinder_volume(
+    cfg: &OpenStackConfig,
+    volume_id: &str,
+    req: &UpdateVolumeRequest,
+) -> Result<OpenStackAttachedVolume, LibvirtError> {
+    let session = connect_session(cfg).await?;
+    let mut volume = serde_json::Map::new();
+    if let Some(ref n) = req.name {
+        let t = n.trim();
+        if !t.is_empty() {
+            volume.insert("name".into(), serde_json::json!(t));
+        }
+    }
+    if let Some(ref d) = req.description {
+        volume.insert("description".into(), serde_json::json!(d.trim()));
+    }
+    if volume.is_empty() {
+        return Err(LibvirtError::Invalid("name or description required".into()));
+    }
+    session
+        .put(BLOCK_STORAGE, &["volumes", volume_id.trim()])
+        .json(&serde_json::json!({ "volume": volume }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let cloud = connect_cloud(cfg).await?;
+    let vol = cloud.get_volume(volume_id).await.map_err(map_openstack_err)?;
+    let att = vol.attachments().into_iter().next();
+    Ok(OpenStackAttachedVolume {
+        id: vol.id().clone(),
+        name: vol.name().clone(),
+        size_gb: vol.size(),
+        device: att.as_ref().map(|a| a.device.clone()).unwrap_or_default(),
+        bootable: vol.bootable(),
+        server_id: att.map(|a| a.server_id.clone()),
+    })
+}
+
+pub async fn set_volume_bootable(
+    cfg: &OpenStackConfig,
+    volume_id: &str,
+    bootable: bool,
+) -> Result<(), LibvirtError> {
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({ "os-set_bootable": { "bootable": bootable } });
+    session
+        .post(BLOCK_STORAGE, &["volumes", volume_id.trim(), "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct CreateVolumeFromImageRequest {
+    pub image_id: String,
+    pub name: Option<String>,
+    pub size_gb: Option<u64>,
+}
+
+pub async fn create_volume_from_image(
+    cfg: &OpenStackConfig,
+    req: &CreateVolumeFromImageRequest,
+) -> Result<OpenStackAttachedVolume, LibvirtError> {
+    let image_id = req.image_id.trim();
+    if image_id.is_empty() {
+        return Err(LibvirtError::Invalid("image_id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut volume = serde_json::json!({ "imageRef": image_id });
+    if let Some(ref n) = req.name {
+        let t = n.trim();
+        if !t.is_empty() {
+            volume["name"] = serde_json::json!(t);
+        }
+    }
+    if let Some(sz) = req.size_gb {
+        if sz > 0 {
+            volume["size"] = serde_json::json!(sz);
+        }
+    }
+    #[derive(Deserialize)]
+    struct Resp {
+        volume: VolJson,
+    }
+    #[derive(Deserialize)]
+    struct VolJson {
+        id: String,
+        name: String,
+        size: u64,
+        #[serde(default)]
+        bootable: bool,
+    }
+    let resp = session
+        .post(BLOCK_STORAGE, &["volumes"])
+        .json(&serde_json::json!({ "volume": volume }))
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackAttachedVolume {
+        id: parsed.volume.id,
+        name: parsed.volume.name,
+        size_gb: parsed.volume.size,
+        device: String::new(),
+        bootable: parsed.volume.bootable,
+        server_id: None,
+    })
+}
+
+pub async fn delete_cinder_snapshot(cfg: &OpenStackConfig, snapshot_id: &str) -> Result<(), LibvirtError> {
+    let id = snapshot_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("snapshot_id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    session
+        .delete(BLOCK_STORAGE, &["snapshots", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
 }

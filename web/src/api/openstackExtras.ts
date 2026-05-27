@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { apiPost, readJsonObject } from './client'
+import { apiPost, apiPut, readJsonObject } from './client'
 import { parseResponseError } from './parseResponseError'
 
 const API = '/api/v1'
@@ -223,4 +223,314 @@ export function getOpenStackInstanceStack(
   id: string,
 ): Promise<{ stack: { stack_id?: string; stack_name?: string } | null }> {
   return readJsonObject(`${API}/openstack/instances/${inst(id)}/stack`)
+}
+
+export interface OpenStackImageMember {
+  member_id: string
+  status: string
+}
+
+export function listOpenStackImageMembers(
+  imageId: string,
+): Promise<{ members: OpenStackImageMember[] }> {
+  return readJsonObject(`${API}/openstack/images/${inst(imageId)}/members`)
+}
+
+export function addOpenStackImageMember(
+  imageId: string,
+  memberId: string,
+): Promise<{ member: OpenStackImageMember }> {
+  return apiPost(`${API}/openstack/images/${inst(imageId)}/members`, { member_id: memberId })
+}
+
+export async function deleteOpenStackImageMember(
+  imageId: string,
+  memberId: string,
+): Promise<void> {
+  const res = await fetch(
+    `${API}/openstack/images/${inst(imageId)}/members/${inst(memberId)}`,
+    { method: 'DELETE', credentials: 'same-origin' },
+  )
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export function updateOpenStackImageVisibility(
+  imageId: string,
+  visibility: string,
+): Promise<{ visibility: string }> {
+  return apiPost(`${API}/openstack/images/${inst(imageId)}/visibility`, { visibility })
+}
+
+export function retypeOpenStackVolume(
+  id: string,
+  newType: string,
+  migrationPolicy = 'on-demand',
+): Promise<{ volume: import('./openstack').OpenStackAttachedVolume }> {
+  return apiPost(`${API}/openstack/volumes/${inst(id)}/retype`, {
+    new_type: newType,
+    migration_policy: migrationPolicy,
+  })
+}
+
+export async function deleteOpenStackVolumeSnapshot(id: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/volume-snapshots/${inst(id)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export function createOpenStackPort(body: {
+  network_id: string
+  name?: string
+}): Promise<{ port: { id: string; name: string; network_id: string; status: string } }> {
+  return apiPost(`${API}/openstack/ports`, body)
+}
+
+export async function deleteOpenStackPort(portId: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/ports/${inst(portId)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export function removeOpenStackRouterInterface(body: {
+  router_id: string
+  subnet_id: string
+}): Promise<{ status: string }> {
+  return apiPost(`${API}/openstack/routers/remove-interface`, body)
+}
+
+export function createOpenStackFloatingIp(
+  floatingNetworkId: string,
+): Promise<{ floating_ip: import('./openstack').OpenStackFloatingIp }> {
+  return apiPost(`${API}/openstack/floating-ips`, { floating_network_id: floatingNetworkId })
+}
+
+export function addOpenStackRouterInterface(body: {
+  router_id: string
+  subnet_id: string
+}): Promise<{ result: unknown }> {
+  return apiPost(`${API}/openstack/routers/add-interface`, body)
+}
+
+export function updateOpenStackImageMetadata(
+  imageId: string,
+  properties: Record<string, string>,
+): Promise<{ properties: Record<string, string> }> {
+  return apiPost(`${API}/openstack/images/${inst(imageId)}/metadata`, { properties })
+}
+
+export function createOpenStackNetwork(body: {
+  name: string
+  external?: boolean
+}): Promise<{ network: import('./openstack').OpenStackNetwork }> {
+  return apiPost(`${API}/openstack/networks`, body)
+}
+
+export interface OpenStackVolumeSnapshot {
+  id: string
+  name: string
+  volume_id: string
+  size_gb: number
+  status: string
+}
+
+export function listOpenStackVolumeSnapshots(): Promise<{ snapshots: OpenStackVolumeSnapshot[] }> {
+  return readJsonObject(`${API}/openstack/volume-snapshots`)
+}
+
+export function createOpenStackVolumeFromSnapshot(body: {
+  snapshot_id: string
+  name?: string
+  size_gb?: number
+}): Promise<{ volume: import('./openstack').OpenStackAttachedVolume }> {
+  return apiPost(`${API}/openstack/volumes/from-snapshot`, body)
+}
+
+export function createOpenStackRouter(body: {
+  name: string
+  external_network_id?: string
+}): Promise<{ router: OpenStackRouter }> {
+  return apiPost(`${API}/openstack/routers`, body)
+}
+
+export function createOpenStackSubnet(body: {
+  network_id: string
+  cidr: string
+  name?: string
+  gateway_ip?: string
+  ip_version?: number
+}): Promise<{ subnet: OpenStackSubnet }> {
+  return apiPost(`${API}/openstack/subnets`, body)
+}
+
+export async function deleteOpenStackNetwork(id: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/networks/${inst(id)}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export async function deleteOpenStackSubnet(id: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/subnets/${inst(id)}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export async function deleteOpenStackRouter(id: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/routers/${inst(id)}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export interface OpenStackAvailabilityZone {
+  name: string
+  state: string
+  hosts: string[]
+}
+
+export function listOpenStackAvailabilityZones(): Promise<{ availability_zones: OpenStackAvailabilityZone[] }> {
+  return readJsonObject(`${API}/openstack/availability-zones`)
+}
+
+export interface OpenStackHypervisor {
+  id: string
+  hostname: string
+  state: string
+  status: string
+  vcpus: number
+  vcpus_used: number
+  memory_mb: number
+  memory_mb_used: number
+  running_vms: number
+}
+
+export function listOpenStackHypervisors(): Promise<{ hypervisors: OpenStackHypervisor[] }> {
+  return readJsonObject(`${API}/openstack/hypervisors`)
+}
+
+export interface OpenStackVolumeTransfer {
+  id: string
+  name: string
+  volume_id: string
+  auth_key?: string
+}
+
+export function listOpenStackVolumeTransfers(): Promise<{ transfers: OpenStackVolumeTransfer[] }> {
+  return readJsonObject(`${API}/openstack/volume-transfers`)
+}
+
+export function cloneOpenStackVolume(body: {
+  source_volume_id: string
+  name?: string
+  size_gb?: number
+}): Promise<{ volume: import('./openstack').OpenStackAttachedVolume }> {
+  return apiPost(`${API}/openstack/volumes/clone`, body)
+}
+
+export function createOpenStackVolumeTransfer(body: {
+  volume_id: string
+  name: string
+}): Promise<{ transfer: OpenStackVolumeTransfer }> {
+  return apiPost(`${API}/openstack/volume-transfers`, body)
+}
+
+export function acceptOpenStackVolumeTransfer(body: {
+  transfer_id: string
+  auth_key: string
+}): Promise<{ transfer: OpenStackVolumeTransfer }> {
+  return apiPost(`${API}/openstack/volume-transfers/accept`, body)
+}
+
+export async function deleteOpenStackVolumeTransfer(id: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/volume-transfers/${inst(id)}`, { method: 'DELETE', credentials: 'same-origin' })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export function createOpenStackServerGroup(body: {
+  name: string
+  policy: string
+}): Promise<{ server_group: OpenStackServerGroup }> {
+  return apiPost(`${API}/openstack/server-groups`, body)
+}
+
+export function renameOpenStackInstance(id: string, name: string): Promise<{ status: string; id: string; name: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/rename`, { name })
+}
+
+export function lockOpenStackInstance(id: string): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/lock`, {})
+}
+
+export function unlockOpenStackInstance(id: string): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/unlock`, {})
+}
+
+export function resetOpenStackInstanceState(id: string): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/reset-state`, {})
+}
+
+export async function deleteOpenStackServerGroup(id: string): Promise<void> {
+  const res = await fetch(`${API}/openstack/server-groups/${inst(id)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw await parseResponseError(res)
+}
+
+export interface OpenStackComputeService {
+  id: string
+  binary: string
+  host: string
+  zone: string
+  status: string
+  state: string
+  disabled_reason?: string
+}
+
+export function listOpenStackComputeServices(): Promise<{ services: OpenStackComputeService[] }> {
+  return readJsonObject(`${API}/openstack/compute-services`)
+}
+
+export interface OpenStackNeutronAgent {
+  id: string
+  agent_type: string
+  host: string
+  alive: boolean
+  admin_state_up: boolean
+}
+
+export function listOpenStackNeutronAgents(): Promise<{ agents: OpenStackNeutronAgent[] }> {
+  return readJsonObject(`${API}/openstack/neutron-agents`)
+}
+
+export interface OpenStackHostAggregate {
+  id: string
+  name: string
+  availability_zone?: string
+  hosts: string[]
+}
+
+export function listOpenStackHostAggregates(): Promise<{ aggregates: OpenStackHostAggregate[] }> {
+  return readJsonObject(`${API}/openstack/aggregates`)
+}
+
+export function createOpenStackVolumeFromImage(body: {
+  image_id: string
+  name?: string
+  size_gb?: number
+}): Promise<{ volume: import('./openstack').OpenStackAttachedVolume }> {
+  return apiPost(`${API}/openstack/volumes/from-image`, body)
+}
+
+export function updateOpenStackVolume(
+  id: string,
+  body: { name?: string; description?: string },
+): Promise<{ volume: import('./openstack').OpenStackAttachedVolume }> {
+  return apiPut(`${API}/openstack/volumes/${inst(id)}`, body)
+}
+
+export function setOpenStackVolumeBootable(
+  id: string,
+  bootable: boolean,
+): Promise<{ status: string; id: string; bootable: boolean }> {
+  return apiPost(`${API}/openstack/volumes/${inst(id)}/bootable`, { bootable })
 }

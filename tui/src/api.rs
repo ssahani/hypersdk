@@ -463,12 +463,41 @@ impl DaemonClient {
         .await
     }
 
-    pub async fn openstack_resize_instance(&self, id: &str, flavor: &str) -> Result<()> {
+    pub async fn openstack_resize_instance(
+        &self,
+        id: &str,
+        flavor: &str,
+        auto_confirm: bool,
+    ) -> Result<()> {
         self.post_json(
             &format!("/api/v1/openstack/instances/{id}/resize"),
-            &serde_json::json!({ "flavor": flavor }),
+            &serde_json::json!({ "flavor": flavor, "auto_confirm": auto_confirm }),
         )
         .await
+    }
+
+    pub async fn openstack_confirm_resize(&self, id: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/confirm-resize"),
+            &serde_json::json!({}),
+        )
+        .await
+    }
+
+    pub async fn openstack_revert_resize(&self, id: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/revert-resize"),
+            &serde_json::json!({}),
+        )
+        .await
+    }
+
+    pub async fn openstack_get_quotas(&self) -> Result<serde_json::Value> {
+        self.get_json("/api/v1/openstack/quotas").await
+    }
+
+    pub async fn openstack_list_volume_snapshots(&self) -> Result<serde_json::Value> {
+        self.get_json("/api/v1/openstack/volume-snapshots").await
     }
 
     pub async fn openstack_create_instance(&self, req: &CreateInstanceRequest) -> Result<serde_json::Value> {
@@ -607,6 +636,74 @@ impl DaemonClient {
     pub async fn openstack_dissociate_floating_ip(&self, fip_id: &str) -> Result<()> {
         self.post_action(&format!("/api/v1/openstack/floating-ips/{fip_id}/dissociate"))
             .await
+    }
+
+    pub async fn openstack_allocate_floating_ip(&self, network_id: &str) -> Result<OpenStackFloatingIp> {
+        let v = self
+            .post_json_value(
+                "/api/v1/openstack/floating-ips",
+                &serde_json::json!({ "floating_network_id": network_id }),
+            )
+            .await?;
+        Ok(serde_json::from_value(v["floating_ip"].clone())?)
+    }
+
+    pub async fn openstack_delete_floating_ip(&self, fip_id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/openstack/floating-ips/{fip_id}"))
+            .await
+    }
+
+    pub async fn openstack_rename_instance(&self, id: &str, name: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/rename"),
+            &serde_json::json!({ "name": name }),
+        )
+        .await
+    }
+
+    pub async fn openstack_lock_instance(&self, id: &str) -> Result<()> {
+        self.post_action(&format!("/api/v1/openstack/instances/{id}/lock")).await
+    }
+
+    pub async fn openstack_unlock_instance(&self, id: &str) -> Result<()> {
+        self.post_action(&format!("/api/v1/openstack/instances/{id}/unlock")).await
+    }
+
+    pub async fn openstack_delete_port(&self, port_id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/openstack/ports/{port_id}"))
+            .await
+    }
+
+    pub async fn openstack_force_delete_instance(&self, id: &str) -> Result<()> {
+        self.post_action(&format!("/api/v1/openstack/instances/{id}/force-delete"))
+            .await
+    }
+
+    pub async fn openstack_delete_server_group(&self, id: &str) -> Result<()> {
+        self.delete_action(&format!("/api/v1/openstack/server-groups/{id}"))
+            .await
+    }
+
+    pub async fn openstack_create_volume_from_image(
+        &self,
+        image_id: &str,
+        name: Option<&str>,
+        size_gb: Option<u64>,
+    ) -> Result<()> {
+        let mut body = serde_json::json!({ "image_id": image_id });
+        if let Some(n) = name {
+            if !n.is_empty() {
+                body["name"] = serde_json::json!(n);
+            }
+        }
+        if let Some(sz) = size_gb {
+            if sz > 0 {
+                body["size_gb"] = serde_json::json!(sz);
+            }
+        }
+        self.post_json_value("/api/v1/openstack/volumes/from-image", &body)
+            .await?;
+        Ok(())
     }
 
     pub async fn openstack_add_security_group(&self, instance_id: &str, name: &str) -> Result<()> {

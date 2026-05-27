@@ -18,6 +18,18 @@ pub struct OpenStackQuotaSummary {
     pub cinder: Option<serde_json::Value>,
 }
 
+/// True when Cinder block-storage is registered in the service catalog.
+pub async fn probe_cinder_reachable(cfg: &OpenStackConfig) -> bool {
+    let Ok(session) = connect_session(cfg).await else {
+        return false;
+    };
+    session
+        .get(BLOCK_STORAGE, &["limits"])
+        .send()
+        .await
+        .is_ok()
+}
+
 pub async fn get_quota_summary(cfg: &OpenStackConfig) -> Result<OpenStackQuotaSummary, LibvirtError> {
     let session = connect_session(cfg).await?;
     let compute_resp = session

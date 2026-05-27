@@ -64,6 +64,8 @@ export default function OpenStackStatusBar() {
           Keystone
           {computeLive ? ' · Nova' : ' · Nova off'}
           {glanceLive ? ' · Glance' : ' · Glance off'}
+          {status?.neutron_reachable ? ' · Neutron' : status?.neutron_reachable === false ? ' · Neutron off' : ''}
+          {status?.cinder_reachable ? ' · Cinder' : status?.cinder_reachable === false ? ' · Cinder off' : ''}
         </span>
       )}
       {reachable && !computeLive && connectionHint && (

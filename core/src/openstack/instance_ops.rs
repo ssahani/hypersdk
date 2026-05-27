@@ -83,24 +83,55 @@ pub async fn resume_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), Libv
         .map_err(map_openstack_err)
 }
 
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct ResizeInstanceRequest {
+    pub flavor: String,
+    /// When true (default), confirm resize immediately after scheduling.
+    #[serde(default = "default_auto_confirm_resize")]
+    pub auto_confirm: bool,
+}
+
+fn default_auto_confirm_resize() -> bool {
+    true
+}
+
 pub async fn resize_instance(
     cfg: &OpenStackConfig,
     id: &str,
-    flavor_id: &str,
+    req: &ResizeInstanceRequest,
 ) -> Result<(), LibvirtError> {
-    if flavor_id.trim().is_empty() {
+    if req.flavor.trim().is_empty() {
         return Err(LibvirtError::Invalid("flavor is required".into()));
     }
     let mut server = server_mut(cfg, id).await?;
     server
         .action(ServerAction::Resize {
-            flavor_ref: flavor_id.trim().to_string(),
+            flavor_ref: req.flavor.trim().to_string(),
             disk_config: "AUTO".into(),
         })
         .await
         .map_err(map_openstack_err)?;
+    if req.auto_confirm {
+        server
+            .action(ServerAction::ConfirmResize)
+            .await
+            .map_err(map_openstack_err)?;
+    }
+    Ok(())
+}
+
+pub async fn confirm_resize_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
+    let mut server = server_mut(cfg, id).await?;
     server
         .action(ServerAction::ConfirmResize)
+        .await
+        .map_err(map_openstack_err)
+}
+
+pub async fn revert_resize_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
+    let mut server = server_mut(cfg, id).await?;
+    server
+        .action(ServerAction::RevertResize)
         .await
         .map_err(map_openstack_err)
 }
@@ -358,6 +389,58 @@ pub async fn rebuild_instance(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateMetadataRequest {
     pub metadata: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RenameInstanceRequest {
+    pub name: String,
+}
+
+pub async fn rename_instance(
+    cfg: &OpenStackConfig,
+    id: &str,
+    req: &RenameInstanceRequest,
+) -> Result<(), LibvirtError> {
+    let name = req.name.trim();
+    if name.is_empty() {
+        return Err(LibvirtError::Invalid("name is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({ "server": { "name": name } });
+    session
+        .put(COMPUTE, &["servers", id.trim()])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+pub async fn lock_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
+    instance_action(cfg, id, serde_json::json!({ "lock": null })).await
+}
+
+pub async fn unlock_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
+    instance_action(cfg, id, serde_json::json!({ "unlock": null })).await
+}
+
+pub async fn reset_instance_state(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
+    instance_action(cfg, id, serde_json::json!({ "os-resetState": { "state": "active" } })).await
+}
+
+async fn instance_action(
+    cfg: &OpenStackConfig,
+    id: &str,
+    body: serde_json::Value,
+) -> Result<(), LibvirtError> {
+    let session = connect_session(cfg).await?;
+    session
+        .post(COMPUTE, &["servers", id.trim(), "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
 }
 
 pub async fn update_instance_metadata(

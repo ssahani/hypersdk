@@ -20,6 +20,8 @@ export interface OpenStackConnectionStatus {
   instance_count?: number
   image_count?: number
   glance_reachable?: boolean
+  neutron_reachable?: boolean
+  cinder_reachable?: boolean
 }
 
 export interface OpenStackInstance {
@@ -77,6 +79,7 @@ export interface OpenStackAttachedVolume {
   size_gb: number
   device: string
   bootable: boolean
+  server_id?: string
 }
 
 export interface OpenStackFloatingIp {
@@ -114,7 +117,7 @@ export interface OpenStackExportRequest {
   wait_for_active?: boolean
 }
 
-export type OpenStackBootSource = 'image' | 'volume' | 'new_volume'
+export type OpenStackBootSource = 'image' | 'volume' | 'new_volume' | 'snapshot'
 
 export interface CreateInstanceRequest {
   name: string
@@ -294,8 +297,24 @@ export function rebootOpenStackInstance(
 export function resizeOpenStackInstance(
   id: string,
   flavor: string,
+  opts?: { auto_confirm?: boolean },
 ): Promise<{ status: string; id: string }> {
-  return apiPost(`${API}/openstack/instances/${inst(id)}/resize`, { flavor })
+  return apiPost(`${API}/openstack/instances/${inst(id)}/resize`, {
+    flavor,
+    auto_confirm: opts?.auto_confirm ?? true,
+  })
+}
+
+export function confirmResizeOpenStackInstance(
+  id: string,
+): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/confirm-resize`, {})
+}
+
+export function revertResizeOpenStackInstance(
+  id: string,
+): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/revert-resize`, {})
 }
 
 export async function deleteOpenStackInstance(id: string): Promise<{ status: string; id: string }> {
@@ -407,6 +426,15 @@ export function dissociateOpenStackFloatingIp(fipId: string): Promise<{ status: 
   return apiPost(`${API}/openstack/floating-ips/${inst(fipId)}/dissociate`, {})
 }
 
+export async function deleteOpenStackFloatingIp(fipId: string): Promise<{ status: string; id: string }> {
+  const res = await fetch(`${API}/openstack/floating-ips/${inst(fipId)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) throw await parseResponseError(res)
+  return res.json() as Promise<{ status: string; id: string }>
+}
+
 export function createOpenStackInstance(
   body: CreateInstanceRequest,
 ): Promise<CreateInstanceResponse> {
@@ -415,6 +443,18 @@ export function createOpenStackInstance(
 
 export function listOpenStackFlavors(): Promise<{ flavors: OpenStackFlavor[] }> {
   return readJsonObject(`${API}/openstack/flavors`)
+}
+
+export function getOpenStackFlavor(id: string): Promise<{ flavor: OpenStackFlavor }> {
+  return readJsonObject(`${API}/openstack/flavors/${inst(id)}`)
+}
+
+export function getOpenStackImage(id: string): Promise<{ image: OpenStackImage }> {
+  return readJsonObject(`${API}/openstack/images/${inst(id)}`)
+}
+
+export async function forceDeleteOpenStackInstance(id: string): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/force-delete`, {})
 }
 
 export function listOpenStackNetworks(): Promise<{ networks: OpenStackNetwork[] }> {

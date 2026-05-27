@@ -9,7 +9,8 @@ import { useToastContext } from '../contexts/ToastContext'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import OpenStackFooter from '../components/OpenStackFooter'
-import { Cloud, RefreshCw, Plus, Trash2, Download } from 'lucide-react'
+import { Cloud, RefreshCw, Plus, Trash2, Download, Share2 } from 'lucide-react'
+import OpenStackImageSharingModal from '../components/OpenStackImageSharingModal'
 import GlancePullModal from '../components/GlancePullModal'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
@@ -40,6 +41,7 @@ function OpenStackImagesContent() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<OpenStackImage | null>(null)
   const [pullTarget, setPullTarget] = useState<OpenStackImage | null>(null)
+  const [shareTarget, setShareTarget] = useState<OpenStackImage | null>(null)
   const [deleting, setDeleting] = useState(false)
   const toast = useToastContext()
   const { info, lastEvent, refreshKey } = usePlatformInfo()
@@ -167,6 +169,14 @@ function OpenStackImagesContent() {
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
+                      title="Members & metadata"
+                      onClick={() => setShareTarget(img)}
+                      className="p-2 rounded hover:bg-violet-500/20 text-violet-400"
+                    >
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       title="Pull to hypervisor disk"
                       onClick={() => setPullTarget(img)}
                       className="p-2 rounded hover:bg-sky-500/20 text-sky-400"
@@ -195,6 +205,11 @@ function OpenStackImagesContent() {
         open={!!pullTarget}
         image={pullTarget}
         onClose={() => setPullTarget(null)}
+      />
+
+      <OpenStackImageSharingModal
+        image={shareTarget}
+        onClose={() => setShareTarget(null)}
       />
 
       <ConfirmDialog

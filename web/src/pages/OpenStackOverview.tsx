@@ -17,6 +17,8 @@ import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { listOpenStackImages, listOpenStackInstances } from '../api/openstack'
 import { formatUserError } from '../utils/apiError'
 import { openStackErrorHints } from '../utils/openstackHints'
+import OpenStackQuotasPanel from '../components/OpenStackQuotasPanel'
+import OpenStackAdminPanel from '../components/OpenStackAdminPanel'
 
 const QUICK_LINKS = [
   {
@@ -149,6 +151,9 @@ function OpenStackLiveOverview() {
           </Link>
         ))}
       </div>
+
+      <OpenStackQuotasPanel />
+      <OpenStackAdminPanel />
 
       <section className="rounded-xl border border-slate-700/50 bg-slate-800/30 p-5">
         <h2 className="text-sm font-semibold text-slate-300 uppercase tracking-wide mb-3">

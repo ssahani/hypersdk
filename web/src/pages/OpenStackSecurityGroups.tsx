@@ -12,8 +12,10 @@ import {
 import {
   createOpenStackSecurityGroup,
   createOpenStackSecurityGroupRule,
+  deleteOpenStackSecurityGroup,
   deleteOpenStackSecurityGroupRule,
 } from '../api/openstackExtras'
+import ConfirmDialog from '../components/ConfirmDialog'
 import { useToastContext } from '../contexts/ToastContext'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackGate from '../components/OpenStackGate'
@@ -40,6 +42,8 @@ function OpenStackSecurityGroupsContent() {
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<OpenStackSecurityGroup | null>(null)
+  const [deletingGroup, setDeletingGroup] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -167,7 +171,16 @@ function OpenStackSecurityGroupsContent() {
             )}
             {active ? (
               <>
-                <h2 className="text-lg font-medium text-slate-100">{active.name}</h2>
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <h2 className="text-lg font-medium text-slate-100">{active.name}</h2>
+                  <button
+                    type="button"
+                    className="text-xs text-red-400 hover:underline"
+                    onClick={() => setDeleteGroupTarget(active)}
+                  >
+                    Delete group
+                  </button>
+                </div>
                 {active.description && (
                   <p className="text-sm text-slate-500 mt-1">{active.description}</p>
                 )}
@@ -258,6 +271,31 @@ function OpenStackSecurityGroupsContent() {
       )}
 
       <OpenStackFooter />
+
+      <ConfirmDialog
+        open={!!deleteGroupTarget}
+        title="Delete security group"
+        message={`Delete security group "${deleteGroupTarget?.name}" and all its rules?`}
+        confirmLabel={deletingGroup ? 'Deleting…' : 'Delete'}
+        variant="danger"
+        onCancel={() => setDeleteGroupTarget(null)}
+        onConfirm={async () => {
+          if (!deleteGroupTarget) return
+          setDeletingGroup(true)
+          try {
+            await deleteOpenStackSecurityGroup(deleteGroupTarget.id)
+            toast.success('Security group deleted')
+            setDeleteGroupTarget(null)
+            setSelectedId(null)
+            setDetail(null)
+            void load()
+          } catch (e: unknown) {
+            toast.error(formatUserError(e))
+          } finally {
+            setDeletingGroup(false)
+          }
+        }}
+      />
     </div>
   )
 }

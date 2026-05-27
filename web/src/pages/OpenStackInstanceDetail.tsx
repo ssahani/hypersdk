@@ -11,6 +11,7 @@ import {
   stopOpenStackInstance,
   rebootOpenStackInstance,
   deleteOpenStackInstance,
+  forceDeleteOpenStackInstance,
   snapshotOpenStackInstance,
   type OpenStackInstance,
   type OpenStackAttachedVolume,
@@ -19,8 +20,9 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
-  ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive,
+  ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive, Layers,
 } from 'lucide-react'
+import { getOpenStackInstanceStack } from '../api/openstackExtras'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackInstanceAdvanced from '../components/OpenStackInstanceAdvanced'
 import OpenStackExportModal from '../components/OpenStackExportModal'
@@ -67,19 +69,23 @@ function OpenStackInstanceDetailContent() {
   const [volumes, setVolumes] = useState<OpenStackAttachedVolume[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteOpen, setDeleteOpen] = useState(false)
+  const [forceDeleteOpen, setForceDeleteOpen] = useState(false)
   const [snapshotName, setSnapshotName] = useState('')
   const [snapshotBusy, setSnapshotBusy] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
+  const [heatStack, setHeatStack] = useState<{ stack_id?: string; stack_name?: string } | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
     try {
-      const [data, vols] = await Promise.all([
+      const [data, vols, stackR] = await Promise.all([
         getOpenStackInstance(id),
         listOpenStackInstanceVolumes(id).catch(() => ({ volumes: [] as OpenStackAttachedVolume[] })),
+        getOpenStackInstanceStack(id).catch(() => ({ stack: null })),
       ])
       setInst(data)
       setVolumes(vols.volumes)
+      setHeatStack(stackR.stack)
       if (!snapshotName) setSnapshotName(`${data.name}-snap`)
     } catch (e: unknown) {
       toast.error(`Failed to load instance: ${formatUserError(e)}`)
@@ -116,6 +122,18 @@ function OpenStackInstanceDetailContent() {
       navigate('/openstack/instances')
     } catch (e: unknown) {
       toast.error(`Delete failed: ${formatUserError(e)}`)
+    }
+  }
+
+  const handleForceDelete = async () => {
+    if (!inst) return
+    setForceDeleteOpen(false)
+    try {
+      await forceDeleteOpenStackInstance(inst.id)
+      toast.success(`Force-deleted '${inst.name}'`)
+      navigate('/openstack/instances')
+    } catch (e: unknown) {
+      toast.error(`Force delete failed: ${formatUserError(e)}`)
     }
   }
 
@@ -168,6 +186,19 @@ function OpenStackInstanceDetailContent() {
         </div>
       )}
 
+      {heatStack && (heatStack.stack_id || heatStack.stack_name) && (
+        <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 px-4 py-3 text-sm flex flex-wrap items-center gap-2">
+          <Layers className="w-4 h-4 text-violet-400 shrink-0" />
+          <span className="text-violet-200">Heat stack</span>
+          {heatStack.stack_name && (
+            <span className="font-medium text-slate-100">{heatStack.stack_name}</span>
+          )}
+          {heatStack.stack_id && (
+            <span className="font-mono text-xs text-slate-400 break-all">{heatStack.stack_id}</span>
+          )}
+        </div>
+      )}
+
       <Link to="/openstack/instances" className="inline-flex items-center gap-2 text-slate-400 hover:text-slate-200 text-sm">
         <ArrowLeft className="w-4 h-4" />
         Instances
@@ -201,6 +232,11 @@ function OpenStackInstanceDetailContent() {
           <button type="button" onClick={() => setDeleteOpen(true)}
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-sm">
             <Trash2 className="w-4 h-4" /> Delete
+          </button>
+          <button type="button" onClick={() => setForceDeleteOpen(true)}
+            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-700/60 text-red-300 hover:bg-red-500/15 text-sm"
+            title="Nova forceDelete — use when normal delete is stuck">
+            <Trash2 className="w-4 h-4" /> Force delete
           </button>
         </div>
       </div>
@@ -327,6 +363,16 @@ function OpenStackInstanceDetailContent() {
         variant="danger"
         onConfirm={handleDelete}
         onCancel={() => setDeleteOpen(false)}
+      />
+      <ConfirmDialog
+        open={forceDeleteOpen}
+        title="Force delete instance"
+        message={`Nova forceDelete removes ${inst.name} even when soft-delete fails. Use only for stuck ERROR/BUILD servers.`}
+        typeToMatch={inst.name}
+        confirmLabel="Force delete"
+        variant="danger"
+        onConfirm={handleForceDelete}
+        onCancel={() => setForceDeleteOpen(false)}
       />
     </div>
   )

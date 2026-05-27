@@ -20,7 +20,9 @@ import {
   listOpenStackNetworks,
   pauseOpenStackInstance,
   rebuildOpenStackInstance,
+  confirmResizeOpenStackInstance,
   resizeOpenStackInstance,
+  revertResizeOpenStackInstance,
   resumeOpenStackInstance,
   suspendOpenStackInstance,
   unpauseOpenStackInstance,
@@ -47,6 +49,10 @@ import {
   shelveOpenStackInstance,
   unrescueOpenStackInstance,
   unshelveOpenStackInstance,
+  renameOpenStackInstance,
+  lockOpenStackInstance,
+  unlockOpenStackInstance,
+  resetOpenStackInstanceState,
 } from '../api/openstackExtras'
 import {
   Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink, Monitor, RotateCcw, Tags, Archive, Plane,
@@ -72,6 +78,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
   const [extNet, setExtNet] = useState('')
   const [existingFipId, setExistingFipId] = useState('')
   const [resizeFlavor, setResizeFlavor] = useState('')
+  const [resizeAutoConfirm, setResizeAutoConfirm] = useState(true)
   const [sgName, setSgName] = useState('')
   const [consoleType, setConsoleType] = useState<OpenStackConsoleType>('novnc')
   const [consoleLog, setConsoleLog] = useState<string | null>(null)
@@ -165,6 +172,18 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Shelve</button>
           <button type="button" onClick={() => run(() => unshelveOpenStackInstance(inst.id), 'Unshelved')}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Unshelve</button>
+          <button type="button" onClick={() => {
+            const n = prompt('New instance name', inst.name)
+            if (!n?.trim()) return
+            void run(() => renameOpenStackInstance(inst.id, n.trim()), 'Renamed')
+          }}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Rename</button>
+          <button type="button" onClick={() => run(() => lockOpenStackInstance(inst.id), 'Locked')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Lock</button>
+          <button type="button" onClick={() => run(() => unlockOpenStackInstance(inst.id), 'Unlocked')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Unlock</button>
+          <button type="button" onClick={() => run(() => resetOpenStackInstanceState(inst.id), 'State reset')}
+            className="px-3 py-1.5 rounded-lg border border-amber-700/50 text-amber-300 text-sm hover:bg-slate-800">Reset state</button>
           <button type="button" onClick={() => run(() => migrateOpenStackInstance(inst.id, { live: false }), 'Cold migrate')}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Migrate</button>
           <button type="button" onClick={() => run(() => migrateOpenStackInstance(inst.id, { live: true }), 'Live migrate')}
@@ -237,10 +256,32 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               ))}
             </select>
           </div>
+          <label className="flex items-center gap-2 text-xs text-slate-400 pb-2">
+            <input
+              type="checkbox"
+              checked={resizeAutoConfirm}
+              onChange={(e) => setResizeAutoConfirm(e.target.checked)}
+              className="rounded border-slate-600"
+            />
+            Auto-confirm resize
+          </label>
           <button type="button" disabled={!resizeFlavor}
-            onClick={() => run(() => resizeOpenStackInstance(inst.id, resizeFlavor), 'Resize submitted')}
+            onClick={() => run(
+              () => resizeOpenStackInstance(inst.id, resizeFlavor, { auto_confirm: resizeAutoConfirm }),
+              resizeAutoConfirm ? 'Resize confirmed' : 'Resize scheduled',
+            )}
             className="px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-sm text-white disabled:opacity-40">
             <Maximize2 className="w-3.5 h-3.5 inline mr-1" /> Resize
+          </button>
+          <button type="button"
+            onClick={() => run(() => confirmResizeOpenStackInstance(inst.id), 'Resize confirmed')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">
+            Confirm resize
+          </button>
+          <button type="button"
+            onClick={() => run(() => revertResizeOpenStackInstance(inst.id), 'Resize reverted')}
+            className="px-3 py-1.5 rounded-lg border border-red-600/50 text-red-300 text-sm hover:bg-red-950/30">
+            Revert resize
           </button>
         </div>
       </section>

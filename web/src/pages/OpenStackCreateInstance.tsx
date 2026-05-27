@@ -28,6 +28,14 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import ErrorBanner from '../components/ErrorBanner'
+import {
+  createOpenStackVolumeFromSnapshot,
+  listOpenStackServerGroups,
+  listOpenStackVolumeSnapshots,
+  listOpenStackAvailabilityZones,
+  type OpenStackVolumeSnapshot,
+  type OpenStackAvailabilityZone,
+} from '../api/openstackExtras'
 import { formatUserError } from '../utils/apiError'
 import { openStackErrorHints } from '../utils/openstackHints'
 
@@ -74,16 +82,25 @@ function OpenStackCreateInstanceContent() {
   const [securityGroups, setSecurityGroups] = useState('')
   const [userData, setUserData] = useState('')
   const [waitActive, setWaitActive] = useState(true)
+  const [serverGroupId, setServerGroupId] = useState('')
+  const [extraNetworks, setExtraNetworks] = useState('')
+  const [serverGroups, setServerGroups] = useState<{ id: string; name: string; policy: string }[]>([])
+  const [availabilityZones, setAvailabilityZones] = useState<OpenStackAvailabilityZone[]>([])
+  const [volumeSnapshots, setVolumeSnapshots] = useState<OpenStackVolumeSnapshot[]>([])
+  const [bootSnapshotId, setBootSnapshotId] = useState('')
 
   const loadCatalogs = useCallback(async () => {
     setLoading(true)
     setCatalogErrors({})
-    const [flavorsR, imagesR, networksR, keypairsR, volumesR] = await Promise.allSettled([
+    const [flavorsR, imagesR, networksR, keypairsR, volumesR, sgR, snapsR, azR] = await Promise.allSettled([
       listOpenStackFlavors(),
       listOpenStackImages(),
       listOpenStackNetworks(),
       listOpenStackKeypairs(),
       listOpenStackCinderVolumes(),
+      listOpenStackServerGroups(),
+      listOpenStackVolumeSnapshots(),
+      listOpenStackAvailabilityZones(),
     ])
 
     const errs: Partial<Record<CatalogKey, string>> = {}
@@ -141,11 +158,29 @@ function OpenStackCreateInstanceContent() {
     }
 
     if (volumesR.status === 'fulfilled') {
-      const unattached = volumesR.value.volumes.filter((v) => !v.device)
+      const unattached = volumesR.value.volumes.filter((v) => !v.server_id)
       setCinderVolumes(unattached)
     } else {
       errs.volumes = formatUserError(volumesR.reason)
       setCinderVolumes([])
+    }
+
+    if (sgR.status === 'fulfilled') {
+      setServerGroups(sgR.value.server_groups)
+    } else {
+      setServerGroups([])
+    }
+
+    if (snapsR.status === 'fulfilled') {
+      setVolumeSnapshots(snapsR.value.snapshots)
+    } else {
+      setVolumeSnapshots([])
+    }
+
+    if (azR.status === 'fulfilled') {
+      setAvailabilityZones(azR.value.availability_zones)
+    } else {
+      setAvailabilityZones([])
     }
 
     setCatalogErrors(errs)
@@ -185,8 +220,12 @@ function OpenStackCreateInstanceContent() {
         if (catalogErrors.volumes) return false
         return bootVolumeId.length > 0
       }
-      if (catalogErrors.images) return false
-      return bootVolumeImageId.length > 0 && Number.isFinite(bootVolumeSize) && bootVolumeSize > 0
+      if (bootSource === 'new_volume') {
+        if (catalogErrors.images) return false
+        return bootVolumeImageId.length > 0 && Number.isFinite(bootVolumeSize) && bootVolumeSize > 0
+      }
+      if (bootSource === 'snapshot') return bootSnapshotId.length > 0
+      return false
     }
     if (step === 1) {
       if (catalogErrors.flavors) return false
@@ -203,7 +242,8 @@ function OpenStackCreateInstanceContent() {
     const hasBoot =
       (bootSource === 'image' && imageId) ||
       (bootSource === 'volume' && bootVolumeId) ||
-      (bootSource === 'new_volume' && bootVolumeImageId && bootVolumeSize > 0)
+      (bootSource === 'new_volume' && bootVolumeImageId && bootVolumeSize > 0) ||
+      (bootSource === 'snapshot' && bootSnapshotId)
     if (!name.trim() || !flavorId || !hasBoot || !networkId) {
       toast.warning('Complete all required fields')
       return
@@ -211,18 +251,32 @@ function OpenStackCreateInstanceContent() {
     setSubmitting(true)
     setCreateError(null)
     try {
+      let resolvedBootVolumeId = bootSource === 'volume' ? bootVolumeId : undefined
+      if (bootSource === 'snapshot') {
+        const vol = await createOpenStackVolumeFromSnapshot({
+          snapshot_id: bootSnapshotId,
+          name: `${name.trim()}-boot`,
+        })
+        resolvedBootVolumeId = vol.volume.id
+      }
       const sgList = securityGroups
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean)
+      const extraNetList = extraNetworks
+        .split(',')
+        .map((s) => s.trim())
+        .filter((n) => n && n !== networkId)
       const resp = await createOpenStackInstance({
         name: name.trim(),
         flavor: flavorId,
         image: bootSource === 'image' ? imageId : undefined,
-        boot_volume_id: bootSource === 'volume' ? bootVolumeId : undefined,
+        boot_volume_id: resolvedBootVolumeId,
         boot_volume_image: bootSource === 'new_volume' ? bootVolumeImageId : undefined,
         boot_volume_size_gb: bootSource === 'new_volume' ? bootVolumeSize : undefined,
         network: networkId,
+        networks: extraNetList.length > 0 ? extraNetList : undefined,
+        server_group: serverGroupId.trim() || undefined,
         key_name: keyName || undefined,
         availability_zone: availabilityZone.trim() || undefined,
         security_groups: sgList.length > 0 ? sgList : undefined,
@@ -327,6 +381,7 @@ function OpenStackCreateInstanceContent() {
                 ['image', 'Glance image'],
                 ['volume', 'Existing Cinder volume'],
                 ['new_volume', 'New volume from image'],
+                ['snapshot', 'Volume snapshot'],
               ] as const).map(([id, label]) => (
                 <button
                   key={id}
@@ -408,6 +463,28 @@ function OpenStackCreateInstanceContent() {
                   ))}
                 </ChoiceCardGrid>
               )}
+            </div>
+          )}
+          {bootSource === 'snapshot' && (
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">Cinder snapshot</label>
+              {volumeSnapshots.length === 0 ? (
+                <p className="text-sm text-slate-500">No volume snapshots. Create one from the Volumes page.</p>
+              ) : (
+                <select
+                  value={bootSnapshotId}
+                  onChange={(e) => setBootSnapshotId(e.target.value)}
+                  className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
+                >
+                  <option value="">Select snapshot…</option>
+                  {volumeSnapshots.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name || s.id.slice(0, 8)} ({s.size_gb} GB · {s.status})
+                    </option>
+                  ))}
+                </select>
+              )}
+              <p className="text-xs text-slate-500 mt-2">Creates a boot volume from the snapshot, then launches the instance.</p>
             </div>
           )}
           {bootSource === 'new_volume' && (
@@ -520,6 +597,31 @@ function OpenStackCreateInstanceContent() {
             )}
           </div>
           <div>
+            <label className="block text-sm text-slate-400 mb-1">Additional networks (optional)</label>
+            <input
+              value={extraNetworks}
+              onChange={(e) => setExtraNetworks(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-sm"
+              placeholder="net-uuid-2, net-uuid-3 (comma-separated, besides primary)"
+            />
+            <p className="text-xs text-slate-500 mt-1">Multi-NIC: primary network above plus these Neutron network IDs.</p>
+          </div>
+          <div>
+            <label className="block text-sm text-slate-400 mb-1">Server group (optional)</label>
+            <select
+              value={serverGroupId}
+              onChange={(e) => setServerGroupId(e.target.value)}
+              className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
+            >
+              <option value="">None</option>
+              {serverGroups.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name} ({g.policy})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
             <label className="block text-sm text-slate-400 mb-1">SSH key pair (optional)</label>
             {catalogErrors.keypairs && (
               <p className="text-xs text-amber-300/80 mb-1">Keypairs unavailable: {catalogErrors.keypairs}</p>
@@ -537,12 +639,16 @@ function OpenStackCreateInstanceContent() {
           </div>
           <div>
             <label className="block text-sm text-slate-400 mb-1">Availability zone (optional)</label>
-            <input
+            <select
               value={availabilityZone}
               onChange={(e) => setAvailabilityZone(e.target.value)}
               className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
-              placeholder="nova"
-            />
+            >
+              <option value="">Default</option>
+              {availabilityZones.map((z) => (
+                <option key={z.name} value={z.name}>{z.name} ({z.state})</option>
+              ))}
+            </select>
           </div>
           <div>
             <label className="block text-sm text-slate-400 mb-1">Security groups (comma-separated, optional)</label>
@@ -574,9 +680,15 @@ function OpenStackCreateInstanceContent() {
             {bootSource === 'volume' && `Volume · ${selectedBootVolume?.name || bootVolumeId}`}
             {bootSource === 'new_volume' &&
               `New ${bootVolumeSize} GB from ${selectedBootVolumeImage?.name || bootVolumeImageId}`}
+            {bootSource === 'snapshot' &&
+              `Snapshot · ${volumeSnapshots.find((s) => s.id === bootSnapshotId)?.name || bootSnapshotId}`}
           </p>
           <p><span className="text-slate-500">Flavor:</span> {selectedFlavor?.name} ({selectedFlavor?.vcpus} vCPU, {selectedFlavor?.ram_mb} MB)</p>
           <p><span className="text-slate-500">Network:</span> {selectedNetwork?.name || networkId}</p>
+          <p><span className="text-slate-500">Extra networks:</span> {extraNetworks.trim() || '—'}</p>
+          <p><span className="text-slate-500">Server group:</span>{' '}
+            {serverGroups.find((g) => g.id === serverGroupId)?.name || serverGroupId || '—'}
+          </p>
           <p><span className="text-slate-500">Key pair:</span> {keyName || '—'}</p>
           <p><span className="text-slate-500">AZ:</span> {availabilityZone || '—'}</p>
           <p><span className="text-slate-500">Security groups:</span> {securityGroups || '—'}</p>

@@ -111,6 +111,37 @@ pub async fn add_image_member(
     })
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateImageVisibilityRequest {
+    /// `private`, `public`, `shared`, or `community`.
+    pub visibility: String,
+}
+
+pub async fn update_image_visibility(
+    cfg: &OpenStackConfig,
+    image_id: &str,
+    req: &UpdateImageVisibilityRequest,
+) -> Result<String, LibvirtError> {
+    let vis = req.visibility.trim();
+    if vis.is_empty() {
+        return Err(LibvirtError::Invalid("visibility is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({ "visibility": vis });
+    let resp = session
+        .put(IMAGE, &["images", image_id.trim()])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    #[derive(Deserialize)]
+    struct ImgResp {
+        visibility: String,
+    }
+    let parsed: ImgResp = resp.json().await.map_err(map_json_err)?;
+    Ok(parsed.visibility)
+}
+
 pub async fn delete_image_member(
     cfg: &OpenStackConfig,
     image_id: &str,
