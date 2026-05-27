@@ -115,6 +115,22 @@ pub async fn list_networks(cfg: &OpenStackConfig) -> Result<Vec<OpenStackNetwork
     Ok(out)
 }
 
+pub async fn get_network(cfg: &OpenStackConfig, network_id: &str) -> Result<OpenStackNetwork, LibvirtError> {
+    let id = network_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("network id is required".into()));
+    }
+    let cloud = connect_cloud(cfg).await?;
+    let net = cloud.get_network(id).await.map_err(map_openstack_err)?;
+    Ok(OpenStackNetwork {
+        id: net.id().clone(),
+        name: net.name().clone().unwrap_or_default(),
+        status: format!("{:?}", net.status()),
+        shared: net.shared(),
+        external: net.external().unwrap_or(false),
+    })
+}
+
 pub async fn list_images(cfg: &OpenStackConfig) -> Result<Vec<OpenStackImage>, LibvirtError> {
     let cloud = connect_cloud(cfg).await?;
     let images = cloud.list_images().await.map_err(map_openstack_err)?;

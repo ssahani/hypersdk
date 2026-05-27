@@ -6,6 +6,7 @@ import { Link, useLocation } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { Cloud, Server, HardDrive, Plus, GitBranch, LayoutGrid, Settings, Shield, Network, Key, Disc, Cpu, Layers } from 'lucide-react'
+import OpenStackCloudPicker from './OpenStackCloudPicker'
 
 const TABS = [
   { to: '/openstack', label: 'Overview', icon: LayoutGrid, end: true },
@@ -76,6 +77,7 @@ export default function OpenStackSubNav() {
       >
         <Cloud className="w-3.5 h-3.5" />
         {statusLabel}
+        <OpenStackCloudPicker />
       </span>
     </nav>
   )

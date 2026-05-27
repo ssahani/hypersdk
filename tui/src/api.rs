@@ -706,6 +706,18 @@ impl DaemonClient {
         Ok(())
     }
 
+    pub async fn openstack_select_cloud(&self, cloud_name: &str) -> Result<()> {
+        self.post_json(
+            "/api/v1/openstack/cloud",
+            &serde_json::json!({ "cloud_name": cloud_name }),
+        )
+        .await
+    }
+
+    pub async fn openstack_get_json(&self, path: &str) -> Result<serde_json::Value> {
+        self.get_json(&format!("/api/v1/openstack/{path}")).await
+    }
+
     pub async fn openstack_add_security_group(&self, instance_id: &str, name: &str) -> Result<()> {
         self.post_json(
             &format!("/api/v1/openstack/instances/{instance_id}/security-groups"),

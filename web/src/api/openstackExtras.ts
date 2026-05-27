@@ -534,3 +534,34 @@ export function setOpenStackVolumeBootable(
 ): Promise<{ status: string; id: string; bootable: boolean }> {
   return apiPost(`${API}/openstack/volumes/${inst(id)}/bootable`, { bootable })
 }
+
+export function getOpenStackVolume(id: string): Promise<{ volume: import('./openstack').OpenStackAttachedVolume }> {
+  return readJsonObject(`${API}/openstack/volumes/${inst(id)}`)
+}
+
+export function getOpenStackNetwork(id: string): Promise<{ network: import('./openstack').OpenStackNetwork }> {
+  return readJsonObject(`${API}/openstack/networks/${inst(id)}`)
+}
+
+export function getOpenStackSubnet(id: string): Promise<{ subnet: OpenStackSubnet }> {
+  return readJsonObject(`${API}/openstack/subnets/${inst(id)}`)
+}
+
+export function getOpenStackRouter(id: string): Promise<{ router: OpenStackRouter }> {
+  return readJsonObject(`${API}/openstack/routers/${inst(id)}`)
+}
+
+export function getOpenStackPort(id: string): Promise<{ port: OpenStackPort }> {
+  return readJsonObject(`${API}/openstack/ports/${inst(id)}`)
+}
+
+export function updateOpenStackNetwork(id: string, body: { name: string }): Promise<{ network: import('./openstack').OpenStackNetwork }> {
+  return apiPut(`${API}/openstack/networks/${inst(id)}`, body)
+}
+
+export function updateOpenStackPort(
+  id: string,
+  body: { name?: string; admin_state_up?: boolean },
+): Promise<{ port: { id: string; name: string; network_id: string; status: string } }> {
+  return apiPut(`${API}/openstack/ports/${inst(id)}`, body)
+}

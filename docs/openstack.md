@@ -151,12 +151,15 @@ Catalog APIs for the create wizard:
 - `GET /api/v1/openstack/volume-snapshots` · `DELETE /api/v1/openstack/volume-snapshots/{id}` · `POST /api/v1/openstack/volumes/from-snapshot` · `POST /api/v1/openstack/volumes/{id}/retype`
 - `POST /api/v1/openstack/images/{id}/visibility` · `POST /api/v1/openstack/routers/add-interface` · `POST /api/v1/openstack/routers/remove-interface`
 - `GET /api/v1/openstack/availability-zones` · `GET .../hypervisors` · `GET .../compute-services` · `GET .../neutron-agents` · `GET .../aggregates`
-- `GET /api/v1/openstack/flavors/{id}` · `GET .../images/{id}`
-- `DELETE .../networks/{id}` · `DELETE .../subnets/{id}` · `DELETE .../routers/{id}` · `DELETE .../server-groups/{id}`
+- `GET /api/v1/openstack/flavors/{id}` · `GET .../images/{id}` · `GET .../networks/{id}` · `GET .../volumes/{id}`
+- `GET .../subnets/{id}` · `GET .../routers/{id}` · `GET .../ports/{id}`
+- `DELETE .../networks/{id}` · `DELETE .../subnets/{id}` · `DELETE .../routers/{id}` · `DELETE .../server-groups/{id}` · `DELETE .../volume-transfers/{id}`
 - `POST /api/v1/openstack/volumes/clone` · `POST .../volumes/from-image` · `PUT .../volumes/{id}` · `POST .../volumes/{id}/bootable`
 - `GET|POST .../volume-transfers` · `POST .../volume-transfers/accept`
 - `POST .../instances/{id}/rename|lock|unlock|reset-state|force-delete` · `GET|POST .../server-groups`
-- `PUT .../networks/{id}` · `PUT .../ports/{id}`
+- `PUT .../networks/{id}` · `PUT .../ports/{id}` · `GET|POST /api/v1/openstack/clouds` · `POST .../cloud` (session cloud switch)
+
+Phases **41–140** (operator UX): GET detail APIs for volumes/network/subnet/router/port; Glance image detail page; clouds.yaml cloud picker in nav; Neutron network/port rename; volume transfer cancel; extended TUI (`:openstack quotas`, `:openstack cloud`, `:openstack volume`, `:openstack image`).
 - `POST /api/v1/openstack/keypairs` · `DELETE /api/v1/openstack/keypairs/{name}`
 - `POST /api/v1/openstack/security-groups` · `POST .../security-groups/{id}/rules` · `DELETE /api/v1/openstack/security-group-rules/{id}`
 - `POST /api/v1/openstack/volumes/{id}/extend` · `POST .../volumes/{id}/snapshot`

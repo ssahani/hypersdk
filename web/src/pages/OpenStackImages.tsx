@@ -158,7 +158,9 @@ function OpenStackImagesContent() {
             {images.map((img) => (
               <tr key={img.id} className="hover:bg-slate-800/40">
                 <td className="px-4 py-3">
-                  <div className="text-slate-200">{img.name || '—'}</div>
+                  <Link to={`/openstack/images/${img.id}`} className="text-slate-200 hover:text-sky-300 hover:underline">
+                    {img.name || '—'}
+                  </Link>
                   <div className="text-xs text-slate-500 font-mono truncate max-w-xs">{img.id}</div>
                 </td>
                 <td className="px-4 py-3 text-slate-300">{img.status}</td>

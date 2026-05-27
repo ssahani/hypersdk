@@ -19,8 +19,8 @@ use machina_core::{
     clone_cinder_volume, create_keypair, create_port, create_security_group, create_router, create_server_group,
     create_subnet, create_volume_from_image, create_volume_from_snapshot, create_volume_transfer,
     delete_cinder_snapshot, delete_port, delete_router, delete_server_group, delete_subnet,
-    delete_volume_transfer, extend_cinder_volume, force_delete_instance, get_quota_summary,
-    instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
+    delete_volume_transfer, extend_cinder_volume, force_delete_instance, get_port, get_quota_summary, get_router,
+    get_subnet, instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
     list_host_aggregates, list_hypervisors, list_image_members, list_instance_interfaces, list_neutron_agents, list_ports,
     list_cinder_snapshots, list_routers, list_server_groups, list_subnets, list_volume_transfers,
     list_volume_types, lock_instance, migrate_instance, remote_console_with_tunnel, remove_router_interface,
@@ -68,9 +68,9 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/cloud", post(os_select_cloud))
         .route("/openstack/quotas", get(os_quotas))
         .route("/openstack/subnets", get(os_subnets).post(os_create_subnet))
-        .route("/openstack/subnets/{id}", delete(os_delete_subnet))
+        .route("/openstack/subnets/{id}", get(os_get_subnet).delete(os_delete_subnet))
+        .route("/openstack/routers/{id}", get(os_get_router).delete(os_delete_router))
         .route("/openstack/routers", get(os_routers).post(os_create_router))
-        .route("/openstack/routers/{id}", delete(os_delete_router))
         .route("/openstack/availability-zones", get(os_availability_zones))
         .route("/openstack/hypervisors", get(os_hypervisors))
         .route("/openstack/compute-services", get(os_compute_services))
@@ -88,7 +88,7 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/routers/add-interface", post(os_router_add_interface))
         .route("/openstack/routers/remove-interface", post(os_router_remove_interface))
         .route("/openstack/ports", get(os_ports).post(os_create_port))
-        .route("/openstack/ports/{id}", delete(os_delete_port).put(os_update_port))
+        .route("/openstack/ports/{id}", get(os_get_port).delete(os_delete_port).put(os_update_port))
         .route("/openstack/networks/{id}", put(os_update_network))
         .route("/openstack/volume-types", get(os_volume_types))
         .route("/openstack/server-groups", get(os_server_groups).post(os_create_server_group))
@@ -397,6 +397,27 @@ async fn os_create_keypair(Json(req): Json<CreateKeypairRequest>) -> Result<Json
     ensure_openstack_enabled(&cfg)?;
     let kp = create_keypair(&cfg, &req).await?;
     Ok(Json(serde_json::json!({ "keypair": kp })))
+}
+
+async fn os_get_subnet(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let subnet = get_subnet(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "subnet": subnet })))
+}
+
+async fn os_get_router(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let router = get_router(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "router": router })))
+}
+
+async fn os_get_port(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let port = get_port(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "port": port })))
 }
 
 async fn os_delete_subnet(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {

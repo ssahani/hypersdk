@@ -73,6 +73,41 @@ pub async fn list_subnets(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSubnet>,
     Ok(out)
 }
 
+pub async fn get_subnet(cfg: &OpenStackConfig, subnet_id: &str) -> Result<OpenStackSubnet, LibvirtError> {
+    let id = subnet_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("subnet id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        subnet: SubnetJson,
+    }
+    #[derive(Deserialize)]
+    struct SubnetJson {
+        id: String,
+        name: String,
+        network_id: String,
+        cidr: String,
+        ip_version: u8,
+        gateway_ip: Option<String>,
+    }
+    let resp = session
+        .get(NETWORK, &["subnets", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackSubnet {
+        id: body.subnet.id,
+        name: body.subnet.name,
+        network_id: body.subnet.network_id,
+        cidr: body.subnet.cidr,
+        ip_version: body.subnet.ip_version,
+        gateway_ip: body.subnet.gateway_ip,
+    })
+}
+
 pub async fn list_routers(cfg: &OpenStackConfig) -> Result<Vec<OpenStackRouter>, LibvirtError> {
     let session = connect_session(cfg).await?;
     #[derive(Deserialize)]
@@ -101,6 +136,37 @@ pub async fn list_routers(cfg: &OpenStackConfig) -> Result<Vec<OpenStackRouter>,
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
+}
+
+pub async fn get_router(cfg: &OpenStackConfig, router_id: &str) -> Result<OpenStackRouter, LibvirtError> {
+    let id = router_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("router id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        router: RouterJson,
+    }
+    #[derive(Deserialize)]
+    struct RouterJson {
+        id: String,
+        name: String,
+        status: String,
+        external_gateway_info: Option<serde_json::Value>,
+    }
+    let resp = session
+        .get(NETWORK, &["routers", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackRouter {
+        id: body.router.id,
+        name: body.router.name,
+        status: body.router.status,
+        external_gateway: body.router.external_gateway_info.is_some(),
+    })
 }
 
 pub async fn list_ports(
@@ -149,6 +215,46 @@ pub async fn list_ports(
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(out)
+}
+
+pub async fn get_port(cfg: &OpenStackConfig, port_id: &str) -> Result<OpenStackPort, LibvirtError> {
+    let id = port_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("port id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        port: PortJson,
+    }
+    #[derive(Deserialize)]
+    struct PortJson {
+        id: String,
+        name: String,
+        network_id: String,
+        status: String,
+        device_id: Option<String>,
+        #[serde(default)]
+        fixed_ips: Vec<FixedIp>,
+    }
+    #[derive(Deserialize)]
+    struct FixedIp {
+        ip_address: String,
+    }
+    let resp = session
+        .get(NETWORK, &["ports", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackPort {
+        id: body.port.id,
+        name: body.port.name,
+        network_id: body.port.network_id,
+        status: body.port.status,
+        device_id: body.port.device_id,
+        fixed_ips: body.port.fixed_ips.into_iter().map(|f| f.ip_address).collect(),
+    })
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

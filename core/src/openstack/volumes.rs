@@ -500,6 +500,27 @@ pub async fn delete_volume_transfer(cfg: &OpenStackConfig, transfer_id: &str) ->
     Ok(())
 }
 
+pub async fn get_cinder_volume(
+    cfg: &OpenStackConfig,
+    volume_id: &str,
+) -> Result<OpenStackAttachedVolume, LibvirtError> {
+    let id = volume_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("volume id is required".into()));
+    }
+    let cloud = connect_cloud(cfg).await?;
+    let vol = cloud.get_volume(id).await.map_err(map_openstack_err)?;
+    let att = vol.attachments().into_iter().next();
+    Ok(OpenStackAttachedVolume {
+        id: vol.id().clone(),
+        name: vol.name().clone(),
+        size_gb: vol.size(),
+        device: att.as_ref().map(|a| a.device.clone()).unwrap_or_default(),
+        bootable: vol.bootable(),
+        server_id: att.map(|a| a.server_id.clone()),
+    })
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct UpdateVolumeRequest {
     pub name: Option<String>,

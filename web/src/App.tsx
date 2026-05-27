@@ -66,6 +66,7 @@ const OpenStackNetworking = lazy(() => import('./pages/OpenStackNetworking'))
 const OpenStackKeypairs = lazy(() => import('./pages/OpenStackKeypairs'))
 const OpenStackFlavors = lazy(() => import('./pages/OpenStackFlavors'))
 const OpenStackServerGroups = lazy(() => import('./pages/OpenStackServerGroups'))
+const OpenStackImageDetail = lazy(() => import('./pages/OpenStackImageDetail'))
 const Fleet = lazy(() => import('./pages/Fleet'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
@@ -208,6 +209,7 @@ function AuthenticatedShell() {
                 <Route path="/openstack/instances/:id" element={<OpenStackInstanceDetail />} />
                 <Route path="/openstack/create" element={<OpenStackCreateInstance />} />
                 <Route path="/openstack/images" element={<OpenStackImages />} />
+                <Route path="/openstack/images/:id" element={<OpenStackImageDetail />} />
                 <Route path="/openstack/migrations" element={<OpenStackMigrations />} />
                 <Route path="/openstack/security-groups" element={<OpenStackSecurityGroups />} />
                 <Route path="/openstack/volumes" element={<OpenStackVolumes />} />

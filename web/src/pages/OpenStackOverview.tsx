@@ -40,6 +40,18 @@ const QUICK_LINKS = [
     description: 'Wizard: image, flavor, network, keypair, security groups, cloud-init.',
   },
   {
+    to: '/openstack/volumes',
+    icon: HardDrive,
+    title: 'Cinder volumes',
+    description: 'Create, clone, transfer, attach, snapshots, bootable volumes.',
+  },
+  {
+    to: '/openstack/flavors',
+    icon: Cloud,
+    title: 'Nova flavors',
+    description: 'Read-only flavor catalog for sizing instances.',
+  },
+  {
     to: '/openstack/migrations',
     icon: GitBranch,
     title: 'Bulk migrations',

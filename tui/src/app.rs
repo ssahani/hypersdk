@@ -2392,6 +2392,30 @@ impl App {
                 )
                 .await;
             },
+            ["openstack", "clouds"] | ["os", "clouds"] => {
+                match self.client.openstack_list_json("clouds").await {
+                    Ok(v) => self.show_json_overlay("Clouds", &v),
+                    Err(e) => self.state.status_message = status_err("openstack clouds", &e),
+                }
+            },
+            ["openstack", "cloud", name] | ["os", "cloud", name] => {
+                let r = self.client.openstack_select_cloud(name).await;
+                self.report_cmd_result(r, &format!("Switched to cloud {name}"), "openstack-cloud", name, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "volume", id] | ["os", "volume", id] => {
+                match self.client.openstack_get_json(&format!("volumes/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Volume {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack volume", &e),
+                }
+            },
+            ["openstack", "image", id] | ["os", "image", id] => {
+                match self.client.openstack_get_json(&format!("images/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Image {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack image", &e),
+                }
+            },
             ["openstack", "rename", id, name] => {
                 let r = self.client.openstack_rename_instance(id, name).await;
                 self.report_cmd_result(r, &format!("Renamed {id} → {name}"), "openstack-rename", id, false)

@@ -23,6 +23,7 @@ import {
   createOpenStackVolumeTransfer,
   acceptOpenStackVolumeTransfer,
   listOpenStackVolumeTransfers,
+  deleteOpenStackVolumeTransfer,
   setOpenStackVolumeBootable,
   updateOpenStackVolume,
   type OpenStackVolumeSnapshot,
@@ -267,7 +268,14 @@ function OpenStackVolumesContent() {
         {transfers.length > 0 && (
           <ul className="text-xs font-mono text-slate-400 space-y-1">
             {transfers.map((t) => (
-              <li key={t.id}>{t.name} · vol {t.volume_id.slice(0, 8)} · {t.id.slice(0, 8)}</li>
+              <li key={t.id} className="flex flex-wrap items-center gap-2">
+                <span>{t.name} · vol {t.volume_id.slice(0, 8)} · {t.id.slice(0, 8)}</span>
+                <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
+                  if (!confirm(`Cancel transfer ${t.name}?`)) return
+                  try { await deleteOpenStackVolumeTransfer(t.id); toast.success('Transfer deleted'); void load() }
+                  catch (e: unknown) { toast.error(formatUserError(e)) }
+                }}>Cancel</button>
+              </li>
             ))}
           </ul>
         )}

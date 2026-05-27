@@ -20,6 +20,8 @@ import {
   deleteOpenStackRouter,
   deleteOpenStackSubnet,
   removeOpenStackRouterInterface,
+  updateOpenStackNetwork,
+  updateOpenStackPort,
   listOpenStackPorts,
   listOpenStackRouters,
   listOpenStackSubnets,
@@ -398,6 +400,12 @@ function OpenStackNetworkingContent() {
               {networks.map((n) => (
                 <li key={n.id} className="text-slate-300 flex items-center gap-2">
                   <span>{n.name} {n.external && <span className="text-amber-400 text-xs">external</span>}</span>
+                  <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
+                    const nn = prompt('Network name', n.name)
+                    if (nn === null || !nn.trim()) return
+                    try { await updateOpenStackNetwork(n.id, { name: nn.trim() }); toast.success('Renamed'); void load() }
+                    catch (e: unknown) { toast.error(formatUserError(e)) }
+                  }}>Rename</button>
                   <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
                     if (!confirm(`Delete network ${n.name}?`)) return
                     try { await deleteOpenStackNetwork(n.id); toast.success('Network deleted'); void load() }
@@ -440,6 +448,12 @@ function OpenStackNetworkingContent() {
               {ports.slice(0, 40).map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-2">
                   <span>{p.name || p.id.slice(0, 8)} · {p.fixed_ips.join(', ') || '—'}</span>
+                  <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
+                    const nn = prompt('Port name', p.name || '')
+                    if (nn === null) return
+                    try { await updateOpenStackPort(p.id, { name: nn.trim() || undefined }); toast.success('Updated'); void load() }
+                    catch (e: unknown) { toast.error(formatUserError(e)) }
+                  }}>Rename</button>
                   {!p.device_id && (
                     <button
                       type="button"

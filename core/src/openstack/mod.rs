@@ -64,7 +64,7 @@ pub use security_groups::{
 pub use volumes::{
     create_cinder_volume, create_volume_from_image, create_volume_from_snapshot, clone_cinder_volume,
     create_volume_transfer, accept_volume_transfer, delete_cinder_snapshot, delete_cinder_volume,
-    delete_volume_transfer, extend_cinder_volume, list_cinder_snapshots, list_volume_transfers,
+    delete_volume_transfer, extend_cinder_volume, get_cinder_volume, list_cinder_snapshots, list_volume_transfers,
     retype_cinder_volume, set_volume_bootable, snapshot_cinder_volume, update_cinder_volume,
     AcceptVolumeTransferRequest, CloneVolumeRequest, CreateVolumeFromImageRequest,
     CreateVolumeFromSnapshotRequest, CreateVolumeTransferRequest, ExtendVolumeRequest,
@@ -80,8 +80,8 @@ pub use lifecycle::{
 };
 pub use topology::{
     add_router_interface, create_network, create_port, create_router, create_subnet, delete_network,
-    delete_port, delete_router, delete_subnet, list_ports, list_routers, list_subnets,
-    remove_router_interface, update_network, update_port, AddRouterInterfaceRequest,
+    delete_port, delete_router, delete_subnet, get_port, get_router, get_subnet, list_ports, list_routers,
+    list_subnets, remove_router_interface, update_network, update_port, AddRouterInterfaceRequest,
     CreateNetworkRequest, CreatePortRequest, CreateRouterRequest, CreateSubnetRequest,
     OpenStackPort, OpenStackPortCreated, OpenStackRouter, OpenStackSubnet,
     RemoveRouterInterfaceRequest, UpdateNetworkRequest, UpdatePortRequest,
@@ -109,7 +109,7 @@ pub use networking::{
     OpenStackFloatingIp,
 };
 pub use resources::{
-    create_instance, enrich_instance_flavor, get_image, list_flavors, list_images, list_instance_volumes,
+    create_instance, enrich_instance_flavor, get_image, get_network, list_flavors, list_images, list_instance_volumes,
     list_cinder_volumes, list_keypairs, list_networks, snapshot_instance, wait_glance_image_by_name,
     CreateInstanceRequest,
     CreateInstanceResponse,
