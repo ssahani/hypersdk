@@ -2416,6 +2416,24 @@ impl App {
                     Err(e) => self.state.status_message = status_err("openstack image", &e),
                 }
             },
+            ["openstack", "fip", id] | ["os", "fip", id] => {
+                match self.client.openstack_get_json(&format!("floating-ips/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("FIP {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack fip", &e),
+                }
+            },
+            ["openstack", "snapshot", id] | ["os", "snapshot", id] => {
+                match self.client.openstack_get_json(&format!("volume-snapshots/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Snapshot {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack snapshot", &e),
+                }
+            },
+            ["openstack", "hypervisor", id] | ["os", "hypervisor", id] => {
+                match self.client.openstack_get_json(&format!("hypervisors/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Hypervisor {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack hypervisor", &e),
+                }
+            },
             ["openstack", "rename", id, name] => {
                 let r = self.client.openstack_rename_instance(id, name).await;
                 self.report_cmd_result(r, &format!("Renamed {id} → {name}"), "openstack-rename", id, false)

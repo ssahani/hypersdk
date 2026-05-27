@@ -56,6 +56,35 @@ pub async fn list_floating_ips(cfg: &OpenStackConfig) -> Result<Vec<OpenStackFlo
     Ok(out)
 }
 
+pub async fn get_floating_ip(
+    cfg: &OpenStackConfig,
+    floating_ip_id: &str,
+) -> Result<OpenStackFloatingIp, LibvirtError> {
+    let id = floating_ip_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("floating_ip_id is required".into()));
+    }
+    let cloud = connect_cloud(cfg).await?;
+    let fip = cloud.get_floating_ip(id).await.map_err(map_openstack_err)?;
+    let ports = cloud
+        .find_ports()
+        .all()
+        .await
+        .map_err(map_openstack_err)?;
+    let port_device: std::collections::HashMap<String, String> = ports
+        .iter()
+        .filter_map(|p| {
+            let device = p.device_id().clone().filter(|d| !d.is_empty())?;
+            Some((p.id().clone(), device))
+        })
+        .collect();
+    let instance_id = fip
+        .port_id()
+        .as_ref()
+        .and_then(|pid| port_device.get(pid).cloned());
+    Ok(fip_row(&fip, instance_id))
+}
+
 pub async fn list_instance_floating_ips(
     cfg: &OpenStackConfig,
     instance_id: &str,

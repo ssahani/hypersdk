@@ -159,7 +159,11 @@ Catalog APIs for the create wizard:
 - `POST .../instances/{id}/rename|lock|unlock|reset-state|force-delete` · `GET|POST .../server-groups`
 - `PUT .../networks/{id}` · `PUT .../ports/{id}` · `GET|POST /api/v1/openstack/clouds` · `POST .../cloud` (session cloud switch)
 
-Phases **41–140** (operator UX): GET detail APIs for volumes/network/subnet/router/port; Glance image detail page; clouds.yaml cloud picker in nav; Neutron network/port rename; volume transfer cancel; extended TUI (`:openstack quotas`, `:openstack cloud`, `:openstack volume`, `:openstack image`).
+Phases **41–140** (operator UX): GET detail APIs for volumes/network/subnet/router/port; Glance image detail page; clouds.yaml cloud picker in nav; Neutron network/port rename; volume transfer cancel; extended TUI.
+
+Phases **141–240**: GET floating IP / volume snapshot / volume transfer / hypervisor; dedicated **Floating IPs** page; **volume detail** route; router rename; port admin-up; hypervisor detail in admin panel; TUI `:openstack fip|snapshot|hypervisor`.
+- `GET .../floating-ips/{id}` · `GET .../volume-snapshots/{id}` · `GET .../volume-transfers/{id}` · `GET .../hypervisors/{id}`
+- `PUT .../routers/{id}` (rename)
 - `POST /api/v1/openstack/keypairs` · `DELETE /api/v1/openstack/keypairs/{name}`
 - `POST /api/v1/openstack/security-groups` · `POST .../security-groups/{id}/rules` · `DELETE /api/v1/openstack/security-group-rules/{id}`
 - `POST /api/v1/openstack/volumes/{id}/extend` · `POST .../volumes/{id}/snapshot`

@@ -22,6 +22,7 @@ import {
   removeOpenStackRouterInterface,
   updateOpenStackNetwork,
   updateOpenStackPort,
+  updateOpenStackRouter,
   listOpenStackPorts,
   listOpenStackRouters,
   listOpenStackSubnets,
@@ -434,6 +435,12 @@ function OpenStackNetworkingContent() {
               {routers.map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
                   <span>{r.name} · {r.status}</span>
+                  <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
+                    const nn = prompt('Router name', r.name)
+                    if (nn === null || !nn.trim()) return
+                    try { await updateOpenStackRouter(r.id, { name: nn.trim() }); toast.success('Renamed'); void load() }
+                    catch (e: unknown) { toast.error(formatUserError(e)) }
+                  }}>Rename</button>
                   <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
                     if (!confirm(`Delete router ${r.name}?`)) return
                     try { await deleteOpenStackRouter(r.id); toast.success('Router deleted'); void load() }
@@ -454,6 +461,13 @@ function OpenStackNetworkingContent() {
                     try { await updateOpenStackPort(p.id, { name: nn.trim() || undefined }); toast.success('Updated'); void load() }
                     catch (e: unknown) { toast.error(formatUserError(e)) }
                   }}>Rename</button>
+                  <button type="button" className="text-violet-400 text-xs hover:underline" onClick={async () => {
+                    try {
+                      await updateOpenStackPort(p.id, { admin_state_up: true })
+                      toast.success('Admin up')
+                      void load()
+                    } catch (e: unknown) { toast.error(formatUserError(e)) }
+                  }}>Admin up</button>
                   {!p.device_id && (
                     <button
                       type="button"

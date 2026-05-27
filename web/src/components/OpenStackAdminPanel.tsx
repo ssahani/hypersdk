@@ -7,6 +7,7 @@ import {
   listOpenStackHostAggregates,
   listOpenStackHypervisors,
   listOpenStackNeutronAgents,
+  getOpenStackHypervisor,
   type OpenStackAvailabilityZone,
   type OpenStackComputeService,
   type OpenStackHostAggregate,
@@ -22,6 +23,7 @@ export default function OpenStackAdminPanel() {
   const [services, setServices] = useState<OpenStackComputeService[]>([])
   const [agents, setAgents] = useState<OpenStackNeutronAgent[]>([])
   const [aggregates, setAggregates] = useState<OpenStackHostAggregate[]>([])
+  const [hvDetail, setHvDetail] = useState<OpenStackHypervisor | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -78,7 +80,14 @@ export default function OpenStackAdminPanel() {
           <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
             {hvs.map((h) => (
               <li key={h.id}>
-                {h.hostname} · {h.running_vms} VMs · {h.vcpus_used}/{h.vcpus} vCPU
+                <button type="button" className="text-left hover:text-sky-300" onClick={async () => {
+                  try {
+                    const r = await getOpenStackHypervisor(h.id)
+                    setHvDetail(r.hypervisor)
+                  } catch { /* ignore */ }
+                }}>
+                  {h.hostname} · {h.running_vms} VMs · {h.vcpus_used}/{h.vcpus} vCPU
+                </button>
               </li>
             ))}
             {hvs.length === 0 && <li className="text-slate-500">No hypervisor data</li>}
@@ -120,6 +129,12 @@ export default function OpenStackAdminPanel() {
           </ul>
         </div>
       </div>
+      {hvDetail && (
+        <div className="rounded-lg border border-sky-500/30 bg-sky-950/20 p-3 text-xs font-mono text-slate-300">
+          {hvDetail.hostname} · {hvDetail.state}/{hvDetail.status} · {hvDetail.memory_mb_used}/{hvDetail.memory_mb} MB RAM
+          <button type="button" className="ml-2 text-slate-500 hover:underline" onClick={() => setHvDetail(null)}>Dismiss</button>
+        </div>
+      )}
     </div>
   )
 }

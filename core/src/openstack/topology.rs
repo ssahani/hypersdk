@@ -553,6 +553,52 @@ pub async fn update_network(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateRouterRequest {
+    pub name: Option<String>,
+}
+
+pub async fn update_router(
+    cfg: &OpenStackConfig,
+    router_id: &str,
+    req: &UpdateRouterRequest,
+) -> Result<OpenStackRouter, LibvirtError> {
+    let id = router_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("router_id is required".into()));
+    }
+    let name = req.name.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty());
+    if name.is_none() {
+        return Err(LibvirtError::Invalid("name is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({ "router": { "name": name } });
+    #[derive(Deserialize)]
+    struct Resp {
+        router: RouterJson,
+    }
+    #[derive(Deserialize)]
+    struct RouterJson {
+        id: String,
+        name: String,
+        status: String,
+        external_gateway_info: Option<serde_json::Value>,
+    }
+    let resp = session
+        .put(NETWORK, &["routers", id])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackRouter {
+        id: parsed.router.id,
+        name: parsed.router.name,
+        status: parsed.router.status,
+        external_gateway: parsed.router.external_gateway_info.is_some(),
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdatePortRequest {
     pub name: Option<String>,
     pub admin_state_up: Option<bool>,

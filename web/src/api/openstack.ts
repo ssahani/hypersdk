@@ -422,6 +422,10 @@ export function associateOpenStackFloatingIp(
   return apiPost(`${API}/openstack/instances/${inst(instanceId)}/floating-ips`, body)
 }
 
+export function getOpenStackFloatingIp(id: string): Promise<{ floating_ip: OpenStackFloatingIp }> {
+  return readJsonObject(`${API}/openstack/floating-ips/${inst(id)}`)
+}
+
 export function dissociateOpenStackFloatingIp(fipId: string): Promise<{ status: string; id: string }> {
   return apiPost(`${API}/openstack/floating-ips/${inst(fipId)}/dissociate`, {})
 }

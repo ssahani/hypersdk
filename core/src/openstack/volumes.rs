@@ -203,6 +203,77 @@ pub async fn list_cinder_snapshots(
     Ok(out)
 }
 
+pub async fn get_cinder_snapshot(
+    cfg: &OpenStackConfig,
+    snapshot_id: &str,
+) -> Result<OpenStackVolumeSnapshot, LibvirtError> {
+    let id = snapshot_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("snapshot id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        snapshot: SnapJson,
+    }
+    #[derive(Deserialize)]
+    struct SnapJson {
+        id: String,
+        name: String,
+        volume_id: String,
+        size: u64,
+        status: String,
+    }
+    let resp = session
+        .get(BLOCK_STORAGE, &["snapshots", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackVolumeSnapshot {
+        id: body.snapshot.id,
+        name: body.snapshot.name,
+        volume_id: body.snapshot.volume_id,
+        size_gb: body.snapshot.size,
+        status: body.snapshot.status,
+    })
+}
+
+pub async fn get_volume_transfer(
+    cfg: &OpenStackConfig,
+    transfer_id: &str,
+) -> Result<OpenStackVolumeTransfer, LibvirtError> {
+    let id = transfer_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("transfer id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        transfer: TransferJson,
+    }
+    #[derive(Deserialize)]
+    struct TransferJson {
+        id: String,
+        name: String,
+        volume_id: String,
+        #[serde(default)]
+        auth_key: Option<String>,
+    }
+    let resp = session
+        .get(BLOCK_STORAGE, &["os-volume-transfer", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackVolumeTransfer {
+        id: body.transfer.id,
+        name: body.transfer.name,
+        volume_id: body.transfer.volume_id,
+        auth_key: body.transfer.auth_key,
+    })
+}
+
 pub async fn create_volume_from_snapshot(
     cfg: &OpenStackConfig,
     req: &CreateVolumeFromSnapshotRequest,

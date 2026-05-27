@@ -19,15 +19,15 @@ use machina_core::{
     clone_cinder_volume, create_keypair, create_port, create_security_group, create_router, create_server_group,
     create_subnet, create_volume_from_image, create_volume_from_snapshot, create_volume_transfer,
     delete_cinder_snapshot, delete_port, delete_router, delete_server_group, delete_subnet,
-    delete_volume_transfer, extend_cinder_volume, force_delete_instance, get_port, get_quota_summary, get_router,
-    get_subnet, instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
+    delete_volume_transfer, extend_cinder_volume, force_delete_instance, get_cinder_snapshot, get_hypervisor,
+    get_port, get_quota_summary, get_router, get_subnet, get_volume_transfer, instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
     list_host_aggregates, list_hypervisors, list_image_members, list_instance_interfaces, list_neutron_agents, list_ports,
     list_cinder_snapshots, list_routers, list_server_groups, list_subnets, list_volume_transfers,
     list_volume_types, lock_instance, migrate_instance, remote_console_with_tunnel, remove_router_interface,
     rename_instance, retype_cinder_volume, reset_instance_state, rescue_instance, resolve_console_token,
     unlock_instance, unrescue_instance, unshelve_instance, shelve_instance, snapshot_cinder_volume,
     set_volume_bootable, update_cinder_volume, update_image_metadata, update_image_visibility,
-    update_network, update_port,
+    update_network, update_port, update_router,
     AcceptVolumeTransferRequest, AddImageMemberRequest, AttachInterfaceRequest, BackupInstanceRequest,
     CloneVolumeRequest, CreateKeypairRequest, CreateSecurityGroupRequest, CreateSecurityGroupRuleRequest,
     CreateServerGroupRequest, CreateVolumeFromImageRequest, CreateVolumeTransferRequest, ExtendVolumeRequest,
@@ -35,7 +35,7 @@ use machina_core::{
     OpenStackCreateRouterRequest, OpenStackCreateSubnetRequest, RemoveRouterInterfaceRequest,
     CreateVolumeFromSnapshotRequest, RenameInstanceRequest, RescueInstanceRequest, RetypeVolumeRequest,
     SnapshotVolumeRequest, UpdateImageMetadataRequest, UpdateImageVisibilityRequest, UpdateNetworkRequest,
-    UpdatePortRequest, UpdateVolumeRequest,
+    UpdatePortRequest, UpdateRouterRequest, UpdateVolumeRequest,
     create_security_group_rule, delete_image_member, delete_keypair, delete_security_group,
     delete_security_group_rule, detach_interface,
 };
@@ -69,10 +69,11 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/quotas", get(os_quotas))
         .route("/openstack/subnets", get(os_subnets).post(os_create_subnet))
         .route("/openstack/subnets/{id}", get(os_get_subnet).delete(os_delete_subnet))
-        .route("/openstack/routers/{id}", get(os_get_router).delete(os_delete_router))
+        .route("/openstack/routers/{id}", get(os_get_router).delete(os_delete_router).put(os_update_router))
         .route("/openstack/routers", get(os_routers).post(os_create_router))
         .route("/openstack/availability-zones", get(os_availability_zones))
         .route("/openstack/hypervisors", get(os_hypervisors))
+        .route("/openstack/hypervisors/{id}", get(os_get_hypervisor))
         .route("/openstack/compute-services", get(os_compute_services))
         .route("/openstack/neutron-agents", get(os_neutron_agents))
         .route("/openstack/aggregates", get(os_aggregates))
@@ -81,10 +82,13 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/volumes/clone", post(os_clone_volume))
         .route("/openstack/volume-transfers", get(os_volume_transfers).post(os_create_volume_transfer))
         .route("/openstack/volume-transfers/accept", post(os_accept_volume_transfer))
-        .route("/openstack/volume-transfers/{id}", delete(os_delete_volume_transfer))
+        .route("/openstack/volume-transfers/{id}", get(os_get_volume_transfer).delete(os_delete_volume_transfer))
         .route("/openstack/volumes/from-snapshot", post(os_volume_from_snapshot))
         .route("/openstack/volumes/{id}/retype", post(os_retype_volume))
-        .route("/openstack/volume-snapshots/{id}", delete(os_delete_volume_snapshot))
+        .route(
+            "/openstack/volume-snapshots/{id}",
+            get(os_get_volume_snapshot).delete(os_delete_volume_snapshot),
+        )
         .route("/openstack/routers/add-interface", post(os_router_add_interface))
         .route("/openstack/routers/remove-interface", post(os_router_remove_interface))
         .route("/openstack/ports", get(os_ports).post(os_create_port))
@@ -418,6 +422,37 @@ async fn os_get_port(Path(id): Path<String>) -> Result<Json<serde_json::Value>, 
     ensure_openstack_enabled(&cfg)?;
     let port = get_port(&cfg, &id).await?;
     Ok(Json(serde_json::json!({ "port": port })))
+}
+
+async fn os_get_volume_snapshot(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let snapshot = get_cinder_snapshot(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "snapshot": snapshot })))
+}
+
+async fn os_get_volume_transfer(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let transfer = get_volume_transfer(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "transfer": transfer })))
+}
+
+async fn os_get_hypervisor(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let hv = get_hypervisor(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "hypervisor": hv })))
+}
+
+async fn os_update_router(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateRouterRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let router = update_router(&cfg, &id, &req).await?;
+    Ok(Json(serde_json::json!({ "router": router })))
 }
 
 async fn os_delete_subnet(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {

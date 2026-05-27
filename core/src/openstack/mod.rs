@@ -25,7 +25,7 @@ mod topology;
 mod volumes;
 
 pub use admin::{
-    list_availability_zones, list_compute_services, list_host_aggregates, list_hypervisors,
+    list_availability_zones, list_compute_services, list_host_aggregates, list_hypervisors, get_hypervisor,
     list_neutron_agents, OpenStackAvailabilityZone, OpenStackComputeService, OpenStackHostAggregate,
     OpenStackHypervisor, OpenStackNeutronAgent,
 };
@@ -64,7 +64,8 @@ pub use security_groups::{
 pub use volumes::{
     create_cinder_volume, create_volume_from_image, create_volume_from_snapshot, clone_cinder_volume,
     create_volume_transfer, accept_volume_transfer, delete_cinder_snapshot, delete_cinder_volume,
-    delete_volume_transfer, extend_cinder_volume, get_cinder_volume, list_cinder_snapshots, list_volume_transfers,
+    delete_volume_transfer, extend_cinder_volume, get_cinder_snapshot, get_cinder_volume, get_volume_transfer,
+    list_cinder_snapshots, list_volume_transfers,
     retype_cinder_volume, set_volume_bootable, snapshot_cinder_volume, update_cinder_volume,
     AcceptVolumeTransferRequest, CloneVolumeRequest, CreateVolumeFromImageRequest,
     CreateVolumeFromSnapshotRequest, CreateVolumeTransferRequest, ExtendVolumeRequest,
@@ -81,10 +82,10 @@ pub use lifecycle::{
 pub use topology::{
     add_router_interface, create_network, create_port, create_router, create_subnet, delete_network,
     delete_port, delete_router, delete_subnet, get_port, get_router, get_subnet, list_ports, list_routers,
-    list_subnets, remove_router_interface, update_network, update_port, AddRouterInterfaceRequest,
+    list_subnets, remove_router_interface, update_network, update_port, update_router, AddRouterInterfaceRequest,
     CreateNetworkRequest, CreatePortRequest, CreateRouterRequest, CreateSubnetRequest,
     OpenStackPort, OpenStackPortCreated, OpenStackRouter, OpenStackSubnet,
-    RemoveRouterInterfaceRequest, UpdateNetworkRequest, UpdatePortRequest,
+    RemoveRouterInterfaceRequest, UpdateNetworkRequest, UpdatePortRequest, UpdateRouterRequest,
 };
 pub use quotas::{get_quota_summary, probe_cinder_reachable, OpenStackQuotaSummary};
 pub use catalogs_ext::{
@@ -103,7 +104,7 @@ pub use security_groups::{
     delete_security_group_rule, CreateSecurityGroupRequest, CreateSecurityGroupRuleRequest,
 };
 pub use networking::{
-    associate_floating_ip, create_floating_ip, delete_floating_ip, dissociate_floating_ip,
+    associate_floating_ip, create_floating_ip, delete_floating_ip, dissociate_floating_ip, get_floating_ip,
     list_floating_ips,
     list_instance_floating_ips, AssociateFloatingIpRequest, CreateFloatingIpRequest,
     OpenStackFloatingIp,

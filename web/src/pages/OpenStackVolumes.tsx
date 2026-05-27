@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import {
   attachOpenStackVolume,
   createOpenStackVolume,
@@ -388,7 +389,11 @@ function OpenStackVolumesContent() {
               <tbody className="divide-y divide-slate-800">
                 {volumes.map((v) => (
                   <tr key={v.id}>
-                    <td className="px-3 py-2 font-mono text-slate-200">{v.name || v.id.slice(0, 8)}</td>
+                    <td className="px-3 py-2 font-mono text-slate-200">
+                      <Link to={`/openstack/volumes/${v.id}`} className="hover:text-sky-300 hover:underline">
+                        {v.name || v.id.slice(0, 8)}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2">{v.size_gb} GB</td>
                     <td className="px-3 py-2">
                       <button type="button" className="text-xs hover:underline"

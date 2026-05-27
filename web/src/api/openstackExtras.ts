@@ -565,3 +565,19 @@ export function updateOpenStackPort(
 ): Promise<{ port: { id: string; name: string; network_id: string; status: string } }> {
   return apiPut(`${API}/openstack/ports/${inst(id)}`, body)
 }
+
+export function getOpenStackVolumeSnapshot(id: string): Promise<{ snapshot: OpenStackVolumeSnapshot }> {
+  return readJsonObject(`${API}/openstack/volume-snapshots/${inst(id)}`)
+}
+
+export function getOpenStackVolumeTransfer(id: string): Promise<{ transfer: OpenStackVolumeTransfer }> {
+  return readJsonObject(`${API}/openstack/volume-transfers/${inst(id)}`)
+}
+
+export function getOpenStackHypervisor(id: string): Promise<{ hypervisor: OpenStackHypervisor }> {
+  return readJsonObject(`${API}/openstack/hypervisors/${inst(id)}`)
+}
+
+export function updateOpenStackRouter(id: string, body: { name: string }): Promise<{ router: OpenStackRouter }> {
+  return apiPut(`${API}/openstack/routers/${inst(id)}`, body)
+}

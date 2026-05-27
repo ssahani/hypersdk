@@ -139,6 +139,50 @@ pub async fn list_hypervisors(cfg: &OpenStackConfig) -> Result<Vec<OpenStackHype
     Ok(out)
 }
 
+pub async fn get_hypervisor(
+    cfg: &OpenStackConfig,
+    hypervisor_id: &str,
+) -> Result<OpenStackHypervisor, LibvirtError> {
+    let id = hypervisor_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("hypervisor id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        hypervisor: HvJson,
+    }
+    #[derive(Deserialize)]
+    struct HvJson {
+        id: u64,
+        hypervisor_hostname: String,
+        state: String,
+        status: String,
+        vcpus: u32,
+        vcpus_used: u32,
+        memory_mb: u64,
+        memory_mb_used: u64,
+        running_vms: u32,
+    }
+    let resp = session
+        .get(COMPUTE, &["os-hypervisors", id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackHypervisor {
+        id: body.hypervisor.id.to_string(),
+        hostname: body.hypervisor.hypervisor_hostname,
+        state: body.hypervisor.state,
+        status: body.hypervisor.status,
+        vcpus: body.hypervisor.vcpus,
+        vcpus_used: body.hypervisor.vcpus_used,
+        memory_mb: body.hypervisor.memory_mb,
+        memory_mb_used: body.hypervisor.memory_mb_used,
+        running_vms: body.hypervisor.running_vms,
+    })
+}
+
 pub async fn list_compute_services(
     cfg: &OpenStackConfig,
 ) -> Result<Vec<OpenStackComputeService>, LibvirtError> {

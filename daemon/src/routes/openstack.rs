@@ -17,7 +17,8 @@ use machina_core::{
     create_floating_ip, delete_floating_ip, delete_instance, delete_network, detach_volume, dissociate_floating_ip,
     pull_glance_image_to_disk,
     enrich_instance_flavor, export_instance_plan, export_instance_to_disk, get_console_output,
-    get_flavor, get_image, get_instance, get_cinder_volume, get_network, get_remote_console, get_security_group,
+    get_flavor, get_image, get_instance, get_cinder_volume, get_floating_ip, get_network, get_remote_console,
+    get_security_group,
     force_delete_instance, is_openstack_configured, list_flavors,
     list_floating_ips, list_cinder_volumes, list_images, list_instance_floating_ips,
     list_instance_volumes, list_instances, list_keypairs, list_networks, list_security_groups,
@@ -805,6 +806,13 @@ async fn openstack_delete_floating_ip(
     Ok(Json(serde_json::json!({ "status": "ok", "id": fip_id })))
 }
 
+async fn openstack_get_floating_ip(Path(fip_id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let fip = get_floating_ip(&cfg, &fip_id).await?;
+    Ok(Json(serde_json::json!({ "floating_ip": fip })))
+}
+
 async fn openstack_create_floating_ip(
     Json(body): Json<CreateFloatingIpRequest>,
 ) -> Result<Json<serde_json::Value>, AppError> {
@@ -885,7 +893,10 @@ pub fn openstack_routes() -> Router<LibvirtManager> {
             "/openstack/floating-ips/{id}/dissociate",
             post(openstack_dissociate_floating_ip),
         )
-        .route("/openstack/floating-ips/{id}", delete(openstack_delete_floating_ip))
+        .route(
+            "/openstack/floating-ips/{id}",
+            get(openstack_get_floating_ip).delete(openstack_delete_floating_ip),
+        )
         .route("/openstack/images/upload/preview", get(openstack_image_upload_preview))
         .route("/openstack/images/upload", post(openstack_image_upload))
         .route("/openstack/images/{id}/pull", post(openstack_image_pull))
