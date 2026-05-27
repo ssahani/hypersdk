@@ -281,10 +281,18 @@ setup_nova_compute() {
     fi
   fi
 
-  if systemctl is-active --quiet openstack-nova-compute 2>/dev/null; then
-    log "nova-compute is active"
+  if ! systemctl is-active --quiet openstack-nova-compute 2>/dev/null; then
+    if [[ "$driver" == "fake" || "$driver" == "libvirt" ]]; then
+      warn "nova-compute not active; running openstack-repair-e2e-compute.sh"
+      bash "${SCRIPT_DIR}/openstack-repair-e2e-compute.sh" "$RC_FILE" || true
+    else
+      warn "nova-compute not active; see /var/log/nova/nova-compute.log"
+    fi
   else
-    warn "nova-compute not active; see /var/log/nova/nova-compute.log"
+    log "nova-compute is active"
+    if command -v nova-manage >/dev/null 2>&1; then
+      nova-manage cell_v2 discover_hosts --verbose 2>/dev/null || true
+    fi
   fi
 }
 

@@ -266,6 +266,14 @@ Libvirt-only (legacy [`api-test.sh`](../scripts/api-test.sh)): same as `e2e-test
 
 Success: exit 0 and summary `All tests passed`. On hosts with `fake.FakeDriver`, guest SSH is warned, not failed, unless `--require-openstack-ssh`.
 
+**If OpenStack create-instance E2E fails** (`nova-compute` inactive, `compute_id`, Placement 409, or *Host is not mapped to any cell*), on the hypervisor as root:
+
+```bash
+sudo ./scripts/openstack-repair-e2e-compute.sh /root/keystonerc_admin
+```
+
+Then re-run E2E. [`openstack-repair-e2e-compute.sh`](../scripts/openstack-repair-e2e-compute.sh) resets fake compute identity, Placement resource provider, and cell v2 host mapping (idempotent).
+
 ## Remote host `185.165.240.5` (May 2026)
 
 Reference hypervisor for Machina + minimal OpenStack E2E (`sus@185.165.240.5`).
