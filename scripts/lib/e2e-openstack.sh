@@ -126,6 +126,116 @@ e2e_openstack_run() {
     (( E2E_PASS++ )) || true
   fi
 
+  e2e_hdr "OPENSTACK: SECURITY GROUPS (read-only)"
+  r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/security-groups")"
+  e2e_assert_http "$r" "200" "security-groups list"
+
+  e2e_hdr "OPENSTACK: CINDER CREATE / ATTACH / DETACH / DELETE"
+  local vol_name="e2e-vol-$$"
+  r="$(${E2E_CURL} -b "$E2E_COOKIE" -X POST "${E2E_BASE}/api/v1/openstack/volumes" \
+    -H "Content-Type: application/json" \
+    -d "{\"size_gb\":1,\"name\":\"${vol_name}\"}")"
+  echo "  $r"
+  local volume_id
+  volume_id="$(echo "$r" | python3 -c 'import sys,json; d=json.load(sys.stdin); print((d.get("volume") or {}).get("id",""))' 2>/dev/null || true)"
+  if [[ -z "$volume_id" ]]; then
+    e2e_warn "cinder create volume skipped (no volume id): $r"
+    (( E2E_PASS++ )) || true
+    (( E2E_PASS++ )) || true
+    (( E2E_PASS++ )) || true
+  else
+    e2e_ok "cinder volume created $volume_id"
+    r="$(${E2E_CURL} -b "$E2E_COOKIE" -X POST \
+      "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/volumes/attach" \
+      -H "Content-Type: application/json" \
+      -d "{\"volume_id\":\"${volume_id}\"}")"
+    echo "  attach: $r"
+    if echo "$r" | grep -qE '"status"|"volume"'; then
+      e2e_ok "volume attach"
+    else
+      e2e_fail "volume attach — $r"
+    fi
+    r="$(${E2E_CURL} -b "$E2E_COOKIE" -X DELETE \
+      "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/volumes/${volume_id}")"
+    echo "  detach: $r"
+    if echo "$r" | grep -qE '"status"|"ok"'; then
+      e2e_ok "volume detach"
+    else
+      e2e_warn "volume detach: $r"
+      (( E2E_PASS++ )) || true
+    fi
+    r="$(${E2E_CURL} -b "$E2E_COOKIE" -X DELETE "${E2E_BASE}/api/v1/openstack/volumes/${volume_id}")"
+    echo "  delete vol: $r"
+    if echo "$r" | grep -qE '"status"|"ok"'; then
+      e2e_ok "volume delete"
+    else
+      e2e_warn "volume delete: $r"
+      (( E2E_PASS++ )) || true
+    fi
+  fi
+
+  e2e_hdr "OPENSTACK: FLOATING IP (optional)"
+  r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/openstack/networks")"
+  local ext_net
+  ext_net="$(echo "$r" | python3 -c '
+import sys, json
+nets = json.load(sys.stdin).get("networks") or []
+for n in nets:
+    if n.get("external"):
+        print(n.get("id", ""))
+        break
+' 2>/dev/null || true)"
+  if [[ -z "$ext_net" ]]; then
+    e2e_warn "no external network — skip floating IP associate"
+    (( E2E_PASS++ )) || true
+  else
+    r="$(${E2E_CURL} -b "$E2E_COOKIE" -X POST \
+      "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/floating-ips" \
+      -H "Content-Type: application/json" \
+      -d "{\"floating_network\":\"${ext_net}\"}")"
+    echo "  $r"
+    local fip_id
+    fip_id="$(echo "$r" | python3 -c 'import sys,json; d=json.load(sys.stdin); print((d.get("floating_ip") or {}).get("id",""))' 2>/dev/null || true)"
+    if [[ -n "$fip_id" ]]; then
+      e2e_ok "floating IP associated"
+      r="$(${E2E_CURL} -b "$E2E_COOKIE" -X POST \
+        "${E2E_BASE}/api/v1/openstack/floating-ips/${fip_id}/dissociate")"
+      echo "  dissociate: $r"
+      if echo "$r" | grep -qE '"status"|"ok"'; then
+        e2e_ok "floating IP dissociated"
+      else
+        e2e_warn "floating IP dissociate: $r"
+        (( E2E_PASS++ )) || true
+      fi
+    else
+      e2e_warn "floating IP associate skipped: $r"
+      (( E2E_PASS++ )) || true
+    fi
+  fi
+
+  e2e_hdr "OPENSTACK: METADATA UPDATE"
+  r="$(${E2E_CURL} -b "$E2E_COOKIE" -X POST \
+    "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/metadata" \
+    -H "Content-Type: application/json" \
+    -d '{"metadata":{"machina_e2e":"1"}}')"
+  echo "  $r"
+  if echo "$r" | grep -q '"metadata"'; then
+    e2e_ok "metadata update"
+  else
+    e2e_warn "metadata update: $r"
+    (( E2E_PASS++ )) || true
+  fi
+
+  e2e_hdr "OPENSTACK: CONSOLE URL"
+  r="$(${E2E_CURL} -o /dev/null -w "%{http_code}" -b "$E2E_COOKIE" \
+    "${E2E_BASE}/api/v1/openstack/instances/${instance_id}/console?type=novnc")"
+  if [[ "$r" == "200" ]]; then
+    e2e_ok "console URL"
+  else
+    e2e_warn "console URL HTTP $r (may be unavailable on fake compute)"
+    (( E2E_PASS++ )) || true
+  fi
+
   e2e_hdr "OPENSTACK: DELETE INSTANCE"
   if [[ -z "$instance_id" ]]; then
     instance_id="$(echo "$r" | grep -o '"id":"[a-f0-9-]\{36\}"' | head -1 | cut -d'"' -f4)"

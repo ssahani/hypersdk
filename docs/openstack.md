@@ -92,8 +92,10 @@ connect_timeout_secs = 30
 |-----|------|
 | OpenStack | `/openstack/instances` — list, search, start/stop/reboot (nav when configured) |
 | Instance detail | `/openstack/instances/{id}` — lifecycle, console, FIPs, Cinder attach/detach, resize, security groups, export |
-| Create wizard | `/openstack/create` — image, flavor, network, keypair, AZ, security groups (defaults from config) |
+| Embedded console | `/openstack/instances/{id}/console?type=novnc` — iframe to Nova remote console URL |
+| Create wizard | `/openstack/create` — Glance image, existing Cinder boot volume, or new volume from image; flavor, network, keypair |
 | Glance images | `/openstack/images` — pull to hypervisor, import as libvirt |
+| Security groups | `/openstack/security-groups` — read-only Neutron list + rule viewer |
 | Bulk migrations | `/openstack/migrations` — HyperSDK proxy (when `[hypersdk] enabled`) |
 
 Lifecycle APIs:
@@ -104,7 +106,9 @@ Lifecycle APIs:
 - `POST .../pause`, `.../unpause`, `.../suspend`, `.../resume`
 - `POST .../resize` — body `{ "flavor": "<flavor id or name>" }` (auto-confirms resize)
 - `GET .../console-output?lines=100` — serial console log tail
-- `GET .../console?type=novnc` — remote console URL (`novnc`, `spice`, `serial`, `rdp`)
+- `GET .../console?type=novnc` — remote console URL (`novnc`, `spice`, `serial`, `rdp`); UI embeds via `/openstack/instances/{id}/console`
+- `POST .../rebuild` — body `{ "image": "<glance id>", "name": "..." }` (optional name)
+- `POST .../metadata` — body `{ "metadata": { "key": "value" } }`
 - `POST .../snapshot` — body `{ "image_name": "..." }` (Nova createImage → Glance)
 - `POST .../export` — body `{ "image_name", "auto_pull", "dest_path", "wait_for_active" }` — snapshot; with `auto_pull` streams Glance image to hypervisor
 - `DELETE .../instances/{id}`
@@ -112,6 +116,10 @@ Lifecycle APIs:
 Volumes & networking:
 
 - `GET /api/v1/openstack/volumes` — Cinder volumes (attach picker)
+- `POST /api/v1/openstack/volumes` — body `{ "size_gb": N, "name": "...", "description": "..." }`
+- `DELETE /api/v1/openstack/volumes/{id}`
+- `GET /api/v1/openstack/security-groups` — Neutron security groups + rules (read-only)
+- `GET /api/v1/openstack/security-groups/{id}`
 - `GET .../instances/{id}/volumes` — attachments for one instance
 - `POST .../instances/{id}/volumes/attach` — body `{ "volume_id": "..." }`
 - `DELETE .../instances/{id}/volumes/{volume_id}`
@@ -132,7 +140,7 @@ Catalog APIs for the create wizard:
 - `GET /api/v1/vms/{name}/openstack-push/preview` — libvirt VM push preview
 - `POST /api/v1/vms/{name}/openstack-push` — upload VM root disk (native or hyper2kvm)
 - `GET /api/v1/openstack/keypairs`
-- `POST /api/v1/openstack/instances` — create instance (optional `availability_zone`, `security_groups`, `user_data`)
+- `POST /api/v1/openstack/instances` — create instance; boot from **one of**: `image`, `boot_volume_id`, or `boot_volume_image` + `boot_volume_size_gb` (optional `availability_zone`, `security_groups`, `user_data`)
 
 Audit events: `openstack.instance.*`, `openstack.image.upload`, `openstack.image.delete`.
 

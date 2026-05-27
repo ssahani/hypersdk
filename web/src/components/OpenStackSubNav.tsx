@@ -5,12 +5,13 @@
 import { Link, useLocation } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
-import { Cloud, Server, HardDrive, Plus, GitBranch, LayoutGrid, Settings } from 'lucide-react'
+import { Cloud, Server, HardDrive, Plus, GitBranch, LayoutGrid, Settings, Shield } from 'lucide-react'
 
 const TABS = [
   { to: '/openstack', label: 'Overview', icon: LayoutGrid, end: true },
   { to: '/openstack/instances', label: 'Instances', icon: Server },
   { to: '/openstack/images', label: 'Glance', icon: HardDrive },
+  { to: '/openstack/security-groups', label: 'Security', icon: Shield },
   { to: '/openstack/create', label: 'Create', icon: Plus },
   { to: '/openstack/migrations', label: 'Migrations', icon: GitBranch, requiresHypersdk: true },
 ] as const

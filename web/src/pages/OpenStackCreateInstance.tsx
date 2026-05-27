@@ -6,10 +6,13 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import {
   createOpenStackInstance,
+  listOpenStackCinderVolumes,
   listOpenStackFlavors,
   listOpenStackImages,
   listOpenStackNetworks,
   listOpenStackKeypairs,
+  type OpenStackAttachedVolume,
+  type OpenStackBootSource,
   type OpenStackFlavor,
   type OpenStackImage,
   type OpenStackNetwork,
@@ -30,7 +33,7 @@ import { openStackErrorHints } from '../utils/openstackHints'
 
 const STEPS = ['Source', 'Flavor', 'Network & access', 'Review'] as const
 
-type CatalogKey = 'flavors' | 'images' | 'networks' | 'keypairs'
+type CatalogKey = 'flavors' | 'images' | 'networks' | 'keypairs' | 'volumes'
 
 export default function OpenStackCreateInstancePage() {
   return (
@@ -56,9 +59,14 @@ function OpenStackCreateInstanceContent() {
   const [allImages, setAllImages] = useState<OpenStackImage[]>([])
   const [networks, setNetworks] = useState<OpenStackNetwork[]>([])
   const [keypairs, setKeypairs] = useState<OpenStackKeyPair[]>([])
+  const [cinderVolumes, setCinderVolumes] = useState<OpenStackAttachedVolume[]>([])
 
   const [name, setName] = useState('')
+  const [bootSource, setBootSource] = useState<OpenStackBootSource>('image')
   const [imageId, setImageId] = useState('')
+  const [bootVolumeId, setBootVolumeId] = useState('')
+  const [bootVolumeImageId, setBootVolumeImageId] = useState('')
+  const [bootVolumeSizeGb, setBootVolumeSizeGb] = useState('8')
   const [flavorId, setFlavorId] = useState('')
   const [networkId, setNetworkId] = useState('')
   const [keyName, setKeyName] = useState('')
@@ -70,11 +78,12 @@ function OpenStackCreateInstanceContent() {
   const loadCatalogs = useCallback(async () => {
     setLoading(true)
     setCatalogErrors({})
-    const [flavorsR, imagesR, networksR, keypairsR] = await Promise.allSettled([
+    const [flavorsR, imagesR, networksR, keypairsR, volumesR] = await Promise.allSettled([
       listOpenStackFlavors(),
       listOpenStackImages(),
       listOpenStackNetworks(),
       listOpenStackKeypairs(),
+      listOpenStackCinderVolumes(),
     ])
 
     const errs: Partial<Record<CatalogKey, string>> = {}
@@ -131,6 +140,14 @@ function OpenStackCreateInstanceContent() {
       setKeypairs([])
     }
 
+    if (volumesR.status === 'fulfilled') {
+      const unattached = volumesR.value.volumes.filter((v) => !v.device)
+      setCinderVolumes(unattached)
+    } else {
+      errs.volumes = formatUserError(volumesR.reason)
+      setCinderVolumes([])
+    }
+
     setCatalogErrors(errs)
     setLoading(false)
 
@@ -148,7 +165,10 @@ function OpenStackCreateInstanceContent() {
 
   const selectedFlavor = flavors.find((f) => f.id === flavorId || f.name === flavorId)
   const selectedImage = images.find((i) => i.id === imageId)
+  const selectedBootVolume = cinderVolumes.find((v) => v.id === bootVolumeId)
+  const selectedBootVolumeImage = images.find((i) => i.id === bootVolumeImageId)
   const selectedNetwork = networks.find((n) => n.id === networkId || n.name === networkId)
+  const bootVolumeSize = Number.parseInt(bootVolumeSizeGb, 10)
 
   const catalogErrorSummary = Object.entries(catalogErrors)
     .map(([k, v]) => `${k}: ${v}`)
@@ -156,8 +176,17 @@ function OpenStackCreateInstanceContent() {
 
   const canNext = () => {
     if (step === 0) {
+      if (!name.trim()) return false
+      if (bootSource === 'image') {
+        if (catalogErrors.images) return false
+        return imageId.length > 0
+      }
+      if (bootSource === 'volume') {
+        if (catalogErrors.volumes) return false
+        return bootVolumeId.length > 0
+      }
       if (catalogErrors.images) return false
-      return name.trim().length > 0 && imageId.length > 0
+      return bootVolumeImageId.length > 0 && Number.isFinite(bootVolumeSize) && bootVolumeSize > 0
     }
     if (step === 1) {
       if (catalogErrors.flavors) return false
@@ -171,7 +200,11 @@ function OpenStackCreateInstanceContent() {
   }
 
   const handleCreate = async () => {
-    if (!name.trim() || !flavorId || !imageId || !networkId) {
+    const hasBoot =
+      (bootSource === 'image' && imageId) ||
+      (bootSource === 'volume' && bootVolumeId) ||
+      (bootSource === 'new_volume' && bootVolumeImageId && bootVolumeSize > 0)
+    if (!name.trim() || !flavorId || !hasBoot || !networkId) {
       toast.warning('Complete all required fields')
       return
     }
@@ -185,7 +218,10 @@ function OpenStackCreateInstanceContent() {
       const resp = await createOpenStackInstance({
         name: name.trim(),
         flavor: flavorId,
-        image: imageId,
+        image: bootSource === 'image' ? imageId : undefined,
+        boot_volume_id: bootSource === 'volume' ? bootVolumeId : undefined,
+        boot_volume_image: bootSource === 'new_volume' ? bootVolumeImageId : undefined,
+        boot_volume_size_gb: bootSource === 'new_volume' ? bootVolumeSize : undefined,
         network: networkId,
         key_name: keyName || undefined,
         availability_zone: availabilityZone.trim() || undefined,
@@ -285,46 +321,133 @@ function OpenStackCreateInstanceContent() {
             />
           </div>
           <div>
-            <label className="block text-sm text-slate-400 mb-2">Glance image</label>
-            {catalogErrors.images ? (
-              <p className="text-sm text-red-300/90">{catalogErrors.images}</p>
-            ) : (
-              <ChoiceCardGrid>
-                {images.map((img) => (
-                  <ChoiceCard
-                    key={img.id}
-                    tone="sky"
-                    icon={<Disc className="w-4 h-4" />}
-                    selected={imageId === img.id}
-                    onClick={() => setImageId(img.id)}
-                    title={img.name || img.id.slice(0, 8)}
-                    description={`${img.min_disk_gb} GB disk · ${img.min_ram_mb} MB RAM min`}
-                  />
-                ))}
-              </ChoiceCardGrid>
-            )}
-            {!catalogErrors.images && images.length === 0 && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100/90 space-y-2">
-                <p>No ACTIVE images in this project.</p>
-                {allImages.length > 0 && (
-                  <p className="text-xs text-amber-200/70">
-                    {allImages.length} image(s) exist but none are ACTIVE yet — wait for upload/import to finish.
-                  </p>
-                )}
-                <p className="text-xs text-slate-400">
-                  <Link to="/disk-images" className="text-sky-400 hover:underline">
-                    Push qcow2 from Disk images
-                  </Link>
-                  {' · '}
-                  <Link to="/import" className="text-sky-400 hover:underline">
-                    Import VM
-                  </Link>
-                  {' · on host: '}
-                  <code className="text-[11px]">openstack image list</code>
-                </p>
-              </div>
-            )}
+            <label className="block text-sm text-slate-400 mb-2">Boot source</label>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {([
+                ['image', 'Glance image'],
+                ['volume', 'Existing Cinder volume'],
+                ['new_volume', 'New volume from image'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setBootSource(id)}
+                  className={`px-3 py-1.5 rounded-lg text-sm border ${
+                    bootSource === id
+                      ? 'border-sky-500 bg-sky-500/15 text-sky-200'
+                      : 'border-slate-600 text-slate-400 hover:bg-slate-800'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
+          {bootSource === 'image' && (
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">Glance image</label>
+              {catalogErrors.images ? (
+                <p className="text-sm text-red-300/90">{catalogErrors.images}</p>
+              ) : (
+                <ChoiceCardGrid>
+                  {images.map((img) => (
+                    <ChoiceCard
+                      key={img.id}
+                      tone="sky"
+                      icon={<Disc className="w-4 h-4" />}
+                      selected={imageId === img.id}
+                      onClick={() => setImageId(img.id)}
+                      title={img.name || img.id.slice(0, 8)}
+                      description={`${img.min_disk_gb} GB disk · ${img.min_ram_mb} MB RAM min`}
+                    />
+                  ))}
+                </ChoiceCardGrid>
+              )}
+              {!catalogErrors.images && images.length === 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100/90 space-y-2">
+                  <p>No ACTIVE images in this project.</p>
+                  {allImages.length > 0 && (
+                    <p className="text-xs text-amber-200/70">
+                      {allImages.length} image(s) exist but none are ACTIVE yet — wait for upload/import to finish.
+                    </p>
+                  )}
+                  <p className="text-xs text-slate-400">
+                    <Link to="/disk-images" className="text-sky-400 hover:underline">
+                      Push qcow2 from Disk images
+                    </Link>
+                    {' · '}
+                    <Link to="/import" className="text-sky-400 hover:underline">
+                      Import VM
+                    </Link>
+                    {' · on host: '}
+                    <code className="text-[11px]">openstack image list</code>
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          {bootSource === 'volume' && (
+            <div>
+              <label className="block text-sm text-slate-400 mb-2">Cinder boot volume</label>
+              {catalogErrors.volumes ? (
+                <p className="text-sm text-red-300/90">{catalogErrors.volumes}</p>
+              ) : cinderVolumes.length === 0 ? (
+                <p className="text-sm text-slate-500">No unattached volumes. Create one on the instance detail page or via the API.</p>
+              ) : (
+                <ChoiceCardGrid>
+                  {cinderVolumes.map((vol) => (
+                    <ChoiceCard
+                      key={vol.id}
+                      tone="violet"
+                      icon={<Disc className="w-4 h-4" />}
+                      selected={bootVolumeId === vol.id}
+                      onClick={() => setBootVolumeId(vol.id)}
+                      title={vol.name || vol.id.slice(0, 8)}
+                      description={`${vol.size_gb} GB${vol.bootable ? ' · bootable' : ''}`}
+                    />
+                  ))}
+                </ChoiceCardGrid>
+              )}
+            </div>
+          )}
+          {bootSource === 'new_volume' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm text-slate-400 mb-2">Source Glance image</label>
+                {catalogErrors.images ? (
+                  <p className="text-sm text-red-300/90">{catalogErrors.images}</p>
+                ) : (
+                  <ChoiceCardGrid>
+                    {images.map((img) => (
+                      <ChoiceCard
+                        key={img.id}
+                        tone="sky"
+                        icon={<Disc className="w-4 h-4" />}
+                        selected={bootVolumeImageId === img.id}
+                        onClick={() => {
+                          setBootVolumeImageId(img.id)
+                          const min = Math.max(img.min_disk_gb, 1)
+                          setBootVolumeSizeGb(String(min))
+                        }}
+                        title={img.name || img.id.slice(0, 8)}
+                        description={`min ${img.min_disk_gb} GB disk`}
+                      />
+                    ))}
+                  </ChoiceCardGrid>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm text-slate-400 mb-1">New boot volume size (GB)</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={bootVolumeSizeGb}
+                  onChange={(e) => setBootVolumeSizeGb(e.target.value)}
+                  className="w-32 px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100"
+                />
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -446,7 +569,12 @@ function OpenStackCreateInstanceContent() {
       {step === 3 && (
         <div className="rounded-xl border border-slate-700 p-4 space-y-2 text-sm">
           <p><span className="text-slate-500">Name:</span> {name}</p>
-          <p><span className="text-slate-500">Image:</span> {selectedImage?.name || imageId}</p>
+          <p><span className="text-slate-500">Boot:</span>{' '}
+            {bootSource === 'image' && `Glance · ${selectedImage?.name || imageId}`}
+            {bootSource === 'volume' && `Volume · ${selectedBootVolume?.name || bootVolumeId}`}
+            {bootSource === 'new_volume' &&
+              `New ${bootVolumeSize} GB from ${selectedBootVolumeImage?.name || bootVolumeImageId}`}
+          </p>
           <p><span className="text-slate-500">Flavor:</span> {selectedFlavor?.name} ({selectedFlavor?.vcpus} vCPU, {selectedFlavor?.ram_mb} MB)</p>
           <p><span className="text-slate-500">Network:</span> {selectedNetwork?.name || networkId}</p>
           <p><span className="text-slate-500">Key pair:</span> {keyName || '—'}</p>
@@ -490,7 +618,15 @@ function OpenStackCreateInstanceContent() {
           ) : (
             <button
               type="button"
-              disabled={submitting || Boolean(catalogErrors.flavors || catalogErrors.images || catalogErrors.networks)}
+              disabled={
+                submitting ||
+                Boolean(
+                  catalogErrors.flavors ||
+                    catalogErrors.networks ||
+                    (bootSource !== 'volume' && catalogErrors.images) ||
+                    (bootSource === 'volume' && catalogErrors.volumes),
+                )
+              }
               onClick={handleCreate}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white disabled:opacity-50"
             >

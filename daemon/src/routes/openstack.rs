@@ -13,20 +13,21 @@ use axum::{
 };
 use machina_core::{
     add_security_group, associate_floating_ip, attach_volume, audit, connection_status_skeleton,
-    create_instance, delete_glance_image, delete_instance, detach_volume, dissociate_floating_ip,
-    pull_glance_image_to_disk,
+    create_cinder_volume, create_instance, delete_cinder_volume, delete_glance_image,
+    delete_instance, detach_volume, dissociate_floating_ip, pull_glance_image_to_disk,
     enrich_instance_flavor, export_instance_plan, export_instance_to_disk, get_console_output,
-    get_instance,
-    get_remote_console, is_openstack_configured, list_flavors, list_floating_ips,
-    list_cinder_volumes, list_images, list_instance_floating_ips, list_instance_volumes,
-    list_instances, list_keypairs,
-    list_networks, pause_instance, preview_qcow2_upload, reboot_instance, remove_security_group,
+    get_instance, get_remote_console, get_security_group, is_openstack_configured, list_flavors,
+    list_floating_ips, list_cinder_volumes, list_images, list_instance_floating_ips,
+    list_instance_volumes, list_instances, list_keypairs, list_networks, list_security_groups,
+    pause_instance, preview_qcow2_upload, reboot_instance, rebuild_instance, remove_security_group,
     resize_instance, resume_instance, snapshot_instance, start_instance, stop_instance,
-    suspend_instance, test_connection, unpause_instance, upload_qcow2_to_glance, AssociateFloatingIpRequest,
-    AttachVolumeRequest, AuditEvent, CreateInstanceRequest, CreateInstanceResponse, GlancePullRequest,
+    suspend_instance, test_connection, unpause_instance, update_instance_metadata,
+    upload_qcow2_to_glance, AssociateFloatingIpRequest, AttachVolumeRequest, AuditEvent,
+    CreateInstanceRequest, CreateInstanceResponse, GlancePullRequest,
+    OpenStackCreateVolumeRequest,
     GlancePullResult, GlanceUploadPreview, GlanceUploadRequest, GlanceUploadResult, LibvirtError,
-    LibvirtManager, MachinaConfig,
-    OpenStackConnectionStatus, OpenStackInstance,
+    LibvirtManager, MachinaConfig, OpenStackConnectionStatus, OpenStackInstance, RebuildInstanceRequest,
+    UpdateMetadataRequest,
 };
 use serde::Deserialize;
 
@@ -618,6 +619,60 @@ async fn openstack_list_cinder_volumes() -> Result<Json<serde_json::Value>, AppE
     Ok(Json(serde_json::json!({ "volumes": volumes })))
 }
 
+async fn openstack_create_volume(
+    Json(req): Json<OpenStackCreateVolumeRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let vol = create_cinder_volume(&cfg, &req).await?;
+    Ok(Json(serde_json::json!({ "volume": vol })))
+}
+
+async fn openstack_delete_volume(
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    delete_cinder_volume(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id })))
+}
+
+async fn openstack_list_security_groups() -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let groups = list_security_groups(&cfg).await?;
+    Ok(Json(serde_json::json!({ "security_groups": groups })))
+}
+
+async fn openstack_get_security_group(
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let sg = get_security_group(&cfg, &id).await?;
+    Ok(Json(serde_json::json!({ "security_group": sg })))
+}
+
+async fn openstack_rebuild_instance(
+    Path(id): Path<String>,
+    Json(req): Json<RebuildInstanceRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    rebuild_instance(&cfg, &id, &req).await?;
+    Ok(Json(serde_json::json!({ "status": "ok", "id": id })))
+}
+
+async fn openstack_update_metadata(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateMetadataRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let metadata = update_instance_metadata(&cfg, &id, &req).await?;
+    Ok(Json(serde_json::json!({ "metadata": metadata })))
+}
+
 async fn openstack_list_floating_ips_route() -> Result<Json<serde_json::Value>, AppError> {
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
@@ -696,7 +751,15 @@ pub fn openstack_routes() -> Router<LibvirtManager> {
             "/openstack/instances/{id}/security-groups/remove",
             post(openstack_remove_security_group),
         )
-        .route("/openstack/volumes", get(openstack_list_cinder_volumes))
+        .route(
+            "/openstack/volumes",
+            get(openstack_list_cinder_volumes).post(openstack_create_volume),
+        )
+        .route("/openstack/volumes/{id}", delete(openstack_delete_volume))
+        .route("/openstack/security-groups", get(openstack_list_security_groups))
+        .route("/openstack/security-groups/{id}", get(openstack_get_security_group))
+        .route("/openstack/instances/{id}/rebuild", post(openstack_rebuild_instance))
+        .route("/openstack/instances/{id}/metadata", post(openstack_update_metadata))
         .route("/openstack/floating-ips", get(openstack_list_floating_ips_route))
         .route(
             "/openstack/instances/{id}/floating-ips",

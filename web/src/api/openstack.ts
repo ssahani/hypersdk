@@ -114,16 +114,55 @@ export interface OpenStackExportRequest {
   wait_for_active?: boolean
 }
 
+export type OpenStackBootSource = 'image' | 'volume' | 'new_volume'
+
 export interface CreateInstanceRequest {
   name: string
   flavor: string
   image?: string
+  boot_volume_id?: string
+  boot_volume_image?: string
+  boot_volume_size_gb?: number
   network?: string
   key_name?: string
   availability_zone?: string
   security_groups?: string[]
   user_data?: string
   wait_until_active?: boolean
+}
+
+export interface OpenStackCreateVolumeRequest {
+  size_gb: number
+  name?: string
+  description?: string
+}
+
+export interface OpenStackSecurityGroupRule {
+  id: string
+  direction: string
+  protocol?: string
+  port_range_min?: number
+  port_range_max?: number
+  remote_ip_prefix?: string
+  remote_group_id?: string
+  ethertype?: string
+  description?: string
+}
+
+export interface OpenStackSecurityGroup {
+  id: string
+  name: string
+  description?: string
+  rules: OpenStackSecurityGroupRule[]
+}
+
+export interface RebuildInstanceRequest {
+  image: string
+  name?: string
+}
+
+export interface UpdateMetadataRequest {
+  metadata: Record<string, string>
 }
 
 export interface CreateInstanceResponse {
@@ -437,4 +476,43 @@ export function postLibvirtOpenStackPush(
 ): Promise<Record<string, unknown>> {
   const q = connection ? `?connection=${encodeURIComponent(connection)}` : ''
   return apiPost(`${API}/vms/${encodeURIComponent(vmName)}/openstack-push${q}`, body)
+}
+
+export function listOpenStackSecurityGroups(): Promise<{ security_groups: OpenStackSecurityGroup[] }> {
+  return readJsonObject(`${API}/openstack/security-groups`)
+}
+
+export function getOpenStackSecurityGroup(id: string): Promise<{ security_group: OpenStackSecurityGroup }> {
+  return readJsonObject(`${API}/openstack/security-groups/${inst(id)}`)
+}
+
+export function createOpenStackVolume(
+  body: OpenStackCreateVolumeRequest,
+): Promise<{ volume: OpenStackAttachedVolume }> {
+  return apiPost(`${API}/openstack/volumes`, body)
+}
+
+export async function deleteOpenStackVolume(id: string): Promise<{ status: string; id: string }> {
+  const res = await fetch(`${API}/openstack/volumes/${inst(id)}`, {
+    method: 'DELETE',
+    credentials: 'same-origin',
+  })
+  if (!res.ok) {
+    throw await parseResponseError(res)
+  }
+  return res.json()
+}
+
+export function rebuildOpenStackInstance(
+  id: string,
+  body: RebuildInstanceRequest,
+): Promise<{ status: string; id: string }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/rebuild`, body)
+}
+
+export function updateOpenStackMetadata(
+  id: string,
+  body: UpdateMetadataRequest,
+): Promise<{ metadata: Record<string, string> }> {
+  return apiPost(`${API}/openstack/instances/${inst(id)}/metadata`, body)
 }

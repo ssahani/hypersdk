@@ -3,9 +3,11 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router'
 import {
   attachOpenStackVolume,
   associateOpenStackFloatingIp,
+  createOpenStackVolume,
   detachOpenStackVolume,
   dissociateOpenStackFloatingIp,
   getOpenStackConsoleOutput,
@@ -13,26 +15,30 @@ import {
   listOpenStackCinderVolumes,
   listOpenStackFlavors,
   listOpenStackFloatingIps,
+  listOpenStackImages,
   listOpenStackInstanceFloatingIps,
   listOpenStackNetworks,
   pauseOpenStackInstance,
+  rebuildOpenStackInstance,
   resizeOpenStackInstance,
   resumeOpenStackInstance,
   suspendOpenStackInstance,
   unpauseOpenStackInstance,
   addOpenStackSecurityGroup,
   removeOpenStackSecurityGroup,
+  updateOpenStackMetadata,
   OPENSTACK_CONSOLE_TYPES,
   type OpenStackAttachedVolume,
   type OpenStackConsoleType,
   type OpenStackFloatingIp,
+  type OpenStackImage,
   type OpenStackInstance,
   type OpenStackNetwork,
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
 import OpenStackExportModal from './OpenStackExportModal'
 import {
-  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink,
+  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink, Monitor, RotateCcw, Tags,
 } from 'lucide-react'
 import { isFloatingIpAvailable } from '../utils/openstackFloatingIp'
 import { formatUserError } from '../utils/apiError'
@@ -59,21 +65,28 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
   const [consoleType, setConsoleType] = useState<OpenStackConsoleType>('novnc')
   const [consoleLog, setConsoleLog] = useState<string | null>(null)
   const [exportOpen, setExportOpen] = useState(false)
+  const [images, setImages] = useState<OpenStackImage[]>([])
+  const [rebuildImageId, setRebuildImageId] = useState('')
+  const [metadataText, setMetadataText] = useState('')
+  const [newVolSizeGb, setNewVolSizeGb] = useState('8')
+  const [newVolName, setNewVolName] = useState('')
 
   const loadExtras = useCallback(async () => {
     try {
-      const [f, allFips, cv, n, fl] = await Promise.all([
+      const [f, allFips, cv, n, fl, imgs] = await Promise.all([
         listOpenStackInstanceFloatingIps(inst.id),
         listOpenStackFloatingIps(),
         listOpenStackCinderVolumes(),
         listOpenStackNetworks(),
         listOpenStackFlavors(),
+        listOpenStackImages(),
       ])
       setFips(f.floating_ips)
       setPoolFips(allFips.floating_ips.filter((ip) => isFloatingIpAvailable(ip, inst.id)))
       setCinderVols(cv.volumes.filter((v) => !volumes.some((a) => a.id === v.id)))
       setNetworks(n.networks.filter((net) => net.external))
       setFlavors(fl.flavors.map((x) => ({ id: x.id, name: x.name })))
+      setImages(imgs.images.filter((img) => img.status === 'ACTIVE'))
       setExtNet((prev) => {
         if (prev) return prev
         const ext = n.networks.find((net) => net.external)
@@ -91,6 +104,13 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
     extrasErrorShown.current = false
     void loadExtras()
   }, [loadExtras])
+
+  useEffect(() => {
+    const lines = Object.entries(inst.metadata || {})
+      .map(([k, v]) => `${k}=${v}`)
+      .join('\n')
+    setMetadataText(lines)
+  }, [inst.metadata, inst.id])
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -173,13 +193,20 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               ))}
             </select>
           </div>
+          <Link
+            to={`/openstack/instances/${encodeURIComponent(inst.id)}/console?type=${consoleType}`}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white inline-flex items-center gap-1.5"
+          >
+            <Monitor className="w-3.5 h-3.5" />
+            Embedded console
+          </Link>
           <button
             type="button"
             onClick={() => void openRemoteConsole()}
-            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white inline-flex items-center gap-1.5"
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800 inline-flex items-center gap-1.5"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            Open console
+            New tab
           </button>
           <button type="button" onClick={async () => {
             try {
@@ -277,8 +304,115 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
 
       <section className="rounded-xl border border-slate-700/80 p-4">
         <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <RotateCcw className="w-4 h-4 text-amber-400" /> Rebuild
+        </h2>
+        <p className="text-xs text-slate-500 mb-2">Replace the instance disk from a Glance image (destructive).</p>
+        <div className="flex flex-wrap gap-2 items-end">
+          <select
+            value={rebuildImageId}
+            onChange={(e) => setRebuildImageId(e.target.value)}
+            className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm min-w-[12rem]"
+          >
+            <option value="">Glance image…</option>
+            {images.map((img) => (
+              <option key={img.id} value={img.id}>{img.name || img.id}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            disabled={!rebuildImageId}
+            onClick={() => run(
+              () => rebuildOpenStackInstance(inst.id, { image: rebuildImageId }),
+              'Rebuild submitted',
+            )}
+            className="px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-sm text-white disabled:opacity-40"
+          >
+            Rebuild
+          </button>
+        </div>
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <Tags className="w-4 h-4 text-sky-400" /> Metadata
+        </h2>
+        <textarea
+          value={metadataText}
+          onChange={(e) => setMetadataText(e.target.value)}
+          rows={4}
+          className="w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 font-mono text-xs"
+          placeholder="key=value (one per line)"
+        />
+        <button
+          type="button"
+          className="mt-2 px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800"
+          onClick={() => {
+            const metadata: Record<string, string> = {}
+            for (const line of metadataText.split('\n')) {
+              const t = line.trim()
+              if (!t || t.startsWith('#')) continue
+              const eq = t.indexOf('=')
+              if (eq <= 0) {
+                toast.error(`Invalid line: ${t}`)
+                return
+              }
+              metadata[t.slice(0, eq).trim()] = t.slice(eq + 1).trim()
+            }
+            void run(
+              () => updateOpenStackMetadata(inst.id, { metadata }),
+              'Metadata updated',
+            )
+          }}
+        >
+          Save metadata
+        </button>
+      </section>
+
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
           <HardDrive className="w-4 h-4 text-sky-400" /> Cinder volumes
         </h2>
+        <div className="flex flex-wrap gap-2 items-end mb-4 pb-4 border-b border-slate-700/60">
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Create volume (GB)</label>
+            <input
+              type="number"
+              min={1}
+              value={newVolSizeGb}
+              onChange={(e) => setNewVolSizeGb(e.target.value)}
+              className="w-20 px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-1">Name (optional)</label>
+            <input
+              value={newVolName}
+              onChange={(e) => setNewVolName(e.target.value)}
+              className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm"
+              placeholder="data-vol"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              const size = Number.parseInt(newVolSizeGb, 10)
+              if (!Number.isFinite(size) || size < 1) {
+                toast.warning('Enter a valid size in GB')
+                return
+              }
+              void run(
+                () => createOpenStackVolume({
+                  size_gb: size,
+                  name: newVolName.trim() || undefined,
+                }),
+                'Volume created',
+              )
+            }}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white"
+          >
+            Create volume
+          </button>
+        </div>
         <div className="flex flex-wrap gap-2 items-end mb-3">
           <div>
             <label className="block text-xs text-slate-500 mb-1">Attach volume</label>
@@ -313,6 +447,9 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       <section className="rounded-xl border border-slate-700/80 p-4">
         <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
           <Shield className="w-4 h-4 text-sky-400" /> Security groups
+          <Link to="/openstack/security-groups" className="text-xs text-sky-400 hover:underline ml-auto font-normal">
+            View all rules
+          </Link>
         </h2>
         <div className="flex flex-wrap gap-2 items-end mb-2">
           <input value={sgName} onChange={(e) => setSgName(e.target.value)} placeholder="group name"

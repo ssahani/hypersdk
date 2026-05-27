@@ -56,6 +56,11 @@ pub struct CreateInstanceRequest {
     pub name: String,
     pub flavor: String,
     pub image: Option<String>,
+    /// Boot from an existing Cinder volume (mutually exclusive with image / new boot volume).
+    pub boot_volume_id: Option<String>,
+    /// Create a new boot volume from this Glance image (requires boot_volume_size_gb).
+    pub boot_volume_image: Option<String>,
+    pub boot_volume_size_gb: Option<u32>,
     pub network: Option<String>,
     pub key_name: Option<String>,
     pub availability_zone: Option<String>,
@@ -154,10 +159,42 @@ pub async fn create_instance(
     if req.flavor.trim().is_empty() {
         return Err(LibvirtError::Invalid("flavor is required".into()));
     }
+    let boot_vol = req
+        .boot_volume_id
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let boot_img = req
+        .boot_volume_image
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    let has_image = req
+        .image
+        .as_ref()
+        .map(|s| !s.trim().is_empty())
+        .unwrap_or(false);
+    let boot_count = boot_vol.is_some() as u8 + boot_img.is_some() as u8 + has_image as u8;
+    if boot_count != 1 {
+        return Err(LibvirtError::Invalid(
+            "set exactly one boot source: image, boot_volume_id, or boot_volume_image + boot_volume_size_gb"
+                .into(),
+        ));
+    }
+    if boot_img.is_some() && req.boot_volume_size_gb.unwrap_or(0) == 0 {
+        return Err(LibvirtError::Invalid(
+            "boot_volume_size_gb is required when boot_volume_image is set".into(),
+        ));
+    }
     let cloud = connect_cloud(cfg).await?;
     let name = req.name.trim().to_string();
     let mut builder = cloud.new_server(&name, req.flavor.trim());
-    if let Some(ref image) = req.image {
+    if let Some(vol_id) = boot_vol {
+        builder = builder.with_boot_volume(vol_id);
+    } else if let Some(img) = boot_img {
+        let size = req.boot_volume_size_gb.unwrap_or(1);
+        builder = builder.with_new_boot_volume(img, size);
+    } else if let Some(ref image) = req.image {
         if !image.trim().is_empty() {
             builder.set_image(image.trim());
         }

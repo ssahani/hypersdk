@@ -171,6 +171,15 @@ pub async fn connect_session(cfg: &OpenStackConfig) -> Result<Session, LibvirtEr
         .map_err(map_osauth_err)
 }
 
+pub(crate) fn map_json_err(e: reqwest::Error) -> LibvirtError {
+    let mut msg = e.to_string();
+    if msg.len() > 600 {
+        msg.truncate(600);
+        msg.push('…');
+    }
+    LibvirtError::Operation(msg)
+}
+
 pub(crate) fn map_osauth_err(e: osauth::Error) -> LibvirtError {
     let mut msg = e.to_string();
     if let Some(first) = msg.lines().next() {

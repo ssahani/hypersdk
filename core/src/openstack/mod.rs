@@ -12,6 +12,8 @@ mod libvirt_push;
 mod networking;
 mod pull;
 mod resources;
+mod security_groups;
+mod volumes;
 
 pub use auth::{
     connect_session, default_cloud_from_yaml, effective_cloud_name_for_config,
@@ -35,9 +37,16 @@ pub use pull::pull_glance_image_to_disk;
 pub use instance_ops::{
     add_security_group, attach_volume, detach_volume, export_instance_plan, export_instance_to_disk,
     get_console_output,
-    get_remote_console, pause_instance, remove_security_group, resize_instance, resume_instance,
-    suspend_instance, unpause_instance, AttachVolumeRequest, OpenStackConsoleOutput,
-    OpenStackExportPlan, OpenStackRemoteConsole,
+    get_remote_console, pause_instance, rebuild_instance, remove_security_group, resize_instance,
+    resume_instance, suspend_instance, unpause_instance, update_instance_metadata,
+    AttachVolumeRequest, OpenStackConsoleOutput, OpenStackExportPlan, OpenStackRemoteConsole,
+    RebuildInstanceRequest, UpdateMetadataRequest,
+};
+pub use security_groups::{
+    get_security_group, list_security_groups, OpenStackSecurityGroup, OpenStackSecurityGroupRule,
+};
+pub use volumes::{
+    create_cinder_volume, delete_cinder_volume, OpenStackCreateVolumeRequest,
 };
 pub use networking::{
     associate_floating_ip, dissociate_floating_ip, list_floating_ips, list_instance_floating_ips,

@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::config::OpenStackConfig;
 use crate::LibvirtError;
 
-use super::auth::{connect_session, map_osauth_err};
+use super::auth::{connect_session, map_json_err, map_osauth_err};
 use super::compute::{connect_cloud, map_openstack_err};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -317,6 +317,71 @@ pub async fn remove_security_group(
         })
         .await
         .map_err(map_openstack_err)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RebuildInstanceRequest {
+    pub image: String,
+    pub name: Option<String>,
+}
+
+pub async fn rebuild_instance(
+    cfg: &OpenStackConfig,
+    id: &str,
+    req: &RebuildInstanceRequest,
+) -> Result<(), LibvirtError> {
+    let image = req.image.trim();
+    if image.is_empty() {
+        return Err(LibvirtError::Invalid("image is required for rebuild".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let mut body = serde_json::json!({
+        "rebuild": {
+            "imageRef": image,
+        }
+    });
+    if let Some(ref name) = req.name {
+        let n = name.trim();
+        if !n.is_empty() {
+            body["rebuild"]["name"] = serde_json::json!(n);
+        }
+    }
+    session
+        .post(COMPUTE, &["servers", id.trim(), "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateMetadataRequest {
+    pub metadata: std::collections::HashMap<String, String>,
+}
+
+pub async fn update_instance_metadata(
+    cfg: &OpenStackConfig,
+    id: &str,
+    req: &UpdateMetadataRequest,
+) -> Result<std::collections::HashMap<String, String>, LibvirtError> {
+    if req.metadata.is_empty() {
+        return Err(LibvirtError::Invalid("metadata must not be empty".into()));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({ "metadata": req.metadata });
+    let resp = session
+        .post(COMPUTE, &["servers", id.trim(), "metadata"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    #[derive(Deserialize)]
+    struct MetaResp {
+        metadata: std::collections::HashMap<String, String>,
+    }
+    let parsed: MetaResp = resp.json().await.map_err(map_json_err)?;
+    Ok(parsed.metadata)
 }
 
 fn map_reqwest_err(e: reqwest::Error) -> LibvirtError {
