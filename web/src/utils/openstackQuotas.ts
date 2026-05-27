@@ -51,3 +51,29 @@ export function parseQuotaRows(limits: unknown): QuotaRow[] {
   rows.sort((a, b) => a.label.localeCompare(b.label))
   return rows
 }
+
+/** Extract used/limit rows from Neutron quota details JSON. */
+export function parseNeutronQuotaRows(quotas: unknown): QuotaRow[] {
+  if (!quotas || typeof quotas !== 'object') return []
+  const root = quotas as Record<string, unknown>
+  const bag =
+    root.quota && typeof root.quota === 'object'
+      ? (root.quota as Record<string, unknown>)
+      : root
+
+  const rows: QuotaRow[] = []
+  for (const [key, val] of Object.entries(bag)) {
+    if (val && typeof val === 'object' && 'used' in val && 'limit' in val) {
+      const d = val as { used: number; limit: number }
+      rows.push({
+        label: key.replace(/_/g, ' '),
+        used: d.used,
+        max: d.limit,
+      })
+    } else if (typeof val === 'number') {
+      rows.push({ label: key.replace(/_/g, ' '), used: 0, max: val })
+    }
+  }
+  rows.sort((a, b) => a.label.localeCompare(b.label))
+  return rows
+}

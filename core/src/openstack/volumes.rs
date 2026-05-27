@@ -722,3 +722,64 @@ pub async fn delete_cinder_snapshot(cfg: &OpenStackConfig, snapshot_id: &str) ->
         .map_err(map_osauth_err)?;
     Ok(())
 }
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct UploadVolumeToImageRequest {
+    pub image_name: String,
+    pub disk_format: Option<String>,
+    #[serde(default)]
+    pub force: bool,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UploadVolumeToImageResponse {
+    pub image_id: String,
+    pub status: String,
+}
+
+pub async fn upload_volume_to_image(
+    cfg: &OpenStackConfig,
+    volume_id: &str,
+    req: &UploadVolumeToImageRequest,
+) -> Result<UploadVolumeToImageResponse, LibvirtError> {
+    let id = volume_id.trim();
+    let name = req.image_name.trim();
+    if id.is_empty() || name.is_empty() {
+        return Err(LibvirtError::Invalid("volume id and image_name are required".into()));
+    }
+    let disk_format = req
+        .disk_format
+        .as_deref()
+        .unwrap_or("qcow2")
+        .trim()
+        .to_string();
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({
+        "os-volume_upload_image": {
+            "image_name": name,
+            "disk_format": disk_format,
+            "force": req.force
+        }
+    });
+    #[derive(Deserialize)]
+    struct Resp {
+        #[serde(rename = "os-volume_upload_image")]
+        upload: UploadOut,
+    }
+    #[derive(Deserialize)]
+    struct UploadOut {
+        image_id: String,
+        status: String,
+    }
+    let resp = session
+        .post(BLOCK_STORAGE, &["volumes", id, "action"])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(UploadVolumeToImageResponse {
+        image_id: parsed.upload.image_id,
+        status: parsed.upload.status,
+    })
+}

@@ -270,7 +270,8 @@ function OpenStackVolumesContent() {
           <ul className="text-xs font-mono text-slate-400 space-y-1">
             {transfers.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center gap-2">
-                <span>{t.name} · vol {t.volume_id.slice(0, 8)} · {t.id.slice(0, 8)}</span>
+                <Link to={`/openstack/volume-transfers/${t.id}`} className="text-sky-300 hover:underline">{t.name}</Link>
+                <span>· vol {t.volume_id.slice(0, 8)} · {t.id.slice(0, 8)}</span>
                 <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
                   if (!confirm(`Cancel transfer ${t.name}?`)) return
                   try { await deleteOpenStackVolumeTransfer(t.id); toast.success('Transfer deleted'); void load() }

@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { Cloud, Server, HardDrive, Plus, GitBranch, Upload, Download, ArrowRight } from 'lucide-react'
+import { Cloud, Server, HardDrive, Plus, GitBranch, Upload, Download, ArrowRight, Globe, Camera } from 'lucide-react'
 import Hero from '../components/Hero'
 import OpenStackSetupPanel from '../components/OpenStackSetupPanel'
 import OpenStackSubNav from '../components/OpenStackSubNav'
@@ -50,6 +50,18 @@ const QUICK_LINKS = [
     icon: Cloud,
     title: 'Nova flavors',
     description: 'Read-only flavor catalog for sizing instances.',
+  },
+  {
+    to: '/openstack/floating-ips',
+    icon: Globe,
+    title: 'Floating IPs',
+    description: 'Allocate, associate, and release Neutron floating IPs.',
+  },
+  {
+    to: '/openstack/volume-snapshots',
+    icon: Camera,
+    title: 'Volume snapshots',
+    description: 'Cinder snapshot list and restore workflows.',
   },
   {
     to: '/openstack/migrations',

@@ -3146,9 +3146,139 @@
     },
     "/openstack/quotas": {
       "get": {
-        "summary": "Nova/Cinder quota limits (read-only)",
+        "summary": "Nova/Cinder/Neutron quota limits (read-only)",
         "tags": ["OpenStack"],
-        "responses": { "200": { "description": "Quota summary" } }
+        "responses": { "200": { "description": "Quota summary (compute, cinder, neutron)" } }
+      }
+    },
+    "/openstack/subnets/{id}": {
+      "get": {
+        "summary": "Get Neutron subnet",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Subnet detail" } }
+      },
+      "put": {
+        "summary": "Update Neutron subnet",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "gateway_ip": { "type": "string" },
+                  "enable_dhcp": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Subnet updated" } }
+      },
+      "delete": {
+        "summary": "Delete Neutron subnet",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/openstack/networks/{id}": {
+      "get": {
+        "summary": "Get Neutron network",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Network detail" } }
+      },
+      "put": {
+        "summary": "Update Neutron network (rename)",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Network updated" } }
+      }
+    },
+    "/openstack/routers/{id}": {
+      "get": {
+        "summary": "Get Neutron router",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Router detail" } }
+      },
+      "put": {
+        "summary": "Update Neutron router (rename / external gateway)",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "external_network_id": { "type": "string" },
+                  "clear_external_gateway": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Router updated" } }
+      },
+      "delete": {
+        "summary": "Delete Neutron router",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Deleted" } }
+      }
+    },
+    "/openstack/hypervisors/{id}": {
+      "get": {
+        "summary": "Get Nova hypervisor",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Hypervisor detail" } }
+      }
+    },
+    "/openstack/volume-transfers/{id}": {
+      "get": {
+        "summary": "Get Cinder volume transfer",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Transfer detail (includes auth_key when available)" } }
+      },
+      "delete": {
+        "summary": "Cancel Cinder volume transfer",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Transfer cancelled" } }
+      }
+    },
+    "/openstack/volumes/{id}/upload-image": {
+      "post": {
+        "summary": "Upload Cinder volume to Glance image",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["image_name"],
+                "properties": {
+                  "image_name": { "type": "string" },
+                  "disk_format": { "type": "string" },
+                  "force": { "type": "boolean" }
+                }
+              }
+            }
+          }
+        },
+        "responses": { "200": { "description": "Upload initiated" } }
       }
     },
     "/openstack/subnets": {
@@ -3239,6 +3369,12 @@
       }
     },
     "/openstack/volume-snapshots/{id}": {
+      "get": {
+        "summary": "Get Cinder volume snapshot",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Snapshot detail" } }
+      },
       "delete": {
         "summary": "Delete Cinder volume snapshot",
         "tags": ["OpenStack"],
@@ -3366,6 +3502,18 @@
       }
     },
     "/openstack/ports/{id}": {
+      "get": {
+        "summary": "Get Neutron port",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Port detail" } }
+      },
+      "put": {
+        "summary": "Update Neutron port",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Port updated" } }
+      },
       "delete": {
         "summary": "Delete Neutron port",
         "tags": ["OpenStack"],
@@ -3408,6 +3556,12 @@
       }
     },
     "/openstack/server-groups/{id}": {
+      "get": {
+        "summary": "Get Nova server group",
+        "tags": ["OpenStack"],
+        "parameters": [{ "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": { "200": { "description": "Server group detail" } }
+      },
       "delete": {
         "summary": "Delete Nova server group",
         "tags": ["OpenStack"],

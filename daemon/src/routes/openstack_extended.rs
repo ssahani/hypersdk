@@ -27,7 +27,7 @@ use machina_core::{
     rename_instance, retype_cinder_volume, reset_instance_state, rescue_instance, resolve_console_token,
     unlock_instance, unrescue_instance, unshelve_instance, shelve_instance, snapshot_cinder_volume,
     set_volume_bootable, update_cinder_volume, update_image_metadata, update_image_visibility,
-    update_network, update_port, update_router,
+    update_network, update_port, update_router, update_subnet, upload_volume_to_image,
     AcceptVolumeTransferRequest, AddImageMemberRequest, AttachInterfaceRequest, BackupInstanceRequest,
     CloneVolumeRequest, CreateKeypairRequest, CreateSecurityGroupRequest, CreateSecurityGroupRuleRequest,
     CreateServerGroupRequest, CreateVolumeFromImageRequest, CreateVolumeTransferRequest, ExtendVolumeRequest,
@@ -35,7 +35,8 @@ use machina_core::{
     OpenStackCreateRouterRequest, OpenStackCreateSubnetRequest, RemoveRouterInterfaceRequest,
     CreateVolumeFromSnapshotRequest, RenameInstanceRequest, RescueInstanceRequest, RetypeVolumeRequest,
     SnapshotVolumeRequest, UpdateImageMetadataRequest, UpdateImageVisibilityRequest, UpdateNetworkRequest,
-    UpdatePortRequest, UpdateRouterRequest, UpdateVolumeRequest,
+    UpdatePortRequest, UpdateRouterRequest, UpdateSubnetRequest, UpdateVolumeRequest,
+    UploadVolumeToImageRequest,
     create_security_group_rule, delete_image_member, delete_keypair, delete_security_group,
     delete_security_group_rule, detach_interface,
 };
@@ -68,7 +69,7 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/cloud", post(os_select_cloud))
         .route("/openstack/quotas", get(os_quotas))
         .route("/openstack/subnets", get(os_subnets).post(os_create_subnet))
-        .route("/openstack/subnets/{id}", get(os_get_subnet).delete(os_delete_subnet))
+        .route("/openstack/subnets/{id}", get(os_get_subnet).put(os_update_subnet).delete(os_delete_subnet))
         .route("/openstack/routers/{id}", get(os_get_router).delete(os_delete_router).put(os_update_router))
         .route("/openstack/routers", get(os_routers).post(os_create_router))
         .route("/openstack/availability-zones", get(os_availability_zones))
@@ -113,6 +114,7 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/volumes/{id}/snapshot", post(os_snapshot_volume))
         .route("/openstack/volumes/{id}", put(os_update_volume))
         .route("/openstack/volumes/{id}/bootable", post(os_set_volume_bootable))
+        .route("/openstack/volumes/{id}/upload-image", post(os_upload_volume_image))
         .route("/openstack/images/{id}/metadata", post(os_image_metadata))
         .route("/openstack/images/{id}/visibility", post(os_image_visibility))
         .route("/openstack/images/{id}/members", get(os_image_members).post(os_add_member))
@@ -450,6 +452,26 @@ async fn os_get_hypervisor(Path(id): Path<String>) -> Result<Json<serde_json::Va
     ensure_openstack_enabled(&cfg)?;
     let hv = get_hypervisor(&cfg, &id).await?;
     Ok(Json(serde_json::json!({ "hypervisor": hv })))
+}
+
+async fn os_update_subnet(
+    Path(id): Path<String>,
+    Json(req): Json<UpdateSubnetRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let subnet = update_subnet(&cfg, &id, &req).await?;
+    Ok(Json(serde_json::json!({ "subnet": subnet })))
+}
+
+async fn os_upload_volume_image(
+    Path(id): Path<String>,
+    Json(req): Json<UploadVolumeToImageRequest>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let result = upload_volume_to_image(&cfg, &id, &req).await?;
+    Ok(Json(serde_json::json!({ "upload": result })))
 }
 
 async fn os_update_router(

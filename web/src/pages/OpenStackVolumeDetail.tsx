@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Disc, Loader2 } from 'lucide-react'
-import { getOpenStackVolume, setOpenStackVolumeBootable, updateOpenStackVolume } from '../api/openstackExtras'
+import { getOpenStackVolume, setOpenStackVolumeBootable, updateOpenStackVolume, uploadOpenStackVolumeToImage } from '../api/openstackExtras'
 import type { OpenStackAttachedVolume } from '../api/openstack'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
@@ -93,6 +93,19 @@ function OpenStackVolumeDetailContent() {
             void load()
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Rename</button>
+      <section className="rounded-xl border border-slate-700 p-4 space-y-3">
+        <h2 className="text-sm font-medium text-slate-300">Create Glance image from volume</h2>
+        <p className="text-xs text-slate-500">Upload this Cinder volume to Glance (Cinder os-volume_upload_image).</p>
+        <button type="button" className="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-sm"
+          onClick={async () => {
+            const name = prompt('Glance image name', vol.name ? `${vol.name}-image` : 'volume-image')
+            if (!name?.trim()) return
+            try {
+              const r = await uploadOpenStackVolumeToImage(vol.id, { image_name: name.trim() })
+              toast.success(`Upload started — image ${r.upload.image_id} (${r.upload.status})`)
+            } catch (e: unknown) { toast.error(formatUserError(e)) }
+          }}>Upload to Glance</button>
+      </section>
       <OpenStackFooter />
     </div>
   )

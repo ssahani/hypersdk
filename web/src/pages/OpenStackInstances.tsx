@@ -15,7 +15,7 @@ import {
   type OpenStackConnectionStatus,
 } from '../api/openstack'
 import { useToastContext } from '../contexts/ToastContext'
-import { Play, Square, RotateCcw, Search, RefreshCw, Cloud, Plus } from 'lucide-react'
+import { Play, Square, RotateCcw, Search, RefreshCw, Cloud, Plus, Lock } from 'lucide-react'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
@@ -241,9 +241,14 @@ function OpenStackInstancesContent() {
                 <td className="px-4 py-3">
                   <Link
                     to={`/openstack/instances/${encodeURIComponent(inst.id)}`}
-                    className="font-medium text-sky-400 hover:text-sky-300"
+                    className="font-medium text-sky-400 hover:text-sky-300 inline-flex items-center gap-1.5"
                   >
                     {inst.name || inst.id.slice(0, 8)}
+                    {inst.locked && (
+                      <span title="Locked" className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] uppercase">
+                        <Lock className="w-3 h-3" /> Locked
+                      </span>
+                    )}
                   </Link>
                   <div className="text-xs text-slate-500 font-mono truncate max-w-[220px]">{inst.id}</div>
                 </td>

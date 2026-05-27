@@ -734,6 +734,39 @@ impl DaemonClient {
         .await
     }
 
+    pub async fn openstack_migrate_instance(
+        &self,
+        id: &str,
+        live: bool,
+        host: Option<&str>,
+    ) -> Result<()> {
+        let mut body = serde_json::json!({ "live": live, "block_migration": false });
+        if let Some(h) = host.filter(|s| !s.is_empty()) {
+            body["host"] = serde_json::json!(h);
+        }
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/migrate"),
+            &body,
+        )
+        .await
+    }
+
+    pub async fn openstack_backup_instance(&self, id: &str, name: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/backup"),
+            &serde_json::json!({ "name": name }),
+        )
+        .await
+    }
+
+    pub async fn openstack_rebuild_instance(&self, id: &str, image: &str) -> Result<()> {
+        self.post_json(
+            &format!("/api/v1/openstack/instances/{id}/rebuild"),
+            &serde_json::json!({ "image": image }),
+        )
+        .await
+    }
+
     pub async fn kubevirt_cluster_exec(
         &self,
         vm: &str,

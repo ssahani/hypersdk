@@ -8,6 +8,8 @@ use std::collections::HashMap;
 
 use openstack::compute::{RebootType, Server};
 use openstack::Cloud;
+use osauth::services::COMPUTE;
+use serde::Deserialize;
 
 use crate::config::OpenStackConfig;
 use crate::LibvirtError;
@@ -32,6 +34,8 @@ pub struct OpenStackInstance {
     pub ip_addresses: Vec<String>,
     pub security_groups: Vec<String>,
     pub metadata: HashMap<String, String>,
+    #[serde(default)]
+    pub locked: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -142,7 +146,8 @@ pub async fn list_instances(
     search: Option<&str>,
     status_filter: Option<&str>,
 ) -> Result<Vec<OpenStackInstance>, LibvirtError> {
-    let cloud = connect_cloud(cfg).await?;
+    let session = connect_session(cfg).await?;
+    let cloud = Cloud::from(session.clone());
     let summaries = cloud.list_servers().await.map_err(map_openstack_err)?;
     let search_l = search.map(|s| s.trim().to_lowercase()).filter(|s| !s.is_empty());
     let status_l = status_filter
@@ -172,18 +177,46 @@ pub async fn list_instances(
                 continue;
             }
         }
+        inst.locked = server_locked(&session, &id).await;
         out.push(inst);
     }
     Ok(out)
 }
 
 pub async fn get_instance(cfg: &OpenStackConfig, id: &str) -> Result<OpenStackInstance, LibvirtError> {
-    let cloud = connect_cloud(cfg).await?;
+    let session = connect_session(cfg).await?;
+    let cloud = Cloud::from(session.clone());
     let server = cloud
         .get_server(id.trim())
         .await
         .map_err(map_openstack_err)?;
-    instance_from_server(&server)
+    let mut inst = instance_from_server(&server)?;
+    inst.locked = server_locked(&session, id).await;
+    Ok(inst)
+}
+
+async fn server_locked(session: &osauth::Session, id: &str) -> bool {
+    #[derive(Deserialize)]
+    struct ServerResp {
+        server: ServerLock,
+    }
+    #[derive(Deserialize)]
+    struct ServerLock {
+        #[serde(default)]
+        locked: bool,
+    }
+    match session
+        .get(COMPUTE, &["servers", id.trim()])
+        .send()
+        .await
+    {
+        Ok(resp) => resp
+            .json::<ServerResp>()
+            .await
+            .map(|s| s.server.locked)
+            .unwrap_or(false),
+        Err(_) => false,
+    }
 }
 
 pub async fn start_instance(cfg: &OpenStackConfig, id: &str) -> Result<(), LibvirtError> {
@@ -275,6 +308,7 @@ fn instance_from_server(server: &Server) -> Result<OpenStackInstance, LibvirtErr
         ip_addresses: ips,
         security_groups,
         metadata: server.metadata().clone(),
+        locked: false,
     })
 }
 

@@ -2,37 +2,37 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Loader2, Network } from 'lucide-react'
-import { getOpenStackSubnet, updateOpenStackSubnet, type OpenStackSubnet } from '../api/openstackExtras'
+import { ArrowLeft, Loader2, Plug } from 'lucide-react'
+import { getOpenStackPort, updateOpenStackPort, type OpenStackPort } from '../api/openstackExtras'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 
-export default function OpenStackSubnetDetailPage() {
+export default function OpenStackPortDetailPage() {
   return (
-    <OpenStackGate title="Subnet">
-      <OpenStackSubnetDetailContent />
+    <OpenStackGate title="Port">
+      <OpenStackPortDetailContent />
     </OpenStackGate>
   )
 }
 
-function OpenStackSubnetDetailContent() {
+function OpenStackPortDetailContent() {
   const { id } = useParams<{ id: string }>()
   const toast = useToastContext()
-  const [subnet, setSubnet] = useState<OpenStackSubnet | null>(null)
+  const [port, setPort] = useState<OpenStackPort | null>(null)
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     if (!id) return
     setLoading(true)
     try {
-      const { subnet: s } = await getOpenStackSubnet(id)
-      setSubnet(s)
+      const { port: p } = await getOpenStackPort(id)
+      setPort(p)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
-      setSubnet(null)
+      setPort(null)
     } finally {
       setLoading(false)
     }
@@ -41,7 +41,7 @@ function OpenStackSubnetDetailContent() {
   useEffect(() => { void load() }, [load])
 
   if (loading) return <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto py-12" />
-  if (!subnet) {
+  if (!port) {
     return (
       <div className="space-y-4">
         <OpenStackSubNav />
@@ -57,39 +57,41 @@ function OpenStackSubnetDetailContent() {
         <ArrowLeft className="w-4 h-4" /> Networking
       </Link>
       <h1 className="text-2xl font-semibold flex items-center gap-2">
-        <Network className="w-7 h-7 text-sky-400" />
-        {subnet.name || subnet.cidr}
+        <Plug className="w-7 h-7 text-sky-400" />
+        {port.name || port.id.slice(0, 12)}
       </h1>
       <dl className="grid sm:grid-cols-2 gap-4 rounded-xl border border-slate-700 p-4 text-sm">
-        <div><dt className="text-xs text-slate-500 uppercase">ID</dt><dd className="font-mono text-slate-200 mt-1 break-all">{subnet.id}</dd></div>
-        <div><dt className="text-xs text-slate-500 uppercase">CIDR</dt><dd className="font-mono text-slate-200 mt-1">{subnet.cidr}</dd></div>
+        <div><dt className="text-xs text-slate-500 uppercase">ID</dt><dd className="font-mono text-slate-200 mt-1 break-all">{port.id}</dd></div>
+        <div><dt className="text-xs text-slate-500 uppercase">Status</dt><dd className="text-slate-200 mt-1">{port.status}</dd></div>
         <div><dt className="text-xs text-slate-500 uppercase">Network</dt><dd className="font-mono text-xs mt-1">
-          <Link to={`/openstack/networks/${subnet.network_id}`} className="text-sky-400 hover:underline">{subnet.network_id}</Link>
+          <Link to={`/openstack/networks/${port.network_id}`} className="text-sky-400 hover:underline">{port.network_id}</Link>
         </dd></div>
-        <div><dt className="text-xs text-slate-500 uppercase">Gateway</dt><dd className="text-slate-200 mt-1">{subnet.gateway_ip || '—'}</dd></div>
-        <div><dt className="text-xs text-slate-500 uppercase">IP version</dt><dd className="text-slate-200 mt-1">{subnet.ip_version}</dd></div>
+        <div><dt className="text-xs text-slate-500 uppercase">Device</dt><dd className="text-slate-200 mt-1 font-mono text-xs">
+          {port.device_id ? (
+            <Link to={`/openstack/instances/${port.device_id}`} className="text-sky-400 hover:underline">{port.device_id}</Link>
+          ) : '—'}
+        </dd></div>
+        <div className="sm:col-span-2"><dt className="text-xs text-slate-500 uppercase">Fixed IPs</dt><dd className="text-slate-200 mt-1 font-mono">{port.fixed_ips.join(', ') || '—'}</dd></div>
       </dl>
       <div className="flex flex-wrap gap-2">
         <button type="button" className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm"
           onClick={async () => {
-            const n = prompt('Subnet name', subnet.name)
-            if (n === null || !n.trim()) return
+            const n = prompt('Port name', port.name || '')
+            if (n === null) return
             try {
-              await updateOpenStackSubnet(subnet.id, { name: n.trim() })
-              toast.success('Renamed')
+              await updateOpenStackPort(port.id, { name: n.trim() || undefined })
+              toast.success('Updated')
               void load()
             } catch (e: unknown) { toast.error(formatUserError(e)) }
           }}>Rename</button>
-        <button type="button" className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm"
+        <button type="button" className="px-3 py-1.5 rounded-lg border border-violet-600/50 text-violet-200 text-sm"
           onClick={async () => {
-            const g = prompt('Gateway IP', subnet.gateway_ip || '')
-            if (g === null) return
             try {
-              await updateOpenStackSubnet(subnet.id, { gateway_ip: g.trim() || undefined })
-              toast.success('Updated gateway')
+              await updateOpenStackPort(port.id, { admin_state_up: true })
+              toast.success('Admin up')
               void load()
             } catch (e: unknown) { toast.error(formatUserError(e)) }
-          }}>Set gateway</button>
+          }}>Admin up</button>
       </div>
       <OpenStackFooter />
     </div>

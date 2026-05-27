@@ -2501,6 +2501,29 @@ impl App {
                 self.report_cmd_result(r, &format!("Soft-rebooted {id}"), "openstack-reboot-soft", id, false)
                     .await;
             },
+            ["openstack", "migrate", id] | ["os", "migrate", id] => {
+                let r = self.client.openstack_migrate_instance(id, false, None).await;
+                self.report_cmd_result(r, &format!("Migrated {id}"), "openstack-migrate", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "migrate-live", id] | ["os", "migrate-live", id] => {
+                let r = self.client.openstack_migrate_instance(id, true, None).await;
+                self.report_cmd_result(r, &format!("Live-migrated {id}"), "openstack-migrate-live", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
+            ["openstack", "backup", id, name] | ["os", "backup", id, name] => {
+                let r = self.client.openstack_backup_instance(id, name).await;
+                self.report_cmd_result(r, &format!("Backup {id} → {name}"), "openstack-backup", id, false)
+                    .await;
+            },
+            ["openstack", "rebuild", id, image] | ["os", "rebuild", id, image] => {
+                let r = self.client.openstack_rebuild_instance(id, image).await;
+                self.report_cmd_result(r, &format!("Rebuild {id} from {image}"), "openstack-rebuild", id, false)
+                    .await;
+                self.refresh_openstack().await;
+            },
             ["openstack", "create", name, flavor, image, network] => {
                 let req = CreateInstanceRequest {
                     name: name.to_string(),

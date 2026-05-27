@@ -458,7 +458,8 @@ function OpenStackNetworkingContent() {
             <ul className="text-sm space-y-1 font-mono text-slate-300 max-h-64 overflow-y-auto">
               {ports.slice(0, 40).map((p) => (
                 <li key={p.id} className="flex flex-wrap items-center gap-2">
-                  <span>{p.name || p.id.slice(0, 8)} · {p.fixed_ips.join(', ') || '—'}</span>
+                  <Link to={`/openstack/ports/${p.id}`} className="text-sky-300 hover:underline">{p.name || p.id.slice(0, 8)}</Link>
+                  <span>· {p.fixed_ips.join(', ') || '—'}</span>
                   <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
                     const nn = prompt('Port name', p.name || '')
                     if (nn === null) return

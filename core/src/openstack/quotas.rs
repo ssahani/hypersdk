@@ -2,9 +2,9 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-//! Nova/Cinder limits and quota usage (read-only).
+//! Nova/Cinder/Neutron limits and quota usage (read-only).
 
-use osauth::services::{BLOCK_STORAGE, COMPUTE};
+use osauth::services::{BLOCK_STORAGE, COMPUTE, NETWORK};
 use serde::Deserialize;
 
 use crate::config::OpenStackConfig;
@@ -16,6 +16,31 @@ use super::auth::{connect_session, map_json_err, map_osauth_err};
 pub struct OpenStackQuotaSummary {
     pub compute: serde_json::Value,
     pub cinder: Option<serde_json::Value>,
+    pub neutron: Option<serde_json::Value>,
+}
+
+fn resolve_project_id() -> Option<String> {
+    for key in ["OS_PROJECT_ID", "OS_TENANT_ID"] {
+        if let Ok(id) = std::env::var(key) {
+            let t = id.trim();
+            if !t.is_empty() {
+                return Some(t.to_string());
+            }
+        }
+    }
+    None
+}
+
+async fn fetch_neutron_quotas(session: &osauth::Session) -> Option<serde_json::Value> {
+    let project_id = resolve_project_id()?;
+    session
+        .get(NETWORK, &["quotas", &project_id, "details"])
+        .send()
+        .await
+        .ok()?
+        .json()
+        .await
+        .ok()
 }
 
 /// True when Cinder block-storage is registered in the service catalog.
@@ -48,8 +73,11 @@ pub async fn get_quota_summary(cfg: &OpenStackConfig) -> Result<OpenStackQuotaSu
         Err(_) => None,
     };
 
+    let neutron = fetch_neutron_quotas(&session).await;
+
     Ok(OpenStackQuotaSummary {
         compute: compute.limits,
         cinder,
+        neutron,
     })
 }

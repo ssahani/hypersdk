@@ -73,8 +73,11 @@ const OpenStackVolumeSnapshots = lazy(() => import('./pages/OpenStackVolumeSnaps
 const OpenStackNetworkDetail = lazy(() => import('./pages/OpenStackNetworkDetail'))
 const OpenStackSubnetDetail = lazy(() => import('./pages/OpenStackSubnetDetail'))
 const OpenStackRouterDetail = lazy(() => import('./pages/OpenStackRouterDetail'))
+const OpenStackPortDetail = lazy(() => import('./pages/OpenStackPortDetail'))
 const OpenStackFlavorDetail = lazy(() => import('./pages/OpenStackFlavorDetail'))
 const OpenStackServerGroupDetail = lazy(() => import('./pages/OpenStackServerGroupDetail'))
+const OpenStackVolumeTransferDetail = lazy(() => import('./pages/OpenStackVolumeTransferDetail'))
+const OpenStackInstanceInterfaces = lazy(() => import('./pages/OpenStackInstanceInterfaces'))
 const Fleet = lazy(() => import('./pages/Fleet'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
@@ -215,6 +218,7 @@ function AuthenticatedShell() {
                 <Route path="/openstack" element={<OpenStackOverview />} />
                 <Route path="/openstack/instances" element={<OpenStackInstances />} />
                 <Route path="/openstack/instances/:id" element={<OpenStackInstanceDetail />} />
+                <Route path="/openstack/instances/:id/interfaces" element={<OpenStackInstanceInterfaces />} />
                 <Route path="/openstack/create" element={<OpenStackCreateInstance />} />
                 <Route path="/openstack/images" element={<OpenStackImages />} />
                 <Route path="/openstack/images/:id" element={<OpenStackImageDetail />} />
@@ -232,6 +236,8 @@ function AuthenticatedShell() {
                 <Route path="/openstack/networks/:id" element={<OpenStackNetworkDetail />} />
                 <Route path="/openstack/subnets/:id" element={<OpenStackSubnetDetail />} />
                 <Route path="/openstack/routers/:id" element={<OpenStackRouterDetail />} />
+                <Route path="/openstack/ports/:id" element={<OpenStackPortDetail />} />
+                <Route path="/openstack/volume-transfers/:id" element={<OpenStackVolumeTransferDetail />} />
                 <Route path="/openstack/volume-snapshots" element={<OpenStackVolumeSnapshots />} />
                 <Route path="/openstack/instances/:id/console" element={<OpenStackConsole />} />
                 <Route path="/networks" element={<Networks />} />

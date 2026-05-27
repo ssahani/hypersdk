@@ -66,7 +66,7 @@ export function selectOpenStackCloud(cloudName: string): Promise<{ status: strin
   return apiPost(`${API}/openstack/cloud`, { cloud_name: cloudName })
 }
 
-export function getOpenStackQuotas(): Promise<{ quotas: { compute: unknown; cinder?: unknown } }> {
+export function getOpenStackQuotas(): Promise<{ quotas: { compute: unknown; cinder?: unknown; neutron?: unknown } }> {
   return readJsonObject(`${API}/openstack/quotas`)
 }
 
@@ -582,6 +582,23 @@ export function getOpenStackHypervisor(id: string): Promise<{ hypervisor: OpenSt
   return readJsonObject(`${API}/openstack/hypervisors/${inst(id)}`)
 }
 
-export function updateOpenStackRouter(id: string, body: { name: string }): Promise<{ router: OpenStackRouter }> {
+export function updateOpenStackRouter(
+  id: string,
+  body: { name?: string; external_network_id?: string; clear_external_gateway?: boolean },
+): Promise<{ router: OpenStackRouter }> {
   return apiPut(`${API}/openstack/routers/${inst(id)}`, body)
+}
+
+export function updateOpenStackSubnet(
+  id: string,
+  body: { name?: string; gateway_ip?: string; enable_dhcp?: boolean },
+): Promise<{ subnet: OpenStackSubnet }> {
+  return apiPut(`${API}/openstack/subnets/${inst(id)}`, body)
+}
+
+export function uploadOpenStackVolumeToImage(
+  volumeId: string,
+  body: { image_name: string; disk_format?: string; force?: boolean },
+): Promise<{ upload: { image_id: string; status: string } }> {
+  return apiPost(`${API}/openstack/volumes/${inst(volumeId)}/upload-image`, body)
 }

@@ -553,8 +553,81 @@ pub async fn update_network(
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UpdateSubnetRequest {
+    pub name: Option<String>,
+    pub gateway_ip: Option<String>,
+    pub enable_dhcp: Option<bool>,
+}
+
+pub async fn update_subnet(
+    cfg: &OpenStackConfig,
+    subnet_id: &str,
+    req: &UpdateSubnetRequest,
+) -> Result<OpenStackSubnet, LibvirtError> {
+    let id = subnet_id.trim();
+    if id.is_empty() {
+        return Err(LibvirtError::Invalid("subnet_id is required".into()));
+    }
+    let mut subnet = serde_json::Map::new();
+    if let Some(ref n) = req.name {
+        let t = n.trim();
+        if !t.is_empty() {
+            subnet.insert("name".into(), serde_json::json!(t));
+        }
+    }
+    if let Some(ref g) = req.gateway_ip {
+        let t = g.trim();
+        if !t.is_empty() {
+            subnet.insert("gateway_ip".into(), serde_json::json!(t));
+        }
+    }
+    if let Some(dhcp) = req.enable_dhcp {
+        subnet.insert("enable_dhcp".into(), serde_json::json!(dhcp));
+    }
+    if subnet.is_empty() {
+        return Err(LibvirtError::Invalid(
+            "at least one of name, gateway_ip, or enable_dhcp is required".into(),
+        ));
+    }
+    let session = connect_session(cfg).await?;
+    let body = serde_json::json!({ "subnet": subnet });
+    #[derive(Deserialize)]
+    struct Resp {
+        subnet: SubnetOut,
+    }
+    #[derive(Deserialize)]
+    struct SubnetOut {
+        id: String,
+        name: String,
+        network_id: String,
+        cidr: String,
+        ip_version: u8,
+        gateway_ip: Option<String>,
+    }
+    let resp = session
+        .put(NETWORK, &["subnets", id])
+        .json(&body)
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    let s = parsed.subnet;
+    Ok(OpenStackSubnet {
+        id: s.id,
+        name: s.name,
+        network_id: s.network_id,
+        cidr: s.cidr,
+        ip_version: s.ip_version,
+        gateway_ip: s.gateway_ip,
+    })
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UpdateRouterRequest {
     pub name: Option<String>,
+    pub external_network_id: Option<String>,
+    #[serde(default)]
+    pub clear_external_gateway: bool,
 }
 
 pub async fn update_router(
@@ -567,11 +640,30 @@ pub async fn update_router(
         return Err(LibvirtError::Invalid("router_id is required".into()));
     }
     let name = req.name.as_ref().map(|s| s.trim()).filter(|s| !s.is_empty());
-    if name.is_none() {
-        return Err(LibvirtError::Invalid("name is required".into()));
+    let ext_net = req
+        .external_network_id
+        .as_ref()
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+    if name.is_none() && ext_net.is_none() && !req.clear_external_gateway {
+        return Err(LibvirtError::Invalid(
+            "name, external_network_id, or clear_external_gateway is required".into(),
+        ));
     }
     let session = connect_session(cfg).await?;
-    let body = serde_json::json!({ "router": { "name": name } });
+    let mut router = serde_json::Map::new();
+    if let Some(n) = name {
+        router.insert("name".into(), serde_json::json!(n));
+    }
+    if req.clear_external_gateway {
+        router.insert("external_gateway_info".into(), serde_json::Value::Null);
+    } else if let Some(net) = ext_net {
+        router.insert(
+            "external_gateway_info".into(),
+            serde_json::json!({ "network_id": net }),
+        );
+    }
+    let body = serde_json::json!({ "router": router });
     #[derive(Deserialize)]
     struct Resp {
         router: RouterJson,

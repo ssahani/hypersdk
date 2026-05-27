@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Gauge, Loader2, RefreshCw } from 'lucide-react'
 import { getOpenStackQuotas } from '../api/openstackExtras'
-import { parseQuotaRows, type QuotaRow } from '../utils/openstackQuotas'
+import { parseQuotaRows, parseNeutronQuotaRows, type QuotaRow } from '../utils/openstackQuotas'
 import { formatUserError } from '../utils/apiError'
 
 type Props = {
@@ -46,6 +46,7 @@ export default function OpenStackQuotasPanel({ compact }: Props) {
   const [error, setError] = useState<string | null>(null)
   const [computeRows, setComputeRows] = useState<QuotaRow[]>([])
   const [cinderRows, setCinderRows] = useState<QuotaRow[]>([])
+  const [neutronRows, setNeutronRows] = useState<QuotaRow[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -54,6 +55,7 @@ export default function OpenStackQuotasPanel({ compact }: Props) {
       const { quotas } = await getOpenStackQuotas()
       setComputeRows(parseQuotaRows(quotas.compute))
       setCinderRows(quotas.cinder ? parseQuotaRows(quotas.cinder) : [])
+      setNeutronRows(quotas.neutron ? parseNeutronQuotaRows(quotas.neutron) : [])
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {
@@ -95,13 +97,14 @@ export default function OpenStackQuotasPanel({ compact }: Props) {
       {error && !loading && (
         <p className="text-sm text-red-400">{error}</p>
       )}
-      {!loading && !error && computeRows.length === 0 && cinderRows.length === 0 && (
+      {!loading && !error && computeRows.length === 0 && cinderRows.length === 0 && neutronRows.length === 0 && (
         <p className="text-sm text-slate-500">No quota data returned.</p>
       )}
-      {!loading && !error && (computeRows.length > 0 || cinderRows.length > 0) && (
-        <div className={compact ? 'space-y-4' : 'grid gap-6 lg:grid-cols-2'}>
+      {!loading && !error && (computeRows.length > 0 || cinderRows.length > 0 || neutronRows.length > 0) && (
+        <div className={compact ? 'space-y-4' : 'grid gap-6 lg:grid-cols-3'}>
           <QuotaTable title="Nova" rows={computeRows} />
           <QuotaTable title="Cinder" rows={cinderRows} />
+          <QuotaTable title="Neutron" rows={neutronRows} />
         </div>
       )}
     </section>

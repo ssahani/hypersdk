@@ -65,7 +65,8 @@ pub use volumes::{
     create_cinder_volume, create_volume_from_image, create_volume_from_snapshot, clone_cinder_volume,
     create_volume_transfer, accept_volume_transfer, delete_cinder_snapshot, delete_cinder_volume,
     delete_volume_transfer, extend_cinder_volume, get_cinder_snapshot, get_cinder_volume, get_volume_transfer,
-    list_cinder_snapshots, list_volume_transfers,
+    list_cinder_snapshots, list_volume_transfers, upload_volume_to_image, UploadVolumeToImageRequest,
+    UploadVolumeToImageResponse,
     retype_cinder_volume, set_volume_bootable, snapshot_cinder_volume, update_cinder_volume,
     AcceptVolumeTransferRequest, CloneVolumeRequest, CreateVolumeFromImageRequest,
     CreateVolumeFromSnapshotRequest, CreateVolumeTransferRequest, ExtendVolumeRequest,
@@ -82,10 +83,12 @@ pub use lifecycle::{
 pub use topology::{
     add_router_interface, create_network, create_port, create_router, create_subnet, delete_network,
     delete_port, delete_router, delete_subnet, get_port, get_router, get_subnet, list_ports, list_routers,
-    list_subnets, remove_router_interface, update_network, update_port, update_router, AddRouterInterfaceRequest,
+    list_subnets, remove_router_interface, update_network, update_port, update_router, update_subnet,
+    AddRouterInterfaceRequest,
     CreateNetworkRequest, CreatePortRequest, CreateRouterRequest, CreateSubnetRequest,
     OpenStackPort, OpenStackPortCreated, OpenStackRouter, OpenStackSubnet,
     RemoveRouterInterfaceRequest, UpdateNetworkRequest, UpdatePortRequest, UpdateRouterRequest,
+    UpdateSubnetRequest,
 };
 pub use quotas::{get_quota_summary, probe_cinder_reachable, OpenStackQuotaSummary};
 pub use catalogs_ext::{

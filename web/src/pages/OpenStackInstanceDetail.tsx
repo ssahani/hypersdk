@@ -20,7 +20,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import {
-  ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive, Layers,
+  ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive, Layers, Lock, Network,
 } from 'lucide-react'
 import { getOpenStackInstanceStack } from '../api/openstackExtras'
 import OpenStackFooter from '../components/OpenStackFooter'
@@ -209,8 +209,16 @@ function OpenStackInstanceDetailContent() {
           <h1 className="text-2xl font-semibold flex items-center gap-2">
             <Cloud className="w-7 h-7 text-sky-400" />
             {inst.name}
+            {inst.locked && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs font-medium uppercase">
+                <Lock className="w-3.5 h-3.5" /> Locked
+              </span>
+            )}
           </h1>
           <p className="text-slate-500 font-mono text-sm mt-1">{inst.id}</p>
+          <Link to={`/openstack/instances/${inst.id}/interfaces`} className="inline-flex items-center gap-1.5 text-sm text-sky-400 hover:underline mt-2">
+            <Network className="w-4 h-4" /> Manage network interfaces
+          </Link>
         </div>
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => runAction(() => startOpenStackInstance(inst.id), 'Start')}

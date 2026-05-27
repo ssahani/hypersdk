@@ -26,6 +26,7 @@ export default function OpenStackAdminPanel() {
   const [hvDetail, setHvDetail] = useState<OpenStackHypervisor | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [downOnly, setDownOnly] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -58,12 +59,26 @@ export default function OpenStackAdminPanel() {
     return <Loader2 className="w-6 h-6 animate-spin text-sky-400" />
   }
 
+  const visibleServices = downOnly
+    ? services.filter((s) => s.state !== 'up' || s.status !== 'enabled')
+    : services
+  const visibleAgents = downOnly
+    ? agents.filter((a) => !a.alive || !a.admin_state_up)
+    : agents
+
   return (
     <div className="rounded-xl border border-slate-700 p-4 space-y-4">
-      <h2 className="text-sm font-medium text-slate-300 flex items-center gap-2">
-        <Server className="w-4 h-4 text-sky-400" />
-        Compute catalog (read-only)
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-sm font-medium text-slate-300 flex items-center gap-2">
+          <Server className="w-4 h-4 text-sky-400" />
+          Compute catalog (read-only)
+        </h2>
+        <label className="inline-flex items-center gap-2 text-xs text-slate-400 cursor-pointer">
+          <input type="checkbox" checked={downOnly} onChange={(e) => setDownOnly(e.target.checked)}
+            className="rounded border-slate-600" />
+          Show down only
+        </label>
+      </div>
       {error && <p className="text-sm text-red-300">{error}</p>}
       <div className="grid md:grid-cols-2 gap-4 text-sm">
         <div>
@@ -109,23 +124,23 @@ export default function OpenStackAdminPanel() {
         <div>
           <h3 className="text-xs uppercase text-slate-500 mb-2">Compute services</h3>
           <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
-            {services.map((s) => (
+            {visibleServices.map((s) => (
               <li key={s.id}>
                 {s.binary} @ {s.host} · {s.state}/{s.status}
               </li>
             ))}
-            {services.length === 0 && <li className="text-slate-500">No service data</li>}
+            {visibleServices.length === 0 && <li className="text-slate-500">{downOnly ? 'All services up' : 'No service data'}</li>}
           </ul>
         </div>
         <div className="md:col-span-2">
           <h3 className="text-xs uppercase text-slate-500 mb-2">Neutron agents</h3>
           <ul className="space-y-1 font-mono text-slate-300 max-h-40 overflow-y-auto">
-            {agents.map((a) => (
+            {visibleAgents.map((a) => (
               <li key={a.id}>
                 {a.agent_type} @ {a.host} · {a.alive ? 'alive' : 'down'} · admin {a.admin_state_up ? 'up' : 'down'}
               </li>
             ))}
-            {agents.length === 0 && <li className="text-slate-500">No agent data</li>}
+            {visibleAgents.length === 0 && <li className="text-slate-500">{downOnly ? 'All agents healthy' : 'No agent data'}</li>}
           </ul>
         </div>
       </div>

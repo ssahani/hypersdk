@@ -40,6 +40,7 @@ export interface OpenStackInstance {
   ip_addresses: string[]
   security_groups: string[]
   metadata: Record<string, string>
+  locked?: boolean
 }
 
 export interface OpenStackFlavor {
