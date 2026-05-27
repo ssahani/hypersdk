@@ -216,6 +216,7 @@ install_deps_fedora() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
+        protobuf-compiler
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -242,6 +243,7 @@ install_deps_rhel() {
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon-kvm qemu-kvm virt-install
         pam-devel clang-libs clang-devel
+        protobuf-compiler
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -257,6 +259,7 @@ install_deps_debian() {
     local packages=(gcc g++ make pkg-config
         libvirt-dev libvirt-daemon-system qemu-kvm virtinst
         libpam0g-dev libclang-dev clang llvm-dev
+        protobuf-compiler
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -271,7 +274,7 @@ install_deps_suse() {
     # pam-devel + clang for pam-sys bindgen (libclang)
     local packages=(gcc gcc-c++ make pkg-config
         libvirt-devel libvirt-daemon qemu-kvm
-        pam-devel clang-devel
+        pam-devel clang-devel protobuf
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
@@ -286,7 +289,7 @@ install_deps_arch() {
     # clang: libclang for pam-sys; linux-pam: headers for pam
     local packages=(gcc make pkg-config
         libvirt qemu-full virt-install dnsmasq
-        linux-pam clang
+        linux-pam clang protobuf
         openssl git curl unzip)
 
     info "Installing: ${packages[*]}"
