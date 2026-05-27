@@ -1,8 +1,5 @@
 [workspace]
-members = 
-[workspace.package]
-license = "LicenseRef-Zyvor-Proprietary"
-[
+members = [
     "core",
     "daemon",
     "tui",
@@ -12,6 +9,9 @@ license = "LicenseRef-Zyvor-Proprietary"
     "run-as-user-helper",
 ]
 resolver = "2"
+
+[workspace.package]
+license = "LicenseRef-Zyvor-Proprietary"
 
 [workspace.dependencies]
 virt = "0.4"
