@@ -2434,6 +2434,36 @@ impl App {
                     Err(e) => self.state.status_message = status_err("openstack hypervisor", &e),
                 }
             },
+            ["openstack", "network", id] | ["os", "network", id] => {
+                match self.client.openstack_get_json(&format!("networks/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Network {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack network", &e),
+                }
+            },
+            ["openstack", "subnet", id] | ["os", "subnet", id] => {
+                match self.client.openstack_get_json(&format!("subnets/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Subnet {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack subnet", &e),
+                }
+            },
+            ["openstack", "router", id] | ["os", "router", id] => {
+                match self.client.openstack_get_json(&format!("routers/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Router {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack router", &e),
+                }
+            },
+            ["openstack", "port", id] | ["os", "port", id] => {
+                match self.client.openstack_get_json(&format!("ports/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Port {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack port", &e),
+                }
+            },
+            ["openstack", "server-group", id] | ["os", "server-group", id] => {
+                match self.client.openstack_get_json(&format!("server-groups/{id}")).await {
+                    Ok(v) => self.show_json_overlay(&format!("Server group {id}"), &v),
+                    Err(e) => self.state.status_message = status_err("openstack server-group", &e),
+                }
+            },
             ["openstack", "rename", id, name] => {
                 let r = self.client.openstack_rename_instance(id, name).await;
                 self.report_cmd_result(r, &format!("Renamed {id} → {name}"), "openstack-rename", id, false)

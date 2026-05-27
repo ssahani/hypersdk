@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import {
   createOpenStackServerGroup,
   deleteOpenStackServerGroup,
@@ -95,7 +96,7 @@ function OpenStackServerGroupsContent() {
           {groups.map((g) => (
             <li key={g.id} className="px-4 py-3 flex flex-wrap justify-between gap-2 text-sm">
               <div>
-                <span className="font-mono text-slate-200">{g.name}</span>
+                <Link to={`/openstack/server-groups/${g.id}`} className="font-mono text-slate-200 hover:text-sky-300 hover:underline">{g.name}</Link>
                 <span className="ml-2 text-xs text-slate-500">{g.policy}</span>
                 <span className="block text-xs text-slate-500 font-mono mt-0.5">{g.id}</span>
                 {g.members.length > 0 && (

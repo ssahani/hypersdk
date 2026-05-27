@@ -89,7 +89,7 @@ pub use topology::{
 };
 pub use quotas::{get_quota_summary, probe_cinder_reachable, OpenStackQuotaSummary};
 pub use catalogs_ext::{
-    create_server_group, delete_server_group, get_flavor, list_server_groups, list_volume_types,
+    create_server_group, delete_server_group, get_flavor, get_server_group, list_server_groups, list_volume_types,
     CreateServerGroupRequest, OpenStackServerGroup, OpenStackVolumeType,
 };
 pub use glance_meta::{

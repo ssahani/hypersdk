@@ -93,6 +93,41 @@ pub async fn list_server_groups(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSe
     Ok(out)
 }
 
+pub async fn get_server_group(
+    cfg: &OpenStackConfig,
+    id: &str,
+) -> Result<OpenStackServerGroup, LibvirtError> {
+    let sg_id = id.trim();
+    if sg_id.is_empty() {
+        return Err(LibvirtError::Invalid("server group id is required".into()));
+    }
+    let session = connect_session(cfg).await?;
+    #[derive(Deserialize)]
+    struct Resp {
+        server_group: SgJson,
+    }
+    #[derive(Deserialize)]
+    struct SgJson {
+        id: String,
+        name: String,
+        policy: String,
+        #[serde(default)]
+        members: Vec<String>,
+    }
+    let resp = session
+        .get(COMPUTE, &["os-server-groups", sg_id])
+        .send()
+        .await
+        .map_err(map_osauth_err)?;
+    let body: Resp = resp.json().await.map_err(map_json_err)?;
+    Ok(OpenStackServerGroup {
+        id: body.server_group.id,
+        name: body.server_group.name,
+        policy: body.server_group.policy,
+        members: body.server_group.members,
+    })
+}
+
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
 pub struct CreateServerGroupRequest {
     pub name: String,

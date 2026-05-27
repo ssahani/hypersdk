@@ -498,7 +498,10 @@ function OpenStackVolumesContent() {
 
           {snapshots.length > 0 && (
             <div className="rounded-xl border border-slate-700 overflow-hidden">
-              <div className="px-3 py-2 bg-slate-900 text-xs text-slate-500 uppercase">Snapshots</div>
+              <div className="px-3 py-2 bg-slate-900 text-xs text-slate-500 uppercase flex justify-between">
+                <span>Snapshots</span>
+                <Link to="/openstack/volume-snapshots" className="text-sky-400 hover:underline normal-case">View all</Link>
+              </div>
               <table className="w-full text-sm">
                 <thead className="bg-slate-900/80 text-slate-400 text-left">
                   <tr>

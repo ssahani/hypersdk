@@ -69,6 +69,12 @@ const OpenStackServerGroups = lazy(() => import('./pages/OpenStackServerGroups')
 const OpenStackImageDetail = lazy(() => import('./pages/OpenStackImageDetail'))
 const OpenStackVolumeDetail = lazy(() => import('./pages/OpenStackVolumeDetail'))
 const OpenStackFloatingIps = lazy(() => import('./pages/OpenStackFloatingIps'))
+const OpenStackVolumeSnapshots = lazy(() => import('./pages/OpenStackVolumeSnapshots'))
+const OpenStackNetworkDetail = lazy(() => import('./pages/OpenStackNetworkDetail'))
+const OpenStackSubnetDetail = lazy(() => import('./pages/OpenStackSubnetDetail'))
+const OpenStackRouterDetail = lazy(() => import('./pages/OpenStackRouterDetail'))
+const OpenStackFlavorDetail = lazy(() => import('./pages/OpenStackFlavorDetail'))
+const OpenStackServerGroupDetail = lazy(() => import('./pages/OpenStackServerGroupDetail'))
 const Fleet = lazy(() => import('./pages/Fleet'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
@@ -220,7 +226,13 @@ function AuthenticatedShell() {
                 <Route path="/openstack/networking" element={<OpenStackNetworking />} />
                 <Route path="/openstack/keypairs" element={<OpenStackKeypairs />} />
                 <Route path="/openstack/flavors" element={<OpenStackFlavors />} />
+                <Route path="/openstack/flavors/:id" element={<OpenStackFlavorDetail />} />
                 <Route path="/openstack/server-groups" element={<OpenStackServerGroups />} />
+                <Route path="/openstack/server-groups/:id" element={<OpenStackServerGroupDetail />} />
+                <Route path="/openstack/networks/:id" element={<OpenStackNetworkDetail />} />
+                <Route path="/openstack/subnets/:id" element={<OpenStackSubnetDetail />} />
+                <Route path="/openstack/routers/:id" element={<OpenStackRouterDetail />} />
+                <Route path="/openstack/volume-snapshots" element={<OpenStackVolumeSnapshots />} />
                 <Route path="/openstack/instances/:id/console" element={<OpenStackConsole />} />
                 <Route path="/networks" element={<Networks />} />
                 <Route path="/storage" element={<Storage />} />

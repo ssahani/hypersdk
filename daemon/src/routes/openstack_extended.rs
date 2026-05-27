@@ -20,7 +20,7 @@ use machina_core::{
     create_subnet, create_volume_from_image, create_volume_from_snapshot, create_volume_transfer,
     delete_cinder_snapshot, delete_port, delete_router, delete_server_group, delete_subnet,
     delete_volume_transfer, extend_cinder_volume, force_delete_instance, get_cinder_snapshot, get_hypervisor,
-    get_port, get_quota_summary, get_router, get_subnet, get_volume_transfer, instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
+    get_port, get_quota_summary, get_router, get_server_group, get_subnet, get_volume_transfer, instance_stack_hint, list_availability_zones, list_compute_services, list_configured_clouds,
     list_host_aggregates, list_hypervisors, list_image_members, list_instance_interfaces, list_neutron_agents, list_ports,
     list_cinder_snapshots, list_routers, list_server_groups, list_subnets, list_volume_transfers,
     list_volume_types, lock_instance, migrate_instance, remote_console_with_tunnel, remove_router_interface,
@@ -96,7 +96,7 @@ pub fn openstack_extended_routes() -> Router<LibvirtManager> {
         .route("/openstack/networks/{id}", put(os_update_network))
         .route("/openstack/volume-types", get(os_volume_types))
         .route("/openstack/server-groups", get(os_server_groups).post(os_create_server_group))
-        .route("/openstack/server-groups/{id}", delete(os_delete_server_group))
+        .route("/openstack/server-groups/{id}", get(os_get_server_group).delete(os_delete_server_group))
         .route("/openstack/keypairs", post(os_create_keypair))
         .route("/openstack/keypairs/{name}", delete(os_delete_keypair))
         .route("/openstack/security-groups", post(os_create_sg))
@@ -318,6 +318,13 @@ async fn os_create_server_group(
     let cfg = openstack_cfg();
     ensure_openstack_enabled(&cfg)?;
     let sg = create_server_group(&cfg, &req).await?;
+    Ok(Json(serde_json::json!({ "server_group": sg })))
+}
+
+async fn os_get_server_group(Path(id): Path<String>) -> Result<Json<serde_json::Value>, AppError> {
+    let cfg = openstack_cfg();
+    ensure_openstack_enabled(&cfg)?;
+    let sg = get_server_group(&cfg, &id).await?;
     Ok(Json(serde_json::json!({ "server_group": sg })))
 }
 

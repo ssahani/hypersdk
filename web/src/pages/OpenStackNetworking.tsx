@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
+import { Link } from 'react-router'
 import {
   deleteOpenStackFloatingIp,
   dissociateOpenStackFloatingIp,
@@ -400,7 +401,8 @@ function OpenStackNetworkingContent() {
             <ul className="text-sm space-y-1 font-mono">
               {networks.map((n) => (
                 <li key={n.id} className="text-slate-300 flex items-center gap-2">
-                  <span>{n.name} {n.external && <span className="text-amber-400 text-xs">external</span>}</span>
+                  <Link to={`/openstack/networks/${n.id}`} className="text-sky-300 hover:underline">{n.name}</Link>
+                  {n.external && <span className="text-amber-400 text-xs">external</span>}
                   <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
                     const nn = prompt('Network name', n.name)
                     if (nn === null || !nn.trim()) return
@@ -420,7 +422,8 @@ function OpenStackNetworkingContent() {
             <ul className="text-sm space-y-1 font-mono text-slate-300">
               {subnets.map((s) => (
                 <li key={s.id} className="flex items-center gap-2">
-                  <span>{s.name} · {s.cidr}</span>
+                  <Link to={`/openstack/subnets/${s.id}`} className="text-sky-300 hover:underline">{s.name}</Link>
+                  <span> · {s.cidr}</span>
                   <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
                     if (!confirm(`Delete subnet ${s.name}?`)) return
                     try { await deleteOpenStackSubnet(s.id); toast.success('Subnet deleted'); void load() }
@@ -434,7 +437,8 @@ function OpenStackNetworkingContent() {
             <ul className="text-sm space-y-1 font-mono text-slate-300">
               {routers.map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
-                  <span>{r.name} · {r.status}</span>
+                  <Link to={`/openstack/routers/${r.id}`} className="text-sky-300 hover:underline">{r.name}</Link>
+                  <span> · {r.status}</span>
                   <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
                     const nn = prompt('Router name', r.name)
                     if (nn === null || !nn.trim()) return

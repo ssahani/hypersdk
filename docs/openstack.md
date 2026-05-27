@@ -164,6 +164,8 @@ Phases **41–140** (operator UX): GET detail APIs for volumes/network/subnet/ro
 Phases **141–240**: GET floating IP / volume snapshot / volume transfer / hypervisor; dedicated **Floating IPs** page; **volume detail** route; router rename; port admin-up; hypervisor detail in admin panel; TUI `:openstack fip|snapshot|hypervisor`.
 - `GET .../floating-ips/{id}` · `GET .../volume-snapshots/{id}` · `GET .../volume-transfers/{id}` · `GET .../hypervisors/{id}`
 - `PUT .../routers/{id}` (rename)
+
+Phases **241–290**: Neutron **network/subnet/router detail** pages; **flavor** and **server group detail** routes; dedicated **volume snapshots** page; `GET .../server-groups/{id}`; TUI `:openstack network|subnet|router|port|server-group`.
 - `POST /api/v1/openstack/keypairs` · `DELETE /api/v1/openstack/keypairs/{name}`
 - `POST /api/v1/openstack/security-groups` · `POST .../security-groups/{id}/rules` · `DELETE /api/v1/openstack/security-group-rules/{id}`
 - `POST /api/v1/openstack/volumes/{id}/extend` · `POST .../volumes/{id}/snapshot`

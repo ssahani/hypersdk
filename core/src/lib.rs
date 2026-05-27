@@ -72,7 +72,7 @@ pub use openstack::{
     effective_cloud_name_for_config, enrich_instance_flavor, export_instance_plan, export_instance_to_disk,
     extend_cinder_volume, force_delete_instance, get_cinder_snapshot, get_cinder_volume, get_console_output,
     get_flavor, get_floating_ip, get_hypervisor, get_image, get_instance, get_network, get_port, get_quota_summary,
-    get_remote_console, get_router, get_security_group, get_subnet, get_volume_transfer, instance_stack_hint,
+    get_remote_console, get_router, get_security_group, get_server_group, get_subnet, get_volume_transfer, instance_stack_hint,
     is_openstack_configured, issue_console_token, list_availability_zones,
     list_compute_services, list_configured_clouds, list_flavors, list_floating_ips, list_host_aggregates,
     list_hypervisors, list_image_members, list_images, list_instance_interfaces, list_cinder_snapshots, list_cinder_volumes,

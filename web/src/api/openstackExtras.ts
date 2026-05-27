@@ -452,6 +452,10 @@ export function createOpenStackServerGroup(body: {
   return apiPost(`${API}/openstack/server-groups`, body)
 }
 
+export function getOpenStackServerGroup(id: string): Promise<{ server_group: OpenStackServerGroup }> {
+  return readJsonObject(`${API}/openstack/server-groups/${inst(id)}`)
+}
+
 export function renameOpenStackInstance(id: string, name: string): Promise<{ status: string; id: string; name: string }> {
   return apiPost(`${API}/openstack/instances/${inst(id)}/rename`, { name })
 }
