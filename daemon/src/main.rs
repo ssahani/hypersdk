@@ -23,6 +23,7 @@ mod k8s_metrics_cache;
 mod hyper2kvm_exec;
 mod kubevirt_exec;
 mod kubevirt_k8s_ws_proxy;
+mod openstack_runtime;
 mod routes;
 mod server;
 mod systemd;

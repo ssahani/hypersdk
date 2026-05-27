@@ -16,6 +16,7 @@ mod kubevirt;
 mod hypersdk;
 mod integrations;
 mod openstack;
+mod openstack_extended;
 mod host_network;
 mod jobs;
 mod k8s;

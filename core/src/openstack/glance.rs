@@ -235,6 +235,8 @@ pub async fn upload_qcow2_to_glance(
                 boot_volume_image: None,
                 boot_volume_size_gb: None,
                 network,
+                networks: None,
+                server_group: None,
                 key_name,
                 availability_zone: req.availability_zone.clone().filter(|s| !s.is_empty()),
                 security_groups: req.security_groups.clone(),

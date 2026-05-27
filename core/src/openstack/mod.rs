@@ -5,14 +5,22 @@
 //! OpenStack: Nova instance management and native Glance image upload.
 
 mod auth;
+mod catalogs_ext;
+mod clouds;
 mod compute;
+mod console_tunnel;
 mod glance;
+mod glance_meta;
 mod instance_ops;
+mod keypairs_ops;
+mod lifecycle;
 mod libvirt_push;
 mod networking;
 mod pull;
+mod quotas;
 mod resources;
 mod security_groups;
+mod topology;
 mod volumes;
 
 pub use auth::{
@@ -46,7 +54,32 @@ pub use security_groups::{
     get_security_group, list_security_groups, OpenStackSecurityGroup, OpenStackSecurityGroupRule,
 };
 pub use volumes::{
-    create_cinder_volume, delete_cinder_volume, OpenStackCreateVolumeRequest,
+    create_cinder_volume, delete_cinder_volume, extend_cinder_volume, snapshot_cinder_volume,
+    ExtendVolumeRequest, OpenStackCreateVolumeRequest, SnapshotVolumeRequest,
+};
+pub use keypairs_ops::{create_keypair, delete_keypair, CreateKeypairRequest};
+pub use lifecycle::{
+    attach_interface, backup_instance, detach_interface, instance_stack_hint,
+    list_instance_interfaces, migrate_instance, rescue_instance, shelve_instance,
+    unrescue_instance, unshelve_instance, AttachInterfaceRequest, BackupInstanceRequest,
+    MigrateInstanceRequest, OpenStackInstanceInterface, RescueInstanceRequest,
+};
+pub use topology::{
+    list_ports, list_routers, list_subnets, OpenStackPort, OpenStackRouter, OpenStackSubnet,
+};
+pub use quotas::{get_quota_summary, OpenStackQuotaSummary};
+pub use catalogs_ext::{
+    list_server_groups, list_volume_types, OpenStackServerGroup, OpenStackVolumeType,
+};
+pub use glance_meta::{
+    add_image_member, delete_image_member, list_image_members, update_image_metadata,
+    AddImageMemberRequest, OpenStackImageMember, UpdateImageMetadataRequest,
+};
+pub use clouds::{list_configured_clouds, OpenStackCloudEntry};
+pub use console_tunnel::{issue_console_token, remote_console_with_tunnel, resolve_console_token};
+pub use security_groups::{
+    create_security_group, create_security_group_rule, delete_security_group,
+    delete_security_group_rule, CreateSecurityGroupRequest, CreateSecurityGroupRuleRequest,
 };
 pub use networking::{
     associate_floating_ip, dissociate_floating_ip, list_floating_ips, list_instance_floating_ips,

@@ -9,6 +9,11 @@ import {
   listOpenStackSecurityGroups,
   type OpenStackSecurityGroup,
 } from '../api/openstack'
+import {
+  createOpenStackSecurityGroup,
+  createOpenStackSecurityGroupRule,
+  deleteOpenStackSecurityGroupRule,
+} from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackGate from '../components/OpenStackGate'
@@ -107,15 +112,26 @@ function OpenStackSecurityGroupsContent() {
         </button>
       </div>
 
-      <p className="text-sm text-slate-500">
-        Read-only Neutron view. To create groups or edit rules, use Horizon or{' '}
-        <code className="text-xs">openstack security group rule create</code>.
-        {' '}
-        <Link to="/openstack/instances" className="text-sky-400 hover:underline">
-          Attach groups on instance detail
+      <div className="rounded-xl border border-slate-700 p-4 flex flex-wrap gap-2 items-end text-sm">
+        <input id="new-sg-name" placeholder="New group name"
+          className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700" />
+        <button type="button" className="px-3 py-1.5 rounded-lg bg-sky-600 text-white"
+          onClick={async () => {
+            const el = document.getElementById('new-sg-name') as HTMLInputElement
+            const name = el?.value?.trim()
+            if (!name) return
+            try {
+              await createOpenStackSecurityGroup({ name })
+              toast.success('Security group created')
+              void load()
+            } catch (e: unknown) {
+              toast.error(formatUserError(e))
+            }
+          }}>Create group</button>
+        <Link to="/openstack/instances" className="text-sky-400 hover:underline ml-auto text-xs">
+          Attach on instance detail
         </Link>
-        .
-      </p>
+      </div>
 
       {loading ? (
         <div className="py-12 text-center text-slate-500 flex flex-col items-center gap-3">
@@ -159,6 +175,29 @@ function OpenStackSecurityGroupsContent() {
                 <h3 className="text-sm font-medium text-slate-400 mt-4 mb-2">
                   Rules ({active.rules.length})
                 </h3>
+                {selectedId && (
+                  <div className="mb-4 flex flex-wrap gap-2 items-end text-xs">
+                    <button type="button" className="px-2 py-1 rounded border border-slate-600"
+                      onClick={async () => {
+                        try {
+                          await createOpenStackSecurityGroupRule(selectedId, {
+                            direction: 'ingress',
+                            protocol: 'tcp',
+                            port_range_min: 22,
+                            port_range_max: 22,
+                            remote_ip_prefix: '0.0.0.0/0',
+                            ethertype: 'IPv4',
+                          })
+                          toast.success('SSH rule added')
+                          const r = await getOpenStackSecurityGroup(selectedId)
+                          setDetail(r.security_group)
+                          void load()
+                        } catch (e: unknown) {
+                          toast.error(formatUserError(e))
+                        }
+                      }}>+ SSH (22)</button>
+                  </div>
+                )}
                 {active.rules.length === 0 ? (
                   <p className="text-sm text-slate-500">No rules defined.</p>
                 ) : (
@@ -171,6 +210,7 @@ function OpenStackSecurityGroupsContent() {
                           <th className="px-3 py-2">Ports</th>
                           <th className="px-3 py-2">Remote</th>
                           <th className="px-3 py-2">Ether</th>
+                          <th className="px-3 py-2" />
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-800 font-mono text-xs">
@@ -189,6 +229,20 @@ function OpenStackSecurityGroupsContent() {
                               {r.remote_ip_prefix || r.remote_group_id || '—'}
                             </td>
                             <td className="px-3 py-2">{r.ethertype || '—'}</td>
+                            <td className="px-3 py-2">
+                              <button type="button" className="text-red-400 hover:underline"
+                                onClick={async () => {
+                                  try {
+                                    await deleteOpenStackSecurityGroupRule(r.id)
+                                    toast.success('Rule deleted')
+                                    const sg = await getOpenStackSecurityGroup(selectedId!)
+                                    setDetail(sg.security_group)
+                                    void load()
+                                  } catch (e: unknown) {
+                                    toast.error(formatUserError(e))
+                                  }
+                                }}>Del</button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

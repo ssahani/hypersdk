@@ -124,6 +124,8 @@ export interface CreateInstanceRequest {
   boot_volume_image?: string
   boot_volume_size_gb?: number
   network?: string
+  networks?: string[]
+  server_group?: string
   key_name?: string
   availability_zone?: string
   security_groups?: string[]
@@ -135,6 +137,7 @@ export interface OpenStackCreateVolumeRequest {
   size_gb: number
   name?: string
   description?: string
+  volume_type?: string
 }
 
 export interface OpenStackSecurityGroupRule {

@@ -40,7 +40,7 @@ fn emit(bus: &Arc<EventBus>, kind: &str, target: &str, status: &str, message: &s
     bus.emit(ev);
 }
 
-fn log_audit(action: &str, target: &str, result: &str) {
+pub(crate) fn log_audit(action: &str, target: &str, result: &str) {
     let event = AuditEvent {
         timestamp: chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
         action: action.to_string(),
@@ -51,11 +51,11 @@ fn log_audit(action: &str, target: &str, result: &str) {
     audit::write_audit_event(&event);
 }
 
-fn openstack_cfg() -> machina_core::config::OpenStackConfig {
-    MachinaConfig::load().openstack
+pub(crate) fn openstack_cfg() -> machina_core::config::OpenStackConfig {
+    crate::openstack_runtime::openstack_cfg()
 }
 
-fn ensure_openstack_enabled(cfg: &machina_core::config::OpenStackConfig) -> Result<(), AppError> {
+pub(crate) fn ensure_openstack_enabled(cfg: &machina_core::config::OpenStackConfig) -> Result<(), AppError> {
     if !is_openstack_configured(cfg) {
         return Err(LibvirtError::Invalid(
             "OpenStack is not configured; set [openstack] enabled = true and cloud_name or auth_url in machina config"
@@ -772,6 +772,7 @@ pub fn openstack_routes() -> Router<LibvirtManager> {
         .route("/openstack/images/upload/preview", get(openstack_image_upload_preview))
         .route("/openstack/images/upload", post(openstack_image_upload))
         .route("/openstack/images/{id}/pull", post(openstack_image_pull))
+        .merge(crate::routes::openstack_extended::openstack_extended_routes())
 }
 
 async fn openstack_image_pull(

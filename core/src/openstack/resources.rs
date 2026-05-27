@@ -62,6 +62,9 @@ pub struct CreateInstanceRequest {
     pub boot_volume_image: Option<String>,
     pub boot_volume_size_gb: Option<u32>,
     pub network: Option<String>,
+    /// Additional Neutron networks (multi-NIC). `network` is included when set.
+    pub networks: Option<Vec<String>>,
+    pub server_group: Option<String>,
     pub key_name: Option<String>,
     pub availability_zone: Option<String>,
     pub security_groups: Option<Vec<String>>,
@@ -199,10 +202,23 @@ pub async fn create_instance(
             builder.set_image(image.trim());
         }
     }
+    let mut net_ids: Vec<String> = Vec::new();
     if let Some(ref network) = req.network {
-        if !network.trim().is_empty() {
-            builder = builder.with_network(network.trim());
+        let n = network.trim();
+        if !n.is_empty() {
+            net_ids.push(n.to_string());
         }
+    }
+    if let Some(ref nets) = req.networks {
+        for n in nets {
+            let t = n.trim();
+            if !t.is_empty() && !net_ids.iter().any(|x| x == t) {
+                net_ids.push(t.to_string());
+            }
+        }
+    }
+    for net in net_ids {
+        builder = builder.with_network(net.as_str());
     }
     if let Some(ref key) = req.key_name {
         if !key.trim().is_empty() {
@@ -212,6 +228,14 @@ pub async fn create_instance(
     if let Some(ref az) = req.availability_zone {
         if !az.trim().is_empty() {
             builder = builder.with_availability_zone(az.trim());
+        }
+    }
+    if let Some(ref sg) = req.server_group {
+        let g = sg.trim();
+        if !g.is_empty() {
+            builder
+                .metadata()
+                .insert("machina_server_group".into(), g.to_string());
         }
     }
     if let Some(ref ud) = req.user_data {

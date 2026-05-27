@@ -95,7 +95,10 @@ connect_timeout_secs = 30
 | Embedded console | `/openstack/instances/{id}/console?type=novnc` — iframe to Nova remote console URL |
 | Create wizard | `/openstack/create` — Glance image, existing Cinder boot volume, or new volume from image; flavor, network, keypair |
 | Glance images | `/openstack/images` — pull to hypervisor, import as libvirt |
-| Security groups | `/openstack/security-groups` — read-only Neutron list + rule viewer |
+| Security groups | `/openstack/security-groups` — list, create group, add/delete rules |
+| Cinder volumes | `/openstack/volumes` — create, extend, snapshot, delete |
+| Networking | `/openstack/networking` — read-only subnets, routers, ports |
+| SSH keypairs | `/openstack/keypairs` — list, create/import, delete |
 | Bulk migrations | `/openstack/migrations` — HyperSDK proxy (when `[hypersdk] enabled`) |
 
 Lifecycle APIs:
@@ -140,7 +143,18 @@ Catalog APIs for the create wizard:
 - `GET /api/v1/vms/{name}/openstack-push/preview` — libvirt VM push preview
 - `POST /api/v1/vms/{name}/openstack-push` — upload VM root disk (native or hyper2kvm)
 - `GET /api/v1/openstack/keypairs`
-- `POST /api/v1/openstack/instances` — create instance; boot from **one of**: `image`, `boot_volume_id`, or `boot_volume_image` + `boot_volume_size_gb` (optional `availability_zone`, `security_groups`, `user_data`)
+- `POST /api/v1/openstack/instances` — create instance; boot from **one of**: `image`, `boot_volume_id`, or `boot_volume_image` + `boot_volume_size_gb`; optional `networks[]`, `server_group`, `availability_zone`, `security_groups`, `user_data`
+- `GET /api/v1/openstack/quotas` — Nova/Cinder limits summary
+- `GET /api/v1/openstack/clouds` · `POST /api/v1/openstack/cloud` — list/select `clouds.yaml` entry (session override)
+- `GET /api/v1/openstack/subnets` · `GET /api/v1/openstack/routers` · `GET /api/v1/openstack/ports`
+- `GET /api/v1/openstack/volume-types` · `GET /api/v1/openstack/server-groups`
+- `POST /api/v1/openstack/keypairs` · `DELETE /api/v1/openstack/keypairs/{name}`
+- `POST /api/v1/openstack/security-groups` · `POST .../security-groups/{id}/rules` · `DELETE /api/v1/openstack/security-group-rules/{id}`
+- `POST /api/v1/openstack/volumes/{id}/extend` · `POST .../volumes/{id}/snapshot`
+- `POST .../instances/{id}/shelve|unshelve|migrate|rescue|unrescue|backup`
+- `GET|POST .../instances/{id}/interfaces` · `DELETE .../interfaces/{port}`
+- `GET .../instances/{id}/console/tunnel` — proxied console path for same-origin embed (`?tunnel=1` in UI)
+- `POST /api/v1/openstack/images/{id}/metadata` · `GET|POST .../images/{id}/members`
 
 Audit events: `openstack.instance.*`, `openstack.image.upload`, `openstack.image.delete`.
 

@@ -9,6 +9,7 @@ import {
   OPENSTACK_CONSOLE_TYPES,
   type OpenStackConsoleType,
 } from '../api/openstack'
+import { getOpenStackConsoleTunnel } from '../api/openstackExtras'
 import OpenStackFooter from '../components/OpenStackFooter'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
@@ -33,7 +34,9 @@ function OpenStackConsoleContent() {
     ? typeParam
     : 'novnc') as OpenStackConsoleType
 
+  const useTunnel = searchParams.get('tunnel') === '1'
   const [url, setUrl] = useState<string | null>(null)
+  const [directUrl, setDirectUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -42,8 +45,15 @@ function OpenStackConsoleContent() {
     setLoading(true)
     setError(null)
     try {
-      const c = await getOpenStackRemoteConsole(id, consoleType)
-      setUrl(c.url)
+      if (useTunnel) {
+        const t = await getOpenStackConsoleTunnel(id, consoleType)
+        setDirectUrl(t.url)
+        setUrl(t.proxy_path)
+      } else {
+        const c = await getOpenStackRemoteConsole(id, consoleType)
+        setDirectUrl(c.url)
+        setUrl(c.url)
+      }
     } catch (e: unknown) {
       const msg = formatUserError(e)
       setError(msg)
@@ -51,7 +61,7 @@ function OpenStackConsoleContent() {
     } finally {
       setLoading(false)
     }
-  }, [id, consoleType])
+  }, [id, consoleType, useTunnel])
 
   useEffect(() => {
     void loadConsole()
@@ -94,9 +104,22 @@ function OpenStackConsoleContent() {
             <option key={t.id} value={t.id}>{t.label}</option>
           ))}
         </select>
-        {url && (
+        <label className="flex items-center gap-2 text-xs text-slate-500 ml-2">
+          <input
+            type="checkbox"
+            checked={useTunnel}
+            onChange={(e) => {
+              setSearchParams(
+                { type: consoleType, ...(e.target.checked ? { tunnel: '1' } : {}) },
+                { replace: true },
+              )
+            }}
+          />
+          Proxy via Machina
+        </label>
+        {directUrl && (
           <a
-            href={url}
+            href={directUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-600 text-sm text-slate-300 hover:bg-slate-800"

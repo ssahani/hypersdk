@@ -38,7 +38,18 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import OpenStackExportModal from './OpenStackExportModal'
 import {
-  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink, Monitor, RotateCcw, Tags,
+  attachOpenStackInterface,
+  backupOpenStackInstance,
+  detachOpenStackInterface,
+  listOpenStackInstanceInterfaces,
+  migrateOpenStackInstance,
+  rescueOpenStackInstance,
+  shelveOpenStackInstance,
+  unrescueOpenStackInstance,
+  unshelveOpenStackInstance,
+} from '../api/openstackExtras'
+import {
+  Globe, HardDrive, Pause, PlayCircle, Terminal, Upload, Shield, Maximize2, ExternalLink, Monitor, RotateCcw, Tags, Archive, Plane,
 } from 'lucide-react'
 import { isFloatingIpAvailable } from '../utils/openstackFloatingIp'
 import { formatUserError } from '../utils/apiError'
@@ -70,6 +81,8 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
   const [metadataText, setMetadataText] = useState('')
   const [newVolSizeGb, setNewVolSizeGb] = useState('8')
   const [newVolName, setNewVolName] = useState('')
+  const [ifaces, setIfaces] = useState<{ port_id: string; net_id: string; fixed_ips: string[] }[]>([])
+  const [attachNetId, setAttachNetId] = useState('')
 
   const loadExtras = useCallback(async () => {
     try {
@@ -87,6 +100,12 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
       setNetworks(n.networks.filter((net) => net.external))
       setFlavors(fl.flavors.map((x) => ({ id: x.id, name: x.name })))
       setImages(imgs.images.filter((img) => img.status === 'ACTIVE'))
+      try {
+        const ifc = await listOpenStackInstanceInterfaces(inst.id)
+        setIfaces(ifc.interfaces)
+      } catch {
+        setIfaces([])
+      }
       setExtNet((prev) => {
         if (prev) return prev
         const ext = n.networks.find((net) => net.external)
@@ -137,6 +156,56 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
 
   return (
     <div className="space-y-4">
+      <section className="rounded-xl border border-slate-700/80 p-4">
+        <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
+          <Archive className="w-4 h-4 text-violet-400" /> Extended lifecycle
+        </h2>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button type="button" onClick={() => run(() => shelveOpenStackInstance(inst.id), 'Shelved')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Shelve</button>
+          <button type="button" onClick={() => run(() => unshelveOpenStackInstance(inst.id), 'Unshelved')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Unshelve</button>
+          <button type="button" onClick={() => run(() => migrateOpenStackInstance(inst.id, { live: false }), 'Cold migrate')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Migrate</button>
+          <button type="button" onClick={() => run(() => migrateOpenStackInstance(inst.id, { live: true }), 'Live migrate')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Live migrate</button>
+          <button type="button" onClick={() => run(() => rescueOpenStackInstance(inst.id, {}), 'Rescue')}
+            className="px-3 py-1.5 rounded-lg border border-amber-600/50 text-amber-200 text-sm">Rescue</button>
+          <button type="button" onClick={() => run(() => unrescueOpenStackInstance(inst.id), 'Unrescued')}
+            className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Unrescue</button>
+          <button type="button" onClick={() => {
+            const n = prompt('Backup name', `${inst.name}-backup`)
+            if (!n) return
+            void run(() => backupOpenStackInstance(inst.id, n), 'Backup started')
+          }} className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Backup</button>
+        </div>
+        <h3 className="text-xs text-slate-500 mb-2 flex items-center gap-1"><Plane className="w-3.5 h-3.5" /> Interfaces</h3>
+        <ul className="text-xs font-mono text-slate-400 mb-2 space-y-1">
+          {ifaces.map((i) => (
+            <li key={i.port_id} className="flex gap-2 items-center">
+              {i.fixed_ips.join(', ') || i.port_id.slice(0, 8)}
+              <button type="button" className="text-red-400 hover:underline"
+                onClick={() => run(() => detachOpenStackInterface(inst.id, i.port_id), 'Interface detached')}>Detach</button>
+            </li>
+          ))}
+        </ul>
+        <div className="flex flex-wrap gap-2 items-end">
+          <select value={attachNetId} onChange={(e) => setAttachNetId(e.target.value)}
+            className="px-2 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-sm">
+            <option value="">Network to attach…</option>
+            {networks.map((n) => (
+              <option key={n.id} value={n.id}>{n.name || n.id}</option>
+            ))}
+          </select>
+          <button type="button" disabled={!attachNetId}
+            onClick={() => run(
+              () => attachOpenStackInterface(inst.id, { network_id: attachNetId }),
+              'Interface attached',
+            )}
+            className="px-3 py-1.5 rounded-lg bg-sky-600 text-sm text-white disabled:opacity-40">Attach NIC</button>
+        </div>
+      </section>
+
       <section className="rounded-xl border border-slate-700/80 p-4">
         <h2 className="font-medium text-slate-200 mb-3">Power &amp; lifecycle</h2>
         <div className="flex flex-wrap gap-2">
@@ -194,7 +263,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
             </select>
           </div>
           <Link
-            to={`/openstack/instances/${encodeURIComponent(inst.id)}/console?type=${consoleType}`}
+            to={`/openstack/instances/${encodeURIComponent(inst.id)}/console?type=${consoleType}&tunnel=1`}
             className="px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-sm text-white inline-flex items-center gap-1.5"
           >
             <Monitor className="w-3.5 h-3.5" />
