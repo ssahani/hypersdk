@@ -80,6 +80,46 @@ pub fn effective_cloud_name(cfg: &OpenStackConfig) -> Option<String> {
     None
 }
 
+pub fn resolve_auth_url(cfg: &OpenStackConfig) -> Option<String> {
+    if !cfg.auth_url.trim().is_empty() {
+        return Some(cfg.auth_url.trim().to_string());
+    }
+    let path = resolve_clouds_yaml_path(cfg)?;
+    let cloud = effective_cloud_name(cfg)?;
+    let content = std::fs::read_to_string(path).ok()?;
+    let mut in_cloud = false;
+    let mut in_auth = false;
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with('#') || trimmed.is_empty() {
+            continue;
+        }
+        if line.starts_with("  ") && !line.starts_with("    ") {
+            in_cloud = trimmed == format!("{cloud}:");
+            in_auth = false;
+            continue;
+        }
+        if !in_cloud {
+            continue;
+        }
+        if trimmed == "auth:" {
+            in_auth = true;
+            continue;
+        }
+        if in_auth && line.starts_with("      ") {
+            if let Some(val) = trimmed.strip_prefix("auth_url:") {
+                let url = val.trim().trim_matches('"');
+                if !url.is_empty() {
+                    return Some(url.to_string());
+                }
+            }
+        } else if in_auth && line.starts_with("    ") && !line.starts_with("      ") {
+            in_auth = false;
+        }
+    }
+    None
+}
+
 pub fn effective_cloud_name_for_config(cfg: &OpenStackConfig) -> Option<String> {
     effective_cloud_name(cfg)
 }

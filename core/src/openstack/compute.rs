@@ -343,6 +343,12 @@ fn instance_from_nova_json(server: &serde_json::Value) -> Result<OpenStackInstan
         .and_then(|v| v.as_bool())
         .unwrap_or(false);
 
+    let project_id = server
+        .get("tenant_id")
+        .or_else(|| server.get("project_id"))
+        .and_then(|v| v.as_str())
+        .map(String::from);
+
     Ok(OpenStackInstance {
         id,
         name,
@@ -351,7 +357,7 @@ fn instance_from_nova_json(server: &serde_json::Value) -> Result<OpenStackInstan
         flavor_id,
         flavor_name: None,
         availability_zone,
-        project_id: metadata.get("project_id").cloned(),
+        project_id,
         key_name,
         image_id,
         created_at,

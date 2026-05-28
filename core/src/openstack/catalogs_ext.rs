@@ -11,6 +11,7 @@ use crate::config::OpenStackConfig;
 use crate::LibvirtError;
 
 use super::auth::{connect_session, map_json_err, map_osauth_err};
+use super::quotas::probe_cinder_reachable;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpenStackVolumeType {
@@ -28,6 +29,9 @@ pub struct OpenStackServerGroup {
 }
 
 pub async fn list_volume_types(cfg: &OpenStackConfig) -> Result<Vec<OpenStackVolumeType>, LibvirtError> {
+    if !probe_cinder_reachable(cfg).await {
+        return Ok(Vec::new());
+    }
     let session = connect_session(cfg).await?;
     #[derive(Deserialize)]
     struct Resp {
@@ -69,7 +73,10 @@ pub async fn list_server_groups(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSe
     struct SgJson {
         id: String,
         name: String,
-        policy: String,
+        #[serde(default)]
+        policy: Option<String>,
+        #[serde(default)]
+        policies: Vec<String>,
         #[serde(default)]
         members: Vec<String>,
     }
@@ -82,11 +89,17 @@ pub async fn list_server_groups(cfg: &OpenStackConfig) -> Result<Vec<OpenStackSe
     let mut out: Vec<_> = body
         .server_groups
         .into_iter()
-        .map(|g| OpenStackServerGroup {
-            id: g.id,
-            name: g.name,
-            policy: g.policy,
-            members: g.members,
+        .map(|g| {
+            let policy = g
+                .policy
+                .or_else(|| g.policies.into_iter().next())
+                .unwrap_or_default();
+            OpenStackServerGroup {
+                id: g.id,
+                name: g.name,
+                policy,
+                members: g.members,
+            }
         })
         .collect();
     out.sort_by(|a, b| a.name.cmp(&b.name));
@@ -110,7 +123,10 @@ pub async fn get_server_group(
     struct SgJson {
         id: String,
         name: String,
-        policy: String,
+        #[serde(default)]
+        policy: Option<String>,
+        #[serde(default)]
+        policies: Vec<String>,
         #[serde(default)]
         members: Vec<String>,
     }
@@ -120,10 +136,15 @@ pub async fn get_server_group(
         .await
         .map_err(map_osauth_err)?;
     let body: Resp = resp.json().await.map_err(map_json_err)?;
+    let policy = body
+        .server_group
+        .policy
+        .or_else(|| body.server_group.policies.into_iter().next())
+        .unwrap_or_default();
     Ok(OpenStackServerGroup {
         id: body.server_group.id,
         name: body.server_group.name,
-        policy: body.server_group.policy,
+        policy,
         members: body.server_group.members,
     })
 }
@@ -155,7 +176,10 @@ pub async fn create_server_group(
     struct SgJson {
         id: String,
         name: String,
-        policy: String,
+        #[serde(default)]
+        policy: Option<String>,
+        #[serde(default)]
+        policies: Vec<String>,
         #[serde(default)]
         members: Vec<String>,
     }
@@ -166,10 +190,15 @@ pub async fn create_server_group(
         .await
         .map_err(map_osauth_err)?;
     let parsed: Resp = resp.json().await.map_err(map_json_err)?;
+    let policy = parsed
+        .server_group
+        .policy
+        .or_else(|| parsed.server_group.policies.into_iter().next())
+        .unwrap_or_else(|| policy.to_string());
     Ok(OpenStackServerGroup {
         id: parsed.server_group.id,
         name: parsed.server_group.name,
-        policy: parsed.server_group.policy,
+        policy,
         members: parsed.server_group.members,
     })
 }

@@ -304,6 +304,7 @@ pub async fn list_host_aggregates(
 pub struct SetComputeServiceRequest {
     pub binary: String,
     pub host: String,
+    #[serde(default)]
     pub disabled: bool,
 }
 
@@ -356,9 +357,17 @@ pub async fn set_hypervisor_maintenance(
         return Err(LibvirtError::Invalid("hypervisor id is required".into()));
     }
     let session = connect_session(cfg).await?;
+    let target = if id.chars().all(|c| c.is_ascii_digit()) {
+        get_hypervisor(cfg, id)
+            .await
+            .map(|h| h.hostname)
+            .unwrap_or_else(|_| id.to_string())
+    } else {
+        id.to_string()
+    };
     let status = if maintenance { "disabled" } else { "enabled" };
     session
-        .put(COMPUTE, &["os-hypervisors", id])
+        .put(COMPUTE, &["os-hypervisors", &target])
         .json(&serde_json::json!({ "status": status }))
         .send()
         .await

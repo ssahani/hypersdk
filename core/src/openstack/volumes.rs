@@ -12,6 +12,7 @@ use crate::LibvirtError;
 
 use super::auth::{connect_session, map_json_err, map_osauth_err};
 use super::compute::{connect_cloud, map_openstack_err};
+use super::quotas::probe_cinder_reachable;
 use super::resources::OpenStackAttachedVolume;
 
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
@@ -68,6 +69,7 @@ pub async fn create_cinder_volume(
     if req.size_gb == 0 {
         return Err(LibvirtError::Invalid("size_gb must be > 0".into()));
     }
+    super::quotas::ensure_cinder_reachable(cfg).await?;
     let cloud = connect_cloud(cfg).await?;
     let mut builder = cloud.new_volume(req.size_gb);
     if let Some(ref name) = req.name {
@@ -169,6 +171,9 @@ pub async fn snapshot_cinder_volume(
 pub async fn list_cinder_snapshots(
     cfg: &OpenStackConfig,
 ) -> Result<Vec<OpenStackVolumeSnapshot>, LibvirtError> {
+    if !probe_cinder_reachable(cfg).await {
+        return Ok(Vec::new());
+    }
     let session = connect_session(cfg).await?;
     #[derive(Deserialize)]
     struct Resp {
@@ -443,6 +448,9 @@ pub struct AcceptVolumeTransferRequest {
 pub async fn list_volume_transfers(
     cfg: &OpenStackConfig,
 ) -> Result<Vec<OpenStackVolumeTransfer>, LibvirtError> {
+    if !probe_cinder_reachable(cfg).await {
+        return Ok(Vec::new());
+    }
     let session = connect_session(cfg).await?;
     #[derive(Deserialize)]
     struct Resp {

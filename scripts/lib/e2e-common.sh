@@ -11,7 +11,7 @@ e2e_host_from_base() {
 }
 
 e2e_init_cookie() {
-  E2E_COOKIE="$(mktemp /tmp/machina_e2e_XXXXXX.txt)"
+  E2E_COOKIE="$(mktemp -t machina_e2e_cookie.XXXXXX)"
   export E2E_COOKIE
 }
 

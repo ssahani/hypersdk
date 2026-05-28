@@ -15,6 +15,7 @@ use crate::config::OpenStackConfig;
 use crate::LibvirtError;
 
 use super::compute::{connect_cloud, map_openstack_err, OpenStackInstance};
+use super::quotas::probe_cinder_reachable;
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OpenStackFlavor {
@@ -583,6 +584,9 @@ pub struct OpenStackAttachedVolume {
 /// Cinder volumes attached to a Nova instance (read-only).
 /// All Cinder volumes in the project (for attach UI).
 pub async fn list_cinder_volumes(cfg: &OpenStackConfig) -> Result<Vec<OpenStackAttachedVolume>, LibvirtError> {
+    if !probe_cinder_reachable(cfg).await {
+        return Ok(Vec::new());
+    }
     let cloud = connect_cloud(cfg).await?;
     let volumes = cloud.list_volumes().await.map_err(map_openstack_err)?;
     let mut out = Vec::new();
@@ -605,6 +609,9 @@ pub async fn list_instance_volumes(
     cfg: &OpenStackConfig,
     instance_id: &str,
 ) -> Result<Vec<OpenStackAttachedVolume>, LibvirtError> {
+    if !probe_cinder_reachable(cfg).await {
+        return Ok(Vec::new());
+    }
     let cloud = connect_cloud(cfg).await?;
     let volumes = cloud.list_volumes().await.map_err(map_openstack_err)?;
     let mut out = Vec::new();
