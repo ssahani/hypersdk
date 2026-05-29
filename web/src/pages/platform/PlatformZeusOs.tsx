@@ -7,9 +7,12 @@ import { MacGlassPanel, MacSectionTitle } from '../../components/platform/mac/Pl
 import ErrorBanner from '../../components/ErrorBanner'
 import {
   analyzeAttackPath,
+  diagnoseKnowledge,
   executeFleetRebalance,
   getComplianceFrameworks,
+  getGpuPlacement,
   getFleetHeatmap,
+  simulateServiceImpact,
   getFleetRebalanceProposal,
   getInfrastructureMemory,
   getSecurityGraph,
@@ -43,13 +46,21 @@ export default function PlatformZeusOs() {
   const [capacitySummary, setCapacitySummary] = useState<string | null>(null)
   const [rebalancePreview, setRebalancePreview] = useState<string | null>(null)
   const [frameworksSummary, setFrameworksSummary] = useState<string | null>(null)
+  const [gpuSummary, setGpuSummary] = useState<string | null>(null)
+  const [diagnosisSummary, setDiagnosisSummary] = useState<string | null>(null)
+  const [serviceImpact, setServiceImpact] = useState<string | null>(null)
 
   const loadFleet = useCallback(async () => {
     setError(null)
     try {
-      const [h, r] = await Promise.all([getFleetHeatmap(), getFleetRebalanceProposal()])
+      const [h, r, gpu] = await Promise.all([
+        getFleetHeatmap(),
+        getFleetRebalanceProposal(),
+        getGpuPlacement('inference'),
+      ])
       setHeatmap(h)
       setRebalance(r)
+      setGpuSummary(gpu.summary)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Fleet load failed')
     }
@@ -73,9 +84,14 @@ export default function PlatformZeusOs() {
   const loadServices = useCallback(async () => {
     setError(null)
     try {
-      const [sg, mem] = await Promise.all([getServiceGraph(), getInfrastructureMemory()])
+      const [sg, mem, impact] = await Promise.all([
+        getServiceGraph(),
+        getInfrastructureMemory(),
+        simulateServiceImpact('payments').catch(() => null),
+      ])
       setServiceCount(sg.service_count)
       setMemoryCount(mem.incidents.length)
+      if (impact) setServiceImpact(impact.summary)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Service graph failed')
     }
@@ -99,8 +115,12 @@ export default function PlatformZeusOs() {
 
   const runKnowledge = async () => {
     try {
-      const r = await searchKnowledge(knowledgeQuery)
+      const [r, diag] = await Promise.all([
+        searchKnowledge(knowledgeQuery),
+        diagnoseKnowledge(knowledgeQuery),
+      ])
       setKnowledgeHits(r.hits)
+      setDiagnosisSummary(diag.hypotheses[0]?.title ?? diag.summary)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Search failed')
     }
@@ -150,6 +170,11 @@ export default function PlatformZeusOs() {
               ))}
             </div>
           </MacGlassPanel>
+          {gpuSummary && (
+            <MacGlassPanel title="GPU / NUMA placement" subtitle="Tag hosts with gpu or nvidia for affinity">
+              <p className="text-sm text-slate-300">{gpuSummary}</p>
+            </MacGlassPanel>
+          )}
           {rebalance && (
             <MacGlassPanel title="Autonomous rebalancer" subtitle={rebalance.summary}>
               <ul className="text-xs space-y-2 text-slate-400">
@@ -188,11 +213,12 @@ export default function PlatformZeusOs() {
       )}
 
       {tab === 'knowledge' && (
-        <MacGlassPanel title="Infrastructure knowledge engine" subtitle="Global search across VMs, hosts, tasks, events">
+        <MacGlassPanel title="Infrastructure knowledge engine" subtitle="Global search + NL diagnose">
           <div className="flex gap-2">
             <input className="input flex-1 text-sm" value={knowledgeQuery} onChange={(e) => setKnowledgeQuery(e.target.value)} />
             <button type="button" className="btn-primary text-xs" onClick={() => void runKnowledge()}>Search</button>
           </div>
+          {diagnosisSummary && <p className="text-xs text-amber-200/90 mt-2">Diagnosis: {diagnosisSummary}</p>}
           <ul className="mt-3 space-y-1.5 text-xs">
             {knowledgeHits.map((h) => (
               <li key={`${h.kind}-${h.id}`}>
@@ -207,6 +233,7 @@ export default function PlatformZeusOs() {
       {tab === 'services' && (
         <MacGlassPanel title="Service graph & infrastructure memory" subtitle="Application → VM dependencies + incident recall">
           <p className="text-sm text-slate-400">{serviceCount} application service(s) mapped · {memoryCount} remembered incident(s)</p>
+          {serviceImpact && <p className="text-xs text-slate-400 mt-2">{serviceImpact}</p>}
           <Link to="/platform/applications" className="text-xs text-blue-400 mt-2 inline-block">Open applications →</Link>
         </MacGlassPanel>
       )}

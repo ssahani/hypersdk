@@ -5,7 +5,7 @@ import { DollarSign, FolderKanban } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type SecurityReport } from '../../api/ai'
+import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type SecurityReport } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformReports() {
@@ -135,6 +135,9 @@ export default function PlatformReports() {
               </li>
             ))}
           </ul>
+          <a href={getCostAttributionExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-cost-attribution.csv">
+            Download chargeback CSV
+          </a>
         </MacGlassPanel>
       )}
       {autopilotHistory.length > 0 && (

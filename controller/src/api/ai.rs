@@ -664,3 +664,84 @@ pub async fn mission_stack(
         rates.1,
     )))
 }
+
+pub async fn mission_stack_execute(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<ai::mission_stack::MissionStackExecuteBody>,
+) -> Result<Json<ai::mission_stack::MissionStackExecuteResult>, ApiError> {
+    ai::mission_stack::execute_stack(&state, &actor, &body).await.map(Json)
+}
+
+pub async fn cost_attribution_export_csv(
+    State(state): State<AppState>,
+) -> Result<axum::response::Response, ApiError> {
+    let csv = ai::cost_attribution::export_csv(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(axum::response::Response::builder()
+        .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            http::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"machina-cost-attribution.csv\"",
+        )
+        .body(axum::body::Body::from(csv))
+        .map_err(|e| ApiError::internal(e.to_string()))?)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GpuPlacementQuery {
+    #[serde(default = "default_gpu_workload")]
+    pub workload: String,
+}
+
+fn default_gpu_workload() -> String {
+    "inference".into()
+}
+
+pub async fn fleet_gpu_placement(
+    State(state): State<AppState>,
+    Query(q): Query<GpuPlacementQuery>,
+) -> Result<Json<ai::fleet_placement::GpuPlacementReport>, ApiError> {
+    ai::fleet_placement::advise_gpu(&state.pool, &q.workload)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn knowledge_diagnose(
+    State(state): State<AppState>,
+    Json(body): Json<KnowledgeSearchBody>,
+) -> Result<Json<ai::knowledge_diagnose::KnowledgeDiagnosis>, ApiError> {
+    ai::knowledge_diagnose::diagnose(&state.pool, &body.query)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn service_impact(
+    State(state): State<AppState>,
+    Json(body): Json<ai::service_impact::ServiceImpactQuery>,
+) -> Result<Json<ai::service_impact::ServiceImpactResult>, ApiError> {
+    ai::service_impact::simulate(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SimilarMemoryQuery {
+    pub q: String,
+    #[serde(default = "default_memory_limit")]
+    pub limit: i64,
+}
+
+pub async fn memory_similar(
+    State(state): State<AppState>,
+    Query(q): Query<SimilarMemoryQuery>,
+) -> Result<Json<ai::infrastructure_memory::SimilarIncidentsResult>, ApiError> {
+    ai::infrastructure_memory::similar(&state.pool, &q.q, q.limit)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}

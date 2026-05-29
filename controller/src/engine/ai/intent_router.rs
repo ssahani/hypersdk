@@ -331,6 +331,63 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             Some("/mission-control".into()),
             Some(serde_json::json!({ "query": q })),
         ));
+        intents.push(intent(
+            "mission-stack-execute",
+            "Execute mission stack (preview)",
+            "Preview GPU VM creation for infrastructure phase.",
+            "navigate",
+            None,
+            Some("/mission-control".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("why") && (ql.contains("slow") || ql.contains("down") || ql.contains("billing")) {
+        intents.push(intent(
+            "knowledge-diagnose",
+            "Diagnose infrastructure issue",
+            "NL root-cause hints from VMs, tasks, and metrics.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            Some(serde_json::json!({ "query": q })),
+        ));
+    }
+
+    if ql.contains("gpu") && (ql.contains("place") || ql.contains("numa") || ql.contains("where")) {
+        intents.push(intent(
+            "gpu-placement",
+            "GPU placement advisor",
+            "Rank hosts for GPU / inference workloads.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("service") && (ql.contains("fail") || ql.contains("blast") || ql.contains("impact")) {
+        intents.push(intent(
+            "service-impact",
+            "Service blast radius",
+            "Simulate impact if an application service fails.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("similar") && ql.contains("incident") {
+        intents.push(intent(
+            "memory-similar",
+            "Similar incidents",
+            "Recall related audit and failure history.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
     }
 
     if (ql.contains("attack") && ql.contains("reach")) || ql.contains("attacker") {

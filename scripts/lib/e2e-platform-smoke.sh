@@ -456,4 +456,44 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/compliance/frameworks — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-114–121)"
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/mission/stack/execute" \
+    -H 'Content-Type: application/json' -d '{"query":"GPU cluster for Llama","dry_run":true}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/mission/stack/execute (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/mission/stack/execute — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/cost/attribution/export.csv")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/cost/attribution/export.csv (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/cost/attribution/export.csv — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/gpu-placement?workload=inference")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/fleet/gpu-placement (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/fleet/gpu-placement — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/knowledge/diagnose" \
+    -H 'Content-Type: application/json' -d '{"query":"why is billing slow"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/knowledge/diagnose (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/knowledge/diagnose — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/services/impact" \
+    -H 'Content-Type: application/json' -d '{"service":"payments"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/services/impact (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/services/impact — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/memory/similar?q=migrate&limit=5")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/memory/similar (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/memory/similar — HTTP ${http}"
+  fi
 }

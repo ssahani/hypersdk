@@ -136,3 +136,34 @@ pub async fn attribute(pool: &PgPool) -> anyhow::Result<CostAttributionReport> {
         summary,
     })
 }
+
+pub async fn export_csv(pool: &PgPool) -> anyhow::Result<String> {
+    let report = attribute(pool).await?;
+    let mut csv = String::from(
+        "Machina FinOps Team Attribution\nTeam,VM Count,vCPUs,Memory GiB,Est Monthly USD,Share %\n",
+    );
+    for row in &report.teams {
+        csv.push_str(&format!(
+            "{},{},{},{:.1},{:.2},{:.1}\n",
+            csv_escape(&row.team),
+            row.vm_count,
+            row.vcpus,
+            row.memory_gib,
+            row.estimated_monthly_usd,
+            row.share_pct
+        ));
+    }
+    csv.push_str(&format!(
+        "\nTotal USD,{:.2}\nUnattributed USD,{:.2}\n",
+        report.total_monthly_usd, report.unattributed_monthly_usd
+    ));
+    Ok(csv)
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}

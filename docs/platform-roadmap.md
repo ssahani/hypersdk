@@ -190,3 +190,11 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-111 | Phase 11 UI — attribution, twin sim, Zeus OS polish |
 | AI-112 | Spotlight intents for phase 11 features |
 | AI-113 | Phase 11 E2E + docs |
+| AI-114 | Mission stack execute (GPU VM preview + admin enqueue) |
+| AI-115 | FinOps chargeback CSV export |
+| AI-116 | Fleet GPU / NUMA placement advisor |
+| AI-117 | Knowledge NL diagnose ("why is X slow") |
+| AI-118 | Service blast-radius impact simulation |
+| AI-119 | Infrastructure memory similar-incident recall |
+| AI-120 | Phase 12 UI — Mission Control execute, Reports CSV, Zeus OS |
+| AI-121 | Phase 12 E2E + docs |

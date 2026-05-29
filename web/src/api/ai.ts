@@ -468,6 +468,43 @@ export const planMissionStack = (query: string) =>
     body: JSON.stringify({ query }),
   })
 
+export interface MissionStackExecuteResult {
+  dry_run: boolean
+  plan: MissionStackPlan
+  vm_tasks: Array<{ name: string; host: string; task_id?: string }>
+  summary: string
+}
+
+export const executeMissionStack = (query: string, dryRun = true) =>
+  platformFetch<MissionStackExecuteResult>('/api/v1/ai/mission/stack/execute', {
+    method: 'POST',
+    body: JSON.stringify({ query, dry_run: dryRun }),
+  })
+
+export const getGpuPlacement = (workload = 'inference') =>
+  platformFetch<{ summary: string; candidates: Array<{ hostname: string; gpu_capable: boolean; score: number; reason: string }> }>(
+    `/api/v1/ai/fleet/gpu-placement?workload=${encodeURIComponent(workload)}`,
+  )
+
+export const diagnoseKnowledge = (query: string) =>
+  platformFetch<{ summary: string; hypotheses: Array<{ title: string; confidence: number; evidence: string; action: string }> }>(
+    '/api/v1/ai/knowledge/diagnose',
+    { method: 'POST', body: JSON.stringify({ query }) },
+  )
+
+export const simulateServiceImpact = (service: string) =>
+  platformFetch<{ summary: string; severity: string; affected_vms: string[] }>(
+    '/api/v1/ai/services/impact',
+    { method: 'POST', body: JSON.stringify({ service }) },
+  )
+
+export const getSimilarIncidents = (q: string, limit = 10) =>
+  platformFetch<{ summary: string; incidents: Array<{ kind: string; summary: string; similarity: number }> }>(
+    `/api/v1/ai/memory/similar?q=${encodeURIComponent(q)}&limit=${limit}`,
+  )
+
+export const getCostAttributionExportUrl = () => '/api/v1/platform/controller/api/v1/ai/cost/attribution/export.csv'
+
 export interface BaremetalServer {
   id: string
   hostname: string
