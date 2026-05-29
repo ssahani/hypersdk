@@ -1,0 +1,29 @@
+[Unit]
+Description=Machina platform controller (central management API)
+Documentation=https://github.com/ssahani/machina
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+EnvironmentFile=-/etc/default/machina-platform
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ExecStart=/usr/local/bin/machina-controller --host 0.0.0.0 --port 5093
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=machina-controller
+
+MemoryMax=1G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

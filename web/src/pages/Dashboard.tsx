@@ -57,6 +57,8 @@ export default function Dashboard() {
   const [k8sError, setK8sError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
 
+  const platformEnabled = Boolean(info?.control_plane?.proxy_url)
+
   const vmAction = async (vm: VmInfo, fn: (n: string, c?: string | null) => Promise<void>, label: string) => {
     try { await fn(vm.name, vm.libvirt_connection); toast.success(`${label} '${vm.name}' OK`); loadData() }
     catch (e: unknown) { toast.error(`${label} '${vm.name}' failed: ${formatUserError(e)}`) }
@@ -185,6 +187,17 @@ export default function Dashboard() {
           hints={libvirtErrorHints(loadError)}
           onRetry={loadData}
         />
+      )}
+
+      {platformEnabled && (
+        <div className="rounded-xl border border-violet-500/30 bg-violet-950/20 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-sm text-violet-100">
+            Multi-host platform controller is available via same-origin proxy.
+          </p>
+          <Link to="/platform" className="text-sm text-violet-300 hover:text-violet-200 inline-flex items-center gap-1">
+            Open Platform <ArrowRight className="w-4 h-4" />
+          </Link>
+        </div>
       )}
 
       {healthProblems.length > 0 && (

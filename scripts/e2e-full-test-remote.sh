@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Run Machina full E2E against a remote deploy from your laptop.
+#
+# Usage:
+#   ./scripts/e2e-full-test-remote.sh USER HOST
+#   VSPASS=max ./scripts/e2e-full-test-remote.sh sus 212.8.252.194
+#   ./scripts/e2e-full-test-remote.sh sus 212.8.252.194 --platform-only
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+USER="${1:?usage: $0 USER HOST [e2e-full-test flags...]}"
+HOST="${2:?usage: $0 USER HOST [e2e-full-test flags...]}"
+shift 2
+
+BASE="https://${HOST}:5092"
+PASS="${VSPASS:-${SSHPASS:-}}"
+
+if [[ -z "$PASS" ]]; then
+  read -rsp "Password for ${USER}@${BASE}: " PASS
+  echo
+fi
+
+exec env VSPASS="$PASS" E2E_SSH_HOST="$HOST" E2E_INSTALL_REMOTE=1 \
+  "${SCRIPT_DIR}/e2e-full-test.sh" "$BASE" "$USER" "$PASS" "$@"

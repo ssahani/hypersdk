@@ -14,9 +14,12 @@ import Navbar from './components/Navbar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
 import CommandPalette from './components/CommandPalette'
+import MachinaSpotlight from './components/ai/MachinaSpotlight'
+import MachinaCopilot from './components/ai/MachinaCopilot'
 import Breadcrumb from './components/Breadcrumb'
 import HelpDialog, { type HelpTab } from './components/HelpDialog'
 import PageSkeleton from './components/PageSkeleton'
+import { AiProvider } from './contexts/AiContext'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
 import { useKeyboardShortcut, isInputFocused } from './hooks/useKeyboardShortcut'
 import { useRecordRecentPage } from './hooks/useRecordRecentPage'
@@ -91,7 +94,39 @@ const OpenStackIdentityProjectDetail = lazy(() => import('./pages/OpenStackIdent
 const OpenStackIdentityUserDetail = lazy(() => import('./pages/OpenStackIdentityUserDetail'))
 const OpenStackTopology = lazy(() => import('./pages/OpenStackTopology'))
 const Fleet = lazy(() => import('./pages/Fleet'))
+const PlatformLayout = lazy(() => import('./layouts/PlatformLayout'))
+const PlatformDashboard = lazy(() => import('./pages/platform/PlatformDashboard'))
+const PlatformHosts = lazy(() => import('./pages/platform/PlatformHosts'))
+const PlatformVms = lazy(() => import('./pages/platform/PlatformVms'))
+const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
+const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
+const PlatformContent = lazy(() => import('./pages/platform/PlatformContent'))
+const PlatformTemplates = lazy(() => import('./pages/platform/PlatformTemplates'))
+const PlatformEnroll = lazy(() => import('./pages/platform/PlatformEnroll'))
+const PlatformPlacement = lazy(() => import('./pages/platform/PlatformPlacement'))
+const PlatformTasks = lazy(() => import('./pages/platform/PlatformTasks'))
+const PlatformEvents = lazy(() => import('./pages/platform/PlatformEvents'))
+const PlatformStorage = lazy(() => import('./pages/platform/PlatformStorage'))
+const PlatformNetworks = lazy(() => import('./pages/platform/PlatformNetworks'))
+const PlatformHostDetail = lazy(() => import('./pages/platform/PlatformHostDetail'))
+const PlatformUsers = lazy(() => import('./pages/platform/PlatformUsers'))
+const PlatformWebhooks = lazy(() => import('./pages/platform/PlatformWebhooks'))
+const PlatformReports = lazy(() => import('./pages/platform/PlatformReports'))
+const PlatformApiKeys = lazy(() => import('./pages/platform/PlatformApiKeys'))
+const PlatformMaintenance = lazy(() => import('./pages/platform/PlatformMaintenance'))
+const PlatformProjects = lazy(() => import('./pages/platform/PlatformProjects'))
+const PlatformNotifications = lazy(() => import('./pages/platform/PlatformNotifications'))
+const PlatformSettingsHub = lazy(() => import('./pages/platform/PlatformSettingsHub'))
+const PlatformMigration = lazy(() => import('./pages/platform/PlatformMigration'))
+const PlatformActivityMonitor = lazy(() => import('./pages/platform/PlatformActivityMonitor'))
+const PlatformRecommendations = lazy(() => import('./pages/platform/PlatformRecommendations'))
+const PlatformApplications = lazy(() => import('./pages/platform/PlatformApplications'))
+const PlatformBackups = lazy(() => import('./pages/platform/PlatformBackups'))
+const PlatformTopology = lazy(() => import('./pages/platform/PlatformTopology'))
+const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
+const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
+const MissionControl = lazy(() => import('./pages/MissionControl'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
 
 function AppZyvorFooter() {
@@ -144,6 +179,14 @@ function GlobalShortcuts({
   )
 
   useKeyboardShortcut({ key: '?', handler: toggleHelp })
+  useKeyboardShortcut({
+    key: 'F3',
+    handler: (e) => {
+      if (isInputFocused()) return
+      e.preventDefault()
+      navigate('/mission-control')
+    },
+  })
 
   return (
     <HelpDialog open={helpOpen} tab={helpTab} onClose={onCloseHelp} onTabChange={onHelpTabChange} />
@@ -195,11 +238,13 @@ function AuthenticatedShell() {
   return (
     <WebSocketProvider>
       <PlatformInfoProvider>
+        <AiProvider>
         <BrowserRouter>
           <RouteRecorder />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             <Navbar onOpenHelp={openHelp} />
-            <CommandPalette onOpenHelp={openHelp} />
+            <MachinaSpotlight onOpenHelp={openHelp} />
+            <MachinaCopilot />
             <GlobalShortcuts
               helpOpen={helpOpen}
               helpTab={helpTab}
@@ -221,6 +266,38 @@ function AuthenticatedShell() {
                 <Route path="/vms/:name/console" element={<Console />} />
                 <Route path="/vms/:name/rdp" element={<RdpConsole />} />
                 <Route path="/fleet" element={<Fleet />} />
+                <Route path="/platform" element={<PlatformLayout />}>
+                  <Route index element={<PlatformDashboard />} />
+                  <Route path="hosts" element={<PlatformHosts />} />
+                  <Route path="hosts/:id" element={<PlatformHostDetail />} />
+                  <Route path="vms" element={<PlatformVms />} />
+                  <Route path="vms/:id" element={<PlatformVmDetail />} />
+                  <Route path="vms/:id/console" element={<PlatformConsole />} />
+                  <Route path="applications" element={<PlatformApplications />} />
+                  <Route path="content" element={<PlatformContent />} />
+                  <Route path="templates" element={<PlatformTemplates />} />
+                  <Route path="migration" element={<PlatformMigration />} />
+                  <Route path="backups" element={<PlatformBackups />} />
+                  <Route path="enroll" element={<PlatformEnroll />} />
+                  <Route path="placement" element={<PlatformPlacement />} />
+                  <Route path="tasks" element={<PlatformTasks />} />
+                  <Route path="events" element={<PlatformEvents />} />
+                  <Route path="activity" element={<PlatformActivityMonitor />} />
+                  <Route path="recommendations" element={<PlatformRecommendations />} />
+                  <Route path="topology" element={<PlatformTopology />} />
+                  <Route path="blueprints" element={<PlatformBlueprints />} />
+                  <Route path="support" element={<PlatformSupport />} />
+                  <Route path="storage" element={<PlatformStorage />} />
+                  <Route path="networks" element={<PlatformNetworks />} />
+                  <Route path="users" element={<PlatformUsers />} />
+                  <Route path="webhooks" element={<PlatformWebhooks />} />
+                  <Route path="reports" element={<PlatformReports />} />
+                  <Route path="api-keys" element={<PlatformApiKeys />} />
+                  <Route path="maintenance" element={<PlatformMaintenance />} />
+                  <Route path="projects" element={<PlatformProjects />} />
+                  <Route path="notifications" element={<PlatformNotifications />} />
+                  <Route path="settings" element={<PlatformSettingsHub />} />
+                </Route>
                 <Route path="/create" element={<CreateVM />} />
                 <Route path="/jobs/:jobId" element={<Jobs />} />
                 <Route path="/jobs" element={<Jobs />} />
@@ -284,6 +361,7 @@ function AuthenticatedShell() {
                 <Route path="/ssh" element={<SSHPage />} />
                 <Route path="/api-docs" element={<ApiDocs />} />
                 <Route path="/services" element={<Services />} />
+                <Route path="/mission-control" element={<MissionControl />} />
                 <Route path="/system-check" element={<SystemCheck />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/settings" element={<SettingsPage />} />
@@ -295,6 +373,7 @@ function AuthenticatedShell() {
           <AppZyvorFooter />
         </div>
         </BrowserRouter>
+        </AiProvider>
       </PlatformInfoProvider>
     </WebSocketProvider>
   )

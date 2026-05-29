@@ -11,10 +11,11 @@ export const API_ERROR_LABELS: Record<string, string> = {
   libvirt_connection: 'Could not connect to libvirt on the host',
   internal_error: 'An internal server error occurred',
   unauthorized: 'Authentication required or your session expired',
+  conflict: 'That name is already in use',
+  invalid_name: 'Invalid name — use letters, numbers, spaces, and common punctuation',
 }
-
 const ERROR_CODE_RE =
-  /\((operation_failed|not_found|invalid_request|forbidden|libvirt_connection|internal_error|unauthorized)\)\s*$/i
+  /\((operation_failed|not_found|invalid_request|forbidden|libvirt_connection|internal_error|unauthorized|conflict|invalid_name)\)\s*$/i
 
 /** Human label for a stable API error code. */
 export function friendlyErrorCode(code: string): string {
@@ -62,20 +63,22 @@ export function formatHttpErrorBody(status: number, statusText: string, text: st
   }
 
   try {
-    const j = JSON.parse(raw) as { error?: string; message?: string; error_code?: string }
+    const j = JSON.parse(raw) as { error?: string; message?: string; error_code?: string; remediation?: string }
     const code = typeof j.error_code === 'string' ? j.error_code : undefined
+    const remediation = typeof j.remediation === 'string' ? j.remediation : undefined
     const rawMsg =
       typeof j.error === 'string' ? j.error : typeof j.message === 'string' ? j.message : ''
     const clean = sanitizeErrorText(rawMsg)
 
     if (clean) {
       if (code && (clean === code || clean === friendlyErrorCode(code))) {
-        return friendlyErrorCode(code)
+        return remediation ? `${friendlyErrorCode(code)} — ${remediation}` : friendlyErrorCode(code)
       }
       if (code && !clean.toLowerCase().includes(code.replace(/_/g, ' '))) {
-        return `${clean} (${friendlyErrorCode(code)})`
+        const base = `${clean} (${friendlyErrorCode(code)})`
+        return remediation ? `${base} — ${remediation}` : base
       }
-      return clean
+      return remediation ? `${clean} — ${remediation}` : clean
     }
     if (code) {
       return friendlyErrorCode(code)

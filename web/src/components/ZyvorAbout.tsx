@@ -4,7 +4,7 @@
 
 import { ExternalLink, Zap } from 'lucide-react'
 import { ZYVOR_URL, ZYVOR_BRAND, ZYVOR_COPY, ZYVOR_LINE } from './ZyvorBrand'
-import { MACHINA_HELP, ZYVOR_HELP } from '../config/zyvorHelp'
+import { MACHINA_HELP, ZYVOR_HELP, type HelpDocLink } from '../config/zyvorHelp'
 
 export const MACHINA_PRODUCT = MACHINA_HELP.name
 export const MACHINA_VERSION = MACHINA_HELP.version
@@ -12,10 +12,7 @@ export const MACHINA_TAGLINE = MACHINA_HELP.tagline
 
 const ORANGE = '#f97316'
 
-export type HelpDocLink = {
-  label: string
-  href: string
-}
+export type { HelpDocLink }
 
 export const MACHINA_HELP_LINKS: HelpDocLink[] = [
   {

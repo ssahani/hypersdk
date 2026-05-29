@@ -504,6 +504,11 @@ pub fn gather_linux_observability() -> Result<LinuxHostObservability, LibvirtErr
         .filter(|d| {
             !d.device.starts_with("dm")
                 && !d.device.starts_with("md")
+                && !d.device.starts_with("nbd")
+                && !d.device.starts_with("loop")
+                && !d.device.starts_with("sr")
+                && !d.device.starts_with("ram")
+                && !d.device.starts_with("zram")
                 && d.read_bytes + d.write_bytes > 0
         })
         .take(8)

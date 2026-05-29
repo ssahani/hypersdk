@@ -20,6 +20,8 @@ import {
   attachVmWatchdog, attachVmSound, attachVmSerial, setVmVideoModel,
   addShare, removeShare,
 } from '../api/vm'
+import { listPlatformVms } from '../api/platform'
+import { getVmDoctor, type VmDoctorReport } from '../api/ai'
 import {
   attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
 } from '../api/advanced'
@@ -115,6 +117,7 @@ export default function VMDetailsPage() {
   const [guestIps, setGuestIps] = useState<GuestIpAddress[]>([])
   const [guestObs, setGuestObs] = useState<GuestObservability | null>(null)
   const [guestHealth, setGuestHealth] = useState<GuestHealthReport | null>(null)
+  const [platformDoctor, setPlatformDoctor] = useState<VmDoctorReport | null>(null)
   const [networkGateways, setNetworkGateways] = useState<Record<string, string>>({})
   const [guestIfQueriedAt, setGuestIfQueriedAt] = useState<string | null>(null)
   const [sessionRole, setSessionRole] = useState<SessionRole | null>(null)
@@ -323,6 +326,16 @@ export default function VMDetailsPage() {
       try { const t = await getVmTags(name); setVmTags(t.tags) } catch { /* optional */ }
       try { setCpuTune(await getCpuTune(name, conn)) } catch { /* optional */ }
       try { setMemTune(await getMemTune(name, conn)) } catch { /* optional */ }
+      if (info?.control_plane?.proxy_url) {
+        try {
+          const pvm = (await listPlatformVms()).find((v) => v.name === name)
+          setPlatformDoctor(pvm ? await getVmDoctor(pvm.id) : null)
+        } catch {
+          setPlatformDoctor(null)
+        }
+      } else {
+        setPlatformDoctor(null)
+      }
     } catch (e: unknown) {
       const msg = formatUserError(e)
       setLoadError(msg)
@@ -331,7 +344,7 @@ export default function VMDetailsPage() {
     } finally {
       setLoading(false)
     }
-  }, [name, toast, conn])
+  }, [name, toast, conn, info?.control_plane?.proxy_url])
 
   useEffect(() => { load() }, [load])
 
@@ -1361,6 +1374,19 @@ export default function VMDetailsPage() {
               ) : (
                 <p className="mt-1 text-xs text-emerald-400/90">No issues detected</p>
               )}
+            </div>
+          )}
+
+          {platformDoctor && (
+            <div className="rounded-xl p-4 border border-orange-500/30 bg-orange-950/20">
+              <div className="text-sm font-medium text-slate-100 mb-1">Machina Doctor</div>
+              <p className="text-xs text-slate-400">
+                Platform score: <span className="text-orange-300 font-semibold">{platformDoctor.score_numeric}/100</span>
+                {' · '}{platformDoctor.score_label}
+              </p>
+              <Link to={`/platform/vms/${platformDoctor.vm_id}?tab=doctor`} className="text-xs text-blue-400 hover:underline mt-1 inline-block">
+                Open Doctor tab →
+              </Link>
             </div>
           )}
 

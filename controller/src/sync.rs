@@ -1,0 +1,52 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use std::time::Duration;
+
+use uuid::Uuid;
+
+use crate::engine::drs;
+use crate::state::AppState;
+use crate::tasks::enqueue::enqueue_task;
+
+pub fn spawn_periodic(state: AppState) {
+    tokio::spawn(async move {
+        loop {
+            if !state.leader.is_leader() {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                continue;
+            }
+
+            let interval_secs = drs::get_inventory_sync_interval_secs(&state.pool)
+                .await
+                .unwrap_or(30);
+
+            if interval_secs > 0 {
+                if let Err(e) = sync_all_hosts(&state).await {
+                    tracing::warn!("periodic host sync: {e:#}");
+                }
+                tokio::time::sleep(Duration::from_secs(interval_secs as u64)).await;
+            } else {
+                tokio::time::sleep(Duration::from_secs(30)).await;
+            }
+        }
+    });
+}
+
+async fn sync_all_hosts(state: &AppState) -> anyhow::Result<()> {
+    let host_ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts")
+        .fetch_all(&state.pool)
+        .await?;
+
+    for host_id in host_ids {
+        let _ = enqueue_task(
+            state,
+            "host.inventory",
+            serde_json::json!({ "host_id": host_id.to_string() }),
+            Some("host"),
+            Some(host_id),
+            Some(host_id),
+        )
+        .await;
+    }
+    Ok(())
+}

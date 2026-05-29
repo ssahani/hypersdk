@@ -7,6 +7,10 @@ members = [
     "guac-bridge",
     "virt-image-build",
     "run-as-user-helper",
+    "spec",
+    "translate",
+    "agent",
+    "controller",
 ]
 resolver = "2"
 

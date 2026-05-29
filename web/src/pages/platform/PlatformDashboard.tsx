@@ -1,0 +1,217 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import {
+  Boxes,
+  Plus,
+  ArrowRightLeft,
+  Server,
+  Upload,
+  Terminal,
+  Bell,
+  CheckCircle2,
+  AlertTriangle,
+  HardDrive,
+  RefreshCw,
+} from 'lucide-react'
+import ErrorBanner from '../../components/ErrorBanner'
+import ActionCard from '../../components/platform/ActionCard'
+import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
+import PlatformWelcome from '../../components/platform/PlatformWelcome'
+import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import SimpleCreateVmWizard, { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
+import {
+  createPlatformVm,
+  getCapacityReport,
+  getClusterSummary,
+  listPlatformHosts,
+  listPlatformTasks,
+  listPlatformVms,
+  type CapacityReport,
+  type ClusterSummary,
+  type CreatePlatformVmBody,
+  type PlatformHost,
+  type PlatformTask,
+} from '../../api/platform'
+import { getAiSecurity, runAutopilotSafe, type SecurityReport } from '../../api/ai'
+import { useAi } from '../../contexts/AiContext'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
+
+export default function PlatformDashboard() {
+  const toast = useToastContext()
+  const { mode } = useAi()
+  const [autopilotBusy, setAutopilotBusy] = useState(false)
+  const [hosts, setHosts] = useState<PlatformHost[]>([])
+  const [vms, setVms] = useState<{ observed_state: string }[]>([])
+  const [tasks, setTasks] = useState<PlatformTask[]>([])
+  const [cluster, setCluster] = useState<ClusterSummary | null>(null)
+  const [capacity, setCapacity] = useState<CapacityReport | null>(null)
+  const [security, setSecurity] = useState<SecurityReport | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
+
+  const load = useCallback(async () => {
+    setError(null)
+    try {
+      const [hosts, v, t, c, cap, sec] = await Promise.all([
+        listPlatformHosts(),
+        listPlatformVms(),
+        listPlatformTasks(),
+        getClusterSummary(),
+        getCapacityReport().catch(() => null),
+        getAiSecurity().catch(() => null),
+      ])
+      setHosts(hosts)
+      setVms(v)
+      setTasks(t)
+      setCluster(c)
+      setCapacity(cap)
+      setSecurity(sec)
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const running = vms.filter((v) => v.observed_state === 'running').length
+  const onlineHosts = hosts.filter((h) => h.state !== 'offline').length
+  const failedTasks = tasks.filter((t) => t.status === 'failed').length
+  const warnings = failedTasks + (cluster?.offline_hosts || 0)
+  const storagePct = capacity && capacity.memory_total_mib > 0
+    ? (capacity.memory_used_mib / capacity.memory_total_mib) * 100
+    : null
+  const healthy = warnings === 0 && onlineHosts === hosts.length
+
+  const handleCreate = async ({ name, os, size, network }: { name: string; os: string; size: string; network: string }) => {
+    const spec = sizeToSpec(size)
+    const body: CreatePlatformVmBody = {
+      api_version: 'virt.zyvor.dev/v1',
+      kind: 'VirtualMachine',
+      metadata: { name },
+      tags: [os, network],
+      spec: {
+        cpu: { sockets: 1, cores: spec.cores },
+        memory: spec.memory,
+        storage: [{ name: 'root', size: spec.disk, class: 'silver' }],
+        network: [{ network, ip_mode: 'dhcp' }],
+      },
+    }
+    await createPlatformVm(body)
+    toast.success('Create task queued')
+    await load()
+  }
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <header className="space-y-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Zyvor Platform</p>
+            <p className="text-xs text-slate-500 mt-0.5">Control your KVM datacenter</p>
+            <h1 className="text-3xl font-bold text-slate-50 mt-1">{cluster?.name || 'Production Cluster'}</h1>
+          </div>
+          <button type="button" onClick={() => void load()} className="btn-secondary flex items-center gap-2">
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+        </div>
+        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
+          healthy ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+        }`}>
+          {healthy ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+          {healthy ? 'Healthy' : `${warnings} warning${warnings === 1 ? '' : 's'} need attention`}
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MacStatWidget label="VMs running" value={String(running)} icon={<Terminal className="w-4 h-4" />} href="/platform/vms" tone={running > 0 ? 'ok' : 'default'} />
+          <MacStatWidget label="Hosts online" value={`${onlineHosts} / ${hosts.length}`} icon={<Server className="w-4 h-4" />} href="/platform/hosts" tone={onlineHosts === hosts.length ? 'ok' : 'warn'} />
+          <MacStatWidget label="Memory used" value={storagePct != null ? `${Math.round(storagePct)}%` : '—'} icon={<HardDrive className="w-4 h-4" />} href="/platform/reports" />
+          <MacStatWidget label="Alerts" value={warnings ? String(warnings) : 'None'} icon={<Bell className="w-4 h-4" />} href="/platform/notifications" tone={warnings ? 'warn' : 'ok'} />
+        </div>
+      </header>
+
+      {error && <ErrorBanner message={error} />}
+
+      {mode === 'autopilot' && (
+        <MacGlassPanel title="Machina Autopilot" subtitle="Runs up to 3 low-risk fixes per batch — audited">
+          <p className="text-sm text-slate-400 -mt-2">Backups, HA enable, and guest tools installs only. Destructive actions always require manual review.</p>
+          <button
+            type="button"
+            className="btn-primary text-sm mt-3"
+            disabled={autopilotBusy}
+            onClick={async () => {
+              setAutopilotBusy(true)
+              try {
+                const r = await runAutopilotSafe()
+                toast.success(`Autopilot ran ${r.executed_count} action(s), skipped ${r.skipped_count}`)
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              } finally {
+                setAutopilotBusy(false)
+              }
+            }}
+          >
+            {autopilotBusy ? 'Running…' : 'Run safe fixes now'}
+          </button>
+        </MacGlassPanel>
+      )}
+
+      {security && security.findings.length > 0 && (
+        <MacGlassPanel title="Security Sentinel" subtitle={`${security.findings.length} finding(s) · risk ${security.risk_level}`}>
+          <ul className="text-sm space-y-2">
+            {security.findings.slice(0, 4).map((f) => (
+              <li key={f.id} className="flex justify-between gap-2">
+                <span className={f.severity === 'critical' ? 'text-red-400' : 'text-amber-300'}>{f.title}</span>
+                <Link to="/platform/reports" className="text-xs text-blue-400 shrink-0">View</Link>
+              </li>
+            ))}
+          </ul>
+        </MacGlassPanel>
+      )}
+
+      <PlatformAboutHelp compact />
+
+      <section>
+        <h2 className="text-sm font-semibold text-slate-400 mb-3">Quick actions</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="Simple wizard — OS, size, network" onClick={() => setWizardOpen(true)} />
+          <ActionCard icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Launchpad groups — operate stacks" to="/platform/applications" />
+          <ActionCard icon={<ArrowRightLeft className="w-5 h-5" />} title="Import VMware VM" subtitle="Migration Assistant" to="/platform/migration" />
+          <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
+          <ActionCard icon={<Upload className="w-5 h-5" />} title="Upload ISO" subtitle="Images & ISO library" to="/platform/content" />
+          <ActionCard icon={<Terminal className="w-5 h-5" />} title="Open Console" subtitle="Browse VMs" to="/platform/vms" />
+          <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
+        </div>
+      </section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <MacGlassPanel title="Recent tasks" subtitle="Activity Monitor preview" action={<Link to="/platform/tasks" className="text-xs text-blue-400">View all</Link>}>
+          <ul className="space-y-2 text-sm -mt-2">
+            {tasks.slice(0, 6).map((t) => (
+              <li key={t.id} className="flex justify-between border-b border-white/[0.04] pb-2 last:border-0">
+                <span className="text-slate-300">{t.operation}</span>
+                <span className={t.status === 'failed' ? 'text-red-400' : 'text-slate-500'}>{t.status} {t.progress}%</span>
+              </li>
+            ))}
+            {tasks.length === 0 && <li className="text-slate-500 text-sm">No tasks yet</li>}
+          </ul>
+        </MacGlassPanel>
+        <MacGlassPanel title="Hosts" subtitle="Hypervisors in this cluster" action={<Link to="/platform/hosts" className="text-xs text-blue-400">Manage</Link>}>
+          <ul className="space-y-2 text-sm -mt-2">
+            {hosts.slice(0, 6).map((h) => (
+              <li key={h.id} className="flex justify-between items-center">
+                <Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline">{h.hostname}</Link>
+                <span className={`text-xs capitalize ${h.state === 'online' ? 'text-emerald-400' : 'text-amber-400'}`}>{h.state} · {h.vm_count} VMs</span>
+              </li>
+            ))}
+            {hosts.length === 0 && <li className="text-slate-500 text-sm">No hosts enrolled — <Link to="/platform/enroll" className="text-blue-400">Add Host</Link></li>}
+          </ul>
+        </MacGlassPanel>
+      </div>
+
+      <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} />
+      <PlatformWelcome vmCount={vms.length} onCreateVm={() => setWizardOpen(true)} onDone={() => void load()} />
+    </div>
+  )
+}

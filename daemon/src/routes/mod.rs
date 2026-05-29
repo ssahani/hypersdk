@@ -14,6 +14,7 @@ mod guest_images;
 mod health;
 mod kubevirt;
 mod hypersdk;
+mod platform_controller;
 mod integrations;
 mod openstack;
 mod openstack_extended;
@@ -45,6 +46,7 @@ pub fn api_routes() -> Router<LibvirtManager> {
         .merge(openstack::openstack_routes())
         .merge(integrations::integrations_routes())
         .merge(hypersdk::hypersdk_routes())
+        .merge(platform_controller::platform_controller_routes())
         .merge(vms::vm_routes())
         .merge(vm_guest::vm_guest_routes())
         .merge(snapshots::snapshot_routes())

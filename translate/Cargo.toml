@@ -1,0 +1,12 @@
+[package]
+name = "machina-translate"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Zyvor-Proprietary"
+description = "Translate declarative VM specs into libvirt domain XML"
+
+[dependencies]
+machina-spec = { path = "../spec" }
+serde = { workspace = true }
+
+[dev-dependencies]

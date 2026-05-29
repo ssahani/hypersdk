@@ -1,0 +1,397 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useCallback, useEffect, useState } from 'react'
+import { Link, useParams } from 'react-router'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity } from 'lucide-react'
+import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
+import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
+import ExplainButton from '../../components/ai/ExplainButton'
+import VmDetailTabs, { type VmDetailTab } from '../../components/platform/VmDetailTabs'
+import ErrorBanner from '../../components/ErrorBanner'
+import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
+import {
+  createVmBackup,
+  createVmSnapshot,
+  deleteVmSnapshot,
+  getPlatformVm,
+  getPlatformVmSpec,
+  getVmDisks,
+  getPlatformVmMetrics,
+  runVmHealthCheck,
+  attachVmDisk,
+  adoptPlatformVm,
+  getVmHaPolicy,
+  listPlatformHosts,
+  listVmBackups,
+  listVmSnapshots,
+  migratePrecheck,
+  patchVm,
+  restoreVmBackup,
+  revertVmSnapshot,
+  setVmHa,
+  vmClone,
+  installGuestTools,
+  vmDelete,
+  vmMigrate,
+  vmPower,
+  type PlatformHost,
+  type PlatformVm,
+  type MigratePrecheckResult,
+  type HaPolicy,
+  type SnapshotRecord,
+  type VmDiskRow,
+  type BackupRecord,
+  type VmHealthReport,
+} from '../../api/platform'
+import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
+import { useAi } from '../../contexts/AiContext'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
+
+export default function PlatformVmDetail() {
+  const { id } = useParams<{ id: string }>()
+  const { setContextVmId } = useAi()
+  const toast = useToastContext()
+  const [vm, setVm] = useState<PlatformVm | null>(null)
+  const [hosts, setHosts] = useState<PlatformHost[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [destHost, setDestHost] = useState('')
+  const [cloneName, setCloneName] = useState('')
+  const [precheck, setPrecheck] = useState<MigratePrecheckResult | null>(null)
+  const [ha, setHa] = useState<HaPolicy>({ enabled: false, restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false })
+  const [specJson, setSpecJson] = useState<string>('')
+  const [snapName, setSnapName] = useState('snap-01')
+  const [project, setProject] = useState('')
+  const [tags, setTags] = useState('')
+  const [snapshots, setSnapshots] = useState<SnapshotRecord[]>([])
+  const [backups, setBackups] = useState<BackupRecord[]>([])
+  const [disks, setDisks] = useState<VmDiskRow[]>([])
+  const [metrics, setMetrics] = useState<{ cpu_percent: number; memory_used_mib: number; updated_at: string } | null>(null)
+  const [attachPath, setAttachPath] = useState('/var/lib/libvirt/images/data.qcow2')
+  const [attachDev, setAttachDev] = useState('vdb')
+  const [tab, setTab] = useState<VmDetailTab>('overview')
+  const [health, setHealth] = useState<VmHealthReport | null>(null)
+  const [doctor, setDoctor] = useState<VmDoctorReport | null>(null)
+  const [healthLoading, setHealthLoading] = useState(false)
+  const [doctorLoading, setDoctorLoading] = useState(false)
+  const [guestInstalling, setGuestInstalling] = useState(false)
+
+  const load = useCallback(async () => {
+    if (!id) return
+    setError(null)
+    try {
+      const [v, h, policy, spec, snaps, bks, dsk, mtr] = await Promise.all([
+        getPlatformVm(id),
+        listPlatformHosts(),
+        getVmHaPolicy(id),
+        getPlatformVmSpec(id),
+        listVmSnapshots(id),
+        listVmBackups(id),
+        getVmDisks(id),
+        getPlatformVmMetrics(id).catch(() => null),
+      ])
+      setVm(v)
+      setHosts(h)
+      setHa(policy)
+      setSpecJson(JSON.stringify(spec, null, 2))
+      setProject(v.project || '')
+      setTags((v.tags || []).join(', '))
+      setSnapshots(snaps)
+      setBackups(bks)
+      setDisks(dsk)
+      setMetrics(mtr)
+      if (!destHost && h.length > 1) {
+        setDestHost(h.find((x) => x.id !== v.host_id)?.id || h[0]?.id || '')
+      }
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    }
+  }, [id, destHost])
+
+  const runHealth = useCallback(async () => {
+    if (!id) return
+    setHealthLoading(true)
+    try {
+      setHealth(await runVmHealthCheck(id))
+    } catch {
+      setHealth(null)
+    } finally {
+      setHealthLoading(false)
+    }
+  }, [id])
+
+  const runDoctor = useCallback(async () => {
+    if (!id) return
+    setDoctorLoading(true)
+    try {
+      setDoctor(await getVmDoctor(id))
+    } catch {
+      setDoctor(null)
+    } finally {
+      setDoctorLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => { void load() }, [load])
+
+  useEffect(() => { void runHealth() }, [runHealth])
+  useEffect(() => { void runDoctor() }, [runDoctor])
+
+  useEffect(() => {
+    setContextVmId(id ?? null)
+    return () => setContextVmId(null)
+  }, [id, setContextVmId])
+
+  const act = async (label: string, fn: () => Promise<unknown>) => {
+    try { await fn(); toast.success(label); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
+  }
+
+  const hostName = hosts.find((h) => h.id === vm?.host_id)?.hostname
+
+  if (!id) return null
+
+  return (
+    <div className="space-y-6">
+      <Link to="/platform/vms" className="text-sm text-blue-400 flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Virtual Machines</Link>
+      {error && <ErrorBanner message={error} />}
+      {vm && (
+        <>
+          <header className="space-y-3">
+            <div>
+              <h1 className="text-3xl font-bold text-slate-50">{vm.name}</h1>
+              <p className="text-sm text-slate-400 mt-1 capitalize">
+                Status: {vm.observed_state} · Host: {hostName || '—'} · {vm.vcpus} vCPU · {Math.round(vm.memory_mib / 1024)} GiB
+                {vm.ha_enabled ? ' · HA enabled' : ''}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" className="btn-primary" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
+              <button type="button" className="btn-secondary" onClick={() => void act('Stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Stop</button>
+              <button type="button" className="btn-secondary" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}><RotateCcw className="w-4 h-4" /> Reboot</button>
+              <button type="button" className="btn-danger" onClick={() => {
+                if (!window.confirm('Delete this VM permanently?')) return
+                void act('Delete queued', () => vmDelete(id, true))
+              }}><Trash2 className="w-4 h-4" /> Delete</button>
+            </div>
+          </header>
+
+          {vm.managed === false && (
+            <div className="card p-4 flex items-center justify-between gap-3">
+              <p className="text-sm text-amber-400">Discovered on a host — adopt to manage lifecycle from the platform.</p>
+              <button type="button" className="btn-primary" onClick={() => void act('VM adopted', () => adoptPlatformVm(id))}>Adopt VM</button>
+            </div>
+          )}
+          {vm.last_error && (
+            <StructuredErrorBanner error={{ message: vm.last_error, error_code: 'vm_error', remediation: 'Check Tasks for the failed operation and retry after fixing the root cause.' }} />
+          )}
+
+          <VmDetailTabs active={tab} onChange={setTab} />
+
+          <GuestToolsStrip
+            status={health?.guest_tools_status}
+            guestIp={health?.guest_ip}
+            guestHostname={health?.guest_hostname}
+            installing={guestInstalling}
+            onInstall={() => {
+              if (!id) return
+              setGuestInstalling(true)
+              void installGuestTools(id)
+                .then(() => { toast.success('Guest tools install queued'); return runHealth() })
+                .catch((e: unknown) => toast.error(formatUserError(e)))
+                .finally(() => setGuestInstalling(false))
+            }}
+          />
+
+          {tab === 'overview' && (
+            <div className="space-y-4 pt-2">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
+                <InfoCard label="Desired state" value={vm.desired_state} />
+                <InfoCard label="Lifecycle" value={vm.lifecycle_phase || 'idle'} />
+                <InfoCard label="Project" value={project || 'default'} />
+                <InfoCard label="Backup" value={backups.some((b) => b.status === 'completed') ? 'Protected' : 'Not configured'} />
+              </div>
+              <div className="card p-4 flex flex-wrap gap-3 items-end">
+                <div>
+                  <label className="text-xs text-slate-500 block mb-1">Project</label>
+                  <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
+                </div>
+                <div className="flex-1 min-w-[12rem]">
+                  <label className="text-xs text-slate-500 block mb-1">Tags</label>
+                  <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
+                </div>
+                <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
+              </div>
+              <div className="card p-4 grid gap-4 md:grid-cols-2">
+                <div>
+                  <h3 className="font-semibold mb-2 flex items-center gap-2"><MoveRight className="w-4 h-4" /> Live migrate</h3>
+                  <select className="input w-full mb-2" value={destHost} onChange={(e) => setDestHost(e.target.value)}>
+                    {hosts.map((h) => <option key={h.id} value={h.id}>{h.hostname}</option>)}
+                  </select>
+                  <div className="flex gap-2">
+                    <button type="button" className="btn-secondary" disabled={!destHost} onClick={async () => {
+                      try { setPrecheck(await migratePrecheck(id, destHost)) } catch (e: unknown) { toast.error(formatUserError(e)) }
+                    }}>Pre-check</button>
+                    <button type="button" className="btn-secondary" disabled={!destHost} onClick={() => void act('Migration queued', () => vmMigrate(id, destHost))}>Migrate</button>
+                  </div>
+                  {precheck && (
+                    <ul className="text-xs mt-2 space-y-1">{precheck.checks.map((c) => (
+                      <li key={c.name} className={c.passed ? 'text-emerald-400' : 'text-red-400'}>
+                        {c.name}: {c.message}
+                        {c.remediation && !c.passed && (
+                          <p className="text-slate-400 pl-2 mt-1">
+                            Fix: {c.remediation}
+                            {!c.passed && c.name.toLowerCase().includes('network') && (
+                              <button type="button" className="btn-secondary text-[10px] ml-2" onClick={() => setTab('network')}>Choose network</button>
+                            )}
+                          </p>
+                        )}
+                      </li>
+                    ))}</ul>
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-2 flex items-center gap-2"><Copy className="w-4 h-4" /> Clone</h3>
+                  <input className="input w-full mb-2" placeholder="new-vm-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} />
+                  <button type="button" className="btn-secondary" disabled={!cloneName} onClick={() => void act('Clone queued', () => vmClone(id, cloneName))}>Clone</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {tab === 'doctor' && (
+            <div className="pt-2 space-y-3">
+              <div className="flex justify-end">
+                <ExplainButton screen="vm_doctor" objectRef={{ vm_id: id, score: doctor?.score_numeric }} />
+              </div>
+              <MachinaDoctorPanel
+                vmId={id}
+                report={doctor}
+                loading={doctorLoading}
+                onRefresh={() => void runDoctor()}
+                onTab={(t) => setTab(t as VmDetailTab)}
+              />
+            </div>
+          )}
+
+          {tab === 'console' && (
+            <div className="card p-8 text-center pt-2">
+              <Terminal className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+              <Link to={`/platform/vms/${id}/console`} className="btn-primary inline-flex items-center gap-2"><Terminal className="w-4 h-4" /> Open console</Link>
+            </div>
+          )}
+
+          {tab === 'performance' && (
+            <div className="card p-5 pt-2 space-y-3">
+              {metrics ? (
+                <>
+                  <div className="flex flex-wrap gap-6 text-sm">
+                    <span className="flex items-center gap-2"><Activity className="w-4 h-4" /> CPU {metrics.cpu_percent.toFixed(1)}%</span>
+                    <span>Memory {metrics.memory_used_mib} MiB</span>
+                    <span className="text-slate-500 text-xs">Updated {new Date(metrics.updated_at).toLocaleString()}</span>
+                  </div>
+                  <p className="text-xs text-slate-500">Guest tools will unlock richer CPU, disk latency, and noisy-neighbor insights.</p>
+                </>
+              ) : (
+                <p className="text-slate-500 text-sm">Metrics appear after the next host inventory sync.</p>
+              )}
+            </div>
+          )}
+
+          {tab === 'disks' && (
+            <div className="space-y-4 pt-2">
+              {disks.length > 0 && (
+                <section className="card p-4">
+                  <ul className="text-sm text-slate-400 space-y-2">{disks.map((d) => (
+                    <li key={d.id}>{d.name} · {d.size_gib} GiB · {d.storage_class}{d.path ? ` · ${d.path}` : ''}</li>
+                  ))}</ul>
+                </section>
+              )}
+              <section className="card p-4">
+                <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm"><HardDrive className="w-4 h-4" /> Attach disk</h3>
+                <div className="flex flex-wrap gap-3 items-end">
+                  <label className="text-xs text-slate-500">Path<input className="input mt-1 block min-w-[18rem]" value={attachPath} onChange={(e) => setAttachPath(e.target.value)} /></label>
+                  <label className="text-xs text-slate-500">Target dev<input className="input mt-1 block w-24" value={attachDev} onChange={(e) => setAttachDev(e.target.value)} /></label>
+                  <button type="button" className="btn-secondary" disabled={vm.managed === false} onClick={() => void act('Attach disk queued', () => attachVmDisk(id, { disk_path: attachPath, target_dev: attachDev }))}>Attach</button>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {tab === 'network' && (
+            <div className="card p-5 pt-2 text-sm text-slate-400">
+              <p>Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
+              <Link to="/platform/networks" className="text-blue-400 text-sm mt-2 inline-block">Manage networks →</Link>
+            </div>
+          )}
+
+          {tab === 'snapshots' && (
+            <div className="card p-4 pt-2 space-y-3">
+              <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} />
+              <div className="flex gap-2">
+                <button type="button" className="btn-secondary text-xs" onClick={() => void act('Snapshot queued', () => createVmSnapshot(id, snapName))}>Create snapshot</button>
+              </div>
+              <ul className="text-xs space-y-2">
+                {snapshots.map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-2 text-slate-400">
+                    <span>{s.name} ({s.status})</span>
+                    <span className="flex gap-1">
+                      <button type="button" className="btn-secondary text-xs" onClick={() => void act('Revert queued', () => revertVmSnapshot(id, s.name))}>Revert</button>
+                      <button type="button" className="btn-secondary text-xs" onClick={() => void act('Delete queued', () => deleteVmSnapshot(id, s.name))}>Delete</button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {tab === 'backup' && (
+            <div className="card p-4 pt-2 space-y-3">
+              <p className="text-xs text-slate-500">Restore will not overwrite the current VM unless you choose restore in place.</p>
+              <button type="button" className="btn-secondary text-xs" onClick={() => void act('Backup queued', () => createVmBackup(id))}><Archive className="w-3 h-3 inline" /> Backup now</button>
+              <ul className="text-xs space-y-2">
+                {backups.map((b) => (
+                  <li key={b.id} className="flex items-center justify-between gap-2 text-slate-400">
+                    <span>{b.backup_type} ({b.status})</span>
+                    {b.status === 'completed' && (
+                      <button type="button" className="btn-secondary text-xs" onClick={() => void act('Restore queued', () => restoreVmBackup(id, b.id))}>Restore</button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {tab === 'events' && (
+            <div className="card p-5 pt-2 text-sm">
+              <Link to="/platform/tasks" className="text-blue-400">View task history →</Link>
+            </div>
+          )}
+
+          {tab === 'settings' && (
+            <div className="space-y-4 pt-2">
+              <div className="card p-4">
+                <h3 className="font-semibold mb-2">High availability</h3>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ha.enabled} onChange={(e) => setHa({ ...ha, enabled: e.target.checked })} /> Restart on host failure</label>
+                <label className="flex items-center gap-2 text-sm mt-2"><input type="checkbox" checked={ha.fence_on_failure} onChange={(e) => setHa({ ...ha, fence_on_failure: e.target.checked })} /> Fence host on failure</label>
+                <button type="button" className="btn-secondary mt-2" onClick={() => void act('HA policy updated', () => setVmHa(id, ha))}>Save HA policy</button>
+              </div>
+              <section className="card p-4">
+                <h3 className="font-semibold mb-2 text-sm">Pro view — spec JSON</h3>
+                <pre className="text-xs overflow-auto max-h-64 text-slate-400">{specJson}</pre>
+              </section>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl border border-slate-800/80 bg-slate-900/40 p-3">
+      <p className="text-[10px] uppercase tracking-wider text-slate-500">{label}</p>
+      <p className="font-medium text-slate-100 mt-0.5 capitalize">{value}</p>
+    </div>
+  )
+}

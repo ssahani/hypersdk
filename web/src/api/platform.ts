@@ -1,0 +1,951 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+const LS_CONTROLLER = 'machina_platform_controller'
+const LS_BASIC = 'machina_platform_basic'
+const LS_JWT = 'machina_platform_jwt'
+
+/** Same-origin daemon proxy to co-located machina-controller (see daemon platform_controller routes). */
+export const PLATFORM_CONTROLLER_PROXY = '/api/v1/platform/controller'
+
+function sameOriginProxyBase(): string {
+  if (typeof window === 'undefined') return ''
+  return `${window.location.origin}${PLATFORM_CONTROLLER_PROXY}`
+}
+
+function directControllerBase(): string {
+  if (typeof window === 'undefined') return 'http://127.0.0.1:5093'
+  const { protocol, hostname } = window.location
+  const p = protocol === 'https:' ? 'https:' : 'http:'
+  return `${p}//${hostname}:5093`
+}
+
+function normalizeSavedController(url: string | null): string | null {
+  if (!url) return null
+  const u = url.replace(/\/$/, '')
+  if (typeof window === 'undefined') return u
+  const host = window.location.hostname
+  if (
+    (u === 'http://127.0.0.1:5093' || u === 'http://localhost:5093')
+    && host !== 'localhost'
+    && host !== '127.0.0.1'
+  ) {
+    return null
+  }
+  return u
+}
+
+export function getControllerBase(): string {
+  const saved = normalizeSavedController(localStorage.getItem(LS_CONTROLLER))
+  if (saved) return saved
+  const env = import.meta.env.VITE_MACHINA_CONTROLLER_URL?.replace(/\/$/, '')
+  if (env) return env
+  return sameOriginProxyBase() || directControllerBase()
+}
+
+/** Direct controller URL (port 5093) — used for WebSocket console when HTTP goes via daemon proxy. */
+export function getDirectControllerBase(): string {
+  const saved = normalizeSavedController(localStorage.getItem(LS_CONTROLLER))
+  if (saved && !saved.includes(PLATFORM_CONTROLLER_PROXY)) return saved
+  const env = import.meta.env.VITE_MACHINA_CONTROLLER_URL?.replace(/\/$/, '')
+  if (env) return env
+  return directControllerBase()
+}
+
+export function setControllerConfig(base: string, user: string, pass: string) {
+  localStorage.setItem(LS_CONTROLLER, base.replace(/\/$/, ''))
+  localStorage.setItem(LS_BASIC, btoa(`${user}:${pass}`))
+}
+
+export function platformHeaders(extra?: HeadersInit): Headers {
+  const h = new Headers(extra)
+  if (!h.has('Content-Type')) h.set('Content-Type', 'application/json')
+  const jwt = localStorage.getItem(LS_JWT)
+  if (jwt) {
+    h.set('Authorization', `Bearer ${jwt}`)
+    return h
+  }
+  const basic = localStorage.getItem(LS_BASIC)
+  if (basic) h.set('Authorization', `Basic ${basic}`)
+  return h
+}
+
+import { formatHttpErrorBody } from '../utils/apiError'
+
+export interface PlatformApiError extends Error {
+  error_code?: string
+  remediation?: string
+  object_ref?: { kind: string; id: string; name?: string }
+}
+
+export async function platformFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${getControllerBase()}${path.startsWith('/') ? path : `/${path}`}`
+  let res: Response
+  try {
+    res = await fetch(url, { credentials: 'same-origin', ...init, headers: platformHeaders(init?.headers) })
+  } catch {
+    throw new Error(
+      `Cannot reach the Machina platform controller (${getControllerBase()}). ` +
+      'Ensure machina-controller is running (systemctl status machina-controller) or set the controller URL on Platform Dashboard.',
+    )
+  }
+  if (res.status === 429) {
+    throw new Error('Rate limit exceeded — wait a minute and retry')
+  }
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    let parsed: PlatformApiError | null = null
+    try {
+      const j = JSON.parse(body) as { error?: string; error_code?: string; remediation?: string; object_ref?: unknown }
+      if (j.error) {
+        parsed = Object.assign(new Error(formatHttpErrorBody(res.status, res.statusText, body)), {
+          error_code: j.error_code,
+          remediation: j.remediation,
+          object_ref: j.object_ref as PlatformApiError['object_ref'],
+        })
+      }
+    } catch {
+      /* plain text */
+    }
+    throw parsed ?? new Error(body || `${res.status} ${res.statusText}`)
+  }
+  if (res.status === 204) return undefined as T
+  return (await res.json()) as T
+}
+
+export interface PlatformHost {
+  id: string
+  hostname: string
+  address: string
+  state: string
+  maintenance_mode: boolean
+  agent_grpc_addr: string
+  vm_count: number
+  cpu_percent?: number
+  memory_used_mib?: number
+  memory_total_mib?: number
+  fenced?: boolean
+  validation_status?: string
+  last_heartbeat_at?: string | null
+}
+
+export interface PlatformHostDetail extends PlatformHost {
+  agent_console_addr: string
+  libvirt_uri: string
+  agent_version: string
+  cpu_model: string
+  libvirt_version: string
+  qemu_version: string
+  notes: string
+  validation_status?: string
+  validation_report?: Array<{ name: string; passed: boolean; message: string; remediation?: string }>
+}
+
+export interface PlatformVm {
+  id: string
+  name: string
+  host_id?: string | null
+  desired_state: string
+  observed_state: string
+  lifecycle_phase?: string
+  last_error?: string
+  managed?: boolean
+  uuid?: string | null
+  vcpus: number
+  memory_mib: number
+  ha_enabled?: boolean
+  project?: string | null
+  tags?: string[]
+}
+
+export interface PlatformTask {
+  id: string
+  operation: string
+  status: string
+  progress: number
+  message?: string | null
+  created_at: string
+}
+
+export interface PlatformTemplate {
+  id: string
+  name: string
+  version: string
+  source_disk: string
+  cloud_init: boolean
+  os_family?: string | null
+  category?: string
+  description?: string
+  featured?: boolean
+  marketplace?: boolean
+  icon?: string | null
+}
+
+export interface PlatformConsoleInfo {
+  vm_id: string
+  vm_name: string
+  console_type: string
+  ws_path: string
+}
+
+export interface EnrollmentToken {
+  token: string
+  expires_at: string
+  install_command: string
+}
+
+export const listPlatformHosts = () => platformFetch<PlatformHost[]>('/api/v1/hosts')
+export const getPlatformHostDetail = (id: string) => platformFetch<PlatformHostDetail>(`/api/v1/hosts/${id}/detail`)
+export const syncAllHosts = () => platformFetch<{ task_id: string }[]>('/api/v1/hosts/sync-all', { method: 'POST' })
+export const deleteHost = (id: string) => platformFetch<{ deleted: boolean }>(`/api/v1/hosts/${id}`, { method: 'DELETE' })
+export const listPlatformVms = (params?: { project?: string; host_id?: string; managed?: boolean }) => {
+  const q = new URLSearchParams()
+  if (params?.project) q.set('project', params.project)
+  if (params?.host_id) q.set('host_id', params.host_id)
+  if (params?.managed !== undefined) q.set('managed', String(params.managed))
+  const qs = q.toString()
+  return platformFetch<PlatformVm[]>(`/api/v1/vms${qs ? `?${qs}` : ''}`)
+}
+export const getPlatformVmSpec = (id: string) => platformFetch<unknown>(`/api/v1/vms/${id}/spec`)
+export const getVmHaPolicy = (id: string) => platformFetch<HaPolicy>('/api/v1/vms/' + id + '/ha')
+export const listPlatformTasks = (params?: { status?: string; operation?: string }) => {
+  const q = new URLSearchParams()
+  if (params?.status) q.set('status', params.status)
+  if (params?.operation) q.set('operation', params.operation)
+  const qs = q.toString()
+  return platformFetch<PlatformTask[]>(`/api/v1/tasks${qs ? `?${qs}` : ''}`)
+}
+export const getPlatformTask = (id: string) => platformFetch<PlatformTask>(`/api/v1/tasks/${id}`)
+export const cancelTask = (id: string) => platformFetch<PlatformTask>(`/api/v1/tasks/${id}/cancel`, { method: 'POST' })
+export const listPlatformEvents = (kind?: string) =>
+  platformFetch<PlatformEvent[]>(`/api/v1/events${kind ? `?kind=${encodeURIComponent(kind)}` : ''}`)
+export const listAuditLogs = (params?: { action?: string; actor?: string }) => {
+  const q = new URLSearchParams()
+  if (params?.action) q.set('action', params.action)
+  if (params?.actor) q.set('actor', params.actor)
+  const qs = q.toString()
+  return platformFetch<AuditLog[]>(`/api/v1/audit${qs ? `?${qs}` : ''}`)
+}
+export const listStoragePools = () => platformFetch<StoragePool[]>('/api/v1/storage/pools')
+export const createStoragePool = (body: { name: string; storage_class?: string; path?: string; capacity_gib?: number }) =>
+  platformFetch<StoragePool>('/api/v1/storage/pools', { method: 'POST', body: JSON.stringify(body) })
+export const deleteStoragePool = (id: string) => platformFetch(`/api/v1/storage/pools/${id}`, { method: 'DELETE' })
+export const discoverStoragePools = () =>
+  platformFetch<{ imported: number; pools: StoragePool[] }>('/api/v1/storage/pools/discover', {
+    method: 'POST',
+    body: '{}',
+  })
+export const listPlatformNetworks = () => platformFetch<PlatformNetwork[]>('/api/v1/networks')
+export const discoverPlatformNetworks = () =>
+  platformFetch<{ imported: number; networks: PlatformNetwork[] }>('/api/v1/networks/discover', {
+    method: 'POST',
+    body: '{}',
+  })
+export const createPlatformNetwork = (body: { name: string; vlan_id?: number; bridge?: string }) =>
+  platformFetch<PlatformNetwork>('/api/v1/networks', { method: 'POST', body: JSON.stringify(body) })
+export const deletePlatformNetwork = (id: string) => platformFetch(`/api/v1/networks/${id}`, { method: 'DELETE' })
+export const getClusterSummary = () => platformFetch<ClusterSummary>('/api/v1/cluster')
+export const listMigrationJobs = () => platformFetch<MigrationJob[]>('/api/v1/migrations')
+export const listFenceEvents = () => platformFetch<FenceEvent[]>('/api/v1/fence/events')
+export const listEnrollmentTokens = () => platformFetch<EnrollmentTokenRow[]>('/api/v1/enrollment/tokens')
+export const deleteTemplate = (name: string, version: string) =>
+  platformFetch(`/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}`, { method: 'DELETE' })
+export const listVmSnapshots = (vmId: string) => platformFetch<SnapshotRecord[]>(`/api/v1/vms/${vmId}/snapshots`)
+export const createVmSnapshot = (vmId: string, name: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots`, { method: 'POST', body: JSON.stringify({ name }) })
+export const listVmBackups = (vmId: string) => platformFetch<BackupRecord[]>(`/api/v1/vms/${vmId}/backups`)
+
+export interface BackupTimelineEntry {
+  kind: string
+  id: string
+  vm_id: string
+  vm_name: string
+  label: string
+  status: string
+  created_at: string
+}
+
+export const listBackupTimeline = () => platformFetch<BackupTimelineEntry[]>('/api/v1/backups/timeline')
+export const createVmBackup = (vmId: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/backups`, { method: 'POST', body: JSON.stringify({}) })
+export const refreshPlacement = () => platformFetch<PlacementRecommendation[]>('/api/v1/placement/refresh', { method: 'POST' })
+export const getPlatformVm = (id: string) => platformFetch<PlatformVm>(`/api/v1/vms/${id}`)
+
+export const adoptPlatformVm = (id: string) =>
+  platformFetch<PlatformVm>(`/api/v1/vms/${id}/adopt`, { method: 'POST' })
+
+export const getPlatformVmMetrics = (id: string) =>
+  platformFetch<{ vm_id: string; cpu_percent: number; memory_used_mib: number; updated_at: string }>(
+    `/api/v1/vms/${id}/metrics`,
+  )
+
+export interface ContentImage {
+  id: string
+  name: string
+  kind: string
+  path: string
+  size_gib: number
+  status: string
+  category?: string
+  description?: string
+  submitted_by?: string | null
+  approved_by?: string | null
+  approved_at?: string | null
+  rejected_reason?: string | null
+  created_at: string
+}
+
+export const listContentImages = (params?: { status?: string }) => {
+  const q = params?.status ? `?status=${encodeURIComponent(params.status)}` : ''
+  return platformFetch<ContentImage[]>(`/api/v1/content/images${q}`)
+}
+
+export const createContentImage = (body: {
+  name: string
+  kind?: string
+  path: string
+  size_gib?: number
+  category?: string
+  description?: string
+}) => platformFetch<ContentImage>('/api/v1/content/images', { method: 'POST', body: JSON.stringify(body) })
+
+export const approveContentImage = (id: string) =>
+  platformFetch<ContentImage>(`/api/v1/content/images/${id}/approve`, { method: 'POST', body: '{}' })
+
+export const rejectContentImage = (id: string, reason?: string) =>
+  platformFetch<ContentImage>(`/api/v1/content/images/${id}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ reason }),
+  })
+
+export const attachVmDisk = (id: string, body: { disk_path: string; target_dev?: string; size_gib?: number }) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/disks/attach`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const listPlatformTemplates = () => platformFetch<PlatformTemplate[]>('/api/v1/templates')
+export const listMarketplaceTemplates = () => platformFetch<PlatformTemplate[]>('/api/v1/templates/marketplace')
+export const seedDefaultTemplates = () =>
+  platformFetch<{ inserted: number; templates: PlatformTemplate[] }>('/api/v1/templates/seed', {
+    method: 'POST',
+    body: '{}',
+  })
+export const getTemplateReadiness = (name: string, version: string) =>
+  platformFetch<{
+    disk_exists: boolean
+    host_online: number
+    cloud_init: boolean
+    ready: boolean
+    remediation: string
+    source_disk: string
+  }>(`/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}/readiness`)
+export const getPlatformHealth = () => platformFetch<{ status: string; leader?: boolean; controller_id?: string }>('/api/v1/health')
+
+export const createPlatformVm = (body: unknown) =>
+  platformFetch<{ task_id: string }>('/api/v1/vms', { method: 'POST', body: JSON.stringify(body) })
+
+export type CreatePlatformVmBody = {
+  api_version: string
+  kind: string
+  metadata: { name: string; project?: string; labels?: Record<string, string> }
+  spec: Record<string, unknown>
+  host_id?: string
+  tags?: string[]
+  desired_state?: string
+}
+
+export const vmPower = (id: string, action: 'start' | 'stop' | 'reboot') =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/${action}`, { method: 'POST' })
+
+export const vmDelete = (id: string, confirmed = false) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/delete`, {
+    method: 'POST',
+    body: JSON.stringify(confirmed ? { confirmed: true } : {}),
+  })
+
+export const installGuestTools = (id: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/guest-tools/install`, { method: 'POST', body: '{}' })
+
+export const vmMigrate = (id: string, dest_host_id: string, live = true) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/migrate`, {
+    method: 'POST',
+    body: JSON.stringify({ dest_host_id, live }),
+  })
+
+export const vmClone = (id: string, new_name: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/clone`, {
+    method: 'POST',
+    body: JSON.stringify({ new_name }),
+  })
+
+export const syncHost = (id: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/hosts/${id}/sync`, { method: 'POST' })
+
+export const validateHost = (id: string) =>
+  platformFetch<{ ok: boolean; checks: Array<{ name: string; passed: boolean; message: string; remediation?: string }> }>(
+    `/api/v1/hosts/${id}/validate`,
+  )
+
+export const enqueueValidateHost = (id: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/hosts/${id}/validate`, { method: 'POST' })
+
+export const getSupportBundle = () => platformFetch<Record<string, unknown>>('/api/v1/support/bundle')
+
+export const getUpgradeMatrix = () =>
+  platformFetch<{ controller_version: string; recommended_agent: string; min_agent: string; notes: string }>(
+    '/api/v1/upgrade/matrix',
+  )
+
+export const upgradeHostAgent = (id: string, target_version?: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/hosts/${id}/upgrade`, {
+    method: 'POST',
+    body: JSON.stringify({ target_version: target_version ?? '' }),
+  })
+
+export const listProjectQuotas = () =>
+  platformFetch<Array<{ project: string; max_vms: number; max_vcpu: number; max_memory_mib: number; max_storage_gib: number }>>(
+    '/api/v1/policy/quotas',
+  )
+
+export const hostMaintenance = (id: string, action: 'enter' | 'exit', evacuate = true) =>
+  platformFetch<{ task_id: string }>(`/api/v1/hosts/${id}/maintenance`, {
+    method: 'POST',
+    body: JSON.stringify({ action, evacuate }),
+  })
+
+export const createEnrollmentToken = (ttl_hours = 24) =>
+  platformFetch<EnrollmentToken>('/api/v1/enrollment/tokens', {
+    method: 'POST',
+    body: JSON.stringify({ ttl_hours }),
+  })
+
+export const createTemplate = (body: {
+  name: string
+  version: string
+  source_disk: string
+  cloud_init?: boolean
+  os_family?: string
+  category?: string
+  description?: string
+  featured?: boolean
+  marketplace?: boolean
+  icon?: string
+}) => platformFetch<PlatformTemplate>('/api/v1/templates', { method: 'POST', body: JSON.stringify(body) })
+
+export const getVmConsole = (id: string) =>
+  platformFetch<PlatformConsoleInfo>(`/api/v1/vms/${id}/console`)
+
+export const getHaStatus = () => platformFetch<HaStatusResponse>('/api/v1/ha/status')
+
+export const setVmHa = (id: string, body: Partial<HaPolicy> & { enabled: boolean }) =>
+  platformFetch<{ vm_id: string; enabled: boolean }>(`/api/v1/vms/${id}/ha`, {
+    method: 'POST',
+    body: JSON.stringify({ restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false, ...body }),
+  })
+
+export const getPlacementRecommendations = () =>
+  platformFetch<PlacementRecommendation[]>('/api/v1/placement/recommendations')
+
+export const migratePrecheck = (vmId: string, dest_host_id: string, live = true) =>
+  platformFetch<MigratePrecheckResult>(`/api/v1/vms/${vmId}/migrate/precheck`, {
+    method: 'POST',
+    body: JSON.stringify({ dest_host_id, live }),
+  })
+
+export const getClusterSettings = () =>
+  platformFetch<ClusterSettings>('/api/v1/cluster/settings')
+
+export const patchClusterSettings = (body: Partial<ClusterSettings>) =>
+  platformFetch<ClusterSettings>('/api/v1/cluster/settings', {
+    method: 'PATCH',
+    body: JSON.stringify(body),
+  })
+
+export const createFromTemplate = (body: {
+  template_ref: string
+  name: string
+  memory?: string
+  host_id?: string
+  cloud_init_user?: string
+  cloud_init_password?: string
+  cloud_init_ssh_pubkey?: string
+}) =>
+  platformFetch<{ task_id: string }>('/api/v1/vms/from-template', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export interface PlacementRecommendation {
+  vm_id: string
+  vm_name: string
+  from_host_id: string
+  from_host_name: string
+  to_host_id: string
+  to_host_name: string
+  reason: string
+  score: number
+}
+
+export interface MigratePrecheckResult {
+  ok: boolean
+  checks: { name: string; passed: boolean; message: string; remediation?: string }[]
+}
+
+export interface HaStatusResponse {
+  status: { enabled_vms: number; offline_hosts: number; recent_events: number }
+  events: { id: string; action: string; message: string; created_at: string }[]
+}
+
+export interface ClusterSettings {
+  drs_auto_migrate: boolean
+  drs_cpu_threshold: number
+  ha_enabled: boolean
+  placement_policy: string
+  inventory_sync_interval_secs: number
+  require_vm_delete_approval?: boolean
+  finops_vcpu_hour_usd?: number
+  finops_gib_hour_usd?: number
+}
+
+export interface ClusterSummary {
+  id: string
+  name: string
+  host_count: number
+  vm_count: number
+  running_vms: number
+  offline_hosts: number
+  settings: ClusterSettings
+}
+
+export interface HaPolicy {
+  enabled: boolean
+  restart_attempts: number
+  restart_priority: string
+  fence_on_failure: boolean
+  anti_affinity: boolean
+}
+
+export interface PlatformEvent {
+  id: string
+  kind: string
+  message: string
+  created_at: string
+}
+
+export interface AuditLog {
+  id: string
+  actor: string
+  action: string
+  resource_type?: string | null
+  created_at: string
+}
+
+export interface StoragePool {
+  id: string
+  name: string
+  storage_class: string
+  backend: string
+  path?: string | null
+  capacity_gib: number
+  used_gib: number
+}
+
+export interface PlatformNetwork {
+  id: string
+  name: string
+  backend: string
+  vlan_id?: number | null
+  bridge?: string | null
+}
+
+export interface MigrationJob {
+  id: string
+  vm_id: string
+  source_host_id: string
+  dest_host_id: string
+  live: boolean
+  status: string
+  progress: number
+  created_at: string
+}
+
+export interface FenceEvent {
+  id: string
+  host_id: string
+  action: string
+  success: boolean
+  message?: string | null
+  created_at: string
+}
+
+export interface EnrollmentTokenRow {
+  token: string
+  expires_at?: string | null
+  used_at?: string | null
+  created_at: string
+}
+
+export interface SnapshotRecord {
+  id: string
+  vm_id: string
+  name: string
+  status: string
+  message?: string | null
+  created_at: string
+}
+
+export interface BackupRecord {
+  id: string
+  vm_id: string
+  backup_type: string
+  status: string
+  message?: string | null
+  created_at: string
+  restore_status?: string
+}
+
+export const retryTask = (id: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/tasks/${id}/retry`, { method: 'POST' })
+
+export const patchVm = (id: string, body: { desired_state?: string; project?: string; tags?: string[] }) =>
+  platformFetch<PlatformVm>(`/api/v1/vms/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getVmDisks = (id: string) => platformFetch<VmDiskRow[]>(`/api/v1/vms/${id}/disks`)
+
+export const revertVmSnapshot = (vmId: string, name: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots/${encodeURIComponent(name)}/revert`, { method: 'POST' })
+
+export const cloneVmSnapshot = (
+  vmId: string,
+  name: string,
+  newName: string,
+  revertSource = false,
+  destHostId?: string,
+  live = true,
+) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots/${encodeURIComponent(name)}/clone`, {
+    method: 'POST',
+    body: JSON.stringify({
+      new_name: newName,
+      revert_source: revertSource,
+      dest_host_id: destHostId || undefined,
+      live,
+    }),
+  })
+
+export const createVmBackupWithTarget = (vmId: string, targetId?: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/backups`, {
+    method: 'POST',
+    body: JSON.stringify({ target_id: targetId || undefined }),
+  })
+
+export interface BackupTarget {
+  id: string
+  name: string
+  kind: string
+  config_json: Record<string, unknown>
+}
+
+export const listBackupTargets = () => platformFetch<BackupTarget[]>('/api/v1/backup-targets')
+
+export const createBackupTarget = (body: { name: string; kind?: string; config_json?: Record<string, unknown> }) =>
+  platformFetch<BackupTarget>('/api/v1/backup-targets', { method: 'POST', body: JSON.stringify(body) })
+
+export const upsertProjectQuota = (body: {
+  project: string
+  max_vms: number
+  max_vcpu: number
+  max_memory_mib: number
+  max_storage_gib: number
+}) => platformFetch('/api/v1/policy/quotas', { method: 'POST', body: JSON.stringify(body) })
+
+export const getClusterLeadership = () =>
+  platformFetch<{ controller_id: string; is_leader: boolean; holder_id: string; lease_until: string }>(
+    '/api/v1/cluster/leadership',
+  )
+
+export const restoreVmBackup = (vmId: string, backupId: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/backups/${backupId}/restore`, { method: 'POST' })
+
+export const patchHost = (id: string, body: {
+  notes?: string
+  tags?: string[]
+  fence_method?: string
+  ipmi_address?: string
+  ipmi_username?: string
+  ipmi_password?: string
+}) =>
+  platformFetch<PlatformHostDetail>(`/api/v1/hosts/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getOidcLoginUrl = () => `${getControllerBase()}/api/v1/auth/oidc/redirect`
+
+export const deleteVmSnapshot = (vmId: string, name: string) =>
+  platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots/${encodeURIComponent(name)}`, { method: 'DELETE' })
+
+export const listUsers = () => platformFetch<PlatformUser[]>('/api/v1/users')
+export const createUser = (body: { username: string; password: string; role?: string }) =>
+  platformFetch<PlatformUser>('/api/v1/users', { method: 'POST', body: JSON.stringify(body) })
+export const deleteUser = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/users/${id}`, { method: 'DELETE' })
+
+export const revokeEnrollmentToken = (token: string) =>
+  platformFetch<{ revoked: boolean }>(`/api/v1/enrollment/tokens/${encodeURIComponent(token)}`, { method: 'DELETE' })
+
+export const toggleWebhook = (id: string) =>
+  platformFetch<WebhookRow>(`/api/v1/webhooks/${id}/toggle`, { method: 'POST' })
+export const deleteWebhook = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/webhooks/${id}`, { method: 'DELETE' })
+
+export const patchCluster = (body: { name?: string }) =>
+  platformFetch<ClusterSummary>('/api/v1/cluster', { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getOidcSettings = () => platformFetch<OidcSettings>('/api/v1/auth/oidc')
+export const patchOidcSettings = (body: Partial<OidcSettings>) =>
+  platformFetch<OidcSettings>('/api/v1/auth/oidc', { method: 'PATCH', body: JSON.stringify(body) })
+
+export const getCpuCompatMatrix = () => platformFetch<CpuCompatRule[]>('/api/v1/cpu-compat')
+export const patchCpuCompatMatrix = (rules: CpuCompatRule[]) =>
+  platformFetch<CpuCompatRule[]>('/api/v1/cpu-compat', { method: 'PATCH', body: JSON.stringify({ rules }) })
+
+export const listNotifications = (undelivered?: boolean) =>
+  platformFetch<NotificationRow[]>(`/api/v1/notifications${undelivered ? '?undelivered=true' : ''}`)
+export const markNotificationDelivered = (id: string) =>
+  platformFetch<{ delivered: boolean }>(`/api/v1/notifications/${id}/deliver`, { method: 'POST' })
+
+export const listApiKeys = () => platformFetch<ApiKeyRow[]>('/api/v1/api-keys')
+export const createApiKey = (body: { name: string; role?: string }) =>
+  platformFetch<{ id: string; name: string; role: string; token: string }>('/api/v1/api-keys', { method: 'POST', body: JSON.stringify(body) })
+export const deleteApiKey = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/api-keys/${id}`, { method: 'DELETE' })
+
+export interface MaintenanceSchedule {
+  id: string
+  host_id: string
+  action: string
+  evacuate: boolean
+  run_at: string
+  status: string
+}
+
+export const listMaintenanceSchedules = () => platformFetch<MaintenanceSchedule[]>('/api/v1/maintenance/schedules')
+export const createMaintenanceSchedule = (body: { host_id: string; action?: string; evacuate?: boolean; run_at: string }) =>
+  platformFetch<MaintenanceSchedule>('/api/v1/maintenance/schedules', { method: 'POST', body: JSON.stringify(body) })
+export const deleteMaintenanceSchedule = (id: string) =>
+  platformFetch<{ deleted: boolean }>(`/api/v1/maintenance/schedules/${id}`, { method: 'DELETE' })
+
+export const listWebhooks = () => platformFetch<WebhookRow[]>('/api/v1/webhooks')
+export const createWebhook = (body: { url: string; events: string[]; secret?: string }) =>
+  platformFetch<WebhookRow>('/api/v1/webhooks', { method: 'POST', body: JSON.stringify(body) })
+
+export const listWebhookDeliveries = (status?: string) => {
+  const q = status ? `?status=${encodeURIComponent(status)}` : ''
+  return platformFetch<WebhookDeliveryRow[]>(`/api/v1/webhook-deliveries${q}`)
+}
+
+export const retryWebhookDelivery = (id: string) =>
+  platformFetch<WebhookDeliveryRow>(`/api/v1/webhook-deliveries/${id}/retry`, { method: 'POST' })
+
+export const listProjects = () => platformFetch<ProjectRow[]>('/api/v1/projects')
+export const getCapacityReport = () => platformFetch<CapacityReport>('/api/v1/reports/capacity')
+export const fenceHost = (id: string) =>
+  platformFetch<{ fenced: boolean }>(`/api/v1/hosts/${id}/fence`, { method: 'POST' })
+
+export interface PlatformUser {
+  id: string
+  username: string
+  role: string
+  created_at: string
+}
+
+export interface ApiKeyRow {
+  id: string
+  name: string
+  role: string
+  created_at: string
+  last_used_at?: string | null
+}
+
+export interface WebhookRow {
+  id: string
+  url: string
+  events: string[]
+  enabled: boolean
+}
+
+export interface WebhookDeliveryRow {
+  id: string
+  webhook_id?: string | null
+  url: string
+  event_kind: string
+  attempts: number
+  max_attempts: number
+  status: string
+  last_error: string
+  next_retry_at: string
+  created_at: string
+}
+
+export interface ProjectRow {
+  name: string
+  vm_count: number
+}
+
+export interface CapacityReport {
+  hosts_online: number
+  hosts_offline: number
+  total_vms: number
+  running_vms: number
+  memory_total_mib: number
+  memory_used_mib: number
+  memory_headroom_mib: number
+  avg_cpu_percent: number
+}
+
+export interface VmDiskRow {
+  id: string
+  name: string
+  size_gib: number
+  storage_class: string
+  path?: string | null
+}
+
+export interface OidcSettings {
+  enabled: boolean
+  issuer: string
+  client_id: string
+  client_secret: string
+  redirect_uri: string
+}
+
+export interface CpuCompatRule {
+  source: string
+  compatible_with: string[]
+}
+
+export interface NotificationRow {
+  id: string
+  kind: string
+  payload: Record<string, unknown>
+  delivered: boolean
+  created_at: string
+  delivered_at?: string | null
+}
+
+export interface HealthIssue {
+  id: string
+  severity: string
+  message: string
+  remediation?: string
+  fix_action?: string
+  fix_label?: string
+}
+
+export interface VmHealthReport {
+  vm_id: string
+  vm_name: string
+  score: string
+  healthy: boolean
+  checks_passed: number
+  checks_total: number
+  issues: HealthIssue[]
+  guest_tools_status: string
+  guest_ip?: string
+  guest_hostname?: string
+}
+
+export interface PlatformRecommendation {
+  id: string
+  impact: string
+  title: string
+  why: string
+  risk: string
+  action: string
+  fix_action: string
+  object_ref?: Record<string, unknown>
+}
+
+export interface ApplicationGroup {
+  id: string
+  name: string
+  description: string
+  created_at: string
+}
+
+export interface ApplicationGroupDetail extends ApplicationGroup {
+  vm_ids: string[]
+  vm_names: string[]
+}
+
+export interface TopologyGraph {
+  nodes: Array<{ kind: string; id: string; name: string; state?: string }>
+  edges: Array<{ from: string; to: string; label: string }>
+  warnings: Array<{ severity: string; message: string; fix_action?: string }>
+}
+
+export const runVmHealthCheck = (id: string) =>
+  platformFetch<VmHealthReport>(`/api/v1/vms/${id}/health-check`, { method: 'POST' })
+
+export const runHostHealthCheck = (id: string) =>
+  platformFetch<{ ok: boolean; checks: Array<{ name: string; passed: boolean; message: string; remediation?: string }> }>(
+    `/api/v1/hosts/${id}/health-check`,
+    { method: 'POST' },
+  )
+
+export const listPlatformRecommendations = () =>
+  platformFetch<PlatformRecommendation[]>('/api/v1/recommendations')
+
+export const listApplications = () => platformFetch<ApplicationGroup[]>('/api/v1/applications')
+
+export const getApplication = (id: string) => platformFetch<ApplicationGroupDetail>(`/api/v1/applications/${id}`)
+
+export const createApplication = (body: { name: string; description?: string; vm_ids?: string[] }) =>
+  platformFetch<ApplicationGroupDetail>('/api/v1/applications', { method: 'POST', body: JSON.stringify(body) })
+
+export const runApplicationAction = (id: string, action: 'start' | 'stop' | 'backup') =>
+  platformFetch<{ task_ids: string[] }>(`/api/v1/applications/${id}/actions`, {
+    method: 'POST',
+    body: JSON.stringify({ action }),
+  })
+
+export interface Blueprint {
+  id: string
+  name: string
+  description: string
+  actions: string[]
+  vm_ids: string[]
+  created_at: string
+}
+
+export const listBlueprints = () => platformFetch<Blueprint[]>('/api/v1/blueprints')
+
+export const createBlueprint = (body: { name: string; description?: string; actions: string[]; vm_ids: string[] }) =>
+  platformFetch<Blueprint>('/api/v1/blueprints', { method: 'POST', body: JSON.stringify(body) })
+
+export const runBlueprint = (id: string) =>
+  platformFetch<{ task_ids: string[] }>(`/api/v1/blueprints/${id}/run`, { method: 'POST', body: '{}' })
+
+export const deleteBlueprint = (id: string) =>
+  platformFetch(`/api/v1/blueprints/${id}`, { method: 'DELETE' })
+
+export interface FinOpsReport {
+  vm_count: number
+  running_vms: number
+  total_vcpu: number
+  total_memory_gib: number
+  vcpu_hour_usd: number
+  gib_hour_usd: number
+  estimated_monthly_usd: number
+}
+
+export const getFinOpsReport = () => platformFetch<FinOpsReport>('/api/v1/reports/finops')
+
+export const getClusterTopology = () => platformFetch<TopologyGraph>('/api/v1/topology')
+
+export const getVmTopology = (id: string) => platformFetch<TopologyGraph>(`/api/v1/vms/${id}/topology`)
+
+export function platformVncWsUrl(wsPath: string): string {
+  const base = getDirectControllerBase()
+  const u = new URL(base)
+  const protocol = u.protocol === 'https:' ? 'wss:' : 'ws:'
+  return `${protocol}//${u.host}${wsPath}`
+}

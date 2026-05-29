@@ -1,0 +1,94 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use sqlx::PgPool;
+use uuid::Uuid;
+
+pub async fn resolve_template_disk(pool: &PgPool, template_ref: &str) -> anyhow::Result<String> {
+    let (name, version) = if let Some((n, v)) = template_ref.split_once('@') {
+        (n.to_string(), Some(v.to_string()))
+    } else {
+        (template_ref.to_string(), None)
+    };
+
+    let disk: String = if let Some(ver) = version {
+        sqlx::query_scalar("SELECT source_disk FROM templates WHERE name = $1 AND version = $2")
+            .bind(&name)
+            .bind(&ver)
+            .fetch_optional(pool)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("template not found: {name}@{ver}"))?
+    } else {
+        sqlx::query_scalar(
+            "SELECT source_disk FROM templates WHERE name = $1 ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(&name)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("template not found: {name}"))?
+    };
+    Ok(disk)
+}
+
+pub async fn upsert_ha_policy(
+    pool: &PgPool,
+    vm_id: Uuid,
+    enabled: bool,
+    restart_attempts: i32,
+    restart_priority: &str,
+    fence_on_failure: bool,
+    anti_affinity: bool,
+) -> anyhow::Result<()> {
+    let existing: Option<Uuid> = sqlx::query_scalar("SELECT id FROM ha_policies WHERE vm_id = $1")
+        .bind(vm_id)
+        .fetch_optional(pool)
+        .await?;
+
+    if let Some(id) = existing {
+        sqlx::query(
+            "UPDATE ha_policies SET enabled = $1, restart_attempts = $2, restart_priority = $3,
+             fence_on_failure = $4, anti_affinity = $5 WHERE id = $6",
+        )
+        .bind(enabled)
+        .bind(restart_attempts)
+        .bind(restart_priority)
+        .bind(fence_on_failure)
+        .bind(anti_affinity)
+        .bind(id)
+        .execute(pool)
+        .await?;
+    } else {
+        sqlx::query(
+            "INSERT INTO ha_policies (id, vm_id, enabled, restart_attempts, restart_priority, fence_on_failure, anti_affinity)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)",
+        )
+        .bind(Uuid::new_v4())
+        .bind(vm_id)
+        .bind(enabled)
+        .bind(restart_attempts)
+        .bind(restart_priority)
+        .bind(fence_on_failure)
+        .bind(anti_affinity)
+        .execute(pool)
+        .await?;
+    }
+    Ok(())
+}
+
+pub async fn get_ha_policy(pool: &PgPool, vm_id: Uuid) -> anyhow::Result<Option<HaPolicyRow>> {
+    Ok(sqlx::query_as(
+        "SELECT enabled, restart_attempts, restart_priority, fence_on_failure, anti_affinity
+         FROM ha_policies WHERE vm_id = $1",
+    )
+    .bind(vm_id)
+    .fetch_optional(pool)
+    .await?)
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct HaPolicyRow {
+    pub enabled: bool,
+    pub restart_attempts: i32,
+    pub restart_priority: String,
+    pub fence_on_failure: bool,
+    pub anti_affinity: bool,
+}

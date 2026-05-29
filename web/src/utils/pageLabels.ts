@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { navGroups, routeLabels } from './routes'
+import { navGroups, routeLabels, navGroupItems } from './routes'
 
 /** Human-readable label for an app route path. */
 export function getPageLabel(path: string): string {
@@ -10,7 +10,7 @@ export function getPageLabel(path: string): string {
   if (routeLabels[base]) return routeLabels[base]
 
   for (const group of navGroups) {
-    for (const item of group.items) {
+    for (const item of navGroupItems(group)) {
       const itemPath = item.to.split('?')[0]
       if (itemPath === base) return item.label
     }

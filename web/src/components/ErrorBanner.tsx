@@ -8,8 +8,10 @@ import { AlertTriangle } from 'lucide-react'
 type Tone = 'amber' | 'red'
 
 type Props = {
-  title: string
-  headline: string
+  title?: string
+  headline?: string
+  /** Shorthand for simple platform pages: maps to title + headline */
+  message?: string
   hints?: string[]
   technicalDetail?: string
   tone?: Tone
@@ -36,8 +38,9 @@ const toneStyles: Record<Tone, { border: string; bg: string; title: string; text
 
 /** Actionable error panel with optional hints and technical details. */
 export default function ErrorBanner({
-  title,
-  headline,
+  title: titleProp,
+  headline: headlineProp,
+  message,
   hints,
   technicalDetail,
   tone = 'amber',
@@ -46,6 +49,8 @@ export default function ErrorBanner({
   retryLabel = 'Retry',
   actions,
 }: Props) {
+  const title = titleProp ?? (message ? 'Error' : '')
+  const headline = headlineProp ?? message ?? ''
   const s = toneStyles[tone]
 
   return (

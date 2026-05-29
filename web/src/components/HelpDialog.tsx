@@ -3,12 +3,13 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useRef } from 'react'
-import { X, Keyboard, Info } from 'lucide-react'
+import { X, Keyboard, Info, Layers } from 'lucide-react'
 import { useFocusTrap } from '../hooks/useFocusTrap'
 import { helpShortcuts } from './helpShortcuts'
 import ZyvorAbout from './ZyvorAbout'
+import PlatformAboutHelp from './platform/PlatformAboutHelp'
 
-export type HelpTab = 'shortcuts' | 'about'
+export type HelpTab = 'shortcuts' | 'about' | 'platform'
 
 type HelpDialogProps = {
   open: boolean
@@ -19,6 +20,7 @@ type HelpDialogProps = {
 
 const TABS: { id: HelpTab; label: string; icon: React.ReactNode }[] = [
   { id: 'shortcuts', label: 'Shortcuts', icon: <Keyboard className="w-4 h-4" aria-hidden /> },
+  { id: 'platform', label: 'Platform', icon: <Layers className="w-4 h-4" aria-hidden /> },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" aria-hidden /> },
 ]
 
@@ -104,8 +106,12 @@ export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDial
               </div>
               <p className="text-xs text-slate-500 mt-4 pt-3 border-t border-slate-700/50">
                 Shortcuts are disabled when typing in input fields. Open{' '}
-                <strong className="text-slate-400">Help → About</strong> for product info and documentation links.
+                <strong className="text-slate-400">Help → Platform</strong> for Zyvor Platform guidance.
               </p>
+            </div>
+          ) : tab === 'platform' ? (
+            <div role="tabpanel">
+              <PlatformAboutHelp />
             </div>
           ) : (
             <div role="tabpanel">

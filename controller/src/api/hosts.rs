@@ -1,0 +1,491 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use axum::extract::{Path, State};
+use axum::Extension;
+use axum::Json;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::api::tasks::TaskResponse;
+use crate::api::ApiError;
+use crate::auth::AuthUser;
+use crate::engine::host_validate;
+use crate::state::AppState;
+use crate::tasks::enqueue::{enqueue_task, write_audit};
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HostRow {
+    pub id: Uuid,
+    pub hostname: String,
+    pub address: String,
+    pub state: String,
+    pub maintenance_mode: bool,
+    pub agent_grpc_addr: String,
+    pub vm_count: i32,
+    pub cpu_percent: f32,
+    pub memory_used_mib: i64,
+    pub memory_total_mib: i64,
+    pub fenced: bool,
+    pub validation_status: String,
+    pub last_heartbeat_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct HostDetailRow {
+    pub id: Uuid,
+    pub hostname: String,
+    pub address: String,
+    pub state: String,
+    pub maintenance_mode: bool,
+    pub agent_grpc_addr: String,
+    pub agent_console_addr: String,
+    pub libvirt_uri: String,
+    pub agent_version: String,
+    pub vm_count: i32,
+    pub cpu_percent: f32,
+    pub memory_used_mib: i64,
+    pub memory_total_mib: i64,
+    pub cpu_model: String,
+    pub libvirt_version: String,
+    pub qemu_version: String,
+    pub fenced: bool,
+    pub notes: String,
+    pub validation_status: String,
+    pub validation_report: serde_json::Value,
+    pub last_heartbeat_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+const HOST_LIST_SQL: &str = "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr, vm_count,
+         cpu_percent, memory_used_mib, memory_total_mib, fenced,
+         COALESCE(validation_status, 'pending') AS validation_status,
+         last_heartbeat_at FROM hosts";
+
+const HOST_DETAIL_SQL: &str = "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr,
+         COALESCE(agent_console_addr, '127.0.0.1:50052') AS agent_console_addr,
+         COALESCE(libvirt_uri, 'qemu:///system') AS libvirt_uri,
+         COALESCE(agent_version, '') AS agent_version,
+         vm_count, cpu_percent, memory_used_mib, memory_total_mib,
+         COALESCE(cpu_model, '') AS cpu_model,
+         COALESCE(libvirt_version, '') AS libvirt_version,
+         COALESCE(qemu_version, '') AS qemu_version,
+         fenced, COALESCE(notes, '') AS notes,
+         COALESCE(validation_status, 'pending') AS validation_status,
+         COALESCE(validation_report, '[]'::jsonb) AS validation_report,
+         last_heartbeat_at FROM hosts";
+
+#[derive(Debug, Deserialize)]
+pub struct CreateHostRequest {
+    pub hostname: String,
+    #[serde(default)]
+    pub address: String,
+    #[serde(default)]
+    pub agent_grpc_addr: Option<String>,
+    #[serde(default)]
+    pub libvirt_uri: Option<String>,
+}
+
+pub async fn list_hosts(State(state): State<AppState>) -> Result<Json<Vec<HostRow>>, ApiError> {
+    let rows = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} ORDER BY hostname"))
+        .fetch_all(&state.pool)
+        .await?;
+    Ok(Json(rows.into_iter().map(apply_stale_host_state).collect()))
+}
+
+fn apply_stale_host_state(mut row: HostRow) -> HostRow {
+    if row.maintenance_mode {
+        return row;
+    }
+    if let Some(hb) = row.last_heartbeat_at {
+        let age = chrono::Utc::now().signed_duration_since(hb);
+        if age > chrono::Duration::minutes(2) && row.state == "online" {
+            row.state = "offline".into();
+        }
+    }
+    row
+}
+
+pub async fn get_host(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<HostRow>, ApiError> {
+    let row = sqlx::query_as::<_, HostRow>(&format!("{HOST_LIST_SQL} WHERE id = $1"))
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    Ok(Json(apply_stale_host_state(row)))
+}
+
+pub async fn get_host_detail(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<HostDetailRow>, ApiError> {
+    let row = sqlx::query_as::<_, HostDetailRow>(&format!("{HOST_DETAIL_SQL} WHERE id = $1"))
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    let mut detail = row;
+    if !detail.maintenance_mode {
+        if let Some(hb) = detail.last_heartbeat_at {
+            let age = chrono::Utc::now().signed_duration_since(hb);
+            if age > chrono::Duration::minutes(2) && detail.state == "online" {
+                detail.state = "offline".into();
+            }
+        }
+    }
+    Ok(Json(detail))
+}
+
+pub async fn create_host(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(req): Json<CreateHostRequest>,
+) -> Result<Json<HostRow>, ApiError> {
+    let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
+        .fetch_one(&state.pool)
+        .await?;
+    let id = Uuid::new_v4();
+    let agent_addr = req
+        .agent_grpc_addr
+        .unwrap_or_else(|| state.config.default_agent_addr.clone());
+    let libvirt_uri = req
+        .libvirt_uri
+        .unwrap_or_else(|| state.config.default_libvirt_uri.clone());
+
+    sqlx::query(
+        "INSERT INTO hosts (id, cluster_id, hostname, address, agent_grpc_addr, libvirt_uri, state, validation_status)
+         VALUES ($1, $2, $3, $4, $5, $6, 'pending_validation', 'pending')",
+    )
+    .bind(id)
+    .bind(cluster_id)
+    .bind(&req.hostname)
+    .bind(&req.address)
+    .bind(&agent_addr)
+    .bind(&libvirt_uri)
+    .execute(&state.pool)
+    .await?;
+
+    write_audit(
+        &state,
+        &actor.username,
+        "host.create",
+        "host",
+        Some(id),
+        serde_json::json!({ "hostname": req.hostname }),
+    )
+    .await?;
+
+    let _ = enqueue_task(
+        &state,
+        "host.validate",
+        serde_json::json!({ "host_id": id.to_string() }),
+        Some("host"),
+        Some(id),
+        Some(id),
+    )
+    .await;
+
+    get_host(State(state), Path(id)).await
+}
+
+pub async fn validate_host(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<host_validate::HostValidationReport>, ApiError> {
+    let report = host_validate::validate_host(&state.pool, id).await?;
+    host_validate::persist_validation(&state.pool, id, &report).await?;
+    Ok(Json(report))
+}
+
+pub async fn enqueue_validate_host(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    let task_id = enqueue_task(
+        &state,
+        "host.validate",
+        serde_json::json!({ "host_id": id.to_string() }),
+        Some("host"),
+        Some(id),
+        Some(id),
+    )
+    .await?;
+    Ok(Json(TaskResponse {
+        task_id: task_id.to_string(),
+        status: "pending".into(),
+        operation: "host.validate".into(),
+    }))
+}
+
+pub async fn sync_host(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    let task_id = enqueue_task(
+        &state,
+        "host.inventory",
+        serde_json::json!({ "host_id": id.to_string() }),
+        Some("host"),
+        Some(id),
+        Some(id),
+    )
+    .await?;
+    Ok(Json(TaskResponse {
+        task_id: task_id.to_string(),
+        status: "pending".into(),
+        operation: "host.inventory".into(),
+    }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct JoinHostRequest {
+    pub token: String,
+    pub hostname: String,
+    #[serde(default)]
+    pub address: String,
+    pub agent_grpc_addr: String,
+    #[serde(default)]
+    pub agent_console_addr: Option<String>,
+    #[serde(default)]
+    pub libvirt_uri: Option<String>,
+}
+
+pub async fn join_host(
+    State(state): State<AppState>,
+    Json(req): Json<JoinHostRequest>,
+) -> Result<Json<HostRow>, ApiError> {
+    let row: Option<(Uuid,)> = sqlx::query_as(
+        "SELECT cluster_id FROM enrollment_tokens
+         WHERE token = $1 AND used_at IS NULL
+           AND (expires_at IS NULL OR expires_at > NOW())",
+    )
+    .bind(&req.token)
+    .fetch_optional(&state.pool)
+    .await?;
+
+    let (cluster_id,) = row.ok_or_else(|| ApiError::bad_request("invalid or expired join token"))?;
+    let id = Uuid::new_v4();
+    let console_addr = req
+        .agent_console_addr
+        .unwrap_or_else(|| "127.0.0.1:50052".into());
+    let libvirt_uri = req
+        .libvirt_uri
+        .unwrap_or_else(|| state.config.default_libvirt_uri.clone());
+
+    sqlx::query(
+        "INSERT INTO hosts (id, cluster_id, hostname, address, agent_grpc_addr, agent_console_addr, libvirt_uri, state, validation_status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending_validation', 'pending')
+         ON CONFLICT (cluster_id, hostname) DO UPDATE SET
+           address = EXCLUDED.address,
+           agent_grpc_addr = EXCLUDED.agent_grpc_addr,
+           agent_console_addr = EXCLUDED.agent_console_addr,
+           libvirt_uri = EXCLUDED.libvirt_uri,
+           state = 'pending_validation',
+           validation_status = 'pending'",
+    )
+    .bind(id)
+    .bind(cluster_id)
+    .bind(&req.hostname)
+    .bind(&req.address)
+    .bind(&req.agent_grpc_addr)
+    .bind(&console_addr)
+    .bind(&libvirt_uri)
+    .execute(&state.pool)
+    .await?;
+
+    sqlx::query("UPDATE enrollment_tokens SET used_at = NOW() WHERE token = $1")
+        .bind(&req.token)
+        .execute(&state.pool)
+        .await?;
+
+    let host_id: Uuid = sqlx::query_scalar(
+        "SELECT id FROM hosts WHERE cluster_id = $1 AND hostname = $2",
+    )
+    .bind(cluster_id)
+    .bind(&req.hostname)
+    .fetch_one(&state.pool)
+    .await?;
+
+    let _ = enqueue_task(
+        &state,
+        "host.validate",
+        serde_json::json!({ "host_id": host_id.to_string() }),
+        Some("host"),
+        Some(host_id),
+        Some(host_id),
+    )
+    .await;
+
+    get_host(State(state), Path(host_id)).await
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MaintenanceRequest {
+    #[serde(default = "default_maint_action")]
+    pub action: String,
+    #[serde(default = "default_true")]
+    pub evacuate: bool,
+}
+
+fn default_maint_action() -> String {
+    "enter".into()
+}
+fn default_true() -> bool {
+    true
+}
+
+pub async fn host_maintenance(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+    Json(req): Json<MaintenanceRequest>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    let task_id = enqueue_task(
+        &state,
+        "host.maintenance",
+        serde_json::json!({
+            "host_id": id.to_string(),
+            "action": req.action,
+            "evacuate": req.evacuate,
+        }),
+        Some("host"),
+        Some(id),
+        Some(id),
+    )
+    .await?;
+    Ok(Json(TaskResponse {
+        task_id: task_id.to_string(),
+        status: "pending".into(),
+        operation: "host.maintenance".into(),
+    }))
+}
+
+pub async fn sync_all_hosts(State(state): State<AppState>) -> Result<Json<Vec<TaskResponse>>, ApiError> {
+    let ids: Vec<Uuid> = sqlx::query_scalar("SELECT id FROM hosts ORDER BY hostname")
+        .fetch_all(&state.pool)
+        .await?;
+    let mut out = Vec::new();
+    for id in ids {
+        let task_id = enqueue_task(
+            &state,
+            "host.inventory",
+            serde_json::json!({ "host_id": id.to_string() }),
+            Some("host"),
+            Some(id),
+            Some(id),
+        )
+        .await?;
+        out.push(TaskResponse {
+            task_id: task_id.to_string(),
+            status: "pending".into(),
+            operation: "host.inventory".into(),
+        });
+    }
+    Ok(Json(out))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PatchHostBody {
+    pub address: Option<String>,
+    pub agent_grpc_addr: Option<String>,
+    pub libvirt_uri: Option<String>,
+    pub notes: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub fence_method: Option<String>,
+    pub ipmi_address: Option<String>,
+    pub ipmi_username: Option<String>,
+    pub ipmi_password: Option<String>,
+}
+
+pub async fn patch_host(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+    Json(body): Json<PatchHostBody>,
+) -> Result<Json<HostDetailRow>, ApiError> {
+    if let Some(v) = &body.address {
+        sqlx::query("UPDATE hosts SET address = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.agent_grpc_addr {
+        sqlx::query("UPDATE hosts SET agent_grpc_addr = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.libvirt_uri {
+        sqlx::query("UPDATE hosts SET libvirt_uri = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.notes {
+        sqlx::query("UPDATE hosts SET notes = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(tags) = &body.tags {
+        sqlx::query("UPDATE hosts SET tags = $1 WHERE id = $2")
+            .bind(tags)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.fence_method {
+        sqlx::query("UPDATE hosts SET fence_method = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.ipmi_address {
+        sqlx::query("UPDATE hosts SET ipmi_address = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.ipmi_username {
+        sqlx::query("UPDATE hosts SET ipmi_username = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.ipmi_password {
+        if !v.is_empty() && v != "***" {
+            sqlx::query("UPDATE hosts SET ipmi_password = $1 WHERE id = $2")
+                .bind(v)
+                .bind(id)
+                .execute(&state.pool)
+                .await?;
+        }
+    }
+    write_audit(&state, &actor.username, "host.patch", "host", Some(id), serde_json::json!({})).await?;
+    get_host_detail(State(state), Path(id)).await
+}
+
+pub async fn delete_host(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms WHERE host_id = $1")
+        .bind(id)
+        .fetch_one(&state.pool)
+        .await?;
+    if vm_count > 0 {
+        return Err(ApiError::bad_request("host still has VMs assigned"));
+    }
+    sqlx::query("DELETE FROM hosts WHERE id = $1")
+        .bind(id)
+        .execute(&state.pool)
+        .await?;
+    write_audit(&state, &actor.username, "host.delete", "host", Some(id), serde_json::json!({})).await?;
+    Ok(Json(serde_json::json!({ "deleted": true })))
+}

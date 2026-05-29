@@ -1,0 +1,20 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+pub mod agent_client;
+pub mod api;
+pub mod auth;
+pub mod config;
+pub mod console;
+pub mod engine;
+pub mod db;
+pub mod state;
+pub mod sync;
+pub mod tasks;
+pub mod ws_tokens;
+pub mod jwt;
+pub mod leader;
+pub mod oidc_flow;
+pub mod oidc_jwt;
+pub mod rate_limit;
+
+pub use config::ControllerConfig;

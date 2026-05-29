@@ -1,0 +1,219 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use std::time::Duration;
+
+use chrono::{DateTime, Utc};
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::state::AppState;
+use crate::tasks::enqueue::enqueue_task;
+
+#[allow(dead_code)]
+const HEARTBEAT_STALE_SECS: i64 = 90;
+
+pub fn spawn(state: AppState) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(45));
+        loop {
+            interval.tick().await;
+            if !state.leader.is_leader() {
+                continue;
+            }
+            if let Err(e) = scan(&state).await {
+                tracing::warn!("HA scan: {e:#}");
+            }
+        }
+    });
+}
+
+pub async fn scan(state: &AppState) -> anyhow::Result<()> {
+    mark_stale_hosts(state).await?;
+    recover_vms(state).await?;
+    Ok(())
+}
+
+async fn mark_stale_hosts(state: &AppState) -> anyhow::Result<()> {
+    let pool = &state.pool;
+    let stale: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, hostname FROM hosts
+         WHERE state = 'online'
+           AND last_heartbeat_at IS NOT NULL
+           AND last_heartbeat_at < NOW() - INTERVAL '90 seconds'",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for (id, hostname) in stale {
+        sqlx::query("UPDATE hosts SET state = 'offline' WHERE id = $1")
+            .bind(id)
+            .execute(pool)
+            .await?;
+        record_ha_event(pool, None, Some(id), "host.offline", &format!("Host {hostname} marked offline")).await?;
+
+        let needs_fence: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+               SELECT 1 FROM ha_policies hp
+               JOIN vms v ON v.id = hp.vm_id
+               WHERE v.host_id = $1 AND hp.enabled = TRUE AND hp.fence_on_failure = TRUE
+             )",
+        )
+        .bind(id)
+        .fetch_one(pool)
+        .await?;
+
+        if needs_fence {
+            let _ = crate::engine::drs::fence_host(state, id).await;
+        }
+
+        tracing::warn!("HA: host {hostname} ({id}) marked offline");
+    }
+    Ok(())
+}
+
+async fn recover_vms(state: &AppState) -> anyhow::Result<()> {
+    let ha_enabled: bool = sqlx::query_scalar(
+        "SELECT ha_enabled FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&state.pool)
+    .await?;
+    if !ha_enabled {
+        return Ok(());
+    }
+
+    let victims: Vec<(Uuid, String, Uuid, i32, i32, String)> = sqlx::query_as(
+        "SELECT v.id, v.name, v.host_id, v.ha_recovery_count, hp.restart_attempts, v.desired_state
+         FROM vms v
+         JOIN ha_policies hp ON hp.vm_id = v.id AND hp.enabled = TRUE
+         JOIN hosts h ON h.id = v.host_id
+         WHERE h.state = 'offline'",
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    for (vm_id, vm_name, failed_host, recovery_count, max_attempts, desired) in victims {
+        if recovery_count >= max_attempts {
+            record_ha_event(
+                &state.pool,
+                Some(vm_id),
+                Some(failed_host),
+                "ha.exhausted",
+                &format!("VM {vm_name} exceeded restart attempts"),
+            )
+            .await?;
+            continue;
+        }
+
+        let dest: Option<Uuid> = sqlx::query_scalar(
+            "SELECT id FROM hosts
+             WHERE id != $1 AND state = 'online' AND maintenance_mode = FALSE
+             ORDER BY vm_count, memory_used_mib LIMIT 1",
+        )
+        .bind(failed_host)
+        .fetch_optional(&state.pool)
+        .await?;
+
+        let Some(dest_host) = dest else {
+            record_ha_event(
+                &state.pool,
+                Some(vm_id),
+                Some(failed_host),
+                "ha.no_capacity",
+                &format!("No online host to recover VM {vm_name}"),
+            )
+            .await?;
+            continue;
+        };
+
+        sqlx::query(
+            "UPDATE vms SET host_id = $1, ha_recovery_count = ha_recovery_count + 1, updated_at = NOW()
+             WHERE id = $2",
+        )
+        .bind(dest_host)
+        .bind(vm_id)
+        .execute(&state.pool)
+        .await?;
+
+        let _ = enqueue_task(
+            state,
+            "ha.recover",
+            serde_json::json!({
+                "vm_id": vm_id.to_string(),
+                "host_id": dest_host.to_string(),
+                "desired_state": desired,
+            }),
+            Some("vm"),
+            Some(vm_id),
+            Some(dest_host),
+        )
+        .await;
+
+        record_ha_event(
+            &state.pool,
+            Some(vm_id),
+            Some(failed_host),
+            "ha.recover",
+            &format!("Recovering VM {vm_name} onto host {dest_host}"),
+        )
+        .await?;
+        state.emit_event("ha.recover", format!("Recovering {vm_name} after host failure"));
+    }
+    Ok(())
+}
+
+async fn record_ha_event(
+    pool: &PgPool,
+    vm_id: Option<Uuid>,
+    host_id: Option<Uuid>,
+    action: &str,
+    message: &str,
+) -> anyhow::Result<()> {
+    sqlx::query(
+        "INSERT INTO ha_events (id, vm_id, host_id, action, message) VALUES ($1, $2, $3, $4, $5)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(vm_id)
+    .bind(host_id)
+    .bind(action)
+    .bind(message)
+    .execute(pool)
+    .await?;
+    Ok(())
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct HaStatusRow {
+    pub enabled_vms: i64,
+    pub offline_hosts: i64,
+    pub recent_events: i64,
+}
+
+pub async fn ha_status(pool: &PgPool) -> anyhow::Result<(HaStatusRow, Vec<HaEventRow>)> {
+    let status: HaStatusRow = sqlx::query_as(
+        "SELECT
+           (SELECT COUNT(*) FROM ha_policies WHERE enabled = TRUE) AS enabled_vms,
+           (SELECT COUNT(*) FROM hosts WHERE state = 'offline') AS offline_hosts,
+           (SELECT COUNT(*) FROM ha_events WHERE created_at > NOW() - INTERVAL '24 hours') AS recent_events",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let events = sqlx::query_as::<_, HaEventRow>(
+        "SELECT id, vm_id, host_id, action, message, created_at FROM ha_events
+         ORDER BY created_at DESC LIMIT 50",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    Ok((status, events))
+}
+
+#[derive(Debug, serde::Serialize, sqlx::FromRow)]
+pub struct HaEventRow {
+    pub id: Uuid,
+    pub vm_id: Option<Uuid>,
+    pub host_id: Option<Uuid>,
+    pub action: String,
+    pub message: String,
+    pub created_at: DateTime<Utc>,
+}

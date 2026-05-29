@@ -1,0 +1,364 @@
+syntax = "proto3";
+package machina.agent.v1;
+
+service HostAgent {
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+  rpc ListVms(ListVmsRequest) returns (ListVmsResponse);
+  rpc ListNetworks(ListNetworksRequest) returns (ListNetworksResponse);
+  rpc ListStoragePools(ListStoragePoolsRequest) returns (ListStoragePoolsResponse);
+  rpc ApplyVm(ApplyVmRequest) returns (ApplyVmResponse);
+  rpc VmPower(VmPowerRequest) returns (VmPowerResponse);
+  rpc DeleteVm(DeleteVmRequest) returns (DeleteVmResponse);
+  rpc MigrateVm(MigrateVmRequest) returns (MigrateVmResponse);
+  rpc Maintenance(MaintenanceRequest) returns (MaintenanceResponse);
+  rpc GetConsole(GetConsoleRequest) returns (GetConsoleResponse);
+  rpc CloneVm(CloneVmRequest) returns (CloneVmResponse);
+  rpc GetHostInfo(GetHostInfoRequest) returns (GetHostInfoResponse);
+  rpc PrecheckMigrate(PrecheckMigrateRequest) returns (PrecheckMigrateResponse);
+  rpc FenceHost(FenceHostRequest) returns (FenceHostResponse);
+  rpc CreateSnapshot(CreateSnapshotRequest) returns (CreateSnapshotResponse);
+  rpc DeleteSnapshot(DeleteSnapshotRequest) returns (DeleteSnapshotResponse);
+  rpc ListSnapshots(ListSnapshotsRequest) returns (ListSnapshotsResponse);
+  rpc BackupVm(BackupVmRequest) returns (BackupVmResponse);
+  rpc RevertSnapshot(RevertSnapshotRequest) returns (RevertSnapshotResponse);
+  rpc RestoreVmBackup(RestoreVmBackupRequest) returns (RestoreVmBackupResponse);
+  rpc CloneFromSnapshot(CloneFromSnapshotRequest) returns (CloneFromSnapshotResponse);
+  rpc ProvisionStoragePool(ProvisionStoragePoolRequest) returns (ProvisionStoragePoolResponse);
+  rpc ProvisionNetwork(ProvisionNetworkRequest) returns (ProvisionNetworkResponse);
+  rpc AttachDisk(AttachDiskRequest) returns (AttachDiskResponse);
+  rpc GetGuestHealth(GetGuestHealthRequest) returns (GetGuestHealthResponse);
+  rpc InstallGuestTools(InstallGuestToolsRequest) returns (InstallGuestToolsResponse);
+}
+
+message RegisterRequest {
+  string hostname = 1;
+  string address = 2;
+  string agent_version = 3;
+  string libvirt_uri = 4;
+  string join_token = 5;
+}
+
+message RegisterResponse {
+  string host_id = 1;
+  bool accepted = 2;
+}
+
+message HeartbeatRequest {
+  string host_id = 1;
+}
+
+message HeartbeatResponse {
+  string state = 1;
+  uint32 vm_count = 2;
+  float cpu_percent = 3;
+  uint64 memory_used_mib = 4;
+  uint64 memory_total_mib = 5;
+}
+
+message VmSummary {
+  string name = 1;
+  string uuid = 2;
+  string state = 3;
+  uint32 vcpus = 4;
+  uint64 memory_mb = 5;
+  float cpu_percent = 6;
+  uint64 memory_used_mib = 7;
+  uint64 disk_read_iops = 8;
+  uint64 disk_write_iops = 9;
+}
+
+message ListVmsRequest {}
+
+message ListVmsResponse {
+  repeated VmSummary vms = 1;
+}
+
+message NetworkSummary {
+  string name = 1;
+  string uuid = 2;
+  bool active = 3;
+  bool persistent = 4;
+  bool autostart = 5;
+  string bridge = 6;
+}
+
+message ListNetworksRequest {}
+
+message ListNetworksResponse {
+  repeated NetworkSummary networks = 1;
+}
+
+message StoragePoolSummary {
+  string name = 1;
+  string uuid = 2;
+  string state = 3;
+  double capacity_gib = 4;
+  double used_gib = 5;
+  double available_gib = 6;
+  bool autostart = 7;
+  string path = 8;
+}
+
+message ListStoragePoolsRequest {}
+
+message ListStoragePoolsResponse {
+  repeated StoragePoolSummary pools = 1;
+}
+
+message ApplyVmRequest {
+  string spec_json = 1;
+  string disk_path = 2;
+  string template_source = 3;
+  string cloud_init_user = 4;
+  string cloud_init_password = 5;
+  string cloud_init_ssh_pubkey = 6;
+}
+
+message ApplyVmResponse {
+  string vm_name = 1;
+  string uuid = 2;
+  bool created = 3;
+}
+
+message VmPowerRequest {
+  string vm_name = 1;
+  string action = 2;
+}
+
+message VmPowerResponse {
+  string vm_name = 1;
+  string state = 2;
+}
+
+message DeleteVmRequest {
+  string vm_name = 1;
+}
+
+message DeleteVmResponse {
+  bool deleted = 1;
+}
+
+message MigrateVmRequest {
+  string vm_name = 1;
+  string dest_uri = 2;
+  bool live = 3;
+}
+
+message MigrateVmResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message MaintenanceRequest {
+  string action = 1;
+  bool evacuate = 2;
+}
+
+message MaintenanceResponse {
+  string state = 1;
+  uint32 evacuated = 2;
+}
+
+message GetConsoleRequest {
+  string vm_name = 1;
+}
+
+message GetConsoleResponse {
+  string console_type = 1;
+  string host = 2;
+  int32 port = 3;
+  int32 websocket_port = 4;
+}
+
+message CloneVmRequest {
+  string source_name = 1;
+  string new_name = 2;
+  string spec_json = 3;
+}
+
+message CloneVmResponse {
+  string vm_name = 1;
+  string uuid = 2;
+}
+
+message GetHostInfoRequest {}
+
+message GetHostInfoResponse {
+  string cpu_model = 1;
+  string libvirt_version = 2;
+  string qemu_version = 3;
+}
+
+message PrecheckMigrateRequest {
+  string vm_name = 1;
+  string dest_cpu_model = 2;
+  string dest_libvirt_version = 3;
+}
+
+message MigrateCheckItem {
+  string name = 1;
+  bool passed = 2;
+  string message = 3;
+}
+
+message PrecheckMigrateResponse {
+  bool ok = 1;
+  repeated MigrateCheckItem checks = 2;
+}
+
+message FenceHostRequest {
+  string action = 1;
+  string method = 2;
+  string ipmi_address = 3;
+  string ipmi_username = 4;
+  string ipmi_password = 5;
+  string shell_command = 6;
+  string hostname = 7;
+}
+
+message FenceHostResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message CreateSnapshotRequest {
+  string vm_name = 1;
+  string snapshot_name = 2;
+  string description = 3;
+}
+
+message CreateSnapshotResponse {
+  bool ok = 1;
+  string snapshot_name = 2;
+  string message = 3;
+  string disk_path = 4;
+}
+
+message DeleteSnapshotRequest {
+  string vm_name = 1;
+  string snapshot_name = 2;
+}
+
+message DeleteSnapshotResponse {
+  bool deleted = 1;
+}
+
+message SnapshotInfo {
+  string name = 1;
+  string state = 2;
+  int64 creation_time = 3;
+  bool is_current = 4;
+}
+
+message ListSnapshotsRequest {
+  string vm_name = 1;
+}
+
+message ListSnapshotsResponse {
+  repeated SnapshotInfo snapshots = 1;
+}
+
+message BackupVmRequest {
+  string vm_name = 1;
+  string dest_path = 2;
+}
+
+message BackupVmResponse {
+  bool ok = 1;
+  string path = 2;
+  string message = 3;
+}
+
+message RevertSnapshotRequest {
+  string vm_name = 1;
+  string snapshot_name = 2;
+}
+
+message RevertSnapshotResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message RestoreVmBackupRequest {
+  string vm_name = 1;
+  string backup_path = 2;
+}
+
+message RestoreVmBackupResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message CloneFromSnapshotRequest {
+  string vm_name = 1;
+  string snapshot_name = 2;
+  string new_name = 3;
+  string new_disk_path = 4;
+  bool revert_source = 5;
+}
+
+message CloneFromSnapshotResponse {
+  bool ok = 1;
+  string vm_name = 2;
+  string uuid = 3;
+  string message = 4;
+}
+
+message ProvisionStoragePoolRequest {
+  string pool_name = 1;
+  string backend = 2;
+  string path = 3;
+}
+
+message ProvisionStoragePoolResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message ProvisionNetworkRequest {
+  string network_name = 1;
+  string backend = 2;
+  int32 vlan_id = 3;
+  string bridge = 4;
+}
+
+message ProvisionNetworkResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message AttachDiskRequest {
+  string vm_name = 1;
+  string disk_path = 2;
+  string target_dev = 3;
+}
+
+message AttachDiskResponse {
+  bool ok = 1;
+  string message = 2;
+}
+
+message GetGuestHealthRequest {
+  string vm_name = 1;
+}
+
+message GetGuestHealthResponse {
+  bool ok = 1;
+  string state = 2;
+  bool agent_reachable = 3;
+  bool healthy = 4;
+  string os_pretty_name = 5;
+  string guest_ip = 6;
+  string guest_hostname = 7;
+  repeated string issues = 8;
+}
+
+message InstallGuestToolsRequest {
+  string vm_name = 1;
+}
+
+message InstallGuestToolsResponse {
+  bool ok = 1;
+  string message = 2;
+}

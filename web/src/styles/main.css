@@ -56,6 +56,50 @@ code {
 .animate-float { animation: float 8s ease-in-out infinite; }
 .animate-glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
 
+.platform-sidebar {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
+}
+
+.platform-mac-shell {
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59, 130, 246, 0.12), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(249, 115, 22, 0.08), transparent),
+    linear-gradient(180deg, rgba(15, 23, 42, 0.92) 0%, rgba(2, 6, 23, 0.98) 100%);
+  backdrop-filter: blur(24px);
+}
+
+.platform-mac-main {
+  background: rgba(2, 6, 23, 0.35);
+}
+
+.platform-launchpad-grid {
+  padding: 0.5rem 0 1.5rem;
+}
+
+.platform-launchpad-icon:focus-visible {
+  outline: 2px solid rgba(96, 165, 250, 0.6);
+  outline-offset: 4px;
+  border-radius: 1rem;
+}
+
+.platform-mac-panel,
+.platform-mac-stat {
+  backdrop-filter: blur(16px);
+}
+
+.platform-mac-sheet {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.platform-spotlight-hint kbd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.platform-vm-card,
+.platform-action-card {
+  backdrop-filter: blur(12px);
+}
+
 /* Recharts portals default to a high z-index; keep charts under sticky #app-topnav (z-30). */
 .recharts-tooltip-wrapper,
 .recharts-cursor {
@@ -822,6 +866,129 @@ code {
 
 .nav-steel-dropdown {
   background: linear-gradient(145deg, #1a1f27 0%, #222a35 50%, #141920 100%);
+}
+
+/* v9s-style icon cluster nav (all themes) */
+.machina-nav-wrap {
+  gap: 4px;
+}
+
+.machina-nav-group {
+  position: relative;
+  border: 1px solid transparent;
+}
+
+.machina-nav-group-icon.machina-nav-group-active::after {
+  bottom: 5px;
+  width: 52%;
+}
+
+.machina-nav-group-active::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 6px;
+  width: 60%;
+  height: 2px;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+/* Dark (default) */
+.machina-nav-group {
+  color: #94a3b8;
+}
+.machina-nav-group:hover {
+  color: #fff;
+}
+.machina-nav-group-active::after {
+  background: linear-gradient(90deg, #60a5fa, #3b82f6);
+}
+.machina-nav-dropdown {
+  background: rgba(30, 41, 59, 0.97);
+  border: 1px solid rgba(71, 85, 105, 0.5);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+.machina-nav-dd-link {
+  color: #cbd5e1;
+  text-decoration: none;
+}
+.machina-nav-dd-link:hover {
+  background: rgba(51, 65, 85, 0.6);
+  color: #fff;
+}
+.machina-nav-dd-active {
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.18);
+}
+
+/* Steel theme */
+.steel-theme .machina-nav-group {
+  color: #9aa8b8;
+}
+.steel-theme .machina-nav-group:hover {
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(140, 160, 190, 0.12);
+}
+.steel-theme .machina-nav-group-active {
+  color: #eef3f8;
+  background: rgba(93, 144, 247, 0.12);
+  border-color: rgba(93, 144, 247, 0.25);
+}
+.steel-theme .machina-nav-group-active::after {
+  background: linear-gradient(90deg, #8ea0b5, #5d90f7);
+}
+.steel-theme .machina-nav-dropdown {
+  background: linear-gradient(145deg, #1a1f27 0%, #222a35 50%, #161b22 100%);
+  border: 1px solid rgba(160, 180, 210, 0.2);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.steel-theme .machina-nav-dd-link {
+  color: #cfd8e3;
+}
+.steel-theme .machina-nav-dd-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffffff;
+}
+.steel-theme .machina-nav-dd-active {
+  color: #8ec5ff;
+  background: rgba(93, 144, 247, 0.15);
+}
+
+/* Aurora theme */
+.aurora-theme .machina-nav-group {
+  color: #a89ec8;
+}
+.aurora-theme .machina-nav-group:hover {
+  color: #f5f3ff;
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(167, 139, 250, 0.15);
+}
+.aurora-theme .machina-nav-group-active {
+  color: #f5f3ff;
+  background: rgba(167, 139, 250, 0.15);
+  border-color: rgba(167, 139, 250, 0.3);
+}
+.aurora-theme .machina-nav-group-active::after {
+  background: linear-gradient(90deg, #67e8f9, #c084fc);
+}
+.aurora-theme .machina-nav-dropdown {
+  background: linear-gradient(145deg, #12082a 0%, #1a0a2e 50%, #0a0618 100%);
+  border: 1px solid rgba(167, 139, 250, 0.25);
+  box-shadow: 0 16px 40px rgba(34, 211, 238, 0.08);
+}
+.aurora-theme .machina-nav-dd-link {
+  color: #c4b5fd;
+}
+.aurora-theme .machina-nav-dd-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f5f3ff;
+}
+.aurora-theme .machina-nav-dd-active {
+  color: #67e8f9;
+  background: rgba(34, 211, 238, 0.12);
 }
 
 .nav-steel-select {

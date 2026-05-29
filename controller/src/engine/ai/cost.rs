@@ -1,0 +1,79 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use serde::Serialize;
+use sqlx::PgPool;
+
+#[derive(Debug, Serialize)]
+pub struct CostAnalysis {
+    pub estimated_monthly_usd: f64,
+    pub vm_count: i64,
+    pub idle_vm_count: i64,
+    pub oversized_vm_count: i64,
+    pub snapshot_heavy_count: i64,
+    pub suggestions: Vec<String>,
+}
+
+pub async fn analyze(pool: &PgPool) -> anyhow::Result<CostAnalysis> {
+    let rates: (f64, f64) = sqlx::query_as(
+        "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await?;
+    let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms")
+        .fetch_one(pool)
+        .await?;
+    let totals: (i64, i64) = sqlx::query_as(
+        "SELECT COALESCE(SUM(vcpus), 0)::bigint, COALESCE(SUM(memory_mib), 0)::bigint FROM vms",
+    )
+    .fetch_one(pool)
+    .await?;
+    let memory_gib = totals.1 as f64 / 1024.0;
+    let hourly = totals.0 as f64 * rates.0 + memory_gib * rates.1;
+    let estimated_monthly_usd = hourly * 730.0;
+    let idle_vm_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms WHERE observed_state != 'running'
+         AND updated_at < NOW() - INTERVAL '30 days'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    let oversized_vm_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM vms v
+         JOIN vm_metrics m ON m.vm_id = v.id
+         WHERE v.observed_state = 'running'
+           AND v.memory_mib > 0
+           AND m.memory_used_mib > 0
+           AND m.memory_used_mib::float / v.memory_mib::float < 0.35",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    let snapshot_heavy_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT vm_id) FROM snapshot_records WHERE status = 'completed'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    let mut suggestions = Vec::new();
+    if idle_vm_count > 0 {
+        suggestions.push(format!("Archive or remove {idle_vm_count} idle VM(s) stopped 30+ days."));
+    }
+    if oversized_vm_count > 0 {
+        suggestions.push(format!("Right-size {oversized_vm_count} VM(s) using <35% allocated memory."));
+    }
+    if snapshot_heavy_count > 5 {
+        suggestions.push("Consolidate old snapshots to reduce storage cost.".into());
+    }
+
+    Ok(CostAnalysis {
+        estimated_monthly_usd,
+        vm_count,
+        idle_vm_count,
+        oversized_vm_count,
+        snapshot_heavy_count,
+        suggestions,
+    })
+}

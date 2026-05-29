@@ -54,6 +54,13 @@ install: ## Install binaries, web UI, config, systemd unit, and mkosi workspace 
 	@test -f target/release/machina-daemon || { echo "Run 'make' or 'make release' first"; exit 1; }
 	install -Dm755 target/release/machina-daemon $(DESTDIR)$(BINDIR)/machina-daemon
 	install -Dm755 target/release/machina-tui $(DESTDIR)$(BINDIR)/machina
+	@if [ "$(INSTALL_PLATFORM)" = "1" ]; then \
+		install -Dm755 target/release/machina-controller $(DESTDIR)$(BINDIR)/machina-controller; \
+		install -Dm755 target/release/machina-agent $(DESTDIR)$(BINDIR)/machina-agent; \
+		install -Dm644 contrib/machina-controller.service $(DESTDIR)$(UNITDIR)/machina-controller.service; \
+		install -Dm644 contrib/machina-agent.service $(DESTDIR)$(UNITDIR)/machina-agent.service; \
+		install -Dm644 contrib/machina-platform.env $(DESTDIR)/etc/default/machina-platform; \
+	fi
 	install -Dm644 contrib/machina.toml $(DESTDIR)$(SYSCONFDIR)/machina/config.toml
 	install -Dm644 contrib/machina-daemon.service $(DESTDIR)$(UNITDIR)/machina-daemon.service
 	@test -f $(DESTDIR)/etc/default/machina-daemon || install -Dm644 contrib/machina-daemon.default $(DESTDIR)/etc/default/machina-daemon

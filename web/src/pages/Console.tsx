@@ -15,6 +15,7 @@ import {
 } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import AiTerminalCompanion from '../components/ai/AiTerminalCompanion'
 
 interface ConsoleInfo {
   name: string
@@ -187,6 +188,7 @@ export default function ConsolePage() {
           <SerialConsole vmName={name} libvirtConnection={conn} />
         )}
       </div>
+      {name && <AiTerminalCompanion vmName={name} libvirtConnection={conn} />}
     </div>
   )
 }

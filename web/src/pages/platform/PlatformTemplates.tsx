@@ -1,0 +1,334 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
+import { AlertTriangle, CheckCircle2, Layers, Loader2, Plus, RefreshCw, Sparkles, Star } from 'lucide-react'
+import ErrorBanner from '../../components/ErrorBanner'
+import { MacGlassPanel, MacSectionTitle, MacSheet } from '../../components/platform/mac/PlatformMacUi'
+import {
+  createFromTemplate,
+  createTemplate,
+  deleteTemplate,
+  getTemplateReadiness,
+  listMarketplaceTemplates,
+  seedDefaultTemplates,
+  type PlatformTemplate,
+} from '../../api/platform'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
+
+const CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance'] as const
+
+function templateIcon(t: PlatformTemplate) {
+  if (t.icon) return t.icon
+  const fam = (t.os_family ?? t.category ?? '').toLowerCase()
+  if (fam.includes('windows')) return '🪟'
+  if (fam.includes('database') || t.name.includes('postgres')) return '🗄️'
+  if (t.category === 'Appliance') return '📦'
+  return '🐧'
+}
+
+export default function PlatformTemplates() {
+  const toast = useToastContext()
+  const [rows, setRows] = useState<PlatformTemplate[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [category, setCategory] = useState<string>('All')
+  const [deploySheet, setDeploySheet] = useState<PlatformTemplate | null>(null)
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [name, setName] = useState('ubuntu-24.04')
+  const [version, setVersion] = useState('1.0.0')
+  const [disk, setDisk] = useState('/var/lib/libvirt/images/ubuntu-24.04.qcow2')
+  const [description, setDescription] = useState('Ubuntu 24.04 LTS with cloud-init')
+  const [tplCategory, setTplCategory] = useState('Linux')
+  const [featured, setFeatured] = useState(false)
+  const [deployName, setDeployName] = useState('app-01')
+  const [cloudUser, setCloudUser] = useState('ubuntu')
+  const [cloudPass, setCloudPass] = useState('')
+  const [cloudKey, setCloudKey] = useState('')
+  const [deploying, setDeploying] = useState(false)
+  const [readiness, setReadiness] = useState<{
+    ready: boolean
+    disk_exists: boolean
+    host_online: number
+    remediation: string
+    source_disk: string
+  } | null>(null)
+  const [readinessLoading, setReadinessLoading] = useState(false)
+
+  const loadReadiness = useCallback(async (t: PlatformTemplate) => {
+    setReadinessLoading(true)
+    setReadiness(null)
+    try {
+      setReadiness(await getTemplateReadiness(t.name, t.version))
+    } catch {
+      setReadiness({ ready: false, disk_exists: false, host_online: 0, remediation: 'Could not check readiness', source_disk: t.source_disk })
+    } finally {
+      setReadinessLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (deploySheet) void loadReadiness(deploySheet)
+    else setReadiness(null)
+  }, [deploySheet, loadReadiness])
+
+  const load = useCallback(async (trySeed = false) => {
+    setError(null)
+    setLoading(true)
+    try {
+      let list = await listMarketplaceTemplates()
+      if (list.length === 0 && trySeed) {
+        const r = await seedDefaultTemplates()
+        list = r.templates
+        if (r.inserted > 0) toast.success(`Loaded ${r.templates.length} default templates`)
+      }
+      setRows(list)
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [toast])
+
+  useEffect(() => { void load(true) }, [load])
+
+  const featuredRows = useMemo(() => rows.filter((t) => t.featured), [rows])
+  const filtered = useMemo(() => {
+    if (category === 'All') return rows
+    return rows.filter((t) => (t.category ?? 'Linux') === category)
+  }, [rows, category])
+
+  const deploy = async (t: PlatformTemplate, vmName: string) => {
+    setDeploying(true)
+    try {
+      await createFromTemplate({
+        template_ref: `${t.name}@${t.version}`,
+        name: vmName,
+        cloud_init_user: cloudUser || undefined,
+        cloud_init_password: cloudPass || undefined,
+        cloud_init_ssh_pubkey: cloudKey || undefined,
+      })
+      toast.success(`Deploying ${vmName} from ${t.name}`)
+      setDeploySheet(null)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setDeploying(false)
+    }
+  }
+
+  const add = async () => {
+    try {
+      await createTemplate({
+        name,
+        version,
+        source_disk: disk,
+        cloud_init: true,
+        os_family: tplCategory === 'Windows' ? 'windows' : 'linux',
+        category: tplCategory,
+        description,
+        featured,
+        marketplace: true,
+      })
+      toast.success('Template published')
+      setPublishOpen(false)
+      await load(false)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">App Store</p>
+          <MacSectionTitle title="Template Marketplace" subtitle="Golden images for Linux, Windows, databases, and appliances — deploy in one click." />
+        </div>
+        <div className="flex gap-2">
+          <button type="button" className="btn-secondary text-sm" onClick={() => void load(false)} disabled={loading}>
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </button>
+          <button type="button" className="btn-secondary text-sm" onClick={() => void seedDefaultTemplates().then((r) => { setRows(r.templates); toast.success(`Catalog: ${r.templates.length} templates`) }).catch((e) => toast.error(formatUserError(e)))}>
+            Restore defaults
+          </button>
+          <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setPublishOpen(true)}>
+            <Plus className="w-4 h-4" /> Publish
+          </button>
+        </div>
+      </header>
+
+      {error && <ErrorBanner message={error} />}
+
+      {loading && rows.length === 0 && (
+        <div className="flex items-center justify-center gap-2 text-slate-400 py-16">
+          <Loader2 className="w-5 h-5 animate-spin" /> Loading marketplace…
+        </div>
+      )}
+
+      {!loading && rows.length === 0 && (
+        <MacGlassPanel title="Marketplace is empty" subtitle="Load the bundled Zyvor template catalog.">
+          <p className="text-sm text-slate-400 mb-4">Includes Ubuntu, Debian, CentOS Stream, Windows, PostgreSQL, Photon OS, and more.</p>
+          <button type="button" className="btn-primary" onClick={() => void load(true)}>Load default templates</button>
+        </MacGlassPanel>
+      )}
+
+      {featuredRows.length > 0 && (
+        <section>
+          <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-amber-400" /> Featured
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {featuredRows.map((t) => (
+              <MarketplaceCard key={t.id} template={t} onDeploy={() => { setDeployName(`${t.name.split('-')[0]}-01`); setDeploySheet(t) }} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {rows.length > 0 && (
+        <>
+          <div className="flex flex-wrap gap-2">
+            {CATEGORIES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCategory(c)}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                  category === c
+                    ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
+                    : 'bg-slate-900/60 text-slate-400 border border-white/[0.06] hover:border-white/10'
+                }`}
+              >
+                {c}
+                {c !== 'All' && (
+                  <span className="ml-1 opacity-60">
+                    {rows.filter((t) => (t.category ?? 'Linux') === c).length}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {filtered.map((t) => (
+              <MarketplaceCard key={t.id} template={t} onDeploy={() => { setDeployName(`${t.name.split('-')[0]}-01`); setDeploySheet(t) }} />
+            ))}
+          </div>
+          {filtered.length === 0 && (
+            <p className="text-center text-slate-500 py-8">No templates in {category} — try another category.</p>
+          )}
+        </>
+      )}
+
+      <MacSheet
+        open={!!deploySheet}
+        onClose={() => setDeploySheet(null)}
+        title={deploySheet ? `Deploy ${deploySheet.name}` : 'Deploy'}
+        subtitle={deploySheet?.description}
+      >
+        {deploySheet && (
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <span className="text-4xl">{templateIcon(deploySheet)}</span>
+              <div>
+                <p className="font-medium text-slate-100">{deploySheet.name}@{deploySheet.version}</p>
+                <p className="text-xs text-slate-500">{deploySheet.category}</p>
+              </div>
+            </div>
+            {readinessLoading ? (
+              <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Checking readiness…</p>
+            ) : readiness && (
+              <div className={`rounded-xl border p-3 text-sm ${
+                readiness.ready
+                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+              }`}>
+                <p className="font-medium flex items-center gap-2">
+                  {readiness.ready ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
+                  {readiness.ready ? 'Ready to deploy' : readiness.host_online === 0 ? 'No online hosts' : 'Missing disk image'}
+                </p>
+                <p className="text-xs mt-1 opacity-90">{readiness.remediation}</p>
+                {!readiness.disk_exists && (
+                  <p className="text-xs mt-2 font-mono text-slate-400">{readiness.source_disk}</p>
+                )}
+                {!readiness.ready && (
+                  <Link to="/platform/content" className="text-xs text-blue-400 hover:underline mt-2 inline-block">Upload image in Content Library →</Link>
+                )}
+              </div>
+            )}
+            <label className="block text-sm">
+              <span className="text-slate-400">VM name</span>
+              <input className="input w-full mt-1" value={deployName} onChange={(e) => setDeployName(e.target.value)} />
+            </label>
+            {deploySheet.cloud_init && (
+              <>
+                <label className="block text-sm">
+                  <span className="text-slate-400">Cloud-init user</span>
+                  <input className="input w-full mt-1" value={cloudUser} onChange={(e) => setCloudUser(e.target.value)} />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-slate-400">Password (optional)</span>
+                  <input type="password" className="input w-full mt-1" value={cloudPass} onChange={(e) => setCloudPass(e.target.value)} />
+                </label>
+                <label className="block text-sm">
+                  <span className="text-slate-400">SSH public key (optional)</span>
+                  <input className="input w-full mt-1" value={cloudKey} onChange={(e) => setCloudKey(e.target.value)} />
+                </label>
+              </>
+            )}
+            <button type="button" className="btn-primary w-full flex items-center justify-center gap-2" disabled={deploying || readinessLoading || (readiness != null && !readiness.ready)} onClick={() => void deploy(deploySheet, deployName)}>
+              {deploying ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Deploy VM
+            </button>
+          </div>
+        )}
+      </MacSheet>
+
+      <MacSheet open={publishOpen} onClose={() => setPublishOpen(false)} title="Publish template" subtitle="Add a golden image to the marketplace." wide>
+        <div className="grid gap-3 md:grid-cols-2">
+          <input className="input" placeholder="name" value={name} onChange={(e) => setName(e.target.value)} />
+          <input className="input" placeholder="version" value={version} onChange={(e) => setVersion(e.target.value)} />
+          <input className="input md:col-span-2" placeholder="source disk path" value={disk} onChange={(e) => setDisk(e.target.value)} />
+          <input className="input md:col-span-2" placeholder="description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <select className="input" value={tplCategory} onChange={(e) => setTplCategory(e.target.value)}>
+            {CATEGORIES.filter((c) => c !== 'All').map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} />
+            Featured
+          </label>
+          <button type="button" className="btn-primary md:col-span-2" onClick={() => void add()}>Publish to marketplace</button>
+        </div>
+      </MacSheet>
+    </div>
+  )
+}
+
+function MarketplaceCard({ template: t, onDeploy }: { template: PlatformTemplate; onDeploy: () => void }) {
+  const needsImage = t.source_disk?.includes('.qcow2')
+  return (
+    <article className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 backdrop-blur-md p-5 flex flex-col hover:border-white/10 transition group">
+      <div className="flex items-start gap-3">
+        <span className="text-3xl group-hover:scale-110 transition-transform" aria-hidden>{templateIcon(t)}</span>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <h3 className="font-semibold text-slate-100 truncate">{t.name}</h3>
+            {t.featured && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
+            {needsImage && (
+              <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/[0.06]">Catalog</span>
+            )}
+          </div>
+          <p className="text-xs text-slate-500">{t.category ?? 'Linux'} · v{t.version}</p>
+        </div>
+      </div>
+      <p className="text-xs text-slate-400 mt-3 flex-1 leading-relaxed line-clamp-3">{t.description || 'Ready-to-deploy golden image.'}</p>
+      <button type="button" className="btn-primary text-xs mt-4 w-full" onClick={onDeploy}>
+        Get · Deploy VM
+      </button>
+    </article>
+  )
+}

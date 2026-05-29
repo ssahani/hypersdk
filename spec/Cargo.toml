@@ -1,0 +1,14 @@
+[package]
+name = "machina-spec"
+version = "0.1.0"
+edition = "2021"
+license = "LicenseRef-Zyvor-Proprietary"
+description = "Declarative VM/cluster spec types for the Machina control plane"
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+serde_yaml = "0.9"

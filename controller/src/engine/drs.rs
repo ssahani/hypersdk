@@ -1,0 +1,230 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use std::time::Duration;
+
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::agent_client;
+use crate::state::AppState;
+use crate::tasks::enqueue::enqueue_task;
+
+pub fn spawn(state: AppState) {
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(Duration::from_secs(120));
+        loop {
+            interval.tick().await;
+            if !state.leader.is_leader() {
+                continue;
+            }
+            if let Err(e) = run_auto_migrate(&state).await {
+                tracing::warn!("DRS auto-migrate: {e:#}");
+            }
+        }
+    });
+}
+
+async fn run_auto_migrate(state: &AppState) -> anyhow::Result<()> {
+    let enabled: bool = sqlx::query_scalar(
+        "SELECT drs_auto_migrate FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&state.pool)
+    .await?;
+
+    if !enabled {
+        return Ok(());
+    }
+
+    let recs = crate::engine::placement::compute_recommendations(&state.pool).await?;
+    let _ = crate::engine::placement::persist_recommendations(&state.pool, &recs).await;
+
+    for rec in recs.into_iter().take(3) {
+        if rec.score < 20.0 {
+            continue;
+        }
+        let vm_id = Uuid::parse_str(&rec.vm_id)?;
+        let dest_id = Uuid::parse_str(&rec.to_host_id)?;
+
+        let pre = crate::engine::migrate_precheck::run_migrate_precheck(
+            &state.pool,
+            vm_id,
+            dest_id,
+            true,
+        )
+        .await?;
+        if !pre.ok {
+            continue;
+        }
+
+        let source_host: Option<Uuid> =
+            sqlx::query_scalar("SELECT host_id FROM vms WHERE id = $1")
+                .bind(vm_id)
+                .fetch_one(&state.pool)
+                .await?;
+
+        let _ = enqueue_task(
+            state,
+            "vm.migrate",
+            serde_json::json!({
+                "vm_id": rec.vm_id,
+                "dest_host_id": rec.to_host_id,
+                "live": true,
+                "drs": true,
+            }),
+            Some("vm"),
+            Some(vm_id),
+            source_host,
+        )
+        .await;
+
+        state.emit_event(
+            "drs.migrate",
+            format!("Auto-migrating {} → {}", rec.vm_name, rec.to_host_name),
+        );
+    }
+    Ok(())
+}
+
+pub async fn get_cluster_settings(pool: &PgPool) -> anyhow::Result<ClusterSettings> {
+    Ok(sqlx::query_as(
+        "SELECT drs_auto_migrate, drs_cpu_threshold, ha_enabled, placement_policy,
+                inventory_sync_interval_secs, require_vm_delete_approval,
+                finops_vcpu_hour_usd, finops_gib_hour_usd
+         FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await?)
+}
+
+pub async fn get_inventory_sync_interval_secs(pool: &PgPool) -> anyhow::Result<i32> {
+    sqlx::query_scalar(
+        "SELECT inventory_sync_interval_secs FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await
+    .map_err(Into::into)
+}
+
+pub async fn update_cluster_settings(pool: &PgPool, settings: &ClusterSettingsPatch) -> anyhow::Result<()> {
+    if let Some(v) = settings.drs_auto_migrate {
+        sqlx::query("UPDATE clusters SET drs_auto_migrate = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = settings.drs_cpu_threshold {
+        sqlx::query("UPDATE clusters SET drs_cpu_threshold = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = settings.ha_enabled {
+        sqlx::query("UPDATE clusters SET ha_enabled = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = &settings.placement_policy {
+        sqlx::query("UPDATE clusters SET placement_policy = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = settings.inventory_sync_interval_secs {
+        sqlx::query("UPDATE clusters SET inventory_sync_interval_secs = $1")
+            .bind(v.clamp(0, 86400))
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = settings.require_vm_delete_approval {
+        sqlx::query("UPDATE clusters SET require_vm_delete_approval = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = settings.finops_vcpu_hour_usd {
+        sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = settings.finops_gib_hour_usd {
+        sqlx::query("UPDATE clusters SET finops_gib_hour_usd = $1")
+            .bind(v)
+            .execute(pool)
+            .await?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize, sqlx::FromRow)]
+pub struct ClusterSettings {
+    pub drs_auto_migrate: bool,
+    pub drs_cpu_threshold: f32,
+    pub ha_enabled: bool,
+    pub placement_policy: String,
+    pub inventory_sync_interval_secs: i32,
+    pub require_vm_delete_approval: bool,
+    pub finops_vcpu_hour_usd: f64,
+    pub finops_gib_hour_usd: f64,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+pub struct ClusterSettingsPatch {
+    pub drs_auto_migrate: Option<bool>,
+    pub drs_cpu_threshold: Option<f32>,
+    pub ha_enabled: Option<bool>,
+    pub placement_policy: Option<String>,
+    pub inventory_sync_interval_secs: Option<i32>,
+    pub require_vm_delete_approval: Option<bool>,
+    pub finops_vcpu_hour_usd: Option<f64>,
+    pub finops_gib_hour_usd: Option<f64>,
+}
+
+pub async fn fence_host(state: &AppState, host_id: Uuid) -> anyhow::Result<bool> {
+    let row: (String, String, String, String, String, String) = sqlx::query_as(
+        "SELECT hostname, agent_grpc_addr, COALESCE(fence_method, 'shell'), COALESCE(ipmi_address, ''),
+                COALESCE(ipmi_username, ''), COALESCE(ipmi_password, '') FROM hosts WHERE id = $1",
+    )
+    .bind(host_id)
+    .fetch_one(&state.pool)
+    .await?;
+
+    let shell_cmd = std::env::var("MACHINA_FENCE_COMMAND").unwrap_or_default();
+    let mut client = agent_client::connect(&row.1).await?;
+    let resp = agent_client::fence_host(
+        &mut client,
+        &row.0,
+        &row.2,
+        &row.3,
+        &row.4,
+        &row.5,
+        &shell_cmd,
+    )
+    .await?;
+
+    sqlx::query(
+        "INSERT INTO fence_events (id, host_id, action, command, success, message)
+         VALUES ($1, $2, $3, $4, $5, $6)",
+    )
+    .bind(Uuid::new_v4())
+    .bind(host_id)
+    .bind(if row.2 == "ipmi" { "ipmi-fence" } else { "fence" })
+    .bind(if row.2 == "ipmi" {
+        format!("ipmitool -H {} power off", row.3)
+    } else {
+        shell_cmd.clone()
+    })
+    .bind(resp.ok)
+    .bind(&resp.message)
+    .execute(&state.pool)
+    .await?;
+
+    if resp.ok {
+        sqlx::query("UPDATE hosts SET fenced = TRUE WHERE id = $1")
+            .bind(host_id)
+            .execute(&state.pool)
+            .await?;
+    }
+    Ok(resp.ok)
+}

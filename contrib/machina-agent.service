@@ -1,0 +1,30 @@
+[Unit]
+Description=Machina host agent (libvirt executor)
+Documentation=https://github.com/ssahani/machina
+After=network-online.target libvirtd.service machina-controller.service
+Wants=network-online.target
+Requires=libvirtd.service
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+EnvironmentFile=-/etc/default/machina-platform
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=MACHINA_LIBVIRT_URI=qemu:///system
+
+ExecStart=/usr/local/bin/machina-agent --listen 127.0.0.1:50051 --console-listen 127.0.0.1:50052
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=machina-agent
+
+MemoryMax=512M
+TasksMax=128
+
+[Install]
+WantedBy=multi-user.target

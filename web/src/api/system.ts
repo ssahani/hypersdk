@@ -124,6 +124,10 @@ export interface PlatformInfo {
     base_url: string
     insecure_tls: boolean
   }
+  control_plane?: {
+    proxy_url: string
+    direct_url: string
+  }
 }
 
 export const getPlatformInfo = () => readJsonObject<PlatformInfo>(`${API}/system/platform-info`)

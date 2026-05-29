@@ -26,9 +26,33 @@ export type ProductHelpMeta = {
   productUrl: string;
 };
 
+export type HelpDocLink = {
+  label: string;
+  href: string;
+};
+
 export const MACHINA_HELP: ProductHelpMeta = {
   name: 'Machina',
-  tagline: 'KVM and libvirt host control for virtual machines',
+  tagline: 'The AI Cloud OS for Enterprise Virtualization',
   version: '0.1.0',
   productUrl: 'https://zyvor.dev/machina',
 };
+
+export const ZYVOR_PLATFORM_HELP: ProductHelpMeta = {
+  name: 'Zyvor Platform',
+  tagline: 'The power of KVM. The control of vCenter. The simplicity of macOS.',
+  version: '1.0',
+  productUrl: ZYVOR_URL,
+};
+
+export const ZYVOR_PLATFORM_TAGLINE =
+  'Manage your entire virtual datacenter like a modern operating system — not like a pile of scripts.';
+
+export const ZYVOR_PLATFORM_HELP_LINKS: HelpDocLink[] = [
+  { label: 'Platform UX vision (in-repo)', href: 'https://github.com/ssahani/machina/blob/main/docs/platform-ux-vision.md' },
+  { label: 'Platform architecture', href: 'https://github.com/ssahani/machina/blob/main/docs/platform.md' },
+  { label: 'Platform roadmap', href: 'https://github.com/ssahani/machina/blob/main/docs/platform-roadmap.md' },
+  { label: 'Support Assistant', href: '/platform/support' },
+  { label: 'Zyvor documentation', href: ZYVOR_HELP.docs },
+  { label: 'Contact Zyvor', href: ZYVOR_HELP.contact },
+];

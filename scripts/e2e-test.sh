@@ -31,6 +31,8 @@ source "${SCRIPT_DIR}/lib/e2e-common.sh"
 source "${SCRIPT_DIR}/lib/e2e-libvirt.sh"
 # shellcheck source=lib/e2e-openstack.sh
 source "${SCRIPT_DIR}/lib/e2e-openstack.sh"
+# shellcheck source=lib/e2e-host-health.sh
+source "${SCRIPT_DIR}/lib/e2e-host-health.sh"
 
 E2E_BASE="https://localhost:5092"
 E2E_USER="sus"
@@ -101,6 +103,10 @@ fi
 if ! e2e_login; then
   e2e_summary
   exit 1
+fi
+
+if [[ "$SKIP_PREFLIGHT" -eq 0 ]]; then
+  e2e_host_health_run || true
 fi
 
 if [[ "$SKIP_PREFLIGHT" -eq 0 ]]; then

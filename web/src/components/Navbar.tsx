@@ -6,17 +6,19 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
 import { getPinnedPages } from '../utils/pinnedPages'
 import { getPageLabel } from '../utils/pageLabels'
-import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sparkles, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink } from 'lucide-react'
+import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sparkles, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink, Bot } from 'lucide-react'
 import { ZYVOR_HELP } from '../config/zyvorHelp'
 import type { HelpTab } from './HelpDialog'
 import ConnectionStatus from './ConnectionStatus'
+import PlatformTaskDrawer, { PlatformTaskDrawerButton } from './PlatformTaskDrawer'
 import LanguageSwitcher from './LanguageSwitcher'
 import { useAuth } from '../contexts/AuthContext'
 import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
 import { timeAgo } from '../utils/time'
-import { navGroups, NavItem, NavGroup, isOpenStackNavEnabled, navItemVisible, navItemActive, navGroupHasActive } from '../utils/routes'
+import { navGroups, NavItem, isOpenStackNavEnabled, navItemVisible, navItemActive, navGroupHasActive, navDropdownSections, TOP_BAR_QUICK_LINKS } from '../utils/routes'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useAi } from '../contexts/AiContext'
 
 function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () => void; theme: AppTheme; setup?: boolean }) {
   const location = useLocation()
@@ -78,101 +80,146 @@ function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () 
   )
 }
 
-function DesktopDropdown({
-  group,
+function DesktopNavCluster({
+  openGroup,
+  onOpenGroup,
+  onDropdownEnter,
+  onDropdownLeave,
   username,
   theme,
   openstackReady,
   hypersdkEnabled,
 }: {
-  group: NavGroup
+  openGroup: string | null
+  onOpenGroup: (name: string | null) => void
+  onDropdownEnter: (name: string) => void
+  onDropdownLeave: () => void
   username: string
   theme: AppTheme
   openstackReady: boolean
   hypersdkEnabled: boolean
 }) {
-  const [open, setOpen] = useState(false)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const location = useLocation()
-  const items = group.items.filter((i) => navItemVisible(i, username, openstackReady, hypersdkEnabled))
-  const hasActive = navGroupHasActive(group, location.pathname, location.search, username, openstackReady, hypersdkEnabled)
+  const steel = theme === 'steel'
+  const aurora = theme === 'aurora'
 
-  const handleEnter = () => {
-    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null }
-    setOpen(true)
+  const triggerClass = (active: boolean) => {
+    if (steel || aurora) {
+      return `machina-nav-group machina-nav-group-icon flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+        active ? 'machina-nav-group-active' : ''
+      }`
+    }
+    return `machina-nav-group machina-nav-group-icon flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+      active
+        ? 'bg-blue-600/25 text-blue-400 ring-1 ring-blue-500/35'
+        : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+    }`
   }
-  const handleLeave = () => {
-    const timer = setTimeout(() => setOpen(false), 400)
-    closeTimer.current = timer
+
+  const panelClass = (scroll: boolean) => {
+    const scrollCls = scroll ? 'max-h-[min(70vh,28rem)] overflow-y-auto' : ''
+    if (steel) return `machina-nav-dropdown p-2 rounded-xl min-w-[220px] ${scrollCls}`
+    if (aurora) return `machina-nav-dropdown p-2 rounded-xl min-w-[220px] ${scrollCls}`
+    return `bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl p-2 rounded-xl min-w-[220px] ${scrollCls}`
   }
 
-  const btnClass =
-    theme === 'steel'
-      ? `flex items-center gap-1 px-2 py-2 text-sm font-medium border-0 bg-transparent cursor-pointer rounded-lg transition-colors ${
-          hasActive ? 'text-[#eef3f8]' : 'text-[#9aa8b8] hover:text-white'
-        }`
-      : theme === 'aurora'
-        ? `flex items-center gap-1 px-2 py-2 text-sm font-medium border-0 bg-transparent cursor-pointer rounded-lg transition-colors ${
-            hasActive ? 'text-[#f5f3ff]' : 'text-[#a89ec8] hover:text-[#f5f3ff]'
-          }`
-        : `flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
-            hasActive ? 'text-blue-400' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
-          }`
+  const linkClass = (active: boolean, setup?: boolean) => {
+    if (setup) return 'machina-nav-dd-link flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-amber-300 hover:text-amber-200'
+    if (steel || aurora) {
+      return `machina-nav-dd-link flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+        active ? 'machina-nav-dd-active' : ''
+      }`
+    }
+    return `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+      active ? 'bg-blue-600/80 text-white' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+    }`
+  }
 
-  const panelClass =
-    theme === 'steel'
-      ? 'absolute top-full left-0 mt-1 rounded-xl py-2 min-w-[180px] z-40 animate-fade-in origin-top nav-steel-dropdown border border-[rgba(140,160,190,0.18)] shadow-2xl'
-      : theme === 'aurora'
-        ? 'absolute top-full left-0 mt-1 rounded-xl py-2 min-w-[180px] z-40 animate-fade-in origin-top nav-aurora-dropdown shadow-2xl'
-        : 'absolute top-full left-0 mt-1 rounded-xl overflow-hidden py-1 min-w-[180px] z-40 animate-fade-in origin-top bg-slate-800/95 backdrop-blur-xl border border-slate-700/50 shadow-2xl'
+  const sectionHeadingClass = steel
+    ? 'px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#7f8b99]'
+    : aurora
+      ? 'px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-[#8b7aa8]'
+      : 'px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-500'
 
-  const itemClass = (active: boolean) =>
-    theme === 'steel'
-      ? `flex items-center gap-2.5 px-4 py-2.5 transition text-sm no-underline ${
-          active ? 'text-[#eef3f8] bg-white/5' : 'text-[#9aa8b8] hover:text-white hover:bg-white/5'
-        }`
-      : theme === 'aurora'
-        ? `flex items-center gap-2.5 px-4 py-2.5 transition text-sm no-underline ${
-            active ? 'text-[#f5f3ff] bg-white/5' : 'text-[#a89ec8] hover:text-[#f5f3ff] hover:bg-white/5'
-          }`
-        : `flex items-center gap-2.5 px-4 py-2.5 transition-all duration-150 text-sm ${
-            active ? 'bg-blue-600/80 text-white' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
-          }`
+  const handleNavClick = (e: React.MouseEvent, name: string) => {
+    e.stopPropagation()
+    onOpenGroup(openGroup === name ? null : name)
+  }
 
   return (
-    <div className="relative" onMouseEnter={handleEnter} onMouseLeave={handleLeave}>
-      <button type="button" onClick={() => setOpen(o => !o)} className={btnClass}>
-        {group.label}
-        <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className={panelClass}>
-          {items.map((item) => (
-            <Link
-              key={item.to}
-              to={item.to}
-              onClick={() => setOpen(false)}
-              className={`${itemClass(navItemActive(item, location.pathname, location.search))} ${
-                item.openstackSetupOnly ? '!text-amber-300 hover:!text-amber-200' : ''
-              }`}
+    <>
+      {navGroups.map((group) => {
+        const BarIcon = group.barIcon
+        const hasActive = navGroupHasActive(group, location.pathname, location.search, username, openstackReady, hypersdkEnabled)
+        const sections = navDropdownSections(group)
+          .map((section) => ({
+            ...section,
+            items: section.items.filter((i) => navItemVisible(i, username, openstackReady, hypersdkEnabled)),
+          }))
+          .filter((section) => section.items.length > 0)
+        if (sections.length === 0) return null
+
+        return (
+          <div
+            key={group.label}
+            className="relative flex-shrink-0"
+            onMouseEnter={() => onDropdownEnter(group.label)}
+            onMouseLeave={onDropdownLeave}
+          >
+            <button
+              type="button"
+              title={group.label}
+              aria-label={group.label}
+              aria-haspopup="menu"
+              aria-expanded={openGroup === group.label}
+              onClick={(e) => handleNavClick(e, group.label)}
+              className={triggerClass(hasActive)}
             >
-              {item.icon}
-              {item.label}
-            </Link>
-          ))}
-        </div>
-      )}
-    </div>
+              <BarIcon className="h-[17px] w-[17px] flex-shrink-0" strokeWidth={2} aria-hidden />
+            </button>
+            {openGroup === group.label && (
+              <div className="absolute left-0 top-full z-[200] min-w-[220px] pt-2">
+                <div className={panelClass(Boolean(group.menuScroll))}>
+                  {sections.map((section) => (
+                    <div key={section.label || '_'} className={section.label ? 'mb-2 last:mb-0' : ''}>
+                      {section.label ? <p className={sectionHeadingClass}>{section.label}</p> : null}
+                      <div className="space-y-0.5">
+                        {section.items.map((item) => (
+                          <Link
+                            key={item.to}
+                            to={item.to}
+                            onClick={() => onOpenGroup(null)}
+                            className={linkClass(navItemActive(item, location.pathname, location.search), item.openstackSetupOnly)}
+                          >
+                            {item.icon}
+                            <span>{item.label}</span>
+                          </Link>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </>
   )
 }
 
 export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) => void }) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [helpMenuOpen, setHelpMenuOpen] = useState(false)
+  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null)
   const helpRef = useRef<HTMLDivElement>(null)
+  const desktopNavRef = useRef<HTMLDivElement>(null)
+  const navCloseTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const location = useLocation()
   const { isAuthenticated, username, logout } = useAuth()
   const { theme, setTheme, cycleTheme } = useTheme()
   const { info } = usePlatformInfo()
+  const { toggleCopilot, mode } = useAi()
   const openstackReady = isOpenStackNavEnabled(info?.openstack)
   const hypersdkEnabled = Boolean(info?.hypersdk?.enabled)
   const steel = theme === 'steel'
@@ -183,6 +230,8 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
   const bellRef = useRef<HTMLDivElement>(null)
   const recentCount = events.filter((e: VMEvent) => Date.now() - e.timestamp < 300_000).length
   const [pinnedPaths, setPinnedPaths] = useState(() => getPinnedPages())
+  const [taskDrawerOpen, setTaskDrawerOpen] = useState(false)
+  const platformEnabled = Boolean(info?.control_plane?.proxy_url)
 
   useEffect(() => {
     setPinnedPaths(getPinnedPages())
@@ -205,6 +254,52 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [helpMenuOpen])
+
+  useEffect(() => {
+    if (!openNavGroup) return
+    const onDown = (ev: MouseEvent) => {
+      const el = desktopNavRef.current
+      if (el && !el.contains(ev.target as Node)) setOpenNavGroup(null)
+    }
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') setOpenNavGroup(null)
+    }
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [openNavGroup])
+
+  useEffect(() => {
+    return () => {
+      if (navCloseTimer.current) clearTimeout(navCloseTimer.current)
+    }
+  }, [])
+
+  const handleNavDropdownEnter = (name: string) => {
+    if (navCloseTimer.current) {
+      clearTimeout(navCloseTimer.current)
+      navCloseTimer.current = null
+    }
+    setOpenNavGroup(name)
+  }
+
+  const handleNavDropdownLeave = () => {
+    navCloseTimer.current = setTimeout(() => setOpenNavGroup(null), 150)
+  }
+
+  const quickLinkClass = (active: boolean) =>
+    steel || aurora
+      ? `machina-nav-group machina-nav-group-icon flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+          active ? 'machina-nav-group-active' : ''
+        }`
+      : `flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
+          active
+            ? 'bg-blue-600/25 text-blue-400 ring-1 ring-blue-500/35'
+            : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
+        }`
 
   const navShell = themed
     ? 'min-h-[72px] flex flex-wrap items-center gap-x-3 gap-y-2 py-2 lg:flex-nowrap lg:justify-between lg:items-center'
@@ -281,37 +376,42 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
             </span>
           </Link>
 
-          {/* Desktop Nav — top bar only, no sidebar */}
-          <div className="hidden lg:flex items-center gap-1 order-3 lg:order-2 flex-1 min-w-0 justify-center">
-            {pinnedPaths.length > 0 ? (
-              <div
-                className={`flex items-center gap-0.5 mr-1 pr-2 shrink-0 max-w-[14rem] ${
-                  steel
-                    ? 'border-r border-[rgba(140,160,190,0.2)]'
-                    : aurora
-                      ? 'border-r border-[rgba(167,139,250,0.2)]'
-                      : 'border-r border-slate-700/60'
-                }`}
-              >
-                {pinnedPaths.slice(0, 4).map((path) => (
-                  <Link
-                    key={path}
-                    to={path}
-                    title={getPageLabel(path)}
-                    className={`px-2 py-1 rounded-md text-[11px] font-medium truncate max-w-[5.5rem] transition-colors ${
-                      steel
-                        ? 'text-amber-300/90 hover:text-amber-200 hover:bg-white/5'
-                        : 'text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10'
-                    }`}
-                  >
-                    {getPageLabel(path)}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
-            {navGroups.map((group) => (
-              <DesktopDropdown key={group.label} group={group} username={username} theme={theme} openstackReady={openstackReady} hypersdkEnabled={hypersdkEnabled} />
-            ))}
+          {/* Desktop Nav — v9s-style icon cluster + quick links */}
+          <div
+            ref={desktopNavRef}
+            className="hidden lg:flex flex-1 min-w-0 items-center justify-center gap-2 overflow-visible"
+          >
+            <nav aria-label="Main navigation" className="machina-nav-wrap flex items-center gap-0.5 overflow-visible">
+              <DesktopNavCluster
+                openGroup={openNavGroup}
+                onOpenGroup={setOpenNavGroup}
+                onDropdownEnter={handleNavDropdownEnter}
+                onDropdownLeave={handleNavDropdownLeave}
+                username={username}
+                theme={theme}
+                openstackReady={openstackReady}
+                hypersdkEnabled={hypersdkEnabled}
+              />
+            </nav>
+            <div
+              className={`flex flex-shrink-0 items-center gap-0.5 border-l pl-2 ${
+                steel ? 'border-[rgba(140,160,190,0.2)]' : aurora ? 'border-[rgba(167,139,250,0.2)]' : 'border-slate-700/60'
+              }`}
+              aria-label="Toolbar shortcuts"
+            >
+              {TOP_BAR_QUICK_LINKS.map((item) => (
+                <Link
+                  key={item.to}
+                  to={item.to}
+                  title={item.label}
+                  aria-label={item.label}
+                  aria-current={navItemActive(item, location.pathname, location.search) ? 'page' : undefined}
+                  className={quickLinkClass(navItemActive(item, location.pathname, location.search))}
+                >
+                  {item.icon}
+                </Link>
+              ))}
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-2 sm:gap-x-2 min-w-0 shrink-0 w-full basis-full ml-auto order-2 sm:w-auto sm:basis-auto lg:order-3 lg:w-auto lg:shrink-0">
@@ -396,6 +496,24 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                 </div>
               )}
             </div>
+            {mode !== 'off' && (
+              <button
+                type="button"
+                onClick={toggleCopilot}
+                className={`hidden sm:flex items-center gap-1 px-2 py-1.5 rounded-lg transition text-sm shrink-0 ${
+                  steel
+                    ? 'text-orange-300/90 hover:text-orange-200 hover:bg-white/5'
+                    : aurora
+                      ? 'text-orange-300/90 hover:text-orange-200 hover:bg-white/5'
+                      : 'text-orange-400 hover:bg-slate-700/60 hover:text-orange-300'
+                }`}
+                title="Machina Copilot"
+                aria-label="Open Machina Copilot"
+              >
+                <Bot className="w-4 h-4" />
+                <span className="hidden md:inline text-xs font-medium">Copilot</span>
+              </button>
+            )}
             {onOpenHelp && (
               <div className="relative shrink-0 hidden sm:block" ref={helpRef}>
                 <button
@@ -508,6 +626,9 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                 )}
               </div>
             )}
+            {platformEnabled && (
+              <PlatformTaskDrawerButton onClick={() => setTaskDrawerOpen(true)} />
+            )}
             <div className="shrink-0">
               <ConnectionStatus />
             </div>
@@ -617,27 +738,63 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                 </div>
               </div>
             ) : null}
-            {navGroups.map((group) => (
-              <div key={group.label}>
-                <div className={`text-[10px] font-bold uppercase tracking-wider px-3 mb-1.5 ${
+            {navGroups.map((group) => {
+              const sections = navDropdownSections(group)
+                .map((section) => ({
+                  ...section,
+                  items: section.items.filter((item) => navItemVisible(item, username, openstackReady, hypersdkEnabled)),
+                }))
+                .filter((section) => section.items.length > 0)
+              if (sections.length === 0) return null
+              return (
+              <div key={group.label} className="px-1 py-2 border-b border-slate-700/40 last:border-b-0">
+                <h3 className={`text-xs font-semibold uppercase tracking-wider mb-2 px-3 ${
                   steel ? 'text-[#7f8b99]' : aurora ? 'text-[#8b7aa8]' : 'text-slate-500'
                 }`}
                 >
                   {group.label}
-                </div>
-                <div className="space-y-0.5">
-                  {group.items.filter((item) => navItemVisible(item, username, openstackReady, hypersdkEnabled)).map((item) => (
-                    <NavLink
-                      key={item.to}
-                      item={item}
-                      theme={theme}
-                      setup={item.openstackSetupOnly}
-                      onClick={() => setMobileOpen(false)}
-                    />
+                </h3>
+                <div className="space-y-3">
+                  {sections.map((section) => (
+                    <div key={section.label || '_'}>
+                      {section.label ? (
+                        <p className={`text-[10px] font-semibold uppercase tracking-wider mb-1.5 pl-3 ${
+                          steel ? 'text-[#6b7785]' : aurora ? 'text-[#7a6a98]' : 'text-slate-600'
+                        }`}
+                        >
+                          {section.label}
+                        </p>
+                      ) : null}
+                      <div className="space-y-0.5">
+                        {section.items.map((item) => (
+                          <NavLink
+                            key={item.to}
+                            item={item}
+                            theme={theme}
+                            setup={item.openstackSetupOnly}
+                            onClick={() => setMobileOpen(false)}
+                          />
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>
-            ))}
+              )
+            })}
+            <div className="px-4 py-3 border-b border-slate-700/40">
+              <div className={`text-[10px] font-bold uppercase tracking-wider mb-2 ${
+                steel ? 'text-[#7f8b99]' : aurora ? 'text-[#8b7aa8]' : 'text-slate-500'
+              }`}
+              >
+                Shortcuts
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {TOP_BAR_QUICK_LINKS.map((item) => (
+                  <NavLink key={item.to} item={item} theme={theme} onClick={() => setMobileOpen(false)} />
+                ))}
+              </div>
+            </div>
             <Link
               to="/create"
               onClick={() => setMobileOpen(false)}
@@ -709,6 +866,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
           </div>
         </div>
       )}
+      <PlatformTaskDrawer open={taskDrawerOpen} onClose={() => setTaskDrawerOpen(false)} />
     </nav>
   )
 }

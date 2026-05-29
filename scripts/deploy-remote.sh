@@ -59,7 +59,8 @@ DEPLOY_SSH_TTY_OPTS=()
 
 usage() {
     cat <<'EOF'
-deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--e2e|--cleanup|--dry-run]
+deploy-remote.sh USER@HOST | USER HOST [PASSWORD] [--sync-only|--quick|--e2e|--platform|--cleanup|--dry-run]
+        [--skip-platform-e2e|--skip-daemon-e2e]
         [--remote-build|--remote-check] [--bind ADDR] [--open-firewall] [--no-start] [--deps-only] [extra install.sh args...]
 
 Prefer: ./scripts/deploy remote USER@HOST [flags]  |  ./scripts/deploy status
@@ -82,7 +83,8 @@ Examples:
   deploy-remote.sh sus@185.165.240.5 --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus 185.165.240.5 --quick
   deploy-remote.sh 185.165.240.5 sus --quick    # HOST USER (auto-swapped)
-  VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e
+  VSPASS=max deploy-remote.sh sus 185.165.240.5 --quick --e2e --platform
+  deploy-remote.sh sus 212.8.252.194 --quick --platform --e2e --bind 0.0.0.0 --open-firewall
   deploy-remote.sh sus@host --remote-check    # fast compile smoke after rsync
   deploy-remote.sh sus@host --remote-build   # full release build on server, then exit
   # Full install passes --no-tests to install.sh (no post-install curl suite on the server).
@@ -242,6 +244,9 @@ REMOTE_BUILD=false
 REMOTE_CHECK=false
 DRY_RUN=false
 RUN_E2E=false
+INSTALL_PLATFORM=false
+SKIP_PLATFORM_E2E=false
+SKIP_DAEMON_E2E=false
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -249,6 +254,9 @@ parse_flags() {
             --sync-only) SKIP_INSTALL=true; shift ;;
             --quick) QUICK=true; shift ;;
             --e2e) RUN_E2E=true; shift ;;
+            --platform) INSTALL_PLATFORM=true; shift ;;
+            --skip-platform-e2e) SKIP_PLATFORM_E2E=true; shift ;;
+            --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
             --no-start) NO_START=true; shift ;;
@@ -346,8 +354,22 @@ if [[ "${SYNC_ONLY:-0}" == 1 ]] || ($SKIP_INSTALL && ! $REMOTE_BUILD && ! $REMOT
     MODE_LABEL="Sync only — rsync sources + ownership fix"
 fi
 if $QUICK; then MODE_LABEL="Quick — make release web + install + try-restart"; fi
+if $INSTALL_PLATFORM; then MODE_LABEL+=" + platform (PostgreSQL, controller :5093, agent)"; fi
 
 TOTAL_STEPS=4
+PLATFORM_PHASE=0
+SNAPSHOT_PHASE=4
+if $INSTALL_PLATFORM; then
+    if $QUICK; then
+        TOTAL_STEPS=6
+        PLATFORM_PHASE=5
+        SNAPSHOT_PHASE=6
+    else
+        TOTAL_STEPS=5
+        PLATFORM_PHASE=4
+        SNAPSHOT_PHASE=5
+    fi
+fi
 if $REMOTE_BUILD || $REMOTE_CHECK; then TOTAL_STEPS=3
 elif [[ "${SYNC_ONLY:-0}" == 1 ]] || ($SKIP_INSTALL && ! $REMOTE_BUILD && ! $REMOTE_CHECK); then TOTAL_STEPS=2
 fi
@@ -465,18 +487,34 @@ sudo bash install.sh${OPTS}${REMOTE_INST}
 " || die "install failed"
 fi
 
-phase 4 "$TOTAL_STEPS" "Service snapshot" "machina-daemon + libvirtd status"
+if $INSTALL_PLATFORM; then
+    phase "$PLATFORM_PHASE" "$TOTAL_STEPS" "Install platform control plane" "PostgreSQL + machina-controller :5093 + machina-agent"
+    PLATFORM_OPTS=""
+    [[ -n "$BIND" ]] && PLATFORM_OPTS+=" --bind $BIND"
+    $OPEN_FW && PLATFORM_OPTS+=" --open-firewall"
+    PLATFORM_OPTS+=" --public-url http://${HOST}:5093"
+    ssh_r_bash "$REMOTE" "
+set -euo pipefail
+cd $REMOTE_DIR
+sudo bash scripts/install-platform.sh${PLATFORM_OPTS}
+" || die "platform install failed"
+fi
+
+phase "$SNAPSHOT_PHASE" "$TOTAL_STEPS" "Service snapshot" "machina-daemon + libvirtd + platform status"
 ssh_r_bash "$REMOTE" "
-for svc in machina-daemon libvirtd; do
+for svc in machina-daemon libvirtd machina-controller machina-agent postgresql; do
   st=\$(systemctl is-active \$svc 2>/dev/null || echo unknown)
   if [ \"\$st\" = active ]; then
     echo \"✅ \$svc: running\"
   else
     echo \"⚠️  \$svc: \$st\"
   fi
-  systemctl status \$svc --no-pager || true
+  systemctl status \$svc --no-pager 2>/dev/null || true
   echo
 done
+if systemctl is-active machina-controller &>/dev/null; then
+  curl -sf http://127.0.0.1:5093/api/v1/health && echo || echo '⚠️  platform health check failed'
+fi
 " || warn "service status check failed"
 
 if $CLEANUP; then
@@ -497,6 +535,12 @@ machina_save_deploy_last "$REPO" "$HOST" "$USER" "$MODE_SAVE"
 deploy_ui_highlight "📋 Post-deploy checklist"
 deploy_ui_checklist "machina-daemon" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-daemon 2>/dev/null || echo unknown' | tr -d '\r')"
 deploy_ui_checklist "libvirtd" "$(ssh_r_bash "$REMOTE" 'systemctl is-active libvirtd 2>/dev/null || echo unknown' | tr -d '\r')"
+if $INSTALL_PLATFORM; then
+    deploy_ui_checklist "machina-controller" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-controller 2>/dev/null || echo unknown' | tr -d '\r')"
+    deploy_ui_checklist "machina-agent" "$(ssh_r_bash "$REMOTE" 'systemctl is-active machina-agent 2>/dev/null || echo unknown' | tr -d '\r')"
+    deploy_ui_checklist "postgresql" "$(ssh_r_bash "$REMOTE" 'systemctl is-active postgresql 2>/dev/null || echo unknown' | tr -d '\r')"
+    deploy_ui_kv "🎛️" "Platform API" "http://${HOST}:5093/api/v1/health"
+fi
 
 deploy_ui_celebrate "Ship it!"
 machina_print_success "$HOST" "$ELAPSED" "./scripts/deploy remote ${USER}@${HOST} --quick"
@@ -506,15 +550,28 @@ tip "Trust the browser once for the self-signed TLS cert, or terminate TLS upstr
 tip "HOST USER also works: ./scripts/deploy-remote.sh ${HOST} ${USER} --quick"
 
 if $RUN_E2E; then
-    if [[ -z "${VSPASS:-}" && -z "${SSHPASS:-}" ]]; then
-        warn "--e2e skipped: set VSPASS (or SSHPASS) for API login"
-    else
-        deploy_ui_highlight "🧪 Post-deploy E2E"
-        if "${SCRIPT_DIR}/e2e-test-remote.sh" "$USER" "$HOST"; then
-            deploy_ui_celebrate "E2E passed"
+    if [[ -n "${VSPASS:-}" || -n "${SSHPASS:-}" ]]; then
+        if $INSTALL_PLATFORM && ! $SKIP_PLATFORM_E2E; then
+            deploy_ui_highlight "🧪 Post-deploy full E2E (daemon + platform proxy + controller)"
+            FULL_E2E_FLAGS=()
+            if $SKIP_DAEMON_E2E; then FULL_E2E_FLAGS+=(--skip-daemon-e2e); fi
+            if "${SCRIPT_DIR}/e2e-full-test-remote.sh" "$USER" "$HOST" "${FULL_E2E_FLAGS[@]}"; then
+                deploy_ui_celebrate "Full E2E passed"
+            else
+                warn "Full E2E failed (deploy itself succeeded)"
+            fi
+        elif ! $SKIP_DAEMON_E2E; then
+            deploy_ui_highlight "🧪 Post-deploy E2E (daemon :5092)"
+            if "${SCRIPT_DIR}/e2e-test-remote.sh" "$USER" "$HOST"; then
+                deploy_ui_celebrate "Daemon E2E passed"
+            else
+                warn "Daemon E2E failed (deploy itself succeeded)"
+            fi
         else
-            warn "E2E failed (deploy itself succeeded)"
+            warn "E2E skipped (--skip-daemon-e2e with --skip-platform-e2e or no platform install)"
         fi
+    else
+        warn "E2E skipped: set VSPASS (or SSHPASS) for PAM login on :5092"
     fi
 fi
 printf '\n'
