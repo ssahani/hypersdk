@@ -516,10 +516,54 @@ pub async fn intent_environment(
     )))
 }
 
+pub async fn intent_environment_execute(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<ai::environment_intent::EnvironmentExecuteBody>,
+) -> Result<Json<ai::environment_intent::EnvironmentExecuteResult>, ApiError> {
+    ai::environment_intent::execute_environment(&state, &actor, &body).await.map(Json)
+}
+
 pub async fn sre_forecast(
     State(state): State<AppState>,
 ) -> Result<Json<ai::sre_predict::SreForecastReport>, ApiError> {
     ai::sre_predict::forecast(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn sre_remediate(
+    State(state): State<AppState>,
+) -> Result<Json<ai::sre_remediate::SreRemediationReport>, ApiError> {
+    ai::sre_remediate::propose(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn compliance_remediate(
+    State(state): State<AppState>,
+) -> Result<Json<ai::compliance_remediate::ComplianceRemediationReport>, ApiError> {
+    ai::compliance_remediate::propose(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn zeus_summary(
+    State(state): State<AppState>,
+) -> Result<Json<ai::zeus_summary::ZeusOsSummary>, ApiError> {
+    ai::zeus_summary::summarize(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn fleet_power_optimize(
+    State(state): State<AppState>,
+) -> Result<Json<ai::fleet_power::FleetPowerReport>, ApiError> {
+    ai::fleet_power::optimize(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)

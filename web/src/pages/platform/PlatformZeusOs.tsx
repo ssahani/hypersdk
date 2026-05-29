@@ -11,12 +11,15 @@ import {
   executeFleetRebalance,
   getComplianceFrameworks,
   getGpuPlacement,
+  getFleetPowerOptimize,
   getFleetHeatmap,
+  getZeusSummary,
   simulateServiceImpact,
   getFleetRebalanceProposal,
   getInfrastructureMemory,
   getSecurityGraph,
   getServiceGraph,
+  getBaremetalProvision,
   listBaremetalServers,
   planBaremetalCapacity,
   registerBaremetalServer,
@@ -49,18 +52,22 @@ export default function PlatformZeusOs() {
   const [gpuSummary, setGpuSummary] = useState<string | null>(null)
   const [diagnosisSummary, setDiagnosisSummary] = useState<string | null>(null)
   const [serviceImpact, setServiceImpact] = useState<string | null>(null)
+  const [powerSummary, setPowerSummary] = useState<string | null>(null)
+  const [zeusSummary, setZeusSummary] = useState<string | null>(null)
 
   const loadFleet = useCallback(async () => {
     setError(null)
     try {
-      const [h, r, gpu] = await Promise.all([
+      const [h, r, gpu, power] = await Promise.all([
         getFleetHeatmap(),
         getFleetRebalanceProposal(),
         getGpuPlacement('inference'),
+        getFleetPowerOptimize(),
       ])
       setHeatmap(h)
       setRebalance(r)
       setGpuSummary(gpu.summary)
+      setPowerSummary(power.summary)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Fleet load failed')
     }
@@ -107,6 +114,10 @@ export default function PlatformZeusOs() {
   }, [])
 
   useEffect(() => {
+    void getZeusSummary().then((z) => setZeusSummary(`${z.status} · ${z.highlights[0] ?? z.tagline}`)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     if (tab === 'fleet') void loadFleet()
     if (tab === 'security') void loadSecurity()
     if (tab === 'services') void loadServices()
@@ -141,6 +152,7 @@ export default function PlatformZeusOs() {
         subtitle="Fleet intelligence · AI security graph · knowledge engine · service fabric · bare metal"
       />
       {error && <ErrorBanner message={error} />}
+      {zeusSummary && <p className="text-sm text-orange-200/90">{zeusSummary}</p>}
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -170,6 +182,11 @@ export default function PlatformZeusOs() {
               ))}
             </div>
           </MacGlassPanel>
+          {powerSummary && (
+            <MacGlassPanel title="Fleet power optimizer" subtitle="Consolidate cold hosts and relieve hotspots">
+              <p className="text-sm text-slate-300">{powerSummary}</p>
+            </MacGlassPanel>
+          )}
           {gpuSummary && (
             <MacGlassPanel title="GPU / NUMA placement" subtitle="Tag hosts with gpu or nvidia for affinity">
               <p className="text-sm text-slate-300">{gpuSummary}</p>
@@ -262,6 +279,7 @@ export default function PlatformZeusOs() {
                 <li key={s.id} className="flex flex-wrap items-center gap-2">
                   <span>{s.hostname} · {s.bmc_type} @ {s.bmc_address || '—'} · {s.state}</span>
                   <button type="button" className="text-blue-400 hover:underline" onClick={() => void setBaremetalPower(s.id, 'on', true).then((r) => setCapacitySummary(r.summary))}>Power on (preview)</button>
+                  <button type="button" className="text-blue-400 hover:underline" onClick={() => void getBaremetalProvision(s.id).then((r) => setCapacitySummary(r.summary))}>PXE plan</button>
                 </li>
               ))}
             </ul>

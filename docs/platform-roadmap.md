@@ -198,3 +198,11 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-119 | Infrastructure memory similar-incident recall |
 | AI-120 | Phase 12 UI — Mission Control execute, Reports CSV, Zeus OS |
 | AI-121 | Phase 12 E2E + docs |
+| AI-122 | Environment intent execute (preview + admin VM enqueue) |
+| AI-123 | SRE remediation proposals from forecasts |
+| AI-124 | Compliance framework remediation bridge |
+| AI-125 | Zeus OS unified summary API |
+| AI-126 | Fleet power / carbon waste optimizer |
+| AI-127 | Bare metal PXE provision preview |
+| AI-128 | Phase 13 UI — environment planner, Zeus summary strip |
+| AI-129 | Phase 13 E2E + docs |

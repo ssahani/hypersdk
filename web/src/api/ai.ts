@@ -347,6 +347,42 @@ export const planEnvironment = (query: string) =>
     body: JSON.stringify({ query }),
   })
 
+export const executeEnvironment = (query: string, dryRun = true) =>
+  platformFetch<{ summary: string; plan: EnvironmentResourcePlan; vm_tasks: Array<{ name: string; host: string }> }>(
+    '/api/v1/ai/intent/environment/execute',
+    { method: 'POST', body: JSON.stringify({ query, dry_run: dryRun }) },
+  )
+
+export const getSreRemediate = () =>
+  platformFetch<{ summary: string; remediations: Array<{ label: string; review: string; action: string }> }>(
+    '/api/v1/ai/sre/remediate',
+  )
+
+export const getComplianceRemediate = () =>
+  platformFetch<{ summary: string; remediations: Array<{ label: string; framework: string; review: string }> }>(
+    '/api/v1/ai/compliance/remediate',
+  )
+
+export const getZeusSummary = () =>
+  platformFetch<{
+    status: string
+    tagline: string
+    hosts_online: number
+    vm_count: number
+    monthly_cost_usd: number
+    security_risk: string
+    compliance_grade: string
+    highlights: string[]
+  }>('/api/v1/ai/zeus/summary')
+
+export const getFleetPowerOptimize = () =>
+  platformFetch<{ summary: string; total_savings_usd_month: number; optimizations: Array<{ host: string; action: string; reason: string }> }>(
+    '/api/v1/ai/fleet/power/optimize',
+  )
+
+export const getBaremetalProvision = (id: string) =>
+  platformFetch<{ summary: string; steps: string[] }>(`/api/v1/baremetal/servers/${id}/provision`)
+
 export interface SreForecast {
   vm_id: string
   vm_name: string

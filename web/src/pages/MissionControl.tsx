@@ -14,7 +14,8 @@ import {
   type PlatformTask,
   type PlatformVm,
 } from '../api/platform'
-import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, type CapacityPlan, type ComplianceReport, type CostAnalysis, type SreForecast } from '../api/ai'
+import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, getZeusSummary, type CapacityPlan, type ComplianceReport, type CostAnalysis, type SreForecast } from '../api/ai'
+import MachinaEnvironmentPlanner from '../components/ai/MachinaEnvironmentPlanner'
 import MachinaInfrastructureTimeline from '../components/ai/MachinaInfrastructureTimeline'
 import MachinaMissionStack from '../components/ai/MachinaMissionStack'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
@@ -30,12 +31,13 @@ export default function MissionControl() {
   const [aiCap, setAiCap] = useState<CapacityPlan | null>(null)
   const [aiComp, setAiComp] = useState<ComplianceReport | null>(null)
   const [sreForecasts, setSreForecasts] = useState<SreForecast[]>([])
+  const [zeusStatus, setZeusStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [h, v, t, c, n, cost, cap, comp, sre] = await Promise.all([
+      const [h, v, t, c, n, cost, cap, comp, sre, zeus] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
@@ -45,6 +47,7 @@ export default function MissionControl() {
         getAiCapacity().catch(() => null),
         getAiCompliance().catch(() => null),
         getSreForecast().catch(() => ({ forecasts: [] })),
+        getZeusSummary().catch(() => null),
       ])
       setHosts(h)
       setVms(v)
@@ -55,6 +58,7 @@ export default function MissionControl() {
       setAiCap(cap)
       setAiComp(comp)
       setSreForecasts(sre.forecasts ?? [])
+      setZeusStatus(zeus ? `${zeus.status} · ${zeus.highlights[0] ?? zeus.tagline}` : null)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -113,7 +117,13 @@ export default function MissionControl() {
           ))}
         </div>
       )}
+      {zeusStatus && (
+        <div className="px-6 pb-2">
+          <Link to="/platform/zeus" className="text-xs text-orange-300/90 hover:underline">{zeusStatus}</Link>
+        </div>
+      )}
       <div className="px-6 pb-4 space-y-4">
+        <MachinaEnvironmentPlanner />
         <MachinaMissionStack />
         <MachinaInfrastructureTimeline hours={4} />
       </div>

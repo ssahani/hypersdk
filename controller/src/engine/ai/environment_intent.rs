@@ -1,6 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use uuid::Uuid;
+
+use crate::api::ApiError;
+use crate::auth::AuthUser;
+use crate::state::AppState;
+use crate::tasks::enqueue::enqueue_task;
 
 use super::intent_router::SpotlightIntent;
 
@@ -179,4 +185,171 @@ fn extract_count(hay: &str, units: &[&str]) -> Option<i32> {
         }
     }
     None
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EnvironmentExecuteBody {
+    pub query: String,
+    #[serde(default)]
+    pub dry_run: bool,
+    #[serde(default = "default_env_max_vms")]
+    pub max_vms: i32,
+}
+
+fn default_env_max_vms() -> i32 {
+    5
+}
+
+#[derive(Debug, Serialize)]
+pub struct EnvironmentVmTask {
+    pub name: String,
+    pub host: String,
+    pub task_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct EnvironmentExecuteResult {
+    pub dry_run: bool,
+    pub plan: EnvironmentResourcePlan,
+    pub vm_tasks: Vec<EnvironmentVmTask>,
+    pub summary: String,
+}
+
+fn env_vm_spec(name: &str, vcpus: i32, memory_gib: i32) -> serde_json::Value {
+    serde_json::json!({
+        "api_version": "virt.zyvor.dev/v1",
+        "kind": "VirtualMachine",
+        "metadata": { "name": name, "project": "environment" },
+        "spec": {
+            "cpu": { "sockets": 1, "cores": vcpus },
+            "memory": format!("{memory_gib}Gi"),
+            "storage": [{ "name": "root", "size": "80Gi", "class": "silver" }],
+            "network": [{ "network": "default", "ip_mode": "dhcp" }],
+            "firmware": "bios",
+            "graphics": { "type": "vnc", "listen": "127.0.0.1" }
+        }
+    })
+}
+
+pub async fn execute_environment(
+    state: &AppState,
+    actor: &AuthUser,
+    body: &EnvironmentExecuteBody,
+) -> Result<EnvironmentExecuteResult, ApiError> {
+    let rates: (f64, f64) = sqlx::query_as(
+        "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+
+    let plan = plan_environment(&body.query, rates.0, rates.1);
+    if plan.gpu_required {
+        return Err(ApiError::bad_request(
+            "GPU environments require mission stack — use /api/v1/ai/mission/stack/execute",
+        ));
+    }
+
+    let create_count = plan.vm_count.min(body.max_vms.max(1));
+    let mut vm_tasks = Vec::new();
+
+    for i in 0..create_count {
+        let name = format!("{}-dev-{:02}", plan.environment_type, i + 1);
+        let host_id = crate::engine::placement::pick_host_for_vm(
+            &state.pool,
+            &["environment".into(), plan.environment_type.clone()],
+            plan.memory_gib_per_vm as i64 * 1024,
+        )
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+
+        let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+            .bind(host_id)
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+
+        if body.dry_run {
+            vm_tasks.push(EnvironmentVmTask {
+                name,
+                host: hostname,
+                task_id: None,
+            });
+            continue;
+        }
+
+        crate::auth::require_admin(actor)?;
+
+        let cluster_id: Uuid = sqlx::query_scalar("SELECT id FROM clusters LIMIT 1")
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+
+        let vm_id = Uuid::new_v4();
+        let mem_mib = plan.memory_gib_per_vm as i64 * 1024;
+        let tags: Vec<String> = vec![
+            "environment".into(),
+            plan.environment_type.clone(),
+        ];
+        let spec_json = env_vm_spec(&name, plan.vcpus_per_vm, plan.memory_gib_per_vm);
+
+        sqlx::query(
+            "INSERT INTO vms (id, cluster_id, host_id, name, project, spec_json, desired_state, lifecycle_phase, vcpus, memory_mib, tags)
+             VALUES ($1, $2, $3, $4, 'environment', $5, 'running', 'creating', $6, $7, $8)",
+        )
+        .bind(vm_id)
+        .bind(cluster_id)
+        .bind(host_id)
+        .bind(&name)
+        .bind(&spec_json)
+        .bind(plan.vcpus_per_vm)
+        .bind(mem_mib)
+        .bind(&tags)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+        sqlx::query(
+            "INSERT INTO vm_disks (id, vm_id, name, size_gib, storage_class) VALUES ($1, $2, 'root', 80, 'silver')",
+        )
+        .bind(Uuid::new_v4())
+        .bind(vm_id)
+        .execute(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+
+        let task_id = enqueue_task(
+            state,
+            "vm.apply",
+            serde_json::json!({
+                "vm_id": vm_id.to_string(),
+                "host_id": host_id.to_string(),
+            }),
+            Some("vm"),
+            Some(vm_id),
+            Some(host_id),
+        )
+        .await?;
+
+        vm_tasks.push(EnvironmentVmTask {
+            name,
+            host: hostname,
+            task_id: Some(task_id.to_string()),
+        });
+    }
+
+    let summary = if body.dry_run {
+        format!("Preview: would create {create_count} VM(s) for environment plan.")
+    } else {
+        format!("Enqueued {create_count} environment VM task(s).")
+    };
+
+    state.emit_event("ai.environment", summary.clone());
+
+    Ok(EnvironmentExecuteResult {
+        dry_run: body.dry_run,
+        plan,
+        vm_tasks,
+        summary,
+    })
 }

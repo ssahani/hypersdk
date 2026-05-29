@@ -171,3 +171,39 @@ pub async fn set_power(
         summary: format!("BMC power command applied (preview — no live IPMI/Redfish call)."),
     })
 }
+
+#[derive(Debug, Serialize)]
+pub struct BaremetalProvisionPlan {
+    pub server_id: String,
+    pub hostname: String,
+    pub steps: Vec<String>,
+    pub summary: String,
+}
+
+pub async fn provision_preview(pool: &PgPool, id: Uuid) -> anyhow::Result<BaremetalProvisionPlan> {
+    let row: BaremetalServer = sqlx::query_as(
+        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib, created_at
+         FROM baremetal_servers WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("server not found"))?;
+
+    let steps = vec![
+        format!("PXE boot {} via BMC {}", row.hostname, row.bmc_address),
+        "Match hardware profile to image catalog (Ubuntu 24.04 / RHEL 9)".into(),
+        "Apply cloud-init / ignition for host enrollment".into(),
+        "Register host in Machina fleet after first boot".into(),
+    ];
+
+    Ok(BaremetalProvisionPlan {
+        server_id: id.to_string(),
+        hostname: row.hostname.clone(),
+        steps,
+        summary: format!(
+            "PXE provision preview for {} ({}) — live Metal³ workflow on roadmap",
+            row.hostname, row.bmc_type
+        ),
+    })
+}

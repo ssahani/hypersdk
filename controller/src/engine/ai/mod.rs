@@ -260,6 +260,10 @@ pub mod compliance_frameworks;
 pub mod fleet_placement;
 pub mod knowledge_diagnose;
 pub mod service_impact;
+pub mod sre_remediate;
+pub mod compliance_remediate;
+pub mod fleet_power;
+pub mod zeus_summary;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

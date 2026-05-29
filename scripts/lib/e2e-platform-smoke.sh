@@ -496,4 +496,36 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/memory/similar — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-122–129)"
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/intent/environment/execute" \
+    -H 'Content-Type: application/json' -d '{"query":"staging for 10 developers","dry_run":true}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/intent/environment/execute (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/intent/environment/execute — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/sre/remediate")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/sre/remediate (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/sre/remediate — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/compliance/remediate")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/compliance/remediate (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/compliance/remediate — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/zeus/summary")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/zeus/summary (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/zeus/summary — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/power/optimize")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/fleet/power/optimize (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/fleet/power/optimize — HTTP ${http}"
+  fi
 }

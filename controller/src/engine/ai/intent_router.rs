@@ -233,8 +233,53 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             &review,
             "environment_plan",
             None,
-            Some("/platform/topology".into()),
+            Some("/mission-control".into()),
             Some(serde_json::json!({ "query": q })),
+        ));
+        intents.push(intent(
+            "environment-execute",
+            "Build environment (preview)",
+            "Preview VM creation for NL environment plan.",
+            "navigate",
+            None,
+            Some("/mission-control".into()),
+            None,
+        ));
+    }
+
+    if (ql.contains("sre") && ql.contains("remediat")) || ql.contains("fix forecast") {
+        intents.push(intent(
+            "sre-remediate",
+            "SRE remediations",
+            "Proactive fixes from exhaustion forecasts.",
+            "navigate",
+            None,
+            Some("/mission-control".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("zeus") && (ql.contains("summary") || ql.contains("status")) {
+        intents.push(intent(
+            "zeus-summary",
+            "Machina Zeus OS summary",
+            "Unified infrastructure OS health strip.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("power") && (ql.contains("waste") || ql.contains("carbon") || ql.contains("optimize")) {
+        intents.push(intent(
+            "fleet-power",
+            "Fleet power optimizer",
+            "Consolidate cold hosts and reduce power waste.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
         ));
     }
 

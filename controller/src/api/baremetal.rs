@@ -51,3 +51,13 @@ pub async fn server_power(
         .map_err(|e| ApiError::bad_request(e.to_string()))
         .map(Json)
 }
+
+pub async fn server_provision(
+    State(state): State<AppState>,
+    Path(id): Path<uuid::Uuid>,
+) -> Result<Json<baremetal::BaremetalProvisionPlan>, ApiError> {
+    baremetal::provision_preview(&state.pool, id)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
