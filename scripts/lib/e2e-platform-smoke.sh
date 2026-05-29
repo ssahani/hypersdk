@@ -324,4 +324,18 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/cost/export.csv — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA AI V7"
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"Create Windows VM web-01 with 8 vcpu and 32gb"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight NL create (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/spotlight NL create — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/capacity/export.csv")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/capacity/export.csv (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/capacity/export.csv — HTTP ${http}"
+  fi
 }

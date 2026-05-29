@@ -406,6 +406,22 @@ pub async fn autopilot_history(
         .map(Json)
 }
 
+pub async fn capacity_export_csv(
+    State(state): State<AppState>,
+) -> Result<axum::response::Response, ApiError> {
+    let csv = ai::capacity::export_csv(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(axum::response::Response::builder()
+        .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            http::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"machina-capacity-planner.csv\"",
+        )
+        .body(axum::body::Body::from(csv))
+        .map_err(|e| ApiError::internal(e.to_string()))?)
+}
+
 pub async fn cost_export_csv(
     State(state): State<AppState>,
 ) -> Result<axum::response::Response, ApiError> {

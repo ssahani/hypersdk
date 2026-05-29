@@ -130,7 +130,21 @@ export default function MachinaCopilot() {
         )}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
           {messages.length === 0 && (
-            <p className="text-slate-500">Ask about VM health, capacity, cost, migrations, security, or network paths.</p>
+            <div className="space-y-3">
+              <p className="text-slate-500">Ask about VM health, capacity, cost, migrations, security, or network paths.</p>
+              <div className="flex flex-wrap gap-2">
+                {['Why is this VM slow?', 'Cluster capacity headroom', 'Security risks', 'Migration readiness'].map((q) => (
+                  <button
+                    key={q}
+                    type="button"
+                    className="text-[10px] rounded-full border border-white/[0.08] px-2 py-1 text-slate-400 hover:text-slate-200"
+                    onClick={() => setInput(q)}
+                  >
+                    {q}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
           {messages.map((m, i) => (
             <div key={i} className={`rounded-xl px-3 py-2 ${m.role === 'user' ? 'bg-blue-500/15 ml-8' : 'bg-slate-800/80 mr-4'}`}>

@@ -5,7 +5,7 @@ import { DollarSign, FolderKanban } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiSecurity, getAutopilotHistory, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type ComplianceReport, type SecurityReport } from '../../api/ai'
+import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type ComplianceReport, type SecurityReport } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformReports() {
@@ -140,6 +140,9 @@ export default function PlatformReports() {
           {aiCap.recommendations.length > 0 && (
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{aiCap.recommendations.map((r, i) => <li key={i}>• {r}</li>)}</ul>
           )}
+          <a href={getAiCapacityExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-capacity-planner.csv">
+            Download capacity CSV
+          </a>
         </MacGlassPanel>
       )}
       {security && security.findings.length > 0 && (

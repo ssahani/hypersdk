@@ -19,6 +19,7 @@ export interface SpotlightIntent {
   action: string
   vm_name?: string
   navigate?: string
+  prefill?: Record<string, unknown>
 }
 
 export interface SpotlightResult {
@@ -269,3 +270,5 @@ export const getAutopilotHistory = (limit = 20) =>
   platformFetch<AutopilotHistoryEntry[]>(`/api/v1/ai/autopilot/history?limit=${limit}`)
 
 export const getAiCostExportUrl = () => `${getControllerBase()}/api/v1/ai/cost/export.csv`
+
+export const getAiCapacityExportUrl = () => `${getControllerBase()}/api/v1/ai/capacity/export.csv`

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { LayoutGrid, List, Plus, RefreshCw, Server } from 'lucide-react'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
@@ -8,7 +8,7 @@ import VmCard from '../../components/platform/VmCard'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
 import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
-import SimpleCreateVmWizard, { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
+import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
 import {
@@ -29,12 +29,14 @@ type VmFilter = 'all' | 'running' | 'stopped' | 'discovered'
 
 export default function PlatformVms() {
   const toast = useToastContext()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [vms, setVms] = useState<PlatformVm[]>([])
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<{ message: string; error_code?: string; remediation?: string } | null>(null)
   const [vmFilter, setVmFilter] = useState<VmFilter>('all')
   const [view, setView] = useState<ViewMode>('grid')
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [wizardInitial, setWizardInitial] = useState<VmWizardInitial | undefined>()
   const [windowsOpen, setWindowsOpen] = useState(false)
   const [dragVmId, setDragVmId] = useState<string | null>(null)
   const [migrateModal, setMigrateModal] = useState<{ vm: PlatformVm; destId: string; destName: string } | null>(null)
@@ -64,6 +66,24 @@ export default function PlatformVms() {
   }, [vmFilter])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    const create = searchParams.get('create')
+    if (!create) return
+    setWizardInitial({
+      name: create,
+      os: searchParams.get('os') ?? undefined,
+      size: searchParams.get('size') ?? undefined,
+      network: searchParams.get('network') ?? undefined,
+    })
+    setWizardOpen(true)
+    const next = new URLSearchParams(searchParams)
+    next.delete('create')
+    next.delete('os')
+    next.delete('size')
+    next.delete('network')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const filteredVms = useMemo(() => {
     if (vmFilter === 'discovered') return vms.filter((v) => v.managed === false)
@@ -244,7 +264,7 @@ export default function PlatformVms() {
         </aside>
       </div>
 
-      <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} />
+      <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} initial={wizardInitial} />
       <WindowsCreateWizard open={windowsOpen} onClose={() => setWindowsOpen(false)} onCreate={handleWindowsCreate} />
       {migrateModal && (
         <MigratePrecheckModal

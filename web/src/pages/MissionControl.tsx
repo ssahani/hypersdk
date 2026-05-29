@@ -14,6 +14,7 @@ import {
   type PlatformTask,
   type PlatformVm,
 } from '../api/platform'
+import { getAiCapacity, getAiCompliance, getAiCost, type CapacityPlan, type ComplianceReport, type CostAnalysis } from '../api/ai'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { formatUserError } from '../utils/apiError'
 
@@ -23,23 +24,32 @@ export default function MissionControl() {
   const [tasks, setTasks] = useState<PlatformTask[]>([])
   const [cluster, setCluster] = useState<ClusterSummary | null>(null)
   const [alerts, setAlerts] = useState<Array<{ id: string; kind: string; created_at: string }>>([])
+  const [aiCost, setAiCost] = useState<CostAnalysis | null>(null)
+  const [aiCap, setAiCap] = useState<CapacityPlan | null>(null)
+  const [aiComp, setAiComp] = useState<ComplianceReport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [h, v, t, c, n] = await Promise.all([
+      const [h, v, t, c, n, cost, cap, comp] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
         getClusterSummary(),
         listNotifications(true).catch(() => []),
+        getAiCost().catch(() => null),
+        getAiCapacity().catch(() => null),
+        getAiCompliance().catch(() => null),
       ])
       setHosts(h)
       setVms(v)
       setTasks(t)
       setCluster(c)
       setAlerts(n)
+      setAiCost(cost)
+      setAiCap(cap)
+      setAiComp(comp)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -65,6 +75,25 @@ export default function MissionControl() {
         <Link to="/platform" className="btn-secondary flex items-center gap-2"><X className="w-4 h-4" /> Close</Link>
       </header>
       {error && <p className="px-6 py-2 text-red-400 text-sm">{error}</p>}
+      {(aiCost || aiCap || aiComp) && (
+        <div className="px-6 pb-2 flex flex-wrap gap-3 text-xs">
+          {aiCost && (
+            <Link to="/platform/reports" className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-emerald-300">
+              Cost ${aiCost.estimated_monthly_usd.toFixed(0)}/mo · {aiCost.idle_vm_count} idle
+            </Link>
+          )}
+          {aiCap && (
+            <Link to="/platform/reports" className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-blue-300">
+              Capacity {aiCap.memory_headroom_mib} MiB headroom · ~{aiCap.estimated_small_vms_addable} VMs
+            </Link>
+          )}
+          {aiComp && (
+            <Link to="/platform/reports" className="rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-orange-200">
+              Compliance {aiComp.score}/100 (Grade {aiComp.grade})
+            </Link>
+          )}
+        </div>
+      )}
       <div className="p-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
         <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2"><Server className="w-4 h-4" /> Hosts</h2>

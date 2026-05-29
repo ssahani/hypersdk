@@ -1,12 +1,20 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
+
+export interface VmWizardInitial {
+  name?: string
+  os?: string
+  size?: string
+  network?: string
+}
 
 interface SimpleCreateVmWizardProps {
   open: boolean
   onClose: () => void
   onCreate: (payload: { name: string; os: string; size: string; network: string }) => Promise<void>
+  initial?: VmWizardInitial
 }
 
 const SIZES = [
@@ -15,13 +23,21 @@ const SIZES = [
   { id: 'large', label: 'Large', detail: '8 vCPU · 16 GiB · 160 GiB' },
 ]
 
-export default function SimpleCreateVmWizard({ open, onClose, onCreate }: SimpleCreateVmWizardProps) {
+export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial }: SimpleCreateVmWizardProps) {
   const [name, setName] = useState('new-vm')
   const [os, setOs] = useState('ubuntu-24.04')
   const [size, setSize] = useState('medium')
   const [network, setNetwork] = useState('default')
   const [advanced, setAdvanced] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (!open) return
+    if (initial?.name) setName(initial.name)
+    if (initial?.os) setOs(initial.os)
+    if (initial?.size) setSize(initial.size)
+    if (initial?.network) setNetwork(initial.network)
+  }, [open, initial])
 
   if (!open) return null
 

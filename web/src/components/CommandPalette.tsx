@@ -432,11 +432,22 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
         if (intent.navigate) {
           go(intent.navigate)
         } else if (knownCmd) {
+          const prefill = intent.prefill as { name?: string; os?: string; size?: string; network?: string } | undefined
           setReviewCommand({
             id: cmdId,
             label: intent.label,
             review: intent.review,
-            vmName: intent.vm_name,
+            vmName: intent.vm_name ?? prefill?.name,
+            prefill: prefill
+              ? {
+                  name: prefill.name ?? intent.vm_name,
+                  os: typeof prefill.os === 'string' ? prefill.os : undefined,
+                  size: typeof prefill.size === 'string' ? prefill.size : undefined,
+                  network: typeof prefill.network === 'string' ? prefill.network : undefined,
+                }
+              : intent.vm_name
+                ? { name: intent.vm_name }
+                : undefined,
           })
         }
       },

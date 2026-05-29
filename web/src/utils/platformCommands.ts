@@ -19,6 +19,7 @@ export interface PlatformCommand {
   label: string
   review: string
   vmName?: string
+  prefill?: { name?: string; os?: string; size?: string; network?: string }
 }
 
 const VERB_PATTERNS: { re: RegExp; id: PlatformCommandId; label: string; review: (m: RegExpMatchArray, hosts: number) => string }[] = [
@@ -88,11 +89,19 @@ export async function executePlatformCommand(cmd: PlatformCommand): Promise<{ me
       await syncAllHosts()
       return { message: 'Host sync queued for all hypervisors' }
     }
-    case 'create-vm':
+    case 'create-vm': {
+      const params = new URLSearchParams()
+      const name = cmd.prefill?.name ?? cmd.vmName
+      if (name) params.set('create', name)
+      if (cmd.prefill?.os) params.set('os', cmd.prefill.os)
+      if (cmd.prefill?.size) params.set('size', cmd.prefill.size)
+      if (cmd.prefill?.network) params.set('network', cmd.prefill.network)
+      const qs = params.toString()
       return {
-        message: `Opening VM wizard${cmd.vmName ? ` for ${cmd.vmName}` : ''}`,
-        navigate: cmd.vmName ? `/platform/vms?create=${encodeURIComponent(cmd.vmName)}` : '/platform/vms',
+        message: `Opening VM wizard${name ? ` for ${name}` : ''}`,
+        navigate: qs ? `/platform/vms?${qs}` : '/platform/vms',
       }
+    }
     case 'show-offline-hosts': {
       const hosts = await listPlatformHosts()
       const offline = hosts.filter((h) => h.state === 'offline').length

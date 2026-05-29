@@ -158,3 +158,9 @@ See [`machina-ai-vision.md`](machina-ai-vision.md) for the full vision.
 | AI-79 | Dashboard schedule status |
 | AI-80 | Reports history + CSV UI |
 | AI-81 | v6 E2E + docs |
+| AI-82 | NL create VM Spotlight + wizard prefill |
+| AI-83 | Capacity CSV export |
+| AI-84 | Mission Control AI strip |
+| AI-85 | Copilot quick chips |
+| AI-86 | Reports capacity CSV |
+| AI-87 | v7 E2E + docs |
