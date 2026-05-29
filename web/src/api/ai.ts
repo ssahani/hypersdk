@@ -68,6 +68,7 @@ export interface MigrationAdvisorReport {
 
 export interface CostAnalysis {
   estimated_monthly_usd: number
+  predicted_next_month_usd?: number
   vm_count: number
   idle_vm_count: number
   oversized_vm_count: number
@@ -274,3 +275,87 @@ export const getAutopilotHistory = (limit = 20) =>
 export const getAiCostExportUrl = () => `${getControllerBase()}/api/v1/ai/cost/export.csv`
 
 export const getAiCapacityExportUrl = () => `${getControllerBase()}/api/v1/ai/capacity/export.csv`
+
+export interface DigitalTwinGraph {
+  nodes: Array<{ kind: string; id: string; name: string; state?: string }>
+  edges: Array<{ from: string; to: string; label: string }>
+  node_count: number
+  edge_count: number
+}
+
+export interface ImpactAnalysis {
+  action: string
+  target: string
+  severity: string
+  summary: string
+  affected_vms: string[]
+  affected_applications: string[]
+  storage_risks: string[]
+  network_notes: string[]
+  recommendations: string[]
+}
+
+export const getDigitalTwinGraph = () => platformFetch<DigitalTwinGraph>('/api/v1/ai/twin/graph')
+
+export const analyzeTwinImpact = (body: { action: string; target_kind: string; target_id: string }) =>
+  platformFetch<ImpactAnalysis>('/api/v1/ai/twin/impact', { method: 'POST', body: JSON.stringify(body) })
+
+export interface TimelineEntry {
+  at: string
+  source: string
+  kind: string
+  message: string
+  severity: string
+}
+
+export interface IncidentAnalysis {
+  window_hours: number
+  timeline: TimelineEntry[]
+  root_cause: string
+  confidence: number
+  contributing_factors: string[]
+  suggested_actions: string[]
+}
+
+export const analyzeIncident = (params?: { hours?: number; vm_id?: string; vm_name?: string }) => {
+  const qs = new URLSearchParams()
+  if (params?.hours) qs.set('hours', String(params.hours))
+  if (params?.vm_id) qs.set('vm_id', params.vm_id)
+  if (params?.vm_name) qs.set('vm_name', params.vm_name)
+  const q = qs.toString()
+  return platformFetch<IncidentAnalysis>(`/api/v1/ai/incidents/analyze${q ? `?${q}` : ''}`)
+}
+
+export interface EnvironmentResourcePlan {
+  label: string
+  review: string
+  developer_count: number
+  vm_count: number
+  total_vcpus: number
+  total_memory_gib: number
+  storage_gib: number
+  estimated_monthly_usd: number
+  environment_type: string
+  gpu_required: boolean
+  preview_only: boolean
+  build_steps: string[]
+}
+
+export const planEnvironment = (query: string) =>
+  platformFetch<EnvironmentResourcePlan>('/api/v1/ai/intent/environment', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  })
+
+export interface SreForecast {
+  vm_id: string
+  vm_name: string
+  resource: string
+  severity: string
+  message: string
+  hours_until_critical?: number
+  confidence: number
+}
+
+export const getSreForecast = () =>
+  platformFetch<{ forecasts: SreForecast[] }>('/api/v1/ai/sre/forecast')

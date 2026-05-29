@@ -104,6 +104,11 @@ export default function PlatformReports() {
       {cost && (
         <MacGlassPanel title="Machina Cost Guardian" subtitle="Idle, oversized, and snapshot-heavy VMs.">
           <p className="text-2xl font-bold text-emerald-300 -mt-2">${cost.estimated_monthly_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> est. / month</span></p>
+          {cost.predicted_next_month_usd != null && (
+            <p className="text-sm text-slate-400 mt-1">
+              Predicted next month: <span className="text-emerald-200 font-medium">${cost.predicted_next_month_usd.toFixed(0)}</span>
+            </p>
+          )}
           <div className="grid gap-2 sm:grid-cols-3 text-sm text-slate-400 mt-3">
             <p>{cost.idle_vm_count} idle VMs</p>
             <p>{cost.oversized_vm_count} oversized</p>

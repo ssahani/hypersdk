@@ -244,6 +244,10 @@ pub mod compliance;
 pub mod terminal;
 pub mod worker;
 pub mod fleet_summary;
+pub mod digital_twin;
+pub mod root_cause;
+pub mod environment_intent;
+pub mod sre_predict;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

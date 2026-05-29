@@ -220,6 +220,45 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         }
     }
 
+    if ql.contains("environment") || ql.contains("gpu cluster")
+        || (ql.contains("staging") && (ql.contains("for") || ql.contains("developer")))
+        || ql.contains("medium staging")
+    {
+        let plan = super::environment_intent::plan_environment(q, 0.04, 0.008);
+        let label = plan.label.clone();
+        let review = plan.review.clone();
+        intents.push(intent(
+            "environment-plan",
+            &label,
+            &review,
+            "environment_plan",
+            None,
+            Some("/platform/topology".into()),
+            Some(serde_json::json!({ "query": q })),
+        ));
+    }
+
+    if ql.contains("what breaks") || ql.contains("shut down") || (ql.contains("shutdown") && ql.contains("host")) {
+        let host_hint = extract_after(&ql, "host ")
+            .or_else(|| extract_after(&ql, "down "))
+            .unwrap_or("host-01");
+        let label = format!("Impact: shutdown host {host_hint}");
+        let review = format!("Simulate blast radius if host {host_hint} goes offline.");
+        intents.push(intent(
+            "twin-impact",
+            &label,
+            &review,
+            "twin_impact",
+            None,
+            Some("/platform/topology".into()),
+            Some(serde_json::json!({
+                "action": "shutdown",
+                "target_kind": "host",
+                "target_id": host_hint,
+            })),
+        ));
+    }
+
     let suggested_action = intents.first().cloned();
     SpotlightResult {
         intents,
@@ -228,7 +267,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     }
 }
 
-fn intent(
+pub fn intent(
     id: &str,
     label: &str,
     review: &str,

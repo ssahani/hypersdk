@@ -14,7 +14,8 @@ import {
   type PlatformTask,
   type PlatformVm,
 } from '../api/platform'
-import { getAiCapacity, getAiCompliance, getAiCost, type CapacityPlan, type ComplianceReport, type CostAnalysis } from '../api/ai'
+import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, type CapacityPlan, type ComplianceReport, type CostAnalysis, type SreForecast } from '../api/ai'
+import MachinaInfrastructureTimeline from '../components/ai/MachinaInfrastructureTimeline'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { formatUserError } from '../utils/apiError'
 
@@ -27,12 +28,13 @@ export default function MissionControl() {
   const [aiCost, setAiCost] = useState<CostAnalysis | null>(null)
   const [aiCap, setAiCap] = useState<CapacityPlan | null>(null)
   const [aiComp, setAiComp] = useState<ComplianceReport | null>(null)
+  const [sreForecasts, setSreForecasts] = useState<SreForecast[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [h, v, t, c, n, cost, cap, comp] = await Promise.all([
+      const [h, v, t, c, n, cost, cap, comp, sre] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
@@ -41,6 +43,7 @@ export default function MissionControl() {
         getAiCost().catch(() => null),
         getAiCapacity().catch(() => null),
         getAiCompliance().catch(() => null),
+        getSreForecast().catch(() => ({ forecasts: [] })),
       ])
       setHosts(h)
       setVms(v)
@@ -50,6 +53,7 @@ export default function MissionControl() {
       setAiCost(cost)
       setAiCap(cap)
       setAiComp(comp)
+      setSreForecasts(sre.forecasts ?? [])
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -70,7 +74,7 @@ export default function MissionControl() {
       <header className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-white/[0.06] bg-slate-950/90">
         <div>
           <h1 className="text-xl font-bold text-slate-100">Mission Control</h1>
-          <p className="text-sm text-slate-500">{cluster?.name || 'Cluster'} · {hosts.length} hosts · {vms.length} VMs</p>
+          <p className="text-sm text-slate-500">{cluster?.name || 'Cluster'} · Machina Zeus OS · {hosts.length} hosts · {vms.length} VMs</p>
         </div>
         <Link to="/platform" className="btn-secondary flex items-center gap-2"><X className="w-4 h-4" /> Close</Link>
       </header>
@@ -94,6 +98,23 @@ export default function MissionControl() {
           )}
         </div>
       )}
+      {sreForecasts.length > 0 && (
+        <div className="px-6 pb-2 flex flex-wrap gap-2 text-xs">
+          {sreForecasts.slice(0, 4).map((f) => (
+            <span
+              key={`${f.vm_id}-${f.resource}`}
+              className={`rounded-full border px-3 py-1 ${
+                f.severity === 'critical' ? 'border-red-500/40 bg-red-500/10 text-red-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
+              }`}
+            >
+              AI SRE: {f.message}
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="px-6 pb-4">
+        <MachinaInfrastructureTimeline hours={4} />
+      </div>
       <div className="p-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">
         <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
           <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2"><Server className="w-4 h-4" /> Hosts</h2>

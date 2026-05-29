@@ -6,6 +6,7 @@ use sqlx::PgPool;
 #[derive(Debug, Serialize)]
 pub struct CostAnalysis {
     pub estimated_monthly_usd: f64,
+    pub predicted_next_month_usd: f64,
     pub vm_count: i64,
     pub idle_vm_count: i64,
     pub oversized_vm_count: i64,
@@ -68,8 +69,18 @@ pub async fn analyze(pool: &PgPool) -> anyhow::Result<CostAnalysis> {
         suggestions.push("Consolidate old snapshots to reduce storage cost.".into());
     }
 
+    let growth = if idle_vm_count > 2 {
+        1.08
+    } else if oversized_vm_count > 3 {
+        1.03
+    } else {
+        1.02
+    };
+    let predicted_next_month_usd = estimated_monthly_usd * growth;
+
     Ok(CostAnalysis {
         estimated_monthly_usd,
+        predicted_next_month_usd,
         vm_count,
         idle_vm_count,
         oversized_vm_count,

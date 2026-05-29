@@ -2,7 +2,7 @@
 
 **Zeus** is the enterprise virtualization operating system. **Machina** is the hypervisor control product on Zeus — with **Machina AI** (Spotlight, Copilot, Doctor, Autopilot, and deterministic advisors; optional BYOK LLM) on top of Zyvor Platform and the Machina daemon UI.
 
-**Status (main):** Batches **AI-49 through AI-87** are shipped. No AI-88+ batches are defined yet.
+**Status (main):** Batches **AI-49 through AI-95** — see [`machina-zeus-os-vision.md`](machina-zeus-os-vision.md) for the AI-native OS roadmap.
 
 ## Design principles
 

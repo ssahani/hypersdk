@@ -338,4 +338,37 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/capacity/export.csv — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-88–95)"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/twin/graph")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/twin/graph (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/twin/graph — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
+    -H 'Content-Type: application/json' -d '{"action":"shutdown","target_kind":"host","target_id":"localhost"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/twin/impact (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/twin/impact — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/incidents/analyze?hours=4")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/incidents/analyze (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/incidents/analyze — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/intent/environment" \
+    -H 'Content-Type: application/json' -d '{"query":"medium staging environment for 20 developers"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/intent/environment (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/intent/environment — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/sre/forecast")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/sre/forecast (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/sre/forecast — HTTP ${http}"
+  fi
 }

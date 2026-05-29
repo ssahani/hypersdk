@@ -164,3 +164,11 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-85 | Copilot quick chips |
 | AI-86 | Reports capacity CSV |
 | AI-87 | v7 E2E + docs |
+| AI-88 | Machina Zeus OS vision + product positioning |
+| AI-89 | Digital Twin graph + impact simulation |
+| AI-90 | Intent-based environment planner (NL) |
+| AI-91 | AI SRE exhaustion forecasts |
+| AI-92 | AI Root Cause + infrastructure timeline |
+| AI-93 | Mission Control Zeus OS + Digital Twin UI |
+| AI-94 | FinOps next-month cost prediction |
+| AI-95 | Phase 9 E2E + docs |

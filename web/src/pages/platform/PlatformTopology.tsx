@@ -6,6 +6,7 @@ import { GitBranch } from 'lucide-react'
 import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
+import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
 import { getClusterTopology, type TopologyGraph } from '../../api/platform'
 
 export default function PlatformTopology() {
@@ -25,8 +26,9 @@ export default function PlatformTopology() {
 
   return (
     <div className="space-y-6">
-      <MacSectionTitle title="Topology" subtitle="Visual map from applications → VMs → hosts → cluster" />
+      <MacSectionTitle title="Topology" subtitle="Digital twin graph — hosts, VMs, storage, and networks" />
       {error && <ErrorBanner message={error} />}
+      <MachinaDigitalTwin />
       <MachinaNetworkLens vmNames={graph?.nodes.filter((n) => n.kind === 'vm').map((n) => n.name) ?? []} />
       {graph?.warnings.map((w, i) => (
         <div key={i} className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">

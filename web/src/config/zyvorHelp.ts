@@ -33,8 +33,8 @@ export type HelpDocLink = {
 
 export const MACHINA_HELP: ProductHelpMeta = {
   name: 'Machina',
-  tagline: 'Hypervisor control and Machina AI on the Zeus platform',
-  version: '0.1.0',
+  tagline: 'Machina Zeus OS — AI-native infrastructure operating system',
+  version: '0.2.0',
   productUrl: 'https://zyvor.dev/machina',
 };
 

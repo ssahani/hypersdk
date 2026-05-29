@@ -78,8 +78,8 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
             {ZYVOR_BRAND}
           </a>{' '}
           product family — <span className="text-slate-200">{ZEUS_OS_PRODUCT}</span> is the enterprise virtualization platform.
-          {MACHINA_PRODUCT} provides libvirt/QEMU/KVM control, optional KubeVirt and OpenStack integration,
-          and Machina AI (Spotlight, Copilot, Doctor, Autopilot) with optional BYOK LLM.
+          {MACHINA_PRODUCT} is the AI-native infrastructure operating system (Machina Zeus OS): libvirt/KVM and OpenStack control,
+          fleet, observability, and Machina AI (Spotlight, Copilot, Doctor, Autopilot, Digital Twin, Root Cause).
         </p>
         <p className="text-xs text-slate-500 leading-relaxed">
           <span style={{ color: ORANGE }} className="font-medium">

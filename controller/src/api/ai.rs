@@ -464,3 +464,63 @@ pub async fn fleet_local(
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
+
+pub async fn twin_graph(
+    State(state): State<AppState>,
+) -> Result<Json<ai::digital_twin::DigitalTwinGraph>, ApiError> {
+    ai::digital_twin::build_graph(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn twin_impact(
+    State(state): State<AppState>,
+    Json(body): Json<ai::digital_twin::ImpactRequest>,
+) -> Result<Json<ai::digital_twin::ImpactAnalysis>, ApiError> {
+    ai::digital_twin::analyze_impact(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn analyze_incident(
+    State(state): State<AppState>,
+    Query(q): Query<ai::root_cause::AnalyzeIncidentQuery>,
+) -> Result<Json<ai::root_cause::IncidentAnalysis>, ApiError> {
+    ai::root_cause::analyze(&state.pool, &q)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EnvironmentIntentBody {
+    pub query: String,
+}
+
+pub async fn intent_environment(
+    State(state): State<AppState>,
+    Json(body): Json<EnvironmentIntentBody>,
+) -> Result<Json<ai::environment_intent::EnvironmentResourcePlan>, ApiError> {
+    let rates: (f64, f64) = sqlx::query_as(
+        "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ai::environment_intent::plan_environment(
+        &body.query,
+        rates.0,
+        rates.1,
+    )))
+}
+
+pub async fn sre_forecast(
+    State(state): State<AppState>,
+) -> Result<Json<ai::sre_predict::SreForecastReport>, ApiError> {
+    ai::sre_predict::forecast(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
