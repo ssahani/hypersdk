@@ -524,3 +524,117 @@ pub async fn sre_forecast(
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
+
+pub async fn fleet_heatmap(
+    State(state): State<AppState>,
+) -> Result<Json<ai::fleet_heatmap::FleetHeatmap>, ApiError> {
+    ai::fleet_heatmap::heatmap(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RebalanceQuery {
+    #[serde(default = "default_rebalance_max")]
+    pub max_moves: usize,
+}
+
+fn default_rebalance_max() -> usize {
+    5
+}
+
+pub async fn fleet_rebalance_propose(
+    State(state): State<AppState>,
+    Query(q): Query<RebalanceQuery>,
+) -> Result<Json<ai::fleet_rebalance::RebalanceProposal>, ApiError> {
+    ai::fleet_rebalance::propose(&state.pool, q.max_moves)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn security_graph(
+    State(state): State<AppState>,
+) -> Result<Json<ai::security_graph::SecurityGraph>, ApiError> {
+    ai::security_graph::build_graph(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn security_attack_path(
+    State(state): State<AppState>,
+    Json(body): Json<ai::security_graph::AttackPathQuery>,
+) -> Result<Json<ai::security_graph::AttackPathResult>, ApiError> {
+    ai::security_graph::attack_path(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct KnowledgeSearchBody {
+    pub query: String,
+}
+
+pub async fn knowledge_search(
+    State(state): State<AppState>,
+    Json(body): Json<KnowledgeSearchBody>,
+) -> Result<Json<ai::knowledge_search::KnowledgeSearchResult>, ApiError> {
+    ai::knowledge_search::search(&state.pool, &body.query)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn service_graph(
+    State(state): State<AppState>,
+) -> Result<Json<ai::service_graph::ServiceGraph>, ApiError> {
+    ai::service_graph::build(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MemoryQuery {
+    #[serde(default = "default_memory_limit")]
+    pub limit: i64,
+}
+
+fn default_memory_limit() -> i64 {
+    20
+}
+
+pub async fn infrastructure_memory(
+    State(state): State<AppState>,
+    Query(q): Query<MemoryQuery>,
+) -> Result<Json<ai::infrastructure_memory::InfrastructureMemory>, ApiError> {
+    ai::infrastructure_memory::recall(&state.pool, q.limit)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MissionStackBody {
+    pub query: String,
+}
+
+pub async fn mission_stack(
+    State(state): State<AppState>,
+    Json(body): Json<MissionStackBody>,
+) -> Result<Json<ai::mission_stack::MissionStackPlan>, ApiError> {
+    let rates: (f64, f64) = sqlx::query_as(
+        "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ai::mission_stack::plan_mission_stack(
+        &body.query,
+        rates.0,
+        rates.1,
+    )))
+}

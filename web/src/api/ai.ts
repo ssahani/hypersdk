@@ -359,3 +359,101 @@ export interface SreForecast {
 
 export const getSreForecast = () =>
   platformFetch<{ forecasts: SreForecast[] }>('/api/v1/ai/sre/forecast')
+
+export interface FleetHeatmap {
+  hosts: Array<{ host_id: string; hostname: string; cpu_percent: number; memory_percent: number; vm_count: number; classification: string }>
+  hotspots: string[]
+  cold_hosts: string[]
+  power_waste_hosts: string[]
+}
+
+export const getFleetHeatmap = () => platformFetch<FleetHeatmap>('/api/v1/ai/fleet/heatmap')
+
+export interface RebalanceProposal {
+  moves: Array<{ vm_id: string; vm_name: string; from_host: string; to_host: string; reason: string; score: number }>
+  estimated_savings_pct: number
+  summary: string
+}
+
+export const getFleetRebalanceProposal = (maxMoves = 5) =>
+  platformFetch<RebalanceProposal>(`/api/v1/ai/fleet/rebalance/propose?max_moves=${maxMoves}`)
+
+export interface SecurityGraph {
+  nodes: Array<{ id: string; kind: string; label: string; risk?: string }>
+  edges: Array<{ from: string; to: string; label: string }>
+}
+
+export const getSecurityGraph = () => platformFetch<SecurityGraph>('/api/v1/ai/security/graph')
+
+export const analyzeAttackPath = (source: string, target_vm: string) =>
+  platformFetch<{ summary: string; path: string[]; edges: string[]; risk_score: number }>(
+    '/api/v1/ai/security/attack-path',
+    { method: 'POST', body: JSON.stringify({ source, target_vm }) },
+  )
+
+export const searchKnowledge = (query: string) =>
+  platformFetch<{ query: string; hits: KnowledgeHit[] }>('/api/v1/ai/knowledge/search', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  })
+
+export interface KnowledgeHit {
+  kind: string
+  id: string
+  title: string
+  snippet: string
+  score: number
+  navigate?: string
+}
+
+export interface ServiceGraph {
+  nodes: Array<{ kind: string; id: string; name: string }>
+  edges: Array<{ from: string; to: string; label: string }>
+  service_count: number
+}
+
+export const getServiceGraph = () => platformFetch<ServiceGraph>('/api/v1/ai/services/graph')
+
+export interface InfrastructureMemory {
+  incidents: Array<{ at: string; kind: string; summary: string; actor: string; lesson: string }>
+  runbook_hints: string[]
+}
+
+export const getInfrastructureMemory = (limit = 20) =>
+  platformFetch<InfrastructureMemory>(`/api/v1/ai/memory/incidents?limit=${limit}`)
+
+export interface MissionStackPlan {
+  label: string
+  review: string
+  gpu_node_count: number
+  preview_only: boolean
+  estimated_monthly_usd: number
+  phases: Array<{ name: string; steps: string[]; automated: boolean }>
+}
+
+export const planMissionStack = (query: string) =>
+  platformFetch<MissionStackPlan>('/api/v1/ai/mission/stack', {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  })
+
+export interface BaremetalServer {
+  id: string
+  hostname: string
+  bmc_address: string
+  bmc_type: string
+  state: string
+  cpu_cores: number
+  memory_mib: number
+}
+
+export const listBaremetalServers = () => platformFetch<BaremetalServer[]>('/api/v1/baremetal/servers')
+
+export const registerBaremetalServer = (body: { hostname: string; bmc_address: string; bmc_type?: string; cpu_cores?: number; memory_mib?: number }) =>
+  platformFetch<BaremetalServer>('/api/v1/baremetal/servers', { method: 'POST', body: JSON.stringify(body) })
+
+export const planBaremetalCapacity = (query: string) =>
+  platformFetch<{ summary: string; servers_needed: number; total_cpu_cores: number; total_memory_gib: number }>(
+    '/api/v1/baremetal/capacity/plan',
+    { method: 'POST', body: JSON.stringify({ query }) },
+  )

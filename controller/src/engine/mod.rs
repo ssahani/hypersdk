@@ -6,6 +6,7 @@ pub mod ha;
 pub mod host_validate;
 pub mod migrate_precheck;
 pub mod placement;
+pub mod baremetal;
 pub mod policy;
 pub mod recommendations;
 pub mod reconcile;

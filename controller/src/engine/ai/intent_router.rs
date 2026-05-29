@@ -259,6 +259,31 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         ));
     }
 
+    if ql.contains("llama") || ql.contains("gpu cluster") || ql.contains("inference stack") {
+        let plan = super::mission_stack::plan_mission_stack(q, 0.04, 0.008);
+        intents.push(intent(
+            "mission-stack",
+            &plan.label,
+            &plan.review,
+            "mission_stack",
+            None,
+            Some("/mission-control".into()),
+            Some(serde_json::json!({ "query": q })),
+        ));
+    }
+
+    if (ql.contains("attack") && ql.contains("reach")) || ql.contains("attacker") {
+        intents.push(intent(
+            "attack-path",
+            "Security attack path",
+            "Analyze how an attacker could reach a workload VM.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
     let suggested_action = intents.first().cloned();
     SpotlightResult {
         intents,

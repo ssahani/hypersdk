@@ -16,6 +16,7 @@ import {
 } from '../api/platform'
 import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, type CapacityPlan, type ComplianceReport, type CostAnalysis, type SreForecast } from '../api/ai'
 import MachinaInfrastructureTimeline from '../components/ai/MachinaInfrastructureTimeline'
+import MachinaMissionStack from '../components/ai/MachinaMissionStack'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { formatUserError } from '../utils/apiError'
 
@@ -112,7 +113,8 @@ export default function MissionControl() {
           ))}
         </div>
       )}
-      <div className="px-6 pb-4">
+      <div className="px-6 pb-4 space-y-4">
+        <MachinaMissionStack />
         <MachinaInfrastructureTimeline hours={4} />
       </div>
       <div className="p-6 grid gap-6 lg:grid-cols-2 xl:grid-cols-4">

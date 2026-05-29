@@ -371,4 +371,62 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/sre/forecast — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-96–105)"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/heatmap")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/fleet/heatmap (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/fleet/heatmap — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/rebalance/propose")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/fleet/rebalance/propose (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/fleet/rebalance/propose — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/security/graph")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/security/graph (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/security/graph — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/security/attack-path" \
+    -H 'Content-Type: application/json' -d '{"source":"admin","target_vm":"db-01"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/security/attack-path (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/security/attack-path — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/knowledge/search" \
+    -H 'Content-Type: application/json' -d '{"query":"billing"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/knowledge/search (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/knowledge/search — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/services/graph")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/services/graph (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/services/graph — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/memory/incidents?days=7")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/memory/incidents (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/memory/incidents — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/mission/stack" \
+    -H 'Content-Type: application/json' -d '{"query":"GPU cluster for Llama serving"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/mission/stack (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/mission/stack — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/baremetal/servers")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/baremetal/servers (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/baremetal/servers — HTTP ${http}"
+  fi
 }

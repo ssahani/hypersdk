@@ -6,6 +6,7 @@ mod applications;
 mod audit;
 mod backups;
 mod backup_targets;
+mod baremetal;
 mod blueprints;
 mod cluster;
 mod content;
@@ -100,6 +101,16 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/incidents/analyze", get(ai::analyze_incident))
         .route("/api/v1/ai/intent/environment", post(ai::intent_environment))
         .route("/api/v1/ai/sre/forecast", get(ai::sre_forecast))
+        .route("/api/v1/ai/fleet/heatmap", get(ai::fleet_heatmap))
+        .route("/api/v1/ai/fleet/rebalance/propose", get(ai::fleet_rebalance_propose))
+        .route("/api/v1/ai/security/graph", get(ai::security_graph))
+        .route("/api/v1/ai/security/attack-path", post(ai::security_attack_path))
+        .route("/api/v1/ai/knowledge/search", post(ai::knowledge_search))
+        .route("/api/v1/ai/services/graph", get(ai::service_graph))
+        .route("/api/v1/ai/memory/incidents", get(ai::infrastructure_memory))
+        .route("/api/v1/ai/mission/stack", post(ai::mission_stack))
+        .route("/api/v1/baremetal/servers", get(baremetal::list_servers).post(baremetal::register_server))
+        .route("/api/v1/baremetal/capacity/plan", post(baremetal::capacity_plan))
         .route("/api/v1/ai/security", get(ai::security_sentinel))
         .route("/api/v1/ai/policy/export", get(ai::policy_export))
         .route("/api/v1/ai/autopilot/propose", get(ai::autopilot_propose))

@@ -248,6 +248,13 @@ pub mod digital_twin;
 pub mod root_cause;
 pub mod environment_intent;
 pub mod sre_predict;
+pub mod fleet_heatmap;
+pub mod fleet_rebalance;
+pub mod security_graph;
+pub mod knowledge_search;
+pub mod service_graph;
+pub mod infrastructure_memory;
+pub mod mission_stack;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

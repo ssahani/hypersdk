@@ -123,6 +123,7 @@ const PlatformRecommendations = lazy(() => import('./pages/platform/PlatformReco
 const PlatformApplications = lazy(() => import('./pages/platform/PlatformApplications'))
 const PlatformBackups = lazy(() => import('./pages/platform/PlatformBackups'))
 const PlatformTopology = lazy(() => import('./pages/platform/PlatformTopology'))
+const PlatformZeusOs = lazy(() => import('./pages/platform/PlatformZeusOs'))
 const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
@@ -285,6 +286,7 @@ function AuthenticatedShell() {
                   <Route path="activity" element={<PlatformActivityMonitor />} />
                   <Route path="recommendations" element={<PlatformRecommendations />} />
                   <Route path="topology" element={<PlatformTopology />} />
+                  <Route path="zeus" element={<PlatformZeusOs />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />

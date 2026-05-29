@@ -172,3 +172,13 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-93 | Mission Control Zeus OS + Digital Twin UI |
 | AI-94 | FinOps next-month cost prediction |
 | AI-95 | Phase 9 E2E + docs |
+| AI-96 | Fleet heat map (hot/cold/power waste) |
+| AI-97 | Fleet rebalance proposals (DRS-class) |
+| AI-98 | Security graph (users/hosts/VMs/networks/keys) |
+| AI-99 | Attack path analysis |
+| AI-100 | Infrastructure knowledge search |
+| AI-101 | Service graph (VM → service → DB) |
+| AI-102 | Infrastructure memory (incident recall) |
+| AI-103 | AI Mission Stack (GPU/K8s/inference preview) |
+| AI-104 | Bare metal inventory + capacity plan |
+| AI-105 | Phase 10 E2E + Machina Zeus OS hub UI |

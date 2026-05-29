@@ -31,6 +31,7 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
         "016_platform_ai.sql",
         "017_ai_v5.sql",
         "018_ai_v8.sql",
+        "019_baremetal.sql",
     ] {
         let sql = match name {
             "001_platform.sql" => include_str!("../../migrations/001_platform.sql"),
@@ -51,6 +52,7 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
             "016_platform_ai.sql" => include_str!("../../migrations/016_platform_ai.sql"),
             "017_ai_v5.sql" => include_str!("../../migrations/017_ai_v5.sql"),
             "018_ai_v8.sql" => include_str!("../../migrations/018_ai_v8.sql"),
+            "019_baremetal.sql" => include_str!("../../migrations/019_baremetal.sql"),
             _ => continue,
         };
         for stmt in sql.split(';').map(str::trim).filter(|s| !s.is_empty()) {

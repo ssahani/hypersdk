@@ -22,6 +22,7 @@ import {
   Settings,
   LifeBuoy,
   Key,
+  Cpu,
   GitBranch,
 } from 'lucide-react'
 
@@ -70,6 +71,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
       { to: '/platform/activity', label: 'Activity Monitor', icon: ic(Activity) },
       { to: '/platform/recommendations', label: 'Recommendations', icon: ic(Workflow) },
       { to: '/platform/blueprints', label: 'Blueprints', icon: ic(Workflow) },
+      { to: '/platform/zeus', label: 'Machina Zeus OS', icon: ic(Cpu) },
       { to: '/platform/topology', label: 'Topology', icon: ic(GitBranch) },
     ],
   },
@@ -104,6 +106,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/activity': 'Activity Monitor',
   '/platform/recommendations': 'Recommendations',
   '/platform/blueprints': 'Blueprints',
+  '/platform/zeus': 'Machina Zeus OS',
   '/platform/topology': 'Topology',
   '/platform/users': 'Users & Access',
   '/platform/projects': 'Workspaces',
