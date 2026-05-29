@@ -153,3 +153,8 @@ See [`machina-ai-vision.md`](machina-ai-vision.md) for the full vision.
 | AI-74 | Scheduled Autopilot cron |
 | AI-75 | v5 UI polish |
 | AI-76 | v5 E2E + docs |
+| AI-77 | Autopilot history API |
+| AI-78 | Cost Guardian CFO CSV |
+| AI-79 | Dashboard schedule status |
+| AI-80 | Reports history + CSV UI |
+| AI-81 | v6 E2E + docs |

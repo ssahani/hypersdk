@@ -77,3 +77,55 @@ pub async fn analyze(pool: &PgPool) -> anyhow::Result<CostAnalysis> {
         suggestions,
     })
 }
+
+pub async fn export_csv(pool: &PgPool) -> anyhow::Result<String> {
+    let analysis = analyze(pool).await?;
+    let rates: (f64, f64) = sqlx::query_as(
+        "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let vms: Vec<(String, i32, i32, String)> = sqlx::query_as(
+        "SELECT name, vcpus, memory_mib, COALESCE(observed_state, 'unknown')
+         FROM vms ORDER BY name",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut csv = String::from(
+        "Machina Cost Guardian CFO Export\n\
+Summary,Value\n\
+Estimated monthly USD,",
+    );
+    csv.push_str(&format!("{:.2}\n", analysis.estimated_monthly_usd));
+    csv.push_str(&format!("VM count,{}\n", analysis.vm_count));
+    csv.push_str(&format!("Idle VMs (30d+ stopped),{}\n", analysis.idle_vm_count));
+    csv.push_str(&format!("Oversized VMs,{}\n", analysis.oversized_vm_count));
+    csv.push_str(&format!("Snapshot-heavy VMs,{}\n", analysis.snapshot_heavy_count));
+    csv.push_str(&format!("vCPU rate USD/hr,{}\n", rates.0));
+    csv.push_str(&format!("Memory rate USD/GiB/hr,{}\n\n", rates.1));
+    csv.push_str("VM,vCPUs,Memory MiB,State,Est monthly USD\n");
+
+    for (name, vcpus, memory_mib, state) in vms {
+        let gib = memory_mib as f64 / 1024.0;
+        let monthly = (vcpus as f64 * rates.0 + gib * rates.1) * 730.0;
+        csv.push_str(&format!(
+            "{},{},{},{},{:.2}\n",
+            csv_escape(&name),
+            vcpus,
+            memory_mib,
+            csv_escape(&state),
+            monthly
+        ));
+    }
+    Ok(csv)
+}
+
+fn csv_escape(s: &str) -> String {
+    if s.contains(',') || s.contains('"') || s.contains('\n') {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}

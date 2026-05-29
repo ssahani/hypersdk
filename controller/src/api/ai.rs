@@ -385,3 +385,39 @@ pub async fn autopilot_run(
         .await
         .map(Json)
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AutopilotHistoryQuery {
+    #[serde(default = "default_history_limit")]
+    pub limit: i64,
+}
+
+fn default_history_limit() -> i64 {
+    20
+}
+
+pub async fn autopilot_history(
+    State(state): State<AppState>,
+    Query(q): Query<AutopilotHistoryQuery>,
+) -> Result<Json<Vec<ai::autopilot::AutopilotHistoryEntry>>, ApiError> {
+    ai::autopilot::list_history(&state.pool, q.limit)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn cost_export_csv(
+    State(state): State<AppState>,
+) -> Result<axum::response::Response, ApiError> {
+    let csv = ai::cost::export_csv(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(axum::response::Response::builder()
+        .header(http::header::CONTENT_TYPE, "text/csv; charset=utf-8")
+        .header(
+            http::header::CONTENT_DISPOSITION,
+            "attachment; filename=\"machina-cost-guardian.csv\"",
+        )
+        .body(axum::body::Body::from(csv))
+        .map_err(|e| ApiError::internal(e.to_string()))?)
+}

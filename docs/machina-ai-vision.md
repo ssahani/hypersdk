@@ -37,6 +37,7 @@ Machina AI is a **hybrid intelligence layer** on top of Zyvor Platform and the M
 - `GET /api/v1/ai/compliance/export.pdf` — server-generated PDF
 - `POST /api/v1/ai/copilot/stream` — SSE token streaming for Copilot
 - `POST /api/v1/ai/autopilot/run`, `/terminal/suggest`
+- `GET /api/v1/ai/autopilot/history`, `/api/v1/ai/cost/export.csv`
 - `GET /api/v1/backups/timeline`
 
 ## Roadmap batches
@@ -82,3 +83,13 @@ See [`platform-roadmap.md`](platform-roadmap.md) batches AI-49 through AI-66.
 | AI-74 | Scheduled Autopilot leader worker + `ai_autopilot_interval_secs` |
 | AI-75 | Settings interval UI, Copilot stream UX, Reports PDF download |
 | AI-76 | Docs + E2E |
+
+## v6 batches (AI-77+)
+
+| Batch | Deliverable |
+|-------|-------------|
+| AI-77 | Autopilot history API (`GET /api/v1/ai/autopilot/history`) |
+| AI-78 | Cost Guardian CFO CSV (`GET /api/v1/ai/cost/export.csv`) |
+| AI-79 | Dashboard scheduled Autopilot status strip |
+| AI-80 | Reports — history panel + CFO CSV download |
+| AI-81 | Docs + E2E |

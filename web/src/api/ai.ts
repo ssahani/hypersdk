@@ -256,3 +256,16 @@ export const runAutopilotSafe = (vmId?: string, maxActions = 3) =>
     '/api/v1/ai/autopilot/run',
     { method: 'POST', body: JSON.stringify({ vm_id: vmId, max_actions: maxActions }) },
   )
+
+export interface AutopilotHistoryEntry {
+  id: string
+  actor: string
+  action: string
+  created_at: string
+  detail: Record<string, unknown>
+}
+
+export const getAutopilotHistory = (limit = 20) =>
+  platformFetch<AutopilotHistoryEntry[]>(`/api/v1/ai/autopilot/history?limit=${limit}`)
+
+export const getAiCostExportUrl = () => `${getControllerBase()}/api/v1/ai/cost/export.csv`

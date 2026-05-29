@@ -34,7 +34,7 @@ import {
   type PlatformHost,
   type PlatformTask,
 } from '../../api/platform'
-import { getAiSecurity, runAutopilotSafe, type SecurityReport } from '../../api/ai'
+import { getAiSecurity, getAiSettings, runAutopilotSafe, type AiSettings, type SecurityReport } from '../../api/ai'
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -49,19 +49,21 @@ export default function PlatformDashboard() {
   const [cluster, setCluster] = useState<ClusterSummary | null>(null)
   const [capacity, setCapacity] = useState<CapacityReport | null>(null)
   const [security, setSecurity] = useState<SecurityReport | null>(null)
+  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [hosts, v, t, c, cap, sec] = await Promise.all([
+      const [hosts, v, t, c, cap, sec, ai] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
         getClusterSummary(),
         getCapacityReport().catch(() => null),
         getAiSecurity().catch(() => null),
+        getAiSettings().catch(() => null),
       ])
       setHosts(hosts)
       setVms(v)
@@ -69,6 +71,7 @@ export default function PlatformDashboard() {
       setCluster(c)
       setCapacity(cap)
       setSecurity(sec)
+      setAiSettings(ai)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -136,6 +139,14 @@ export default function PlatformDashboard() {
       {mode === 'autopilot' && (
         <MacGlassPanel title="Machina Autopilot" subtitle="Runs up to 3 low-risk fixes per batch — audited">
           <p className="text-sm text-slate-400 -mt-2">Backups, HA enable, and guest tools installs only. Destructive actions always require manual review.</p>
+          {aiSettings && aiSettings.autopilot_interval_secs > 0 && (
+            <p className="text-xs text-slate-500 mt-2">
+              Scheduled every {aiSettings.autopilot_interval_secs}s
+              {aiSettings.autopilot_last_run
+                ? ` · last run ${new Date(aiSettings.autopilot_last_run).toLocaleString()}`
+                : ' · no runs yet'}
+            </p>
+          )}
           <button
             type="button"
             className="btn-primary text-sm mt-3"

@@ -348,3 +348,27 @@ pub async fn run_safe_batch(
         results,
     })
 }
+
+#[derive(Debug, Serialize, sqlx::FromRow)]
+pub struct AutopilotHistoryEntry {
+    pub id: Uuid,
+    pub actor: String,
+    pub action: String,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub detail: serde_json::Value,
+}
+
+pub async fn list_history(pool: &PgPool, limit: i64) -> anyhow::Result<Vec<AutopilotHistoryEntry>> {
+    let cap = limit.clamp(1, 100);
+    let rows = sqlx::query_as::<_, AutopilotHistoryEntry>(
+        "SELECT id, actor, action, created_at, COALESCE(detail, '{}'::jsonb) AS detail
+         FROM audit_logs
+         WHERE action LIKE 'ai.autopilot%'
+         ORDER BY created_at DESC
+         LIMIT $1",
+    )
+    .bind(cap)
+    .fetch_all(pool)
+    .await?;
+    Ok(rows)
+}

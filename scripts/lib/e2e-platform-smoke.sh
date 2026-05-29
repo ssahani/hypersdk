@@ -311,4 +311,17 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/compliance/export.pdf — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA AI V6"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/autopilot/history")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/autopilot/history (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/autopilot/history — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/cost/export.csv")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/cost/export.csv (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/cost/export.csv — HTTP ${http}"
+  fi
 }

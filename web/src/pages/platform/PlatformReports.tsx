@@ -5,7 +5,7 @@ import { DollarSign, FolderKanban } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiSecurity, type CapacityPlan, type CostAnalysis, type ComplianceReport, type SecurityReport } from '../../api/ai'
+import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiSecurity, getAutopilotHistory, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type ComplianceReport, type SecurityReport } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformReports() {
@@ -16,12 +16,13 @@ export default function PlatformReports() {
   const [aiCap, setAiCap] = useState<CapacityPlan | null>(null)
   const [security, setSecurity] = useState<SecurityReport | null>(null)
   const [compliance, setCompliance] = useState<ComplianceReport | null>(null)
+  const [autopilotHistory, setAutopilotHistory] = useState<AutopilotHistoryEntry[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [p, c, f, costR, capR, secR, compR] = await Promise.all([
+      const [p, c, f, costR, capR, secR, compR, hist] = await Promise.all([
         listProjects(),
         getCapacityReport(),
         getFinOpsReport(),
@@ -29,6 +30,7 @@ export default function PlatformReports() {
         getAiCapacity().catch(() => null),
         getAiSecurity().catch(() => null),
         getAiCompliance().catch(() => null),
+        getAutopilotHistory(10).catch(() => []),
       ])
       setProjects(p)
       setCap(c)
@@ -37,6 +39,7 @@ export default function PlatformReports() {
       setAiCap(capR)
       setSecurity(secR)
       setCompliance(compR)
+      setAutopilotHistory(hist)
     } catch (e: unknown) { setError(formatUserError(e)) }
   }, [])
 
@@ -109,6 +112,21 @@ export default function PlatformReports() {
           {cost.suggestions.length > 0 && (
             <ul className="mt-3 text-xs text-slate-400 space-y-1">{cost.suggestions.map((s, i) => <li key={i}>• {s}</li>)}</ul>
           )}
+          <a href={getAiCostExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-cost-guardian.csv">
+            Download CFO CSV
+          </a>
+        </MacGlassPanel>
+      )}
+      {autopilotHistory.length > 0 && (
+        <MacGlassPanel title="Autopilot history" subtitle="Recent audited auto-fix runs">
+          <ul className="text-xs space-y-2 -mt-2">
+            {autopilotHistory.map((h) => (
+              <li key={h.id} className="flex justify-between gap-2 border-b border-white/[0.04] pb-2">
+                <span className="text-slate-300">{h.action.replace('ai.autopilot.', '')}</span>
+                <span className="text-slate-500 shrink-0">{new Date(h.created_at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
         </MacGlassPanel>
       )}
       {aiCap && (
