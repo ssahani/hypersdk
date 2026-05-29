@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { Rocket } from 'lucide-react'
-import { MacGlassPanel } from './mac/PlatformMacUi'
+import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import { planMissionStack, type MissionStackPlan } from '../../api/ai'
 
 export default function MachinaMissionStack() {

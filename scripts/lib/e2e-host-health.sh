@@ -6,6 +6,7 @@ e2e_host_health_run() {
 
   e2e_hdr "HOST HEALTH: CHECKLIST (no nbd SMART)"
   r="$(${E2E_CURL} -b "$E2E_COOKIE" "${E2E_BASE}/api/v1/health/problems" --max-time 30)"
+  http="$(${E2E_CURL} -b "$E2E_COOKIE" -o /dev/null -w '%{http_code}' "${E2E_BASE}/api/v1/health/problems" --max-time 30)"
   e2e_assert_http "$http" "200" "health/problems"
   if echo "$r" | python3 -c "
 import json, sys

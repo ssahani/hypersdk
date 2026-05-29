@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { GitBranch, Zap } from 'lucide-react'
-import { MacGlassPanel } from './mac/PlatformMacUi'
+import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import {
   analyzeTwinImpact,
   getDigitalTwinGraph,

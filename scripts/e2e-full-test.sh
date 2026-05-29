@@ -165,12 +165,16 @@ fi
 # Phase 4: UI platform proxy
 if [[ "$SKIP_UI_PROXY" -eq 0 ]]; then
   e2e_hdr "PHASE 4: UI PLATFORM PROXY"
-  local_before_fail=$E2E_FAIL
-  e2e_ui_platform_run || true
-  if [[ "$E2E_FAIL" -gt "$local_before_fail" ]]; then
-    phase_fail "UI platform proxy"
+  if ! e2e_login; then
+    phase_fail "UI platform proxy login"
   else
-    phase_ok "UI platform proxy"
+    local_before_fail=$E2E_FAIL
+    e2e_ui_platform_run || true
+    if [[ "$E2E_FAIL" -gt "$local_before_fail" ]]; then
+      phase_fail "UI platform proxy"
+    else
+      phase_ok "UI platform proxy"
+    fi
   fi
 fi
 
