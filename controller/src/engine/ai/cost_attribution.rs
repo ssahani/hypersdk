@@ -1,0 +1,138 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use serde::Serialize;
+use sqlx::PgPool;
+
+#[derive(Debug, Serialize)]
+pub struct TeamCostRow {
+    pub team: String,
+    pub vm_count: i64,
+    pub vcpus: i64,
+    pub memory_gib: f64,
+    pub estimated_monthly_usd: f64,
+    pub share_pct: f32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CostAttributionReport {
+    pub total_monthly_usd: f64,
+    pub teams: Vec<TeamCostRow>,
+    pub unattributed_monthly_usd: f64,
+    pub summary: String,
+}
+
+pub async fn attribute(pool: &PgPool) -> anyhow::Result<CostAttributionReport> {
+    let rates: (f64, f64) = sqlx::query_as(
+        "SELECT finops_vcpu_hour_usd, finops_gib_hour_usd FROM clusters ORDER BY created_at LIMIT 1",
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let rows: Vec<(Option<String>, i64, i64, i64)> = sqlx::query_as(
+        "SELECT COALESCE(NULLIF(TRIM(project), ''), NULL) AS project,
+                COUNT(*)::bigint,
+                COALESCE(SUM(vcpus), 0)::bigint,
+                COALESCE(SUM(memory_mib), 0)::bigint
+         FROM vms
+         GROUP BY COALESCE(NULLIF(TRIM(project), ''), NULL)",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let tag_rows: Vec<(String, i64, i64, i64)> = sqlx::query_as(
+        "SELECT COALESCE(
+            (SELECT t FROM unnest(tags) t WHERE t LIKE 'team:%' LIMIT 1),
+            'team:unassigned'
+         ) AS team,
+         COUNT(*)::bigint,
+         COALESCE(SUM(vcpus), 0)::bigint,
+         COALESCE(SUM(memory_mib), 0)::bigint
+         FROM vms
+         GROUP BY 1",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut teams = Vec::new();
+    let mut total = 0.0_f64;
+
+    for (project, count, vcpus, mem_mib) in rows {
+        let team = project
+            .filter(|p| !p.is_empty())
+            .unwrap_or_else(|| "default".into());
+        let memory_gib = mem_mib as f64 / 1024.0;
+        let monthly = (vcpus as f64 * rates.0 + memory_gib * rates.1) * 730.0;
+        total += monthly;
+        teams.push(TeamCostRow {
+            team: format!("project:{team}"),
+            vm_count: count,
+            vcpus,
+            memory_gib,
+            estimated_monthly_usd: monthly,
+            share_pct: 0.0,
+        });
+    }
+
+    for (tag, count, vcpus, mem_mib) in tag_rows {
+        let team = tag.strip_prefix("team:").unwrap_or(&tag).to_string();
+        if teams.iter().any(|t| t.team == format!("tag:{team}")) {
+            continue;
+        }
+        let memory_gib = mem_mib as f64 / 1024.0;
+        let monthly = (vcpus as f64 * rates.0 + memory_gib * rates.1) * 730.0;
+        teams.push(TeamCostRow {
+            team: format!("tag:{team}"),
+            vm_count: count,
+            vcpus,
+            memory_gib,
+            estimated_monthly_usd: monthly,
+            share_pct: 0.0,
+        });
+    }
+
+    teams.sort_by(|a, b| {
+        b.estimated_monthly_usd
+            .partial_cmp(&a.estimated_monthly_usd)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+
+    if total <= 0.0 {
+        total = teams.iter().map(|t| t.estimated_monthly_usd).sum();
+    }
+
+    for row in &mut teams {
+        row.share_pct = if total > 0.0 {
+            (row.estimated_monthly_usd / total * 100.0) as f32
+        } else {
+            0.0
+        };
+    }
+
+    let unattributed = teams
+        .iter()
+        .filter(|t| t.team.contains("unassigned") || t.team.contains("default"))
+        .map(|t| t.estimated_monthly_usd)
+        .sum();
+
+    let summary = if teams.is_empty() {
+        "No VMs — add project or team: tags for FinOps attribution.".into()
+    } else {
+        format!(
+            "{} team bucket(s) · ${:.0}/mo total · {:.0}% unattributed/default",
+            teams.len(),
+            total,
+            if total > 0.0 {
+                unattributed / total * 100.0
+            } else {
+                0.0
+            }
+        )
+    };
+
+    Ok(CostAttributionReport {
+        total_monthly_usd: total,
+        teams,
+        unattributed_monthly_usd: unattributed,
+        summary,
+    })
+}

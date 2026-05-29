@@ -429,4 +429,31 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/baremetal/servers — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-106–113)"
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
+    -H 'Content-Type: application/json' -d '{"action":"migrate","target_kind":"host","target_id":"localhost"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/twin/impact migrate (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/twin/impact migrate — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/cost/attribution")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/cost/attribution (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/cost/attribution — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/rebalance/execute" \
+    -H 'Content-Type: application/json' -d '{"dry_run":true}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/fleet/rebalance/execute (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/fleet/rebalance/execute — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/compliance/frameworks")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/compliance/frameworks (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/compliance/frameworks — HTTP ${http}"
+  fi
 }

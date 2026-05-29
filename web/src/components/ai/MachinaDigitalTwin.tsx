@@ -14,6 +14,8 @@ export default function MachinaDigitalTwin() {
   const [graph, setGraph] = useState<DigitalTwinGraph | null>(null)
   const [impact, setImpact] = useState<ImpactAnalysis | null>(null)
   const [hostId, setHostId] = useState('')
+  const [simAction, setSimAction] = useState<'shutdown' | 'migrate' | 'isolate'>('shutdown')
+  const [simKind, setSimKind] = useState<'host' | 'network'>('host')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -23,7 +25,12 @@ export default function MachinaDigitalTwin() {
       const g = await getDigitalTwinGraph()
       setGraph(g)
       const firstHost = g.nodes.find((n) => n.kind === 'host')
+      const firstNet = g.nodes.find((n) => n.kind === 'network')
       if (firstHost && !hostId) setHostId(firstHost.name)
+      else if (firstNet && !hostId) {
+        setSimKind('network')
+        setHostId(firstNet.name)
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load digital twin')
     }
@@ -36,9 +43,10 @@ export default function MachinaDigitalTwin() {
     setBusy(true)
     setError(null)
     try {
+      const action = simKind === 'network' ? 'isolate' : simAction
       const r = await analyzeTwinImpact({
-        action: 'shutdown',
-        target_kind: 'host',
+        action,
+        target_kind: simKind,
         target_id: hostId.trim(),
       })
       setImpact(r)
@@ -50,6 +58,8 @@ export default function MachinaDigitalTwin() {
   }
 
   const hosts = graph?.nodes.filter((n) => n.kind === 'host') ?? []
+  const networks = graph?.nodes.filter((n) => n.kind === 'network') ?? []
+  const targets = simKind === 'network' ? networks : hosts
 
   return (
     <MacGlassPanel
@@ -58,10 +68,26 @@ export default function MachinaDigitalTwin() {
     >
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="block">
-          <span className="text-xs text-slate-500">Host to simulate shutdown</span>
+          <span className="text-xs text-slate-500">Target</span>
+          <select className="input mt-1 block text-xs" value={simKind} onChange={(e) => setSimKind(e.target.value as 'host' | 'network')}>
+            <option value="host">Host</option>
+            <option value="network">Network</option>
+          </select>
+        </label>
+        {simKind === 'host' && (
+          <label className="block">
+            <span className="text-xs text-slate-500">Action</span>
+            <select className="input mt-1 block text-xs" value={simAction} onChange={(e) => setSimAction(e.target.value as 'shutdown' | 'migrate' | 'isolate')}>
+              <option value="shutdown">Shutdown</option>
+              <option value="migrate">Evacuate / migrate</option>
+            </select>
+          </label>
+        )}
+        <label className="block">
+          <span className="text-xs text-slate-500">{simKind === 'network' ? 'Network to isolate' : 'Host'}</span>
           <select className="input mt-1 block min-w-[12rem]" value={hostId} onChange={(e) => setHostId(e.target.value)}>
-            {hosts.map((h) => (
-              <option key={h.id} value={h.name}>{h.name} ({h.state})</option>
+            {targets.map((h) => (
+              <option key={h.id} value={h.name}>{h.name} {h.state ? `(${h.state})` : ''}</option>
             ))}
           </select>
         </label>

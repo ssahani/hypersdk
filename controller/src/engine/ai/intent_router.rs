@@ -238,12 +238,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         ));
     }
 
-    if ql.contains("what breaks") || ql.contains("shut down") || (ql.contains("shutdown") && ql.contains("host")) {
+    if ql.contains("what breaks") || ql.contains("shut down") || (ql.contains("shutdown") && ql.contains("host"))
+        || ql.contains("evacuate") || (ql.contains("migrate") && ql.contains("host"))
+    {
         let host_hint = extract_after(&ql, "host ")
             .or_else(|| extract_after(&ql, "down "))
             .unwrap_or("host-01");
-        let label = format!("Impact: shutdown host {host_hint}");
-        let review = format!("Simulate blast radius if host {host_hint} goes offline.");
+        let action = if ql.contains("evacuate") || ql.contains("migrate") {
+            "migrate"
+        } else {
+            "shutdown"
+        };
+        let label = format!("Impact: {action} host {host_hint}");
+        let review = format!("Simulate blast radius if host {host_hint} is evacuated or shut down.");
         intents.push(intent(
             "twin-impact",
             &label,
@@ -252,10 +259,64 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
             Some("/platform/topology".into()),
             Some(serde_json::json!({
-                "action": "shutdown",
+                "action": action,
                 "target_kind": "host",
                 "target_id": host_hint,
             })),
+        ));
+    }
+
+    if ql.contains("isolate") && ql.contains("network") {
+        intents.push(intent(
+            "twin-network",
+            "Network blast radius",
+            "Simulate impact of isolating a network segment.",
+            "twin_impact",
+            None,
+            Some("/platform/topology".into()),
+            Some(serde_json::json!({
+                "action": "isolate",
+                "target_kind": "network",
+                "target_id": "default",
+            })),
+        ));
+    }
+
+    if ql.contains("team") && (ql.contains("cost") || ql.contains("attribution") || ql.contains("chargeback")) {
+        intents.push(intent(
+            "cost-attribution",
+            "Team cost attribution",
+            "View FinOps breakdown by project and team tags.",
+            "navigate",
+            None,
+            Some("/platform/reports".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("rebalance") || ql.contains("drs") || (ql.contains("fleet") && ql.contains("hot")) {
+        intents.push(intent(
+            "fleet-rebalance",
+            "Fleet rebalance",
+            "Preview AI-driven live migrations to relieve hotspots.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("cis") || ql.contains("pci") || ql.contains("soc2") || ql.contains("hipaa")
+        || (ql.contains("compliance") && ql.contains("framework"))
+    {
+        intents.push(intent(
+            "compliance-frameworks",
+            "Compliance frameworks",
+            "Map cluster posture to CIS, PCI, SOC2, and HIPAA controls.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
         ));
     }
 

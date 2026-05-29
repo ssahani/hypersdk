@@ -378,6 +378,37 @@ export interface RebalanceProposal {
 export const getFleetRebalanceProposal = (maxMoves = 5) =>
   platformFetch<RebalanceProposal>(`/api/v1/ai/fleet/rebalance/propose?max_moves=${maxMoves}`)
 
+export interface RebalanceExecuteResult {
+  dry_run: boolean
+  task_ids: string[]
+  moves: RebalanceProposal['moves']
+  summary: string
+}
+
+export const executeFleetRebalance = (dryRun = true, maxMoves = 5) =>
+  platformFetch<RebalanceExecuteResult>('/api/v1/ai/fleet/rebalance/execute', {
+    method: 'POST',
+    body: JSON.stringify({ dry_run: dryRun, max_moves: maxMoves }),
+  })
+
+export interface CostAttributionReport {
+  total_monthly_usd: number
+  teams: Array<{ team: string; vm_count: number; estimated_monthly_usd: number; share_pct: number }>
+  unattributed_monthly_usd: number
+  summary: string
+}
+
+export const getCostAttribution = () => platformFetch<CostAttributionReport>('/api/v1/ai/cost/attribution')
+
+export interface ComplianceFrameworksReport {
+  frameworks: Array<{ framework: string; score: number; grade: string; control_count: number; failed_count: number }>
+  controls: Array<{ id: string; framework: string; title: string; passed: boolean; score: number }>
+  summary: string
+}
+
+export const getComplianceFrameworks = () =>
+  platformFetch<ComplianceFrameworksReport>('/api/v1/ai/compliance/frameworks')
+
 export interface SecurityGraph {
   nodes: Array<{ id: string; kind: string; label: string; risk?: string }>
   edges: Array<{ from: string; to: string; label: string }>
@@ -456,4 +487,10 @@ export const planBaremetalCapacity = (query: string) =>
   platformFetch<{ summary: string; servers_needed: number; total_cpu_cores: number; total_memory_gib: number }>(
     '/api/v1/baremetal/capacity/plan',
     { method: 'POST', body: JSON.stringify({ query }) },
+  )
+
+export const setBaremetalPower = (id: string, action: 'on' | 'off' | 'cycle', dryRun = true) =>
+  platformFetch<{ summary: string; new_state: string; dry_run: boolean }>(
+    `/api/v1/baremetal/servers/${id}/power`,
+    { method: 'POST', body: JSON.stringify({ action, dry_run: dryRun }) },
   )

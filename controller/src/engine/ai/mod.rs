@@ -255,6 +255,8 @@ pub mod knowledge_search;
 pub mod service_graph;
 pub mod infrastructure_memory;
 pub mod mission_stack;
+pub mod cost_attribution;
+pub mod compliance_frameworks;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

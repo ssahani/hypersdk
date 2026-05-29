@@ -554,6 +554,32 @@ pub async fn fleet_rebalance_propose(
         .map(Json)
 }
 
+pub async fn fleet_rebalance_execute(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<ai::fleet_rebalance::RebalanceExecuteBody>,
+) -> Result<Json<ai::fleet_rebalance::RebalanceExecuteResult>, ApiError> {
+    ai::fleet_rebalance::execute(&state, &actor, &body).await.map(Json)
+}
+
+pub async fn cost_attribution(
+    State(state): State<AppState>,
+) -> Result<Json<ai::cost_attribution::CostAttributionReport>, ApiError> {
+    ai::cost_attribution::attribute(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn compliance_frameworks(
+    State(state): State<AppState>,
+) -> Result<Json<ai::compliance_frameworks::ComplianceFrameworksReport>, ApiError> {
+    ai::compliance_frameworks::scan(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
 pub async fn security_graph(
     State(state): State<AppState>,
 ) -> Result<Json<ai::security_graph::SecurityGraph>, ApiError> {

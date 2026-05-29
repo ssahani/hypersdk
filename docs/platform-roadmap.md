@@ -182,3 +182,11 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-103 | AI Mission Stack (GPU/K8s/inference preview) |
 | AI-104 | Bare metal inventory + capacity plan |
 | AI-105 | Phase 10 E2E + Machina Zeus OS hub UI |
+| AI-106 | Digital Twin migrate + network blast simulation |
+| AI-107 | FinOps per-team/project cost attribution |
+| AI-108 | Fleet rebalance execute (preview + admin enqueue) |
+| AI-109 | Compliance frameworks (CIS/PCI/SOC2/HIPAA) |
+| AI-110 | Bare metal BMC power lifecycle (preview) |
+| AI-111 | Phase 11 UI — attribution, twin sim, Zeus OS polish |
+| AI-112 | Spotlight intents for phase 11 features |
+| AI-113 | Phase 11 E2E + docs |

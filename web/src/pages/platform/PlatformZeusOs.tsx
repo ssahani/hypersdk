@@ -7,6 +7,8 @@ import { MacGlassPanel, MacSectionTitle } from '../../components/platform/mac/Pl
 import ErrorBanner from '../../components/ErrorBanner'
 import {
   analyzeAttackPath,
+  executeFleetRebalance,
+  getComplianceFrameworks,
   getFleetHeatmap,
   getFleetRebalanceProposal,
   getInfrastructureMemory,
@@ -16,6 +18,7 @@ import {
   planBaremetalCapacity,
   registerBaremetalServer,
   searchKnowledge,
+  setBaremetalPower,
   type BaremetalServer,
   type FleetHeatmap,
   type KnowledgeHit,
@@ -38,6 +41,8 @@ export default function PlatformZeusOs() {
   const [bmcHost, setBmcHost] = useState('')
   const [bmcAddr, setBmcAddr] = useState('')
   const [capacitySummary, setCapacitySummary] = useState<string | null>(null)
+  const [rebalancePreview, setRebalancePreview] = useState<string | null>(null)
+  const [frameworksSummary, setFrameworksSummary] = useState<string | null>(null)
 
   const loadFleet = useCallback(async () => {
     setError(null)
@@ -56,6 +61,10 @@ export default function PlatformZeusOs() {
       await getSecurityGraph()
       const path = await analyzeAttackPath('attacker', 'db-prod')
       setAttackSummary(path.summary)
+      const fw = await getComplianceFrameworks()
+      setFrameworksSummary(
+        fw.frameworks.map((f) => `${f.framework} ${f.grade} (${f.score})`).join(' · ') || fw.summary,
+      )
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Security graph failed')
     }
@@ -148,16 +157,34 @@ export default function PlatformZeusOs() {
                   <li key={m.vm_id}>{m.vm_name}: {m.from_host} → {m.to_host}</li>
                 ))}
               </ul>
+              <button
+                type="button"
+                className="btn-secondary text-xs mt-3"
+                onClick={async () => {
+                  const r = await executeFleetRebalance(true)
+                  setRebalancePreview(r.summary)
+                }}
+              >
+                Preview execute
+              </button>
+              {rebalancePreview && <p className="text-xs text-slate-400 mt-2">{rebalancePreview}</p>}
             </MacGlassPanel>
           )}
         </div>
       )}
 
       {tab === 'security' && (
-        <MacGlassPanel title="Attack path discovery" subtitle="Example: attacker → db-prod">
-          <p className="text-sm text-slate-300">{attackSummary ?? 'Loading…'}</p>
-          <p className="text-xs text-slate-500 mt-2">Use Spotlight: &quot;show attack path to database VM&quot;</p>
-        </MacGlassPanel>
+        <div className="space-y-4">
+          <MacGlassPanel title="Attack path discovery" subtitle="Example: attacker → db-prod">
+            <p className="text-sm text-slate-300">{attackSummary ?? 'Loading…'}</p>
+            <p className="text-xs text-slate-500 mt-2">Use Spotlight: &quot;show attack path to database VM&quot;</p>
+          </MacGlassPanel>
+          {frameworksSummary && (
+            <MacGlassPanel title="Compliance frameworks" subtitle="CIS · PCI · SOC2 · HIPAA mapping">
+              <p className="text-sm text-slate-300">{frameworksSummary}</p>
+            </MacGlassPanel>
+          )}
+        </div>
       )}
 
       {tab === 'knowledge' && (
@@ -205,7 +232,10 @@ export default function PlatformZeusOs() {
             </div>
             <ul className="text-xs text-slate-400 space-y-1">
               {baremetal.map((s) => (
-                <li key={s.id}>{s.hostname} · {s.bmc_type} @ {s.bmc_address || '—'} · {s.state}</li>
+                <li key={s.id} className="flex flex-wrap items-center gap-2">
+                  <span>{s.hostname} · {s.bmc_type} @ {s.bmc_address || '—'} · {s.state}</span>
+                  <button type="button" className="text-blue-400 hover:underline" onClick={() => void setBaremetalPower(s.id, 'on', true).then((r) => setCapacitySummary(r.summary))}>Power on (preview)</button>
+                </li>
               ))}
             </ul>
           </MacGlassPanel>

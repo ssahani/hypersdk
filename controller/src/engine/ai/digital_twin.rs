@@ -160,6 +160,12 @@ pub async fn analyze_impact(pool: &PgPool, req: &ImpactRequest) -> anyhow::Resul
         ("shutdown", "host") | ("stop", "host") | ("maintenance", "host") => {
             host_shutdown_impact(pool, &req.target_id).await
         }
+        ("migrate", "host") | ("evacuate", "host") => {
+            host_migrate_impact(pool, &req.target_id).await
+        }
+        ("isolate", "network") | ("shutdown", "network") => {
+            network_isolate_impact(pool, &req.target_id).await
+        }
         ("shutdown", "vm") | ("stop", "vm") | ("delete", "vm") => {
             vm_shutdown_impact(pool, &req.target_id).await
         }
@@ -167,12 +173,15 @@ pub async fn analyze_impact(pool: &PgPool, req: &ImpactRequest) -> anyhow::Resul
             action: req.action.clone(),
             target: format!("{}:{}", req.target_kind, req.target_id),
             severity: "info".into(),
-            summary: "Supported actions: shutdown host, shutdown vm.".into(),
+            summary: "Supported actions: shutdown/migrate host, isolate network, shutdown vm.".into(),
             affected_vms: vec![],
             affected_applications: vec![],
             storage_risks: vec![],
             network_notes: vec![],
-            recommendations: vec!["Use target_kind host or vm with action shutdown.".into()],
+            recommendations: vec![
+                "Use target_kind host or vm with action shutdown/migrate, or network with isolate."
+                    .into(),
+            ],
         }),
     }
 }
@@ -303,6 +312,140 @@ async fn vm_shutdown_impact(pool: &PgPool, target: &str) -> anyhow::Result<Impac
             "Check application group dependencies.".into(),
         ],
     })
+}
+
+async fn host_migrate_impact(pool: &PgPool, target: &str) -> anyhow::Result<ImpactAnalysis> {
+    let host_id = resolve_host(pool, target).await?;
+    let host_name: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+        .bind(host_id)
+        .fetch_one(pool)
+        .await?;
+
+    let vms: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, name, observed_state FROM vms WHERE host_id = $1 ORDER BY name",
+    )
+    .bind(host_id)
+    .fetch_all(pool)
+    .await?;
+
+    let running: Vec<_> = vms.iter().filter(|(_, _, st)| st == "running").collect();
+    let vm_names: Vec<String> = vms.iter().map(|(_, n, _)| n.clone()).collect();
+
+    let recs = crate::engine::placement::compute_recommendations(pool).await.unwrap_or_default();
+    let dest_hosts: Vec<String> = recs
+        .iter()
+        .filter(|r| r.from_host_id == host_id.to_string())
+        .map(|r| r.to_host_name.clone())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .take(3)
+        .collect();
+
+    let severity = if running.len() >= 5 {
+        "critical"
+    } else if running.is_empty() {
+        "low"
+    } else {
+        "high"
+    };
+
+    let summary = if vm_names.is_empty() {
+        format!("Host {host_name} has no VMs — evacuation is trivial.")
+    } else {
+        format!(
+            "Evacuating host {host_name} requires migrating {} VM(s) ({} running).",
+            vm_names.len(),
+            running.len()
+        )
+    };
+
+    let mut recommendations = vec![
+        "Run live migration during a maintenance window.".into(),
+        "Verify shared storage and network reachability on destination hosts.".into(),
+    ];
+    if !dest_hosts.is_empty() {
+        recommendations.push(format!(
+            "Placement suggests targets: {}.",
+            dest_hosts.join(", ")
+        ));
+    }
+
+    Ok(ImpactAnalysis {
+        action: "migrate".into(),
+        target: format!("host:{host_name}"),
+        severity: severity.into(),
+        summary,
+        affected_vms: vm_names,
+        affected_applications: vec![],
+        storage_risks: vec!["Ensure multipath and pool capacity on destination hosts.".into()],
+        network_notes: vec!["Live migration preserves L2 connectivity on shared bridges.".into()],
+        recommendations,
+    })
+}
+
+async fn network_isolate_impact(pool: &PgPool, target: &str) -> anyhow::Result<ImpactAnalysis> {
+    let network_id = resolve_network(pool, target).await?;
+    let net_name: String = sqlx::query_scalar("SELECT name FROM networks WHERE id = $1")
+        .bind(network_id)
+        .fetch_one(pool)
+        .await?;
+
+    let vms: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT v.name FROM network_reservations nr
+         JOIN vms v ON v.id = nr.vm_id
+         WHERE nr.network_id = $1 ORDER BY v.name",
+    )
+    .bind(network_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let severity = if vms.len() >= 10 {
+        "critical"
+    } else if vms.is_empty() {
+        "low"
+    } else {
+        "high"
+    };
+
+    let summary = if vms.is_empty() {
+        format!("Network {net_name} has no attached VMs in reservations — low blast radius.")
+    } else {
+        format!(
+            "Isolating network {net_name} disrupts connectivity for {} VM(s).",
+            vms.len()
+        )
+    };
+
+    Ok(ImpactAnalysis {
+        action: "isolate".into(),
+        target: format!("network:{net_name}"),
+        severity: severity.into(),
+        summary,
+        affected_vms: vms,
+        affected_applications: vec![],
+        storage_risks: vec![],
+        network_notes: vec![
+            "East-west traffic on this segment stops; verify firewall and routing fallbacks."
+                .into(),
+            "Application groups sharing this network may split-brain.".into(),
+        ],
+        recommendations: vec![
+            "Drain workloads to alternate networks before isolation.".into(),
+            "Update security groups and load balancer backends.".into(),
+        ],
+    })
+}
+
+async fn resolve_network(pool: &PgPool, target: &str) -> anyhow::Result<Uuid> {
+    if let Ok(id) = Uuid::parse_str(target) {
+        return Ok(id);
+    }
+    let id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM networks WHERE name = $1")
+        .bind(target)
+        .fetch_optional(pool)
+        .await?;
+    id.ok_or_else(|| anyhow::anyhow!("network not found: {target}"))
 }
 
 async fn resolve_host(pool: &PgPool, target: &str) -> anyhow::Result<Uuid> {

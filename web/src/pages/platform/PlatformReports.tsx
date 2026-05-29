@@ -5,7 +5,7 @@ import { DollarSign, FolderKanban } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type ComplianceReport, type SecurityReport } from '../../api/ai'
+import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type SecurityReport } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformReports() {
@@ -17,12 +17,13 @@ export default function PlatformReports() {
   const [security, setSecurity] = useState<SecurityReport | null>(null)
   const [compliance, setCompliance] = useState<ComplianceReport | null>(null)
   const [autopilotHistory, setAutopilotHistory] = useState<AutopilotHistoryEntry[]>([])
+  const [attribution, setAttribution] = useState<CostAttributionReport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [p, c, f, costR, capR, secR, compR, hist] = await Promise.all([
+      const [p, c, f, costR, capR, secR, compR, hist, attrR] = await Promise.all([
         listProjects(),
         getCapacityReport(),
         getFinOpsReport(),
@@ -31,6 +32,7 @@ export default function PlatformReports() {
         getAiSecurity().catch(() => null),
         getAiCompliance().catch(() => null),
         getAutopilotHistory(10).catch(() => []),
+        getCostAttribution().catch(() => null),
       ])
       setProjects(p)
       setCap(c)
@@ -40,6 +42,7 @@ export default function PlatformReports() {
       setSecurity(secR)
       setCompliance(compR)
       setAutopilotHistory(hist)
+      setAttribution(attrR)
     } catch (e: unknown) { setError(formatUserError(e)) }
   }, [])
 
@@ -120,6 +123,18 @@ export default function PlatformReports() {
           <a href={getAiCostExportUrl()} className="btn-secondary text-xs inline-flex mt-3" download="machina-cost-guardian.csv">
             Download CFO CSV
           </a>
+        </MacGlassPanel>
+      )}
+      {attribution && attribution.teams.length > 0 && (
+        <MacGlassPanel title="Team cost attribution" subtitle={attribution.summary}>
+          <ul className="text-xs space-y-2 text-slate-400 mt-2">
+            {attribution.teams.slice(0, 8).map((t) => (
+              <li key={t.team} className="flex justify-between gap-2">
+                <span>{t.team} ({t.vm_count} VMs)</span>
+                <span className="text-emerald-300">${t.estimated_monthly_usd.toFixed(0)}/mo · {t.share_pct.toFixed(0)}%</span>
+              </li>
+            ))}
+          </ul>
         </MacGlassPanel>
       )}
       {autopilotHistory.length > 0 && (

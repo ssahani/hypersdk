@@ -95,3 +95,79 @@ pub fn plan_capacity(query: &str) -> BaremetalCapacityPlan {
         ),
     }
 }
+
+#[derive(Debug, Deserialize)]
+pub struct BmcPowerBody {
+    pub action: String,
+    #[serde(default)]
+    pub dry_run: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct BmcPowerResult {
+    pub server_id: String,
+    pub hostname: String,
+    pub action: String,
+    pub previous_state: String,
+    pub new_state: String,
+    pub dry_run: bool,
+    pub summary: String,
+}
+
+pub async fn set_power(
+    pool: &PgPool,
+    id: Uuid,
+    body: &BmcPowerBody,
+) -> anyhow::Result<BmcPowerResult> {
+    let action = body.action.to_lowercase();
+    if !matches!(action.as_str(), "on" | "off" | "cycle" | "reset") {
+        anyhow::bail!("action must be on, off, cycle, or reset");
+    }
+
+    let row: BaremetalServer = sqlx::query_as(
+        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib, created_at
+         FROM baremetal_servers WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?
+    .ok_or_else(|| anyhow::anyhow!("server not found"))?;
+
+    let new_state = match action.as_str() {
+        "on" => "powered_on",
+        "off" => "powered_off",
+        "cycle" | "reset" => "rebooting",
+        _ => unreachable!(),
+    };
+
+    if body.dry_run {
+        return Ok(BmcPowerResult {
+            server_id: id.to_string(),
+            hostname: row.hostname.clone(),
+            action: action.clone(),
+            previous_state: row.state.clone(),
+            new_state: new_state.into(),
+            dry_run: true,
+            summary: format!(
+                "Preview: BMC {} on {} ({}) — would transition {} → {}",
+                action, row.hostname, row.bmc_address, row.state, new_state
+            ),
+        });
+    }
+
+    sqlx::query("UPDATE baremetal_servers SET state = $1 WHERE id = $2")
+        .bind(new_state)
+        .bind(id)
+        .execute(pool)
+        .await?;
+
+    Ok(BmcPowerResult {
+        server_id: id.to_string(),
+        hostname: row.hostname,
+        action,
+        previous_state: row.state,
+        new_state: new_state.into(),
+        dry_run: false,
+        summary: format!("BMC power command applied (preview — no live IPMI/Redfish call)."),
+    })
+}

@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-use axum::extract::State;
+use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 
@@ -39,4 +39,15 @@ pub async fn capacity_plan(
     Json(body): Json<CapacityPlanBody>,
 ) -> Result<Json<baremetal::BaremetalCapacityPlan>, ApiError> {
     Ok(Json(baremetal::plan_capacity(&body.query)))
+}
+
+pub async fn server_power(
+    State(state): State<AppState>,
+    Path(id): Path<uuid::Uuid>,
+    Json(body): Json<baremetal::BmcPowerBody>,
+) -> Result<Json<baremetal::BmcPowerResult>, ApiError> {
+    baremetal::set_power(&state.pool, id, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
 }
