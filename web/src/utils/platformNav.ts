@@ -24,6 +24,7 @@ import {
   Key,
   Cpu,
   GitBranch,
+  ShieldAlert,
 } from 'lucide-react'
 
 export interface PlatformNavItem {
@@ -72,6 +73,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
       { to: '/platform/recommendations', label: 'Recommendations', icon: ic(Workflow) },
       { to: '/platform/blueprints', label: 'Blueprints', icon: ic(Workflow) },
       { to: '/platform/zeus', label: 'Machina Zeus OS', icon: ic(Cpu) },
+      { to: '/platform/zeus/security/firewall', label: 'Zeus Firewall', icon: ic(ShieldAlert) },
       { to: '/platform/topology', label: 'Topology', icon: ic(GitBranch) },
     ],
   },
@@ -107,6 +109,11 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/recommendations': 'Recommendations',
   '/platform/blueprints': 'Blueprints',
   '/platform/zeus': 'Machina Zeus OS',
+  '/platform/zeus/security/firewall': 'Zeus Firewall',
+  '/platform/zeus/security/ports': 'Open Ports',
+  '/platform/zeus/security/services': 'Allowed Apps',
+  '/platform/zeus/security/activity': 'Firewall Activity',
+  '/platform/zeus/security/compliance': 'Firewall Compliance',
   '/platform/topology': 'Topology',
   '/platform/users': 'Users & Access',
   '/platform/projects': 'Workspaces',

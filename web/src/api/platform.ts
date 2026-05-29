@@ -178,6 +178,7 @@ export interface PlatformTemplate {
   featured?: boolean
   marketplace?: boolean
   icon?: string | null
+  firewall_profile?: string | null
 }
 
 export interface PlatformConsoleInfo {

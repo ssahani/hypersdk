@@ -561,4 +561,22 @@ except Exception:
   else
     e2e_platform_fail "POST /api/v1/ai/twin/impact storage drain — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: GUESTKIT (AI-138–141)"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/guestkit/status")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/guestkit/status (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/guestkit/status — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL (AI-142)"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/status")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/zeus-firewall/status (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/zeus-firewall/status — HTTP ${http}"
+  fi
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/overview" "GET /api/v1/zeus-firewall/overview" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/profiles" "GET /api/v1/zeus-firewall/profiles" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/siem/export?hours=24" "GET /api/v1/zeus-firewall/siem/export" || true
 }

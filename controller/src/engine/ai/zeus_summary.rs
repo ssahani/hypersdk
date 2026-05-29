@@ -14,6 +14,7 @@ pub struct ZeusOsSummary {
     pub sre_alerts: usize,
     pub fleet_hotspots: usize,
     pub compliance_grade: String,
+    pub firewall_critical_hosts: usize,
     pub highlights: Vec<String>,
 }
 
@@ -31,8 +32,18 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
     let sre = super::sre_predict::forecast(pool).await?;
     let heat = super::fleet_heatmap::heatmap(pool).await?;
     let compliance = super::compliance::generate(pool).await?;
+    let firewall = super::firewall_remediate::propose(pool).await?;
 
-    let status = if security.risk_level == "high" || sre.forecasts.iter().any(|f| f.severity == "critical") {
+    let firewall_critical = firewall
+        .remediations
+        .iter()
+        .filter(|r| r.risk == "Critical")
+        .count();
+
+    let status = if security.risk_level == "high"
+        || firewall_critical > 0
+        || sre.forecasts.iter().any(|f| f.severity == "critical")
+    {
         "attention"
     } else if heat.hotspots.is_empty() {
         "healthy"
@@ -41,6 +52,11 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
     };
 
     let mut highlights = Vec::new();
+    if firewall_critical > 0 {
+        highlights.push(format!(
+            "{firewall_critical} host(s) with critical firewall exposure"
+        ));
+    }
     if !heat.hotspots.is_empty() {
         highlights.push(format!("{} fleet hotspot(s)", heat.hotspots.len()));
     }
@@ -64,6 +80,7 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
         sre_alerts: sre.forecasts.len(),
         fleet_hotspots: heat.hotspots.len(),
         compliance_grade: compliance.grade,
+        firewall_critical_hosts: firewall_critical,
         highlights,
     })
 }

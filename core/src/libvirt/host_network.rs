@@ -141,25 +141,9 @@ fn detect_network_backend() -> &'static str {
     "ip"
 }
 
-/// Detect the firewall backend.
+/// Detect the firewall backend (delegates to Zeus Firewall module).
 fn detect_firewall_backend() -> &'static str {
-    // Check for ufw (Ubuntu)
-    if let Ok(output) = Command::new(find_bin("ufw")).arg("status").output() {
-        if output.status.success() {
-            return "ufw";
-        }
-    }
-    // Check for firewalld (RHEL/Fedora)
-    if let Ok(output) = Command::new(find_bin("firewall-cmd"))
-        .arg("--state")
-        .output()
-    {
-        if output.status.success() {
-            return "firewalld";
-        }
-    }
-    // Fallback: iptables
-    "iptables"
+    crate::firewall::detect_backend().as_str()
 }
 
 pub fn create_bridge(req: &CreateBridgeRequest) -> Result<(), LibvirtError> {

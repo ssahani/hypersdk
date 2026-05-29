@@ -18,9 +18,33 @@
 | FinOps | Prediction, attribution, chargeback CSV, budget guard |
 | Knowledge | Search, NL diagnose, runbook generation |
 | Bare metal | Inventory, BMC power, PXE provision preview |
+| Guest / migration | GuestKit offline doctor, migrate-plan, worker jobs (LGPL) |
 | Service fabric | Service graph, blast-radius impact |
 
 ---
+
+## API surface (GuestKit / migration)
+
+- `GET /api/v1/guestkit/status` — library version + worker reachability
+- `POST /api/v1/guestkit/doctor` — offline boot probability (`image_path`, `target`)
+- `POST /api/v1/guestkit/migrate-plan` — hypervisor-aware migration score
+- `GET /api/v1/guestkit/vms/{id}/doctor` — resolve VM disk and run doctor
+- `POST /api/v1/guestkit/jobs` — submit inspect job to GuestKit worker
+- `GET /api/v1/migrations/advisor?disk_path=…` — blends heuristic + GuestKit scores
+
+## Zeus Firewall (machine protection)
+
+Zeus Firewall unifies host firewalls (firewalld, UFW, nftables, iptables) and optional PacketWolf traffic intelligence into one macOS-like control center under **Machine Security**.
+
+- `GET /api/v1/zeus-firewall/status` — feature readiness (AI-142)
+- `GET /api/v1/zeus-firewall/overview` — fleet posture cards
+- `GET /api/v1/zeus-firewall/targets/{id}/ports` — open port exposure scanner
+- `POST /api/v1/ai/firewall/secure-plan` — AI safe-machine plan
+- `POST /api/v1/zeus-firewall/targets/{id}/lockdown` — Emergency Isolation
+
+UI: `/platform/zeus/security/firewall` and related Machine Security views.
+
+Daemon: `GET /api/v1/guestkit/status` proxies worker health when `[guestkit]` enabled in `config.toml`.
 
 ## API surface (phase 14)
 

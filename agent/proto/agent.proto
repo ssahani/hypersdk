@@ -29,6 +29,9 @@ service HostAgent {
   rpc AttachDisk(AttachDiskRequest) returns (AttachDiskResponse);
   rpc GetGuestHealth(GetGuestHealthRequest) returns (GetGuestHealthResponse);
   rpc InstallGuestTools(InstallGuestToolsRequest) returns (InstallGuestToolsResponse);
+  rpc GetFirewallInventory(GetFirewallInventoryRequest) returns (GetFirewallInventoryResponse);
+  rpc ApplyFirewallPlan(ApplyFirewallPlanRequest) returns (ApplyFirewallPlanResponse);
+  rpc GetFirewallActivity(GetFirewallActivityRequest) returns (GetFirewallActivityResponse);
 }
 
 message RegisterRequest {
@@ -361,4 +364,33 @@ message InstallGuestToolsRequest {
 message InstallGuestToolsResponse {
   bool ok = 1;
   string message = 2;
+}
+
+message GetFirewallInventoryRequest {}
+
+message GetFirewallInventoryResponse {
+  bool ok = 1;
+  string inventory_json = 2;
+  string message = 3;
+}
+
+message ApplyFirewallPlanRequest {
+  string plan_json = 1;
+  bool dry_run = 2;
+}
+
+message ApplyFirewallPlanResponse {
+  bool ok = 1;
+  string result_json = 2;
+  string message = 3;
+}
+
+message GetFirewallActivityRequest {
+  uint32 hours = 1;
+}
+
+message GetFirewallActivityResponse {
+  bool ok = 1;
+  string activity_json = 2;
+  string message = 3;
 }

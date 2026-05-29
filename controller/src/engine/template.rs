@@ -29,6 +29,34 @@ pub async fn resolve_template_disk(pool: &PgPool, template_ref: &str) -> anyhow:
     Ok(disk)
 }
 
+pub async fn resolve_template_firewall_profile(
+    pool: &PgPool,
+    template_ref: &str,
+) -> anyhow::Result<Option<String>> {
+    let (name, version) = if let Some((n, v)) = template_ref.split_once('@') {
+        (n.to_string(), Some(v.to_string()))
+    } else {
+        (template_ref.to_string(), None)
+    };
+    let profile: Option<String> = if let Some(ver) = version {
+        sqlx::query_scalar(
+            "SELECT firewall_profile FROM templates WHERE name = $1 AND version = $2",
+        )
+        .bind(&name)
+        .bind(&ver)
+        .fetch_optional(pool)
+        .await?
+    } else {
+        sqlx::query_scalar(
+            "SELECT firewall_profile FROM templates WHERE name = $1 ORDER BY created_at DESC LIMIT 1",
+        )
+        .bind(&name)
+        .fetch_optional(pool)
+        .await?
+    };
+    Ok(profile)
+}
+
 pub async fn upsert_ha_policy(
     pool: &PgPool,
     vm_id: Uuid,

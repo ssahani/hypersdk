@@ -37,6 +37,9 @@ export default function PlatformHostDetailPage() {
       {host && (
         <>
           <MacSectionTitle title={host.hostname} subtitle={`${host.validation_status || 'pending'} · ${host.state}${host.fenced ? ' · fenced' : ''}`} />
+          <Link to={`/platform/zeus/security/firewall/${id}`} className="text-sm text-blue-400 inline-flex items-center gap-1">
+            Machine Security → Zeus Firewall
+          </Link>
           {(host.validation_report?.length ?? 0) > 0 && (
             <section className="card p-4 space-y-2">
               <h3 className="font-semibold text-sm">Join validation checklist</h3>

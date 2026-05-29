@@ -164,6 +164,11 @@ export default function PlatformVmDetail() {
                 {vm.ha_enabled ? ' · HA enabled' : ''}
               </p>
             </div>
+            {vm.host_id && (
+              <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className="text-sm text-blue-400 inline-block">
+                Machine Security → Zeus Firewall
+              </Link>
+            )}
             <div className="flex flex-wrap gap-2">
               <button type="button" className="btn-primary" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
               <button type="button" className="btn-secondary" onClick={() => void act('Stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Stop</button>

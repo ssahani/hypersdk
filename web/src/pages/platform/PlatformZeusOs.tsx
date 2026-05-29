@@ -240,6 +240,11 @@ export default function PlatformZeusOs() {
 
       {tab === 'security' && (
         <div className="space-y-4">
+          <MacGlassPanel title="Zeus Firewall" subtitle="Machine protection — open ports, profiles, lockdown">
+            <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 hover:underline">
+              Open Machine Security → Zeus Firewall
+            </Link>
+          </MacGlassPanel>
           <MacGlassPanel title="Attack path discovery" subtitle="Example: attacker → db-prod">
             <p className="text-sm text-slate-300">{attackSummary ?? 'Loading…'}</p>
             <p className="text-xs text-slate-500 mt-2">Use Spotlight: &quot;show attack path to database VM&quot;</p>

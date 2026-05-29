@@ -159,6 +159,43 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("firewall") || ql.contains("open port") || ql.contains("machine shield") {
+        intents.push(intent(
+            "zeus-firewall",
+            "Zeus Firewall",
+            "Fleet machine protection — open ports, profiles, lockdown.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
+    if (ql.contains("secure") && (ql.contains("machine") || ql.contains("vm") || ql.contains("host")))
+        || ql.contains("lock down") || ql.contains("lockdown")
+    {
+        intents.push(intent(
+            "zeus-secure",
+            "Secure this machine",
+            "AI firewall plan with safe defaults and rollback.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
+    if ql.contains("exposed") || (ql.contains("port") && ql.contains("5432"))
+        || (ql.contains("database") && ql.contains("public"))
+    {
+        intents.push(intent(
+            "zeus-exposure",
+            "Open port exposure",
+            "Scan fleet for critical database and SSH exposure.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/ports".into()),
+            None,
+        ));
+    }
     if ql.contains("reach") || (ql.contains("can't") && ql.contains("connect")) || ql.contains("network path") {
         intents.push(intent(
             "network-lens",
@@ -394,6 +431,18 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "navigate",
             None,
             Some("/mission-control".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("migrate") && (ql.contains("doctor") || ql.contains("boot") || ql.contains("assurance")) {
+        intents.push(intent(
+            "guestkit-doctor",
+            "GuestKit migration doctor",
+            "Offline boot probability before cutover (qcow2/vmdk).",
+            "navigate",
+            None,
+            Some("/platform/migration".into()),
             None,
         ));
     }

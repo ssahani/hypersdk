@@ -15,6 +15,8 @@ mod enrollment;
 mod error;
 mod events;
 mod fence;
+mod guestkit;
+mod zeus_firewall;
 mod ha;
 mod health;
 mod health_check;
@@ -143,6 +145,36 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/terminal/suggest", post(ai::terminal_suggest))
         .route("/api/v1/ai/network/explain", post(ai::network_explain))
         .route("/api/v1/migrations/advisor", get(ai::migration_advisor))
+        .route("/api/v1/guestkit/status", get(guestkit::guestkit_status))
+        .route("/api/v1/guestkit/doctor", post(guestkit::guestkit_doctor))
+        .route("/api/v1/guestkit/migrate-plan", post(guestkit::guestkit_migrate_plan))
+        .route("/api/v1/guestkit/vms/{id}/doctor", get(guestkit::guestkit_vm_doctor))
+        .route("/api/v1/guestkit/jobs", post(guestkit::guestkit_submit_job))
+        .route("/api/v1/guestkit/jobs/{id}", get(guestkit::guestkit_job_status))
+        .route("/api/v1/zeus-firewall/status", get(zeus_firewall::status))
+        .route("/api/v1/zeus-firewall/overview", get(zeus_firewall::overview))
+        .route("/api/v1/zeus-firewall/profiles", get(zeus_firewall::list_profiles))
+        .route("/api/v1/zeus-firewall/policies", get(zeus_firewall::list_policies).post(zeus_firewall::create_policy))
+        .route("/api/v1/zeus-firewall/temporary-rules", post(zeus_firewall::create_temporary_rule))
+        .route("/api/v1/zeus-firewall/simulate", post(zeus_firewall::simulate))
+        .route("/api/v1/zeus-firewall/approvals", post(zeus_firewall::request_risky_change))
+        .route("/api/v1/zeus-firewall/compliance/{kind}", get(zeus_firewall::compliance_report))
+        .route("/api/v1/zeus-firewall/siem/export", get(zeus_firewall::siem_export))
+        .route("/api/v1/zeus-firewall/targets/{id}", get(zeus_firewall::get_target))
+        .route("/api/v1/zeus-firewall/targets/{id}/ports", get(zeus_firewall::get_ports))
+        .route("/api/v1/zeus-firewall/targets/{id}/services", get(zeus_firewall::get_services))
+        .route("/api/v1/zeus-firewall/targets/{id}/score", get(zeus_firewall::get_score))
+        .route("/api/v1/zeus-firewall/targets/{id}/plan", post(zeus_firewall::plan_target))
+        .route("/api/v1/zeus-firewall/targets/{id}/apply", post(zeus_firewall::apply_target))
+        .route("/api/v1/zeus-firewall/targets/{id}/timeline", get(zeus_firewall::get_timeline))
+        .route("/api/v1/zeus-firewall/targets/{id}/drift", get(zeus_firewall::detect_drift))
+        .route("/api/v1/zeus-firewall/targets/{id}/activity", get(zeus_firewall::get_activity))
+        .route("/api/v1/zeus-firewall/targets/{id}/lockdown", post(zeus_firewall::lockdown))
+        .route("/api/v1/zeus-firewall/targets/{id}/profile", post(zeus_firewall::apply_profile))
+        .route("/api/v1/zeus-firewall/targets/{id}/checkpoints", get(zeus_firewall::list_checkpoints))
+        .route("/api/v1/zeus-firewall/targets/{id}/rollback", post(zeus_firewall::rollback))
+        .route("/api/v1/ai/firewall/explain", post(zeus_firewall::ai_explain))
+        .route("/api/v1/ai/firewall/secure-plan", post(zeus_firewall::ai_secure_plan))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(

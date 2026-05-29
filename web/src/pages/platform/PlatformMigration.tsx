@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play } from 'lucide-react'
 import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration } from '../../api/hypersdk'
+import { getGuestkitStatus, guestkitDoctor } from '../../api/guestkit'
 import { getMigrationAdvisor, type MigrationAdvisorReport } from '../../api/ai'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -25,6 +26,10 @@ export default function PlatformMigration() {
   const { info } = usePlatformInfo()
   const toast = useToastContext()
   const hypersdk = Boolean(info?.hypersdk?.enabled)
+  const guestkit = Boolean(info?.guestkit?.enabled)
+  const [gkStatus, setGkStatus] = useState<Awaited<ReturnType<typeof getGuestkitStatus>> | null>(null)
+  const [diskPath, setDiskPath] = useState('')
+  const [gkSummary, setGkSummary] = useState<string | null>(null)
   const [status, setStatus] = useState<{ reachable?: boolean } | null>(null)
   const [scan, setScan] = useState<ScanVm[]>([])
   const [loading, setLoading] = useState(false)
@@ -39,7 +44,7 @@ export default function PlatformMigration() {
       const list = await Promise.all((vms.vms ?? []).slice(0, 10).map(async (v) => {
         let advisor: MigrationAdvisorReport | undefined
         try {
-          advisor = await getMigrationAdvisor(v.name, p, undefined)
+          advisor = await getMigrationAdvisor(v.name, p, undefined, diskPath.trim() || undefined)
         } catch { /* optional */ }
         return {
           name: v.name,
@@ -76,6 +81,12 @@ export default function PlatformMigration() {
   }
 
   useEffect(() => {
+    if (guestkit) {
+      void getGuestkitStatus().then(setGkStatus).catch(() => {})
+    }
+  }, [guestkit])
+
+  useEffect(() => {
     if (!hypersdk) return
     void (async () => {
       try {
@@ -89,7 +100,35 @@ export default function PlatformMigration() {
 
   return (
     <div className="space-y-8 max-w-4xl animate-fade-in">
-      <MacSectionTitle title="Migration Radar" subtitle="Machina Migration Radar — VMware/HyperSDK readiness advisor." />
+      <MacSectionTitle title="Migration Radar" subtitle="Machina Migration Radar — HyperSDK scan + GuestKit offline assurance." />
+
+      {guestkit && gkStatus && (
+        <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm text-orange-100 space-y-2">
+          <p>GuestKit {gkStatus.library_version ?? 'linked'} — {gkStatus.summary}</p>
+          <div className="flex flex-wrap gap-2 items-end">
+            <label className="block flex-1 min-w-[14rem]">
+              <span className="text-xs text-orange-200/70">Offline disk path (qcow2/vmdk)</span>
+              <input className="input text-sm mt-1 w-full" placeholder="/var/lib/libvirt/images/vm.qcow2" value={diskPath} onChange={(e) => setDiskPath(e.target.value)} />
+            </label>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              disabled={!diskPath.trim()}
+              onClick={async () => {
+                try {
+                  const r = await guestkitDoctor(diskPath.trim(), 'kvm', true)
+                  setGkSummary(`${r.boot_score.toFixed(0)}% boot · ${r.summary}`)
+                } catch (e: unknown) {
+                  setGkSummary(e instanceof Error ? e.message : 'GuestKit doctor failed')
+                }
+              }}
+            >
+              GuestKit doctor
+            </button>
+          </div>
+          {gkSummary && <p className="text-xs text-orange-200/80">{gkSummary}</p>}
+        </div>
+      )}
 
       {hypersdk && status?.reachable && (
         <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
@@ -128,6 +167,12 @@ export default function PlatformMigration() {
                   {vm.advisor && (
                     <div className="mt-2 text-xs space-y-1">
                       <p className="text-slate-400">Readiness: <span className="text-emerald-300">{vm.advisor.readiness_percent}%</span></p>
+                      {vm.advisor.guestkit_summary && (
+                        <p className="text-orange-200/90">GuestKit: {vm.advisor.guestkit_summary}</p>
+                      )}
+                      {vm.advisor.firewall_migration_summary && (
+                        <p className="text-blue-200/90">Firewall: {vm.advisor.firewall_migration_summary}</p>
+                      )}
                       {vm.advisor.risks.length > 0 && (
                         <ul className="text-amber-300/90 list-disc pl-4">{vm.advisor.risks.slice(0, 3).map((r, i) => <li key={i}>{r}</li>)}</ul>
                       )}

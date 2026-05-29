@@ -15,6 +15,19 @@ struct CatalogTemplate {
     icon: &'static str,
 }
 
+fn catalog_firewall_profile(t: &CatalogTemplate) -> &'static str {
+    match t.category {
+        "Database" => "DatabaseServer",
+        "Windows" => "ManagementNode",
+        "Appliance" if t.name.contains("nginx") => "WebServer",
+        "Appliance" => "LockedDown",
+        _ if t.name.contains("rocky") || t.name.contains("alma") || t.name.contains("centos") => {
+            "ProductionServer"
+        }
+        _ => "WebServer",
+    }
+}
+
 const CATALOG: &[CatalogTemplate] = &[
     CatalogTemplate {
         name: "ubuntu-24.04",
@@ -198,10 +211,11 @@ const CATALOG: &[CatalogTemplate] = &[
 pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
     let mut inserted = 0usize;
     for t in CATALOG {
+        let fw = catalog_firewall_profile(t);
         let result = sqlx::query(
-            "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10)
-             ON CONFLICT (name, version) DO NOTHING",
+            "INSERT INTO templates (id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon, firewall_profile)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE, $10, $11)
+             ON CONFLICT (name, version) DO UPDATE SET firewall_profile = EXCLUDED.firewall_profile",
         )
         .bind(Uuid::new_v4())
         .bind(t.name)
@@ -213,6 +227,7 @@ pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
         .bind(t.description)
         .bind(t.featured)
         .bind(t.icon)
+        .bind(fw)
         .execute(pool)
         .await?;
         if result.rows_affected() > 0 {

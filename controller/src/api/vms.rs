@@ -243,6 +243,21 @@ pub async fn create_vm(
     .execute(&state.pool)
     .await?;
 
+    if let Some(net) = body.vm.spec.network.first() {
+        if let Some(profile) = &net.firewall_profile {
+            let _ = sqlx::query(
+                "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
+                 VALUES ('vm', $1, 'profile_requested', $2, $3, $4)",
+            )
+            .bind(vm_id)
+            .bind(format!("VM network requests firewall profile {profile}"))
+            .bind(serde_json::json!({ "profile": profile, "host_id": host_id.to_string(), "network": net.network }))
+            .bind(&actor.username)
+            .execute(&state.pool)
+            .await;
+        }
+    }
+
     Ok(Json(TaskResponse {
         task_id: task_id.to_string(),
         status: "pending".into(),
@@ -292,6 +307,14 @@ pub async fn create_from_template(
             password: body.cloud_init_password.clone(),
             ssh_pubkey: body.cloud_init_ssh_pubkey.clone(),
         });
+    }
+    if let Ok(Some(profile)) =
+        crate::engine::template::resolve_template_firewall_profile(&state.pool, &body.template_ref)
+            .await
+    {
+        if let Some(net) = vm.spec.network.first_mut() {
+            net.firewall_profile = Some(profile);
+        }
     }
     let create_body = CreateVmBody {
         vm,

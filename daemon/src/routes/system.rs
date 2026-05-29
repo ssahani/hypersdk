@@ -284,6 +284,20 @@ async fn platform_info() -> Json<serde_json::Value> {
             "base_url": cfg.hypersdk.base_url,
             "insecure_tls": cfg.hypersdk.insecure_tls,
         },
+        "guestkit": {
+            "enabled": cfg.guestkit.enabled,
+            "base_url": cfg.guestkit.base_url,
+            "insecure_tls": cfg.guestkit.insecure_tls,
+        },
+        "packetwolf": {
+            "enabled": cfg.packetwolf.enabled,
+            "base_url": cfg.packetwolf.base_url,
+            "insecure_tls": cfg.packetwolf.insecure_tls,
+        },
+        "zeus_firewall": {
+            "enabled": true,
+            "phase": 1,
+        },
         "control_plane": {
             "proxy_url": "/api/v1/platform/controller",
             "direct_url": std::env::var("MACHINA_PLATFORM_CONTROLLER_URL")

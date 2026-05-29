@@ -24,6 +24,7 @@ pub struct TemplateRow {
     pub featured: bool,
     pub marketplace: bool,
     pub icon: Option<String>,
+    pub firewall_profile: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -62,7 +63,7 @@ fn default_marketplace() -> bool {
 }
 
 const TEMPLATE_SELECT: &str =
-    "SELECT id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon FROM templates";
+    "SELECT id, name, version, source_disk, cloud_init, os_family, category, description, featured, marketplace, icon, firewall_profile FROM templates";
 
 pub async fn list_templates(
     State(state): State<AppState>,

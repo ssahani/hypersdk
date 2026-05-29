@@ -747,4 +747,88 @@ impl HostAgent for AgentService {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
+
+    async fn get_firewall_inventory(
+        &self,
+        _request: Request<GetFirewallInventoryRequest>,
+    ) -> Result<Response<GetFirewallInventoryResponse>, Status> {
+        let hostname = self.state.read().await.hostname.clone();
+        match tokio::task::spawn_blocking(move || {
+            machina_core::gather_firewall_inventory(&hostname)
+        })
+        .await
+        {
+            Ok(Ok(inv)) => {
+                let json = serde_json::to_string(&inv).unwrap_or_else(|_| "{}".into());
+                Ok(Response::new(GetFirewallInventoryResponse {
+                    ok: true,
+                    inventory_json: json,
+                    message: String::new(),
+                }))
+            }
+            Ok(Err(e)) => Ok(Response::new(GetFirewallInventoryResponse {
+                ok: false,
+                inventory_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn apply_firewall_plan(
+        &self,
+        request: Request<ApplyFirewallPlanRequest>,
+    ) -> Result<Response<ApplyFirewallPlanResponse>, Status> {
+        let req = request.into_inner();
+        let hostname = self.state.read().await.hostname.clone();
+        let plan: machina_core::FirewallPlanRequest =
+            serde_json::from_str(&req.plan_json).unwrap_or(machina_core::FirewallPlanRequest {
+                profile: None,
+                enable: None,
+                stealth_level: None,
+                preset: None,
+                dry_run: req.dry_run,
+            });
+        let mut plan_req = plan;
+        plan_req.dry_run = req.dry_run;
+        match tokio::task::spawn_blocking(move || {
+            machina_core::apply_plan(&hostname, &plan_req)
+        })
+        .await
+        {
+            Ok(Ok(result)) => {
+                let json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".into());
+                Ok(Response::new(ApplyFirewallPlanResponse {
+                    ok: true,
+                    result_json: json,
+                    message: String::new(),
+                }))
+            }
+            Ok(Err(e)) => Ok(Response::new(ApplyFirewallPlanResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_firewall_activity(
+        &self,
+        _request: Request<GetFirewallActivityRequest>,
+    ) -> Result<Response<GetFirewallActivityResponse>, Status> {
+        let activity = serde_json::json!({
+            "blocked_today": 0,
+            "allowed_today": 0,
+            "suspicious_scans": 0,
+            "new_open_ports": 0,
+            "events": [],
+            "note": "PacketWolf integration provides live activity when enabled"
+        });
+        Ok(Response::new(GetFirewallActivityResponse {
+            ok: true,
+            activity_json: activity.to_string(),
+            message: String::new(),
+        }))
+    }
 }

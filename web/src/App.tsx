@@ -124,6 +124,12 @@ const PlatformApplications = lazy(() => import('./pages/platform/PlatformApplica
 const PlatformBackups = lazy(() => import('./pages/platform/PlatformBackups'))
 const PlatformTopology = lazy(() => import('./pages/platform/PlatformTopology'))
 const PlatformZeusOs = lazy(() => import('./pages/platform/PlatformZeusOs'))
+const PlatformFirewallOverview = lazy(() => import('./pages/platform/security/PlatformFirewallOverview'))
+const PlatformFirewallTargetDetail = lazy(() => import('./pages/platform/security/PlatformFirewallTargetDetail'))
+const PlatformFirewallPorts = lazy(() => import('./pages/platform/security/PlatformFirewallPorts'))
+const PlatformFirewallServices = lazy(() => import('./pages/platform/security/PlatformFirewallServices'))
+const PlatformFirewallActivity = lazy(() => import('./pages/platform/security/PlatformFirewallActivity'))
+const PlatformFirewallCompliance = lazy(() => import('./pages/platform/security/PlatformFirewallCompliance'))
 const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
@@ -287,6 +293,12 @@ function AuthenticatedShell() {
                   <Route path="recommendations" element={<PlatformRecommendations />} />
                   <Route path="topology" element={<PlatformTopology />} />
                   <Route path="zeus" element={<PlatformZeusOs />} />
+                  <Route path="zeus/security/firewall" element={<PlatformFirewallOverview />} />
+                  <Route path="zeus/security/firewall/:id" element={<PlatformFirewallTargetDetail />} />
+                  <Route path="zeus/security/ports" element={<PlatformFirewallPorts />} />
+                  <Route path="zeus/security/services" element={<PlatformFirewallServices />} />
+                  <Route path="zeus/security/activity" element={<PlatformFirewallActivity />} />
+                  <Route path="zeus/security/compliance" element={<PlatformFirewallCompliance />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />

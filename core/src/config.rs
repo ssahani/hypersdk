@@ -36,6 +36,12 @@ pub struct MachinaConfig {
     /// Optional HyperSDK hypervisord proxy (`/api/v1/hypersdk/*`).
     #[serde(default)]
     pub hypersdk: HypersdkConfig,
+    /// Optional GuestKit worker proxy (`/api/v1/guestkit/*`) for offline disk assurance jobs.
+    #[serde(default)]
+    pub guestkit: GuestkitConfig,
+    /// Optional PacketWolf traffic intelligence proxy for Zeus Firewall activity views.
+    #[serde(default)]
+    pub packetwolf: PacketwolfConfig,
     /// Periodic snapshots of host hardware inventory (JSON Lines under `/var/lib/machina/hardware-inventory.jsonl`).
     #[serde(default)]
     pub inventory_history: InventoryHistoryConfig,
@@ -504,6 +510,53 @@ impl Default for HypersdkConfig {
             insecure_tls: default_hypersdk_insecure_tls(),
         }
     }
+}
+
+/// Proxy settings for GuestKit worker (distributed offline disk jobs on :8080 by default).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GuestkitConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_guestkit_base_url")]
+    pub base_url: String,
+    #[serde(default = "default_guestkit_insecure_tls")]
+    pub insecure_tls: bool,
+}
+
+fn default_guestkit_base_url() -> String {
+    "http://127.0.0.1:8080".into()
+}
+
+fn default_guestkit_insecure_tls() -> bool {
+    true
+}
+
+impl Default for GuestkitConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: default_guestkit_base_url(),
+            insecure_tls: default_guestkit_insecure_tls(),
+        }
+    }
+}
+
+#[derive(Debug, Default, Serialize, Deserialize)]
+pub struct PacketwolfConfig {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_packetwolf_base_url")]
+    pub base_url: String,
+    #[serde(default = "default_packetwolf_insecure_tls")]
+    pub insecure_tls: bool,
+}
+
+fn default_packetwolf_base_url() -> String {
+    "http://127.0.0.1:9091".into()
+}
+
+fn default_packetwolf_insecure_tls() -> bool {
+    true
 }
 
 impl Default for OpenStackConfig {

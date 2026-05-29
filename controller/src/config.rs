@@ -18,6 +18,12 @@ pub struct ControllerConfig {
     pub controller_id: String,
     pub public_base_url: String,
     pub web_base_url: String,
+    pub guestkit_enabled: bool,
+    pub guestkit_worker_url: String,
+    pub guestkit_insecure_tls: bool,
+    pub packetwolf_enabled: bool,
+    pub packetwolf_base_url: String,
+    pub packetwolf_insecure_tls: bool,
 }
 
 impl Default for ControllerConfig {
@@ -45,6 +51,22 @@ impl Default for ControllerConfig {
                 .unwrap_or_else(|_| "http://127.0.0.1:5093".into()),
             web_base_url: std::env::var("MACHINA_WEB_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:5173".into()),
+            guestkit_enabled: std::env::var("GUESTKIT_ENABLED")
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                .unwrap_or(true),
+            guestkit_worker_url: std::env::var("GUESTKIT_WORKER_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:8080".into()),
+            guestkit_insecure_tls: std::env::var("GUESTKIT_INSECURE_TLS")
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                .unwrap_or(true),
+            packetwolf_enabled: std::env::var("PACKETWOLF_ENABLED")
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                .unwrap_or(false),
+            packetwolf_base_url: std::env::var("PACKETWOLF_BASE_URL")
+                .unwrap_or_else(|_| "http://127.0.0.1:9091".into()),
+            packetwolf_insecure_tls: std::env::var("PACKETWOLF_INSECURE_TLS")
+                .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
+                .unwrap_or(true),
         }
     }
 }

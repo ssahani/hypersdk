@@ -257,6 +257,8 @@ pub mod infrastructure_memory;
 pub mod mission_stack;
 pub mod cost_attribution;
 pub mod compliance_frameworks;
+pub mod firewall;
+pub mod firewall_remediate;
 pub mod fleet_placement;
 pub mod knowledge_diagnose;
 pub mod service_impact;

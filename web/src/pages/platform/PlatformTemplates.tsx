@@ -326,6 +326,9 @@ function MarketplaceCard({ template: t, onDeploy }: { template: PlatformTemplate
         </div>
       </div>
       <p className="text-xs text-slate-400 mt-3 flex-1 leading-relaxed line-clamp-3">{t.description || 'Ready-to-deploy golden image.'}</p>
+      {t.firewall_profile && (
+        <p className="text-[10px] text-blue-300/90 mt-2">Zeus Firewall: {t.firewall_profile}</p>
+      )}
       <button type="button" className="btn-primary text-xs mt-4 w-full" onClick={onDeploy}>
         Get · Deploy VM
       </button>

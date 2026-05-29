@@ -24,17 +24,31 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
     let sre = super::sre_remediate::propose(pool).await?;
     let compliance = super::compliance_remediate::propose(pool).await?;
     let power = super::fleet_power::optimize(pool).await?;
+    let firewall = super::firewall_remediate::propose(pool).await?;
 
     let mut items = Vec::new();
 
     let sre_count = sre.remediations.len();
     let compliance_count = compliance.remediations.len();
     let power_count = power.optimizations.len().min(5);
+    let firewall_count = firewall.remediations.len();
 
     for r in sre.remediations {
         items.push(RemediationItem {
             id: r.id,
             source: "sre".into(),
+            label: r.label,
+            review: r.review,
+            action: r.action,
+            priority: r.priority,
+            risk: r.risk,
+        });
+    }
+
+    for r in firewall.remediations {
+        items.push(RemediationItem {
+            id: r.id,
+            source: "firewall".into(),
             label: r.label,
             review: r.review,
             action: r.action,
@@ -70,12 +84,13 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
     items.sort_by_key(|i| i.priority);
 
     let summary = if items.is_empty() {
-        "Remediation hub clear — no open SRE, compliance, or fleet actions.".into()
+        "Remediation hub clear — no open SRE, compliance, firewall, or fleet actions.".into()
     } else {
         format!(
-            "{} unified remediation(s): {} SRE · {} compliance · {} fleet",
+            "{} unified remediation(s): {} SRE · {} firewall · {} compliance · {} fleet",
             items.len(),
             sre_count,
+            firewall_count,
             compliance_count,
             power_count
         )

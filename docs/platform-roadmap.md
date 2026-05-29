@@ -214,3 +214,27 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-135 | Phase 14 UI — hub, runbook, budget, stack status, Zeus strip |
 | AI-136 | Phase 14 Spotlight intents |
 | AI-137 | Phase 14 E2E + docs |
+| AI-138 | GuestKit library bridge — doctor + migrate-plan on disk images |
+| AI-139 | GuestKit worker job submit + daemon proxy |
+| AI-140 | Migration Radar UI — offline assurance strip |
+| AI-141 | GuestKit E2E + deploy rsync sibling repo |
+| AI-142 | Zeus Firewall core adapters (firewalld/ufw/nftables/iptables) |
+| AI-143 | Agent GetFirewallInventory + open port scan |
+| AI-144 | Controller zeus-firewall overview/ports/score APIs |
+| AI-145 | Zeus OS Machine Security UI (read-only) |
+| AI-146 | Profile apply + diff/checkpoint rollback |
+| AI-147 | Temporary rules + expiry worker |
+| AI-148 | Firewall timeline + audit integration |
+| AI-149 | VM `firewall_profile` template wiring |
+| AI-150 | AI explain + secure-machine plan |
+| AI-151 | Simulation + drift detection |
+| AI-152 | Stealth mode + Emergency lockdown |
+| AI-153 | K8s NetworkPolicy + Cilium read adapters |
+| AI-154 | PacketWolf bridge + activity UI |
+| AI-155 | Traffic-rule correlation recommendations |
+| AI-156 | Migration advisor firewall dependencies |
+| AI-157 | Risky change approval workflow |
+| AI-158 | MachineFirewallPolicy GitOps export/sync |
+| AI-159 | Compliance reports (production, SSH, DB, drift) |
+| AI-160 | SIEM export hooks on firewall timeline |
+| AI-161 | Template firewall profiles + remediate hub firewall items |

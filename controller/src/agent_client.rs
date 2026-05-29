@@ -439,3 +439,47 @@ pub async fn install_guest_tools(
         anyhow::bail!(resp.message)
     }
 }
+
+pub async fn get_firewall_inventory(addr: &str) -> anyhow::Result<machina_core::FirewallInventory> {
+    let mut client = connect(addr).await?;
+    let resp = client.get_firewall_inventory(GetFirewallInventoryRequest {}).await?.into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.inventory_json).map_err(|e| anyhow::anyhow!("inventory json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn apply_firewall_plan(
+    addr: &str,
+    req: &machina_core::FirewallPlanRequest,
+    dry_run: bool,
+) -> anyhow::Result<machina_core::FirewallPlanResult> {
+    let mut client = connect(addr).await?;
+    let plan_json = serde_json::to_string(req)?;
+    let resp = client
+        .apply_firewall_plan(ApplyFirewallPlanRequest {
+            plan_json,
+            dry_run,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("plan json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn get_firewall_activity(addr: &str, hours: u32) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_firewall_activity(GetFirewallActivityRequest { hours })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.activity_json).map_err(|e| anyhow::anyhow!("activity json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}

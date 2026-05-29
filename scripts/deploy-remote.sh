@@ -400,6 +400,19 @@ rsync_r \
     "$REPO/" "$REMOTE:$REMOTE_DIR/" || die "rsync failed"
 ok "Sources synced → ${REMOTE}:${REMOTE_DIR}"
 
+GUESTKIT_SRC="$(cd "$REPO/.." && pwd)/guestkit"
+GUESTKIT_REMOTE="$(dirname "$REMOTE_DIR")/guestkit"
+if [[ -f "$GUESTKIT_SRC/Cargo.toml" ]]; then
+    tip "Syncing sibling GuestKit repo for controller path dependency"
+    ssh_r_bash "$REMOTE" "mkdir -p $(dirname "$REMOTE_DIR")/guestkit"
+    rsync_r \
+        --exclude='target/' --exclude='.git/' \
+        "$GUESTKIT_SRC/" "$REMOTE:$GUESTKIT_REMOTE/" || warn "guestkit rsync failed (controller build may fail)"
+    ok "GuestKit synced → ${REMOTE}:${GUESTKIT_REMOTE}"
+else
+    warn "No sibling ../guestkit — ensure path ../../guestkit exists on remote for controller build"
+fi
+
 # If a previous run left root-owned files under the tree (e.g. interrupted sudo), cargo fails with EACCES.
 phase 2 "$TOTAL_STEPS" "Ensure deploy tree is writable" "sudo chown → SSH user (idempotent)"
 ssh_r_bash "$REMOTE" "cd $REMOTE_DIR && sudo chown -R \"\$(id -un):\$(id -gn)\" ." || warn "chown deploy tree failed (non-fatal if you are not sudo-capable)"

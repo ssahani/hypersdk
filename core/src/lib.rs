@@ -17,6 +17,7 @@ pub mod otlp;
 pub mod run_as_user;
 pub mod build_precheck;
 pub mod config;
+pub mod firewall;
 pub mod fmt;
 pub mod host_inventory;
 pub mod metrics_history;
@@ -50,9 +51,15 @@ pub use observability_settings::{
     MetricsHistoryRemoteView, ObservabilitySettingsPatch, ObservabilitySettingsView,
     OtlpSettingsView,
 };
+pub use firewall::{
+    apply_plan, compile_profile_plan, compute_diff, compute_firewall_score, detect_backend,
+    gather_firewall_inventory, builtin_profiles, profile_by_name, FirewallBackend, FirewallInventory,
+    FirewallPlanRequest, FirewallPlanResult, FirewallPosture, FirewallProfile, FirewallRule as ZeusFirewallRule,
+    FirewallScore, OpenPort, StealthLevel,
+};
 pub use config::{
-    AuthConfig, FleetConfig, FleetPeer, HypersdkConfig, KubeVirtConfig, LdapConfig, MachinaConfig,
-    OpenStackConfig, OidcConfig, OidcDefaultRole, RunAsUserConfig, SshTerminalConfig,
+    AuthConfig, FleetConfig, FleetPeer, GuestkitConfig, HypersdkConfig, KubeVirtConfig, LdapConfig, MachinaConfig,
+    OpenStackConfig, OidcConfig, OidcDefaultRole, PacketwolfConfig, RunAsUserConfig, SshTerminalConfig,
     SshTerminalTarget, VmCreateBackend, DEFAULT_DAEMON_PORT,
 };
 pub use kubevirt::{

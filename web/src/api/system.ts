@@ -124,6 +124,20 @@ export interface PlatformInfo {
     base_url: string
     insecure_tls: boolean
   }
+  guestkit?: {
+    enabled: boolean
+    base_url: string
+    insecure_tls: boolean
+  }
+  packetwolf?: {
+    enabled: boolean
+    base_url: string
+    insecure_tls: boolean
+  }
+  zeus_firewall?: {
+    enabled: boolean
+    phase: number
+  }
   control_plane?: {
     proxy_url: string
     direct_url: string

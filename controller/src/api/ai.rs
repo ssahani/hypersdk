@@ -255,23 +255,101 @@ pub struct MigrationAdvisorQuery {
     pub provider: Option<String>,
     pub vm: String,
     pub os: Option<String>,
+    pub disk_path: Option<String>,
+    pub host_id: Option<String>,
     #[serde(default)]
     pub has_rdm: bool,
 }
 
 pub async fn migration_advisor(
+    State(state): State<AppState>,
     Query(q): Query<MigrationAdvisorQuery>,
 ) -> Result<Json<ai::migration::MigrationAdvisorReport>, ApiError> {
     let provider = q.provider.as_deref().unwrap_or("vmware");
-    if provider == "vmware" {
-        Ok(Json(ai::migration::advise_vmware_vm(
+    let mut report = if provider == "vmware" {
+        ai::migration::advise_vmware_vm(
             &q.vm,
             q.os.as_deref().unwrap_or("linux"),
             q.has_rdm,
-        )))
+        )
     } else {
-        Ok(Json(ai::migration::advise_vmware_vm(&q.vm, "linux", false)))
+        ai::migration::advise_vmware_vm(&q.vm, "linux", false)
+    };
+
+    if let Some(disk_path) = q.disk_path.filter(|p| !p.is_empty()) {
+        if state.config.guestkit_enabled {
+            if let Ok(plan) = crate::engine::guestkit_bridge::migrate_plan_disk(
+                &state.config,
+                &disk_path,
+                "kvm",
+            )
+            .await
+            {
+                if let Ok(doc) = crate::engine::guestkit_bridge::doctor_disk(
+                    &state.config,
+                    &disk_path,
+                    "kvm",
+                    false,
+                )
+                .await
+                {
+                    report = ai::migration::merge_guestkit(
+                        report,
+                        doc.boot_score,
+                        plan.migration_score,
+                        &doc.blockers,
+                        &doc.warnings,
+                        &plan.summary,
+                    );
+                }
+            }
+        }
     }
+
+    if let Some(host_id) = q.host_id.filter(|p| !p.is_empty()) {
+        if let Ok(detail) =
+            crate::engine::zeus_firewall::target_detail(&state.pool, &state.config, &host_id).await
+        {
+            let deps: Vec<String> = detail
+                .inventory
+                .open_ports
+                .iter()
+                .map(|p| format!("{}:{}", p.service_name, p.port))
+                .collect();
+            report = ai::migration::merge_firewall_migration(report, deps);
+        }
+    } else {
+        let inferred = infer_migration_firewall_deps(&q.vm, q.os.as_deref().unwrap_or("linux"));
+        if !inferred.is_empty() {
+            report = ai::migration::merge_firewall_migration(report, inferred);
+        }
+    }
+
+    Ok(Json(report))
+}
+
+fn infer_migration_firewall_deps(vm: &str, os: &str) -> Vec<String> {
+    let vm_l = vm.to_lowercase();
+    let mut deps = vec!["ssh:22".into()];
+    if vm_l.contains("db") || vm_l.contains("postgres") || vm_l.contains("mysql") {
+        deps.push("postgresql:5432".into());
+        deps.push("mysql:3306".into());
+    }
+    if vm_l.contains("web") || vm_l.contains("nginx") || vm_l.contains("apache") {
+        deps.push("http:80".into());
+        deps.push("https:443".into());
+    }
+    if vm_l.contains("ldap") || vm_l.contains("ad") {
+        deps.push("ldap:389".into());
+    }
+    if vm_l.contains("erp") || vm_l.contains("oracle") {
+        deps.push("oracle:1521".into());
+        deps.push("smtp:25".into());
+    }
+    if os.to_lowercase().contains("windows") {
+        deps.push("rdp:3389".into());
+    }
+    deps
 }
 
 pub async fn vm_doctor(

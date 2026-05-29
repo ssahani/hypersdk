@@ -64,6 +64,11 @@ export interface MigrationAdvisorReport {
   risks: string[]
   recommended_target: Record<string, unknown>
   remediation: string[]
+  guestkit_boot_score?: number
+  guestkit_migration_score?: number
+  guestkit_summary?: string
+  firewall_dependencies?: string[]
+  firewall_migration_summary?: string
 }
 
 export interface CostAnalysis {
@@ -182,9 +187,10 @@ export const getAiSecurity = () => platformFetch<SecurityReport>('/api/v1/ai/sec
 
 export const getVmDoctor = (vmId: string) => platformFetch<VmDoctorReport>(`/api/v1/vms/${vmId}/doctor`)
 
-export const getMigrationAdvisor = (vm: string, provider = 'vmware', os?: string) => {
+export const getMigrationAdvisor = (vm: string, provider = 'vmware', os?: string, diskPath?: string) => {
   const q = new URLSearchParams({ vm, provider })
   if (os) q.set('os', os)
+  if (diskPath) q.set('disk_path', diskPath)
   return platformFetch<MigrationAdvisorReport>(`/api/v1/migrations/advisor?${q}`)
 }
 
@@ -372,6 +378,7 @@ export const getZeusSummary = () =>
     monthly_cost_usd: number
     security_risk: string
     compliance_grade: string
+    firewall_critical_hosts?: number
     highlights: string[]
   }>('/api/v1/ai/zeus/summary')
 
