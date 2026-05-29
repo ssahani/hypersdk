@@ -120,7 +120,7 @@ export default function PlatformControlCenter() {
               />
               <Row
                 icon={<Bot className="w-4 h-4 text-orange-400" />}
-                label="Zeus OS"
+                label="Machina AI"
                 value={mode === 'off' ? 'Disabled' : mode === 'autopilot' ? 'Autopilot' : mode === 'autopilot_preview' ? 'Autopilot preview' : 'Advisor mode'}
                 tone={mode === 'off' ? undefined : 'ok'}
               />

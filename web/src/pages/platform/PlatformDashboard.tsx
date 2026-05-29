@@ -137,7 +137,7 @@ export default function PlatformDashboard() {
       {error && <ErrorBanner message={error} />}
 
       {mode === 'autopilot' && (
-        <MacGlassPanel title="Machina Autopilot" subtitle="Runs up to 3 low-risk fixes per batch — audited">
+        <MacGlassPanel title="Machina Autopilot" subtitle={`Runs up to ${aiSettings?.autopilot_max_actions ?? 5} low-risk fixes per batch — audited`}>
           <p className="text-sm text-slate-400 -mt-2">Backups, HA enable, and guest tools installs only. Destructive actions always require manual review.</p>
           {aiSettings && aiSettings.autopilot_interval_secs > 0 && (
             <p className="text-xs text-slate-500 mt-2">
@@ -154,7 +154,7 @@ export default function PlatformDashboard() {
             onClick={async () => {
               setAutopilotBusy(true)
               try {
-                const r = await runAutopilotSafe()
+                const r = await runAutopilotSafe(undefined, aiSettings?.autopilot_max_actions ?? 5)
                 toast.success(`Autopilot ran ${r.executed_count} action(s), skipped ${r.skipped_count}`)
               } catch (e: unknown) {
                 toast.error(formatUserError(e))

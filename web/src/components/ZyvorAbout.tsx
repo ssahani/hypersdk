@@ -38,7 +38,11 @@ export const MACHINA_HELP_LINKS: HelpDocLink[] = [
     href: ZYVOR_HELP.docs,
   },
   {
-    label: 'Zeus OS on zyvor.dev',
+    label: 'Machina on zyvor.dev',
+    href: MACHINA_HELP.productUrl,
+  },
+  {
+    label: 'Zeus platform',
     href: ZEUS_OS_HELP.productUrl,
   },
   {
@@ -55,9 +59,9 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
           <Zap className="w-8 h-8 text-blue-400" aria-hidden />
         </div>
         <div className="min-w-0 pt-0.5">
-          <h3 className="text-lg font-semibold text-white">{ZEUS_OS_PRODUCT}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Version {ZEUS_OS_HELP.version}</p>
-          <p className="text-sm text-slate-400 mt-2 leading-relaxed">{ZEUS_OS_TAGLINE}</p>
+          <h3 className="text-lg font-semibold text-white">{MACHINA_PRODUCT}</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Version {MACHINA_VERSION}</p>
+          <p className="text-sm text-slate-400 mt-2 leading-relaxed">{MACHINA_TAGLINE}</p>
         </div>
       </div>
 
@@ -73,8 +77,9 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
           >
             {ZYVOR_BRAND}
           </a>{' '}
-          product family — Zeus OS is the AI operating layer on {MACHINA_PRODUCT} and Zyvor Platform:
-          Spotlight, Copilot, Doctor, Autopilot, and deterministic advisors with optional BYOK LLM.
+          product family — <span className="text-slate-200">{ZEUS_OS_PRODUCT}</span> is the enterprise virtualization platform.
+          {MACHINA_PRODUCT} provides libvirt/QEMU/KVM control, optional KubeVirt and OpenStack integration,
+          and Machina AI (Spotlight, Copilot, Doctor, Autopilot) with optional BYOK LLM.
         </p>
         <p className="text-xs text-slate-500 leading-relaxed">
           <span style={{ color: ORANGE }} className="font-medium">

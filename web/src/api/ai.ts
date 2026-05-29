@@ -9,6 +9,8 @@ export interface AiSettings {
   model: string
   api_key_configured: boolean
   autopilot_interval_secs: number
+  autopilot_max_actions?: number
+  fleet_peer_urls?: string[]
   autopilot_last_run?: string
 }
 

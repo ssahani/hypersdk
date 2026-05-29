@@ -381,7 +381,16 @@ pub async fn autopilot_run(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<AutopilotRunBody>,
 ) -> Result<Json<ai::autopilot::AutopilotRunResult>, ApiError> {
-    ai::autopilot::run_safe_batch(&state, &actor, body.vm_id, body.max_actions)
+    let settings = ai::settings::get_ai_settings(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let cap = settings.autopilot_max_actions.clamp(1, 10) as usize;
+    let max = if body.max_actions == default_max_actions() {
+        cap
+    } else {
+        body.max_actions.min(cap)
+    };
+    ai::autopilot::run_safe_batch(&state, &actor, body.vm_id, max)
         .await
         .map(Json)
 }
@@ -436,4 +445,22 @@ pub async fn cost_export_csv(
         )
         .body(axum::body::Body::from(csv))
         .map_err(|e| ApiError::internal(e.to_string()))?)
+}
+
+pub async fn fleet_summary(
+    State(state): State<AppState>,
+) -> Result<Json<ai::fleet_summary::FleetZeusSummary>, ApiError> {
+    ai::fleet_summary::summarize(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn fleet_local(
+    State(state): State<AppState>,
+) -> Result<Json<ai::fleet_summary::FleetClusterSlice>, ApiError> {
+    ai::fleet_summary::local_export(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
 }

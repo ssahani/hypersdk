@@ -1,6 +1,6 @@
-# Zeus OS — Vision (v1)
+# Zeus Platform — Vision (v1)
 
-Zeus OS is the **AI operating layer** for enterprise virtualization — Machina AI on top of Zyvor Platform and the Machina daemon UI: deterministic engines first, optional BYOK LLM for prose and NL parsing.
+**Zeus** is the enterprise virtualization operating system. **Machina** is the hypervisor control product on Zeus — with **Machina AI** (Spotlight, Copilot, Doctor, Autopilot, and deterministic advisors; optional BYOK LLM) on top of Zyvor Platform and the Machina daemon UI.
 
 **Status (main):** Batches **AI-49 through AI-87** are shipped. No AI-88+ batches are defined yet.
 

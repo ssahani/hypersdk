@@ -280,7 +280,7 @@ fn is_auto_safe(action: &ProposedAction) -> bool {
     let ty = action.action_type.as_str();
     low && matches!(
         ty,
-        "bulk_backup" | "create_backup" | "bulk_ha" | "enable_ha" | "install_guest_tools"
+        "bulk_backup" | "create_backup" | "bulk_ha" | "enable_ha" | "install_guest_tools" | "start_vm"
     )
 }
 
@@ -310,7 +310,7 @@ pub async fn run_safe_batch(
     let proposal = propose(&state.pool, vm_id)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    let cap = max_actions.clamp(1, 5);
+    let cap = max_actions.clamp(1, 10);
     let all = proposal.actions;
     let skipped_count = all.iter().filter(|a| !is_auto_safe(a)).count();
     let safe: Vec<ProposedAction> = all

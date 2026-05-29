@@ -76,7 +76,11 @@ async fn run_scheduled_batch(state: &AppState) {
         role: "operator".into(),
     };
 
-    match super::autopilot::run_safe_batch(state, &actor, None, 3).await {
+    let max_actions = super::settings::autopilot_max_actions(&state.pool)
+        .await
+        .unwrap_or(5);
+
+    match super::autopilot::run_safe_batch(state, &actor, None, max_actions).await {
         Ok(result) => {
             tracing::info!(
                 "ai autopilot scheduled run: executed {} skipped {}",

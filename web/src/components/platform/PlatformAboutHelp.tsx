@@ -35,8 +35,8 @@ export default function PlatformAboutHelp({ compact = false }: { compact?: boole
         libvirt/KVM stays the engine underneath. {ZYVOR_PLATFORM_HELP.name} is the human operating layer — Finder-style VMs,
         Migration Assistant, Control Center, Settings hub, and one-click Fix It actions instead of XML and virsh.
         <span className="block mt-2 text-slate-500">
-          <span className="text-orange-300/90 font-medium">{ZEUS_OS_HELP.name}</span> — {ZEUS_OS_HELP.tagline}. Enable in Settings
-          for Spotlight, Copilot, Doctor, Cost Guardian, and Autopilot.
+          Runs on <span className="text-orange-300/90 font-medium">{ZEUS_OS_HELP.name}</span> — {ZEUS_OS_HELP.tagline}.
+          Enable <span className="text-slate-300">Machina AI</span> in Settings for Spotlight, Copilot, Doctor, Cost Guardian, and Autopilot.
         </span>
       </p>
       <ul className="space-y-1.5 text-sm">

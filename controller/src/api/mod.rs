@@ -93,6 +93,8 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/cost/export.csv", get(ai::cost_export_csv))
         .route("/api/v1/ai/capacity", get(ai::capacity_planner))
         .route("/api/v1/ai/capacity/export.csv", get(ai::capacity_export_csv))
+        .route("/api/v1/ai/fleet/summary", get(ai::fleet_summary))
+        .route("/api/v1/ai/fleet/local", get(ai::fleet_local))
         .route("/api/v1/ai/security", get(ai::security_sentinel))
         .route("/api/v1/ai/policy/export", get(ai::policy_export))
         .route("/api/v1/ai/autopilot/propose", get(ai::autopilot_propose))

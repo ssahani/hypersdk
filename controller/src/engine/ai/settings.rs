@@ -11,6 +11,8 @@ pub struct AiSettings {
     pub model: String,
     pub api_key_configured: bool,
     pub autopilot_interval_secs: i32,
+    pub autopilot_max_actions: i32,
+    pub fleet_peer_urls: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub autopilot_last_run: Option<String>,
 }
@@ -23,17 +25,30 @@ pub struct AiSettingsPatch {
     pub model: Option<String>,
     pub api_key: Option<String>,
     pub autopilot_interval_secs: Option<i32>,
+    pub autopilot_max_actions: Option<i32>,
+    pub fleet_peer_urls: Option<Vec<String>>,
 }
 
 pub async fn get_ai_settings(pool: &PgPool) -> anyhow::Result<AiSettings> {
-    let row: (bool, String, String, String, String, i32, Option<chrono::DateTime<chrono::Utc>>) =
-        sqlx::query_as(
-            "SELECT ai_enabled, ai_mode, ai_provider, ai_model, COALESCE(ai_api_key, ''),
-             ai_autopilot_interval_secs, ai_autopilot_last_run
+    let row: (
+        bool,
+        String,
+        String,
+        String,
+        String,
+        i32,
+        Option<chrono::DateTime<chrono::Utc>>,
+        i32,
+        serde_json::Value,
+    ) = sqlx::query_as(
+        "SELECT ai_enabled, ai_mode, ai_provider, ai_model, COALESCE(ai_api_key, ''),
+         ai_autopilot_interval_secs, ai_autopilot_last_run, ai_autopilot_max_actions,
+         COALESCE(ai_fleet_peer_urls, '[]'::jsonb)
          FROM clusters ORDER BY created_at LIMIT 1",
-        )
-        .fetch_one(pool)
-        .await?;
+    )
+    .fetch_one(pool)
+    .await?;
+    let fleet_peer_urls: Vec<String> = serde_json::from_value(row.8).unwrap_or_default();
     Ok(AiSettings {
         enabled: row.0,
         mode: row.1,
@@ -42,6 +57,8 @@ pub async fn get_ai_settings(pool: &PgPool) -> anyhow::Result<AiSettings> {
         api_key_configured: !row.4.is_empty(),
         autopilot_interval_secs: row.5,
         autopilot_last_run: row.6.map(|t| t.to_rfc3339()),
+        autopilot_max_actions: row.7.clamp(1, 10),
+        fleet_peer_urls,
     })
 }
 
@@ -82,7 +99,28 @@ pub async fn patch_ai_settings(pool: &PgPool, patch: &AiSettingsPatch) -> anyhow
             .execute(pool)
             .await?;
     }
+    if let Some(v) = patch.autopilot_max_actions {
+        sqlx::query("UPDATE clusters SET ai_autopilot_max_actions = $1")
+            .bind(v.clamp(1, 10))
+            .execute(pool)
+            .await?;
+    }
+    if let Some(v) = &patch.fleet_peer_urls {
+        let json = serde_json::to_value(v)?;
+        sqlx::query("UPDATE clusters SET ai_fleet_peer_urls = $1")
+            .bind(json)
+            .execute(pool)
+            .await?;
+    }
     get_ai_settings(pool).await
+}
+
+pub async fn get_fleet_peer_urls(pool: &PgPool) -> anyhow::Result<Vec<String>> {
+    Ok(get_ai_settings(pool).await?.fleet_peer_urls)
+}
+
+pub async fn autopilot_max_actions(pool: &PgPool) -> anyhow::Result<usize> {
+    Ok(get_ai_settings(pool).await?.autopilot_max_actions.clamp(1, 10) as usize)
 }
 
 pub async fn api_key(pool: &PgPool) -> anyhow::Result<Option<String>> {

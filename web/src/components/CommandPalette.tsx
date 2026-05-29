@@ -422,7 +422,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   for (const intent of spotlightIntents) {
     const cmdId = intent.id as PlatformCommand['id']
-    const knownCmd = ['import-networks', 'import-storage', 'sync-hosts', 'create-vm', 'show-offline-hosts'].includes(cmdId)
+    const knownCmd = ['import-networks', 'import-storage', 'sync-hosts', 'create-vm', 'show-offline-hosts', 'backup-vm', 'migrate-vm', 'enable-ha-vm'].includes(cmdId)
     items.unshift({
       id: `ai-intent-${intent.id}`,
       icon: <Terminal className="w-4 h-4 text-orange-400" />,
@@ -432,7 +432,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
         if (intent.navigate) {
           go(intent.navigate)
         } else if (knownCmd) {
-          const prefill = intent.prefill as { name?: string; os?: string; size?: string; network?: string } | undefined
+          const prefill = intent.prefill as { name?: string; os?: string; size?: string; network?: string; target_host?: string } | undefined
           setReviewCommand({
             id: cmdId,
             label: intent.label,
@@ -444,6 +444,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
                   os: typeof prefill.os === 'string' ? prefill.os : undefined,
                   size: typeof prefill.size === 'string' ? prefill.size : undefined,
                   network: typeof prefill.network === 'string' ? prefill.network : undefined,
+                  target_host: typeof prefill.target_host === 'string' ? prefill.target_host : undefined,
                 }
               : intent.vm_name
                 ? { name: intent.vm_name }

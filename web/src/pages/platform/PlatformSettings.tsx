@@ -41,7 +41,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
   const [quotaMem, setQuotaMem] = useState(0)
   const [quotaStorage, setQuotaStorage] = useState(0)
   const [quotas, setQuotas] = useState<Array<{ project: string; max_vms: number; max_vcpu: number; max_memory_mib: number; max_storage_gib: number }>>([])
-  const [ai, setAi] = useState<AiSettings>({ enabled: false, mode: 'advisor', provider: 'openai', model: 'gpt-4o-mini', api_key_configured: false, autopilot_interval_secs: 0 })
+  const [ai, setAi] = useState<AiSettings>({ enabled: false, mode: 'advisor', provider: 'openai', model: 'gpt-4o-mini', api_key_configured: false, autopilot_interval_secs: 0, autopilot_max_actions: 5, fleet_peer_urls: [] })
+  const [fleetPeers, setFleetPeers] = useState('')
   const [aiKey, setAiKey] = useState('')
 
   const load = useCallback(async () => {
@@ -65,6 +66,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
       setQuotas(q)
       if (aiSettings) {
         setAi(aiSettings)
+        setFleetPeers((aiSettings.fleet_peer_urls ?? []).join('\n'))
         setMode(aiSettings.enabled ? (aiSettings.mode === 'autopilot' ? 'autopilot' : aiSettings.mode === 'autopilot_preview' ? 'autopilot_preview' : 'advisor') : 'off')
       }
     } catch (e: unknown) { setError(formatUserError(e)) }
@@ -154,19 +156,30 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         }}>Save quota</button>
       </section>
       <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">Zeus OS (BYOK)</h2>
+        <h2 className="font-semibold text-sm">Machina AI (BYOK)</h2>
         <p className="text-slate-400 text-xs">Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations.</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={ai.enabled} onChange={(e) => setAi({ ...ai, enabled: e.target.checked })} />
-          Enable Zeus OS
+          Enable Machina AI
         </label>
         <label className="text-sm block">
           Mode
           <select className="input mt-1 block w-full max-w-xs" value={ai.mode} onChange={(e) => setAi({ ...ai, mode: e.target.value })}>
             <option value="advisor">Advisor — recommend only</option>
             <option value="autopilot_preview">Autopilot preview — proposed fixes in Copilot</option>
-            <option value="autopilot">Autopilot — auto-run low-risk fixes (max 3/run)</option>
+            <option value="autopilot">Autopilot — auto-run low-risk fixes (configurable batch)</option>
           </select>
+        </label>
+        <label className="text-sm block">
+          Autopilot max actions per batch
+          <input
+            type="number"
+            min={1}
+            max={10}
+            className="input mt-1 block w-40"
+            value={ai.autopilot_max_actions ?? 5}
+            onChange={(e) => setAi({ ...ai, autopilot_max_actions: Number(e.target.value) })}
+          />
         </label>
         {ai.mode === 'autopilot' && (
           <label className="text-sm block">
@@ -187,6 +200,15 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             )}
           </label>
         )}
+        <label className="text-sm block">
+          Fleet peer controller URLs (one per line, for multi-cluster Machina AI summary)
+          <textarea
+            className="input mt-1 block w-full max-w-lg min-h-20 font-mono text-xs"
+            placeholder="https://controller-site-b.example.com"
+            value={fleetPeers}
+            onChange={(e) => setFleetPeers(e.target.value)}
+          />
+        </label>
         <select className="input w-full max-w-xs" value={ai.provider} onChange={(e) => setAi({ ...ai, provider: e.target.value })}>
           <option value="openai">OpenAI-compatible</option>
           <option value="anthropic">Anthropic</option>
@@ -201,6 +223,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
               model: ai.model,
               mode: ai.mode,
               autopilot_interval_secs: ai.autopilot_interval_secs,
+              autopilot_max_actions: ai.autopilot_max_actions ?? 5,
+              fleet_peer_urls: fleetPeers.split('\n').map((s) => s.trim()).filter(Boolean),
             }
             if (aiKey.trim()) body.api_key = aiKey.trim()
             const saved = await patchAiSettings(body)

@@ -243,6 +243,7 @@ pub mod autopilot;
 pub mod compliance;
 pub mod terminal;
 pub mod worker;
+pub mod fleet_summary;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

@@ -171,6 +171,55 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         ));
     }
 
+    if let Some(vm_name) = extract_nl_vm_name(q) {
+        if ql.contains("backup") || ql.contains("back up") {
+            let label = format!("Backup VM {vm_name}");
+            let review = format!("Queue a backup for {vm_name} — review before running.");
+            intents.push(intent(
+                "backup-vm",
+                &label,
+                &review,
+                "backup_vm",
+                Some(vm_name.clone()),
+                None,
+                None,
+            ));
+        }
+        if ql.contains("migrate") {
+            let target = extract_after(&ql, "to host ")
+                .or_else(|| extract_after(&ql, " onto "))
+                .or_else(|| extract_after(&ql, " to "))
+                .map(|s| s.to_string());
+            let review = match &target {
+                Some(h) => format!("Migrate {vm_name} to host {h} — pre-check and review required."),
+                None => format!("Open migration workflow for {vm_name}."),
+            };
+            let label = format!("Migrate VM {vm_name}");
+            intents.push(intent(
+                "migrate-vm",
+                &label,
+                &review,
+                "migrate_vm",
+                Some(vm_name.clone()),
+                None,
+                target.map(|host| serde_json::json!({ "target_host": host })),
+            ));
+        }
+        if (ql.contains("enable") || ql.contains("turn on")) && ql.contains("ha") {
+            let label = format!("Enable HA for {vm_name}");
+            let review = format!("Enable high availability policy for {vm_name} — review before applying.");
+            intents.push(intent(
+                "enable-ha-vm",
+                &label,
+                &review,
+                "enable_ha_vm",
+                Some(vm_name),
+                None,
+                None,
+            ));
+        }
+    }
+
     let suggested_action = intents.first().cloned();
     SpotlightResult {
         intents,
@@ -325,4 +374,27 @@ fn extract_quoted_name(query: &str) -> Option<String> {
         }
     }
     None
+}
+
+fn extract_nl_vm_name(query: &str) -> Option<String> {
+    let ql = query.to_lowercase();
+    if let Some(name) = extract_quoted_name(query) {
+        return Some(name);
+    }
+    if let Some(rest) = extract_after(&ql, "vm ") {
+        let token = rest
+            .split_whitespace()
+            .next()?
+            .trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_');
+        if !token.is_empty() && token.len() <= 64 {
+            return Some(token.to_string());
+        }
+    }
+    query
+        .split_whitespace()
+        .find(|w| w.contains('-') && w.len() > 2)
+        .map(|s| {
+            s.trim_matches(|c: char| !c.is_alphanumeric() && c != '-' && c != '_')
+                .to_string()
+        })
 }
