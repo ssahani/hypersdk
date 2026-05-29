@@ -206,3 +206,11 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-127 | Bare metal PXE provision preview |
 | AI-128 | Phase 13 UI — environment planner, Zeus summary strip |
 | AI-129 | Phase 13 E2E + docs |
+| AI-130 | Unified remediation hub (SRE + compliance + fleet power) |
+| AI-131 | Knowledge → runbook bridge (diagnose + operator steps) |
+| AI-132 | FinOps budget guard (spend vs budget alerts) |
+| AI-133 | Mission stack status tracker (GPU + environment VMs) |
+| AI-134 | Digital twin storage pool drain simulation |
+| AI-135 | Phase 14 UI — hub, runbook, budget, stack status, Zeus strip |
+| AI-136 | Phase 14 Spotlight intents |
+| AI-137 | Phase 14 E2E + docs |

@@ -528,4 +528,37 @@ except Exception:
   else
     e2e_platform_fail "GET /api/v1/ai/fleet/power/optimize — HTTP ${http}"
   fi
+  e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS PHASE 14 (AI-130–137)"
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/remediate/hub")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/remediate/hub (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/remediate/hub — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/knowledge/runbook" \
+    -H 'Content-Type: application/json' -d '{"query":"why is billing slow"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/knowledge/runbook (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/knowledge/runbook — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/cost/budget")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/cost/budget (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/cost/budget — HTTP ${http}"
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/mission/stack/status")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/ai/mission/stack/status (HTTP ${http})"
+  else
+    e2e_platform_fail "GET /api/v1/ai/mission/stack/status — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/twin/impact" \
+    -H 'Content-Type: application/json' -d '{"action":"drain","target_kind":"storage","target_id":"default"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/twin/impact storage drain (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/ai/twin/impact storage drain — HTTP ${http}"
+  fi
 }

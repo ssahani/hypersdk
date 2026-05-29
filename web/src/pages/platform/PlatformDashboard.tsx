@@ -34,7 +34,7 @@ import {
   type PlatformHost,
   type PlatformTask,
 } from '../../api/platform'
-import { getAiSecurity, getAiSettings, runAutopilotSafe, type AiSettings, type SecurityReport } from '../../api/ai'
+import { getAiSecurity, getAiSettings, getZeusSummary, getRemediateHub, runAutopilotSafe, type AiSettings, type SecurityReport } from '../../api/ai'
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -50,6 +50,7 @@ export default function PlatformDashboard() {
   const [capacity, setCapacity] = useState<CapacityReport | null>(null)
   const [security, setSecurity] = useState<SecurityReport | null>(null)
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
+  const [zeusStrip, setZeusStrip] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
 
@@ -78,6 +79,12 @@ export default function PlatformDashboard() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    void Promise.all([getZeusSummary(), getRemediateHub()])
+      .then(([z, h]) => setZeusStrip(`${z.status} · ${h.summary}`))
+      .catch(() => {})
+  }, [])
 
   const running = vms.filter((v) => v.observed_state === 'running').length
   const onlineHosts = hosts.filter((h) => h.state !== 'offline').length
@@ -135,6 +142,12 @@ export default function PlatformDashboard() {
       </header>
 
       {error && <ErrorBanner message={error} />}
+      {zeusStrip && (
+        <p className="text-xs text-orange-200/80 border border-orange-500/20 rounded-lg px-3 py-2 bg-orange-500/5">
+          Machina Zeus OS — {zeusStrip}
+          <Link to="/platform/zeus" className="text-blue-400 ml-2">Open hub →</Link>
+        </p>
+      )}
 
       {mode === 'autopilot' && (
         <MacGlassPanel title="Machina Autopilot" subtitle={`Runs up to ${aiSettings?.autopilot_max_actions ?? 5} low-risk fixes per batch — audited`}>

@@ -1,0 +1,73 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use serde::Serialize;
+use sqlx::PgPool;
+
+#[derive(Debug, Serialize)]
+pub struct StackVmStatus {
+    pub name: String,
+    pub observed_state: String,
+    pub host: Option<String>,
+    pub tags: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MissionStackStatus {
+    pub gpu_vms: Vec<StackVmStatus>,
+    pub environment_vms: Vec<StackVmStatus>,
+    pub total_stack_vms: usize,
+    pub running: usize,
+    pub summary: String,
+}
+
+pub async fn status(pool: &PgPool) -> anyhow::Result<MissionStackStatus> {
+    let rows: Vec<(String, String, Option<String>, Vec<String>)> = sqlx::query_as(
+        "SELECT v.name, v.observed_state, h.hostname, COALESCE(v.tags, '{}')
+         FROM vms v
+         LEFT JOIN hosts h ON h.id = v.host_id
+         WHERE 'mission-stack' = ANY(v.tags) OR 'gpu' = ANY(v.tags) OR 'environment' = ANY(v.tags)
+         ORDER BY v.name",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut gpu_vms = Vec::new();
+    let mut environment_vms = Vec::new();
+    let mut running = 0usize;
+
+    for (name, state, host, tags) in rows {
+        if state == "running" {
+            running += 1;
+        }
+        let row = StackVmStatus {
+            name: name.clone(),
+            observed_state: state,
+            host,
+            tags: tags.clone(),
+        };
+        if tags.iter().any(|t| t == "mission-stack" || t == "gpu") {
+            gpu_vms.push(row);
+        } else {
+            environment_vms.push(row);
+        }
+    }
+
+    let total_stack_vms = gpu_vms.len() + environment_vms.len();
+    let summary = if total_stack_vms == 0 {
+        "No mission-stack or environment VMs yet — run stack or environment execute.".into()
+    } else {
+        format!(
+            "{total_stack_vms} stack VM(s) · {running} running · {} GPU · {} environment",
+            gpu_vms.len(),
+            environment_vms.len()
+        )
+    };
+
+    Ok(MissionStackStatus {
+        gpu_vms,
+        environment_vms,
+        total_stack_vms,
+        running,
+        summary,
+    })
+}

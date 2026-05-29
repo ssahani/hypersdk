@@ -789,3 +789,40 @@ pub async fn memory_similar(
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
+
+pub async fn remediate_hub(
+    State(state): State<AppState>,
+) -> Result<Json<ai::remediate_hub::RemediateHub>, ApiError> {
+    ai::remediate_hub::hub(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn knowledge_runbook(
+    State(state): State<AppState>,
+    Json(body): Json<KnowledgeSearchBody>,
+) -> Result<Json<ai::knowledge_runbook::KnowledgeRunbook>, ApiError> {
+    ai::knowledge_runbook::from_query(&state.pool, &body.query)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn cost_budget(
+    State(state): State<AppState>,
+) -> Result<Json<ai::cost_budget::CostBudgetReport>, ApiError> {
+    ai::cost_budget::analyze(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn mission_stack_status(
+    State(state): State<AppState>,
+) -> Result<Json<ai::mission_stack_status::MissionStackStatus>, ApiError> {
+    ai::mission_stack_status::status(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}

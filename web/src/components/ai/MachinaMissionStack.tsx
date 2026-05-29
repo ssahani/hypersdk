@@ -1,15 +1,23 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Play, Rocket } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
-import { executeMissionStack, planMissionStack, type MissionStackPlan } from '../../api/ai'
+import { executeMissionStack, getMissionStackStatus, planMissionStack, type MissionStackPlan } from '../../api/ai'
 
 export default function MachinaMissionStack() {
   const [query, setQuery] = useState('Build a GPU cluster for Llama serving')
   const [plan, setPlan] = useState<MissionStackPlan | null>(null)
   const [executeSummary, setExecuteSummary] = useState<string | null>(null)
+  const [stackStatus, setStackStatus] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
+
+  const refreshStatus = async () => {
+    const s = await getMissionStackStatus()
+    setStackStatus(s.summary)
+  }
+
+  useEffect(() => { void refreshStatus() }, [])
 
   const run = async () => {
     setBusy(true)
@@ -27,6 +35,7 @@ export default function MachinaMissionStack() {
       const r = await executeMissionStack(query, true)
       setPlan(r.plan)
       setExecuteSummary(r.summary)
+      await refreshStatus()
     } finally {
       setBusy(false)
     }
@@ -44,6 +53,7 @@ export default function MachinaMissionStack() {
         </button>
       </div>
       {executeSummary && <p className="text-xs text-emerald-300/90 mt-2">{executeSummary}</p>}
+      {stackStatus && <p className="text-xs text-slate-500 mt-1">Stack status: {stackStatus}</p>}
       {plan && (
         <div className="mt-3 text-xs space-y-2 text-slate-400">
           <p className="text-slate-200 font-medium">{plan.label}</p>

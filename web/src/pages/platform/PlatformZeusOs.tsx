@@ -14,6 +14,8 @@ import {
   getFleetPowerOptimize,
   getFleetHeatmap,
   getZeusSummary,
+  getRemediateHub,
+  getKnowledgeRunbook,
   simulateServiceImpact,
   getFleetRebalanceProposal,
   getInfrastructureMemory,
@@ -54,6 +56,9 @@ export default function PlatformZeusOs() {
   const [serviceImpact, setServiceImpact] = useState<string | null>(null)
   const [powerSummary, setPowerSummary] = useState<string | null>(null)
   const [zeusSummary, setZeusSummary] = useState<string | null>(null)
+  const [hubSummary, setHubSummary] = useState<string | null>(null)
+  const [hubItems, setHubItems] = useState<Array<{ id: string; source: string; label: string; review: string }>>([])
+  const [runbookSummary, setRunbookSummary] = useState<string | null>(null)
 
   const loadFleet = useCallback(async () => {
     setError(null)
@@ -115,6 +120,10 @@ export default function PlatformZeusOs() {
 
   useEffect(() => {
     void getZeusSummary().then((z) => setZeusSummary(`${z.status} · ${z.highlights[0] ?? z.tagline}`)).catch(() => {})
+    void getRemediateHub().then((h) => {
+      setHubSummary(h.summary)
+      setHubItems(h.items.slice(0, 6))
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -126,12 +135,14 @@ export default function PlatformZeusOs() {
 
   const runKnowledge = async () => {
     try {
-      const [r, diag] = await Promise.all([
+      const [r, diag, rb] = await Promise.all([
         searchKnowledge(knowledgeQuery),
         diagnoseKnowledge(knowledgeQuery),
+        getKnowledgeRunbook(knowledgeQuery),
       ])
       setKnowledgeHits(r.hits)
       setDiagnosisSummary(diag.hypotheses[0]?.title ?? diag.summary)
+      setRunbookSummary(`${rb.runbook_title}: ${rb.steps[0] ?? rb.summary}`)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Search failed')
     }
@@ -153,6 +164,18 @@ export default function PlatformZeusOs() {
       />
       {error && <ErrorBanner message={error} />}
       {zeusSummary && <p className="text-sm text-orange-200/90">{zeusSummary}</p>}
+      {hubSummary && (
+        <MacGlassPanel title="Remediation hub" subtitle="SRE · compliance · fleet power — unified review queue">
+          <p className="text-sm text-slate-300">{hubSummary}</p>
+          {hubItems.length > 0 && (
+            <ul className="mt-2 text-xs space-y-1 text-slate-400">
+              {hubItems.map((i) => (
+                <li key={i.id}><span className="text-orange-300/80">{i.source}</span> · {i.label} — {i.review}</li>
+              ))}
+            </ul>
+          )}
+        </MacGlassPanel>
+      )}
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -236,6 +259,7 @@ export default function PlatformZeusOs() {
             <button type="button" className="btn-primary text-xs" onClick={() => void runKnowledge()}>Search</button>
           </div>
           {diagnosisSummary && <p className="text-xs text-amber-200/90 mt-2">Diagnosis: {diagnosisSummary}</p>}
+          {runbookSummary && <p className="text-xs text-emerald-300/90 mt-1">Runbook: {runbookSummary}</p>}
           <ul className="mt-3 space-y-1.5 text-xs">
             {knowledgeHits.map((h) => (
               <li key={`${h.kind}-${h.id}`}>

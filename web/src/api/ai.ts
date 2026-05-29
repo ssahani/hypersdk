@@ -539,6 +539,51 @@ export const getSimilarIncidents = (q: string, limit = 10) =>
     `/api/v1/ai/memory/similar?q=${encodeURIComponent(q)}&limit=${limit}`,
   )
 
+export interface RemediationHubItem {
+  id: string
+  source: string
+  label: string
+  review: string
+  action: string
+  priority: number
+  risk: string
+}
+
+export const getRemediateHub = () =>
+  platformFetch<{ summary: string; items: RemediationHubItem[] }>('/api/v1/ai/remediate/hub')
+
+export const getKnowledgeRunbook = (query: string) =>
+  platformFetch<{
+    query: string
+    diagnosis_summary: string
+    runbook_title: string
+    steps: string[]
+    commands: string[]
+    summary: string
+  }>('/api/v1/ai/knowledge/runbook', { method: 'POST', body: JSON.stringify({ query }) })
+
+export interface CostBudgetReport {
+  monthly_budget_usd: number
+  current_spend_usd: number
+  predicted_spend_usd: number
+  utilization_pct: number
+  status: string
+  alerts: Array<{ id: string; severity: string; message: string }>
+  summary: string
+}
+
+export const getCostBudget = () => platformFetch<CostBudgetReport>('/api/v1/ai/cost/budget')
+
+export interface MissionStackStatus {
+  gpu_vms: Array<{ name: string; observed_state: string; host: string | null; tags: string[] }>
+  environment_vms: Array<{ name: string; observed_state: string; host: string | null; tags: string[] }>
+  total_stack_vms: number
+  running: number
+  summary: string
+}
+
+export const getMissionStackStatus = () => platformFetch<MissionStackStatus>('/api/v1/ai/mission/stack/status')
+
 export const getCostAttributionExportUrl = () => '/api/v1/platform/controller/api/v1/ai/cost/attribution/export.csv'
 
 export interface BaremetalServer {

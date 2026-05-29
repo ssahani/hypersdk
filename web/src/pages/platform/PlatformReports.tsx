@@ -5,7 +5,7 @@ import { DollarSign, FolderKanban } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
-import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type SecurityReport } from '../../api/ai'
+import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type SecurityReport } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformReports() {
@@ -18,12 +18,13 @@ export default function PlatformReports() {
   const [compliance, setCompliance] = useState<ComplianceReport | null>(null)
   const [autopilotHistory, setAutopilotHistory] = useState<AutopilotHistoryEntry[]>([])
   const [attribution, setAttribution] = useState<CostAttributionReport | null>(null)
+  const [budget, setBudget] = useState<CostBudgetReport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [p, c, f, costR, capR, secR, compR, hist, attrR] = await Promise.all([
+      const [p, c, f, costR, capR, secR, compR, hist, attrR, budgetR] = await Promise.all([
         listProjects(),
         getCapacityReport(),
         getFinOpsReport(),
@@ -33,6 +34,7 @@ export default function PlatformReports() {
         getAiCompliance().catch(() => null),
         getAutopilotHistory(10).catch(() => []),
         getCostAttribution().catch(() => null),
+        getCostBudget().catch(() => null),
       ])
       setProjects(p)
       setCap(c)
@@ -43,6 +45,7 @@ export default function PlatformReports() {
       setCompliance(compR)
       setAutopilotHistory(hist)
       setAttribution(attrR)
+      setBudget(budgetR)
     } catch (e: unknown) { setError(formatUserError(e)) }
   }, [])
 
@@ -102,6 +105,24 @@ export default function PlatformReports() {
               Download PDF
             </a>
           </div>
+        </MacGlassPanel>
+      )}
+      {budget && (
+        <MacGlassPanel title="FinOps budget guard" subtitle={budget.summary}>
+          <p className="text-2xl font-bold text-slate-100 -mt-2">
+            ${budget.current_spend_usd.toFixed(0)}
+            <span className="text-sm font-normal text-slate-500"> / ${budget.monthly_budget_usd.toFixed(0)} budget ({budget.utilization_pct.toFixed(0)}%)</span>
+          </p>
+          <p className="text-sm text-slate-400 mt-1">Status: <span className={budget.status === 'over_budget' ? 'text-red-300' : budget.status === 'watch' ? 'text-amber-300' : 'text-emerald-300'}>{budget.status}</span></p>
+          {budget.alerts.length > 0 && (
+            <ul className="mt-3 text-xs space-y-1">
+              {budget.alerts.map((a) => (
+                <li key={a.id} className={a.severity === 'critical' ? 'text-red-400' : a.severity === 'warning' ? 'text-amber-300' : 'text-slate-400'}>
+                  {a.message}
+                </li>
+              ))}
+            </ul>
+          )}
         </MacGlassPanel>
       )}
       {cost && (

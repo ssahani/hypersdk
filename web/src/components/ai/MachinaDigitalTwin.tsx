@@ -15,7 +15,7 @@ export default function MachinaDigitalTwin() {
   const [impact, setImpact] = useState<ImpactAnalysis | null>(null)
   const [hostId, setHostId] = useState('')
   const [simAction, setSimAction] = useState<'shutdown' | 'migrate' | 'isolate'>('shutdown')
-  const [simKind, setSimKind] = useState<'host' | 'network'>('host')
+  const [simKind, setSimKind] = useState<'host' | 'network' | 'storage'>('host')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -26,10 +26,14 @@ export default function MachinaDigitalTwin() {
       setGraph(g)
       const firstHost = g.nodes.find((n) => n.kind === 'host')
       const firstNet = g.nodes.find((n) => n.kind === 'network')
+      const firstStorage = g.nodes.find((n) => n.kind === 'storage')
       if (firstHost && !hostId) setHostId(firstHost.name)
       else if (firstNet && !hostId) {
         setSimKind('network')
         setHostId(firstNet.name)
+      } else if (firstStorage && !hostId) {
+        setSimKind('storage')
+        setHostId(firstStorage.name)
       }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load digital twin')
@@ -43,7 +47,7 @@ export default function MachinaDigitalTwin() {
     setBusy(true)
     setError(null)
     try {
-      const action = simKind === 'network' ? 'isolate' : simAction
+      const action = simKind === 'network' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction
       const r = await analyzeTwinImpact({
         action,
         target_kind: simKind,
@@ -59,7 +63,8 @@ export default function MachinaDigitalTwin() {
 
   const hosts = graph?.nodes.filter((n) => n.kind === 'host') ?? []
   const networks = graph?.nodes.filter((n) => n.kind === 'network') ?? []
-  const targets = simKind === 'network' ? networks : hosts
+  const storages = graph?.nodes.filter((n) => n.kind === 'storage') ?? []
+  const targets = simKind === 'network' ? networks : simKind === 'storage' ? storages : hosts
 
   return (
     <MacGlassPanel
@@ -69,9 +74,10 @@ export default function MachinaDigitalTwin() {
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="block">
           <span className="text-xs text-slate-500">Target</span>
-          <select className="input mt-1 block text-xs" value={simKind} onChange={(e) => setSimKind(e.target.value as 'host' | 'network')}>
+          <select className="input mt-1 block text-xs" value={simKind} onChange={(e) => setSimKind(e.target.value as 'host' | 'network' | 'storage')}>
             <option value="host">Host</option>
             <option value="network">Network</option>
+            <option value="storage">Storage pool</option>
           </select>
         </label>
         {simKind === 'host' && (
@@ -84,7 +90,7 @@ export default function MachinaDigitalTwin() {
           </label>
         )}
         <label className="block">
-          <span className="text-xs text-slate-500">{simKind === 'network' ? 'Network to isolate' : 'Host'}</span>
+          <span className="text-xs text-slate-500">{simKind === 'network' ? 'Network to isolate' : simKind === 'storage' ? 'Storage pool' : 'Host'}</span>
           <select className="input mt-1 block min-w-[12rem]" value={hostId} onChange={(e) => setHostId(e.target.value)}>
             {targets.map((h) => (
               <option key={h.id} value={h.name}>{h.name} {h.state ? `(${h.state})` : ''}</option>

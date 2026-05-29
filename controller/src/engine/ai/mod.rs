@@ -264,6 +264,10 @@ pub mod sre_remediate;
 pub mod compliance_remediate;
 pub mod fleet_power;
 pub mod zeus_summary;
+pub mod remediate_hub;
+pub mod knowledge_runbook;
+pub mod cost_budget;
+pub mod mission_stack_status;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

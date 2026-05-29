@@ -169,21 +169,77 @@ pub async fn analyze_impact(pool: &PgPool, req: &ImpactRequest) -> anyhow::Resul
         ("shutdown", "vm") | ("stop", "vm") | ("delete", "vm") => {
             vm_shutdown_impact(pool, &req.target_id).await
         }
+        ("shutdown", "storage") | ("drain", "storage") => {
+            storage_shutdown_impact(pool, &req.target_id).await
+        }
         _ => Ok(ImpactAnalysis {
             action: req.action.clone(),
             target: format!("{}:{}", req.target_kind, req.target_id),
             severity: "info".into(),
-            summary: "Supported actions: shutdown/migrate host, isolate network, shutdown vm.".into(),
+            summary: "Supported: host shutdown/migrate, network isolate, vm shutdown, storage drain.".into(),
             affected_vms: vec![],
             affected_applications: vec![],
             storage_risks: vec![],
             network_notes: vec![],
             recommendations: vec![
-                "Use target_kind host or vm with action shutdown/migrate, or network with isolate."
-                    .into(),
+                "Use target_kind host/vm/network/storage with shutdown/migrate/isolate/drain.".into(),
             ],
         }),
     }
+}
+
+async fn storage_shutdown_impact(pool: &PgPool, target: &str) -> anyhow::Result<ImpactAnalysis> {
+    let pool_id = resolve_storage(pool, target).await?;
+    let (name, capacity_gib, used_gib): (String, i64, i64) = sqlx::query_as(
+        "SELECT name, capacity_gib, used_gib FROM storage_pools WHERE id = $1",
+    )
+    .bind(pool_id)
+    .fetch_one(pool)
+    .await?;
+
+    let vm_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM vms")
+        .fetch_one(pool)
+        .await
+        .unwrap_or(0);
+
+    let pct = if capacity_gib > 0 {
+        used_gib as f64 / capacity_gib as f64 * 100.0
+    } else {
+        0.0
+    };
+
+    let severity = if vm_count >= 10 { "critical" } else if vm_count > 0 { "high" } else { "low" };
+
+    Ok(ImpactAnalysis {
+        action: "shutdown".into(),
+        target: format!("storage:{name}"),
+        severity: severity.into(),
+        summary: format!(
+            "Draining storage pool {name} ({used_gib}/{capacity_gib} GiB, {pct:.0}% full) affects disk I/O for all attached VMs."
+        ),
+        affected_vms: vec![format!("{vm_count} VM(s) with disks")],
+        affected_applications: vec![],
+        storage_risks: vec![
+            "All VMs with disks on this pool lose write path.".into(),
+            "Snapshots and clones on this pool become unavailable.".into(),
+        ],
+        network_notes: vec![],
+        recommendations: vec![
+            "Migrate VM disks to alternate pool before maintenance.".into(),
+            "Verify backup targets are not exclusively on this pool.".into(),
+        ],
+    })
+}
+
+async fn resolve_storage(pool: &PgPool, target: &str) -> anyhow::Result<Uuid> {
+    if let Ok(id) = Uuid::parse_str(target) {
+        return Ok(id);
+    }
+    let id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM storage_pools WHERE name = $1")
+        .bind(target)
+        .fetch_optional(pool)
+        .await?;
+    id.ok_or_else(|| anyhow::anyhow!("storage pool not found: {target}"))
 }
 
 async fn host_shutdown_impact(pool: &PgPool, target: &str) -> anyhow::Result<ImpactAnalysis> {

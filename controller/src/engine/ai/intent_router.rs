@@ -327,6 +327,77 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         ));
     }
 
+    if (ql.contains("storage") || ql.contains("pool")) && (ql.contains("drain") || ql.contains("shutdown")) {
+        intents.push(intent(
+            "twin-storage",
+            "Storage pool blast radius",
+            "Simulate impact of draining a storage pool.",
+            "twin_impact",
+            None,
+            Some("/platform/topology".into()),
+            Some(serde_json::json!({
+                "action": "drain",
+                "target_kind": "storage",
+                "target_id": "default",
+            })),
+        ));
+    }
+
+    if ql.contains("remediation") && ql.contains("hub")
+        || (ql.contains("unified") && ql.contains("remediat"))
+        || (ql.contains("sre") && ql.contains("compliance") && ql.contains("fix"))
+    {
+        intents.push(intent(
+            "remediate-hub",
+            "Remediation hub",
+            "Unified SRE, compliance, and fleet power actions.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
+    if (ql.contains("runbook") && (ql.contains("diagnos") || ql.contains("knowledge") || ql.contains("slow")))
+        || ql.contains("why is") && ql.contains("slow")
+    {
+        intents.push(intent(
+            "knowledge-runbook",
+            "Knowledge → runbook",
+            "Diagnose query and generate operator runbook steps.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ));
+    }
+
+    if (ql.contains("budget") || ql.contains("over spend") || ql.contains("finops guard"))
+        && (ql.contains("cost") || ql.contains("spend") || ql.contains("budget"))
+    {
+        intents.push(intent(
+            "cost-budget",
+            "FinOps budget guard",
+            "Monthly budget vs spend alerts and predictions.",
+            "navigate",
+            None,
+            Some("/platform/reports".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("stack") && (ql.contains("status") || ql.contains("running") || ql.contains("track")) {
+        intents.push(intent(
+            "mission-stack-status",
+            "Mission stack status",
+            "Track GPU and environment VMs from stack builds.",
+            "navigate",
+            None,
+            Some("/mission-control".into()),
+            None,
+        ));
+    }
+
     if ql.contains("team") && (ql.contains("cost") || ql.contains("attribution") || ql.contains("chargeback")) {
         intents.push(intent(
             "cost-attribution",
