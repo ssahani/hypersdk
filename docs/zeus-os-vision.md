@@ -1,13 +1,15 @@
-# Machina AI Cloud OS — Vision (v1)
+# Zeus OS — Vision (v1)
 
-Machina AI is a **hybrid intelligence layer** on top of Zyvor Platform and the Machina daemon UI: deterministic engines first, optional BYOK LLM for prose and NL parsing.
+Zeus OS is the **AI operating layer** for enterprise virtualization — Machina AI on top of Zyvor Platform and the Machina daemon UI: deterministic engines first, optional BYOK LLM for prose and NL parsing.
+
+**Status (main):** Batches **AI-49 through AI-87** are shipped. No AI-88+ batches are defined yet.
 
 ## Design principles
 
 1. **Deterministic first** — scores, risk levels, and Fix actions work with `MACHINA_AI_DISABLED=1` or AI disabled in settings.
 2. **LLM optional (BYOK)** — provider + encrypted API key in cluster settings; never returned on GET.
 3. **Review → confirm → execute** — destructive mutations always show a review card before execution.
-4. **Advisor mode (v1)** — recommend and explain; full Autopilot deferred to v2.
+4. **Advisor / Autopilot modes** — Advisor recommends and explains; Autopilot preview confirms each fix; guarded batch Autopilot runs low-risk fixes on a schedule.
 
 ## v1 product map
 
@@ -42,7 +44,7 @@ Machina AI is a **hybrid intelligence layer** on top of Zyvor Platform and the M
 
 ## Roadmap batches
 
-See [`platform-roadmap.md`](platform-roadmap.md) batches AI-49 through AI-66.
+See [`platform-roadmap.md`](platform-roadmap.md) batches AI-49 through AI-87 (all shipped).
 
 ## v2 batches (AI-57+)
 

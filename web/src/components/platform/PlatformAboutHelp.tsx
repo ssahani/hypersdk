@@ -4,6 +4,7 @@ import { ExternalLink, HelpCircle } from 'lucide-react'
 import { Link } from 'react-router'
 import { ZYVOR_BRAND, ZYVOR_URL } from '../ZyvorBrand'
 import {
+  ZEUS_OS_HELP,
   ZYVOR_PLATFORM_HELP,
   ZYVOR_PLATFORM_HELP_LINKS,
   ZYVOR_PLATFORM_TAGLINE,
@@ -15,6 +16,7 @@ export default function PlatformAboutHelp({ compact = false }: { compact?: boole
       <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 px-4 py-3 text-sm">
         <p className="font-medium text-orange-200">{ZYVOR_PLATFORM_HELP.name}</p>
         <p className="text-xs text-slate-400 mt-1">{ZYVOR_PLATFORM_HELP.tagline}</p>
+        <p className="text-xs text-slate-500 mt-1.5">{ZEUS_OS_HELP.name} — {ZEUS_OS_HELP.tagline}</p>
         <Link to="/platform/support" className="text-xs text-blue-400 inline-flex items-center gap-1 mt-2 hover:underline">
           <HelpCircle className="w-3 h-3" /> About & help
         </Link>
@@ -32,6 +34,10 @@ export default function PlatformAboutHelp({ compact = false }: { compact?: boole
       <p className="text-sm text-slate-400 leading-relaxed">
         libvirt/KVM stays the engine underneath. {ZYVOR_PLATFORM_HELP.name} is the human operating layer — Finder-style VMs,
         Migration Assistant, Control Center, Settings hub, and one-click Fix It actions instead of XML and virsh.
+        <span className="block mt-2 text-slate-500">
+          <span className="text-orange-300/90 font-medium">{ZEUS_OS_HELP.name}</span> — {ZEUS_OS_HELP.tagline}. Enable in Settings
+          for Spotlight, Copilot, Doctor, Cost Guardian, and Autopilot.
+        </span>
       </p>
       <ul className="space-y-1.5 text-sm">
         {ZYVOR_PLATFORM_HELP_LINKS.map((link) => (

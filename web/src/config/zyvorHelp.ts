@@ -33,8 +33,15 @@ export type HelpDocLink = {
 
 export const MACHINA_HELP: ProductHelpMeta = {
   name: 'Machina',
-  tagline: 'The AI Cloud OS for Enterprise Virtualization',
+  tagline: 'libvirt/QEMU/KVM hypervisor control',
   version: '0.1.0',
+  productUrl: 'https://zyvor.dev/machina',
+};
+
+export const ZEUS_OS_HELP: ProductHelpMeta = {
+  name: 'Zeus OS',
+  tagline: 'AI for Enterprise Virtualization',
+  version: '1.0',
   productUrl: 'https://zyvor.dev/machina',
 };
 

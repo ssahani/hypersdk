@@ -119,9 +119,9 @@ Batches are grouped into **phases** (~10 batches each). Phases 1â€“2 (batches 1â
 
 See [`enterprise-backlog.md`](enterprise-backlog.md): Vault/MFA, multi-site DR, plugin marketplace, in-browser RDP.
 
-## Machina AI batches (AI-49+)
+## Zeus OS batches (AI-49+)
 
-See [`machina-ai-vision.md`](machina-ai-vision.md) for the full vision.
+See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 
 | Batch | Deliverable |
 |-------|-------------|

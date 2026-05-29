@@ -4,11 +4,13 @@
 
 import { ExternalLink, Zap } from 'lucide-react'
 import { ZYVOR_URL, ZYVOR_BRAND, ZYVOR_COPY, ZYVOR_LINE } from './ZyvorBrand'
-import { MACHINA_HELP, ZYVOR_HELP, type HelpDocLink } from '../config/zyvorHelp'
+import { MACHINA_HELP, ZEUS_OS_HELP, ZYVOR_HELP, type HelpDocLink } from '../config/zyvorHelp'
 
 export const MACHINA_PRODUCT = MACHINA_HELP.name
 export const MACHINA_VERSION = MACHINA_HELP.version
 export const MACHINA_TAGLINE = MACHINA_HELP.tagline
+export const ZEUS_OS_PRODUCT = ZEUS_OS_HELP.name
+export const ZEUS_OS_TAGLINE = ZEUS_OS_HELP.tagline
 
 const ORANGE = '#f97316'
 
@@ -36,8 +38,8 @@ export const MACHINA_HELP_LINKS: HelpDocLink[] = [
     href: ZYVOR_HELP.docs,
   },
   {
-    label: 'Machina on zyvor.dev',
-    href: MACHINA_HELP.productUrl,
+    label: 'Zeus OS on zyvor.dev',
+    href: ZEUS_OS_HELP.productUrl,
   },
   {
     label: 'Zyvor — HyperSDK suite',
@@ -53,9 +55,9 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
           <Zap className="w-8 h-8 text-blue-400" aria-hidden />
         </div>
         <div className="min-w-0 pt-0.5">
-          <h3 className="text-lg font-semibold text-white">{MACHINA_PRODUCT}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">Version {MACHINA_VERSION}</p>
-          <p className="text-sm text-slate-400 mt-2 leading-relaxed">{MACHINA_TAGLINE}</p>
+          <h3 className="text-lg font-semibold text-white">{ZEUS_OS_PRODUCT}</h3>
+          <p className="text-xs text-slate-500 mt-0.5">Version {ZEUS_OS_HELP.version}</p>
+          <p className="text-sm text-slate-400 mt-2 leading-relaxed">{ZEUS_OS_TAGLINE}</p>
         </div>
       </div>
 
@@ -71,8 +73,8 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
           >
             {ZYVOR_BRAND}
           </a>{' '}
-          product family — libvirt/QEMU/KVM hypervisor control with optional KubeVirt and OpenStack integration,
-          live consoles, Prometheus metrics, and RBAC-secured APIs.
+          product family — Zeus OS is the AI operating layer on {MACHINA_PRODUCT} and Zyvor Platform:
+          Spotlight, Copilot, Doctor, Autopilot, and deterministic advisors with optional BYOK LLM.
         </p>
         <p className="text-xs text-slate-500 leading-relaxed">
           <span style={{ color: ORANGE }} className="font-medium">

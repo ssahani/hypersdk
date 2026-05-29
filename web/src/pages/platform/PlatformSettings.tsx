@@ -154,11 +154,11 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
         }}>Save quota</button>
       </section>
       <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">Machina AI (BYOK)</h2>
+        <h2 className="font-semibold text-sm">Zeus OS (BYOK)</h2>
         <p className="text-slate-400 text-xs">Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations.</p>
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={ai.enabled} onChange={(e) => setAi({ ...ai, enabled: e.target.checked })} />
-          Enable Machina AI
+          Enable Zeus OS
         </label>
         <label className="text-sm block">
           Mode
