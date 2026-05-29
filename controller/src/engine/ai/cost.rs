@@ -87,7 +87,7 @@ pub async fn export_csv(pool: &PgPool) -> anyhow::Result<String> {
     .await?;
 
     let vms: Vec<(String, i64, i64, String)> = sqlx::query_as(
-        "SELECT name, vcpus, memory_mib, COALESCE(observed_state, 'unknown')
+        "SELECT name, vcpus::bigint, memory_mib::bigint, COALESCE(observed_state, 'unknown')
          FROM vms ORDER BY name",
     )
     .fetch_all(pool)
