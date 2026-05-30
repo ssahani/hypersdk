@@ -83,6 +83,7 @@ case "$cmd" in
       storage) api GET /api/v1/fleet/storage | jq . ;;
       console) api GET /api/v1/fleet/console | jq . ;;
       updates) api GET /api/v1/fleet/updates | jq . ;;
+      keychain) api GET /api/v1/fleet/keychain | jq . ;;
       diagnose) api POST /api/v1/ai/fleet/diagnose -d "{\"query\":\"${3:-fleet linux pressure}\"}" | jq . ;;
       *) echo "unknown fleet subcommand: $sub" >&2; exit 1 ;;
     esac

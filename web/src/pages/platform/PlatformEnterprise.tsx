@@ -1,13 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
-import { Lock, Shield, Users } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router'
+import { Key, Lock, Shield, Users } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
-import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import { MacGlassPanel, MacListRow, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import {
   getEnterpriseSecurityOverview,
   getFipsMatrix,
+  getFleetKeychain,
   getMfaCompliance,
   getTenantIsolationOverview,
   listVaultProviders,
@@ -15,6 +16,7 @@ import {
   syncVaultProvider,
   type EnterpriseSecurityOverview,
   type FipsMatrix,
+  type FleetKeychainOverview,
   type MfaComplianceReport,
   type TenantIsolationOverview,
   type VaultProvider,
@@ -22,14 +24,33 @@ import {
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 
-type TabId = 'vault' | 'mfa' | 'fips' | 'tenants'
+type TabId = 'keychain' | 'vault' | 'mfa' | 'fips' | 'tenants'
+
+const TAB_IDS: TabId[] = ['keychain', 'vault', 'mfa', 'fips', 'tenants']
+
+const KIND_LABELS: Record<string, string> = {
+  vault: 'Vault',
+  mfa: 'MFA',
+  air_gap: 'Air-gap',
+  api_key: 'API key',
+}
+
+function entryHref(kind: string): string | undefined {
+  if (kind === 'vault') return '/platform/enterprise?tab=vault'
+  if (kind === 'mfa') return '/platform/enterprise?tab=mfa'
+  if (kind === 'air_gap') return '/platform/settings?section=security'
+  if (kind === 'api_key') return '/platform/api-keys'
+  return undefined
+}
 
 export default function PlatformEnterprise() {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab = (searchParams.get('tab') as TabId) || 'vault'
-  const setTab = (next: TabId) => setSearchParams(next === 'vault' ? {} : { tab: next })
+  const rawTab = searchParams.get('tab')
+  const tab: TabId = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : 'keychain'
+  const setTab = (next: TabId) => setSearchParams(next === 'keychain' ? {} : { tab: next })
 
+  const [keychain, setKeychain] = useState<FleetKeychainOverview | null>(null)
   const [overview, setOverview] = useState<EnterpriseSecurityOverview | null>(null)
   const [vaults, setVaults] = useState<VaultProvider[]>([])
   const [mfa, setMfa] = useState<MfaComplianceReport | null>(null)
@@ -41,6 +62,10 @@ export default function PlatformEnterprise() {
   const load = useCallback(async () => {
     setError(null)
     try {
+      if (tab === 'keychain') {
+        setKeychain(await getFleetKeychain())
+        return
+      }
       const [ov, v, m, f, t] = await Promise.all([
         getEnterpriseSecurityOverview(),
         listVaultProviders(),
@@ -56,7 +81,7 @@ export default function PlatformEnterprise() {
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
-  }, [])
+  }, [tab])
 
   useEffect(() => { void load() }, [load])
 
@@ -84,6 +109,7 @@ export default function PlatformEnterprise() {
   }
 
   const tabs: Array<{ id: TabId; label: string }> = [
+    { id: 'keychain', label: 'Keychain' },
     { id: 'vault', label: 'Vault sync' },
     { id: 'mfa', label: 'MFA compliance' },
     { id: 'fips', label: 'FIPS matrix' },
@@ -92,28 +118,85 @@ export default function PlatformEnterprise() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <MacSectionTitle title="Enterprise Security" subtitle="Vault sync probes, MFA compliance, FIPS crypto matrix, and workspace isolation." />
+      <header>
+        <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Keychain Access</p>
+        <MacSectionTitle
+          title="Enterprise Security"
+          subtitle="Secrets inventory and link-out — vault, MFA, API keys, air-gap bundles (no live secret export)."
+        />
+      </header>
       {error && <ErrorBanner message={error} />}
-      {overview && (
-        <p className="text-sm text-slate-400">{overview.summary}</p>
+      {(keychain?.summary || overview?.summary) && tab !== 'keychain' && (
+        <p className="text-sm text-slate-400">{overview?.summary}</p>
       )}
-      <div className="grid gap-4 sm:grid-cols-3">
-        <MacStatWidget label="Vault connected" value={overview ? `${overview.vault_connected}/${overview.vault_providers}` : '—'} icon={<Lock className="w-4 h-4" />} />
-        <MacStatWidget label="MFA enrolled" value={overview ? String(overview.mfa_enrolled_users) : '—'} icon={<Shield className="w-4 h-4" />} />
-        <MacStatWidget label="Tenant policies" value={overview ? String(overview.tenant_policies) : '—'} icon={<Users className="w-4 h-4" />} />
-      </div>
-      <div className="flex flex-wrap gap-2">
+      {tab === 'keychain' && keychain && (
+        <p className="text-sm text-slate-400">{keychain.summary}</p>
+      )}
+      {tab === 'keychain' && keychain && (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <MacStatWidget label="Vault connected" value={`${keychain.vault_connected}/${keychain.vault_providers}`} icon={<Lock className="w-4 h-4" />} tone={keychain.disconnected_vaults > 0 ? 'warn' : 'ok'} />
+          <MacStatWidget label="MFA enrolled" value={String(keychain.mfa_enrolled_users)} icon={<Shield className="w-4 h-4" />} />
+          <MacStatWidget label="API keys" value={String(keychain.api_keys)} icon={<Key className="w-4 h-4" />} />
+          <MacStatWidget label="Air-gap bundles" value={String(keychain.air_gap_bundles)} icon={<Users className="w-4 h-4" />} />
+        </div>
+      )}
+      {tab !== 'keychain' && (
+        <div className="grid gap-4 sm:grid-cols-3">
+          <MacStatWidget label="Vault connected" value={overview ? `${overview.vault_connected}/${overview.vault_providers}` : '—'} icon={<Lock className="w-4 h-4" />} />
+          <MacStatWidget label="MFA enrolled" value={overview ? String(overview.mfa_enrolled_users) : '—'} icon={<Shield className="w-4 h-4" />} />
+          <MacStatWidget label="Tenant policies" value={overview ? String(overview.tenant_policies) : '—'} icon={<Users className="w-4 h-4" />} />
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
         {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setTab(t.id)}
-            className={`text-xs px-3 py-1.5 rounded-lg ${tab === t.id ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+            className={`px-4 py-2 text-sm rounded-t-lg transition ${
+              tab === t.id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400 hover:text-slate-200'
+            }`}
           >
             {t.label}
           </button>
         ))}
       </div>
+
+      {tab === 'keychain' && (
+        <MacGlassPanel title="Secrets inventory" subtitle="Metadata only — manage credentials in linked panes.">
+          {!keychain ? (
+            <p className="text-sm text-slate-400 py-6 text-center">Loading keychain inventory…</p>
+          ) : keychain.entries.length === 0 ? (
+            <p className="text-sm text-slate-400">No credentials registered — add vault providers or API keys in Settings.</p>
+          ) : (
+            <div className="divide-y divide-white/[0.04] -mx-1">
+              {keychain.entries.map((e) => (
+                <MacListRow
+                  key={`${e.kind}-${e.id}`}
+                  title={e.name}
+                  subtitle={e.summary}
+                  href={entryHref(e.kind)}
+                  badge={
+                    <span className="text-[10px] uppercase px-2 py-0.5 rounded border border-white/[0.08] text-slate-400">
+                      {KIND_LABELS[e.kind] ?? e.kind}
+                    </span>
+                  }
+                  trailing={
+                    <span className={`text-[10px] ${e.status === 'active' || e.status === 'required' ? 'text-emerald-300' : e.status === 'disconnected' ? 'text-amber-300' : 'text-slate-500'}`}>
+                      {e.status}
+                    </span>
+                  }
+                />
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-3 mt-4 pt-2 border-t border-white/[0.04]">
+            <Link to="/platform/settings?section=security" className="text-sm text-blue-400">System Settings → Security</Link>
+            <Link to="/platform/api-keys" className="text-sm text-blue-400">API keys</Link>
+            <Link to="/platform/enterprise?tab=vault" className="text-sm text-blue-400">Vault sync</Link>
+          </div>
+        </MacGlassPanel>
+      )}
 
       {tab === 'vault' && (
         <MacGlassPanel title="Vault providers" action={

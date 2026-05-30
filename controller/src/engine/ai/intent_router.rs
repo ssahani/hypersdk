@@ -126,6 +126,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("keychain") || ql.contains("secrets inventory") || ql.contains("api keys")
+        || (ql.contains("vault") && ql.contains("list"))
+    {
+        intents.push(intent(
+            "fleet-keychain",
+            "Keychain",
+            "Secrets inventory — vault providers, MFA policies, API keys, and air-gap bundles.",
+            "navigate",
+            None,
+            Some("/platform/enterprise?tab=keychain".into()),
+            None,
+        ));
+    }
     if ql.contains("software update") || ql.contains("host patch") || ql.contains("pending update")
         || (ql.contains("package") && ql.contains("update"))
     {

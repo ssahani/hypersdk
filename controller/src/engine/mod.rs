@@ -40,5 +40,6 @@ pub mod fleet_network;
 pub mod fleet_storage;
 pub mod fleet_console;
 pub mod fleet_updates;
+pub mod fleet_keychain;
 pub mod webhooks;
 pub mod webhook_worker;

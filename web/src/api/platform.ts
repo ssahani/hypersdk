@@ -918,6 +918,29 @@ export type FleetUpdatesOverview = {
 export const getFleetUpdates = () =>
   platformFetch<FleetUpdatesOverview>('/api/v1/fleet/updates')
 
+export type FleetKeychainEntry = {
+  kind: string
+  id: string
+  name: string
+  status: string
+  summary: string
+}
+
+export type FleetKeychainOverview = {
+  summary: string
+  vault_providers: number
+  vault_connected: number
+  mfa_policies: number
+  mfa_enrolled_users: number
+  air_gap_bundles: number
+  api_keys: number
+  disconnected_vaults: number
+  entries: FleetKeychainEntry[]
+}
+
+export const getFleetKeychain = () =>
+  platformFetch<FleetKeychainOverview>('/api/v1/fleet/keychain')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

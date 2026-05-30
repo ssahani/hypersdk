@@ -96,7 +96,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
     label: 'Administration',
     items: [
       { to: '/platform/users', label: 'Users & Access', icon: ic(Users) },
-      { to: '/platform/enterprise', label: 'Enterprise Security', icon: ic(Lock) },
+      { to: '/platform/enterprise', label: 'Keychain', icon: ic(Lock) },
       { to: '/platform/projects', label: 'Workspaces', icon: ic(Boxes) },
       { to: '/platform/reports', label: 'Reports', icon: ic(FileBarChart) },
       { to: '/platform/support', label: 'Support', icon: ic(LifeBuoy) },
@@ -137,7 +137,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/topology': 'Topology',
   '/platform/observability': 'Observability',
   '/platform/developer': 'SDK & Terraform',
-  '/platform/enterprise': 'Enterprise Security',
+  '/platform/enterprise': 'Keychain',
   '/platform/users': 'Users & Access',
   '/platform/projects': 'Workspaces',
   '/platform/reports': 'Reports',

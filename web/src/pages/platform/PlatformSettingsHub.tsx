@@ -178,6 +178,13 @@ export default function PlatformSettingsHub() {
           </MacSettingsGroup>
 
           {enterprise && (
+            <MacSettingsGroup title="Keychain">
+              <p className="text-xs text-slate-500 mb-2">Fleet secrets inventory — vault, MFA, API keys, air-gap bundles.</p>
+              <Link to="/platform/enterprise?tab=keychain" className="text-sm text-blue-400">Open Keychain →</Link>
+            </MacSettingsGroup>
+          )}
+
+          {enterprise && (
             <MacSettingsGroup title="Enterprise security">
               <p className="text-xs text-slate-500 mb-2">{enterprise.summary}</p>
               <div className="grid gap-3 sm:grid-cols-3 text-sm mb-3">
