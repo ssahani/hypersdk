@@ -1,0 +1,96 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use machina_core::{guest_ports_to_open_ports, simulate_connectivity};
+use serde::Serialize;
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use crate::agent_client;
+use crate::config::ControllerConfig;
+
+use super::inventory::target_detail;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct GuestPortReport {
+    pub vm_id: String,
+    pub vm_name: String,
+    pub agent_reachable: bool,
+    pub ports: Vec<machina_core::OpenPort>,
+    pub summary: String,
+}
+
+pub async fn vm_guest_ports(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    vm_id: &str,
+) -> anyhow::Result<GuestPortReport> {
+    let vm_uuid = Uuid::parse_str(vm_id)?;
+    let row: (String, Uuid) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+            .bind(vm_uuid)
+            .fetch_one(pool)
+            .await?;
+    let (vm_name, host_id) = row;
+    let agent_addr: String =
+        sqlx::query_scalar("SELECT COALESCE(agent_grpc_addr, '') FROM hosts WHERE id = $1")
+            .bind(host_id)
+            .fetch_one(pool)
+            .await?;
+    let addr = if agent_addr.is_empty() {
+        cfg.default_agent_addr.clone()
+    } else {
+        agent_addr
+    };
+    let resp = agent_client::get_guest_firewall_ports(&addr, &vm_name).await?;
+    let ports = guest_ports_to_open_ports(&vm_name, &resp.ports);
+    Ok(GuestPortReport {
+        vm_id: vm_id.into(),
+        vm_name,
+        agent_reachable: resp.agent_reachable,
+        ports: ports.clone(),
+        summary: format!("{} in-guest listening ports via QEMU agent", ports.len()),
+    })
+}
+
+pub async fn connectivity_matrix(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    target_id: &str,
+    profile: &str,
+) -> anyhow::Result<machina_core::ConnectivityMatrix> {
+    let detail = target_detail(pool, cfg, target_id).await?;
+    let prof = machina_core::profile_by_name(profile)
+        .ok_or_else(|| anyhow::anyhow!("unknown profile {profile}"))?;
+    let after_rules: Vec<machina_core::ZeusFirewallRule> = prof
+        .rules
+        .iter()
+        .enumerate()
+        .map(|(i, r)| machina_core::ZeusFirewallRule {
+            id: format!("sim-{i}"),
+            direction: r.direction.clone(),
+            protocol: r.protocol.clone(),
+            ports: r.ports.clone(),
+            sources: r.sources.clone(),
+            targets: vec![],
+            action: r.action.clone(),
+            temporary: false,
+            expires_at: None,
+            description: Some(r.name.clone()),
+            scope: "host".into(),
+            backend_ref: None,
+        })
+        .collect();
+    let matrix = simulate_connectivity(&detail.inventory, &after_rules);
+    if let Ok(host_id) = Uuid::parse_str(target_id) {
+        let _ = sqlx::query(
+            "INSERT INTO firewall_connectivity_runs (target_id, profile, matrix_json)
+             VALUES ($1, $2, $3)",
+        )
+        .bind(host_id)
+        .bind(profile)
+        .bind(serde_json::to_value(&matrix)?)
+        .execute(pool)
+        .await;
+    }
+    Ok(matrix)
+}

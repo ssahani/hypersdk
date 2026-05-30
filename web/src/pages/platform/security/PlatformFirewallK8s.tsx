@@ -1,0 +1,71 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { CheckCircle2, XCircle } from 'lucide-react'
+import { MacGlassPanel, MacSectionTitle, MacSheet } from '../../../components/platform/mac/PlatformMacUi'
+import ErrorBanner from '../../../components/ErrorBanner'
+import { getK8sFirewallStatus, planK8sFirewall } from '../../../api/zeusFirewall'
+import { formatUserError } from '../../../utils/apiError'
+
+export default function PlatformFirewallK8s() {
+  const [ready, setReady] = useState(false)
+  const [backend, setBackend] = useState('unknown')
+  const [namespace, setNamespace] = useState('default')
+  const [profile, setProfile] = useState('ProductionServer')
+  const [manifestYaml, setManifestYaml] = useState('')
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getK8sFirewallStatus()
+      .then((s) => {
+        setReady(Boolean(s.ready))
+        setBackend(String(s.backend ?? 'unknown'))
+      })
+      .catch((e: unknown) => setError(formatUserError(e)))
+  }, [])
+
+  return (
+    <div className="space-y-6">
+      <MacSectionTitle title="Kubernetes Firewall" subtitle="NetworkPolicy and Cilium from Zeus profiles" />
+      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      {error && <ErrorBanner message={error} />}
+      <MacGlassPanel title="Cluster">
+        <div className="flex items-center gap-3">
+          {ready ? (
+            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+          ) : (
+            <XCircle className="w-5 h-5 text-amber-400" />
+          )}
+          <div>
+            <p className="text-sm text-slate-100">{ready ? 'kubectl reachable' : 'Cluster not ready'}</p>
+            <p className="text-xs text-slate-500">Backend: {backend}</p>
+          </div>
+        </div>
+      </MacGlassPanel>
+      <MacGlassPanel title="Apply profile to namespace">
+        <div className="space-y-3 max-w-md">
+          <label className="block text-xs text-slate-500">Namespace</label>
+          <input className="input text-sm w-full" value={namespace} onChange={(e) => setNamespace(e.target.value)} />
+          <label className="block text-xs text-slate-500">Profile</label>
+          <input className="input text-sm w-full" value={profile} onChange={(e) => setProfile(e.target.value)} />
+          <button
+            type="button"
+            className="btn-primary text-sm"
+            onClick={() => void planK8sFirewall(namespace, profile).then((r) => {
+              const manifests = (r.manifests as Array<{ yaml: string; kind: string; name: string }>) ?? []
+              setManifestYaml(manifests.map((m) => `# ${m.kind} ${m.name}\n${m.yaml}`).join('\n---\n'))
+              setSheetOpen(true)
+            }).catch((e: unknown) => setError(formatUserError(e)))}
+          >
+            Preview manifests
+          </button>
+        </div>
+      </MacGlassPanel>
+      <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Manifest preview" subtitle="Dry-run YAML" wide>
+        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{manifestYaml || 'No manifests'}</pre>
+      </MacSheet>
+    </div>
+  )
+}

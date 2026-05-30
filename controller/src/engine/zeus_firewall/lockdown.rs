@@ -45,7 +45,7 @@ pub async fn lockdown_target(
     let plan = plan_for_profile("EmergencyIsolation", false)?;
     let result = apply_target(pool, cfg, target_id, plan, actor).await?;
     if capture {
-        let _ = crate::engine::packetwolf_bridge::start_capture(target_id).await;
+        let _ = crate::engine::packetwolf_bridge::start_capture(cfg, target_id).await;
     }
     if let Ok(host_id) = Uuid::parse_str(target_id) {
         let _ = sqlx::query(

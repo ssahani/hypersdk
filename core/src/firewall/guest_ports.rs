@@ -1,0 +1,104 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use super::types::{ExposureRisk, OpenPort};
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct GuestListeningPort {
+    pub port: u16,
+    pub protocol: String,
+    pub bind_address: String,
+    pub process: Option<String>,
+}
+
+#[cfg(target_os = "linux")]
+pub fn scan_guest_listening_ports(vm_name: &str) -> Vec<GuestListeningPort> {
+    use std::process::Command;
+    let exec_json = r#"{"execute":"guest-exec","arguments":{"path":"ss","arg":["-tlnp"],"capture-output":true}}"#;
+    let out = Command::new("virsh")
+        .args(["qemu-agent-command", vm_name, exec_json])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return Vec::new();
+    }
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
+    let pid = v.get("return")?.get("pid")?.as_u64()?;
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let status_json = format!(r#"{{"execute":"guest-exec-status","arguments":{{"pid":{pid}}}}}"#);
+    let st = Command::new("virsh")
+        .args(["qemu-agent-command", vm_name, &status_json])
+        .output()
+        .ok()?;
+    let st_v: serde_json::Value = serde_json::from_slice(&st.stdout).ok()?;
+    let b64 = st_v.get("return")?.get("out-data")?.as_str()?;
+    let decoded = base64_decode(b64)?;
+    parse_ss_output(&String::from_utf8_lossy(&decoded))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn scan_guest_listening_ports(_vm_name: &str) -> Vec<GuestListeningPort> {
+    Vec::new()
+}
+
+pub fn guest_ports_to_open_ports(vm_name: &str, ports: &[GuestListeningPort]) -> Vec<OpenPort> {
+    ports
+        .iter()
+        .map(|p| {
+            let risk = if p.bind_address == "0.0.0.0" || p.bind_address == "::" {
+                if p.port == 22 || p.port == 5432 || p.port == 3306 || p.port == 3389 {
+                    ExposureRisk::Critical
+                } else {
+                    ExposureRisk::Warning
+                }
+            } else {
+                ExposureRisk::Safe
+            };
+            OpenPort {
+                port: p.port,
+                protocol: p.protocol.clone(),
+                service_name: p.process.clone().unwrap_or_else(|| format!("guest-{vm_name}")),
+                bind_address: p.bind_address.clone(),
+                process: p.process.clone(),
+                allowed_from: vec![],
+                risk,
+                evidence: vec!["qemu-guest-agent:ss".into()],
+            }
+        })
+        .collect()
+}
+
+fn parse_ss_output(text: &str) -> Vec<GuestListeningPort> {
+    let mut out = Vec::new();
+    for line in text.lines().skip(1) {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() < 4 {
+            continue;
+        }
+        let local = parts[3];
+        let (bind, port_str) = local.rsplit_once(':').unwrap_or(("*", local));
+        let Ok(port) = port_str.parse::<u16>() else {
+            continue;
+        };
+        let process = line.split("users:((").nth(1).map(|s| {
+            s.trim_end_matches("))")
+                .trim_matches('"')
+                .split('"')
+                .next()
+                .unwrap_or("")
+                .to_string()
+        });
+        out.push(GuestListeningPort {
+            port,
+            protocol: if parts[0].contains('6') { "tcp" } else { "tcp" }.into(),
+            bind_address: bind.into(),
+            process,
+        });
+    }
+    out
+}
+
+#[cfg(target_os = "linux")]
+fn base64_decode(s: &str) -> Option<Vec<u8>> {
+    use base64::Engine;
+    base64::engine::general_purpose::STANDARD.decode(s.trim()).ok()
+}
