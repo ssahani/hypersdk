@@ -168,7 +168,7 @@ export const navGroups: NavGroup[] = [
       {
         label: 'Resources',
         items: [
-          { to: '/platform/storage', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Storage' },
+          { to: '/platform/storage', icon: React.createElement(HardDrive, { className: 'w-4 h-4' }), label: 'Disk Utility' },
           { to: '/platform/networks', icon: React.createElement(Network, { className: 'w-4 h-4' }), label: 'Networks' },
           { to: '/platform/content', icon: React.createElement(Package, { className: 'w-4 h-4' }), label: 'Images & ISOs' },
           { to: '/platform/templates', icon: React.createElement(Layers, { className: 'w-4 h-4' }), label: 'Templates' },
@@ -326,7 +326,7 @@ export const routeLabels: Record<string, string> = {
   '/platform/recommendations': 'Recommendations',
   '/platform/enroll': 'Add Host',
   '/platform/placement': 'Disaster Recovery',
-  '/platform/storage': 'Storage',
+  '/platform/storage': 'Disk Utility',
   '/platform/networks': 'Networks',
   '/platform/tasks': 'Tasks',
   '/platform/events': 'Logs & Audit',

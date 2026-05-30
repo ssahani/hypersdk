@@ -831,6 +831,41 @@ export type FleetNetworkOverview = {
 export const getFleetNetwork = () =>
   platformFetch<FleetNetworkOverview>('/api/v1/fleet/network')
 
+export type FleetStoragePoolItem = {
+  id: string
+  name: string
+  storage_class: string
+  used_gib: number
+  capacity_gib: number
+  used_pct: number
+  tier_name?: string | null
+  status: string
+}
+
+export type FleetSmartDiskItem = {
+  host_id: string
+  hostname: string
+  device: string
+  passed: boolean
+  summary: string
+}
+
+export type FleetStorageOverview = {
+  summary: string
+  pool_count: number
+  tier_count: number
+  total_capacity_gib: number
+  total_used_gib: number
+  pools_over_85_pct: number
+  smart_failure_count: number
+  smart_hosts_affected: number
+  pools: FleetStoragePoolItem[]
+  smart_disks: FleetSmartDiskItem[]
+}
+
+export const getFleetStorage = () =>
+  platformFetch<FleetStorageOverview>('/api/v1/fleet/storage')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

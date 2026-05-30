@@ -37,5 +37,6 @@ pub mod fleet_activity;
 pub mod fleet_backups;
 pub mod fleet_finder;
 pub mod fleet_network;
+pub mod fleet_storage;
 pub mod webhooks;
 pub mod webhook_worker;

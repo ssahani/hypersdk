@@ -916,6 +916,7 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/fleet/backups" "GET /api/v1/fleet/backups" || true
   e2e_platform_smoke_get "/api/v1/fleet/finder" "GET /api/v1/fleet/finder" || true
   e2e_platform_smoke_get "/api/v1/fleet/network" "GET /api/v1/fleet/network" || true
+  e2e_platform_smoke_get "/api/v1/fleet/storage" "GET /api/v1/fleet/storage" || true
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' "${E2E_PLATFORM_BASE}/api/v1/vms?folder=running")"
   if [[ "$http" == "200" ]]; then
     e2e_platform_ok "GET /api/v1/vms?folder=running (HTTP ${http})"

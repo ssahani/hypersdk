@@ -58,7 +58,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
   {
     label: 'Resources',
     items: [
-      { to: '/platform/storage', label: 'Storage', icon: ic(HardDrive) },
+      { to: '/platform/storage', label: 'Disk Utility', icon: ic(HardDrive) },
       { to: '/platform/networks', label: 'Networks', icon: ic(Network) },
       { to: '/platform/content', label: 'Images & ISOs', icon: ic(Package) },
       { to: '/platform/templates', label: 'Templates', icon: ic(Layers) },
@@ -110,7 +110,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/vms': 'Finder',
   '/platform/applications': 'Applications',
   '/platform/hosts': 'Hosts',
-  '/platform/storage': 'Storage',
+  '/platform/storage': 'Disk Utility',
   '/platform/networks': 'Networks',
   '/platform/content': 'Images & ISOs',
   '/platform/templates': 'Templates',

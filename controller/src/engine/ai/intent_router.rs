@@ -102,7 +102,18 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
-    if ql.contains("network lens") || (ql.contains("reach") && ql.contains("vm")) || ql.contains("can't reach") {
+    if ql.contains("disk utility") || ql.contains("smart fail") || (ql.contains("storage") && ql.contains("full")) {
+        intents.push(intent(
+            "disk-utility",
+            "Disk Utility",
+            "Storage pool capacity rings and hypervisor SMART disk health.",
+            "navigate",
+            None,
+            Some("/platform/storage?tab=disks".into()),
+            None,
+        ));
+    }
+    if ql.contains("network lens") || ql.contains("reachability") || (ql.contains("why") && ql.contains("reach")) {
         intents.push(intent(
             "network-lens",
             "Network Lens",

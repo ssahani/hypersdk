@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
-import { Clock, HardDrive, Layers, Loader2, Plus, RefreshCw, Shield } from 'lucide-react'
+import { AlertTriangle, Clock, HardDrive, Layers, Loader2, Plus, RefreshCw, Shield } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import {
   MacGlassPanel,
+  MacListRow,
   MacSectionTitle,
   MacSheet,
   MacStatWidget,
@@ -17,12 +18,14 @@ import {
   createStoragePool,
   deleteStoragePool,
   discoverStoragePools,
+  getFleetStorage,
   getStorageBackupSla,
   getStorageTiersOverview,
   listPlatformHosts,
   listStoragePools,
   syncAllHosts,
   upsertStorageBackupSla,
+  type FleetStorageOverview,
   type StorageBackupSla,
   type StoragePool,
   type StorageTierOverview,
@@ -30,7 +33,9 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-type TabId = 'pools' | 'tiers' | 'sla'
+type TabId = 'disks' | 'pools' | 'tiers' | 'sla'
+
+const TAB_IDS: TabId[] = ['disks', 'pools', 'tiers', 'sla']
 
 function capacityRing(used: number, cap: number) {
   if (cap <= 0) return 0
@@ -40,9 +45,11 @@ function capacityRing(used: number, cap: number) {
 export default function PlatformStorage() {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab = (searchParams.get('tab') as TabId) || 'pools'
+  const rawTab = searchParams.get('tab')
+  const tab: TabId = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : 'disks'
 
   const [rows, setRows] = useState<StoragePool[]>([])
+  const [fleetStorage, setFleetStorage] = useState<FleetStorageOverview | null>(null)
   const [tiers, setTiers] = useState<StorageTierOverview[]>([])
   const [slaPolicies, setSlaPolicies] = useState<StorageBackupSla[]>([])
   const [hostCount, setHostCount] = useState(0)
@@ -61,7 +68,7 @@ export default function PlatformStorage() {
   const [slaSaving, setSlaSaving] = useState(false)
 
   const setTab = (next: TabId) => {
-    setSearchParams(next === 'pools' ? {} : { tab: next })
+    setSearchParams(next === 'disks' ? {} : { tab: next })
   }
 
   const tierName = (id?: string | null) => tiers.find((t) => t.id === id)?.name ?? null
@@ -100,6 +107,11 @@ export default function PlatformStorage() {
   }, [toast])
 
   useEffect(() => { void load(true) }, [load])
+
+  useEffect(() => {
+    if (tab !== 'disks') return
+    void getFleetStorage().then(setFleetStorage).catch(() => setFleetStorage(null))
+  }, [tab])
 
   const runDiscover = async () => {
     setDiscovering(true)
@@ -161,7 +173,10 @@ export default function PlatformStorage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <MacSectionTitle title="Storage" subtitle="vSAN-class tiers, snapshot retention, and backup SLA stubs." />
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Disk Utility</p>
+          <MacSectionTitle title="Storage" subtitle="Pool capacity rings, tier taxonomy, backup SLA — plus fleet SMART disk health." />
+        </div>
         <div className="flex flex-wrap gap-2">
           {tab === 'pools' && (
             <>
@@ -180,6 +195,7 @@ export default function PlatformStorage() {
 
       <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
         {([
+          ['disks', 'Disks', HardDrive],
           ['pools', 'Pools', HardDrive],
           ['tiers', 'Tiers', Layers],
           ['sla', 'Backup SLA', Shield],
@@ -199,11 +215,102 @@ export default function PlatformStorage() {
 
       {error && <ErrorBanner message={error} />}
 
+      {tab === 'disks' && (
+        <div className="space-y-4">
+          {fleetStorage && (
+            <>
+              <p className="text-sm text-slate-400">{fleetStorage.summary}</p>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <MacStatWidget label="Pools" value={String(fleetStorage.pool_count)} icon={<HardDrive className="w-4 h-4" />} />
+                <MacStatWidget
+                  label="Used / capacity"
+                  value={fleetStorage.total_capacity_gib > 0 ? `${fleetStorage.total_used_gib}/${fleetStorage.total_capacity_gib} GiB` : '—'}
+                  icon={<Layers className="w-4 h-4" />}
+                />
+                <MacStatWidget
+                  label="Pools >85%"
+                  value={String(fleetStorage.pools_over_85_pct)}
+                  icon={<AlertTriangle className="w-4 h-4" />}
+                  tone={fleetStorage.pools_over_85_pct > 0 ? 'warn' : 'ok'}
+                />
+                <MacStatWidget
+                  label="SMART failures"
+                  value={String(fleetStorage.smart_failure_count)}
+                  icon={<Shield className="w-4 h-4" />}
+                  tone={fleetStorage.smart_failure_count > 0 ? 'warn' : 'ok'}
+                />
+              </div>
+            </>
+          )}
+          {!fleetStorage && (
+            <div className="flex items-center gap-2 text-sm text-slate-400 py-8">
+              <Loader2 className="w-4 h-4 animate-spin" /> Loading fleet storage…
+            </div>
+          )}
+          {fleetStorage && fleetStorage.pools.length > 0 && (
+            <MacGlassPanel title="Pool health" subtitle="Capacity rings across all registered storage pools.">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 -mt-1">
+                {fleetStorage.pools.map((p) => {
+                  const pct = capacityRing(p.used_gib, p.capacity_gib)
+                  const ringClass = p.status === 'critical' ? 'text-red-400' : p.status === 'warn' ? 'text-amber-400' : 'text-blue-400'
+                  return (
+                    <article key={p.id} className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/40 p-4 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-11 h-11 rounded-xl bg-gradient-to-br ${gradientForName(p.name)} flex items-center justify-center text-white shrink-0`}>
+                          <HardDrive className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-semibold truncate">{p.name}</p>
+                          <p className="text-xs text-slate-500 capitalize">{p.storage_class}{p.tier_name ? ` · ${p.tier_name}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="relative w-14 h-14 shrink-0">
+                          <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-800" />
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${pct} 100`} className={ringClass} />
+                          </svg>
+                          <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">{Math.round(p.used_pct)}%</span>
+                        </div>
+                        <dl className="text-xs space-y-1 flex-1">
+                          <div><dt className="text-slate-500 inline">Used </dt><dd className="inline text-slate-200">{p.used_gib} GiB</dd></div>
+                          <div><dt className="text-slate-500 inline">Capacity </dt><dd className="inline text-slate-200">{p.capacity_gib || '—'} GiB</dd></div>
+                        </dl>
+                      </div>
+                    </article>
+                  )
+                })}
+              </div>
+            </MacGlassPanel>
+          )}
+          {fleetStorage && (
+            <MacGlassPanel title="SMART status" subtitle="Failed disks reported by online hypervisors (linux-obs).">
+              {fleetStorage.smart_disks.length === 0 ? (
+                <p className="text-sm text-slate-400">No SMART failures detected on sampled hosts.</p>
+              ) : (
+                <div className="divide-y divide-white/[0.04] -mx-1">
+                  {fleetStorage.smart_disks.map((d) => (
+                    <MacListRow
+                      key={`${d.host_id}-${d.device}`}
+                      title={`${d.hostname} · ${d.device}`}
+                      subtitle={d.summary}
+                      href={`/platform/hosts/${d.host_id}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </MacGlassPanel>
+          )}
+        </div>
+      )}
+
+      {tab !== 'disks' && (
       <div className="grid gap-3 sm:grid-cols-3">
         <MacStatWidget label="Pools" value={String(rows.length)} icon={<HardDrive className="w-4 h-4" />} />
         <MacStatWidget label="Tiers" value={String(tiers.length)} icon={<Layers className="w-4 h-4" />} />
         <MacStatWidget label="Used / capacity" value={totalCap > 0 ? `${totalUsed}/${totalCap} GiB` : '—'} icon={<Clock className="w-4 h-4" />} />
       </div>
+      )}
 
       {tab === 'pools' && (
         <>

@@ -10,6 +10,7 @@ use crate::engine::fleet_activity;
 use crate::engine::fleet_backups;
 use crate::engine::fleet_finder;
 use crate::engine::fleet_network;
+use crate::engine::fleet_storage;
 use crate::state::AppState;
 
 pub async fn desktop_overview(
@@ -61,6 +62,15 @@ pub async fn network_overview(
     State(state): State<AppState>,
 ) -> Result<Json<fleet_network::FleetNetworkOverview>, ApiError> {
     fleet_network::overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn storage_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_storage::FleetStorageOverview>, ApiError> {
+    fleet_storage::overview(&state.pool, &state.config)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))
