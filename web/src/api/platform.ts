@@ -807,6 +807,30 @@ export type FleetFinderOverview = {
 export const getFleetFinder = () =>
   platformFetch<FleetFinderOverview>('/api/v1/fleet/finder')
 
+export type FleetNetworkSegment = {
+  id: string
+  name: string
+  tier: string
+  cidr: string
+  east_west_default: string
+  vm_count: number
+  network_count: number
+  micro_seg_grade: string
+}
+
+export type FleetNetworkOverview = {
+  summary: string
+  network_count: number
+  segment_count: number
+  ipam_pool_count: number
+  hosts_online: number
+  deny_east_west_count: number
+  segments: FleetNetworkSegment[]
+}
+
+export const getFleetNetwork = () =>
+  platformFetch<FleetNetworkOverview>('/api/v1/fleet/network')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Cable, Layers, Link2, Loader2, Network, Plus, RefreshCw, Router, Shield, Wifi } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import {
   MacGlassPanel,
   MacListRow,
@@ -19,12 +20,15 @@ import {
   createPlatformNetwork,
   deletePlatformNetwork,
   discoverPlatformNetworks,
+  getFleetNetwork,
   getNetworkSegmentsOverview,
   listIpamPools,
   listPlatformHosts,
   listPlatformNetworks,
+  listPlatformVms,
   simulateSegmentConnectivity,
   syncAllHosts,
+  type FleetNetworkOverview,
   type IpamPoolRow,
   type NetworkSegmentOverview,
   type PlatformNetwork,
@@ -38,12 +42,15 @@ const PRESETS = [
   { name: 'vm-net', bridge: 'br0', label: 'VM network', desc: 'Linux bridge for production VMs' },
 ] as const
 
-type TabId = 'networks' | 'segments' | 'ipam'
+type TabId = 'networks' | 'segments' | 'ipam' | 'lens'
+
+const TAB_IDS: TabId[] = ['networks', 'segments', 'ipam', 'lens']
 
 export default function PlatformNetworks() {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab = (searchParams.get('tab') as TabId) || 'networks'
+  const rawTab = searchParams.get('tab')
+  const tab: TabId = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : 'networks'
 
   const [rows, setRows] = useState<PlatformNetwork[]>([])
   const [segments, setSegments] = useState<NetworkSegmentOverview[]>([])
@@ -69,6 +76,8 @@ export default function PlatformNetworks() {
   const [connectivitySegment, setConnectivitySegment] = useState<NetworkSegmentOverview | null>(null)
   const [connectivity, setConnectivity] = useState<SegmentConnectivityResult | null>(null)
   const [connectivityLoading, setConnectivityLoading] = useState(false)
+  const [fleetNetwork, setFleetNetwork] = useState<FleetNetworkOverview | null>(null)
+  const [lensVmNames, setLensVmNames] = useState<string[]>([])
 
   const segmentName = (id?: string | null) =>
     segments.find((s) => s.id === id)?.name ?? null
@@ -111,6 +120,14 @@ export default function PlatformNetworks() {
   }, [toast])
 
   useEffect(() => { void load(true) }, [load])
+
+  useEffect(() => {
+    if (tab !== 'lens') return
+    void Promise.all([
+      getFleetNetwork().then(setFleetNetwork).catch(() => setFleetNetwork(null)),
+      listPlatformVms().then((v) => setLensVmNames(v.map((x) => x.name))).catch(() => setLensVmNames([])),
+    ])
+  }, [tab])
 
   const runDiscover = async () => {
     setDiscovering(true)
@@ -251,6 +268,7 @@ export default function PlatformNetworks() {
           ['networks', 'Networks', Network],
           ['segments', 'Segments', Layers],
           ['ipam', 'IPAM', Shield],
+          ['lens', 'Network Lens', Wifi],
         ] as const).map(([id, label, Icon]) => (
           <button
             key={id}
@@ -498,6 +516,20 @@ export default function PlatformNetworks() {
             </div>
           )}
         </MacGlassPanel>
+      )}
+
+      {tab === 'lens' && (
+        <div className="space-y-4">
+          {fleetNetwork && (
+            <p className="text-sm text-slate-400">{fleetNetwork.summary}</p>
+          )}
+          <MachinaNetworkLens vmNames={lensVmNames} />
+          <MacGlassPanel title="System Settings" subtitle="Fleet network pane — segments, firewall SLA, host systemd">
+            <Link to="/platform/settings?section=network" className="text-sm text-blue-400">
+              Open Network in System Settings →
+            </Link>
+          </MacGlassPanel>
+        </div>
       )}
 
       <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="New network" subtitle="Define a cluster network and provision on an online host." wide>

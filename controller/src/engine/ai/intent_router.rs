@@ -102,14 +102,25 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
-    if ql.contains("systemd") && (ql.contains("network") || ql.contains("networkd") || ql.contains("down")) {
+    if ql.contains("network lens") || (ql.contains("reach") && ql.contains("vm")) || ql.contains("can't reach") {
         intents.push(intent(
-            "host-systemd-network",
-            "systemd network diagnostics",
-            "Check networkd/resolved status on hypervisor hosts.",
+            "network-lens",
+            "Network Lens",
+            "Analyze VM-to-VM reachability — why can't A reach B?",
             "navigate",
             None,
-            Some("/platform/hosts".into()),
+            Some("/platform/networks?tab=lens".into()),
+            None,
+        ));
+    }
+    if ql.contains("systemd") && ql.contains("network") && ql.contains("host") {
+        intents.push(intent(
+            "host-network-settings",
+            "Host network diagnostics",
+            "systemd-networkd and resolved status on hypervisors.",
+            "navigate",
+            None,
+            Some("/platform/settings".into()),
             None,
         ));
     }

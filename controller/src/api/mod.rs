@@ -495,6 +495,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/fleet/activity", get(fleet::activity_overview))
         .route("/api/v1/fleet/backups", get(fleet::backup_overview))
         .route("/api/v1/fleet/finder", get(fleet::finder_overview))
+        .route("/api/v1/fleet/network", get(fleet::network_overview))
         .route("/api/v1/ai/fleet/diagnose", post(fleet::fleet_diagnose))
         .route("/api/v1/developer/overview", get(developer::overview))
         .route("/api/v1/developer/terraform/schema", get(developer::terraform_schema))
