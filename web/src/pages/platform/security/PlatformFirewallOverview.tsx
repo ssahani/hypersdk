@@ -15,7 +15,11 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import {
   getFirewallOverview,
   getMultisiteOverview,
+  getMultisiteDrift,
+  getMultisiteConnectivityMatrix,
+  getMultisiteTimeline,
   getOperatorSecurePlan,
+  getOperatorThresholds,
   executeOperatorSecureBatch,
   syncMultisiteFirewall,
   getZeusFirewallStatus,
@@ -47,19 +51,24 @@ export default function PlatformFirewallOverview() {
   const [syncBusy, setSyncBusy] = useState(false)
   const [applyProfiles, setApplyProfiles] = useState(true)
   const [includeLockdown, setIncludeLockdown] = useState(false)
+  const [multisiteTab, setMultisiteTab] = useState<'overview' | 'drift' | 'connectivity' | 'timeline'>('overview')
+  const [multisiteExtra, setMultisiteExtra] = useState<Record<string, unknown> | Array<Record<string, unknown>> | null>(null)
+  const [thresholds, setThresholds] = useState<Record<string, unknown> | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [ov, st, ms, op] = await Promise.all([
+      const [ov, st, ms, op, th] = await Promise.all([
         getFirewallOverview(),
         getZeusFirewallStatus(),
         getMultisiteOverview().catch(() => null),
         getOperatorSecurePlan().catch(() => null),
+        getOperatorThresholds().catch(() => null),
       ])
       setOverview(ov)
       setMultisite(ms)
       setOperatorPlan(op)
+      setThresholds(th)
       const pw = st.packetwolf as { summary?: string }
       setStatusLine(pw?.summary || 'Zeus Firewall active')
     } catch (e: unknown) {
@@ -186,6 +195,25 @@ export default function PlatformFirewallOverview() {
           )}
           {multisite && (
             <MacGlassPanel title="Multi-site federation" subtitle={multisite.summary}>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {(['overview', 'drift', 'connectivity', 'timeline'] as const).map((t) => (
+                  <button
+                    key={t}
+                    type="button"
+                    className={`text-xs px-2 py-1 rounded ${multisiteTab === t ? 'bg-blue-600 text-white' : 'bg-slate-800 text-slate-300'}`}
+                    onClick={() => {
+                      setMultisiteTab(t)
+                      if (t === 'drift') void getMultisiteDrift().then(setMultisiteExtra).catch(() => setMultisiteExtra(null))
+                      if (t === 'connectivity') void getMultisiteConnectivityMatrix().then(setMultisiteExtra).catch(() => setMultisiteExtra(null))
+                      if (t === 'timeline') void getMultisiteTimeline().then(setMultisiteExtra).catch(() => setMultisiteExtra(null))
+                    }}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {multisiteTab === 'overview' && (
+              <>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 -mt-1">
                 {multisite.sites.map((s) => (
                   <div key={s.id} className="rounded-xl border border-white/[0.06] bg-slate-950/40 px-3 py-2">
@@ -214,6 +242,16 @@ export default function PlatformFirewallOverview() {
                   ))}
                 </ul>
               )}
+              </>
+              )}
+              {multisiteTab !== 'overview' && multisiteExtra && (
+                <pre className="text-[10px] text-slate-500 overflow-x-auto max-h-40 mt-3">{JSON.stringify(multisiteExtra, null, 2)}</pre>
+              )}
+            </MacGlassPanel>
+          )}
+          {thresholds && (
+            <MacGlassPanel title="Operator thresholds" subtitle={String(thresholds.summary ?? 'Auto-secure eligibility rules')}>
+              <pre className="text-[10px] text-slate-500 overflow-x-auto max-h-24">{JSON.stringify(thresholds, null, 2)}</pre>
             </MacGlassPanel>
           )}
           <MacGlassPanel title="Machine Security" subtitle="Open like macOS System Settings panes">
@@ -224,6 +262,7 @@ export default function PlatformFirewallOverview() {
                 { to: '/platform/zeus/security/services', label: 'Allowed Apps', icon: <Server className="w-5 h-5" /> },
                 { to: '/platform/zeus/security/activity', label: 'Activity', icon: <Shield className="w-5 h-5" /> },
                 { to: '/platform/zeus/security/compliance', label: 'Compliance', icon: <CheckCircle2 className="w-5 h-5" /> },
+                { to: '/platform/zeus/security/policies', label: 'Policy Studio', icon: <Shield className="w-5 h-5" /> },
                 { to: '/platform/zeus/security/k8s', label: 'Kubernetes', icon: <GitBranch className="w-5 h-5" /> },
                 { to: '/platform/zeus/security/cloud', label: 'Cloud SGs', icon: <Cloud className="w-5 h-5" /> },
                 { to: '/platform/zeus/security/connectivity', label: 'Connectivity', icon: <Network className="w-5 h-5" /> },

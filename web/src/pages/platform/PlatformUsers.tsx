@@ -10,6 +10,7 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import {
   createUser,
   deleteUser,
@@ -184,6 +185,7 @@ export default function PlatformUsers() {
           </div>
         </MacGlassPanel>
       )}
+      <FleetSettingsPane kind="users" />
     </div>
   )
 }

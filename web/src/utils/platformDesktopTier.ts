@@ -29,6 +29,7 @@ const NORMAL_PATHS = [
   '/platform',
   '/platform/vms',
   '/platform/hosts',
+  '/platform/storage',
   '/platform/backups',
   '/platform/settings',
   '/platform/support',
@@ -58,25 +59,30 @@ const POWER_PATHS = [
 ]
 
 export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
-  normal: ['/platform', '/platform/vms', '/platform/hosts', '/platform/backups', '/platform/settings'],
+  normal: ['/platform', '/platform/hosts', '/platform/vms', '/platform/storage', '/platform/settings'],
   power: [
     '/platform',
-    '/platform/vms',
     '/platform/hosts',
-    '/platform/activity',
-    '/platform/backups',
-    '/platform/blueprints',
+    '/platform/vms',
+    '/platform/storage',
+    '/platform/networks',
+    '/platform/zeus',
+    '/platform/events',
     '/platform/settings',
   ],
   advanced: [
     '/platform',
-    '/platform/vms',
     '/platform/hosts',
-    '/platform/activity',
-    '/platform/backups',
-    '/platform/blueprints',
-    '/platform/projects',
+    '/platform/vms',
+    '/platform/storage',
+    '/platform/networks',
     '/platform/zeus',
+    '/platform/activity',
+    '/platform/reports',
+    '/platform/topology',
+    '/platform/maintenance',
+    '/platform/notifications',
+    '/platform/events',
     '/platform/settings',
   ],
 }
@@ -94,15 +100,13 @@ export function loadPlatformDesktopTier(): PlatformDesktopTier {
   } catch {
     /* ignore */
   }
-  return 'normal'
+  return 'advanced'
 }
 
 export function savePlatformDesktopTier(tier: PlatformDesktopTier) {
   localStorage.setItem(PLATFORM_DESKTOP_TIER_KEY, tier)
   window.dispatchEvent(new CustomEvent(PLATFORM_DESKTOP_TIER_EVENT, { detail: tier }))
 }
-
-export { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
 
 export function isPathAllowedForTier(path: string, tier: PlatformDesktopTier): boolean {
   if (tier === 'advanced') return true

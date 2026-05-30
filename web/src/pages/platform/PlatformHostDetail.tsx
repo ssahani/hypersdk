@@ -14,6 +14,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import {
   getPlatformHostDetail,
   getHostLinuxObservability,
+  getHostLinuxUpdates,
   getHostNetworkDiag,
   getHostLinuxAudit,
   getHostLldp,
@@ -25,6 +26,7 @@ import {
   enqueueValidateHost,
   type PlatformHostDetail,
   type HostLinuxObservability,
+  type HostLinuxUpdates,
   type HostNetworkDiag,
   type HostLinuxAuditReport,
   type HostLldpInventory,
@@ -68,6 +70,7 @@ export default function PlatformHostDetailPage() {
   const [section, setSection] = useState<HostSection>('general')
   const [host, setHost] = useState<PlatformHostDetail | null>(null)
   const [linuxObs, setLinuxObs] = useState<HostLinuxObservability | null>(null)
+  const [linuxUpdates, setLinuxUpdates] = useState<HostLinuxUpdates | null>(null)
   const [netDiag, setNetDiag] = useState<HostNetworkDiag | null>(null)
   const [audit, setAudit] = useState<HostLinuxAuditReport | null>(null)
   const [lldp, setLldp] = useState<HostLldpInventory | null>(null)
@@ -76,6 +79,9 @@ export default function PlatformHostDetailPage() {
   const [diagnoseLoading, setDiagnoseLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
+  const [site, setSite] = useState('')
+  const [rack, setRack] = useState('')
+  const [rackU, setRackU] = useState('')
   const [fenceMethod, setFenceMethod] = useState('shell')
   const [ipmiAddress, setIpmiAddress] = useState('')
   const [ipmiUser, setIpmiUser] = useState('')
@@ -88,6 +94,9 @@ export default function PlatformHostDetailPage() {
       const h = await getPlatformHostDetail(id)
       setHost(h)
       setNotes(h.notes || '')
+      setSite(h.site || '')
+      setRack(h.rack || '')
+      setRackU(h.rack_u != null ? String(h.rack_u) : '')
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -104,7 +113,12 @@ export default function PlatformHostDetailPage() {
       setLldp(l)
     }
     if (section === 'linux') {
-      setLinuxObs(await getHostLinuxObservability(id).catch(() => null))
+      const [obs, updates] = await Promise.all([
+        getHostLinuxObservability(id).catch(() => null),
+        getHostLinuxUpdates(id).catch(() => null),
+      ])
+      setLinuxObs(obs)
+      setLinuxUpdates(updates)
     }
     if (section === 'audit') {
       setAudit(await getHostLinuxAudit(id).catch(() => null))
@@ -204,6 +218,41 @@ export default function PlatformHostDetailPage() {
                     <div className="md:col-span-2 font-mono text-xs text-slate-500">{host.libvirt_uri}</div>
                   </div>
                 </MacSettingsGroup>
+                <MacSettingsGroup title="Datacenter location">
+                  <p className="px-3 pt-3 text-xs text-slate-500">
+                    Organize this host on the Mission Control map (site → rack → U position).
+                  </p>
+                  <div className="p-3 grid gap-3 sm:grid-cols-3">
+                    <label className="space-y-1 text-sm">
+                      <span className="text-slate-400 text-xs">Site</span>
+                      <input className="input w-full text-sm" value={site} onChange={(e) => setSite(e.target.value)} placeholder="e.g. Pune" />
+                    </label>
+                    <label className="space-y-1 text-sm">
+                      <span className="text-slate-400 text-xs">Rack</span>
+                      <input className="input w-full text-sm" value={rack} onChange={(e) => setRack(e.target.value)} placeholder="e.g. Rack 01" />
+                    </label>
+                    <label className="space-y-1 text-sm">
+                      <span className="text-slate-400 text-xs">Rack U</span>
+                      <input className="input w-full text-sm" type="number" min={1} max={52} value={rackU} onChange={(e) => setRackU(e.target.value)} placeholder="12" />
+                    </label>
+                  </div>
+                  <div className="px-3 pb-3">
+                    <button
+                      type="button"
+                      className="btn-secondary text-sm"
+                      onClick={() => {
+                        const parsedU = rackU.trim() === '' ? null : Number(rackU)
+                        void patchHost(id, {
+                          site: site.trim(),
+                          rack: rack.trim(),
+                          rack_u: parsedU != null && !Number.isNaN(parsedU) ? parsedU : null,
+                        }).then(() => { toast.success('Location saved'); return load() })
+                      }}
+                    >
+                      Save location
+                    </button>
+                  </div>
+                </MacSettingsGroup>
                 <MacSettingsGroup title="Notes">
                   <div className="p-3 space-y-2">
                     <textarea className="input min-h-20 text-sm w-full" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -266,6 +315,24 @@ export default function PlatformHostDetailPage() {
                             badge={!d.passed ? <span className="text-[10px] text-rose-400">fail</span> : undefined}
                           />
                         ))}
+                      </MacGlassPanel>
+                    )}
+                    {linuxUpdates && (
+                      <MacGlassPanel title="Package updates" subtitle={linuxUpdates.summary}>
+                        {(linuxUpdates.packages ?? []).length === 0 ? (
+                          <p className="text-sm text-slate-400">No pending updates.</p>
+                        ) : (
+                          <ul className="divide-y divide-white/[0.04] -mx-1 max-h-48 overflow-y-auto">
+                            {linuxUpdates.packages.slice(0, 20).map((p) => (
+                              <MacListRow
+                                key={p.name}
+                                title={p.name}
+                                subtitle={`${p.current} → ${p.available}`}
+                                badge={p.security ? <span className="text-[10px] text-amber-400">security</span> : undefined}
+                              />
+                            ))}
+                          </ul>
+                        )}
                       </MacGlassPanel>
                     )}
                   </>

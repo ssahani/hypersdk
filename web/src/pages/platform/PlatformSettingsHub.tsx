@@ -11,9 +11,10 @@ import {
   MacToggle,
   MacListRow,
 } from '../../components/platform/mac/PlatformMacUi'
-import { getClusterSettings, patchClusterSettings, getEnterpriseSecurityOverview, getFleetNetwork, listVaultProviders, listMfaPolicies, upsertMfaPolicy, listAirGapBundles, createAirGapBundle, type EnterpriseSecurityOverview, type FleetNetworkOverview, type VaultProvider, type MfaPolicy, type AirGapBundle } from '../../api/platform'
+import { getClusterSettings, patchClusterSettings, getEnterpriseSecurityOverview, getFleetNetwork, listVaultProviders, listMfaPolicies, upsertMfaPolicy, listAirGapBundles, createAirGapBundle, getAirGapBundle, listPolicyRules, type EnterpriseSecurityOverview, type FleetNetworkOverview, type VaultProvider, type MfaPolicy, type AirGapBundle, type PolicyRule } from '../../api/platform'
 import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
@@ -54,6 +55,8 @@ export default function PlatformSettingsHub() {
   const [bundleName, setBundleName] = useState('sovereign-export')
   const [bundleCreating, setBundleCreating] = useState(false)
   const [fleetNetwork, setFleetNetwork] = useState<FleetNetworkOverview | null>(null)
+  const [policyRules, setPolicyRules] = useState<PolicyRule[]>([])
+  const [selectedBundle, setSelectedBundle] = useState<AirGapBundle | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -75,6 +78,7 @@ export default function PlatformSettingsHub() {
       setVaultProviders(vaults)
       setMfaPolicies(mfa)
       setAirGapBundles(bundles)
+      setPolicyRules(await listPolicyRules().catch(() => []))
     } catch { /* optional */ }
   }, [])
 
@@ -160,6 +164,7 @@ export default function PlatformSettingsHub() {
         <div className="space-y-6">
           <PlatformAppearanceSettings />
           <PlatformSettings embedded />
+          <FleetSettingsPane kind="general" />
         </div>
       )}
 
@@ -248,8 +253,22 @@ export default function PlatformSettingsHub() {
                 key={b.id}
                 title={b.name}
                 subtitle={`${b.checksum.slice(0, 24)}… · ${Math.round(b.size_bytes / 1024)} KB`}
+                onClick={() => void getAirGapBundle(b.id).then(setSelectedBundle).catch(() => toast.error('Bundle not found'))}
               />
             ))}
+            {selectedBundle && (
+              <pre className="text-[10px] text-slate-500 mt-2 overflow-x-auto max-h-32">{JSON.stringify(selectedBundle.manifest_json, null, 2)}</pre>
+            )}
+          </MacSettingsGroup>
+
+          <MacSettingsGroup title="Policy rules">
+            {policyRules.length === 0 ? (
+              <p className="text-sm text-slate-500">No rules — <Link to="/platform/policy" className="text-blue-400">open Policy & Quotas</Link></p>
+            ) : (
+              policyRules.slice(0, 5).map((r) => (
+                <MacListRow key={r.id} title={r.name} subtitle={r.enabled ? 'Enabled' : 'Disabled'} />
+              ))
+            )}
           </MacSettingsGroup>
 
           <MacSettingsGroup title="Zeus Firewall">

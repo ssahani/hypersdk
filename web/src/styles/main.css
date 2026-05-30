@@ -232,10 +232,26 @@ code {
   backdrop-filter: blur(var(--blur-liquid)) saturate(1.5);
   -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.5);
   border-bottom: 1px solid var(--glass-border);
+  overflow: visible;
 }
 
 .mac-menubar-title {
   z-index: 1;
+}
+
+.mac-dynamic-island {
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.4);
+  box-shadow: 0 4px 24px -8px rgba(0, 0, 0, 0.45);
+  transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease;
+}
+
+.mac-dynamic-island:hover {
+  transform: scale(1.02);
+}
+
+.mac-dynamic-island[aria-expanded='true'] {
+  transform: scale(1.04);
 }
 
 .mac-finder-sidebar {
@@ -446,16 +462,14 @@ code {
   }
 }
 
-/* Normal tier — dock-first desktop; sidebar stays hidden until toggled (⌘⌥S) */
+/* Normal tier — dock-first desktop; use full width (sidebar toggled via ⌘⌥S) */
 .mac-desktop-root[data-desktop-tier='normal'] .mac-desktop-main {
   padding-bottom: 6rem;
 }
 
 @media (min-width: 1024px) {
-  .mac-desktop-root[data-desktop-tier='normal']:not(:has(.platform-sidebar)) .mac-desktop-main {
-    max-width: 72rem;
-    margin-left: auto;
-    margin-right: auto;
+  .mac-desktop-main {
+    max-width: none;
     width: 100%;
   }
 }

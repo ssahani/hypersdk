@@ -1,6 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '../../../contexts/AuthContext'
@@ -10,11 +10,13 @@ import PlatformMacMenuDropdown, { PlatformMacMenuItem } from './PlatformMacMenuD
 import { usePlatformMacDesktop } from './PlatformMacDesktopContext'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
 import { openPlatformDockEditor } from '../../../utils/platformDockPins'
+import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import {
   PLATFORM_DESKTOP_TIER_LABELS,
-  usePlatformDesktopTier,
   type PlatformDesktopTier,
 } from '../../../utils/platformDesktopTier'
+import { dispatchOpenMissionControl } from './MissionControlContext'
+import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -29,8 +31,14 @@ export default function PlatformMacAppMenus() {
   const [tier, setTier] = usePlatformDesktopTier()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
 
+  const navSections = useMemo(() => macMenuSectionsForTier(tier), [tier])
+
   const closeMenu = useCallback(() => setOpenMenu(null), [])
   const toggleMenu = (id: string) => setOpenMenu((prev) => (prev === id ? null : id))
+  const go = useCallback((path: string) => {
+    navigate(path)
+    closeMenu()
+  }, [navigate, closeMenu])
 
   const pickTier = (next: PlatformDesktopTier) => {
     setTier(next)
@@ -66,13 +74,33 @@ export default function PlatformMacAppMenus() {
   }, [navigate, toggleSidebar, toggleInspector, openCopilot, location.pathname, location.search])
 
   return (
-    <div className="flex items-center gap-1 shrink-0">
+    <div className="flex items-center gap-1 shrink-0 min-w-0 overflow-visible">
       <PlatformMacMenuDropdown label="Machina" open={openMenu === 'machina'} onToggle={() => toggleMenu('machina')} onClose={closeMenu}>
-        <PlatformMacMenuItem label="About Machina Platform" onClick={() => { navigate('/platform/settings?section=about'); closeMenu() }} />
-        <PlatformMacMenuItem label="Settings…" shortcut="⌘," onClick={() => { navigate('/platform/settings'); closeMenu() }} />
+        <PlatformMacMenuItem label="About Machina Platform" onClick={() => go('/platform/settings?section=about')} />
+        <PlatformMacMenuItem label="Settings…" shortcut="⌘," onClick={() => go('/platform/settings')} />
         <PlatformMacMenuItem label="Customize Dock…" onClick={() => { openPlatformDockEditor(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
+        <PlatformMacMenuItem label="Add Host…" onClick={() => go('/platform/enroll')} />
+        <PlatformMacMenuItem label="Platform Support" onClick={() => go('/platform/support')} />
+        <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Sign Out" onClick={() => { void logout(); closeMenu() }} />
+      </PlatformMacMenuDropdown>
+
+      <PlatformMacMenuDropdown label="Go" open={openMenu === 'go'} onToggle={() => toggleMenu('go')} onClose={closeMenu}>
+        {navSections.map((section, idx) => (
+          <div key={section.label}>
+            {idx > 0 && <div className="my-1 border-t border-white/[0.08]" />}
+            <PlatformMacMenuItem label={section.label} header />
+            {section.items.map((item) => (
+              <PlatformMacMenuItem
+                key={item.to}
+                label={item.label}
+                checked={location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)}
+                onClick={() => go(item.to)}
+              />
+            ))}
+          </div>
+        ))}
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="View" open={openMenu === 'view'} onToggle={() => toggleMenu('view')} onClose={closeMenu}>
@@ -83,24 +111,35 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.power} checked={tier === 'power'} onClick={() => pickTier('power')} />
         <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.advanced} checked={tier === 'advanced'} onClick={() => pickTier('advanced')} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label="Stage Manager" onClick={() => { navigate('/platform/projects'); closeMenu() }} />
-        <PlatformMacMenuItem label="Mission Control" onClick={() => { navigate('/platform'); closeMenu() }} />
-        <PlatformMacMenuItem label="Activity Monitor" onClick={() => { navigate('/platform/activity'); closeMenu() }} />
+        <PlatformMacMenuItem label="Mission Control" shortcut="F3" onClick={() => { dispatchOpenMissionControl(); closeMenu() }} />
+        <PlatformMacMenuItem label="Stage Manager" onClick={() => go('/platform/projects')} />
+        <PlatformMacMenuItem label="Activity Monitor" onClick={() => go('/platform/activity')} />
+        <PlatformMacMenuItem label="Finder" onClick={() => go('/platform/vms')} />
+        <PlatformMacMenuItem label="Disk Utility" onClick={() => go('/platform/storage')} />
+        <PlatformMacMenuItem label="Console" onClick={() => go('/platform/events')} />
+        <PlatformMacMenuItem label="Software Update" onClick={() => go('/platform/maintenance')} />
+        <PlatformMacMenuItem label="Zeus OS" onClick={() => go('/platform/zeus')} />
+        <PlatformMacMenuItem label="Zeus Firewall" onClick={() => go('/platform/zeus/security/firewall')} />
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Window" open={openMenu === 'window'} onToggle={() => toggleMenu('window')} onClose={closeMenu}>
         <PlatformMacMenuItem label="Spotlight…" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
-        <PlatformMacMenuItem label="Ask Zeus…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
+        <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label="Minimize" disabled onClick={closeMenu} />
+        <PlatformMacMenuItem label="Dashboard" onClick={() => go('/platform')} />
+        <PlatformMacMenuItem label="Hosts" onClick={() => go('/platform/hosts')} />
+        <PlatformMacMenuItem label="Virtual Machines" onClick={() => go('/platform/vms')} />
+        <PlatformMacMenuItem label="Notifications" onClick={() => go('/platform/notifications')} />
+        <PlatformMacMenuItem label="Tasks" onClick={() => go('/platform/tasks')} />
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Help" open={openMenu === 'help'} onToggle={() => toggleMenu('help')} onClose={closeMenu}>
-        <PlatformMacMenuItem label="Ask Zeus…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
-        <div className="my-1 border-t border-white/[0.08]" />
+        <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Spotlight Search" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
-        <PlatformMacMenuItem label="Platform Support" onClick={() => { navigate('/platform/support'); closeMenu() }} />
+        <div className="my-1 border-t border-white/[0.08]" />
+        <PlatformMacMenuItem label="Platform Support" onClick={() => go('/platform/support')} />
+        <PlatformMacMenuItem label="Developer / SDK" onClick={() => go('/platform/developer')} />
         <PlatformMacMenuItem label="OpenAPI Reference" onClick={() => { window.open('/api/v1/openapi.json', '_blank'); closeMenu() }} />
       </PlatformMacMenuDropdown>
 

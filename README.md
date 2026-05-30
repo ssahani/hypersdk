@@ -2,6 +2,8 @@
 
 **Enterprise Linux Hypervisor Management Platform** for bare-metal worker nodes — unified control plane for VMs, networks, storage, snapshots, and day-two operations from a single dashboard and REST API.
 
+**Product stack:** **Machina** is the physical infrastructure OS (hosts, hypervisors, BMC, patching, Mission Control). **Zeus OS** is the cloud layer on top (Kubernetes, KubeVirt, applications). See [`docs/machina-infrastructure-vision.md`](docs/machina-infrastructure-vision.md).
+
 Built on **libvirt** with QEMU/KVM. Optional **Kubernetes** integration via YAML workflows and `kubectl`/`virtctl` helpers allows libvirt guests to participate in **KubeVirt** clusters and migrations. See [docs/kubevirt-migration.md](docs/kubevirt-migration.md). **OpenStack** Nova/Glance management and native qcow2 ↔ Glance migration are built into the daemon (optional **hyper2kvm** for advanced VM push) — see [docs/openstack.md](docs/openstack.md) and [docs/openstack-migration.md](docs/openstack-migration.md).
 
 A **Rust daemon** exposes REST and WebSocket APIs; a **web UI** delivers VNC, SPICE, serial, and SSH consoles; a **terminal UI** covers keyboard-first workflows. PAM authentication with RBAC, live metrics, Prometheus, alerts, webhooks, scheduled actions, and more run through that single daemon.

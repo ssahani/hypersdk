@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { sidebarForTier } from '../../utils/platformNavFilter'
-import { usePlatformDesktopTier } from '../../utils/platformDesktopTier'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 
 const COLLAPSE_KEY = 'machina-platform-sidebar-collapsed'
 

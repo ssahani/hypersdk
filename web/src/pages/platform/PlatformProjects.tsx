@@ -9,6 +9,7 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { getFleetSpaces, type FleetSpacesOverview } from '../../api/platform'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { formatUserError } from '../../utils/apiError'
@@ -184,6 +185,7 @@ export default function PlatformProjects() {
           </table>
         </div>
       )}
+      <FleetSettingsPane kind="spaces" />
     </div>
   )
 }

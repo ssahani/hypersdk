@@ -39,7 +39,8 @@ import { useAi } from '../../contexts/AiContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { usePlatformDesktopTier, tierAtLeast } from '../../utils/platformDesktopTier'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { tierAtLeast } from '../../utils/platformDesktopTier'
 
 export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()

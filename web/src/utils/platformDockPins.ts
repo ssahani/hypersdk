@@ -4,14 +4,18 @@ import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
   Activity,
-  Archive,
+  Bell,
+  FileBarChart,
+  GitBranch,
+  HardDrive,
   LayoutDashboard,
-  LayoutGrid,
   Monitor,
+  Network,
   Server,
   Settings,
   Sparkles,
-  Workflow,
+  Terminal,
+  Download,
 } from 'lucide-react'
 import { PLATFORM_SIDEBAR } from './platformNav'
 import {
@@ -36,12 +40,30 @@ const ICON_BY_PATH: Record<string, LucideIcon> = {
   '/platform': LayoutDashboard,
   '/platform/vms': Monitor,
   '/platform/hosts': Server,
+  '/platform/storage': HardDrive,
+  '/platform/networks': Network,
+  '/platform/events': Terminal,
   '/platform/activity': Activity,
-  '/platform/backups': Archive,
-  '/platform/blueprints': Workflow,
-  '/platform/projects': LayoutGrid,
+  '/platform/reports': FileBarChart,
+  '/platform/topology': GitBranch,
+  '/platform/maintenance': Download,
+  '/platform/notifications': Bell,
   '/platform/zeus': Sparkles,
   '/platform/settings': Settings,
+}
+
+const LABEL_BY_PATH: Record<string, string> = {
+  '/platform/hosts': 'Machines',
+  '/platform/vms': 'VMs',
+  '/platform/storage': 'Storage',
+  '/platform/networks': 'Network',
+  '/platform/zeus': 'GPU',
+  '/platform/events': 'Terminal',
+  '/platform/activity': 'Activity',
+  '/platform/reports': 'Reports',
+  '/platform/topology': 'Topology',
+  '/platform/maintenance': 'Updates',
+  '/platform/notifications': 'Alerts',
 }
 
 /** Default pinned apps for the Machina platform dock (v9s MacDock pattern). */
@@ -58,7 +80,8 @@ export const PLATFORM_SIDEBAR_FLAT = PLATFORM_SIDEBAR.flatMap((s) =>
 function itemForPath(path: string): PlatformDockItem | null {
   const flat = PLATFORM_SIDEBAR_FLAT.find((i) => i.path === path)
   const Icon = ICON_BY_PATH[path] ?? Monitor
-  if (flat) return { path, label: flat.label, icon: Icon }
+  const label = LABEL_BY_PATH[path] ?? flat?.label
+  if (label) return { path, label, icon: Icon }
   if (path in ICON_BY_PATH) {
     return { path, label: path.split('/').pop() ?? path, icon: Icon }
   }

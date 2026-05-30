@@ -10,12 +10,14 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import {
   createMaintenanceSchedule,
   deleteMaintenanceSchedule,
   getFleetUpdates,
   listMaintenanceSchedules,
   listPlatformHosts,
+  upgradeHostAgent,
   type FleetUpdatesOverview,
   type MaintenanceSchedule,
   type PlatformHost,
@@ -184,9 +186,22 @@ export default function PlatformMaintenance() {
                         </span>
                       }
                       trailing={
-                        h.agent_update_available ? (
-                          <span className="text-[10px] text-violet-300">agent → {fleet.recommended_agent}</span>
-                        ) : null
+                        <div className="flex flex-col items-end gap-1">
+                          {h.agent_update_available ? (
+                            <button
+                              type="button"
+                              className="text-[10px] text-violet-300 hover:underline"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                void upgradeHostAgent(h.host_id).then((r) => {
+                                  toast.success(`Agent upgrade queued (${r.task_id})`)
+                                }).catch((err: unknown) => toast.error(formatUserError(err)))
+                              }}
+                            >
+                              Upgrade agent
+                            </button>
+                          ) : null}
+                        </div>
                       }
                     />
                   ))}
@@ -239,6 +254,7 @@ export default function PlatformMaintenance() {
           </div>
         </>
       )}
+      {tab === 'updates' && <FleetSettingsPane kind="updates" />}
     </div>
   )
 }

@@ -1,6 +1,8 @@
 # Zeus Platform — Vision (v1)
 
-**Zeus** is the enterprise virtualization operating system. **Machina** is the hypervisor control product on Zeus — with **Machina AI** (Spotlight, Copilot, Doctor, Autopilot, and deterministic advisors; optional BYOK LLM) on top of Zyvor Platform and the Machina daemon UI.
+**Zeus** is the enterprise **cloud operating system** — Kubernetes, KubeVirt, applications, and AI workloads. **Machina** is the **physical infrastructure OS** underneath (bare metal, hypervisors, VMs, BMC, patching). Machina AI (Spotlight, Copilot, Doctor, Autopilot) spans both layers but grounds decisions in host reality.
+
+**Scope split:** Zeus owns the K8s/app layer only. Physical fleet, Mission Control geography, and host maintenance live in Machina — see [`machina-infrastructure-vision.md`](machina-infrastructure-vision.md).
 
 **Status (main):** Batches **AI-49 through AI-95** — see [`machina-zeus-os-vision.md`](machina-zeus-os-vision.md) for the AI-native OS roadmap.
 

@@ -11,6 +11,8 @@ import {
   approveFirewallChange,
   rejectFirewallChange,
   exportFirewallGitOps,
+  syncFirewallGitOps,
+  firewallCompliancePdfUrl,
   type FirewallApproval,
   type FirewallApprovalApplyResult,
 } from '../../../api/zeusFirewall'
@@ -131,6 +133,14 @@ export default function PlatformFirewallCompliance() {
             })}>
               Export GitOps
             </button>
+            <button type="button" className="text-xs text-emerald-400" onClick={() => void exportFirewallGitOps().then((r) =>
+              syncFirewallGitOps(r.policies ?? [], false).then((s) => toast.success(`Synced ${s.upserted} policies`))
+            ).catch((e: unknown) => toast.error(formatUserError(e)))}>
+              Sync GitOps
+            </button>
+            <a href={firewallCompliancePdfUrl(kind)} className="text-xs text-blue-400" target="_blank" rel="noreferrer">
+              Export PDF
+            </a>
             <button type="button" className="text-xs text-blue-400" onClick={() => void exportFirewallSiem(168).then((r) => {
               const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' })
               const url = URL.createObjectURL(blob)

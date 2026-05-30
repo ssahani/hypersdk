@@ -91,6 +91,45 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("mission control")
+        || ql.contains("infrastructure earth")
+        || (ql.contains("open") && ql.contains("mission"))
+    {
+        intents.push(intent(
+            "open-mission-control",
+            "Open Mission Control",
+            "Infrastructure Earth — site, rack, and host overview.",
+            "navigate",
+            None,
+            Some("/platform?mission=1".into()),
+            None,
+        ));
+    }
+    if ql.contains("overheat")
+        || ql.contains("thermal")
+        || (ql.contains("host") && ql.contains("pressure"))
+    {
+        intents.push(intent(
+            "show-overheating-hosts",
+            "Show hosts under pressure",
+            "Open Mission Control filtered to thermal and resource pressure.",
+            "navigate",
+            None,
+            Some("/platform?mission=1".into()),
+            None,
+        ));
+    }
+    if ql.contains("infrastructure health") || ql.contains("fleet health") {
+        intents.push(intent(
+            "infrastructure-health",
+            "Infrastructure health",
+            "Fleet health rollup in Mission Control.",
+            "navigate",
+            None,
+            Some("/platform?mission=1".into()),
+            None,
+        ));
+    }
     if ql.contains("disk pressure") || ql.contains("io pressure") || (ql.contains("host") && ql.contains("slow")) {
         intents.push(intent(
             "host-disk-pressure",
@@ -976,7 +1015,74 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "Recall related audit and failure history.",
             "navigate",
             None,
-            Some("/platform/zeus".into()),
+            Some("/platform/topology".into()),
+            None,
+        ));
+    }
+
+    if ql.contains("audit log") || (ql.contains("audit") && ql.contains("controller")) {
+        intents.push(intent(
+            "audit-log",
+            "Audit log",
+            "Controller audit trail and fleet console stream.",
+            "navigate",
+            None,
+            Some("/platform/events".into()),
+            None,
+        ));
+    }
+    if ql.contains("policy") && (ql.contains("quota") || ql.contains("rule")) {
+        intents.push(intent(
+            "policy-quotas",
+            "Policy & quotas",
+            "Project limits and controller policy rules.",
+            "navigate",
+            None,
+            Some("/platform/policy".into()),
+            None,
+        ));
+    }
+    if ql.contains("guestkit") && ql.contains("job") {
+        intents.push(intent(
+            "guestkit-jobs",
+            "GuestKit jobs",
+            "Offline disk inspect and migrate-plan queue.",
+            "navigate",
+            None,
+            Some("/platform/migration?tab=jobs".into()),
+            None,
+        ));
+    }
+    if ql.contains("firewall") && ql.contains("policy") {
+        intents.push(intent(
+            "firewall-policies",
+            "Firewall Policy Studio",
+            "Create, simulate, and sync Zeus firewall policies.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/policies".into()),
+            None,
+        ));
+    }
+    if ql.contains("prometheus") || (ql.contains("metrics") && ql.contains("fleet")) {
+        intents.push(intent(
+            "fleet-prometheus",
+            "Fleet Prometheus",
+            "Scrape aggregate controller metrics exposition.",
+            "navigate",
+            None,
+            Some("/platform/observability".into()),
+            None,
+        ));
+    }
+    if ql.contains("remediat") || (ql.contains("sre") && ql.contains("fix")) {
+        intents.push(intent(
+            "sre-remediate",
+            "SRE remediations",
+            "AI-suggested fixes from live fleet analysis.",
+            "navigate",
+            None,
+            Some("/platform/recommendations".into()),
             None,
         ));
     }

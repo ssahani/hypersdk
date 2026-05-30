@@ -449,6 +449,59 @@ export const executeOperatorSecureBatch = (body: {
     body: JSON.stringify(body),
   })
 
+export interface FirewallPolicyRow {
+  id: string
+  name: string
+  profile: string
+  spec_yaml: string
+  enabled: boolean
+}
+
+export const listFirewallPolicies = () =>
+  platformFetch<FirewallPolicyRow[]>('/api/v1/zeus-firewall/policies')
+
+export const createFirewallPolicy = (body: { name: string; profile: string; spec_yaml: string; enabled?: boolean }) =>
+  platformFetch<FirewallPolicyRow>('/api/v1/zeus-firewall/policies', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const simulateFirewallPolicy = (body: Record<string, unknown>) =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/simulate', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const createFirewallTemporaryRule = (body: Record<string, unknown>) =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/temporary-rules', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const applyK8sFirewall = (namespace: string, profile: string, dry_run = false) =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/k8s/apply', {
+    method: 'POST',
+    body: JSON.stringify({ namespace, profile, dry_run }),
+  })
+
+export const firewallCompliancePdfUrl = (kind: string) =>
+  `${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/zeus-firewall/compliance/${encodeURIComponent(kind)}/export.pdf`
+
+export const getMultisiteExport = () =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/multisite/export')
+
+export const getMultisiteDrift = () =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/multisite/drift')
+
+export const getMultisiteConnectivityMatrix = () =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/multisite/connectivity')
+
+export const getMultisiteTimeline = () =>
+  platformFetch<Array<Record<string, unknown>>>('/api/v1/zeus-firewall/multisite/timeline')
+
+export const getOperatorThresholds = () =>
+  platformFetch<Record<string, unknown>>('/api/v1/zeus-firewall/operator/thresholds')
+
 export const syncMultisiteFirewall = (body: {
   source_site: string
   target_site: string

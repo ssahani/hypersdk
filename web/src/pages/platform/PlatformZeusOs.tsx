@@ -15,6 +15,8 @@ import {
   getGpuPlacement,
   getFleetPowerOptimize,
   getFleetHeatmap,
+  getFleetSummary,
+  getFleetLocal,
   getZeusSummary,
   getRemediateHub,
   getKnowledgeRunbook,
@@ -73,22 +75,26 @@ export default function PlatformZeusOs() {
   const [linuxHealth, setLinuxHealth] = useState<FleetLinuxHealthOverview | null>(null)
   const [fleetDiagnoseQuery, setFleetDiagnoseQuery] = useState('fleet linux pressure and failed tasks')
   const [fleetDiagnoseSummary, setFleetDiagnoseSummary] = useState<string | null>(null)
+  const [fleetSummaryLine, setFleetSummaryLine] = useState<string | null>(null)
 
   const loadFleet = useCallback(async () => {
     setError(null)
     try {
-      const [h, r, gpu, power, linux] = await Promise.all([
+      const [h, r, gpu, power, linux, summary, local] = await Promise.all([
         getFleetHeatmap(),
         getFleetRebalanceProposal(),
         getGpuPlacement('inference'),
         getFleetPowerOptimize(),
         getFleetLinuxHealth().catch(() => null),
+        getFleetSummary().catch(() => null),
+        getFleetLocal().catch(() => null),
       ])
       setHeatmap(h)
       setRebalance(r)
       setGpuSummary(gpu.summary)
       setPowerSummary(power.summary)
       setLinuxHealth(linux)
+      setFleetSummaryLine([summary?.summary, local?.summary].filter(Boolean).join(' · ') || null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Fleet load failed')
     }
@@ -211,6 +217,7 @@ export default function PlatformZeusOs() {
 
       {tab === 'fleet' && heatmap && (
         <div className="space-y-4">
+          {fleetSummaryLine && <p className="text-sm text-slate-400">{fleetSummaryLine}</p>}
           {linuxHealth && (
             <MacGlassPanel title="Fleet Linux health" subtitle="PSI · thermal · SMART rollup from hypervisors">
               <p className="text-sm text-slate-300">{linuxHealth.summary}</p>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Cable, Layers, Link2, Loader2, Network, Plus, RefreshCw, Router, Shield, Wifi } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import {
   MacGlassPanel,
@@ -20,6 +21,7 @@ import {
   createPlatformNetwork,
   deletePlatformNetwork,
   discoverPlatformNetworks,
+  emergencyUnlockNetworkSegment,
   getFleetNetwork,
   getNetworkSegmentsOverview,
   listIpamPools,
@@ -447,13 +449,27 @@ export default function PlatformNetworks() {
                         </td>
                         <td className="py-2.5 px-2">{s.network_count}</td>
                         <td className="py-2.5 px-2">
-                          <button
-                            type="button"
-                            className="btn-secondary text-xs flex items-center gap-1"
-                            onClick={() => void runSegmentConnectivity(s)}
-                          >
-                            <Cable className="w-3 h-3" /> Matrix
-                          </button>
+                          <div className="flex flex-wrap gap-1">
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs flex items-center gap-1"
+                              onClick={() => void runSegmentConnectivity(s)}
+                            >
+                              <Cable className="w-3 h-3" /> Matrix
+                            </button>
+                            <button
+                              type="button"
+                              className="btn-danger text-xs"
+                              onClick={() => {
+                                if (!window.confirm(`Emergency unlock segment "${s.name}"? This bypasses micro-segmentation.`)) return
+                                void emergencyUnlockNetworkSegment(s.id).then((r) => {
+                                  toast.success(r.summary)
+                                }).catch((e: unknown) => toast.error(formatUserError(e)))
+                              }}
+                            >
+                              Unlock
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -656,6 +672,7 @@ export default function PlatformNetworks() {
           </div>
         )}
       </MacSheet>
+      {tab === 'networks' && <FleetSettingsPane kind="network" />}
     </div>
   )
 }

@@ -126,6 +126,9 @@ export interface PlatformHost {
   fenced?: boolean
   validation_status?: string
   last_heartbeat_at?: string | null
+  site?: string
+  rack?: string
+  rack_u?: number | null
 }
 
 export interface PlatformHostDetail extends PlatformHost {
@@ -713,6 +716,35 @@ export type FleetDesktopOverview = {
 export const getFleetDesktop = () =>
   platformFetch<FleetDesktopOverview>('/api/v1/fleet/desktop')
 
+export type MissionHost = {
+  id: string
+  hostname: string
+  address: string
+  state: string
+  maintenance_mode: boolean
+  vm_count: number
+  cpu_percent: number
+  memory_used_mib: number
+  memory_total_mib: number
+  site: string
+  rack: string
+  rack_u?: number | null
+}
+
+export type FleetMissionOverview = {
+  sites: Array<{ name: string; racks: Array<{ name: string; hosts: MissionHost[] }> }>
+  unassigned_hosts: MissionHost[]
+  summary: {
+    hosts: number
+    vms: number
+    hosts_online: number
+    health_pct: number
+  }
+}
+
+export const getFleetMission = () =>
+  platformFetch<FleetMissionOverview>('/api/v1/fleet/mission')
+
 export type FleetLinuxHostItem = {
   host_id: string
   hostname: string
@@ -1282,6 +1314,56 @@ export const listProjectQuotas = () =>
     '/api/v1/policy/quotas',
   )
 
+export interface PolicyRule {
+  id: string
+  name: string
+  enabled: boolean
+  rule_json: Record<string, unknown>
+}
+
+export const listPolicyRules = () => platformFetch<PolicyRule[]>('/api/v1/policy/rules')
+
+export interface HostLinuxUpdates {
+  host_id: string
+  summary: string
+  packages: Array<{ name: string; current: string; available: string; security?: boolean }>
+}
+
+export const getHostLinuxUpdates = (hostId: string) =>
+  platformFetch<HostLinuxUpdates>(`/api/v1/hosts/${hostId}/linux/updates`)
+
+export interface VmMigrationRecord {
+  id: string
+  vm_id: string
+  source_host: string
+  dest_host: string
+  status: string
+  started_at: string
+  finished_at?: string | null
+}
+
+export const getVmMigrations = (vmId: string) =>
+  platformFetch<VmMigrationRecord[]>(`/api/v1/vms/${vmId}/migrations`)
+
+export const patchStoragePool = (id: string, body: { path?: string; capacity_gib?: number }) =>
+  platformFetch<StoragePool>(`/api/v1/storage/pools/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const emergencyUnlockNetworkSegment = (id: string) =>
+  platformFetch<{ segment_id: string; unlocked: boolean; summary: string }>(
+    `/api/v1/network/segments/${id}/emergency-unlock`,
+    { method: 'POST', body: '{}' },
+  )
+
+export const getAirGapBundle = (id: string) =>
+  platformFetch<AirGapBundle>(`/api/v1/enterprise/air-gap/bundles/${id}`)
+
+export const markAllNotificationsDelivered = async (limit = 200) => {
+  const rows = await listNotifications(true)
+  const batch = rows.slice(0, limit)
+  await Promise.all(batch.map((r) => markNotificationDelivered(r.id)))
+  return batch.length
+}
+
 export const hostMaintenance = (id: string, action: 'enter' | 'exit', evacuate = true) =>
   platformFetch<{ task_id: string }>(`/api/v1/hosts/${id}/maintenance`, {
     method: 'POST',
@@ -1639,6 +1721,9 @@ export const restoreVmBackup = (vmId: string, backupId: string) =>
 export const patchHost = (id: string, body: {
   notes?: string
   tags?: string[]
+  site?: string
+  rack?: string
+  rack_u?: number | null
   fence_method?: string
   ipmi_address?: string
   ipmi_username?: string

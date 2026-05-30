@@ -1,11 +1,11 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
-import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play } from 'lucide-react'
-import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { Link, useSearchParams } from 'react-router'
+import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play, Loader2 } from 'lucide-react'
+import { MacSectionTitle, MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration } from '../../api/hypersdk'
-import { getGuestkitStatus, guestkitDoctor } from '../../api/guestkit'
+import { getGuestkitStatus, guestkitDoctor, guestkitMigratePlan, submitGuestkitInspectJob, getGuestkitJob } from '../../api/guestkit'
 import { getMigrationAdvisor, type MigrationAdvisorReport } from '../../api/ai'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -25,6 +25,8 @@ type ScanVm = { name: string; status: string; os: string; note: string; provider
 export default function PlatformMigration() {
   const { info } = usePlatformInfo()
   const toast = useToastContext()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = searchParams.get('tab') === 'jobs' ? 'jobs' : 'radar'
   const hypersdk = Boolean(info?.hypersdk?.enabled)
   const guestkit = Boolean(info?.guestkit?.enabled)
   const [gkStatus, setGkStatus] = useState<Awaited<ReturnType<typeof getGuestkitStatus>> | null>(null)
@@ -35,6 +37,14 @@ export default function PlatformMigration() {
   const [loading, setLoading] = useState(false)
   const [provider, setProvider] = useState('vmware')
   const [migrating, setMigrating] = useState<string | null>(null)
+  const [jobId, setJobId] = useState<string | null>(null)
+  const [jobStatus, setJobStatus] = useState<string | null>(null)
+  const [planSummary, setPlanSummary] = useState<string | null>(null)
+  const [jobPolling, setJobPolling] = useState(false)
+
+  const setTab = (next: 'radar' | 'jobs') => {
+    setSearchParams(next === 'jobs' ? { tab: 'jobs' } : {})
+  }
 
   const scanSource = useCallback(async (p: string) => {
     setLoading(true)
@@ -98,10 +108,88 @@ export default function PlatformMigration() {
     })()
   }, [hypersdk, scanSource])
 
+  useEffect(() => {
+    if (!jobId || !jobPolling) return
+    const t = window.setInterval(() => {
+      void getGuestkitJob(jobId).then((j) => {
+        setJobStatus(j.summary ?? j.status)
+        if (j.status === 'completed' || j.status === 'failed') setJobPolling(false)
+      }).catch(() => setJobPolling(false))
+    }, 2000)
+    return () => window.clearInterval(t)
+  }, [jobId, jobPolling])
+
   return (
     <div className="space-y-8 max-w-4xl animate-fade-in">
       <MacSectionTitle title="Migration Radar" subtitle="Machina Migration Radar — HyperSDK scan + GuestKit offline assurance." />
 
+      <div className="flex gap-2 border-b border-white/[0.06] pb-1">
+        {(['radar', 'jobs'] as const).map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm rounded-t-lg capitalize ${tab === id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400'}`}
+          >
+            {id === 'radar' ? 'Scan & migrate' : 'GuestKit jobs'}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'jobs' && (
+        <MacGlassPanel title="GuestKit job queue">
+          <div className="flex flex-wrap gap-2 items-end mb-4">
+            <label className="block flex-1 min-w-[14rem]">
+              <span className="text-xs text-slate-500">Disk path</span>
+              <input className="input text-sm mt-1 w-full" value={diskPath} onChange={(e) => setDiskPath(e.target.value)} />
+            </label>
+            <button
+              type="button"
+              className="btn-primary text-xs"
+              disabled={!diskPath.trim() || !guestkit}
+              onClick={async () => {
+                try {
+                  const r = await submitGuestkitInspectJob(diskPath.trim())
+                  setJobId(r.job_id)
+                  setJobStatus(r.summary)
+                  setJobPolling(true)
+                  toast.success(`Job ${r.job_id} submitted`)
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              Submit inspect job
+            </button>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              disabled={!diskPath.trim() || !guestkit}
+              onClick={async () => {
+                try {
+                  const r = await guestkitMigratePlan(diskPath.trim())
+                  setPlanSummary(`${r.migration_score.toFixed(0)}% ready · ${r.summary}`)
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              Migrate plan
+            </button>
+          </div>
+          {jobId && (
+            <MacListRow
+              title={`Job ${jobId}`}
+              subtitle={jobStatus ?? 'Polling…'}
+              badge={jobPolling ? <Loader2 className="w-4 h-4 animate-spin text-orange-400" /> : undefined}
+            />
+          )}
+          {planSummary && <p className="text-xs text-slate-400 mt-2">{planSummary}</p>}
+        </MacGlassPanel>
+      )}
+
+      {tab === 'radar' && (
+      <>
       {guestkit && gkStatus && (
         <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm text-orange-100 space-y-2">
           <p>GuestKit {gkStatus.library_version ?? 'linked'} — {gkStatus.summary}</p>
@@ -200,6 +288,8 @@ export default function PlatformMigration() {
           <Link to="/platform/tasks" className="text-blue-400">View migration tasks →</Link>
         </p>
       </section>
+      </>
+      )}
     </div>
   )
 }

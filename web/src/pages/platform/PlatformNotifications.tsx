@@ -6,7 +6,7 @@ import { Bell } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
-import { createVmBackup, listNotifications, markNotificationDelivered, type NotificationRow } from '../../api/platform'
+import { createVmBackup, listNotifications, markNotificationDelivered, markAllNotificationsDelivered, type NotificationRow } from '../../api/platform'
 import { aiRunbook } from '../../api/ai'
 import ExplainButton from '../../components/ai/ExplainButton'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -48,9 +48,21 @@ export default function PlatformNotifications() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <MacSectionTitle title="Alerts" subtitle="Notification Center — actionable alerts, not just log lines." />
         {unread > 0 && (
-          <span className="px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-sm border border-amber-500/30">
-            {unread} unread
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-sm border border-amber-500/30">
+              {unread} unread
+            </span>
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={() => void markAllNotificationsDelivered().then((n) => {
+                toast.success(`Marked ${n} notification(s) read`)
+                void load()
+              }).catch((e: unknown) => toast.error(formatUserError(e)))}
+            >
+              Mark all read
+            </button>
+          </div>
         )}
       </header>
       {error && <ErrorBanner message={error} />}

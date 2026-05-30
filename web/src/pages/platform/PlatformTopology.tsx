@@ -8,6 +8,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
 import { getClusterTopology, type TopologyGraph } from '../../api/platform'
+import { getSimilarIncidents } from '../../api/ai'
 
 type LldpStripEntry = {
   hostId: string
@@ -20,6 +21,8 @@ export default function PlatformTopology() {
   const [graph, setGraph] = useState<TopologyGraph | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [incidentQuery, setIncidentQuery] = useState('network partition host offline')
+  const [similarIncidents, setSimilarIncidents] = useState<Array<{ label: string; score: number; summary: string }>>([])
 
   const load = useCallback(async () => {
     setError(null)
@@ -77,6 +80,31 @@ export default function PlatformTopology() {
         </button>
       </div>
       {error && <ErrorBanner message={error} />}
+      <MacGlassPanel title="Similar incidents" subtitle="GET /api/v1/ai/memory/similar">
+        <div className="flex flex-wrap gap-2 mb-3">
+          <input className="input text-sm flex-1 min-w-[12rem]" value={incidentQuery} onChange={(e) => setIncidentQuery(e.target.value)} />
+          <button
+            type="button"
+            className="btn-secondary text-xs"
+            onClick={() => void getSimilarIncidents(incidentQuery).then((r) => {
+              setSimilarIncidents((r.incidents ?? []).map((i) => ({
+                label: i.kind,
+                score: i.similarity ?? 0,
+                summary: i.summary ?? '',
+              })))
+            }).catch(() => setSimilarIncidents([]))}
+          >
+            Search memory
+          </button>
+        </div>
+        {similarIncidents.length > 0 && (
+          <ul className="text-xs text-slate-400 space-y-1">
+            {similarIncidents.map((i) => (
+              <li key={i.label}>{i.label} ({i.score.toFixed(2)}) — {i.summary}</li>
+            ))}
+          </ul>
+        )}
+      </MacGlassPanel>
       <MachinaDigitalTwin />
       <MachinaNetworkLens vmNames={graph?.nodes.filter((n) => n.kind === 'vm').map((n) => n.name) ?? []} />
 

@@ -69,3 +69,8 @@ export const submitGuestkitInspectJob = (image_path: string, name = 'machina-ins
     method: 'POST',
     body: JSON.stringify({ image_path, name }),
   })
+
+export const getGuestkitJob = (id: string) =>
+  platformFetch<{ job_id: string; status: string; progress?: number; summary?: string; result?: Record<string, unknown> }>(
+    `/api/v1/guestkit/jobs/${id}`,
+  )

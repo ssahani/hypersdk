@@ -28,6 +28,9 @@ pub struct HostRow {
     pub fenced: bool,
     pub validation_status: String,
     pub last_heartbeat_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub site: String,
+    pub rack: String,
+    pub rack_u: Option<i32>,
 }
 
 #[derive(Debug, Serialize, sqlx::FromRow)]
@@ -53,12 +56,16 @@ pub struct HostDetailRow {
     pub validation_status: String,
     pub validation_report: serde_json::Value,
     pub last_heartbeat_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub site: String,
+    pub rack: String,
+    pub rack_u: Option<i32>,
 }
 
 const HOST_LIST_SQL: &str = "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr, vm_count,
          cpu_percent, memory_used_mib, memory_total_mib, fenced,
          COALESCE(validation_status, 'pending') AS validation_status,
-         last_heartbeat_at FROM hosts";
+         last_heartbeat_at,
+         COALESCE(site, '') AS site, COALESCE(rack, '') AS rack, rack_u FROM hosts";
 
 const HOST_DETAIL_SQL: &str = "SELECT id, hostname, address, state, maintenance_mode, agent_grpc_addr,
          COALESCE(agent_console_addr, '127.0.0.1:50052') AS agent_console_addr,
@@ -71,7 +78,8 @@ const HOST_DETAIL_SQL: &str = "SELECT id, hostname, address, state, maintenance_
          fenced, COALESCE(notes, '') AS notes,
          COALESCE(validation_status, 'pending') AS validation_status,
          COALESCE(validation_report, '[]'::jsonb) AS validation_report,
-         last_heartbeat_at FROM hosts";
+         last_heartbeat_at,
+         COALESCE(site, '') AS site, COALESCE(rack, '') AS rack, rack_u FROM hosts";
 
 #[derive(Debug, Deserialize)]
 pub struct CreateHostRequest {
@@ -407,6 +415,9 @@ pub struct PatchHostBody {
     pub ipmi_address: Option<String>,
     pub ipmi_username: Option<String>,
     pub ipmi_password: Option<String>,
+    pub site: Option<String>,
+    pub rack: Option<String>,
+    pub rack_u: Option<i32>,
 }
 
 pub async fn patch_host(
@@ -479,6 +490,27 @@ pub async fn patch_host(
                 .execute(&state.pool)
                 .await?;
         }
+    }
+    if let Some(v) = &body.site {
+        sqlx::query("UPDATE hosts SET site = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = &body.rack {
+        sqlx::query("UPDATE hosts SET rack = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
+    }
+    if let Some(v) = body.rack_u {
+        sqlx::query("UPDATE hosts SET rack_u = $1 WHERE id = $2")
+            .bind(v)
+            .bind(id)
+            .execute(&state.pool)
+            .await?;
     }
     write_audit(&state, &actor.username, "host.patch", "host", Some(id), serde_json::json!({})).await?;
     get_host_detail(State(state), Path(id)).await

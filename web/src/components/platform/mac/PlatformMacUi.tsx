@@ -338,10 +338,10 @@ export function MacSettingsPane({
   children: React.ReactNode
 }) {
   return (
-    <div className="flex flex-col lg:flex-row gap-0 min-h-[28rem] rounded-2xl border border-white/[0.06] overflow-hidden bg-slate-950/30">
-      <aside className="lg:w-52 shrink-0 border-b lg:border-b-0 lg:border-r border-white/[0.06] p-3">
-        <h2 className="text-lg font-semibold text-slate-100 px-2 mb-3 hidden lg:block">{title}</h2>
-        <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
+    <div className="flex flex-col xl:flex-row gap-0 min-h-[28rem] w-full rounded-2xl border border-white/[0.06] overflow-hidden bg-slate-950/30">
+      <aside className="xl:w-56 shrink-0 border-b xl:border-b-0 xl:border-r border-white/[0.06] p-3">
+        <h2 className="text-lg font-semibold text-slate-100 px-2 mb-3 hidden xl:block">{title}</h2>
+        <nav className="flex xl:flex-col gap-1 overflow-x-auto xl:overflow-visible">
           {sections.map((s) => (
             <button
               key={s.id}
@@ -359,7 +359,7 @@ export function MacSettingsPane({
           ))}
         </nav>
       </aside>
-      <div className="flex-1 min-w-0 p-5 lg:p-6">{children}</div>
+      <div className="flex-1 min-w-0 p-5 xl:p-8">{children}</div>
     </div>
   )
 }

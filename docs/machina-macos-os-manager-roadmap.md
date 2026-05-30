@@ -82,4 +82,25 @@ Each phase ships: **backend aggregator or agent lift → Mac UI pane → Spotlig
 - No live WebAuthn on `main` until enterprise backlog lifts — Keychain phases stay **inventory + link-out**
 - Kernel route mutation stays read-only in platform UI (Network pane shows diag + deep links)
 
-See [`platform-ux-vision.md`](platform-ux-vision.md), [`machina-fleet-desktop-vision.md`](machina-fleet-desktop-vision.md), [`enterprise-backlog.md`](enterprise-backlog.md).
+See [`platform-ux-vision.md`](platform-ux-vision.md), [`machina-fleet-desktop-vision.md`](machina-fleet-desktop-vision.md), [`machina-infrastructure-vision.md`](machina-infrastructure-vision.md), [`enterprise-backlog.md`](enterprise-backlog.md).
+
+---
+
+## Layer 0 — Machina Infrastructure OS (Phases 49–58)
+
+Physical infrastructure shell and Mission Control — complements the macOS metaphor layers above.
+
+| Phase | macOS / product metaphor | Ship target |
+|-------|--------------------------|-------------|
+| **49** | **Jarvis landing** — morning briefing on `/platform` | **Shipped (v1)** |
+| **50** | **Dynamic Island** — menubar health pill + expand sheet | **Shipped (v1)** |
+| **51** | **Mission Control Earth** — site/rack/host 2.5D overlay | **Shipped (v1)** |
+| **52** | **Infrastructure dock** — Machines/VMs/Storage/Network/GPU/Terminal | **Shipped (v1)** |
+| 53 | Machine Finder root — DC→Rack→Host→VM tree | Planned |
+| 54 | GPU Command Center — MIG, vGPU, CUDA placement | Planned |
+| 55 | Maintenance Mission — autonomous 7-step patch timeline | Planned |
+| 56 | Infrastructure DNA — fleet health score 0–100 | Planned |
+| 57 | Full Jarvis — intent-first shell (minimal menus) | Planned |
+| 58 | 3D Infrastructure Earth (WebGL) | Deferred |
+
+API: `GET /api/v1/fleet/mission`, host `site`/`rack`/`rack_u`. Doc: [`machina-infrastructure-vision.md`](machina-infrastructure-vision.md).

@@ -416,6 +416,12 @@ export interface FleetHeatmap {
 
 export const getFleetHeatmap = () => platformFetch<FleetHeatmap>('/api/v1/ai/fleet/heatmap')
 
+export const getFleetSummary = () =>
+  platformFetch<{ summary: string; hosts: number; vms: number; alerts: string[] }>('/api/v1/ai/fleet/summary')
+
+export const getFleetLocal = () =>
+  platformFetch<{ summary: string; local_agent: Record<string, unknown> }>('/api/v1/ai/fleet/local')
+
 export interface RebalanceProposal {
   moves: Array<{ vm_id: string; vm_name: string; from_host: string; to_host: string; reason: string; score: number }>
   estimated_savings_pct: number

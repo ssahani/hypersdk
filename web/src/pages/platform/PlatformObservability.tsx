@@ -11,6 +11,7 @@ import {
   type ObservabilityOverview,
   type SloStatusItem,
 } from '../../api/platform'
+import { fleetPrometheusAggregateUrl } from '../../api/fleet'
 import { formatUserError } from '../../utils/apiError'
 
 function sloBadge(status: string) {
@@ -118,6 +119,12 @@ export default function PlatformObservability() {
                 </table>
               </div>
             )}
+          </MacGlassPanel>
+          <MacGlassPanel title="Fleet Prometheus" subtitle="Scrape aggregate metrics from the controller">
+            <p className="text-sm text-slate-400 mb-2">Text exposition format — suitable for Prometheus or Grafana data source.</p>
+            <a href={fleetPrometheusAggregateUrl()} className="text-sm text-blue-400" target="_blank" rel="noreferrer">
+              Open /api/v1/fleet/prometheus →
+            </a>
           </MacGlassPanel>
         </>
       )}

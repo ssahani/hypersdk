@@ -133,6 +133,8 @@ const PlatformFirewallCompliance = lazy(() => import('./pages/platform/security/
 const PlatformFirewallK8s = lazy(() => import('./pages/platform/security/PlatformFirewallK8s'))
 const PlatformFirewallCloud = lazy(() => import('./pages/platform/security/PlatformFirewallCloud'))
 const PlatformFirewallConnectivity = lazy(() => import('./pages/platform/security/PlatformFirewallConnectivity'))
+const PlatformFirewallPolicies = lazy(() => import('./pages/platform/security/PlatformFirewallPolicies'))
+const PlatformPolicy = lazy(() => import('./pages/platform/PlatformPolicy'))
 const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const PlatformDeveloper = lazy(() => import('./pages/platform/PlatformDeveloper'))
@@ -162,6 +164,7 @@ function GlobalShortcuts({
   onHelpTabChange: (tab: HelpTab) => void
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const shortcuts = useMemo(() => {
     const base: { sequence: [string, string]; handler: () => void }[] = [
       { sequence: ['g', 'd'], handler: () => navigate('/') },
@@ -197,7 +200,11 @@ function GlobalShortcuts({
     handler: (e) => {
       if (isInputFocused()) return
       e.preventDefault()
-      navigate('/mission-control')
+      if (location.pathname.startsWith('/platform')) {
+        window.dispatchEvent(new CustomEvent('machina-open-mission-control'))
+      } else {
+        navigate('/platform?mission=1')
+      }
     },
   })
 
@@ -330,6 +337,8 @@ function AuthenticatedShellRoutes() {
                   <Route path="zeus/security/k8s" element={<PlatformFirewallK8s />} />
                   <Route path="zeus/security/cloud" element={<PlatformFirewallCloud />} />
                   <Route path="zeus/security/connectivity" element={<PlatformFirewallConnectivity />} />
+                  <Route path="zeus/security/policies" element={<PlatformFirewallPolicies />} />
+                  <Route path="policy" element={<PlatformPolicy />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />

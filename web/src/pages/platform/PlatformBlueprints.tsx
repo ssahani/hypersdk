@@ -11,6 +11,7 @@ import {
   NewLaunchpadCard,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import {
   createBlueprint,
   deleteBlueprint,
@@ -208,6 +209,7 @@ export default function PlatformBlueprints() {
           {rows.length === 0 && !error && <p className="text-slate-500 text-sm">Create a shortcut in Studio to populate the Launchpad.</p>}
         </>
       )}
+      <FleetSettingsPane kind="shortcuts" />
     </div>
   )
 }

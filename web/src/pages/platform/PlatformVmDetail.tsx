@@ -19,6 +19,7 @@ import {
   getPlatformVmSpec,
   getVmDisks,
   getPlatformVmMetrics,
+  getVmMigrations,
   runVmHealthCheck,
   attachVmDisk,
   adoptPlatformVm,
@@ -42,6 +43,7 @@ import {
   type HaPolicy,
   type SnapshotRecord,
   type VmDiskRow,
+  type VmMigrationRecord,
   type BackupRecord,
   type VmHealthReport,
   getVmGuestHealth,
@@ -95,6 +97,7 @@ export default function PlatformVmDetail() {
   const [guestServicesLoading, setGuestServicesLoading] = useState(false)
   const [vmDiagnose, setVmDiagnose] = useState<VmOsDiagnoseReport | null>(null)
   const [vmDiagnoseLoading, setVmDiagnoseLoading] = useState(false)
+  const [migrations, setMigrations] = useState<VmMigrationRecord[]>([])
 
   const load = useCallback(async () => {
     if (!id) return
@@ -156,6 +159,11 @@ export default function PlatformVmDetail() {
 
   useEffect(() => { void runHealth() }, [runHealth])
   useEffect(() => { void runDoctor() }, [runDoctor])
+
+  useEffect(() => {
+    if (!id || tab !== 'events') return
+    void getVmMigrations(id).then(setMigrations).catch(() => setMigrations([]))
+  }, [id, tab])
 
   const loadGuestPorts = useCallback(async () => {
     if (!id) return
@@ -605,9 +613,26 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'events' && (
-            <MacGlassPanel title="Events" className="pt-2">
-              <Link to="/platform/tasks" className="text-blue-400">View task history →</Link>
-            </MacGlassPanel>
+            <div className="space-y-4 pt-2">
+              <MacGlassPanel title="Migration history">
+                {migrations.length === 0 ? (
+                  <p className="text-sm text-slate-400">No migration records for this VM.</p>
+                ) : (
+                  <ul className="divide-y divide-white/[0.04] -mx-1">
+                    {migrations.map((m) => (
+                      <MacListRow
+                        key={m.id}
+                        title={`${m.source_host} → ${m.dest_host}`}
+                        subtitle={`${m.status} · ${new Date(m.started_at).toLocaleString()}`}
+                      />
+                    ))}
+                  </ul>
+                )}
+              </MacGlassPanel>
+              <MacGlassPanel title="Events">
+                <Link to="/platform/tasks" className="text-blue-400">View task history →</Link>
+              </MacGlassPanel>
+            </div>
           )}
 
           {tab === 'settings' && (

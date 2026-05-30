@@ -13,7 +13,7 @@ import {
 } from '../../utils/platformWallpaper'
 import { getFleetGeneral, type FleetGeneralOverview } from '../../api/platform'
 import { openPlatformDockEditor } from '../../utils/platformDockPins'
-import { usePlatformDesktopTier } from '../../utils/platformDesktopTier'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import PlatformDesktopTierPicker from './PlatformDesktopTierPicker'
 
 const SWATCH_CLASS: Record<PlatformWallpaper, string> = {

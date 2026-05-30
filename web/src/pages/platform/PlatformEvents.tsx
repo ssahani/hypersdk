@@ -8,7 +8,7 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
-import { getFleetConsole, type FleetConsoleEntry, type FleetConsoleOverview } from '../../api/platform'
+import { getFleetConsole, listAuditLogs, type AuditLog, type FleetConsoleEntry, type FleetConsoleOverview } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 
 type SourceFilter = 'all' | 'audit' | 'event' | 'task'
@@ -57,6 +57,7 @@ function LogLine({ entry }: { entry: FleetConsoleEntry }) {
 
 export default function PlatformEvents() {
   const [fleet, setFleet] = useState<FleetConsoleOverview | null>(null)
+  const [controllerAudit, setControllerAudit] = useState<AuditLog[]>([])
   const [source, setSource] = useState<SourceFilter>('all')
   const [query, setQuery] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -64,7 +65,12 @@ export default function PlatformEvents() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      setFleet(await getFleetConsole())
+      const [console, audit] = await Promise.all([
+        getFleetConsole(),
+        listAuditLogs().catch(() => []),
+      ])
+      setFleet(console)
+      setControllerAudit(audit)
     } catch (e: unknown) {
       setError(formatUserError(e))
       setFleet(null)
@@ -157,6 +163,21 @@ export default function PlatformEvents() {
           </div>
         )}
       </MacGlassPanel>
+
+      {controllerAudit.length > 0 && (
+        <MacGlassPanel title="Controller audit log" subtitle={`GET /api/v1/audit — ${controllerAudit.length} entries`}>
+          <div className="rounded-xl border border-white/[0.06] bg-slate-950/60 overflow-hidden -mx-1 max-h-64 overflow-y-auto">
+            {controllerAudit.map((a) => (
+              <div key={a.id} className="flex gap-3 px-3 py-2 font-mono text-xs border-b border-white/[0.04] last:border-0">
+                <time className="text-slate-500 shrink-0">{formatTime(a.created_at)}</time>
+                <span className="text-violet-300 shrink-0">{a.actor}</span>
+                <span className="text-slate-400">{a.action}</span>
+                {a.resource_type && <span className="text-slate-500">({a.resource_type})</span>}
+              </div>
+            ))}
+          </div>
+        </MacGlassPanel>
+      )}
     </div>
   )
 }

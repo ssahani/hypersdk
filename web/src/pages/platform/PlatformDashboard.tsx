@@ -20,6 +20,8 @@ import {
 import ErrorBanner from '../../components/ErrorBanner'
 import ActionCard from '../../components/platform/ActionCard'
 import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
+import PlatformJarvisBriefing from '../../components/platform/PlatformJarvisBriefing'
+import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import SimpleCreateVmWizard, { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
@@ -40,7 +42,8 @@ import { getAiSecurity, getAiSettings, getZeusSummary, runAutopilotSafe, type Ai
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { tierAtLeast, usePlatformDesktopTier } from '../../utils/platformDesktopTier'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { tierAtLeast } from '../../utils/platformDesktopTier'
 
 export default function PlatformDashboard() {
   const toast = useToastContext()
@@ -132,6 +135,9 @@ export default function PlatformDashboard() {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      <PlatformJarvisBriefing />
+      {showPower && <RemediateChips compact />}
+
       <header className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>

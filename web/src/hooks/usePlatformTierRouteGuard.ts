@@ -3,7 +3,8 @@
 import { useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { useToastContext } from '../contexts/ToastContext'
-import { isPathAllowedForTier, usePlatformDesktopTier } from '../utils/platformDesktopTier'
+import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
+import { isPathAllowedForTier } from '../utils/platformDesktopTier'
 
 /** Redirects to /platform when the current route is not allowed for the desktop tier. */
 export function usePlatformTierRouteGuard() {

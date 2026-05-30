@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { AlertTriangle, Clock, HardDrive, Layers, Loader2, Plus, RefreshCw, Shield } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import {
   MacGlassPanel,
@@ -23,6 +24,7 @@ import {
   getStorageTiersOverview,
   listPlatformHosts,
   listStoragePools,
+  patchStoragePool,
   syncAllHosts,
   upsertStorageBackupSla,
   type FleetStorageOverview,
@@ -375,6 +377,23 @@ export default function PlatformStorage() {
                         </button>
                       </div>
                     )}
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs w-full"
+                      onClick={async () => {
+                        const next = window.prompt('Capacity (GiB)', String(p.capacity_gib || 100))
+                        if (!next) return
+                        try {
+                          await patchStoragePool(p.id, { capacity_gib: Number(next) })
+                          toast.success('Pool updated')
+                          await load(false)
+                        } catch (e: unknown) {
+                          toast.error(formatUserError(e))
+                        }
+                      }}
+                    >
+                      Edit capacity
+                    </button>
                     <button type="button" className="btn-danger text-xs w-full" onClick={async () => {
                       try { await deleteStoragePool(p.id); toast.success('Deleted'); await load(false) } catch (e: unknown) { toast.error(formatUserError(e)) }
                     }}>Remove from inventory</button>
@@ -504,6 +523,7 @@ export default function PlatformStorage() {
           </button>
         </div>
       </MacSheet>
+      {tab === 'disks' && <FleetSettingsPane kind="storage" />}
     </div>
   )
 }

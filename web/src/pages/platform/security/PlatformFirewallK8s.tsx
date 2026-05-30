@@ -5,10 +5,12 @@ import { Link } from 'react-router'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { MacGlassPanel, MacSectionTitle, MacSheet } from '../../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../../components/ErrorBanner'
-import { getK8sFirewallStatus, planK8sFirewall } from '../../../api/zeusFirewall'
+import { getK8sFirewallStatus, planK8sFirewall, applyK8sFirewall } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
+import { useToastContext } from '../../../contexts/ToastContext'
 
 export default function PlatformFirewallK8s() {
+  const toast = useToastContext()
   const [ready, setReady] = useState(false)
   const [backend, setBackend] = useState('unknown')
   const [namespace, setNamespace] = useState('default')
@@ -60,6 +62,16 @@ export default function PlatformFirewallK8s() {
             }).catch((e: unknown) => setError(formatUserError(e)))}
           >
             Preview manifests
+          </button>
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            disabled={!ready}
+            onClick={() => void applyK8sFirewall(namespace, profile, false).then((r) => {
+              toast.success(String(r.summary ?? 'Applied to cluster'))
+            }).catch((e: unknown) => toast.error(formatUserError(e)))}
+          >
+            Apply to cluster
           </button>
         </div>
       </MacGlassPanel>

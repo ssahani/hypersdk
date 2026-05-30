@@ -5,10 +5,10 @@ import { Link, useNavigate } from 'react-router'
 import { Activity, Archive, Bell, LayoutGrid, Server, Sparkles, Users, Workflow } from 'lucide-react'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import {
   showPlatformMenuBarForTier,
   showPlatformMenuBarFullForTier,
-  usePlatformDesktopTier,
 } from '../../utils/platformDesktopTier'
 
 export default function PlatformMenuBar() {
