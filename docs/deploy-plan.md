@@ -16,8 +16,7 @@
 
 | Commit | Message |
 |--------|---------|
-| `1ba2d34` | Ship Phase 47 Stage Manager — workspace spaces strip and fleet rollup |
-| `0b75b2c` | Ship Phase 46 Shortcuts — blueprint Launchpad grid and fleet rollup |
+| `c5706fd` | Save deploy plan snapshot for Phases 38–47 |
 
 Branch: `main` (synced with `origin/main`)
 

@@ -14,24 +14,47 @@ pub struct GuestListeningPort {
 pub fn scan_guest_listening_ports(vm_name: &str) -> Vec<GuestListeningPort> {
     use std::process::Command;
     let exec_json = r#"{"execute":"guest-exec","arguments":{"path":"ss","arg":["-tlnp"],"capture-output":true}}"#;
-    let out = Command::new("virsh")
+    let out = match Command::new("virsh")
         .args(["qemu-agent-command", vm_name, exec_json])
         .output()
-        .ok()?;
-    if !out.status.success() {
+    {
+        Ok(o) if o.status.success() => o,
+        _ => return Vec::new(),
+    };
+    let v: serde_json::Value = match serde_json::from_slice(&out.stdout) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let Some(pid) = v
+        .get("return")
+        .and_then(|r| r.get("pid"))
+        .and_then(|p| p.as_u64())
+    else {
         return Vec::new();
-    }
-    let v: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-    let pid = v.get("return")?.get("pid")?.as_u64()?;
+    };
     std::thread::sleep(std::time::Duration::from_millis(500));
     let status_json = format!(r#"{{"execute":"guest-exec-status","arguments":{{"pid":{pid}}}}}"#);
-    let st = Command::new("virsh")
+    let st = match Command::new("virsh")
         .args(["qemu-agent-command", vm_name, &status_json])
         .output()
-        .ok()?;
-    let st_v: serde_json::Value = serde_json::from_slice(&st.stdout).ok()?;
-    let b64 = st_v.get("return")?.get("out-data")?.as_str()?;
-    let decoded = base64_decode(b64)?;
+    {
+        Ok(o) => o,
+        Err(_) => return Vec::new(),
+    };
+    let st_v: serde_json::Value = match serde_json::from_slice(&st.stdout) {
+        Ok(v) => v,
+        Err(_) => return Vec::new(),
+    };
+    let Some(b64) = st_v
+        .get("return")
+        .and_then(|r| r.get("out-data"))
+        .and_then(|d| d.as_str())
+    else {
+        return Vec::new();
+    };
+    let Some(decoded) = base64_decode(b64) else {
+        return Vec::new();
+    };
     parse_ss_output(&String::from_utf8_lossy(&decoded))
 }
 
