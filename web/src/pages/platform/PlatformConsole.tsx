@@ -1,15 +1,18 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router'
-import { ArrowLeft } from 'lucide-react'
+import { Link, useLocation, useParams } from 'react-router'
+import { ArrowLeft, ExternalLink } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { getVmConsole, platformVncWsUrl } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import AiTerminalCompanion from '../../components/ai/AiTerminalCompanion'
+import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 
 export default function PlatformConsole() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  const isPopout = isCenterPopoutMode(location.search)
   const containerRef = useRef<HTMLDivElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [status, setStatus] = useState('loading')
@@ -54,14 +57,28 @@ export default function PlatformConsole() {
   }, [id])
 
   return (
-    <div className="space-y-4">
-      <Link to={`/platform/vms/${id}`} className="text-sm text-blue-400 flex items-center gap-1">
-        <ArrowLeft className="w-4 h-4" /> Back to VM
-      </Link>
+    <div className={`space-y-4 ${isPopout ? 'h-[calc(100vh-3rem)] flex flex-col' : ''}`}>
+      {!isPopout && (
+        <div className="flex items-center justify-between gap-2">
+          <Link to={`/platform/vms/${id}`} className="text-sm text-blue-400 flex items-center gap-1">
+            <ArrowLeft className="w-4 h-4" /> Back to VM
+          </Link>
+          <button
+            type="button"
+            className="btn-secondary text-xs flex items-center gap-1"
+            onClick={() => openCenterPopout(`/platform/vms/${id}/console`)}
+          >
+            <ExternalLink className="w-3 h-3" /> Pop out
+          </button>
+        </div>
+      )}
       {error && <ErrorBanner message={error} />}
-      <div className="text-sm text-slate-400">Status: {status}</div>
-      <div ref={containerRef} className="w-full min-h-[480px] bg-black rounded-lg overflow-hidden" />
-      {id && <AiTerminalCompanion vmName={id} vmId={id} />}
+      <div className="text-sm text-white/50">Status: {status}</div>
+      <div
+        ref={containerRef}
+        className={`w-full bg-black rounded-lg overflow-hidden flex-1 ${isPopout ? 'min-h-0' : 'min-h-[480px]'}`}
+      />
+      {id && !isPopout && <AiTerminalCompanion vmName={id} vmId={id} />}
     </div>
   )
 }

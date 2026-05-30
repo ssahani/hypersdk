@@ -1,11 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
-import { Server, RefreshCw, Wrench } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router'
+import { RefreshCw, Server, Wrench } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
-import { MacSectionTitle, MacStatWidget, gradientForName } from '../../components/platform/mac/PlatformMacUi'
+import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
+import { MacStatWidget, gradientForName } from '../../components/platform/mac/PlatformMacUi'
 import {
   enqueueValidateHost,
   hostMaintenance,
@@ -23,13 +24,25 @@ function hostTone(h: PlatformHost): 'ok' | 'warn' | 'default' {
   return 'default'
 }
 
+const VIEW_KEY = 'platform-hosts-finder-view'
+
 export default function PlatformHosts() {
   const toast = useToastContext()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const filterOffline = searchParams.get('filter') === 'offline'
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<FinderViewMode>(() => {
+    try {
+      const v = localStorage.getItem(VIEW_KEY)
+      if (v === 'icons' || v === 'list') return v
+    } catch { /* ignore */ }
+    return 'icons'
+  })
 
   const load = useCallback(async () => {
     setError(null)
@@ -41,6 +54,9 @@ export default function PlatformHosts() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    try { localStorage.setItem(VIEW_KEY, viewMode) } catch { /* ignore */ }
+  }, [viewMode])
 
   const act = async (id: string, fn: () => Promise<unknown>, label: string) => {
     setBusy(id + label)
@@ -56,63 +72,133 @@ export default function PlatformHosts() {
   }
 
   const online = hosts.filter((h) => h.state === 'online').length
-  const visibleHosts = filterOffline ? hosts.filter((h) => h.state === 'offline') : hosts
+  const visibleHosts = useMemo(() => {
+    let rows = filterOffline ? hosts.filter((h) => h.state === 'offline') : hosts
+    const q = search.trim().toLowerCase()
+    if (q) rows = rows.filter((h) => h.hostname.toLowerCase().includes(q) || h.address?.toLowerCase().includes(q))
+    return rows
+  }, [hosts, filterOffline, search])
+
+  const selected = visibleHosts.find((h) => h.id === selectedId) ?? null
+
+  const toolbar = (
+    <>
+      <button type="button" className="btn-secondary text-sm" onClick={async () => {
+        try { await syncAllHosts(); toast.success('Sync all queued') } catch (e: unknown) { toast.error(formatUserError(e)) }
+      }}>Sync all</button>
+      <button type="button" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
+    </>
+  )
+
+  const listContent = viewMode === 'list' ? (
+    <div className="card overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-slate-400 border-b border-white/[0.06]">
+            <th className="p-3 text-left">Host</th>
+            <th className="p-3">State</th>
+            <th className="p-3">VMs</th>
+            <th className="p-3">CPU</th>
+          </tr>
+        </thead>
+        <tbody>
+          {visibleHosts.map((h) => (
+            <tr
+              key={h.id}
+              className={`border-b border-slate-900/80 cursor-pointer ${selectedId === h.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'}`}
+              onClick={() => setSelectedId(h.id)}
+            >
+              <td className="p-3"><Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>{h.hostname}</Link></td>
+              <td className="p-3 capitalize text-center">{h.state}</td>
+              <td className="p-3 text-center">{h.vm_count}</td>
+              <td className="p-3 text-center">{h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}%` : '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {visibleHosts.map((h) => (
+        <button
+          key={h.id}
+          type="button"
+          onClick={() => setSelectedId(h.id)}
+          className={`platform-mac-stat rounded-2xl border p-5 space-y-3 text-left transition ${
+            selectedId === h.id ? 'border-sky-400/40 ring-1 ring-sky-400/20' : 'border-white/[0.06]'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradientForName(h.hostname)} flex items-center justify-center text-white`}>
+              <Server className="w-6 h-6" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="font-semibold text-white truncate block">{h.hostname}</span>
+              <p className={`text-xs capitalize mt-0.5 ${hostTone(h) === 'ok' ? 'text-emerald-400' : hostTone(h) === 'warn' ? 'text-amber-400' : 'text-slate-500'}`}>
+                {h.maintenance_mode ? 'maintenance' : h.state}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-white/50">{h.vm_count} VM(s) · {h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}% CPU` : 'CPU —'}</p>
+        </button>
+      ))}
+    </div>
+  )
+
+  const inspector = selected ? (
+    <div className="p-4 space-y-4 h-full overflow-y-auto">
+      <div>
+        <h3 className="font-semibold text-white">{selected.hostname}</h3>
+        <p className="text-xs text-white/50 mt-1">{selected.address || '—'}</p>
+      </div>
+      <dl className="grid grid-cols-2 gap-2 text-xs">
+        <div><dt className="text-white/40">State</dt><dd className="text-white capitalize">{selected.state}</dd></div>
+        <div><dt className="text-white/40">VMs</dt><dd className="text-white">{selected.vm_count}</dd></div>
+        <div><dt className="text-white/40">Validation</dt><dd className="capitalize">{selected.validation_status || 'pending'}</dd></div>
+        <div><dt className="text-white/40">CPU</dt><dd>{selected.cpu_percent != null ? `${selected.cpu_percent.toFixed(0)}%` : '—'}</dd></div>
+      </dl>
+      <div className="flex flex-col gap-2">
+        <Link to={`/platform/hosts/${selected.id}`} className="btn-primary text-sm text-center">Open host</Link>
+        <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(selected.id, () => enqueueValidateHost(selected.id), 'Validation queued')}>Validate</button>
+        <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(selected.id, () => syncHost(selected.id), 'Sync queued')}>Sync</button>
+        <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(selected.id, () => hostMaintenance(selected.id, 'enter'), 'Maintenance entered')}>
+          <Wrench className="w-3 h-3 inline" /> Maintenance
+        </button>
+      </div>
+    </div>
+  ) : null
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <MacSectionTitle title="Hosts" subtitle={filterOffline ? 'Showing offline hypervisors only.' : 'KVM hypervisors — like System Information for your cluster.'} />
-        <div className="flex gap-2">
-          <button type="button" className="btn-secondary text-sm" onClick={async () => {
-            try { await syncAllHosts(); toast.success('Sync all queued') } catch (e: unknown) { toast.error(formatUserError(e)) }
-          }}>Sync all</button>
-          <button type="button" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
-        </div>
-      </header>
-
-      {error && <ErrorBanner message={error} />}
-
+    <div className="space-y-4 animate-fade-in">
       <div className="grid gap-3 sm:grid-cols-3">
-        <MacStatWidget label="Hosts" value={String(hosts.length)} icon={<Server className="w-4 h-4" />} tone="default" />
+        <MacStatWidget label="Hosts" value={String(hosts.length)} icon={<Server className="w-4 h-4" />} />
         <MacStatWidget label="Online" value={String(online)} icon={<Server className="w-4 h-4" />} tone={online === hosts.length ? 'ok' : 'warn'} />
         <MacStatWidget label="Total VMs" value={String(hosts.reduce((s, h) => s + h.vm_count, 0))} icon={<Server className="w-4 h-4" />} />
       </div>
 
-      {visibleHosts.length === 0 && !error ? (
-        <PlatformEmptyState title={filterOffline ? 'No offline hosts' : 'No hosts enrolled'} subtitle={filterOffline ? 'All hypervisors are reporting heartbeats.' : 'Add a hypervisor to start managing VMs.'}>
-          <Link to="/platform/enroll" className="btn-primary inline-block mt-3">Add Host</Link>
-        </PlatformEmptyState>
-      ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {visibleHosts.map((h) => (
-            <article key={h.id} className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 p-5 space-y-4">
-              <div className="flex items-start gap-3">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${gradientForName(h.hostname)} flex items-center justify-center text-white`}>
-                  <Server className="w-6 h-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <Link to={`/platform/hosts/${h.id}`} className="font-semibold text-blue-400 hover:underline truncate block">{h.hostname}</Link>
-                  <p className={`text-xs capitalize mt-0.5 ${hostTone(h) === 'ok' ? 'text-emerald-400' : hostTone(h) === 'warn' ? 'text-amber-400' : 'text-slate-500'}`}>
-                    {h.maintenance_mode ? 'maintenance' : h.state}{h.fenced ? ' · fenced' : ''}
-                  </p>
-                </div>
-              </div>
-              <dl className="grid grid-cols-2 gap-2 text-xs">
-                <div><dt className="text-slate-500">VMs</dt><dd className="text-slate-200 mt-0.5">{h.vm_count}</dd></div>
-                <div><dt className="text-slate-500">CPU</dt><dd className="text-slate-200 mt-0.5">{h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}%` : '—'}</dd></div>
-                <div className="col-span-2"><dt className="text-slate-500">Validation</dt><dd className={`mt-0.5 capitalize ${h.validation_status === 'passed' ? 'text-emerald-400' : h.validation_status === 'failed' ? 'text-red-400' : 'text-amber-400'}`}>{h.validation_status || 'pending'}</dd></div>
-              </dl>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(h.id, () => enqueueValidateHost(h.id), 'Validation queued')}>Validate</button>
-                <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(h.id, () => syncHost(h.id), 'Sync queued')}>Sync</button>
-                <button type="button" className="btn-secondary text-xs" disabled={busy !== null} onClick={() => void act(h.id, () => hostMaintenance(h.id, 'enter'), 'Maintenance entered')}>
-                  <Wrench className="w-3 h-3 inline" /> Maint.
-                </button>
-              </div>
-            </article>
-          ))}
-        </div>
-      )}
+      {error && <ErrorBanner message={error} />}
+
+      <FinderView
+        title="Hosts"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Filter hosts…"
+        viewMode={viewMode}
+        onViewModeChange={setViewMode}
+        toolbarActions={toolbar}
+        pathSegments={[
+          { label: 'Platform', onClick: () => navigate('/platform') },
+          { label: filterOffline ? 'Offline hosts' : 'Hosts' },
+        ]}
+        listContent={listContent}
+        inspector={inspector}
+        isEmpty={visibleHosts.length === 0 && !error}
+        emptyState={
+          <PlatformEmptyState title={filterOffline ? 'No offline hosts' : 'No hosts enrolled'} subtitle={filterOffline ? 'All hypervisors are reporting heartbeats.' : 'Add a hypervisor to start managing VMs.'}>
+            <Link to="/platform/enroll" className="btn-primary inline-block mt-3">Add Host</Link>
+          </PlatformEmptyState>
+        }
+      />
     </div>
   )
 }

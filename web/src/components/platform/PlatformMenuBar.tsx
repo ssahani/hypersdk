@@ -33,7 +33,7 @@ export default function PlatformMenuBar() {
   const pressureTone = pressure > 0 ? 'text-amber-300 border-amber-500/40 bg-amber-500/10' : 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
 
   return (
-    <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full border border-white/[0.06] bg-slate-900/60 text-xs text-slate-300 mb-2">
+    <div className="hidden lg:flex items-center gap-2 px-2 py-1 mb-2 rounded-full border border-white/[0.08] bg-black/20 text-xs text-white/75 backdrop-blur-md">
       <div className="relative" onClick={(e) => e.stopPropagation()}>
         <button
           type="button"

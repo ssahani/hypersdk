@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router'
 import { ZyvorFooter } from './components/ZyvorBrand';
 import { Suspense, lazy, useState, useCallback, useMemo } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
@@ -231,6 +231,8 @@ function RouteRecorder() {
 
 function AuthenticatedShell() {
   const { theme } = useTheme()
+  const location = useLocation()
+  const isPlatformRoute = location.pathname.startsWith('/platform')
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpTab, setHelpTab] = useState<HelpTab>('shortcuts')
 
@@ -255,7 +257,7 @@ function AuthenticatedShell() {
         <BrowserRouter>
           <RouteRecorder />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
-            <Navbar onOpenHelp={openHelp} />
+            {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             <MachinaSpotlight onOpenHelp={openHelp} />
             <MachinaCopilot />
             <GlobalShortcuts
@@ -267,10 +269,14 @@ function AuthenticatedShell() {
             />
             <main
               id="main-content"
-              className={`app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`}
+              className={
+                isPlatformRoute
+                  ? 'platform-route-main flex-1 min-w-0 min-h-0 flex flex-col'
+                  : `app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`
+              }
               role="main"
             >
-              <Breadcrumb />
+              {!isPlatformRoute && <Breadcrumb />}
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>
                 <Route path="/" element={<Dashboard />} />

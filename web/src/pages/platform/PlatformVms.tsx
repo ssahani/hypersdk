@@ -1,11 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   FolderOpen,
-  LayoutGrid,
-  List,
   Monitor,
   Plus,
   RefreshCw,
@@ -14,7 +12,8 @@ import {
 } from 'lucide-react'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
-import { MacSectionTitle, LaunchpadAppIcon } from '../../components/platform/mac/PlatformMacUi'
+import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
+import { LaunchpadAppIcon } from '../../components/platform/mac/PlatformMacUi'
 import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
@@ -73,6 +72,7 @@ function SidebarRow({
 
 export default function PlatformVms() {
   const toast = useToastContext()
+  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const folder = searchParams.get('folder') || 'all'
   const tag = searchParams.get('tag') || ''
@@ -89,9 +89,22 @@ export default function PlatformVms() {
   const [dragVmId, setDragVmId] = useState<string | null>(null)
   const [migrateModal, setMigrateModal] = useState<{ vm: PlatformVm; destId: string; destName: string } | null>(null)
   const [dropHost, setDropHost] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+  const [selectedVmId, setSelectedVmId] = useState<string | null>(null)
 
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
+
+  const filteredVms = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return vms
+    return vms.filter((v) => v.name.toLowerCase().includes(q) || (v.tags ?? []).some((t) => t.toLowerCase().includes(q)))
+  }, [vms, search])
+
+  const finderViewMode: FinderViewMode = view === 'list' ? 'list' : 'icons'
+  const setFinderViewMode = (mode: FinderViewMode) => setView(mode === 'list' ? 'list' : 'launchpad')
+
+  const selectedVm = filteredVms.find((v) => v.id === selectedVmId) ?? filteredVms[0] ?? null
 
   const setFilter = useCallback((next: { folder?: string; tag?: string; project?: string }) => {
     const p = new URLSearchParams(searchParams)
@@ -235,171 +248,178 @@ export default function PlatformVms() {
     project ? project :
     finder?.smart_folders.find((f) => f.id === folder)?.label ?? 'All VMs'
 
-  return (
-    <div className="space-y-6 animate-fade-in">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <MacSectionTitle title="Finder" subtitle={`${activeLabel} — drag a VM onto a host to migrate.`} />
-        <div className="flex flex-wrap gap-2">
-          <div className="flex rounded-lg border border-white/[0.06] overflow-hidden">
-            <button type="button" className={`p-2 ${view === 'launchpad' ? 'bg-slate-800 text-white' : 'text-slate-400'}`} onClick={() => setView('launchpad')} aria-label="Launchpad view"><LayoutGrid className="w-4 h-4" /></button>
-            <button type="button" className={`p-2 ${view === 'list' ? 'bg-slate-800 text-white' : 'text-slate-400'}`} onClick={() => setView('list')} aria-label="List view"><List className="w-4 h-4" /></button>
-          </div>
-          <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></button>
-          <button type="button" className="btn-secondary" onClick={() => setWindowsOpen(true)}>Windows VM</button>
-          <button type="button" className="btn-primary flex items-center gap-2" onClick={() => setWizardOpen(true)}><Plus className="w-4 h-4" /> Create VM</button>
-        </div>
-      </header>
+  const toolbar = (
+    <>
+      <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></button>
+      <button type="button" className="btn-secondary" onClick={() => setWindowsOpen(true)}>Windows VM</button>
+      <button type="button" className="btn-primary flex items-center gap-2" onClick={() => setWizardOpen(true)}><Plus className="w-4 h-4" /> Create VM</button>
+    </>
+  )
 
-      {finder && <p className="text-sm text-slate-500">{finder.summary}</p>}
+  const vmGrid = view === 'launchpad' ? (
+    <div className="grid gap-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+      {filteredVms.map((v) => {
+        const running = v.observed_state === 'running'
+        return (
+          <div
+            key={v.id}
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/x-platform-vm', v.id)
+              e.dataTransfer.effectAllowed = 'move'
+              setDragVmId(v.id)
+            }}
+            onClick={() => setSelectedVmId(v.id)}
+            className={`cursor-grab active:cursor-grabbing rounded-2xl p-1 ${selectedVmId === v.id ? 'ring-1 ring-sky-400/40' : ''}`}
+          >
+            <Link to={`/platform/vms/${v.id}`} onClick={(e) => e.stopPropagation()} className="block">
+              <LaunchpadAppIcon
+                name={v.name}
+                icon={<Monitor className={`w-8 h-8 sm:w-9 sm:h-9 ${running ? '' : 'opacity-60'}`} />}
+                gradient={running ? 'from-emerald-600 to-teal-700' : 'from-slate-600 to-slate-800'}
+              />
+            </Link>
+            {(v.tags ?? []).length > 0 && (
+              <p className="text-[10px] text-slate-500 text-center truncate px-1">{(v.tags ?? []).slice(0, 2).join(' · ')}</p>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  ) : (
+    <div className="card overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-left text-slate-400 border-b border-white/[0.04]">
+            <th className="p-3">Name</th>
+            <th className="p-3">State</th>
+            <th className="p-3">Tags</th>
+            <th className="p-3">Host</th>
+            <th className="p-3">vCPU</th>
+            <th className="p-3">Memory</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filteredVms.map((v) => (
+            <tr
+              key={v.id}
+              className={`border-b border-slate-900/80 cursor-pointer ${selectedVmId === v.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'}`}
+              onClick={() => setSelectedVmId(v.id)}
+            >
+              <td className="p-3"><Link to={`/platform/vms/${v.id}`} className="text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>{v.name}</Link></td>
+              <td className="p-3 capitalize">{v.observed_state}</td>
+              <td className="p-3 text-xs text-slate-500">{(v.tags ?? []).join(', ') || '—'}</td>
+              <td className="p-3 text-slate-500">{v.host_id ? hostMap.get(v.host_id) : '—'}</td>
+              <td className="p-3">{v.vcpus}</td>
+              <td className="p-3">{Math.round(v.memory_mib / 1024)} Gi</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+
+  const inspector = selectedVm ? (
+    <div className="p-4 space-y-3 h-full overflow-y-auto">
+      <h3 className="font-semibold text-white">{selectedVm.name}</h3>
+      <dl className="grid grid-cols-2 gap-2 text-xs">
+        <div><dt className="text-white/40">State</dt><dd className="capitalize text-white">{selectedVm.observed_state}</dd></div>
+        <div><dt className="text-white/40">Host</dt><dd className="text-white">{selectedVm.host_id ? hostMap.get(selectedVm.host_id) : '—'}</dd></div>
+        <div><dt className="text-white/40">vCPU</dt><dd className="text-white">{selectedVm.vcpus}</dd></div>
+        <div><dt className="text-white/40">Memory</dt><dd className="text-white">{Math.round(selectedVm.memory_mib / 1024)} Gi</dd></div>
+      </dl>
+      <Link to={`/platform/vms/${selectedVm.id}`} className="btn-primary text-sm block text-center">Open VM</Link>
+      <Link to={`/platform/vms/${selectedVm.id}/console`} className="btn-secondary text-sm block text-center">Console</Link>
+      {selectedVm.managed === false && (
+        <button type="button" className="btn-secondary text-xs" onClick={async () => {
+          try { await adoptPlatformVm(selectedVm.id); toast.success('Adopted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
+        }}>Adopt discovered VM</button>
+      )}
+    </div>
+  ) : null
+
+  return (
+    <div className="space-y-4 animate-fade-in">
+      {finder && <p className="text-sm text-white/45">{finder.summary}</p>}
       {error && <StructuredErrorBanner error={error} />}
 
-      <div className="flex flex-col xl:flex-row gap-6">
-        <aside className="xl:w-52 shrink-0 space-y-4">
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1 mb-2">
-              <FolderOpen className="w-3 h-3" /> Smart Folders
-            </p>
-            <div className="space-y-0.5">
-              {(finder?.smart_folders ?? []).map((f) => (
-                <SidebarRow
-                  key={f.id}
-                  active={!tag && !project && folder === f.id}
-                  label={f.label}
-                  count={f.count}
-                  onClick={() => setFilter({ folder: f.id })}
-                />
-              ))}
-            </div>
-          </div>
-          {(finder?.tags.length ?? 0) > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1 mb-2">
-                <Tag className="w-3 h-3" /> Tags
-              </p>
-              <div className="space-y-0.5 max-h-48 overflow-y-auto">
-                {finder!.tags.map((t) => (
-                  <SidebarRow
-                    key={t.tag}
-                    active={tag === t.tag}
-                    label={`#${t.tag}`}
-                    count={t.count}
-                    onClick={() => setFilter({ tag: t.tag })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-          {(finder?.projects.length ?? 0) > 0 && (
-            <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Projects</p>
-              <div className="space-y-0.5">
-                {finder!.projects.map((p) => (
-                  <SidebarRow
-                    key={p.project}
-                    active={project === p.project}
-                    label={p.project}
-                    count={p.count}
-                    onClick={() => setFilter({ project: p.project })}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-        </aside>
-
-        <div className="flex-1 min-w-0">
-          {vms.length === 0 && !error ? (
-            <PlatformEmptyState title="No virtual machines" subtitle="Try another smart folder or create a VM.">
-              <button type="button" className="btn-primary mt-3" onClick={() => setWizardOpen(true)}>Create VM</button>
-            </PlatformEmptyState>
-          ) : view === 'launchpad' ? (
-            <div className="grid gap-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
-              {vms.map((v) => {
-                const running = v.observed_state === 'running'
-                return (
-                  <div
-                    key={v.id}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData('application/x-platform-vm', v.id)
-                      e.dataTransfer.effectAllowed = 'move'
-                      setDragVmId(v.id)
-                    }}
-                    className="cursor-grab active:cursor-grabbing"
-                  >
-                    <Link to={`/platform/vms/${v.id}`} onClick={(e) => e.stopPropagation()} className="block">
-                      <LaunchpadAppIcon
-                        name={v.name}
-                        icon={<Monitor className={`w-8 h-8 sm:w-9 sm:h-9 ${running ? '' : 'opacity-60'}`} />}
-                        gradient={running ? 'from-emerald-600 to-teal-700' : 'from-slate-600 to-slate-800'}
-                      />
-                    </Link>
-                    {(v.tags ?? []).length > 0 && (
-                      <p className="text-[10px] text-slate-500 text-center truncate px-1">{(v.tags ?? []).slice(0, 2).join(' · ')}</p>
-                    )}
-                    {v.managed === false && (
-                      <p className="text-[10px] text-amber-400 text-center -mt-1">Discovered</p>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="platform-mac-panel rounded-2xl border border-white/[0.06] overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-slate-400 border-b border-white/[0.04]">
-                    <th className="p-3">Name</th>
-                    <th className="p-3">State</th>
-                    <th className="p-3">Tags</th>
-                    <th className="p-3">Host</th>
-                    <th className="p-3">vCPU</th>
-                    <th className="p-3">Memory</th>
-                    <th className="p-3" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {vms.map((v) => (
-                    <tr key={v.id} className="border-b border-slate-900/80 hover:bg-white/[0.02]">
-                      <td className="p-3"><Link to={`/platform/vms/${v.id}`} className="text-blue-400 hover:underline">{v.name}</Link></td>
-                      <td className="p-3 capitalize">{v.observed_state}</td>
-                      <td className="p-3 text-xs text-slate-500">{(v.tags ?? []).join(', ') || '—'}</td>
-                      <td className="p-3 text-slate-500">{v.host_id ? hostMap.get(v.host_id) : '—'}</td>
-                      <td className="p-3">{v.vcpus}</td>
-                      <td className="p-3">{Math.round(v.memory_mib / 1024)} Gi</td>
-                      <td className="p-3">
-                        {v.managed === false && (
-                          <button type="button" className="btn-secondary text-xs" onClick={async () => {
-                            try { await adoptPlatformVm(v.id); toast.success('Adopted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
-                          }}>Adopt</button>
-                        )}
-                      </td>
-                    </tr>
+      <FinderView
+        title="Finder"
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search VMs…"
+        viewMode={finderViewMode}
+        onViewModeChange={setFinderViewMode}
+        toolbarActions={toolbar}
+        pathSegments={[
+          { label: 'Platform', onClick: () => navigate('/platform') },
+          { label: 'Finder', onClick: () => setFilter({ folder: 'all' }) },
+          { label: activeLabel },
+        ]}
+        listContent={
+          <div className="flex flex-col xl:flex-row gap-4">
+            <aside className="xl:w-52 shrink-0 space-y-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 flex items-center gap-1 mb-2">
+                  <FolderOpen className="w-3 h-3" /> Smart Folders
+                </p>
+                <div className="space-y-0.5">
+                  {(finder?.smart_folders ?? []).map((f) => (
+                    <SidebarRow key={f.id} active={!tag && !project && folder === f.id} label={f.label} count={f.count} onClick={() => setFilter({ folder: f.id })} />
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        <aside className="xl:w-48 shrink-0 space-y-2 hidden xl:block">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1"><Server className="w-3 h-3" /> Drop VM to migrate</p>
-          {hosts.map((h) => (
-            <div
-              key={h.id}
-              onDragOver={(e) => { e.preventDefault(); setDropHost(h.id) }}
-              onDragLeave={() => setDropHost(null)}
-              onDrop={(e) => { e.preventDefault(); onHostDrop(h.id) }}
-              className={`rounded-xl border p-3 text-sm transition ${
-                dropHost === h.id ? 'border-blue-500 bg-blue-500/10' : 'border-white/[0.06] bg-slate-900/40'
-              }`}
-            >
-              <p className="font-medium">{h.hostname}</p>
-              <p className="text-xs text-slate-500">{h.state} · {h.vm_count} VMs</p>
-            </div>
-          ))}
-        </aside>
-      </div>
+                </div>
+              </div>
+              {(finder?.tags.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 flex items-center gap-1 mb-2">
+                    <Tag className="w-3 h-3" /> Tags
+                  </p>
+                  <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                    {finder!.tags.map((t) => (
+                      <SidebarRow key={t.tag} active={tag === t.tag} label={`#${t.tag}`} count={t.count} onClick={() => setFilter({ tag: t.tag })} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              {(finder?.projects.length ?? 0) > 0 && (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40 mb-2">Projects</p>
+                  <div className="space-y-0.5">
+                    {finder!.projects.map((p) => (
+                      <SidebarRow key={p.project} active={project === p.project} label={p.project} count={p.count} onClick={() => setFilter({ project: p.project })} />
+                    ))}
+                  </div>
+                </div>
+              )}
+            </aside>
+            <div className="flex-1 min-w-0">{vmGrid}</div>
+            <aside className="xl:w-44 shrink-0 space-y-2 hidden xl:block">
+              <p className="text-xs font-semibold uppercase tracking-wider text-white/40 flex items-center gap-1"><Server className="w-3 h-3" /> Drop to migrate</p>
+              {hosts.map((h) => (
+                <div
+                  key={h.id}
+                  onDragOver={(e) => { e.preventDefault(); setDropHost(h.id) }}
+                  onDragLeave={() => setDropHost(null)}
+                  onDrop={(e) => { e.preventDefault(); onHostDrop(h.id) }}
+                  className={`rounded-xl border p-3 text-sm transition ${
+                    dropHost === h.id ? 'border-blue-500 bg-blue-500/10' : 'border-white/[0.06] bg-slate-900/40'
+                  }`}
+                >
+                  <p className="font-medium">{h.hostname}</p>
+                  <p className="text-xs text-slate-500">{h.state} · {h.vm_count} VMs</p>
+                </div>
+              ))}
+            </aside>
+          </div>
+        }
+        inspector={inspector}
+        isEmpty={filteredVms.length === 0 && !error}
+        emptyState={
+          <PlatformEmptyState title="No virtual machines" subtitle="Try another smart folder or create a VM.">
+            <button type="button" className="btn-primary mt-3" onClick={() => setWizardOpen(true)}>Create VM</button>
+          </PlatformEmptyState>
+        }
+      />
 
       <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} initial={wizardInitial} />
       <WindowsCreateWizard open={windowsOpen} onClose={() => setWindowsOpen(false)} onCreate={handleWindowsCreate} />

@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield } from 'lucide-react'
+import { Link, useLocation, useParams } from 'react-router'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink } from 'lucide-react'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
@@ -56,8 +56,11 @@ import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFir
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 
 export default function PlatformVmDetail() {
+  const location = useLocation()
+  const isPopout = isCenterPopoutMode(location.search)
   const { id } = useParams<{ id: string }>()
   const { setContextVmId, openCopilot } = useAi()
   const toast = useToastContext()
@@ -223,17 +226,30 @@ export default function PlatformVmDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/platform/vms" className="text-sm text-blue-400 flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Virtual Machines</Link>
+      {!isPopout && (
+        <Link to="/platform/vms" className="text-sm text-blue-400 flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Virtual Machines</Link>
+      )}
       {error && <ErrorBanner message={error} />}
       {vm && (
         <>
           <header className="space-y-3">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-50">{vm.name}</h1>
-              <p className="text-sm text-slate-400 mt-1 capitalize">
-                Status: {vm.observed_state} · Host: {hostName || '—'} · {vm.vcpus} vCPU · {Math.round(vm.memory_mib / 1024)} GiB
-                {vm.ha_enabled ? ' · HA enabled' : ''}
-              </p>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h1 className="text-3xl font-bold text-slate-50">{vm.name}</h1>
+                <p className="text-sm text-slate-400 mt-1 capitalize">
+                  Status: {vm.observed_state} · Host: {hostName || '—'} · {vm.vcpus} vCPU · {Math.round(vm.memory_mib / 1024)} GiB
+                  {vm.ha_enabled ? ' · HA enabled' : ''}
+                </p>
+              </div>
+              {!isPopout && (
+                <button
+                  type="button"
+                  className="btn-secondary text-sm flex items-center gap-1"
+                  onClick={() => openCenterPopout(`/platform/vms/${id}`)}
+                >
+                  <ExternalLink className="w-4 h-4" /> Pop out
+                </button>
+              )}
             </div>
             {vm.host_id && (
               <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className="text-sm text-blue-400 inline-block">

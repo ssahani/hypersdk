@@ -1,0 +1,69 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { Link, useLocation } from 'react-router'
+import { Search, Sparkles } from 'lucide-react'
+import { useAi } from '../../contexts/AiContext'
+import { PLATFORM_DOCK_ITEMS } from '../../utils/platformDockPins'
+
+function openSpotlight() {
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
+}
+
+export default function PlatformMacDock() {
+  const location = useLocation()
+  const { openCopilot } = useAi()
+
+  const isActive = (path: string) => {
+    if (path === '/platform') return location.pathname === '/platform'
+    return location.pathname === path || location.pathname.startsWith(`${path}/`)
+  }
+
+  return (
+    <footer className="mac-dock hidden lg:flex" role="navigation" aria-label="Platform dock">
+      <div className="mac-dock-inner mac-dock-inner-scroll">
+        {PLATFORM_DOCK_ITEMS.map((item) => {
+          const Icon = item.icon
+          const active = isActive(item.path)
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              title={item.label}
+              aria-label={item.label}
+              className={`mac-dock-item ${active ? 'mac-dock-item-active' : ''}`}
+              aria-current={active ? 'page' : undefined}
+            >
+              <Icon className="h-6 w-6" strokeWidth={1.75} />
+              <span className="mac-dock-tooltip">{item.label}</span>
+              {active ? <span className="mac-dock-dot" aria-hidden /> : null}
+            </Link>
+          )
+        })}
+
+        <div className="mac-dock-divider" aria-hidden />
+
+        <button
+          type="button"
+          onClick={openCopilot}
+          className="mac-dock-spotlight mac-dock-ask"
+          title="Ask Zeus (Copilot)"
+          aria-label="Open Zeus Copilot"
+        >
+          <Sparkles className="h-4 w-4" />
+          <span className="mac-dock-spotlight-label hidden xl:inline">Zeus</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={openSpotlight}
+          className="mac-dock-spotlight"
+          title="Spotlight (⌘K)"
+          aria-label="Open Spotlight"
+        >
+          <Search className="h-4 w-4" />
+          <span className="mac-dock-spotlight-label hidden xl:inline">Spotlight</span>
+        </button>
+      </div>
+    </footer>
+  )
+}

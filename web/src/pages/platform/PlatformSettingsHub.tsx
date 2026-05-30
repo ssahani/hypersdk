@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Settings, Shield, Users, HardDrive, Network, Archive, RefreshCw, Key, LifeBuoy, Info } from 'lucide-react'
 import PlatformSettings from './PlatformSettings'
+import PlatformAppearanceSettings from '../../components/platform/PlatformAppearanceSettings'
 import {
   MacSettingsPane,
   MacSettingsGroup,
@@ -155,7 +156,12 @@ export default function PlatformSettingsHub() {
       active={section}
       onSelect={selectSection}
     >
-      {section === 'general' && <PlatformSettings embedded />}
+      {section === 'general' && (
+        <div className="space-y-6">
+          <PlatformAppearanceSettings />
+          <PlatformSettings embedded />
+        </div>
+      )}
 
       {section === 'security' && (
         <div className="space-y-6">

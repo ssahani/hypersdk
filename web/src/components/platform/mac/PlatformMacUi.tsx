@@ -17,7 +17,7 @@ export function MacGlassPanel({
   className?: string
 }) {
   return (
-    <section className={`platform-mac-panel rounded-2xl border border-white/[0.06] bg-slate-900/45 backdrop-blur-xl shadow-lg shadow-black/20 ${className}`}>
+    <section className={`tahoe-glass-card platform-mac-panel ${className}`}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-white/[0.04]">
           <div>
@@ -272,7 +272,7 @@ export function MacSegmentedControl<T extends string>({
   return (
     <div className="space-y-2">
       {label && <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>}
-      <div className="inline-flex p-0.5 rounded-xl bg-slate-950/60 border border-white/[0.06]" role="tablist">
+      <div className="inline-flex p-0.5 rounded-full bg-black/30 border border-white/[0.08] tahoe-segment" role="tablist">
         {options.map((opt) => (
           <button
             key={opt.value}
@@ -280,10 +280,10 @@ export function MacSegmentedControl<T extends string>({
             role="tab"
             aria-selected={value === opt.value}
             onClick={() => onChange(opt.value)}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-full transition ${
               value === opt.value
-                ? 'bg-slate-700 text-white shadow-sm'
-                : 'text-slate-400 hover:text-slate-200'
+                ? 'tahoe-segment-active text-white'
+                : 'text-white/50 hover:text-white/80'
             }`}
           >
             {opt.label}
