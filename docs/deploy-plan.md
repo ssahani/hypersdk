@@ -16,9 +16,10 @@
 
 | Commit | Message |
 |--------|---------|
-| *(pending)* | Phase 48 General + E2E fixes + v9s UX polish |
+| `8dcf569` | Phase 48 General + E2E fixes + v9s UX polish |
+| `a8f6bb9` | v9s macOS Tahoe UX shell |
 
-Branch: `main`
+Branch: `main` (synced with `origin/main`)
 
 ## Shipped in this deploy (Phases 38–48)
 
@@ -55,6 +56,18 @@ curl -s http://212.8.252.194:5093/api/v1/health
 ```
 
 Spotlight smoke: `general settings`, `customize dock`, `stage manager`.
+
+## Deploy notes (2026-05-30)
+
+### Last deploy attempt
+
+| Check | Result |
+|-------|--------|
+| Git push `8dcf569` | **Success** |
+| Remote deploy | **Failed** — SSH timeout syncing GuestKit sibling repo (`Operation timed out`) |
+| Action | Retry when `212.8.252.194` is reachable: `VSPASS=max ./scripts/deploy-remote.sh sus 212.8.252.194 --quick --platform --e2e --bind 0.0.0.0 --open-firewall` |
+
+Previous successful deploy (Phases 38–47): commit `001a2d5`, E2E 277 passed / 5 failed (fixed in `8dcf569`).
 
 ## Related docs
 
