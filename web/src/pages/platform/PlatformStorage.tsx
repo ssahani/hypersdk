@@ -22,6 +22,7 @@ import {
   listPlatformHosts,
   listStoragePools,
   syncAllHosts,
+  upsertStorageBackupSla,
   type StorageBackupSla,
   type StoragePool,
   type StorageTierOverview,
@@ -53,6 +54,11 @@ export default function PlatformStorage() {
   const [creating, setCreating] = useState(false)
   const [bindDraft, setBindDraft] = useState<Record<string, string>>({})
   const [binding, setBinding] = useState<string | null>(null)
+  const [slaEdit, setSlaEdit] = useState<StorageBackupSla | null>(null)
+  const [slaRpo, setSlaRpo] = useState(24)
+  const [slaRto, setSlaRto] = useState(4)
+  const [slaRetention, setSlaRetention] = useState(30)
+  const [slaSaving, setSlaSaving] = useState(false)
 
   const setTab = (next: TabId) => {
     setSearchParams(next === 'pools' ? {} : { tab: next })
@@ -120,6 +126,32 @@ export default function PlatformStorage() {
       toast.error(formatUserError(e))
     } finally {
       setBinding(null)
+    }
+  }
+
+  const openSlaEdit = (policy: StorageBackupSla) => {
+    setSlaEdit(policy)
+    setSlaRpo(policy.rpo_hours)
+    setSlaRto(policy.rto_hours)
+    setSlaRetention(policy.retention_days)
+  }
+
+  const saveSla = async () => {
+    if (!slaEdit) return
+    setSlaSaving(true)
+    try {
+      await upsertStorageBackupSla(slaEdit.pool_id, {
+        rpo_hours: slaRpo,
+        rto_hours: slaRto,
+        retention_days: slaRetention,
+      })
+      toast.success('Backup SLA updated')
+      setSlaEdit(null)
+      await load(false)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSlaSaving(false)
     }
   }
 
@@ -299,6 +331,7 @@ export default function PlatformStorage() {
                     <th className="py-2 px-2">RTO</th>
                     <th className="py-2 px-2">Retention</th>
                     <th className="py-2 px-2">Grade</th>
+                    <th className="py-2 px-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -313,6 +346,11 @@ export default function PlatformStorage() {
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
                           s.compliance_grade === 'A' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'
                         }`}>{s.compliance_grade}</span>
+                      </td>
+                      <td className="py-2.5 px-2 text-right">
+                        <button type="button" className="text-xs text-blue-400 hover:underline" onClick={() => openSlaEdit(s)}>
+                          Edit
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -337,6 +375,26 @@ export default function PlatformStorage() {
             } catch (e: unknown) { toast.error(formatUserError(e)) }
             finally { setCreating(false) }
           }}>{creating ? 'Adding…' : 'Add pool'}</button>
+        </div>
+      </MacSheet>
+
+      <MacSheet open={!!slaEdit} onClose={() => setSlaEdit(null)} title={`Edit backup SLA — ${slaEdit?.pool_name ?? ''}`}>
+        <div className="space-y-4">
+          <label className="block text-sm">
+            <span className="text-slate-400">RPO (hours)</span>
+            <input type="number" min={1} max={168} className="input mt-1 w-full" value={slaRpo} onChange={(e) => setSlaRpo(Number(e.target.value))} />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-400">RTO (hours)</span>
+            <input type="number" min={1} max={72} className="input mt-1 w-full" value={slaRto} onChange={(e) => setSlaRto(Number(e.target.value))} />
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-400">Retention (days)</span>
+            <input type="number" min={1} max={365} className="input mt-1 w-full" value={slaRetention} onChange={(e) => setSlaRetention(Number(e.target.value))} />
+          </label>
+          <button type="button" className="btn-primary w-full" disabled={slaSaving} onClick={() => void saveSla()}>
+            {slaSaving ? 'Saving…' : 'Save SLA'}
+          </button>
         </div>
       </MacSheet>
     </div>

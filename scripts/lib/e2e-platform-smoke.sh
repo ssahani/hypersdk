@@ -772,4 +772,17 @@ except Exception:
   else
     e2e_platform_fail "POST spotlight storage tiers — HTTP ${http}"
   fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ENTERPRISE SECURITY (AI-432–451)"
+  e2e_platform_smoke_get "/api/v1/enterprise/security/overview" "GET /api/v1/enterprise/security/overview" || true
+  e2e_platform_smoke_get "/api/v1/enterprise/vault/providers" "GET /api/v1/enterprise/vault/providers" || true
+  e2e_platform_smoke_get "/api/v1/enterprise/mfa/policies" "GET /api/v1/enterprise/mfa/policies" || true
+  e2e_platform_smoke_get "/api/v1/enterprise/air-gap/bundles" "GET /api/v1/enterprise/air-gap/bundles" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"vault mfa air gap bundle"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight enterprise security (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight enterprise security — HTTP ${http}"
+  fi
 }

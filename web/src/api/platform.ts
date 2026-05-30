@@ -255,6 +255,78 @@ export const getStorageSnapshotPolicy = (poolId: string) =>
   platformFetch<{ pool_name: string; snapshot_retention_days: number; summary: string }>(
     `/api/v1/storage/pools/${poolId}/snapshot-policy`,
   )
+
+export type EnterpriseSecurityOverview = {
+  vault_providers: number
+  vault_connected: number
+  mfa_policies: number
+  mfa_required_roles: number
+  air_gap_bundles: number
+  summary: string
+}
+
+export type VaultProvider = {
+  id: string
+  name: string
+  provider_type: string
+  address: string
+  namespace: string
+  status: string
+  last_sync_at?: string | null
+}
+
+export type MfaPolicy = {
+  id: string
+  role_name: string
+  method: string
+  required: boolean
+  grace_days: number
+}
+
+export type AirGapBundle = {
+  id: string
+  name: string
+  checksum: string
+  manifest_json: Record<string, unknown>
+  size_bytes: number
+  exported_at: string
+}
+
+export const getEnterpriseSecurityOverview = () =>
+  platformFetch<EnterpriseSecurityOverview>('/api/v1/enterprise/security/overview')
+
+export const listVaultProviders = () =>
+  platformFetch<VaultProvider[]>('/api/v1/enterprise/vault/providers')
+
+export const registerVaultProvider = (body: {
+  name: string
+  provider_type?: string
+  address?: string
+  namespace?: string
+}) =>
+  platformFetch<VaultProvider>('/api/v1/enterprise/vault/providers', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const listMfaPolicies = () =>
+  platformFetch<MfaPolicy[]>('/api/v1/enterprise/mfa/policies')
+
+export const upsertMfaPolicy = (role: string, body: { method: string; required: boolean; grace_days?: number }) =>
+  platformFetch<MfaPolicy>(`/api/v1/enterprise/mfa/policies/${encodeURIComponent(role)}`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const listAirGapBundles = () =>
+  platformFetch<AirGapBundle[]>('/api/v1/enterprise/air-gap/bundles')
+
+export const createAirGapBundle = (body: { name: string }) =>
+  platformFetch<AirGapBundle>('/api/v1/enterprise/air-gap/bundles', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
 export const listPlatformNetworks = () => platformFetch<PlatformNetwork[]>('/api/v1/networks')
 export const discoverPlatformNetworks = () =>
   platformFetch<{ imported: number; networks: PlatformNetwork[] }>('/api/v1/networks/discover', {

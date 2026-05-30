@@ -1,0 +1,93 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use axum::extract::{Path, State};
+use axum::Extension;
+use axum::Json;
+use uuid::Uuid;
+
+use crate::api::ApiError;
+use crate::auth::AuthUser;
+use crate::engine::enterprise_security::{
+    self, CreateAirGapBundleRequest, RegisterVaultProviderRequest, UpsertMfaPolicyRequest,
+};
+use crate::state::AppState;
+
+pub async fn overview(
+    State(state): State<AppState>,
+) -> Result<Json<enterprise_security::EnterpriseSecurityOverview>, ApiError> {
+    enterprise_security::overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn list_vault_providers(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<enterprise_security::VaultProviderRow>>, ApiError> {
+    enterprise_security::list_vault_providers(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn register_vault_provider(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+    Json(body): Json<RegisterVaultProviderRequest>,
+) -> Result<Json<enterprise_security::VaultProviderRow>, ApiError> {
+    enterprise_security::register_vault_provider(&state.pool, &body)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+}
+
+pub async fn list_mfa_policies(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<enterprise_security::MfaPolicyRow>>, ApiError> {
+    enterprise_security::list_mfa_policies(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn upsert_mfa_policy(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+    Path(role): Path<String>,
+    Json(body): Json<UpsertMfaPolicyRequest>,
+) -> Result<Json<enterprise_security::MfaPolicyRow>, ApiError> {
+    enterprise_security::upsert_mfa_policy(&state.pool, &role, &body)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+}
+
+pub async fn list_air_gap_bundles(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<enterprise_security::AirGapBundleRow>>, ApiError> {
+    enterprise_security::list_air_gap_bundles(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn create_air_gap_bundle(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+    Json(body): Json<CreateAirGapBundleRequest>,
+) -> Result<Json<enterprise_security::AirGapBundleRow>, ApiError> {
+    enterprise_security::create_air_gap_bundle(&state.pool, &body)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+}
+
+pub async fn get_air_gap_bundle(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<enterprise_security::AirGapBundleRow>, ApiError> {
+    enterprise_security::get_air_gap_bundle(&state.pool, id)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::not_found(e.to_string()))
+}

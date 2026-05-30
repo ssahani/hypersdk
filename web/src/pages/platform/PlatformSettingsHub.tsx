@@ -10,7 +10,7 @@ import {
   MacToggle,
   MacListRow,
 } from '../../components/platform/mac/PlatformMacUi'
-import { getClusterSettings, patchClusterSettings } from '../../api/platform'
+import { getClusterSettings, patchClusterSettings, getEnterpriseSecurityOverview, listVaultProviders, listMfaPolicies, upsertMfaPolicy, listAirGapBundles, createAirGapBundle, type EnterpriseSecurityOverview, type VaultProvider, type MfaPolicy, type AirGapBundle } from '../../api/platform'
 import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -39,6 +39,12 @@ export default function PlatformSettingsHub() {
   const [saving, setSaving] = useState(false)
   const [policyYaml, setPolicyYaml] = useState<string | null>(null)
   const [firewallOverview, setFirewallOverview] = useState<FirewallOverview | null>(null)
+  const [enterprise, setEnterprise] = useState<EnterpriseSecurityOverview | null>(null)
+  const [vaultProviders, setVaultProviders] = useState<VaultProvider[]>([])
+  const [mfaPolicies, setMfaPolicies] = useState<MfaPolicy[]>([])
+  const [airGapBundles, setAirGapBundles] = useState<AirGapBundle[]>([])
+  const [bundleName, setBundleName] = useState('sovereign-export')
+  const [bundleCreating, setBundleCreating] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -48,6 +54,18 @@ export default function PlatformSettingsHub() {
     } catch { /* optional */ }
     try {
       setFirewallOverview(await getFirewallOverview())
+    } catch { /* optional */ }
+    try {
+      const [ov, vaults, mfa, bundles] = await Promise.all([
+        getEnterpriseSecurityOverview(),
+        listVaultProviders(),
+        listMfaPolicies(),
+        listAirGapBundles(),
+      ])
+      setEnterprise(ov)
+      setVaultProviders(vaults)
+      setMfaPolicies(mfa)
+      setAirGapBundles(bundles)
     } catch { /* optional */ }
   }, [])
 
@@ -87,6 +105,36 @@ export default function PlatformSettingsHub() {
     }
   }
 
+  const toggleAdminMfa = async (checked: boolean) => {
+    setSaving(true)
+    try {
+      await upsertMfaPolicy('admin', { method: 'webauthn', required: checked, grace_days: 7 })
+      setMfaPolicies((prev) =>
+        prev.map((p) => (p.role_name === 'admin' ? { ...p, required: checked } : p)),
+      )
+      toast.success(checked ? 'Admin MFA policy enabled (stub)' : 'Admin MFA policy disabled')
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const exportAirGapBundle = async () => {
+    setBundleCreating(true)
+    try {
+      const bundle = await createAirGapBundle({ name: bundleName.trim() || 'sovereign-export' })
+      setAirGapBundles((prev) => [bundle, ...prev])
+      toast.success(`Air-gap bundle "${bundle.name}" manifest created`)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBundleCreating(false)
+    }
+  }
+
+  const adminMfaRequired = mfaPolicies.find((p) => p.role_name === 'admin')?.required ?? false
+
   return (
     <MacSettingsPane
       title="Settings"
@@ -108,12 +156,74 @@ export default function PlatformSettingsHub() {
             />
             <MacToggle
               label="Require MFA for admins"
-              description="Enterprise backlog — not yet available."
-              checked={false}
-              disabled
-              onChange={() => {}}
+              description="Policy stub — WebAuthn/TOTP enrollment inventory only (no live IdP)."
+              checked={adminMfaRequired}
+              disabled={saving}
+              onChange={(v) => void toggleAdminMfa(v)}
             />
             <p className="text-xs text-slate-500 pt-2">Audit logging is always enabled for platform operations.</p>
+          </MacSettingsGroup>
+
+          {enterprise && (
+            <MacSettingsGroup title="Enterprise security">
+              <p className="text-xs text-slate-500 mb-2">{enterprise.summary}</p>
+              <div className="grid gap-3 sm:grid-cols-3 text-sm mb-3">
+                <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
+                  <p className="text-[10px] uppercase text-slate-500">Vault</p>
+                  <p className="text-lg font-semibold text-slate-100">{enterprise.vault_connected}/{enterprise.vault_providers}</p>
+                  <p className="text-[10px] text-slate-500">connected</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
+                  <p className="text-[10px] uppercase text-slate-500">MFA roles</p>
+                  <p className="text-lg font-semibold text-slate-100">{enterprise.mfa_required_roles}/{enterprise.mfa_policies}</p>
+                  <p className="text-[10px] text-slate-500">required</p>
+                </div>
+                <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
+                  <p className="text-[10px] uppercase text-slate-500">Air-gap</p>
+                  <p className="text-lg font-semibold text-slate-100">{enterprise.air_gap_bundles}</p>
+                  <p className="text-[10px] text-slate-500">bundles</p>
+                </div>
+              </div>
+            </MacSettingsGroup>
+          )}
+
+          <MacSettingsGroup title="Vault providers">
+            {vaultProviders.length === 0 ? (
+              <p className="text-sm text-slate-500">No vault providers — run migration 029.</p>
+            ) : (
+              <div className="space-y-2">
+                {vaultProviders.map((v) => (
+                  <MacListRow
+                    key={v.id}
+                    title={v.name}
+                    subtitle={`${v.provider_type} · ${v.status}${v.address ? ` · ${v.address}` : ''}`}
+                  />
+                ))}
+              </div>
+            )}
+          </MacSettingsGroup>
+
+          <MacSettingsGroup title="Air-gap bundles">
+            <p className="text-xs text-slate-500 mb-2">Simulated sovereign export manifests — no live bundle runner.</p>
+            <div className="flex gap-2 mb-3">
+              <input
+                className="input flex-1 text-sm"
+                value={bundleName}
+                disabled={bundleCreating}
+                onChange={(e) => setBundleName(e.target.value)}
+                placeholder="Bundle name"
+              />
+              <button type="button" className="btn-secondary text-xs shrink-0" disabled={bundleCreating} onClick={() => void exportAirGapBundle()}>
+                {bundleCreating ? 'Creating…' : 'Create manifest'}
+              </button>
+            </div>
+            {airGapBundles.slice(0, 5).map((b) => (
+              <MacListRow
+                key={b.id}
+                title={b.name}
+                subtitle={`${b.checksum.slice(0, 24)}… · ${Math.round(b.size_bytes / 1024)} KB`}
+              />
+            ))}
           </MacSettingsGroup>
 
           <MacSettingsGroup title="Zeus Firewall">

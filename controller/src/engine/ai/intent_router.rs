@@ -313,6 +313,39 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("vault") || ql.contains("secrets provider") {
+        intents.push(intent(
+            "enterprise-vault",
+            "Vault providers",
+            "Secrets backend inventory and registration stubs.",
+            "navigate",
+            None,
+            Some("/platform/settings".into()),
+            None,
+        ));
+    }
+    if ql.contains("mfa") || ql.contains("webauthn") || ql.contains("multi-factor") {
+        intents.push(intent(
+            "enterprise-mfa",
+            "MFA policies",
+            "Role-based WebAuthn/TOTP enrollment policy stubs.",
+            "navigate",
+            None,
+            Some("/platform/settings".into()),
+            None,
+        ));
+    }
+    if ql.contains("air gap") || ql.contains("air-gap") || ql.contains("sovereign") {
+        intents.push(intent(
+            "enterprise-airgap",
+            "Air-gap bundles",
+            "Offline export manifest inventory for sovereign deployments.",
+            "navigate",
+            None,
+            Some("/platform/settings".into()),
+            None,
+        ));
+    }
     if ql.contains("firewall") || ql.contains("machine shield") {
         intents.push(intent(
             "zeus-firewall",

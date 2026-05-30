@@ -12,6 +12,7 @@ mod cluster;
 mod content;
 pub mod cpu_compat;
 mod enrollment;
+mod enterprise_security;
 mod error;
 mod events;
 mod fence;
@@ -369,6 +370,30 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/cluster/settings",
             get(cluster::get_settings).patch(cluster::patch_settings),
+        )
+        .route(
+            "/api/v1/enterprise/security/overview",
+            get(enterprise_security::overview),
+        )
+        .route(
+            "/api/v1/enterprise/vault/providers",
+            get(enterprise_security::list_vault_providers).post(enterprise_security::register_vault_provider),
+        )
+        .route(
+            "/api/v1/enterprise/mfa/policies",
+            get(enterprise_security::list_mfa_policies),
+        )
+        .route(
+            "/api/v1/enterprise/mfa/policies/{role}",
+            post(enterprise_security::upsert_mfa_policy),
+        )
+        .route(
+            "/api/v1/enterprise/air-gap/bundles",
+            get(enterprise_security::list_air_gap_bundles).post(enterprise_security::create_air_gap_bundle),
+        )
+        .route(
+            "/api/v1/enterprise/air-gap/bundles/{id}",
+            get(enterprise_security::get_air_gap_bundle),
         )
         .route("/api/v1/ha/status", get(ha::get_ha_status))
         .route("/api/v1/migrations", get(migration_jobs::list_migration_jobs))
