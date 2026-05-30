@@ -337,5 +337,5 @@ export const routeLabels: Record<string, string> = {
   '/platform/users': 'Users & Access',
   '/platform/api-keys': 'API Keys',
   '/platform/webhooks': 'Webhooks',
-  '/platform/maintenance': 'Maintenance',
+  '/platform/maintenance': 'Software Update',
 }

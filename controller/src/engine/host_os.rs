@@ -58,6 +58,15 @@ pub async fn linux_audit(
     agent_client::get_linux_audit(&addr).await
 }
 
+pub async fn linux_package_updates(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    host_id: Uuid,
+) -> anyhow::Result<serde_json::Value> {
+    let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
+    agent_client::get_linux_package_updates(&addr).await
+}
+
 #[derive(Debug, serde::Serialize)]
 pub struct VmGuestHealthReport {
     pub vm_id: String,

@@ -126,6 +126,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("software update") || ql.contains("host patch") || ql.contains("pending update")
+        || (ql.contains("package") && ql.contains("update"))
+    {
+        intents.push(intent(
+            "software-update",
+            "Software Update",
+            "Fleet host patch catalog — apt/dnf pending packages and reboot flags.",
+            "navigate",
+            None,
+            Some("/platform/maintenance?tab=updates".into()),
+            None,
+        ));
+    }
     if ql.contains("network lens") || ql.contains("reachability") || (ql.contains("why") && ql.contains("reach")) {
         intents.push(intent(
             "network-lens",

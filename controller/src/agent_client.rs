@@ -578,3 +578,16 @@ pub async fn get_linux_audit(addr: &str) -> anyhow::Result<serde_json::Value> {
         anyhow::bail!(resp.message)
     }
 }
+
+pub async fn get_linux_package_updates(addr: &str) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_linux_package_updates(GetLinuxPackageUpdatesRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux package updates json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}

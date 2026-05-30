@@ -36,6 +36,7 @@ service HostAgent {
   rpc GetLinuxObservability(GetLinuxObservabilityRequest) returns (GetLinuxObservabilityResponse);
   rpc GetSystemdNetworkDiagnostics(GetSystemdNetworkDiagnosticsRequest) returns (GetSystemdNetworkDiagnosticsResponse);
   rpc GetLinuxAudit(GetLinuxAuditRequest) returns (GetLinuxAuditResponse);
+  rpc GetLinuxPackageUpdates(GetLinuxPackageUpdatesRequest) returns (GetLinuxPackageUpdatesResponse);
 }
 
 message RegisterRequest {
@@ -436,6 +437,14 @@ message GetSystemdNetworkDiagnosticsResponse {
 message GetLinuxAuditRequest {}
 
 message GetLinuxAuditResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
+}
+
+message GetLinuxPackageUpdatesRequest {}
+
+message GetLinuxPackageUpdatesResponse {
   bool ok = 1;
   string json = 2;
   string message = 3;

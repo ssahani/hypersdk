@@ -38,6 +38,16 @@ pub async fn host_linux_audit(
         .map_err(|e| ApiError::internal(e.to_string()))
 }
 
+pub async fn host_linux_package_updates(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    host_os::linux_package_updates(&state.pool, &state.config, id)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
 pub async fn vm_guest_health(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

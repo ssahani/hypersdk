@@ -950,4 +950,30 @@ impl HostAgent for AgentService {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
+
+    async fn get_linux_package_updates(
+        &self,
+        _request: Request<GetLinuxPackageUpdatesRequest>,
+    ) -> Result<Response<GetLinuxPackageUpdatesResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::host_platform::check_package_updates).await {
+            Ok(Ok(check)) => match serde_json::to_string(&check) {
+                Ok(json) => Ok(Response::new(GetLinuxPackageUpdatesResponse {
+                    ok: true,
+                    json,
+                    message: String::new(),
+                })),
+                Err(e) => Ok(Response::new(GetLinuxPackageUpdatesResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(GetLinuxPackageUpdatesResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
 }

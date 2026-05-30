@@ -892,6 +892,32 @@ export type FleetConsoleOverview = {
 export const getFleetConsole = () =>
   platformFetch<FleetConsoleOverview>('/api/v1/fleet/console')
 
+export type FleetHostUpdateItem = {
+  host_id: string
+  hostname: string
+  agent_version: string
+  agent_update_available: boolean
+  backend: string
+  pending_count?: number | null
+  summary?: string | null
+  reboot_required: boolean
+  status: string
+}
+
+export type FleetUpdatesOverview = {
+  summary: string
+  recommended_agent: string
+  hosts_scanned: number
+  hosts_with_updates: number
+  hosts_reboot_required: number
+  agent_drift_count: number
+  total_pending_packages: number
+  hosts: FleetHostUpdateItem[]
+}
+
+export const getFleetUpdates = () =>
+  platformFetch<FleetUpdatesOverview>('/api/v1/fleet/updates')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 
