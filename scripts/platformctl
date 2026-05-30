@@ -86,6 +86,7 @@ case "$cmd" in
       keychain) api GET /api/v1/fleet/keychain | jq . ;;
       users) api GET /api/v1/fleet/users | jq . ;;
       shortcuts) api GET /api/v1/fleet/shortcuts | jq . ;;
+      spaces) api GET /api/v1/fleet/spaces | jq . ;;
       diagnose) api POST /api/v1/ai/fleet/diagnose -d "{\"query\":\"${3:-fleet linux pressure}\"}" | jq . ;;
       *) echo "unknown fleet subcommand: $sub" >&2; exit 1 ;;
     esac

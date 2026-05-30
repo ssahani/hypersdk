@@ -991,6 +991,28 @@ export type FleetShortcutsOverview = {
 export const getFleetShortcuts = () =>
   platformFetch<FleetShortcutsOverview>('/api/v1/fleet/shortcuts')
 
+export type FleetSpaceItem = {
+  name: string
+  vm_count: number
+  running_count: number
+  stopped_count: number
+  host_count: number
+  network_isolation: string
+  enforce_quotas: boolean
+  quota_status: string
+}
+
+export type FleetSpacesOverview = {
+  summary: string
+  space_count: number
+  total_vms: number
+  running_vms: number
+  spaces: FleetSpaceItem[]
+}
+
+export const getFleetSpaces = () =>
+  platformFetch<FleetSpacesOverview>('/api/v1/fleet/spaces')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

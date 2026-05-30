@@ -126,6 +126,21 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("stage manager")
+        || ql.contains("workspace space")
+        || ql.contains("workspace spaces")
+        || (ql.contains("stage") && ql.contains("workspace"))
+    {
+        intents.push(intent(
+            "fleet-spaces",
+            "Stage Manager",
+            "Workspace spaces strip — group VMs by tenant project.",
+            "navigate",
+            None,
+            Some("/platform/projects".into()),
+            None,
+        ));
+    }
     if ql.contains("shortcut")
         || (ql.contains("launchpad") && ql.contains("blueprint"))
         || (ql.contains("blueprint") && ql.contains("run"))

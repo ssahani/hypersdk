@@ -28,6 +28,7 @@ import {
   ShieldAlert,
   Code2,
   Gauge,
+  LayoutGrid,
   Lock,
 } from 'lucide-react'
 
@@ -97,7 +98,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
     items: [
       { to: '/platform/users', label: 'Users & Groups', icon: ic(Users) },
       { to: '/platform/enterprise', label: 'Keychain', icon: ic(Lock) },
-      { to: '/platform/projects', label: 'Workspaces', icon: ic(Boxes) },
+      { to: '/platform/projects', label: 'Stage Manager', icon: ic(LayoutGrid) },
       { to: '/platform/reports', label: 'Reports', icon: ic(FileBarChart) },
       { to: '/platform/support', label: 'Support', icon: ic(LifeBuoy) },
       { to: '/platform/settings', label: 'Settings', icon: ic(Settings) },
@@ -139,7 +140,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/developer': 'SDK & Terraform',
   '/platform/enterprise': 'Keychain',
   '/platform/users': 'Users & Groups',
-  '/platform/projects': 'Workspaces',
+  '/platform/projects': 'Stage Manager',
   '/platform/reports': 'Reports',
   '/platform/support': 'Support',
   '/platform/settings': 'Settings',

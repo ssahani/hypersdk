@@ -502,6 +502,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/fleet/keychain", get(fleet::keychain_overview))
         .route("/api/v1/fleet/users", get(fleet::users_overview))
         .route("/api/v1/fleet/shortcuts", get(fleet::shortcuts_overview))
+        .route("/api/v1/fleet/spaces", get(fleet::spaces_overview))
         .route("/api/v1/hosts/{id}/linux/updates", get(host_os::host_linux_package_updates))
         .route("/api/v1/ai/fleet/diagnose", post(fleet::fleet_diagnose))
         .route("/api/v1/developer/overview", get(developer::overview))

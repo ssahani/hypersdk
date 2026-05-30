@@ -50,7 +50,7 @@ Each phase ships: **backend aggregator or agent lift → Mac UI pane → Spotlig
 | **44** | 642–651 | **Keychain** — secrets inventory Mac pane | **Shipped (v1)** |
 | **45** | 652–661 | **Users & Groups** — tenant switcher menu bar | **Shipped (v1)** |
 | **46** | 662–671 | **Shortcuts** — blueprint Launchpad grid | **Shipped (v1)** |
-| 47 | 672–681 | Stage Manager — workspace spaces strip | Planned |
+| **47** | 672–681 | **Stage Manager** — workspace spaces strip | **Shipped (v1)** |
 
 ---
 

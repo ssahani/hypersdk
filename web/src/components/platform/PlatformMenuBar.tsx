@@ -99,6 +99,10 @@ export default function PlatformMenuBar() {
         <Workflow className="w-3 h-3" />
         Shortcuts
       </Link>
+      <Link to="/platform/projects" className="inline-flex items-center gap-1 hover:text-violet-200 transition">
+        <LayoutGrid className="w-3 h-3" />
+        Spaces
+      </Link>
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${sloTone}`}>
         {desktop.slo_breach_count > 0 ? `${desktop.slo_breach_count} SLO breach` : `${desktop.slo_count} SLO OK`}
       </span>
