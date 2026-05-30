@@ -43,6 +43,10 @@ pub struct VmListQuery {
     pub host_id: Option<Uuid>,
     #[serde(default)]
     pub managed: Option<bool>,
+    #[serde(default)]
+    pub tag: Option<String>,
+    #[serde(default)]
+    pub folder: Option<String>,
 }
 
 pub async fn list_vms(
@@ -57,14 +61,33 @@ pub async fn list_vms(
                 v.uuid, v.vcpus, v.memory_mib,
                 COALESCE(hp.enabled, FALSE) AS ha_enabled, v.project, COALESCE(v.tags, '{}') AS tags
          FROM vms v LEFT JOIN ha_policies hp ON hp.vm_id = v.id
+         LEFT JOIN vm_metrics m ON m.vm_id = v.id
          WHERE ($1::text IS NULL OR v.project = $1)
            AND ($2::uuid IS NULL OR v.host_id = $2)
            AND ($3::bool IS NULL OR v.managed = $3)
+           AND ($4::text IS NULL OR $4 = ANY(v.tags))
+           AND (
+             $5::text IS NULL
+             OR ($5 = 'running' AND v.observed_state = 'running')
+             OR ($5 = 'stopped' AND v.observed_state != 'running')
+             OR ($5 = 'discovered' AND v.managed = FALSE)
+             OR ($5 = 'untagged' AND (v.tags IS NULL OR v.tags = '{}'))
+             OR ($5 = 'high_cpu' AND m.cpu_percent > 85)
+             OR ($5 = 'unprotected' AND NOT EXISTS (
+               SELECT 1 FROM backup_records b
+               WHERE b.vm_id = v.id AND b.status = 'completed'
+                 AND b.created_at > NOW() - INTERVAL '7 days'
+             ))
+             OR ($5 = 'ha_enabled' AND hp.enabled = TRUE)
+             OR $5 = 'all'
+           )
          ORDER BY v.name",
     )
     .bind(q.project.as_deref())
     .bind(q.host_id)
     .bind(q.managed)
+    .bind(q.tag.as_deref())
+    .bind(q.folder.as_deref())
     .fetch_all(&state.pool)
     .await?;
     Ok(Json(rows))

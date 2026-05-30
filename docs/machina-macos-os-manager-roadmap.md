@@ -42,7 +42,7 @@ Each phase ships: **backend aggregator or agent lift → Mac UI pane → Spotlig
 | Phase | AI | macOS app | Ship target |
 |-------|-----|-----------|-------------|
 | **38** | 582–591 | **Time Machine** — fleet backup rollup + restore strip | **Shipped (v1)** |
-| 39 | 592–601 | Finder — VM smart folders + tag sidebar | Planned |
+| **39** | 592–601 | **Finder** — smart folders + tag sidebar | **Shipped (v1)** |
 | 40 | 602–611 | Network — System Settings network pane + Lens tab | Planned |
 | 41 | 612–621 | Disk Utility — storage pool health rings | Planned |
 | 42 | 622–631 | Console — unified fleet log tail | Planned |

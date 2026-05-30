@@ -146,6 +146,28 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("smart folder") || ql.contains("finder") || (ql.contains("tag") && ql.contains("vm")) {
+        intents.push(intent(
+            "vm-finder",
+            "VM Finder",
+            "Smart folders and tag sidebar — browse VMs like Finder.",
+            "navigate",
+            None,
+            Some("/platform/vms".into()),
+            None,
+        ));
+    }
+    if ql.contains("high cpu") && ql.contains("vm") {
+        intents.push(intent(
+            "finder-high-cpu",
+            "High CPU VMs",
+            "Smart folder — VMs above 85% CPU.",
+            "navigate",
+            None,
+            Some("/platform/vms?folder=high_cpu".into()),
+            None,
+        ));
+    }
     if let Some(name) = extract_after(&ql, "create vm ") {
         intents.push(intent(
             "create-vm",

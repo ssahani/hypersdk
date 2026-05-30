@@ -2,10 +2,18 @@
 
 import { Link, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { LayoutGrid, List, Monitor, Plus, RefreshCw, Server } from 'lucide-react'
+import {
+  FolderOpen,
+  LayoutGrid,
+  List,
+  Monitor,
+  Plus,
+  RefreshCw,
+  Server,
+  Tag,
+} from 'lucide-react'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
-import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
 import { MacSectionTitle, LaunchpadAppIcon } from '../../components/platform/mac/PlatformMacUi'
 import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
@@ -13,9 +21,11 @@ import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal
 import {
   adoptPlatformVm,
   createPlatformVm,
+  getFleetFinder,
   listPlatformHosts,
   listPlatformVms,
   type CreatePlatformVmBody,
+  type FleetFinderOverview,
   type PlatformApiError,
   type PlatformHost,
   type PlatformVm,
@@ -24,7 +34,6 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
 type ViewMode = 'launchpad' | 'list'
-type VmFilter = 'all' | 'running' | 'stopped' | 'discovered'
 
 const VM_VIEW_STORAGE_KEY = 'platform-vms-view'
 
@@ -37,13 +46,42 @@ function readStoredView(): ViewMode {
   return 'launchpad'
 }
 
+function SidebarRow({
+  active,
+  label,
+  count,
+  onClick,
+}: {
+  active: boolean
+  label: string
+  count: number
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm text-left transition ${
+        active ? 'bg-blue-500/15 text-blue-200' : 'text-slate-300 hover:bg-slate-800/60'
+      }`}
+    >
+      <span className="truncate">{label}</span>
+      <span className="text-xs text-slate-500 shrink-0">{count}</span>
+    </button>
+  )
+}
+
 export default function PlatformVms() {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
+  const folder = searchParams.get('folder') || 'all'
+  const tag = searchParams.get('tag') || ''
+  const project = searchParams.get('project') || ''
+
   const [vms, setVms] = useState<PlatformVm[]>([])
+  const [finder, setFinder] = useState<FleetFinderOverview | null>(null)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<{ message: string; error_code?: string; remediation?: string } | null>(null)
-  const [vmFilter, setVmFilter] = useState<VmFilter>('all')
   const [view, setView] = useState<ViewMode>(() => readStoredView())
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardInitial, setWizardInitial] = useState<VmWizardInitial | undefined>()
@@ -55,16 +93,45 @@ export default function PlatformVms() {
   const hostMap = useMemo(() => new Map(hosts.map((h) => [h.id, h.hostname])), [hosts])
   const vmById = useMemo(() => new Map(vms.map((v) => [v.id, v])), [vms])
 
+  const setFilter = useCallback((next: { folder?: string; tag?: string; project?: string }) => {
+    const p = new URLSearchParams(searchParams)
+    if (next.folder !== undefined) {
+      if (next.folder === 'all') p.delete('folder')
+      else p.set('folder', next.folder)
+      p.delete('tag')
+      p.delete('project')
+    }
+    if (next.tag !== undefined) {
+      if (next.tag) p.set('tag', next.tag)
+      else p.delete('tag')
+      p.delete('folder')
+      p.delete('project')
+    }
+    if (next.project !== undefined) {
+      if (next.project) p.set('project', next.project)
+      else p.delete('project')
+      p.delete('folder')
+      p.delete('tag')
+    }
+    setSearchParams(p, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const load = useCallback(async () => {
     setError(null)
     try {
-      const needDiscovered = vmFilter === 'discovered'
-      const [v, h] = await Promise.all([
-        listPlatformVms(needDiscovered ? { managed: false } : undefined),
+      const listParams: Parameters<typeof listPlatformVms>[0] = {}
+      if (tag) listParams.tag = tag
+      else if (project) listParams.project = project
+      else if (folder && folder !== 'all') listParams.folder = folder
+
+      const [v, h, f] = await Promise.all([
+        listPlatformVms(listParams),
         listPlatformHosts(),
+        getFleetFinder().catch(() => null),
       ])
       setVms(v)
       setHosts(h)
+      setFinder(f)
     } catch (e: unknown) {
       const err = e as PlatformApiError
       setError({
@@ -73,7 +140,7 @@ export default function PlatformVms() {
         remediation: err.remediation,
       })
     }
-  }, [vmFilter])
+  }, [folder, tag, project])
 
   useEffect(() => { void load() }, [load])
 
@@ -98,20 +165,6 @@ export default function PlatformVms() {
     next.delete('network')
     setSearchParams(next, { replace: true })
   }, [searchParams, setSearchParams])
-
-  const filteredVms = useMemo(() => {
-    if (vmFilter === 'discovered') return vms.filter((v) => v.managed === false)
-    if (vmFilter === 'running') return vms.filter((v) => v.observed_state === 'running')
-    if (vmFilter === 'stopped') return vms.filter((v) => v.observed_state !== 'running')
-    return vms
-  }, [vms, vmFilter])
-
-  const counts = useMemo(() => ({
-    all: vms.length,
-    running: vms.filter((v) => v.observed_state === 'running').length,
-    stopped: vms.filter((v) => v.observed_state !== 'running').length,
-    discovered: vms.filter((v) => v.managed === false).length,
-  }), [vms])
 
   const buildVmBody = (name: string, os: string, size: string, network: string, extraTags: string[] = []): CreatePlatformVmBody => {
     const spec = sizeToSpec(size)
@@ -177,10 +230,15 @@ export default function PlatformVms() {
     setMigrateModal({ vm, destId: hostId, destName: host.hostname })
   }
 
+  const activeLabel =
+    tag ? `#${tag}` :
+    project ? project :
+    finder?.smart_folders.find((f) => f.id === folder)?.label ?? 'All VMs'
+
   return (
     <div className="space-y-6 animate-fade-in">
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <MacSectionTitle title="Virtual Machines" subtitle="Finder-style browse — drag a VM onto a host to migrate." />
+        <MacSectionTitle title="Finder" subtitle={`${activeLabel} — drag a VM onto a host to migrate.`} />
         <div className="flex flex-wrap gap-2">
           <div className="flex rounded-lg border border-white/[0.06] overflow-hidden">
             <button type="button" className={`p-2 ${view === 'launchpad' ? 'bg-slate-800 text-white' : 'text-slate-400'}`} onClick={() => setView('launchpad')} aria-label="Launchpad view"><LayoutGrid className="w-4 h-4" /></button>
@@ -192,28 +250,71 @@ export default function PlatformVms() {
         </div>
       </header>
 
-      <PlatformFilterPills
-        value={vmFilter}
-        onChange={(id) => setVmFilter(id as VmFilter)}
-        options={[
-          { id: 'all', label: 'All', count: counts.all },
-          { id: 'running', label: 'Running', count: counts.running },
-          { id: 'stopped', label: 'Stopped', count: counts.stopped },
-          { id: 'discovered', label: 'Discovered', count: counts.discovered },
-        ]}
-      />
-
+      {finder && <p className="text-sm text-slate-500">{finder.summary}</p>}
       {error && <StructuredErrorBanner error={error} />}
 
       <div className="flex flex-col xl:flex-row gap-6">
+        <aside className="xl:w-52 shrink-0 space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1 mb-2">
+              <FolderOpen className="w-3 h-3" /> Smart Folders
+            </p>
+            <div className="space-y-0.5">
+              {(finder?.smart_folders ?? []).map((f) => (
+                <SidebarRow
+                  key={f.id}
+                  active={!tag && !project && folder === f.id}
+                  label={f.label}
+                  count={f.count}
+                  onClick={() => setFilter({ folder: f.id })}
+                />
+              ))}
+            </div>
+          </div>
+          {(finder?.tags.length ?? 0) > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1 mb-2">
+                <Tag className="w-3 h-3" /> Tags
+              </p>
+              <div className="space-y-0.5 max-h-48 overflow-y-auto">
+                {finder!.tags.map((t) => (
+                  <SidebarRow
+                    key={t.tag}
+                    active={tag === t.tag}
+                    label={`#${t.tag}`}
+                    count={t.count}
+                    onClick={() => setFilter({ tag: t.tag })}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+          {(finder?.projects.length ?? 0) > 0 && (
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 mb-2">Projects</p>
+              <div className="space-y-0.5">
+                {finder!.projects.map((p) => (
+                  <SidebarRow
+                    key={p.project}
+                    active={project === p.project}
+                    label={p.project}
+                    count={p.count}
+                    onClick={() => setFilter({ project: p.project })}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </aside>
+
         <div className="flex-1 min-w-0">
-          {filteredVms.length === 0 && !error ? (
-            <PlatformEmptyState title="No virtual machines" subtitle="Create a VM or sync hosts to discover libvirt domains.">
+          {vms.length === 0 && !error ? (
+            <PlatformEmptyState title="No virtual machines" subtitle="Try another smart folder or create a VM.">
               <button type="button" className="btn-primary mt-3" onClick={() => setWizardOpen(true)}>Create VM</button>
             </PlatformEmptyState>
           ) : view === 'launchpad' ? (
-            <div className="grid gap-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
-              {filteredVms.map((v) => {
+            <div className="grid gap-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+              {vms.map((v) => {
                 const running = v.observed_state === 'running'
                 return (
                   <div
@@ -233,8 +334,11 @@ export default function PlatformVms() {
                         gradient={running ? 'from-emerald-600 to-teal-700' : 'from-slate-600 to-slate-800'}
                       />
                     </Link>
+                    {(v.tags ?? []).length > 0 && (
+                      <p className="text-[10px] text-slate-500 text-center truncate px-1">{(v.tags ?? []).slice(0, 2).join(' · ')}</p>
+                    )}
                     {v.managed === false && (
-                      <p className="text-[10px] text-amber-400 text-center -mt-3">Discovered</p>
+                      <p className="text-[10px] text-amber-400 text-center -mt-1">Discovered</p>
                     )}
                   </div>
                 )
@@ -247,6 +351,7 @@ export default function PlatformVms() {
                   <tr className="text-left text-slate-400 border-b border-white/[0.04]">
                     <th className="p-3">Name</th>
                     <th className="p-3">State</th>
+                    <th className="p-3">Tags</th>
                     <th className="p-3">Host</th>
                     <th className="p-3">vCPU</th>
                     <th className="p-3">Memory</th>
@@ -254,10 +359,11 @@ export default function PlatformVms() {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredVms.map((v) => (
+                  {vms.map((v) => (
                     <tr key={v.id} className="border-b border-slate-900/80 hover:bg-white/[0.02]">
                       <td className="p-3"><Link to={`/platform/vms/${v.id}`} className="text-blue-400 hover:underline">{v.name}</Link></td>
                       <td className="p-3 capitalize">{v.observed_state}</td>
+                      <td className="p-3 text-xs text-slate-500">{(v.tags ?? []).join(', ') || '—'}</td>
                       <td className="p-3 text-slate-500">{v.host_id ? hostMap.get(v.host_id) : '—'}</td>
                       <td className="p-3">{v.vcpus}</td>
                       <td className="p-3">{Math.round(v.memory_mib / 1024)} Gi</td>
@@ -276,7 +382,7 @@ export default function PlatformVms() {
           )}
         </div>
 
-        <aside className="xl:w-56 shrink-0 space-y-2">
+        <aside className="xl:w-48 shrink-0 space-y-2 hidden xl:block">
           <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 flex items-center gap-1"><Server className="w-3 h-3" /> Drop VM to migrate</p>
           {hosts.map((h) => (
             <div

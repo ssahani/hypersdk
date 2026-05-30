@@ -107,7 +107,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
 
 export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform': 'Dashboard',
-  '/platform/vms': 'Virtual Machines',
+  '/platform/vms': 'Finder',
   '/platform/applications': 'Applications',
   '/platform/hosts': 'Hosts',
   '/platform/storage': 'Storage',

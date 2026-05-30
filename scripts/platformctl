@@ -78,6 +78,7 @@ case "$cmd" in
       linux-health) api GET /api/v1/fleet/linux-health | jq . ;;
       activity) api GET /api/v1/fleet/activity | jq . ;;
       backups) api GET /api/v1/fleet/backups | jq . ;;
+      finder) api GET /api/v1/fleet/finder | jq . ;;
       diagnose) api POST /api/v1/ai/fleet/diagnose -d "{\"query\":\"${3:-fleet linux pressure}\"}" | jq . ;;
       *) echo "unknown fleet subcommand: $sub" >&2; exit 1 ;;
     esac

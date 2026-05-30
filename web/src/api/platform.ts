@@ -198,11 +198,19 @@ export const listPlatformHosts = () => platformFetch<PlatformHost[]>('/api/v1/ho
 export const getPlatformHostDetail = (id: string) => platformFetch<PlatformHostDetail>(`/api/v1/hosts/${id}/detail`)
 export const syncAllHosts = () => platformFetch<{ task_id: string }[]>('/api/v1/hosts/sync-all', { method: 'POST' })
 export const deleteHost = (id: string) => platformFetch<{ deleted: boolean }>(`/api/v1/hosts/${id}`, { method: 'DELETE' })
-export const listPlatformVms = (params?: { project?: string; host_id?: string; managed?: boolean }) => {
+export const listPlatformVms = (params?: {
+  project?: string
+  host_id?: string
+  managed?: boolean
+  tag?: string
+  folder?: string
+}) => {
   const q = new URLSearchParams()
   if (params?.project) q.set('project', params.project)
   if (params?.host_id) q.set('host_id', params.host_id)
   if (params?.managed !== undefined) q.set('managed', String(params.managed))
+  if (params?.tag) q.set('tag', params.tag)
+  if (params?.folder) q.set('folder', params.folder)
   const qs = q.toString()
   return platformFetch<PlatformVm[]>(`/api/v1/vms${qs ? `?${qs}` : ''}`)
 }
@@ -781,6 +789,23 @@ export type FleetBackupOverview = {
 
 export const getFleetBackups = () =>
   platformFetch<FleetBackupOverview>('/api/v1/fleet/backups')
+
+export type SmartFolder = {
+  id: string
+  label: string
+  count: number
+  icon: string
+}
+
+export type FleetFinderOverview = {
+  summary: string
+  smart_folders: SmartFolder[]
+  tags: Array<{ tag: string; count: number }>
+  projects: Array<{ project: string; count: number }>
+}
+
+export const getFleetFinder = () =>
+  platformFetch<FleetFinderOverview>('/api/v1/fleet/finder')
 
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')

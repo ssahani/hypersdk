@@ -309,14 +309,14 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 36 | 562–571 | Fleet linux-health rollup + fleet AI diagnose | **Shipped (v1)** |
 | 37 | 572–581 | Fleet Activity Monitor — VMs + host Linux PSI tabs | **Shipped (v1)** |
 | 38 | 582–591 | Time Machine fleet — backup rollup + day-grouped timeline | **Shipped (v1)** |
+| 39 | 592–601 | Finder — smart folders + tag/project sidebar | **Shipped (v1)** |
 
-### Horizon — macOS OS Manager (Phases 39–237)
+### Horizon — macOS OS Manager (Phases 40–237)
 
 Full **200-phase** macOS metaphor map: [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md).
 
 | Phase | AI range | macOS app | Theme |
 |-------|----------|-----------|--------|
-| 39 | 592–601 | Finder | VM smart folders + tag sidebar |
 | 40 | 602–611 | Network | System Settings network + Lens tab |
 | 41–47 | 612–681 | Disk Utility … Stage Manager | See macOS roadmap doc |
 | 48–237 | 682–2581 | All macOS layers | 20 layers × ~10 phases each |
