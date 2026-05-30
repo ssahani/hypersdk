@@ -16,8 +16,8 @@
 
 | Commit | Message |
 |--------|---------|
+| `6ce5f74` | Update deploy plan commit pin after Linux build fix |
 | `875c89f` | Fix guest port scan compile on Linux remote deploy |
-| `c5706fd` | Save deploy plan snapshot for Phases 38–47 |
 | `1ba2d34` | Ship Phase 47 Stage Manager — workspace spaces strip and fleet rollup |
 
 Branch: `main` (synced with `origin/main`)
@@ -62,6 +62,11 @@ curl -s http://212.8.252.194:5093/api/v1/health
 ```
 
 Spotlight smoke (platform UI): `stage manager`, `shortcut launchpad`, `users and groups`.
+
+## Deploy notes (2026-05-30)
+
+- Fixed invalid UUID seeds in `033_enterprise_hardening.sql` (`t1000000` / `m1000000` → valid hex).
+- Fixed `guest_ports.rs` `?` in `Vec` return for Linux remote `make release`.
 
 ## Next up (Phase 48+)
 

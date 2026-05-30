@@ -44,11 +44,11 @@ ON CONFLICT (name) DO NOTHING;
 
 INSERT INTO tenant_isolation_policies (id, project_name, network_isolation, max_vms, max_storage_gib, enforce_quotas)
 VALUES
-    ('t1000000-0000-4000-8000-000000000001', 'default', 'shared', 0, 0, false),
-    ('t1000000-0000-4000-8000-000000000002', 'production', 'segmented', 50, 10240, true)
+    ('10000000-0000-4000-8000-000000000001', 'default', 'shared', 0, 0, false),
+    ('10000000-0000-4000-8000-000000000002', 'production', 'segmented', 50, 10240, true)
 ON CONFLICT (project_name) DO NOTHING;
 
 INSERT INTO mfa_enrollments (id, username, method)
-SELECT 'm1000000-0000-4000-8000-000000000001', 'admin', 'webauthn'
+SELECT '20000000-0000-4000-8000-000000000001', 'admin', 'webauthn'
 WHERE EXISTS (SELECT 1 FROM users WHERE username = 'admin')
 ON CONFLICT (username) DO NOTHING;
