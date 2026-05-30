@@ -308,6 +308,36 @@ code {
   display: none;
 }
 
+@media (max-width: 1023px) {
+  .mac-menubar-inner {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .mac-menubar-inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .mac-desktop-main {
+    padding-bottom: 5.5rem;
+  }
+
+  .mac-dock {
+    display: flex !important;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+
+  .mac-dock-inner-scroll {
+    max-width: 100%;
+  }
+
+  .mac-dock-item {
+    width: 2.65rem;
+    height: 2.65rem;
+  }
+}
+
 /* Retrofit legacy platform cards/tables to glass inside desktop shell */
 .tahoe-page-root .card {
   border-radius: 1.25rem;

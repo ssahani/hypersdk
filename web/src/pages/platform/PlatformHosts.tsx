@@ -39,7 +39,7 @@ export default function PlatformHosts() {
   const [viewMode, setViewMode] = useState<FinderViewMode>(() => {
     try {
       const v = localStorage.getItem(VIEW_KEY)
-      if (v === 'icons' || v === 'list') return v
+      if (v === 'icons' || v === 'list' || v === 'columns') return v
     } catch { /* ignore */ }
     return 'icons'
   })
@@ -168,6 +168,26 @@ export default function PlatformHosts() {
     </div>
   ) : null
 
+  const columnsContent = (
+    <div className="flex min-h-[360px] border border-white/[0.06] rounded-xl overflow-hidden">
+      <div className="w-56 shrink-0 border-r border-white/[0.06] overflow-y-auto">
+        {visibleHosts.map((h) => (
+          <button
+            key={h.id}
+            type="button"
+            onClick={() => setSelectedId(h.id)}
+            className={`w-full text-left px-3 py-2 text-sm border-b border-white/[0.04] ${selectedId === h.id ? 'bg-sky-500/15 text-sky-100' : 'text-white/80 hover:bg-white/[0.03]'}`}
+          >
+            {h.hostname}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        {selected ? inspector : <p className="p-4 text-sm text-white/40">Select a host</p>}
+      </div>
+    </div>
+  )
+
   return (
     <div className="space-y-4 animate-fade-in">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -191,6 +211,7 @@ export default function PlatformHosts() {
           { label: filterOffline ? 'Offline hosts' : 'Hosts' },
         ]}
         listContent={listContent}
+        columnsContent={columnsContent}
         inspector={inspector}
         isEmpty={visibleHosts.length === 0 && !error}
         emptyState={

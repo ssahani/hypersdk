@@ -3,7 +3,7 @@
 import { Link, useLocation } from 'react-router'
 import { Search, Sparkles } from 'lucide-react'
 import { useAi } from '../../contexts/AiContext'
-import { PLATFORM_DOCK_ITEMS } from '../../utils/platformDockPins'
+import { usePlatformDockItems } from '../../utils/platformDockPins'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -12,6 +12,7 @@ function openSpotlight() {
 export default function PlatformMacDock() {
   const location = useLocation()
   const { openCopilot } = useAi()
+  const dockItems = usePlatformDockItems()
 
   const isActive = (path: string) => {
     if (path === '/platform') return location.pathname === '/platform'
@@ -21,7 +22,7 @@ export default function PlatformMacDock() {
   return (
     <footer className="mac-dock hidden lg:flex" role="navigation" aria-label="Platform dock">
       <div className="mac-dock-inner mac-dock-inner-scroll">
-        {PLATFORM_DOCK_ITEMS.map((item) => {
+        {dockItems.map((item) => {
           const Icon = item.icon
           const active = isActive(item.path)
           return (

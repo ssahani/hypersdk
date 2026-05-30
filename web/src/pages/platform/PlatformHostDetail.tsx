@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
-import { ArrowLeft, Network, Shield, Server, Activity, FileWarning, Bot } from 'lucide-react'
+import { Link, useParams, useLocation } from 'react-router'
+import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot } from 'lucide-react'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
 import {
   MacSettingsPane,
@@ -34,6 +34,7 @@ import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFire
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { openCenterPopout } from '../../utils/platformCenterPopout'
 
 type HostSection = 'general' | 'network' | 'linux' | 'security' | 'audit'
 
@@ -61,6 +62,7 @@ function psiBar(label: string, pct: number) {
 
 export default function PlatformHostDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
   const toast = useToastContext()
   const { openCopilot, setContextHostId } = useAi()
   const [section, setSection] = useState<HostSection>('general')
@@ -149,13 +151,22 @@ export default function PlatformHostDetailPage() {
             <p className="text-sm text-slate-400">
               {host.validation_status || 'pending'} · {host.state}{host.fenced ? ' · fenced' : ''}
             </p>
-            <button
-              type="button"
-              className="btn-secondary text-xs flex items-center gap-1"
-              onClick={() => { openCopilot(); void runDiagnose('why is this host under pressure') }}
-            >
-              <Bot className="w-3 h-3" /> Ask Copilot about this host
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-secondary text-xs flex items-center gap-1"
+                onClick={() => openCenterPopout(`${location.pathname}${location.search}`)}
+              >
+                <ExternalLink className="w-3 h-3" /> Pop Out
+              </button>
+              <button
+                type="button"
+                className="btn-secondary text-xs flex items-center gap-1"
+                onClick={() => { openCopilot(); void runDiagnose('why is this host under pressure') }}
+              >
+                <Bot className="w-3 h-3" /> Ask Copilot about this host
+              </button>
+            </div>
           </div>
           <MacSettingsPane
             title={host.hostname}

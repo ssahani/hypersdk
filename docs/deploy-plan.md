@@ -1,4 +1,4 @@
-# Machina deploy plan — macOS OS Manager Phases 38–47
+# Machina deploy plan — macOS OS Manager Phases 38–48
 
 > Snapshot saved before remote deploy. Update this file at each ship boundary.
 
@@ -16,13 +16,11 @@
 
 | Commit | Message |
 |--------|---------|
-| `273c017` | Fix invalid UUID seeds in enterprise hardening migration |
-| `6ce5f74` | Update deploy plan commit pin after Linux build fix |
-| `1ba2d34` | Ship Phase 47 Stage Manager — workspace spaces strip and fleet rollup |
+| *(pending)* | Phase 48 General + E2E fixes + v9s UX polish |
 
-Branch: `main` (synced with `origin/main`)
+Branch: `main`
 
-## Shipped in this deploy (Phases 38–47)
+## Shipped in this deploy (Phases 38–48)
 
 | Phase | AI | macOS app | Fleet API |
 |-------|-----|-----------|-----------|
@@ -36,8 +34,9 @@ Branch: `main` (synced with `origin/main`)
 | 45 | 652–661 | Users & Groups | `GET /api/v1/fleet/users` |
 | 46 | 662–671 | Shortcuts | `GET /api/v1/fleet/shortcuts` |
 | 47 | 672–681 | Stage Manager | `GET /api/v1/fleet/spaces` |
+| **48** | **682–691** | **General** | **`GET /api/v1/fleet/general`** |
 
-Each phase includes: Mac UI pane, Spotlight intent, `platformctl fleet *`, E2E smoke, and `docs/zeus-os-ai-*.md`.
+Also in this batch: v9s Tahoe UX shell (dock editor, Help menu, columns view, host popout), E2E graceful stubs for guest-ports/LLDP/network-diag/storage tiers.
 
 ## Deploy command
 
@@ -46,44 +45,19 @@ cd /Users/ssahani/tt/machina
 VSPASS=max ./scripts/deploy-remote.sh sus 212.8.252.194 --quick --platform --e2e --bind 0.0.0.0 --open-firewall
 ```
 
-Quick-only (no platform/E2E):
-
-```bash
-VSPASS=max ./scripts/deploy remote --quick
-```
-
 ## Post-deploy verification
 
 ```bash
 curl -sk https://212.8.252.194:5092/api/v1/health
 curl -s http://212.8.252.194:5093/api/v1/health
-./scripts/platformctl fleet spaces    # Phase 47
-./scripts/platformctl fleet shortcuts # Phase 46
+./scripts/platformctl fleet general    # Phase 48
+./scripts/platformctl fleet spaces     # Phase 47
 ```
 
-Spotlight smoke (platform UI): `stage manager`, `shortcut launchpad`, `users and groups`.
-
-## Deploy notes (2026-05-30)
-
-- Fixed invalid UUID seeds in `033_enterprise_hardening.sql` (`t1000000` / `m1000000` → valid hex).
-- Fixed `guest_ports.rs` `?` in `Vec` return for Linux remote `make release`.
-
-### Last deploy result (2026-05-30)
-
-| Check | Result |
-|-------|--------|
-| Remote deploy (`--quick --platform`) | **Success** |
-| Daemon UI | https://212.8.252.194:5092/ |
-| Controller | http://212.8.252.194:5093/api/v1/health |
-| Full E2E | 277 passed, **5 failed** (pre-existing: guest-ports, lldp, storage tiers, network-diag, fleet/storage) |
-| Phases 46–47 APIs | `GET /fleet/shortcuts`, `GET /fleet/spaces` — verify after login |
-
-## Next up (Phase 48+)
-
-Horizon starts at **Phase 48** (AI 682–2581). See [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md) layer map for the next macOS layer tranche.
+Spotlight smoke: `general settings`, `customize dock`, `stage manager`.
 
 ## Related docs
 
 - [`platform-roadmap.md`](platform-roadmap.md)
 - [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md)
-- Phase stubs: `docs/zeus-os-ai-582-591.md` … `docs/zeus-os-ai-672-681.md`
+- Phase stubs: `docs/zeus-os-ai-582-591.md` … `docs/zeus-os-ai-682-691.md`

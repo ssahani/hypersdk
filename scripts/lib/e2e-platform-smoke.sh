@@ -923,6 +923,14 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/fleet/users" "GET /api/v1/fleet/users" || true
   e2e_platform_smoke_get "/api/v1/fleet/shortcuts" "GET /api/v1/fleet/shortcuts" || true
   e2e_platform_smoke_get "/api/v1/fleet/spaces" "GET /api/v1/fleet/spaces" || true
+  e2e_platform_smoke_get "/api/v1/fleet/general" "GET /api/v1/fleet/general" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"general settings wallpaper dock"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight general settings (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight general settings — HTTP ${http}"
+  fi
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' "${E2E_PLATFORM_BASE}/api/v1/vms?folder=running")"
   if [[ "$http" == "200" ]]; then
     e2e_platform_ok "GET /api/v1/vms?folder=running (HTTP ${http})"

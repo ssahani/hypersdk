@@ -18,17 +18,26 @@ import {
 } from '../utils/platformWallpaper'
 import { isCenterPopoutMode } from '../utils/platformCenterPopout'
 import { platformPageLabel } from '../utils/platformDesktopTabs'
+import { OPEN_PLATFORM_DOCK_EDITOR_EVENT } from '../utils/platformDockPins'
+import PlatformDockEditor from '../components/platform/mac/PlatformDockEditor'
 
 function PlatformDesktopShell() {
   const location = useLocation()
   const isPopout = isCenterPopoutMode(location.search)
   const [wallpaper, setWallpaper] = useState<PlatformWallpaper>(() => loadPlatformWallpaper())
+  const [dockEditorOpen, setDockEditorOpen] = useState(false)
   const { sidebarVisible } = usePlatformMacDesktop()
 
   useEffect(() => {
     const onWallpaper = () => setWallpaper(loadPlatformWallpaper())
     window.addEventListener(PLATFORM_WALLPAPER_EVENT, onWallpaper)
     return () => window.removeEventListener(PLATFORM_WALLPAPER_EVENT, onWallpaper)
+  }, [])
+
+  useEffect(() => {
+    const open = () => setDockEditorOpen(true)
+    window.addEventListener(OPEN_PLATFORM_DOCK_EDITOR_EVENT, open)
+    return () => window.removeEventListener(OPEN_PLATFORM_DOCK_EDITOR_EVENT, open)
   }, [])
 
   if (isPopout) {
@@ -79,6 +88,7 @@ function PlatformDesktopShell() {
       </div>
 
       <PlatformMacDock />
+      <PlatformDockEditor open={dockEditorOpen} onClose={() => setDockEditorOpen(false)} />
     </div>
   )
 }

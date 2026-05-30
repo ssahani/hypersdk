@@ -1013,6 +1013,25 @@ export type FleetSpacesOverview = {
 export const getFleetSpaces = () =>
   platformFetch<FleetSpacesOverview>('/api/v1/fleet/spaces')
 
+export type FleetGeneralWallpaperOption = { id: string; label: string }
+export type FleetGeneralDockOption = { path: string; label: string }
+
+export type FleetGeneralOverview = {
+  summary: string
+  cluster_name: string
+  controller_version: string
+  hosts_online: number
+  hosts_total: number
+  vm_count: number
+  active_tasks: number
+  wallpaper_options: FleetGeneralWallpaperOption[]
+  dock_defaults: FleetGeneralDockOption[]
+  settings_url: string
+}
+
+export const getFleetGeneral = () =>
+  platformFetch<FleetGeneralOverview>('/api/v1/fleet/general')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

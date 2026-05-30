@@ -32,14 +32,14 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-type ViewMode = 'launchpad' | 'list'
+type ViewMode = 'launchpad' | 'list' | 'columns'
 
 const VM_VIEW_STORAGE_KEY = 'platform-vms-view'
 
 function readStoredView(): ViewMode {
   try {
     const v = localStorage.getItem(VM_VIEW_STORAGE_KEY)
-    if (v === 'list' || v === 'launchpad') return v
+    if (v === 'list' || v === 'launchpad' || v === 'columns') return v
     if (v === 'grid') return 'launchpad'
   } catch { /* private mode */ }
   return 'launchpad'
@@ -101,8 +101,12 @@ export default function PlatformVms() {
     return vms.filter((v) => v.name.toLowerCase().includes(q) || (v.tags ?? []).some((t) => t.toLowerCase().includes(q)))
   }, [vms, search])
 
-  const finderViewMode: FinderViewMode = view === 'list' ? 'list' : 'icons'
-  const setFinderViewMode = (mode: FinderViewMode) => setView(mode === 'list' ? 'list' : 'launchpad')
+  const finderViewMode: FinderViewMode = view === 'list' ? 'list' : view === 'columns' ? 'columns' : 'icons'
+  const setFinderViewMode = (mode: FinderViewMode) => {
+    if (mode === 'list') setView('list')
+    else if (mode === 'columns') setView('columns')
+    else setView('launchpad')
+  }
 
   const selectedVm = filteredVms.find((v) => v.id === selectedVmId) ?? filteredVms[0] ?? null
 
@@ -356,6 +360,30 @@ export default function PlatformVms() {
           { label: 'Finder', onClick: () => setFilter({ folder: 'all' }) },
           { label: activeLabel },
         ]}
+        columnsContent={
+          <div className="flex min-h-[420px] border border-white/[0.06] rounded-xl overflow-hidden">
+            <aside className="w-44 shrink-0 border-r border-white/[0.06] p-2 space-y-0.5 overflow-y-auto">
+              {(finder?.smart_folders ?? []).map((f) => (
+                <SidebarRow key={f.id} active={!tag && !project && folder === f.id} label={f.label} count={f.count} onClick={() => setFilter({ folder: f.id })} />
+              ))}
+            </aside>
+            <div className="w-52 shrink-0 border-r border-white/[0.06] overflow-y-auto">
+              {filteredVms.map((v) => (
+                <button
+                  key={v.id}
+                  type="button"
+                  onClick={() => setSelectedVmId(v.id)}
+                  className={`w-full text-left px-3 py-2 text-sm border-b border-white/[0.04] ${selectedVm?.id === v.id ? 'bg-sky-500/15 text-sky-100' : 'text-white/80 hover:bg-white/[0.03]'}`}
+                >
+                  {v.name}
+                </button>
+              ))}
+            </div>
+            <div className="flex-1 min-w-0 overflow-y-auto">
+              {selectedVm ? inspector : <p className="p-4 text-sm text-white/40">Select a VM</p>}
+            </div>
+          </div>
+        }
         listContent={
           <div className="flex flex-col xl:flex-row gap-4">
             <aside className="xl:w-52 shrink-0 space-y-4">

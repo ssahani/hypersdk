@@ -70,22 +70,39 @@ pub struct UpsertBackupSlaRequest {
 }
 
 pub async fn tiers_overview(pool: &PgPool) -> anyhow::Result<TiersOverview> {
-    let rows: Vec<StorageTierRow> = sqlx::query_as(
+    let rows: Vec<StorageTierRow> = match sqlx::query_as(
         "SELECT id, name, tier_class, iops_tier, replication, snapshot_retention_days, backup_rpo_hours, description
          FROM storage_tiers ORDER BY tier_class, name",
     )
     .fetch_all(pool)
-    .await?;
+    .await
+    {
+        Ok(r) => r,
+        Err(e) => {
+            tracing::warn!("storage tiers query: {e}");
+            return Ok(TiersOverview {
+                tiers: vec![],
+                summary: "Storage tiers schema not ready — run controller migrations".into(),
+            });
+        }
+    };
 
     let mut tiers = Vec::new();
     for row in rows {
-        let stats: (i64, i64, i64) = sqlx::query_as(
+        let stats: (i64, i64, i64) = match sqlx::query_as(
             "SELECT COUNT(*), COALESCE(SUM(capacity_gib), 0), COALESCE(SUM(used_gib), 0)
              FROM storage_pools WHERE tier_id = $1",
         )
         .bind(row.id)
         .fetch_one(pool)
-        .await?;
+        .await
+        {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("storage tier pool stats for {}: {e}", row.name);
+                (0, 0, 0)
+            }
+        };
 
         tiers.push(TierOverviewItem {
             id: row.id.to_string(),

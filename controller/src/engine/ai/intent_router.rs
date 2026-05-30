@@ -141,6 +141,21 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("general settings")
+        || ql.contains("system settings general")
+        || (ql.contains("appearance") && ql.contains("wallpaper"))
+        || (ql.contains("customize") && ql.contains("dock"))
+    {
+        intents.push(intent(
+            "fleet-general",
+            "General",
+            "System Settings — fleet desktop appearance, dock pins, and cluster summary.",
+            "navigate",
+            None,
+            Some("/platform/settings?section=general".into()),
+            None,
+        ));
+    }
     if ql.contains("shortcut")
         || (ql.contains("launchpad") && ql.contains("blueprint"))
         || (ql.contains("blueprint") && ql.contains("run"))

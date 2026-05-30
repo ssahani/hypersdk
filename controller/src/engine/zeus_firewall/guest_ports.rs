@@ -41,14 +41,26 @@ pub async fn vm_guest_ports(
     } else {
         agent_addr
     };
-    let resp = agent_client::get_guest_firewall_ports(&addr, &vm_name).await?;
-    let ports = guest_ports_to_open_ports(&vm_name, &resp.ports);
+    let (agent_reachable, ports) = match agent_client::get_guest_firewall_ports(&addr, &vm_name).await {
+        Ok(resp) => (
+            resp.agent_reachable,
+            guest_ports_to_open_ports(&vm_name, &resp.ports),
+        ),
+        Err(e) => {
+            tracing::warn!("guest firewall ports for {vm_name} via {addr}: {e}");
+            (false, Vec::new())
+        }
+    };
     Ok(GuestPortReport {
         vm_id: vm_id.into(),
         vm_name,
-        agent_reachable: resp.agent_reachable,
+        agent_reachable,
         ports: ports.clone(),
-        summary: format!("{} in-guest listening ports via QEMU agent", ports.len()),
+        summary: if agent_reachable {
+            format!("{} in-guest listening ports via QEMU agent", ports.len())
+        } else {
+            "Guest agent unreachable — no in-guest port inventory".into()
+        },
     })
 }
 

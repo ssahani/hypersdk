@@ -9,6 +9,7 @@ import ConnectionStatus from '../../ConnectionStatus'
 import PlatformMacMenuDropdown, { PlatformMacMenuItem } from './PlatformMacMenuDropdown'
 import { usePlatformMacDesktop } from './PlatformMacDesktopContext'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
+import { openPlatformDockEditor } from '../../../utils/platformDockPins'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -58,6 +59,7 @@ export default function PlatformMacAppMenus() {
       <PlatformMacMenuDropdown label="Machina" open={openMenu === 'machina'} onToggle={() => toggleMenu('machina')} onClose={closeMenu}>
         <PlatformMacMenuItem label="About Machina Platform" onClick={() => { navigate('/platform/settings?section=about'); closeMenu() }} />
         <PlatformMacMenuItem label="Settings…" shortcut="⌘," onClick={() => { navigate('/platform/settings'); closeMenu() }} />
+        <PlatformMacMenuItem label="Customize Dock…" onClick={() => { openPlatformDockEditor(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Sign Out" onClick={() => { void logout(); closeMenu() }} />
       </PlatformMacMenuDropdown>
@@ -66,7 +68,8 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label="Show Sidebar" shortcut="⌘⌥S" checked={sidebarVisible} onClick={() => { toggleSidebar(); closeMenu() }} />
         <PlatformMacMenuItem label="Show Inspector" shortcut="⌘⌥I" checked={inspectorVisible} onClick={() => { toggleInspector(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label="Mission Control" onClick={() => { navigate('/mission-control'); closeMenu() }} />
+        <PlatformMacMenuItem label="Stage Manager" onClick={() => { navigate('/platform/projects'); closeMenu() }} />
+        <PlatformMacMenuItem label="Mission Control" onClick={() => { navigate('/platform'); closeMenu() }} />
         <PlatformMacMenuItem label="Activity Monitor" onClick={() => { navigate('/platform/activity'); closeMenu() }} />
       </PlatformMacMenuDropdown>
 
@@ -76,6 +79,14 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Minimize" disabled onClick={closeMenu} />
+      </PlatformMacMenuDropdown>
+
+      <PlatformMacMenuDropdown label="Help" open={openMenu === 'help'} onToggle={() => toggleMenu('help')} onClose={closeMenu}>
+        <PlatformMacMenuItem label="Ask Zeus…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
+        <div className="my-1 border-t border-white/[0.08]" />
+        <PlatformMacMenuItem label="Spotlight Search" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
+        <PlatformMacMenuItem label="Platform Support" onClick={() => { navigate('/platform/support'); closeMenu() }} />
+        <PlatformMacMenuItem label="OpenAPI Reference" onClick={() => { window.open('/api/v1/openapi.json', '_blank'); closeMenu() }} />
       </PlatformMacMenuDropdown>
 
       <div className="hidden xl:flex items-center gap-2 ml-2 pl-2 border-l border-white/[0.08] text-xs text-white/50">

@@ -45,8 +45,39 @@ pub async fn network_diagnostics(
     cfg: &ControllerConfig,
     host_id: Uuid,
 ) -> anyhow::Result<serde_json::Value> {
-    let (_, addr) = resolve_agent_addr(pool, cfg, host_id).await?;
-    agent_client::get_systemd_network_diagnostics(&addr).await
+    let (hostname, addr) = match resolve_agent_addr(pool, cfg, host_id).await {
+        Ok(v) => v,
+        Err(e) => {
+            return Ok(serde_json::json!({
+                "agent_reachable": false,
+                "hostname": hostname_from_pool(pool, host_id).await.unwrap_or_default(),
+                "summary": format!("Network diagnostics unavailable: {e}"),
+                "interfaces": [],
+                "routes": [],
+            }));
+        }
+    };
+    match agent_client::get_systemd_network_diagnostics(&addr).await {
+        Ok(v) => Ok(v),
+        Err(e) => {
+            tracing::warn!("network diagnostics for {hostname} via {addr}: {e}");
+            Ok(serde_json::json!({
+                "agent_reachable": false,
+                "hostname": hostname,
+                "summary": format!("Network diagnostics unavailable: {e}"),
+                "interfaces": [],
+                "routes": [],
+            }))
+        }
+    }
+}
+
+async fn hostname_from_pool(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String> {
+    sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
+        .bind(host_id)
+        .fetch_optional(pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("host not found"))
 }
 
 pub async fn linux_audit(

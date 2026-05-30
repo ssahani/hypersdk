@@ -517,9 +517,35 @@ pub async fn host_lldp(
     .await?
     .ok_or_else(|| ApiError::not_found("host not found"))?;
 
-    let lldp = crate::engine::network_overlay::fetch_host_lldp(&row.1)
-        .await
-        .map_err(|e| ApiError::internal(format!("{} LLDP: {}", row.0, e)))?;
+    let lldp = match crate::engine::network_overlay::fetch_host_lldp(&row.1).await {
+        Ok(lldp) => lldp,
+        Err(e) => {
+            tracing::warn!("{} LLDP live fetch failed: {e}", row.0);
+            if let Ok(Some(cached)) = sqlx::query_as::<_, (String, serde_json::Value, String)>(
+                "SELECT source, neighbors_json, summary FROM host_lldp_cache WHERE host_id = $1",
+            )
+            .bind(id)
+            .fetch_optional(&state.pool)
+            .await
+            {
+                let neighbors: Vec<machina_core::libvirt::host_network::LldpNeighbor> =
+                    serde_json::from_value(cached.1).unwrap_or_default();
+                machina_core::libvirt::host_network::LldpInventory {
+                    source: format!("{} (cached)", cached.0),
+                    neighbors,
+                    raw_text: String::new(),
+                    summary: cached.2,
+                }
+            } else {
+                machina_core::libvirt::host_network::LldpInventory {
+                    source: "unavailable".into(),
+                    neighbors: vec![],
+                    raw_text: String::new(),
+                    summary: format!("LLDP unavailable for {}: {e}", row.0),
+                }
+            }
+        }
+    };
     if let Ok(neighbors_json) = serde_json::to_value(&lldp.neighbors) {
         let _ = sqlx::query(
             "INSERT INTO host_lldp_cache (host_id, source, neighbors_json, summary, fetched_at)

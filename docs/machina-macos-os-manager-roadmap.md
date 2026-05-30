@@ -51,8 +51,18 @@ Each phase ships: **backend aggregator or agent lift → Mac UI pane → Spotlig
 | **45** | 652–661 | **Users & Groups** — tenant switcher menu bar | **Shipped (v1)** |
 | **46** | 662–671 | **Shortcuts** — blueprint Launchpad grid | **Shipped (v1)** |
 | **47** | 672–681 | **Stage Manager** — workspace spaces strip | **Shipped (v1)** |
+| **48** | 682–691 | **General** — fleet desktop prefs + dock editor | **Shipped (v1)** |
 
 ---
+
+## Phase 48 — General (682–691)
+
+| Item | Detail |
+|------|--------|
+| Backend | `GET /api/v1/fleet/general` |
+| UI | Settings → General — wallpaper, dock editor, fleet summary |
+| Spotlight | `general settings`, `customize dock` |
+| Doc | [`zeus-os-ai-682-691.md`](zeus-os-ai-682-691.md) |
 
 ## Phase acceptance checklist (every phase)
 
