@@ -327,6 +327,72 @@ export const createAirGapBundle = (body: { name: string }) =>
     body: JSON.stringify(body),
   })
 
+export type OperationsOverview = {
+  runbook_count: number
+  executions_24h: number
+  showback_projects: number
+  compliance_grade: string
+  summary: string
+}
+
+export type OpsRunbookCatalogItem = {
+  id: string
+  incident: string
+  title: string
+  category: string
+  severity: string
+  auto_trigger?: string | null
+  enabled: boolean
+}
+
+export type OpsRunbookExecution = {
+  id: string
+  incident: string
+  status: string
+  steps_json: unknown
+  actor?: string | null
+  summary: string
+  created_at: string
+}
+
+export type OpsShowbackOverview = {
+  lines: Array<{
+    project_name: string
+    cost_usd: number
+    compliance_grade: string
+    vm_count: number
+    notes: string
+  }>
+  total_cost_usd: number
+  fleet_grade: string
+  summary: string
+}
+
+export const getOperationsOverview = () =>
+  platformFetch<OperationsOverview>('/api/v1/operations/overview')
+
+export const listOpsRunbooks = () =>
+  platformFetch<OpsRunbookCatalogItem[]>('/api/v1/operations/runbooks')
+
+export const listOpsRunbookExecutions = (limit = 20) =>
+  platformFetch<OpsRunbookExecution[]>(`/api/v1/operations/executions?limit=${limit}`)
+
+export const executeOpsRunbook = (incident: string, context: Record<string, unknown> = {}) =>
+  platformFetch<{
+    execution_id: string
+    incident: string
+    title: string
+    steps: string[]
+    commands: string[]
+    summary: string
+  }>(`/api/v1/operations/runbooks/${encodeURIComponent(incident)}/execute`, {
+    method: 'POST',
+    body: JSON.stringify({ context }),
+  })
+
+export const getOpsShowback = () =>
+  platformFetch<OpsShowbackOverview>('/api/v1/operations/showback')
+
 export const listPlatformNetworks = () => platformFetch<PlatformNetwork[]>('/api/v1/networks')
 export const discoverPlatformNetworks = () =>
   platformFetch<{ imported: number; networks: PlatformNetwork[] }>('/api/v1/networks/discover', {

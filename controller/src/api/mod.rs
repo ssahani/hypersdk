@@ -29,6 +29,7 @@ mod migration_jobs;
 mod networks;
 mod network_segments;
 mod notifications;
+mod operations;
 mod oidc;
 mod placement;
 mod policy;
@@ -445,6 +446,14 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/upgrade", post(upgrade::upgrade_host_agent))
         .route("/api/v1/reports/capacity", get(reports::capacity_report))
         .route("/api/v1/reports/finops", get(reports::finops_report))
+        .route("/api/v1/operations/overview", get(operations::overview))
+        .route("/api/v1/operations/runbooks", get(operations::list_runbooks))
+        .route(
+            "/api/v1/operations/runbooks/{incident}/execute",
+            post(operations::execute_runbook),
+        )
+        .route("/api/v1/operations/executions", get(operations::list_executions))
+        .route("/api/v1/operations/showback", get(operations::showback_overview))
         .route(
             "/api/v1/blueprints",
             get(blueprints::list_blueprints).post(blueprints::create_blueprint),

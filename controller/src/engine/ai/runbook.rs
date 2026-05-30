@@ -72,6 +72,28 @@ fn template(incident: &str) -> (&'static str, &'static [&'static str], &'static 
             ],
             &["systemctl status machina-agent", "journalctl -u machina-agent -n 50"],
         ),
+        "firewall_drift" => (
+            "Firewall drift remediation",
+            &[
+                "Review Zeus Firewall drift report for affected hosts",
+                "Compare live inventory to last checkpoint",
+                "Apply ProductionServer or Emergency profile",
+                "Create rollback checkpoint before apply",
+                "Verify open ports after remediation",
+            ],
+            &["curl -s localhost:8080/api/v1/zeus-firewall/targets", "firewall-cmd --list-all"],
+        ),
+        "storage_full" => (
+            "Storage pool capacity",
+            &[
+                "Check pool used vs capacity on all hosts",
+                "Identify snapshot-heavy VMs",
+                "Run storage tier bind for bronze archive tier",
+                "Expand pool or migrate VMs to alternate datastore",
+                "Enable backup SLA review for retention",
+            ],
+            &["df -h /var/lib/libvirt/images", "virsh domblklist VM"],
+        ),
         _ => (
             "VM unreachable",
             &[

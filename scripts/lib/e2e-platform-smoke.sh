@@ -776,6 +776,18 @@ except Exception:
   fi
   e2e_platform_smoke_get "/api/v1/topology" "GET /api/v1/topology (LLDP cache edges)" || true
 
+  e2e_platform_hdr "PLATFORM SMOKE: OPERATIONS (AI-452–471)"
+  e2e_platform_smoke_get "/api/v1/operations/overview" "GET /api/v1/operations/overview" || true
+  e2e_platform_smoke_get "/api/v1/operations/runbooks" "GET /api/v1/operations/runbooks" || true
+  e2e_platform_smoke_get "/api/v1/operations/showback" "GET /api/v1/operations/showback" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"operations runbook showback"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight operations (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight operations — HTTP ${http}"
+  fi
+
   e2e_platform_hdr "PLATFORM SMOKE: MARKETPLACE PLUGINS + PHASE 26 POLISH"
   e2e_platform_smoke_get "/api/v1/marketplace/plugins" "GET /api/v1/marketplace/plugins" || true
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \

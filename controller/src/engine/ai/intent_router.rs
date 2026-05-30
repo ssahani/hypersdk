@@ -346,6 +346,28 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("runbook") && (ql.contains("catalog") || ql.contains("operations") || ql.contains("execute")) {
+        intents.push(intent(
+            "ops-runbooks",
+            "Operations runbooks",
+            "Catalog, execution history, and automated incident playbooks.",
+            "navigate",
+            None,
+            Some("/platform/reports?tab=runbooks".into()),
+            None,
+        ));
+    }
+    if ql.contains("showback") || (ql.contains("compliance") && ql.contains("cost")) {
+        intents.push(intent(
+            "ops-showback",
+            "Compliance showback",
+            "Project cost + compliance grade rollup for chargeback.",
+            "navigate",
+            None,
+            Some("/platform/reports?tab=showback".into()),
+            None,
+        ));
+    }
     if ql.contains("firewall") || ql.contains("machine shield") {
         intents.push(intent(
             "zeus-firewall",

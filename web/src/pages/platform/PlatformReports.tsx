@@ -1,15 +1,42 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { DollarSign, FolderKanban } from 'lucide-react'
+import { useSearchParams } from 'react-router'
+import { BookOpen, DollarSign, FolderKanban, PieChart } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
-import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
+import {
+  getCapacityReport,
+  getFinOpsReport,
+  getOperationsOverview,
+  getOpsShowback,
+  listOpsRunbookExecutions,
+  listOpsRunbooks,
+  executeOpsRunbook,
+  listProjects,
+  type CapacityReport,
+  type FinOpsReport,
+  type OpsRunbookCatalogItem,
+  type OpsRunbookExecution,
+  type OpsShowbackOverview,
+  type OperationsOverview,
+  type ProjectRow,
+} from '../../api/platform'
 import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type SecurityReport } from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
+import { useToastContext } from '../../contexts/ToastContext'
+
+type TabId = 'reports' | 'runbooks' | 'showback'
 
 export default function PlatformReports() {
+  const toast = useToastContext()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = (searchParams.get('tab') as TabId) || 'reports'
+  const setTab = (next: TabId) => {
+    setSearchParams(next === 'reports' ? {} : { tab: next })
+  }
+
   const [projects, setProjects] = useState<ProjectRow[]>([])
   const [cap, setCap] = useState<CapacityReport | null>(null)
   const [finops, setFinops] = useState<FinOpsReport | null>(null)
@@ -21,6 +48,11 @@ export default function PlatformReports() {
   const [attribution, setAttribution] = useState<CostAttributionReport | null>(null)
   const [budget, setBudget] = useState<CostBudgetReport | null>(null)
   const [exposureFinops, setExposureFinops] = useState<ExposureFinOpsReport | null>(null)
+  const [opsOverview, setOpsOverview] = useState<OperationsOverview | null>(null)
+  const [runbooks, setRunbooks] = useState<OpsRunbookCatalogItem[]>([])
+  const [executions, setExecutions] = useState<OpsRunbookExecution[]>([])
+  const [showback, setShowback] = useState<OpsShowbackOverview | null>(null)
+  const [runbookBusy, setRunbookBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -50,16 +82,132 @@ export default function PlatformReports() {
       setAttribution(attrR)
       setBudget(budgetR)
       setExposureFinops(expR)
+      if (tab === 'runbooks' || tab === 'showback') {
+        const [ov, rb, ex, sb] = await Promise.all([
+          getOperationsOverview().catch(() => null),
+          listOpsRunbooks().catch(() => []),
+          listOpsRunbookExecutions(15).catch(() => []),
+          tab === 'showback' ? getOpsShowback().catch(() => null) : Promise.resolve(null),
+        ])
+        setOpsOverview(ov)
+        setRunbooks(rb)
+        setExecutions(ex)
+        if (sb) setShowback(sb)
+      }
     } catch (e: unknown) { setError(formatUserError(e)) }
-  }, [])
+  }, [tab])
 
   useEffect(() => { void load() }, [load])
 
+  const runRunbook = async (incident: string) => {
+    setRunbookBusy(incident)
+    try {
+      const r = await executeOpsRunbook(incident)
+      toast.success(r.summary)
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setRunbookBusy(null)
+    }
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
-      <MacSectionTitle title="Reports" subtitle="Cost Guardian, Capacity Planner, FinOps, and workspace usage." />
+      <MacSectionTitle title="Reports" subtitle="Cost Guardian, FinOps, operations runbooks, and compliance showback." />
+      <div className="flex flex-wrap gap-2">
+        {([
+          ['reports', 'Reports', PieChart],
+          ['runbooks', 'Runbooks', BookOpen],
+          ['showback', 'Showback', DollarSign],
+        ] as const).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`px-3 py-1.5 rounded-full text-xs border transition flex items-center gap-1.5 ${
+              tab === id ? 'bg-blue-500/20 border-blue-500/40 text-blue-200' : 'border-white/[0.08] text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Icon className="w-3.5 h-3.5" /> {label}
+          </button>
+        ))}
+      </div>
       {error && <ErrorBanner message={error} />}
-      {cap && (
+
+      {tab === 'runbooks' && (
+        <>
+          {opsOverview && (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MacStatWidget label="Runbooks" value={String(opsOverview.runbook_count)} icon={<BookOpen className="w-4 h-4" />} />
+              <MacStatWidget label="24h executions" value={String(opsOverview.executions_24h)} icon={<BookOpen className="w-4 h-4" />} />
+              <MacStatWidget label="Fleet grade" value={opsOverview.compliance_grade} icon={<BookOpen className="w-4 h-4" />} tone="ok" />
+            </div>
+          )}
+          <MacGlassPanel title="Runbook catalog" subtitle="Execute incident playbooks — records steps in execution history.">
+            <ul className="space-y-2 text-sm">
+              {runbooks.map((rb) => (
+                <li key={rb.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
+                  <div>
+                    <p className="text-slate-200">{rb.title}</p>
+                    <p className="text-xs text-slate-500">{rb.category} · {rb.severity}{rb.auto_trigger ? ` · trigger: ${rb.auto_trigger}` : ''}</p>
+                  </div>
+                  <button type="button" className="btn-secondary text-xs shrink-0" disabled={runbookBusy === rb.incident} onClick={() => void runRunbook(rb.incident)}>
+                    {runbookBusy === rb.incident ? 'Running…' : 'Execute'}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </MacGlassPanel>
+          {executions.length > 0 && (
+            <MacGlassPanel title="Recent executions" subtitle="Operator runbook history.">
+              <ul className="text-xs space-y-2 text-slate-400">
+                {executions.map((ex) => (
+                  <li key={ex.id} className="border-b border-white/[0.04] pb-2">
+                    <span className="text-slate-300">{ex.incident}</span> — {ex.summary}
+                    <span className="text-slate-600 block">{new Date(ex.created_at).toLocaleString()}</span>
+                  </li>
+                ))}
+              </ul>
+            </MacGlassPanel>
+          )}
+        </>
+      )}
+
+      {tab === 'showback' && showback && (
+        <>
+          <MacGlassPanel title="Compliance showback" subtitle={showback.summary}>
+            <p className="text-2xl font-bold text-emerald-300 -mt-2">
+              ${showback.total_cost_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> / mo</span>
+            </p>
+            <p className="text-sm text-slate-400 mt-1">Fleet compliance grade: {showback.fleet_grade}</p>
+            <div className="overflow-x-auto mt-4">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-slate-500 border-b border-white/[0.06]">
+                    <th className="py-2 pr-2">Project</th>
+                    <th className="py-2 pr-2">Cost</th>
+                    <th className="py-2 pr-2">Grade</th>
+                    <th className="py-2 pr-2">VMs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {showback.lines.map((line) => (
+                    <tr key={line.project_name} className="border-b border-white/[0.04] text-slate-200">
+                      <td className="py-2 pr-2">{line.project_name}</td>
+                      <td className="py-2 pr-2">${line.cost_usd.toFixed(0)}/mo</td>
+                      <td className="py-2 pr-2">{line.compliance_grade}</td>
+                      <td className="py-2 pr-2">{line.vm_count}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </MacGlassPanel>
+        </>
+      )}
+
+      {tab === 'reports' && cap && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MacStatWidget label="Online hosts" value={String(cap.hosts_online)} icon={<FolderKanban className="w-4 h-4" />} />
           <MacStatWidget label="Running VMs" value={String(cap.running_vms)} icon={<FolderKanban className="w-4 h-4" />} tone="ok" />
@@ -67,7 +215,7 @@ export default function PlatformReports() {
           <MacStatWidget label="Avg CPU" value={`${cap.avg_cpu_percent.toFixed(0)}%`} icon={<FolderKanban className="w-4 h-4" />} />
         </div>
       )}
-      {compliance && (
+      {tab === 'reports' && compliance && (
         <MacGlassPanel title="Machina Compliance" subtitle={`Grade ${compliance.grade} · ${compliance.score}/100`}>
           <p className="text-2xl font-bold text-slate-100 -mt-2">{compliance.score}/100</p>
           <p className="text-sm text-slate-400 mt-1">{compliance.summary}</p>
@@ -111,7 +259,7 @@ export default function PlatformReports() {
           </div>
         </MacGlassPanel>
       )}
-      {budget && (
+      {tab === 'reports' && budget && (
         <MacGlassPanel title="FinOps budget guard" subtitle={budget.summary}>
           <p className="text-2xl font-bold text-slate-100 -mt-2">
             ${budget.current_spend_usd.toFixed(0)}
@@ -129,7 +277,7 @@ export default function PlatformReports() {
           )}
         </MacGlassPanel>
       )}
-      {exposureFinops && (
+      {tab === 'reports' && exposureFinops && (
         <MacGlassPanel title="FinOps × Zeus Firewall" subtitle={exposureFinops.summary}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 -mt-2">
             <MacStatWidget label="Fleet exposure" value={`$${exposureFinops.fleet_exposure_monthly_usd.toFixed(0)}/mo`} icon={<DollarSign className="w-4 h-4" />} tone="warn" />
@@ -153,7 +301,7 @@ export default function PlatformReports() {
           </div>
         </MacGlassPanel>
       )}
-      {cost && (
+      {tab === 'reports' && cost && (
         <MacGlassPanel title="Machina Cost Guardian" subtitle="Idle, oversized, and snapshot-heavy VMs.">
           <p className="text-2xl font-bold text-emerald-300 -mt-2">${cost.estimated_monthly_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> est. / month</span></p>
           {cost.predicted_next_month_usd != null && (
@@ -174,7 +322,7 @@ export default function PlatformReports() {
           </a>
         </MacGlassPanel>
       )}
-      {attribution && attribution.teams.length > 0 && (
+      {tab === 'reports' && attribution && attribution.teams.length > 0 && (
         <MacGlassPanel title="Team cost attribution" subtitle={attribution.summary}>
           <ul className="text-xs space-y-2 text-slate-400 mt-2">
             {attribution.teams.slice(0, 8).map((t) => (
@@ -189,7 +337,7 @@ export default function PlatformReports() {
           </a>
         </MacGlassPanel>
       )}
-      {autopilotHistory.length > 0 && (
+      {tab === 'reports' && autopilotHistory.length > 0 && (
         <MacGlassPanel title="Autopilot history" subtitle="Recent audited auto-fix runs">
           <ul className="text-xs space-y-2 -mt-2">
             {autopilotHistory.map((h) => (
@@ -201,7 +349,7 @@ export default function PlatformReports() {
           </ul>
         </MacGlassPanel>
       )}
-      {aiCap && (
+      {tab === 'reports' && aiCap && (
         <MacGlassPanel title="Machina Capacity Planner" subtitle="Headroom and simple onboarding projections.">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm -mt-2">
             <p>CPU headroom: <span className="text-slate-200">{aiCap.cpu_headroom_percent}%</span></p>
@@ -217,7 +365,7 @@ export default function PlatformReports() {
           </a>
         </MacGlassPanel>
       )}
-      {security && security.findings.length > 0 && (
+      {tab === 'reports' && security && security.findings.length > 0 && (
         <MacGlassPanel title="Machina Security Sentinel" subtitle={`Risk level: ${security.risk_level}`}>
           <ul className="text-sm space-y-2 -mt-2">
             {security.findings.slice(0, 8).map((f) => (
@@ -229,7 +377,7 @@ export default function PlatformReports() {
           </ul>
         </MacGlassPanel>
       )}
-      {finops && (
+      {tab === 'reports' && finops && (
         <MacGlassPanel title="FinOps estimate" subtitle="Rough monthly cost from vCPU and memory rates.">
           <p className="text-3xl font-bold text-emerald-300 -mt-2">${finops.estimated_monthly_usd.toFixed(2)}<span className="text-sm font-normal text-slate-500"> / month</span></p>
           <div className="grid gap-3 sm:grid-cols-3 text-sm text-slate-400 mt-3">
@@ -239,11 +387,13 @@ export default function PlatformReports() {
           </div>
         </MacGlassPanel>
       )}
+      {tab === 'reports' && (
       <MacGlassPanel title="Workspaces" subtitle="Project quotas and VM counts.">
         <ul className="text-sm space-y-2 -mt-2">{projects.map((p) => (
           <li key={p.name} className="flex justify-between border-b border-white/[0.04] pb-2"><span className="text-slate-200">{p.name}</span><span className="text-slate-500">{p.vm_count} VMs</span></li>
         ))}</ul>
       </MacGlassPanel>
+      )}
     </div>
   )
 }
