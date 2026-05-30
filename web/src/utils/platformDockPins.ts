@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import {
+  Boxes,
   Activity,
   Bell,
   FileBarChart,
@@ -49,6 +50,7 @@ const ICON_BY_PATH: Record<string, LucideIcon> = {
   '/platform/maintenance': Download,
   '/platform/notifications': Bell,
   '/platform/zeus': Sparkles,
+  '/platform/integrations': Boxes,
   '/platform/settings': Settings,
 }
 
@@ -64,6 +66,7 @@ const LABEL_BY_PATH: Record<string, string> = {
   '/platform/topology': 'Topology',
   '/platform/maintenance': 'Updates',
   '/platform/notifications': 'Alerts',
+  '/platform/integrations': 'Apps',
 }
 
 /** Default pinned apps for the Machina platform dock (v9s MacDock pattern). */

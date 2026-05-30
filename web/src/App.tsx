@@ -135,6 +135,7 @@ const PlatformFirewallCloud = lazy(() => import('./pages/platform/security/Platf
 const PlatformFirewallConnectivity = lazy(() => import('./pages/platform/security/PlatformFirewallConnectivity'))
 const PlatformFirewallPolicies = lazy(() => import('./pages/platform/security/PlatformFirewallPolicies'))
 const PlatformPolicy = lazy(() => import('./pages/platform/PlatformPolicy'))
+const PlatformIntegrations = lazy(() => import('./pages/platform/PlatformIntegrations'))
 const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const PlatformDeveloper = lazy(() => import('./pages/platform/PlatformDeveloper'))
@@ -339,6 +340,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="zeus/security/connectivity" element={<PlatformFirewallConnectivity />} />
                   <Route path="zeus/security/policies" element={<PlatformFirewallPolicies />} />
                   <Route path="policy" element={<PlatformPolicy />} />
+                  <Route path="integrations" element={<PlatformIntegrations />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />

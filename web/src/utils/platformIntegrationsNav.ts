@@ -1,0 +1,96 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import React from 'react'
+import { Boxes, Cloud, Cpu, Import, Layers } from 'lucide-react'
+import type { PlatformInfo } from '../api/system'
+import type { PlatformNavItem } from './platformNav'
+
+const ic = (Icon: React.ComponentType<{ className?: string }>) =>
+  React.createElement(Icon, { className: 'w-4 h-4' })
+
+/** Daemon capability links outside /platform/* — merged into sidebar when enabled. */
+export function integrationNavItems(info: PlatformInfo | null): PlatformNavItem[] {
+  if (!info) return []
+  const items: PlatformNavItem[] = []
+
+  if (info.openstack?.enabled) {
+    items.push({
+      to: '/openstack',
+      label: info.openstack.configured ? 'OpenStack Cloud' : 'OpenStack (setup)',
+      icon: ic(Cloud),
+    })
+  }
+  if (info.kubevirt?.exec_enabled) {
+    items.push({ to: '/k8s', label: 'Kubernetes', icon: ic(Layers) })
+  }
+  if (info.hypersdk?.enabled) {
+    items.push({ to: '/platform/migration', label: 'HyperSDK Migration', icon: ic(Import) })
+  }
+  if (info.guestkit?.enabled) {
+    items.push({ to: '/platform/migration?tab=jobs', label: 'GuestKit Jobs', icon: ic(Boxes) })
+  }
+  if (info.fleet?.enabled && (info.fleet.peer_count ?? 0) > 0) {
+    items.push({ to: '/fleet', label: 'Multi-site Fleet', icon: ic(Cpu) })
+  }
+
+  return items
+}
+
+export type IntegrationCard = {
+  id: string
+  title: string
+  description: string
+  href: string
+  enabled: boolean
+  configured?: boolean
+}
+
+export function integrationCards(info: PlatformInfo | null): IntegrationCard[] {
+  if (!info) return []
+  return [
+    {
+      id: 'openstack',
+      title: 'OpenStack',
+      description: 'Nova, Neutron, Cinder, Heat, and identity — full cloud operator UI.',
+      href: '/openstack',
+      enabled: Boolean(info.openstack?.enabled),
+      configured: info.openstack?.configured,
+    },
+    {
+      id: 'k8s',
+      title: 'Kubernetes',
+      description: 'KubeVirt workloads, pods, and cluster exec when enabled on the daemon.',
+      href: '/k8s',
+      enabled: Boolean(info.kubevirt?.exec_enabled),
+    },
+    {
+      id: 'hypersdk',
+      title: 'HyperSDK',
+      description: 'VMware and cloud source scan → Machina migration jobs.',
+      href: '/platform/migration',
+      enabled: Boolean(info.hypersdk?.enabled),
+    },
+    {
+      id: 'guestkit',
+      title: 'GuestKit',
+      description: 'Offline disk doctor, migrate-plan, and inspect job queue.',
+      href: '/platform/migration?tab=jobs',
+      enabled: Boolean(info.guestkit?.enabled),
+    },
+    {
+      id: 'classic',
+      title: 'Classic Machina UI',
+      description: 'Legacy dashboard, VM list, storage pools, and node tools.',
+      href: '/',
+      enabled: true,
+    },
+    {
+      id: 'fleet',
+      title: 'Fleet peers',
+      description: 'Multi-controller federation and peer proxy.',
+      href: '/fleet',
+      enabled: Boolean(info.fleet?.enabled),
+      configured: (info.fleet?.peer_count ?? 0) > 0,
+    },
+  ]
+}

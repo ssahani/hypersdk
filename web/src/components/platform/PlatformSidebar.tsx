@@ -4,13 +4,16 @@ import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { sidebarForTier } from '../../utils/platformNavFilter'
+import { integrationNavItems } from '../../utils/platformIntegrationsNav'
+import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 
 const COLLAPSE_KEY = 'machina-platform-sidebar-collapsed'
 
 export default function PlatformSidebar() {
   const [tier] = usePlatformDesktopTier()
-  const sections = sidebarForTier(tier)
+  const { info } = usePlatformInfo()
+  const sections = sidebarForTier(tier, integrationNavItems(info))
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
 
   useEffect(() => {

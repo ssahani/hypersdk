@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Sparkles,
   Activity,
+  Boxes,
 } from 'lucide-react'
 import {
   getCapacityReport,
@@ -41,11 +42,13 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
+import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 
 export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()
   const toast = useToastContext()
   const [tier] = usePlatformDesktopTier()
+  const { info } = usePlatformInfo()
   const [open, setOpen] = useState(false)
   const { desktop, linuxHealth } = useFleetDesktop(open, 0)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
@@ -162,6 +165,16 @@ export default function PlatformControlCenter() {
                   href="/platform/tasks"
                   spark={failedTasks ? `${failedTasks} failed` : undefined}
                   tone={failedTasks ? 'warn' : undefined}
+                />
+                <ModuleTile
+                  icon={<Boxes className="w-4 h-4 text-sky-400" />}
+                  label="Apps"
+                  value={
+                    info?.openstack?.enabled
+                      ? (info.openstack.configured ? 'OpenStack ready' : 'OpenStack setup')
+                      : 'Integrations'
+                  }
+                  href="/platform/integrations"
                 />
                 {showPower && (
                   <ModuleTile

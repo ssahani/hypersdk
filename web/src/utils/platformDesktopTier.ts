@@ -34,10 +34,14 @@ const NORMAL_PATHS = [
   '/platform/settings',
   '/platform/support',
   '/platform/notifications',
+  '/platform/integrations',
 ]
 
 const POWER_PATHS = [
   ...NORMAL_PATHS,
+  '/openstack',
+  '/k8s',
+  '/fleet',
   '/platform/applications',
   '/platform/storage',
   '/platform/networks',
@@ -59,7 +63,7 @@ const POWER_PATHS = [
 ]
 
 export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
-  normal: ['/platform', '/platform/hosts', '/platform/vms', '/platform/storage', '/platform/settings'],
+  normal: ['/platform', '/platform/hosts', '/platform/vms', '/platform/integrations', '/platform/settings'],
   power: [
     '/platform',
     '/platform/hosts',
@@ -100,7 +104,7 @@ export function loadPlatformDesktopTier(): PlatformDesktopTier {
   } catch {
     /* ignore */
   }
-  return 'advanced'
+  return 'normal'
 }
 
 export function savePlatformDesktopTier(tier: PlatformDesktopTier) {

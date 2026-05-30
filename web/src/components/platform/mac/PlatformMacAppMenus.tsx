@@ -17,6 +17,8 @@ import {
 } from '../../../utils/platformDesktopTier'
 import { dispatchOpenMissionControl } from './MissionControlContext'
 import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
+import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
+import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -31,7 +33,8 @@ export default function PlatformMacAppMenus() {
   const [tier, setTier] = usePlatformDesktopTier()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
 
-  const navSections = useMemo(() => macMenuSectionsForTier(tier), [tier])
+  const { info } = usePlatformInfo()
+  const navSections = useMemo(() => macMenuSectionsForTier(tier, integrationNavItems(info)), [tier, info])
 
   const closeMenu = useCallback(() => setOpenMenu(null), [])
   const toggleMenu = (id: string) => setOpenMenu((prev) => (prev === id ? null : id))

@@ -55,6 +55,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
       { to: '/platform/vms', label: 'Virtual Machines', icon: ic(Monitor) },
       { to: '/platform/applications', label: 'Applications', icon: ic(Boxes) },
       { to: '/platform/hosts', label: 'Hosts', icon: ic(Server) },
+      { to: '/platform/integrations', label: 'Apps & Integrations', icon: ic(Boxes) },
     ],
   },
   {
@@ -117,6 +118,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/vms': 'Finder',
   '/platform/applications': 'Applications',
   '/platform/hosts': 'Hosts',
+  '/platform/integrations': 'Apps & Integrations',
   '/platform/storage': 'Disk Utility',
   '/platform/networks': 'Networks',
   '/platform/content': 'Images & ISOs',
