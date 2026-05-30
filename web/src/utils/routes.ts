@@ -189,7 +189,7 @@ export const navGroups: NavGroup[] = [
         label: 'Administration',
         items: [
           { to: '/platform/settings', icon: React.createElement(Settings, { className: 'w-4 h-4' }), label: 'Settings' },
-          { to: '/platform/users', icon: React.createElement(Users, { className: 'w-4 h-4' }), label: 'Users & Access' },
+          { to: '/platform/users', icon: React.createElement(Users, { className: 'w-4 h-4' }), label: 'Users & Groups' },
           { to: '/platform/projects', icon: React.createElement(Boxes, { className: 'w-4 h-4' }), label: 'Workspaces' },
           { to: '/platform/enroll', icon: React.createElement(Key, { className: 'w-4 h-4' }), label: 'Add Host' },
           { to: '/platform/events', icon: React.createElement(ScrollText, { className: 'w-4 h-4' }), label: 'Console' },
@@ -334,7 +334,7 @@ export const routeLabels: Record<string, string> = {
   '/platform/projects': 'Workspaces',
   '/platform/notifications': 'Alerts',
   '/platform/settings': 'Settings',
-  '/platform/users': 'Users & Access',
+  '/platform/users': 'Users & Groups',
   '/platform/api-keys': 'API Keys',
   '/platform/webhooks': 'Webhooks',
   '/platform/maintenance': 'Software Update',

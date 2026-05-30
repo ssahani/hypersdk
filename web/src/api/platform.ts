@@ -941,6 +941,35 @@ export type FleetKeychainOverview = {
 export const getFleetKeychain = () =>
   platformFetch<FleetKeychainOverview>('/api/v1/fleet/keychain')
 
+export type FleetUserItem = {
+  id: string
+  username: string
+  role: string
+}
+
+export type FleetWorkspaceItem = {
+  name: string
+  vm_count: number
+  network_isolation: string
+  enforce_quotas: boolean
+  quota_status: string
+}
+
+export type FleetUsersOverview = {
+  summary: string
+  user_count: number
+  admin_count: number
+  operator_count: number
+  viewer_count: number
+  workspace_count: number
+  workspaces_enforced: number
+  users: FleetUserItem[]
+  workspaces: FleetWorkspaceItem[]
+}
+
+export const getFleetUsers = () =>
+  platformFetch<FleetUsersOverview>('/api/v1/fleet/users')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

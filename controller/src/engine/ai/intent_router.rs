@@ -126,6 +126,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("users and groups") || ql.contains("users & groups") || ql.contains("workspace switch")
+        || ql.contains("switch workspace") || ql.contains("switch tenant")
+    {
+        intents.push(intent(
+            "fleet-users",
+            "Users & Groups",
+            "Platform RBAC accounts and workspace (tenant) switcher.",
+            "navigate",
+            None,
+            Some("/platform/users?tab=workspaces".into()),
+            None,
+        ));
+    }
     if ql.contains("keychain") || ql.contains("secrets inventory") || ql.contains("api keys")
         || (ql.contains("vault") && ql.contains("list"))
     {

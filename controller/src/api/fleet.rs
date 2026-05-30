@@ -14,6 +14,7 @@ use crate::engine::fleet_storage;
 use crate::engine::fleet_console;
 use crate::engine::fleet_updates;
 use crate::engine::fleet_keychain;
+use crate::engine::fleet_users;
 use crate::state::AppState;
 
 pub async fn desktop_overview(
@@ -101,6 +102,15 @@ pub async fn keychain_overview(
     State(state): State<AppState>,
 ) -> Result<Json<fleet_keychain::FleetKeychainOverview>, ApiError> {
     fleet_keychain::overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn users_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_users::FleetUsersOverview>, ApiError> {
+    fleet_users::overview(&state.pool)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

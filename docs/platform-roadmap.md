@@ -315,14 +315,15 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 42 | 622–631 | Console — unified fleet log tail | **Shipped (v1)** |
 | 43 | 632–641 | Software Update — host patch catalog | **Shipped (v1)** |
 | 44 | 642–651 | Keychain — secrets inventory Mac pane | **Shipped (v1)** |
+| 45 | 652–661 | Users & Groups — tenant switcher menu bar | **Shipped (v1)** |
 
-### Horizon — macOS OS Manager (Phases 45–237)
+### Horizon — macOS OS Manager (Phases 46–237)
 
 Full **200-phase** macOS metaphor map: [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md).
 
 | Phase | AI range | macOS app | Theme |
 |-------|----------|-----------|--------|
-| 45 | 652–661 | Users & Groups — tenant switcher menu bar | Planned |
+| 46 | 662–671 | Shortcuts — blueprint Launchpad grid | Planned |
 | 48–237 | 682–2581 | All macOS layers | 20 layers × ~10 phases each |
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.
