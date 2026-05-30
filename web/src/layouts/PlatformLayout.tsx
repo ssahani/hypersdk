@@ -19,7 +19,9 @@ import {
 import { isCenterPopoutMode } from '../utils/platformCenterPopout'
 import { platformPageLabel } from '../utils/platformDesktopTabs'
 import { OPEN_PLATFORM_DOCK_EDITOR_EVENT } from '../utils/platformDockPins'
+import { usePlatformDesktopTier } from '../utils/platformDesktopTier'
 import PlatformDockEditor from '../components/platform/mac/PlatformDockEditor'
+import { usePlatformTierRouteGuard } from '../hooks/usePlatformTierRouteGuard'
 
 function PlatformDesktopShell() {
   const location = useLocation()
@@ -27,6 +29,8 @@ function PlatformDesktopShell() {
   const [wallpaper, setWallpaper] = useState<PlatformWallpaper>(() => loadPlatformWallpaper())
   const [dockEditorOpen, setDockEditorOpen] = useState(false)
   const { sidebarVisible } = usePlatformMacDesktop()
+  const [tier] = usePlatformDesktopTier()
+  usePlatformTierRouteGuard()
 
   useEffect(() => {
     const onWallpaper = () => setWallpaper(loadPlatformWallpaper())
@@ -61,8 +65,9 @@ function PlatformDesktopShell() {
     <div
       className="mac-desktop-root platform-mac-desktop tahoe-page-root flex flex-col flex-1 min-h-0 h-full overflow-hidden"
       data-wallpaper={wallpaper}
+      data-desktop-tier={tier}
     >
-      <header className="mac-menubar-inner shrink-0 relative z-20 flex items-center gap-2 px-2 lg:px-3 h-11 border-b border-white/[0.06]">
+      <header className="mac-menubar-inner glass shrink-0 relative z-20 flex items-center gap-2 px-2 lg:px-3 h-11">
         <PlatformMacAppMenus />
         <div className="flex-1 min-w-0 flex justify-center absolute left-1/2 -translate-x-1/2 pointer-events-none">
           <PlatformTopBar />

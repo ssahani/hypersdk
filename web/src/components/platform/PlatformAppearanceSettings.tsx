@@ -13,6 +13,8 @@ import {
 } from '../../utils/platformWallpaper'
 import { getFleetGeneral, type FleetGeneralOverview } from '../../api/platform'
 import { openPlatformDockEditor } from '../../utils/platformDockPins'
+import { usePlatformDesktopTier } from '../../utils/platformDesktopTier'
+import PlatformDesktopTierPicker from './PlatformDesktopTierPicker'
 
 const SWATCH_CLASS: Record<PlatformWallpaper, string> = {
   tahoe: 'mac-wallpaper-swatch-tahoe',
@@ -24,6 +26,7 @@ const SWATCH_CLASS: Record<PlatformWallpaper, string> = {
 export default function PlatformAppearanceSettings() {
   const [wallpaper, setWallpaper] = useState<PlatformWallpaper>(() => loadPlatformWallpaper())
   const [general, setGeneral] = useState<FleetGeneralOverview | null>(null)
+  const [tier, setTier] = usePlatformDesktopTier()
 
   useEffect(() => {
     const onChange = () => setWallpaper(loadPlatformWallpaper())
@@ -52,6 +55,13 @@ export default function PlatformAppearanceSettings() {
           </div>
         </MacSettingsGroup>
       )}
+
+      <MacSettingsGroup title="Desktop density">
+        <PlatformDesktopTierPicker tier={tier} onChange={setTier} />
+        <p className="text-xs text-white/40 mt-3">
+          Normal hides the status strip and most sidebar apps. Advanced restores the full fleet surface.
+        </p>
+      </MacSettingsGroup>
 
       <MacSettingsGroup title="Dock">
         <p className="text-sm text-white/55 mb-3">Pin apps to the Machina dock — same as macOS Customize Dock.</p>

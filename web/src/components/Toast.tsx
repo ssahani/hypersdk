@@ -2,6 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
+import { motion } from 'framer-motion'
 import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import type { Toast } from '../hooks/useToast'
 import { formatUserError } from '../utils/apiError'
@@ -14,11 +15,11 @@ const icons = {
   info: <Info className="w-5 h-5 text-blue-400" />,
 }
 
-const bgColors = {
-  success: 'bg-green-900/80 border-green-700',
-  error: 'bg-red-900/80 border-red-700',
-  warning: 'bg-yellow-900/80 border-yellow-700',
-  info: 'bg-blue-900/80 border-blue-700',
+const toneBorder = {
+  success: 'border-emerald-500/30',
+  error: 'border-red-500/30',
+  warning: 'border-amber-500/30',
+  info: 'border-blue-500/30',
 }
 
 function displayErrorMessage(raw: string): string {
@@ -47,21 +48,25 @@ export function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: 
         const display =
           toast.type === 'error' ? displayErrorMessage(toast.message) : toast.message
         return (
-          <div
+          <motion.div
             key={toast.id}
-            className={`animate-slide-in flex items-start gap-3 px-4 py-3 rounded-lg border shadow-lg min-w-[300px] max-w-lg ${bgColors[toast.type]}`}
+            initial={{ opacity: 0, x: 24, scale: 0.96 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            exit={{ opacity: 0, x: 24 }}
+            transition={{ type: 'spring', stiffness: 380, damping: 28 }}
+            className={`liquid-glass-toast glass-strong flex items-start gap-3 px-4 py-3 min-w-[300px] max-w-lg border ${toneBorder[toast.type]}`}
           >
             {icons[toast.type]}
             <span
-              className="flex-1 text-sm text-white whitespace-pre-wrap break-words max-h-40 overflow-y-auto"
+              className="flex-1 text-sm text-[var(--text-primary)] whitespace-pre-wrap break-words max-h-40 overflow-y-auto"
               title={display.length > 220 ? display : undefined}
             >
               {display}
             </span>
-            <button onClick={() => onClose(toast.id)} className="text-slate-400 hover:text-white">
-              <X className="w-4 h-4" />
+            <button onClick={() => onClose(toast.id)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+              <X className="w-4 h-4" strokeWidth={1.75} />
             </button>
-          </div>
+          </motion.div>
         )
       })}
     </div>

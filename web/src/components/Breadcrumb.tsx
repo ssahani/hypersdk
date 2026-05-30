@@ -25,20 +25,20 @@ export default function Breadcrumb() {
   if (crumbs.length === 0) return null
 
   return (
-    <nav className="mb-6 flex items-center gap-1.5 text-sm flex-wrap">
-      <Link to="/" className="text-slate-400 hover:text-white transition flex items-center gap-1">
-        <Home className="w-3.5 h-3.5" />
+    <nav className="liquid-glass-breadcrumb mb-6 flex items-center gap-1.5 text-sm flex-wrap">
+      <Link to="/" className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition flex items-center gap-1">
+        <Home className="w-3.5 h-3.5" strokeWidth={1.75} />
         <span className="hidden sm:inline">Dashboard</span>
       </Link>
       {crumbs.map((crumb, i) => {
         const isLast = i === crumbs.length - 1
         return (
           <span key={crumb.path} className="flex items-center gap-1.5">
-            <ChevronRight className="w-3.5 h-3.5 text-slate-600" />
+            <ChevronRight className="w-3.5 h-3.5 text-[var(--text-muted)]" strokeWidth={1.75} />
             {isLast ? (
-              <span className="text-white font-medium">{crumb.label}</span>
+              <span className="text-[var(--text-primary)] font-medium">{crumb.label}</span>
             ) : (
-              <Link to={crumb.path} className="text-slate-400 hover:text-white transition">{crumb.label}</Link>
+              <Link to={crumb.path} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition">{crumb.label}</Link>
             )}
           </span>
         )

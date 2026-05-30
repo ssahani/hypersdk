@@ -66,12 +66,12 @@ function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () 
     <Link
       to={item.to}
       onClick={onClick}
-      className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-all duration-200 text-sm font-medium ${
+      className={`flex items-center gap-2 px-3 py-2 rounded-liquid transition-all duration-200 text-sm font-medium ${
         setup
           ? 'text-amber-400/90 hover:bg-amber-500/10 border border-amber-500/30'
           : isActive
-            ? 'bg-blue-600/90 text-white shadow-lg shadow-blue-600/20'
-            : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+            ? 'glass bg-white/10 text-white border border-white/15 shadow-sm'
+            : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'
       }`}
     >
       {item.icon}
@@ -320,10 +320,10 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
             ? 'nav-steel-select text-[#d7dde5]'
             : aurora
               ? 'nav-aurora-select text-[#e8e4f8]'
-              : 'bg-slate-900/80 border-slate-600 text-slate-200'
+              : 'glass bg-white/5 border-white/10 text-[var(--text-primary)]'
         }`}
       >
-        <option value="dark">Dark</option>
+        <option value="dark">Liquid Glass</option>
         <option value="steel">Steel</option>
         <option value="aurora">Aurora</option>
       </select>
@@ -334,7 +334,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
     ? 'border-b border-[rgba(140,160,190,0.18)] bg-gradient-to-b from-[#0f141a] via-[#1a222d] to-[#0c1117] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_10px_30px_rgba(0,0,0,0.45)]'
     : aurora
       ? 'border-b border-[rgba(167,139,250,0.22)] bg-gradient-to-b from-[#0a0618] via-[#12082a] to-[#050816] shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_10px_40px_rgba(34,211,238,0.08)]'
-      : 'bg-slate-900/80 backdrop-blur-xl border-b border-slate-700/50'
+      : 'liquid-glass-navbar'
 
   return (
     <nav id="app-topnav" className={`sticky top-0 z-30 ${navBarClass}`}>

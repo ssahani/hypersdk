@@ -94,6 +94,16 @@ machina/   # git checkout directory name
 - **Operator runbook** — [docs/runbook.md](docs/runbook.md) · **Hardening** — [docs/compliance-hardening.md](docs/compliance-hardening.md)
 
 ### Web UI (https://localhost:5092)
+
+#### Liquid Glass design (macOS Tahoe)
+
+The Machina web UI uses a **Liquid Glass** design system inspired by macOS Tahoe: translucent panels, strong backdrop blur, heavy rounding (22–28px), specular highlights, and spring animations on modals and toasts.
+
+- **Dark theme = Liquid Glass** — the default `dark` theme applies glass tokens across daemon pages and the platform desktop shell
+- **Platform desktop tiers** — **Normal** (dock-first, minimal), **Power user** (ops toolkit), **Advanced** (full fleet surface); switch in **Settings → Appearance** or **View → Desktop density**
+- **Reusable components** — `GlassCard`, `GlassButton`, `GlassModal`, `GlassInput`, `GlassTabs` in `web/src/components/glass/`
+- **Steel / Aurora** themes remain available via the navbar theme picker
+
 - **Premium login page** — split-screen layout with animated gradient background, floating orbs, feature showcase cards, glassmorphism form
 - **Command palette** — `Ctrl+K` / `Cmd+K` to search VMs, networks, storage pools, snapshots, navigate pages, and run quick actions with keyboard navigation
 - **Notification bell** — global notification center in navbar with badge count, showing real-time VM state changes, additions, and removals

@@ -3,6 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useLocation, useNavigate } from 'react-router'
 import { Search, Plus, Camera, Server, Play, Square, Power, Terminal, ArrowRight, Network, HardDrive, Clock, Star, Boxes, Upload, Pin, Keyboard, Info, Bell, ClipboardList, Activity, Settings } from 'lucide-react'
 import { listVMs, startVM, stopVM, shutdownVM, VmInfo } from '../api/vm'
@@ -544,17 +545,24 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   // Reset index on query change
   useEffect(() => setSelectedIndex(0), [query])
 
-  if (!open) return null
-
   let runningIdx = 0
 
   return (
-    <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm animate-fade-in" onClick={close}>
+    <AnimatePresence>
+      {open && (
+    <div className="fixed inset-0 z-[60] liquid-glass-modal-backdrop" onClick={close}>
       <div className="fixed inset-x-0 top-[15%] mx-auto max-w-lg px-4" onClick={e => e.stopPropagation()}>
-        <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl overflow-hidden" onKeyDown={handleKeyDown}>
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: -8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -8 }}
+          transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+          className="liquid-glass-modal-panel overflow-hidden"
+          onKeyDown={handleKeyDown}
+        >
           {/* Search input */}
-          <div className="flex items-center gap-3 px-4 border-b border-slate-700/50">
-            <Search className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="flex items-center gap-3 px-4 border-b border-white/[0.06]">
+            <Search className="w-4 h-4 text-[var(--text-secondary)] shrink-0" strokeWidth={1.75} />
             <input
               ref={inputRef}
               type="text"
@@ -621,13 +629,15 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
           </div>
 
           {/* Footer */}
-          <div className="px-4 py-2 border-t border-slate-700/50 flex items-center gap-4 text-[10px] text-slate-500">
-            <span><kbd className="px-1 py-0.5 bg-slate-700 border border-slate-600 rounded font-mono">↑↓</kbd> navigate</span>
-            <span><kbd className="px-1 py-0.5 bg-slate-700 border border-slate-600 rounded font-mono">↵</kbd> select</span>
-            <span><kbd className="px-1 py-0.5 bg-slate-700 border border-slate-600 rounded font-mono">esc</kbd> close</span>
+          <div className="px-4 py-2 border-t border-white/[0.06] flex items-center gap-4 text-[10px] text-[var(--text-muted)]">
+            <span><kbd className="px-1 py-0.5 bg-white/5 border border-white/10 rounded font-mono">↑↓</kbd> navigate</span>
+            <span><kbd className="px-1 py-0.5 bg-white/5 border border-white/10 rounded font-mono">↵</kbd> select</span>
+            <span><kbd className="px-1 py-0.5 bg-white/5 border border-white/10 rounded font-mono">esc</kbd> close</span>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
+      )}
+    </AnimatePresence>
   )
 }

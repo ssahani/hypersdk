@@ -135,7 +135,7 @@ export default function ConsolePage() {
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 transition"
+            className="btn-secondary text-sm inline-flex items-center gap-1.5"
             onClick={() => {
               if (!name) return
               void sendGuestKey(name, { preset: 'ctrl_alt_del' }, conn)
@@ -149,7 +149,7 @@ export default function ConsolePage() {
           <button
             type="button"
             disabled={shotBusy}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-sm text-slate-200 transition disabled:opacity-50"
+            className="btn-secondary text-sm inline-flex items-center gap-1.5 disabled:opacity-50"
             onClick={() => {
               if (!name) return
               setShotBusy(true)
@@ -179,7 +179,7 @@ export default function ConsolePage() {
         </div>
       )}
 
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+      <div className="card overflow-hidden rounded-liquid-lg">
         {mode === 'vnc' ? (
           <VNCViewer vmName={name} port={vncPort} libvirtConnection={conn} />
         ) : mode === 'spice' ? (

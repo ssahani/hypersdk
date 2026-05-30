@@ -40,10 +40,14 @@ import { getAiSecurity, getAiSettings, getZeusSummary, runAutopilotSafe, type Ai
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { tierAtLeast, usePlatformDesktopTier } from '../../utils/platformDesktopTier'
 
 export default function PlatformDashboard() {
   const toast = useToastContext()
   const { mode } = useAi()
+  const [tier] = usePlatformDesktopTier()
+  const showPower = tierAtLeast(tier, 'power')
+  const showAdvanced = tier === 'advanced'
   const [autopilotBusy, setAutopilotBusy] = useState(false)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [vms, setVms] = useState<{ observed_state: string }[]>([])
@@ -154,15 +158,31 @@ export default function PlatformDashboard() {
       </header>
 
       <nav className="flex flex-wrap gap-2 px-1">
-        {[
-          { to: '/mission-control', label: 'Mission Control' },
-          { to: '/platform/hosts', label: 'Hosts' },
-          { to: '/platform/vms', label: 'VMs' },
-          { to: '/platform/storage', label: 'Disk Utility' },
-          { to: '/platform/backups', label: 'Time Machine' },
-          { to: '/platform/zeus', label: 'Zeus OS' },
-          { to: '/platform/settings', label: 'Settings' },
-        ].map((item) => (
+        {(showAdvanced
+          ? [
+              { to: '/platform/projects', label: 'Stage Manager' },
+              { to: '/platform/hosts', label: 'Hosts' },
+              { to: '/platform/vms', label: 'Finder' },
+              { to: '/platform/storage', label: 'Disk Utility' },
+              { to: '/platform/backups', label: 'Time Machine' },
+              { to: '/platform/zeus', label: 'Zeus OS' },
+              { to: '/platform/settings', label: 'Settings' },
+            ]
+          : showPower
+            ? [
+                { to: '/platform/vms', label: 'Finder' },
+                { to: '/platform/hosts', label: 'Hosts' },
+                { to: '/platform/backups', label: 'Time Machine' },
+                { to: '/platform/activity', label: 'Activity' },
+                { to: '/platform/settings', label: 'Settings' },
+              ]
+            : [
+                { to: '/platform/vms', label: 'Finder' },
+                { to: '/platform/hosts', label: 'Hosts' },
+                { to: '/platform/backups', label: 'Time Machine' },
+                { to: '/platform/settings', label: 'Settings' },
+              ]
+        ).map((item) => (
           <Link
             key={item.to}
             to={item.to}
@@ -174,7 +194,7 @@ export default function PlatformDashboard() {
       </nav>
 
       {error && <ErrorBanner message={error} />}
-      {zeusStrip && (
+      {showPower && zeusStrip && (
         <MacGlassPanel
           title="Machina Zeus OS"
           subtitle={zeusStrip.tagline}
@@ -206,7 +226,7 @@ export default function PlatformDashboard() {
         </MacGlassPanel>
       )}
 
-      {mode === 'autopilot' && (
+      {showAdvanced && mode === 'autopilot' && (
         <MacGlassPanel title="Machina Autopilot" subtitle={`Runs up to ${aiSettings?.autopilot_max_actions ?? 5} low-risk fixes per batch — audited`}>
           <p className="text-sm text-slate-400 -mt-2">Backups, HA enable, and guest tools installs only. Destructive actions always require manual review.</p>
           {aiSettings && aiSettings.autopilot_interval_secs > 0 && (
@@ -238,7 +258,7 @@ export default function PlatformDashboard() {
         </MacGlassPanel>
       )}
 
-      {security && security.findings.length > 0 && (
+      {showPower && security && security.findings.length > 0 && (
         <MacGlassPanel title="Security Sentinel" subtitle={`${security.findings.length} finding(s) · risk ${security.risk_level}`}>
           <ul className="text-sm space-y-2">
             {security.findings.slice(0, 4).map((f) => (
@@ -251,21 +271,30 @@ export default function PlatformDashboard() {
         </MacGlassPanel>
       )}
 
-      <PlatformAboutHelp compact />
+      {showAdvanced && <PlatformAboutHelp compact />}
 
       <section>
         <h2 className="text-sm font-semibold text-slate-400 mb-3">Quick actions</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="Simple wizard — OS, size, network" onClick={() => setWizardOpen(true)} />
-          <ActionCard icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Launchpad groups — operate stacks" to="/platform/applications" />
-          <ActionCard icon={<ArrowRightLeft className="w-5 h-5" />} title="Import VMware VM" subtitle="Migration Assistant" to="/platform/migration" />
-          <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
-          <ActionCard icon={<Upload className="w-5 h-5" />} title="Upload ISO" subtitle="Images & ISO library" to="/platform/content" />
-          <ActionCard icon={<Terminal className="w-5 h-5" />} title="Open Console" subtitle="Browse VMs" to="/platform/vms" />
+          <ActionCard icon={<Terminal className="w-5 h-5" />} title="Open Finder" subtitle="Browse virtual machines" to="/platform/vms" />
           <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
+          {showPower && (
+            <>
+              <ActionCard icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Launchpad groups — operate stacks" to="/platform/applications" />
+              <ActionCard icon={<ArrowRightLeft className="w-5 h-5" />} title="Import VMware VM" subtitle="Migration Assistant" to="/platform/migration" />
+              <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
+            </>
+          )}
+          {showAdvanced && (
+            <>
+              <ActionCard icon={<Upload className="w-5 h-5" />} title="Upload ISO" subtitle="Images & ISO library" to="/platform/content" />
+            </>
+          )}
         </div>
       </section>
 
+      {showPower && (
       <div className="grid gap-6 lg:grid-cols-2">
         <MacGlassPanel title="Recent tasks" subtitle="Activity Monitor preview" action={<Link to="/platform/tasks" className="text-xs text-blue-400">View all</Link>}>
           <ul className="space-y-2 text-sm -mt-2">
@@ -290,6 +319,7 @@ export default function PlatformDashboard() {
           </ul>
         </MacGlassPanel>
       </div>
+      )}
 
       <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} />
       <PlatformWelcome vmCount={vms.length} onCreateVm={() => setWizardOpen(true)} onDone={() => void load()} />

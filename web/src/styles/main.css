@@ -1,17 +1,56 @@
 @import "tailwindcss";
 
+@theme inline {
+  --radius-liquid: 22px;
+  --radius-liquid-lg: 28px;
+}
+
 /* Layout width (matches HyperSDK dashboard inner wrappers: max-width 1400px, centered) */
 :root {
   --layout-max-width: 87.5rem;
+
+  /* macOS Tahoe Liquid Glass design tokens */
+  --radius-liquid: 22px;
+  --radius-liquid-lg: 28px;
+  --blur-liquid: 24px;
+  --accent: #3b82f6;
+  --accent-hover: #60a5fa;
+
+  --glass-bg: rgba(20, 22, 28, 0.68);
+  --glass-bg-elevated: rgba(28, 31, 40, 0.82);
+  --glass-bg-strong: rgba(36, 39, 50, 0.92);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --glass-border-strong: rgba(255, 255, 255, 0.15);
+  --glass-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.35);
+  --glass-highlight: rgba(255, 255, 255, 0.13);
+  --glass-tint: rgba(180, 200, 255, 0.015);
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --text-muted: #64748b;
+}
+
+.light-glass {
+  --glass-bg: rgba(255, 255, 255, 0.07);
+  --glass-bg-elevated: rgba(255, 255, 255, 0.12);
+  --glass-bg-strong: rgba(255, 255, 255, 0.18);
+  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-border-strong: rgba(255, 255, 255, 0.18);
+  --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  --glass-highlight: rgba(255, 255, 255, 0.25);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', 'Segoe UI', 'Roboto',
     'Helvetica Neue', sans-serif;
+  font-feature-settings: 'ss02', 'ss03';
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: #0f172a;
+  color: var(--text-primary);
 }
 
 code {
@@ -55,6 +94,69 @@ code {
 
 .animate-float { animation: float 8s ease-in-out infinite; }
 .animate-glow-pulse { animation: glow-pulse 4s ease-in-out infinite; }
+
+/* ── Liquid Glass utilities ── */
+.glass {
+  background-color: var(--glass-bg);
+  background-image: linear-gradient(to bottom, var(--glass-highlight), transparent 45%);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.15);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow);
+  border-radius: var(--radius-liquid);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.2s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.glass::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(to bottom, var(--glass-highlight), transparent);
+  opacity: 0.35;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+.glass-elevated {
+  background-color: var(--glass-bg-elevated);
+  border-color: var(--glass-border-strong);
+}
+
+.glass-strong {
+  background-color: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.glass:hover,
+.glass-elevated:hover {
+  border-color: var(--glass-border-strong);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.55);
+}
+
+.glass-hover-lift {
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), box-shadow 0.2s ease;
+}
+.glass-hover-lift:hover {
+  transform: scale(1.005);
+}
+
+.rounded-liquid { border-radius: var(--radius-liquid); }
+.rounded-liquid-lg { border-radius: var(--radius-liquid-lg); }
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-hover-lift:hover {
+    transform: none;
+  }
+  .mac-dock-item:hover {
+    transform: none;
+  }
+}
 
 .platform-sidebar {
   font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Inter', sans-serif;
@@ -125,9 +227,11 @@ code {
 }
 
 .mac-menubar-inner {
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.82) 0%, rgba(8, 12, 24, 0.92) 100%);
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  background: var(--glass-bg);
+  background-image: linear-gradient(180deg, var(--glass-highlight), transparent 60%);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.5);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.5);
+  border-bottom: 1px solid var(--glass-border);
 }
 
 .mac-menubar-title {
@@ -135,8 +239,10 @@ code {
 }
 
 .mac-finder-sidebar {
-  background: linear-gradient(180deg, rgba(12, 18, 32, 0.95) 0%, rgba(6, 10, 20, 0.98) 100%);
-  backdrop-filter: blur(20px);
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  border-color: var(--glass-border);
 }
 
 .tahoe-sidebar-link-active {
@@ -164,14 +270,15 @@ code {
 .tahoe-glass-card {
   position: relative;
   overflow: hidden;
-  border-radius: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.07) 0%, rgba(255, 255, 255, 0.02) 100%);
-  backdrop-filter: blur(20px) saturate(1.25);
+  border-radius: var(--radius-liquid);
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(155deg, var(--glass-highlight) 0%, var(--glass-bg) 100%);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.25);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.25);
   box-shadow:
     0 1px 0 rgba(255, 255, 255, 0.06) inset,
-    0 16px 40px -20px rgba(0, 0, 0, 0.5);
-  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    var(--glass-shadow);
+  transition: transform 0.2s cubic-bezier(0.23, 1, 0.32, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .tahoe-glass-card:hover {
@@ -200,11 +307,12 @@ code {
   align-items: flex-end;
   gap: 0.35rem;
   padding: 0.4rem 0.65rem;
-  border-radius: 1.25rem;
-  background: rgba(15, 23, 42, 0.72);
-  backdrop-filter: blur(28px) saturate(1.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  border-radius: var(--radius-liquid);
+  background: var(--glass-bg-elevated);
+  backdrop-filter: blur(calc(var(--blur-liquid) + 4px)) saturate(1.6);
+  -webkit-backdrop-filter: blur(calc(var(--blur-liquid) + 4px)) saturate(1.6);
+  border: 1px solid var(--glass-border-strong);
+  box-shadow: var(--glass-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .mac-dock-item {
@@ -338,20 +446,85 @@ code {
   }
 }
 
-/* Retrofit legacy platform cards/tables to glass inside desktop shell */
-.tahoe-page-root .card {
-  border-radius: 1.25rem;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
-  backdrop-filter: blur(16px) saturate(1.2);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+/* Normal tier — dock-first desktop; sidebar stays hidden until toggled (⌘⌥S) */
+.mac-desktop-root[data-desktop-tier='normal'] .mac-desktop-main {
+  padding-bottom: 6rem;
 }
 
-.tahoe-page-root .btn-primary {
+@media (min-width: 1024px) {
+  .mac-desktop-root[data-desktop-tier='normal']:not(:has(.platform-sidebar)) .mac-desktop-main {
+    max-width: 72rem;
+    margin-left: auto;
+    margin-right: auto;
+    width: 100%;
+  }
+}
+
+/* Retrofit legacy platform cards/tables to glass inside desktop shell */
+.tahoe-page-root .card,
+.liquid-glass-app .card {
+  border-radius: var(--radius-liquid);
+  border: 1px solid var(--glass-border);
+  background: linear-gradient(155deg, var(--glass-highlight) 0%, var(--glass-bg) 100%);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.05) inset, var(--glass-shadow);
+}
+
+.tahoe-page-root .btn-primary,
+.liquid-glass-app .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #fff;
   border-radius: 9999px;
   background: linear-gradient(135deg, rgb(56, 189, 248), rgb(37, 99, 235));
   border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.45);
+  transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.liquid-glass-app .btn-primary:hover:not(:disabled),
+.tahoe-page-root .btn-primary:hover:not(:disabled) {
+  box-shadow: 0 10px 28px -4px rgba(37, 99, 235, 0.55);
+}
+.liquid-glass-app .btn-primary:active:not(:disabled),
+.tahoe-page-root .btn-primary:active:not(:disabled) {
+  transform: scale(0.985);
+}
+.liquid-glass-app .btn-primary:disabled,
+.tahoe-page-root .btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.liquid-glass-app .btn-secondary,
+.tahoe-page-root .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  border-radius: var(--radius-liquid);
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  cursor: pointer;
+  text-decoration: none;
+}
+.liquid-glass-app .btn-secondary:hover:not(:disabled),
+.tahoe-page-root .btn-secondary:hover:not(:disabled) {
+  background: var(--glass-bg-elevated);
+  border-color: var(--glass-border-strong);
 }
 
 .platform-route-main {
@@ -1100,6 +1273,105 @@ code {
 .input-field:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Liquid Glass app shell (dark theme default) ── */
+.dashboard-liquid-glass {
+  position: relative;
+  background:
+    radial-gradient(ellipse 120% 80% at 50% -20%, rgba(30, 58, 95, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 10% 0%, rgba(56, 189, 248, 0.06), transparent 55%),
+    radial-gradient(ellipse 60% 45% at 90% 20%, rgba(249, 115, 22, 0.05), transparent 50%),
+    linear-gradient(180deg, rgb(8, 12, 22) 0%, rgb(6, 10, 18) 100%);
+}
+
+.liquid-glass-app .input-field {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: calc(var(--radius-liquid) * 0.6);
+  color: var(--text-primary);
+  backdrop-filter: blur(8px);
+}
+.liquid-glass-app .input-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.liquid-glass-app .rounded-xl.border.bg-slate-800\/50,
+.liquid-glass-app .rounded-xl.border.border-slate-700\/50,
+.liquid-glass-app .rounded-xl.border.border-slate-700\/60,
+.liquid-glass-app [class*="bg-slate-800/50"].rounded-xl,
+.liquid-glass-app [class*="bg-slate-900/40"].rounded-xl {
+  border-radius: var(--radius-liquid) !important;
+  border-color: var(--glass-border) !important;
+  background: linear-gradient(155deg, var(--glass-highlight) 0%, var(--glass-bg) 100%) !important;
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.15);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.15);
+  box-shadow: var(--glass-shadow);
+}
+
+.liquid-glass-app table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.liquid-glass-app thead {
+  background: var(--glass-bg-elevated);
+}
+.liquid-glass-app thead th {
+  border-bottom: 1px solid var(--glass-border);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.liquid-glass-app tbody tr {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  transition: background 0.15s ease;
+}
+.liquid-glass-app tbody tr:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.liquid-glass-navbar {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.4);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.4);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+}
+
+.liquid-glass-breadcrumb {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 9999px;
+  backdrop-filter: blur(12px);
+  padding: 0.35rem 0.75rem;
+}
+
+.liquid-glass-toast {
+  border-radius: var(--radius-liquid);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  box-shadow: var(--glass-shadow);
+}
+
+.liquid-glass-modal-backdrop {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.liquid-glass-modal-panel {
+  border-radius: var(--radius-liquid-lg);
+  background: var(--glass-bg-strong);
+  border: 1px solid var(--glass-border-strong);
+  backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  -webkit-backdrop-filter: blur(var(--blur-liquid)) saturate(1.2);
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.65);
+}
+
+.liquid-glass-login-panel {
+  border-radius: var(--radius-liquid-lg);
+  backdrop-filter: blur(calc(var(--blur-liquid) + 8px)) saturate(1.25);
+  -webkit-backdrop-filter: blur(calc(var(--blur-liquid) + 8px)) saturate(1.25);
 }
 
 @keyframes aurora-drift {

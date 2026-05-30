@@ -241,7 +241,7 @@ export function PremiumLoginShell({
               <p className="text-sm text-slate-400">{panelSubtitle}</p>
             </div>
 
-            <div className={`login-glass login-glass-border rounded-2xl p-8 shadow-2xl ${formClassName}`.trim()}>
+            <div className={`login-glass login-glass-border liquid-glass-login-panel rounded-liquid-lg p-8 shadow-2xl ${formClassName}`.trim()}>
               {children}
             </div>
 

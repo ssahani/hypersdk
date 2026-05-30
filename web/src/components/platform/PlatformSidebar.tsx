@@ -3,11 +3,14 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { PLATFORM_SIDEBAR } from '../../utils/platformNav'
+import { sidebarForTier } from '../../utils/platformNavFilter'
+import { usePlatformDesktopTier } from '../../utils/platformDesktopTier'
 
 const COLLAPSE_KEY = 'machina-platform-sidebar-collapsed'
 
 export default function PlatformSidebar() {
+  const [tier] = usePlatformDesktopTier()
+  const sections = sidebarForTier(tier)
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
 
   useEffect(() => {
@@ -17,7 +20,7 @@ export default function PlatformSidebar() {
   return (
     <>
       <aside
-        className={`mac-finder-sidebar tahoe-sidebar platform-sidebar hidden lg:flex flex-col shrink-0 border-r border-white/[0.06] ${
+        className={`mac-finder-sidebar tahoe-sidebar platform-sidebar glass glass-elevated hidden lg:flex flex-col shrink-0 border-r border-white/[0.06] ${
           collapsed ? 'w-[60px]' : 'w-[240px]'
         }`}
         aria-label="Platform Finder"
@@ -28,7 +31,7 @@ export default function PlatformSidebar() {
             <p className="text-xs text-white/70 mt-0.5">Fleet desktop</p>
           </div>
         )}
-        <SidebarNav collapsed={collapsed} />
+        <SidebarNav collapsed={collapsed} sections={sections} />
         <div className="border-t border-white/[0.06] p-2">
           <button
             type="button"
@@ -55,7 +58,7 @@ export default function PlatformSidebar() {
           }}
         >
           <option value="" disabled>Jump to…</option>
-          {PLATFORM_SIDEBAR.flatMap((s) => s.items).map((item) => (
+          {sections.flatMap((s) => s.items).map((item) => (
             <option key={item.to} value={item.to}>{item.label}</option>
           ))}
         </select>
@@ -64,10 +67,10 @@ export default function PlatformSidebar() {
   )
 }
 
-function SidebarNav({ collapsed }: { collapsed: boolean }) {
+function SidebarNav({ collapsed, sections }: { collapsed: boolean; sections: ReturnType<typeof sidebarForTier> }) {
   return (
     <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-3 min-h-0">
-      {PLATFORM_SIDEBAR.map((section) => (
+      {sections.map((section) => (
         <div key={section.label}>
           {!collapsed && (
             <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">

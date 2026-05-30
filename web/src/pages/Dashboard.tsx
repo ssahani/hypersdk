@@ -501,7 +501,7 @@ export default function Dashboard() {
       </div>
 
       {/* VM List */}
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+      <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Guests (libvirt domains)</h2>
           <Link to="/vms" className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition font-medium">
@@ -562,7 +562,7 @@ export default function Dashboard() {
 
       {/* Activity Feed */}
       {events.length > 0 && (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+        <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-green-400" /> Activity Feed
@@ -675,7 +675,7 @@ function MiniStat({ icon, label, value, extra }: { icon: React.ReactNode; label:
 
 function ChartCard({ title, icon, current, children }: { title: string; icon: React.ReactNode; current: string; children: React.ReactNode }) {
   return (
-    <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all duration-300">
+    <div className="card p-5 hover:border-white/15 transition-all duration-300">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-sm font-semibold text-white flex items-center gap-2">{icon} {title}</h3>
         <span className="text-xs text-slate-400 font-mono">{current}</span>

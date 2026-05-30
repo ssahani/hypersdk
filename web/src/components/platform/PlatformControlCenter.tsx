@@ -39,10 +39,12 @@ import { useAi } from '../../contexts/AiContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { usePlatformDesktopTier, tierAtLeast } from '../../utils/platformDesktopTier'
 
 export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()
   const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const [open, setOpen] = useState(false)
   const { desktop, linuxHealth } = useFleetDesktop(open, 0)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
@@ -102,6 +104,8 @@ export default function PlatformControlCenter() {
   const fwCritical = zeus?.firewall_critical_hosts ?? 0
   const fwDrift = zeus?.firewall_drift_hosts ?? 0
   const metalCritical = zeus?.baremetal_critical_count ?? 0
+  const showPower = tierAtLeast(tier, 'power')
+  const showAdvanced = tier === 'advanced'
 
   const syncHosts = async () => {
     setSyncing(true)
@@ -133,7 +137,7 @@ export default function PlatformControlCenter() {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} aria-hidden />
-          <div className="absolute right-0 top-full mt-2 z-50 w-[22rem] rounded-2xl border border-slate-700/60 bg-slate-900/95 backdrop-blur-xl shadow-2xl overflow-hidden animate-fade-in">
+          <div className="absolute right-0 top-full mt-2 z-50 w-[22rem] glass-strong rounded-liquid-lg overflow-hidden animate-fade-in">
             <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800">
               <span className="font-semibold text-sm">Control Center</span>
               <button type="button" onClick={() => setOpen(false)} className="p-1 rounded-lg hover:bg-slate-800 text-slate-400">
@@ -141,7 +145,7 @@ export default function PlatformControlCenter() {
               </button>
             </div>
             <div className="p-4 space-y-4 text-sm">
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid gap-2 ${showPower ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 <ModuleTile
                   icon={<Server className="w-4 h-4 text-blue-400" />}
                   label="Cluster"
@@ -151,19 +155,6 @@ export default function PlatformControlCenter() {
                   spark={memPct != null ? `${memPct}% mem` : undefined}
                 />
                 <ModuleTile
-                  icon={<Shield className="w-4 h-4 text-orange-400" />}
-                  label="Firewall"
-                  value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : fwDrift ? `${fwDrift} drift` : 'All clear'}
-                  href="/platform/zeus/security/firewall"
-                  tone={fwCritical ? 'warn' : 'ok'}
-                />
-                <ModuleTile
-                  icon={<Bot className="w-4 h-4 text-violet-400" />}
-                  label="Copilot"
-                  value={mode === 'off' ? 'Off' : mode === 'autopilot' ? 'Autopilot' : 'Advisor'}
-                  onClick={() => { openCopilot(); setOpen(false) }}
-                />
-                <ModuleTile
                   icon={<Loader2 className={`w-4 h-4 text-emerald-400 ${activeTasks ? 'animate-spin' : ''}`} />}
                   label="Tasks"
                   value={String(activeTasks)}
@@ -171,23 +162,44 @@ export default function PlatformControlCenter() {
                   spark={failedTasks ? `${failedTasks} failed` : undefined}
                   tone={failedTasks ? 'warn' : undefined}
                 />
-                <ModuleTile
-                  icon={<Layers className="w-4 h-4 text-violet-400" />}
-                  label="Overlays"
-                  value={segmentCount ? `${segmentCount} segment(s)` : 'None'}
-                  href="/platform/networks?tab=segments"
-                  tone={segmentCount > 0 ? 'ok' : undefined}
-                />
-                <ModuleTile
-                  icon={<HardDrive className="w-4 h-4 text-blue-400" />}
-                  label="Storage tiers"
-                  value={storageTierCount ? `${storageTierCount} tier(s)` : 'None'}
-                  href="/platform/storage?tab=tiers"
-                  tone={storageTierCount > 0 ? 'ok' : undefined}
-                />
+                {showPower && (
+                  <ModuleTile
+                    icon={<Shield className="w-4 h-4 text-orange-400" />}
+                    label="Firewall"
+                    value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : fwDrift ? `${fwDrift} drift` : 'All clear'}
+                    href="/platform/zeus/security/firewall"
+                    tone={fwCritical ? 'warn' : 'ok'}
+                  />
+                )}
+                {showPower && (
+                  <ModuleTile
+                    icon={<Bot className="w-4 h-4 text-violet-400" />}
+                    label="Copilot"
+                    value={mode === 'off' ? 'Off' : mode === 'autopilot' ? 'Autopilot' : 'Advisor'}
+                    onClick={() => { openCopilot(); setOpen(false) }}
+                  />
+                )}
+                {showAdvanced && (
+                  <ModuleTile
+                    icon={<Layers className="w-4 h-4 text-violet-400" />}
+                    label="Overlays"
+                    value={segmentCount ? `${segmentCount} segment(s)` : 'None'}
+                    href="/platform/networks?tab=segments"
+                    tone={segmentCount > 0 ? 'ok' : undefined}
+                  />
+                )}
+                {showAdvanced && (
+                  <ModuleTile
+                    icon={<HardDrive className="w-4 h-4 text-blue-400" />}
+                    label="Storage tiers"
+                    value={storageTierCount ? `${storageTierCount} tier(s)` : 'None'}
+                    href="/platform/storage?tab=tiers"
+                    tone={storageTierCount > 0 ? 'ok' : undefined}
+                  />
+                )}
               </div>
 
-              {(memPct != null || activeTasks > 0) && (
+              {showPower && (memPct != null || activeTasks > 0) && (
                 <div className="rounded-xl border border-white/[0.06] bg-slate-950/40 p-3 space-y-2">
                   <p className="text-[10px] uppercase tracking-wider text-slate-500">Capacity</p>
                   {memPct != null && (
@@ -202,6 +214,7 @@ export default function PlatformControlCenter() {
                 </div>
               )}
 
+              {showPower && (
               <Row
                 icon={<Shield className="w-4 h-4 text-orange-400" />}
                 label="Zeus Firewall"
@@ -209,7 +222,8 @@ export default function PlatformControlCenter() {
                 href="/platform/zeus/security/firewall"
                 tone={fwCritical || fwDrift ? 'warn' : 'ok'}
               />
-              {operatorSummary && (
+              )}
+              {showAdvanced && operatorSummary && (
                 <Row
                   icon={<Sparkles className="w-4 h-4 text-violet-400" />}
                   label="AI operator"
@@ -218,7 +232,7 @@ export default function PlatformControlCenter() {
                   tone="warn"
                 />
               )}
-              {(desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0 && (
+              {(showPower && (desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0) && (
                 <Row
                   icon={<Activity className="w-4 h-4 text-amber-400" />}
                   label="Linux pressure"
@@ -245,6 +259,8 @@ export default function PlatformControlCenter() {
               />
             </div>
             <div className="px-4 py-3 border-t border-slate-800 space-y-2">
+              {showPower && (
+              <>
               <p className="text-[10px] uppercase tracking-wider text-slate-500">Quick actions</p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" className="btn-secondary text-xs flex items-center gap-1" disabled={syncing} onClick={() => void syncHosts()}>
@@ -253,17 +269,23 @@ export default function PlatformControlCenter() {
                 <Link to="/platform/zeus" className="btn-secondary text-xs flex items-center gap-1" onClick={() => setOpen(false)}>
                   <Sparkles className="w-3 h-3" /> Zeus OS
                 </Link>
+                {showAdvanced && (
                 <Link to="/platform/zeus/security/firewall" className="btn-secondary text-xs" onClick={() => setOpen(false)}>
                   Firewall
                 </Link>
+                )}
               </div>
+              </>
+              )}
             </div>
             <div className="px-4 py-3 border-t border-slate-800 flex gap-2">
               <Link to="/platform/support" className="btn-secondary text-xs flex items-center justify-center gap-1" onClick={() => setOpen(false)}>
                 <HelpCircle className="w-3 h-3" /> Help
               </Link>
-              <Link to="/platform/settings" className="btn-secondary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Settings</Link>
+              <Link to="/platform/settings?section=general" className="btn-secondary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Settings</Link>
+              {showPower && (
               <Link to="/platform/recommendations" className="btn-primary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Tips</Link>
+              )}
             </div>
             <div className="px-4 pb-3 text-xs text-slate-500">
               {running} VMs running · {hosts.filter((h) => h.state === 'online').length}/{hosts.length} hosts online

@@ -10,6 +10,11 @@ import PlatformMacMenuDropdown, { PlatformMacMenuItem } from './PlatformMacMenuD
 import { usePlatformMacDesktop } from './PlatformMacDesktopContext'
 import { openCenterPopout } from '../../../utils/platformCenterPopout'
 import { openPlatformDockEditor } from '../../../utils/platformDockPins'
+import {
+  PLATFORM_DESKTOP_TIER_LABELS,
+  usePlatformDesktopTier,
+  type PlatformDesktopTier,
+} from '../../../utils/platformDesktopTier'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -21,10 +26,16 @@ export default function PlatformMacAppMenus() {
   const { username, logout } = useAuth()
   const { openCopilot } = useAi()
   const { toggleSidebar, toggleInspector, sidebarVisible, inspectorVisible } = usePlatformMacDesktop()
+  const [tier, setTier] = usePlatformDesktopTier()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
 
   const closeMenu = useCallback(() => setOpenMenu(null), [])
   const toggleMenu = (id: string) => setOpenMenu((prev) => (prev === id ? null : id))
+
+  const pickTier = (next: PlatformDesktopTier) => {
+    setTier(next)
+    closeMenu()
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -67,6 +78,10 @@ export default function PlatformMacAppMenus() {
       <PlatformMacMenuDropdown label="View" open={openMenu === 'view'} onToggle={() => toggleMenu('view')} onClose={closeMenu}>
         <PlatformMacMenuItem label="Show Sidebar" shortcut="⌘⌥S" checked={sidebarVisible} onClick={() => { toggleSidebar(); closeMenu() }} />
         <PlatformMacMenuItem label="Show Inspector" shortcut="⌘⌥I" checked={inspectorVisible} onClick={() => { toggleInspector(); closeMenu() }} />
+        <div className="my-1 border-t border-white/[0.08]" />
+        <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.normal} checked={tier === 'normal'} onClick={() => pickTier('normal')} />
+        <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.power} checked={tier === 'power'} onClick={() => pickTier('power')} />
+        <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.advanced} checked={tier === 'advanced'} onClick={() => pickTier('advanced')} />
         <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Stage Manager" onClick={() => { navigate('/platform/projects'); closeMenu() }} />
         <PlatformMacMenuItem label="Mission Control" onClick={() => { navigate('/platform'); closeMenu() }} />

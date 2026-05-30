@@ -277,7 +277,7 @@ export default function VMList() {
           }
         />
       ) : viewMode === 'table' ? (
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
+        <div className="card overflow-hidden">
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-700/50 text-left text-sm text-slate-400">
@@ -359,7 +359,7 @@ export default function VMList() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {sorted.map((vm) => (
-            <div key={vmScopeKey(vm)} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 hover:border-slate-600/50 transition-all">
+            <div key={vmScopeKey(vm)} className="card p-5 hover:border-white/15 transition-all">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2 min-w-0">
                   <input type="checkbox" checked={selectedVMs.has(vmScopeKey(vm))} onChange={() => toggleSelect(vmScopeKey(vm))} className="rounded border-slate-600 bg-slate-900 shrink-0" />

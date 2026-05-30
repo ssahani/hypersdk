@@ -211,8 +211,10 @@ function AuthenticatedApp() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+      <div className="min-h-screen dashboard-liquid-glass liquid-glass-app flex items-center justify-center">
+        <div className="glass glass-elevated p-8 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
       </div>
     )
   }
@@ -262,7 +264,7 @@ function AuthenticatedShellRoutes() {
       ? 'dashboard-steel min-h-screen flex flex-col text-[#d7dde5]'
       : theme === 'aurora'
         ? 'dashboard-aurora min-h-screen flex flex-col text-[#e8e4f8]'
-        : 'min-h-screen bg-slate-950 text-slate-100'
+        : 'dashboard-liquid-glass liquid-glass-app min-h-screen flex flex-col text-[var(--text-primary)]'
 
   return (
     <>

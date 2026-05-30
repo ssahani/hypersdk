@@ -14,6 +14,13 @@ import {
   Workflow,
 } from 'lucide-react'
 import { PLATFORM_SIDEBAR } from './platformNav'
+import {
+  DOCK_PATHS_BY_TIER,
+  isPathAllowedForTier,
+  loadPlatformDesktopTier,
+  PLATFORM_DESKTOP_TIER_EVENT,
+  type PlatformDesktopTier,
+} from './platformDesktopTier'
 
 export type PlatformDockItem = {
   path: string
@@ -38,17 +45,11 @@ const ICON_BY_PATH: Record<string, LucideIcon> = {
 }
 
 /** Default pinned apps for the Machina platform dock (v9s MacDock pattern). */
-export const DEFAULT_PLATFORM_DOCK_PATHS = [
-  '/platform',
-  '/platform/vms',
-  '/platform/hosts',
-  '/platform/activity',
-  '/platform/backups',
-  '/platform/blueprints',
-  '/platform/projects',
-  '/platform/zeus',
-  '/platform/settings',
-]
+export function defaultDockPathsForTier(tier: PlatformDesktopTier = loadPlatformDesktopTier()): string[] {
+  return DOCK_PATHS_BY_TIER[tier]
+}
+
+export const DEFAULT_PLATFORM_DOCK_PATHS = defaultDockPathsForTier('advanced')
 
 export const PLATFORM_SIDEBAR_FLAT = PLATFORM_SIDEBAR.flatMap((s) =>
   s.items.map((item) => ({ path: item.to, label: item.label })),
@@ -65,19 +66,21 @@ function itemForPath(path: string): PlatformDockItem | null {
 }
 
 export function loadPlatformDockItems(): PlatformDockItem[] {
+  const tier = loadPlatformDesktopTier()
   try {
     const raw = localStorage.getItem(DOCK_KEY)
     if (raw) {
       const paths = JSON.parse(raw) as string[]
       if (Array.isArray(paths)) {
-        const items = paths.map(itemForPath).filter(Boolean) as PlatformDockItem[]
+        const allowed = paths.filter((p) => isPathAllowedForTier(p, tier))
+        const items = allowed.map(itemForPath).filter(Boolean) as PlatformDockItem[]
         if (items.length) return items
       }
     }
   } catch {
     /* ignore */
   }
-  return DEFAULT_PLATFORM_DOCK_PATHS.map(itemForPath).filter(Boolean) as PlatformDockItem[]
+  return defaultDockPathsForTier(tier).map(itemForPath).filter(Boolean) as PlatformDockItem[]
 }
 
 export function loadPlatformDockPaths(): string[] {
@@ -89,8 +92,8 @@ export function savePlatformDockPaths(paths: string[]) {
   window.dispatchEvent(new CustomEvent(PLATFORM_DOCK_CHANGED_EVENT))
 }
 
-export function resetPlatformDockPaths() {
-  savePlatformDockPaths(DEFAULT_PLATFORM_DOCK_PATHS)
+export function resetPlatformDockPaths(tier: PlatformDesktopTier = loadPlatformDesktopTier()) {
+  savePlatformDockPaths(defaultDockPathsForTier(tier))
 }
 
 export function openPlatformDockEditor() {
@@ -102,7 +105,11 @@ export function usePlatformDockItems(): PlatformDockItem[] {
   useEffect(() => {
     const refresh = () => setItems(loadPlatformDockItems())
     window.addEventListener(PLATFORM_DOCK_CHANGED_EVENT, refresh)
-    return () => window.removeEventListener(PLATFORM_DOCK_CHANGED_EVENT, refresh)
+    window.addEventListener(PLATFORM_DESKTOP_TIER_EVENT, refresh)
+    return () => {
+      window.removeEventListener(PLATFORM_DOCK_CHANGED_EVENT, refresh)
+      window.removeEventListener(PLATFORM_DESKTOP_TIER_EVENT, refresh)
+    }
   }, [])
   return items
 }

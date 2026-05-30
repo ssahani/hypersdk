@@ -3,12 +3,13 @@
 import { useMemo, useState } from 'react'
 import { ChevronDown, ChevronUp, GripVertical, Plus, RotateCcw, Trash2, X } from 'lucide-react'
 import {
-  DEFAULT_PLATFORM_DOCK_PATHS,
-  PLATFORM_SIDEBAR_FLAT,
+  defaultDockPathsForTier,
   loadPlatformDockPaths,
   resetPlatformDockPaths,
   savePlatformDockPaths,
+  PLATFORM_SIDEBAR_FLAT,
 } from '../../../utils/platformDockPins'
+import { isPathAllowedForTier, loadPlatformDesktopTier } from '../../../utils/platformDesktopTier'
 
 interface PlatformDockEditorProps {
   open: boolean
@@ -16,17 +17,23 @@ interface PlatformDockEditorProps {
 }
 
 export default function PlatformDockEditor({ open, onClose }: PlatformDockEditorProps) {
+  const tier = loadPlatformDesktopTier()
   const [paths, setPaths] = useState<string[]>(() => loadPlatformDockPaths())
   const [addPath, setAddPath] = useState('')
 
+  const catalog = useMemo(
+    () => PLATFORM_SIDEBAR_FLAT.filter((i) => isPathAllowedForTier(i.path, tier)),
+    [tier],
+  )
+
   const pinned = useMemo(
-    () => paths.map((p) => PLATFORM_SIDEBAR_FLAT.find((i) => i.path === p)).filter(Boolean),
-    [paths],
+    () => paths.map((p) => catalog.find((i) => i.path === p)).filter(Boolean),
+    [paths, catalog],
   )
 
   const available = useMemo(
-    () => PLATFORM_SIDEBAR_FLAT.filter((i) => !paths.includes(i.path)),
-    [paths],
+    () => catalog.filter((i) => !paths.includes(i.path)),
+    [paths, catalog],
   )
 
   if (!open) return null
@@ -103,7 +110,7 @@ export default function PlatformDockEditor({ open, onClose }: PlatformDockEditor
           <button
             type="button"
             className="btn-secondary text-sm inline-flex items-center gap-1"
-            onClick={() => { resetPlatformDockPaths(); setPaths([...DEFAULT_PLATFORM_DOCK_PATHS]) }}
+            onClick={() => { resetPlatformDockPaths(); setPaths([...defaultDockPathsForTier(tier)]) }}
           >
             <RotateCcw className="h-3.5 w-3.5" /> Reset defaults
           </button>

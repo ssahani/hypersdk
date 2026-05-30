@@ -666,7 +666,7 @@ export default function SettingsPage() {
             </select>
             <button type="button" onClick={async () => { if (!newRoleUser) return; try { await setRole(newRoleUser, newRoleVal); toast.success('Role set'); setNewRoleUser(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Permissions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
@@ -683,7 +683,7 @@ export default function SettingsPage() {
           </div>
 
           {osUserCap && (
-            <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-3">
+            <div className="card p-5 space-y-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-400" /> System users (PAM / UNIX)</h3>
               <p className="text-xs text-slate-500 break-words hyphens-auto">
                 Adds or removes a UNIX account on the machina host. When <strong className="text-slate-400">systemd-homed</strong> is active and <code className="bg-slate-900/80 px-1 rounded break-all">homectl</code> is available, new users are created with <code className="bg-slate-900/80 px-1 rounded break-all">homectl create</code> (directory storage, <strong className="text-slate-400">wheel</strong>/<strong className="text-slate-400">sudo</strong> membership); otherwise <code className="bg-slate-900/80 px-1 rounded break-all">useradd</code> / <code className="bg-slate-900/80 px-1 rounded break-all">usermod</code>. Password is set with <code className="bg-slate-900/80 px-1 rounded break-all">chpasswd</code>. Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded break-all">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded break-all">newgrp libvirt</code>). Removal uses <code className="bg-slate-900/80 px-1 rounded break-all">homectl remove</code> for homed-managed users, else <code className="bg-slate-900/80 px-1 rounded break-all">userdel -r</code>. The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
@@ -792,7 +792,7 @@ export default function SettingsPage() {
               <div className="font-mono text-sm text-green-300 mt-1 break-all">{createdToken}</div>
             </div>
           )}
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[36rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Token</th><th className="px-6 py-3">User</th><th className="px-6 py-3">Role</th><th className="px-6 py-3">Created</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
@@ -818,7 +818,7 @@ export default function SettingsPage() {
       {tab === 'alerts' && (
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-slate-300">Alert Rules</h3>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[32rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Rule</th><th className="px-6 py-3">Condition</th><th className="px-6 py-3">Threshold</th><th className="px-6 py-3">Enabled</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
@@ -859,7 +859,7 @@ export default function SettingsPage() {
             <input value={newWebhookUrl} onChange={e => setNewWebhookUrl(e.target.value)} className="input-field flex-1 min-w-0" placeholder="https://example.com/webhook" />
             <button type="button" onClick={() => { if (!newWebhookUrl) return; const next = [...webhooks, { id: `wh-${Date.now()}`, url: newWebhookUrl, events: ['*'], enabled: true }]; setWebhooks(next); setNewWebhookUrl(''); saveWebhooks(next).then(() => toast.success('Webhook added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">URL</th><th className="px-6 py-3">Events</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
@@ -897,7 +897,7 @@ export default function SettingsPage() {
             <input type="time" value={newSchedTime} onChange={e => setNewSchedTime(e.target.value)} className="input-field w-full shrink-0 sm:w-28" />
             <button type="button" onClick={() => { if (!newSchedVm) return; const next = [...schedules, { id: `sched-${Date.now()}`, vm_name: newSchedVm, action: newSchedAction, schedule: `daily ${newSchedTime}`, enabled: true, last_run: '' }]; setSchedules(next); saveSchedules(next).then(() => toast.success('Schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[40rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Action</th><th className="px-6 py-3">Schedule</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
@@ -931,7 +931,7 @@ export default function SettingsPage() {
             <input value={newNotifConfig} onChange={e => setNewNotifConfig(e.target.value)} className="input-field flex-1" placeholder={newNotifType === 'slack' ? 'Slack webhook URL' : newNotifType === 'email' ? 'recipient@example.com' : newNotifType === 'telegram' ? 'bot_token:chat_id' : 'https://example.com/hook'} />
             <button onClick={() => { if (!newNotifConfig) return; const next = [...notificationChannels, { id: `notif-${Date.now()}`, channel_type: newNotifType, config: newNotifConfig, enabled: true }]; setNotificationChannels(next); setNewNotifConfig(''); saveNotificationChannels(next).then(() => toast.success('Channel added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[28rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Type</th><th className="px-6 py-3">Config</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">
@@ -971,7 +971,7 @@ export default function SettingsPage() {
             <input type="number" value={newSnapRetain} onChange={e => setNewSnapRetain(e.target.value)} className="input-field w-24" placeholder="Retain" min="1" max="100" />
             <button onClick={() => { if (!newSnapVm) return; const next = [...snapshotSchedules, { id: `snap-${Date.now()}`, vm_name: newSnapVm, interval_hours: parseInt(newSnapInterval) || 24, retain_count: parseInt(newSnapRetain) || 5, enabled: true, last_run: '' }]; setSnapshotSchedules(next); setNewSnapVm(''); saveSnapshotSchedules(next).then(() => toast.success('Snapshot schedule added')).catch((e: unknown) => toast.error(formatUserError(e))) }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition"><Plus className="w-4 h-4" /></button>
           </div>
-          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-x-auto max-w-full">
+          <div className="card overflow-x-auto max-w-full">
             <table className="w-full min-w-[36rem]">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">VM</th><th className="px-6 py-3">Interval</th><th className="px-6 py-3">Retain</th><th className="px-6 py-3">Last Run</th><th className="px-6 py-3">Enabled</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/30">

@@ -1,7 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { Link } from 'react-router'
-import { Plus, X } from 'lucide-react'
+import { Plus } from 'lucide-react'
+import { GlassCard } from '../../glass/GlassCard'
+import { GlassModal } from '../../glass/GlassModal'
 
 export function MacGlassPanel({
   title,
@@ -17,18 +19,18 @@ export function MacGlassPanel({
   className?: string
 }) {
   return (
-    <section className={`tahoe-glass-card platform-mac-panel ${className}`}>
+    <GlassCard hover={false} className={`platform-mac-panel tahoe-glass-card p-0 ${className}`}>
       {(title || action) && (
         <header className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-white/[0.04]">
           <div>
-            {title && <h2 className="font-semibold text-slate-100">{title}</h2>}
-            {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
+            {title && <h2 className="font-semibold text-[var(--text-primary)]">{title}</h2>}
+            {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
           </div>
           {action}
         </header>
       )}
       <div className="p-5">{children}</div>
-    </section>
+    </GlassCard>
   )
 }
 
@@ -65,7 +67,7 @@ export function MacStatWidget({
       <p className={`text-2xl font-semibold mt-2 tracking-tight ${toneClass}`}>{value}</p>
     </>
   )
-  const cls = 'platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 backdrop-blur-md p-4 hover:border-white/10 transition-all'
+  const cls = 'platform-mac-stat glass glass-elevated p-4 hover:border-white/10 transition-all rounded-liquid'
   if (href) return <Link to={href} className={`${cls} block`}>{inner}</Link>
   return <div className={cls}>{inner}</div>
 }
@@ -85,28 +87,10 @@ export function MacSheet({
   children: React.ReactNode
   wide?: boolean
 }) {
-  if (!open) return null
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/55 backdrop-blur-sm" onClick={onClose} aria-hidden />
-      <div
-        className={`platform-mac-sheet relative w-full ${wide ? 'max-w-2xl' : 'max-w-lg'} rounded-2xl border border-white/10 bg-slate-900/95 backdrop-blur-2xl shadow-2xl animate-fade-in overflow-hidden`}
-        role="dialog"
-        aria-modal
-        aria-labelledby="mac-sheet-title"
-      >
-        <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-white/[0.06]">
-          <div>
-            <h3 id="mac-sheet-title" className="text-lg font-semibold text-slate-50">{title}</h3>
-            {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
-          </div>
-          <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-white/5 text-slate-400" aria-label="Close">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        <div className="px-5 py-4 max-h-[min(70vh,640px)] overflow-y-auto">{children}</div>
-      </div>
-    </div>
+    <GlassModal open={open} onClose={onClose} title={title} subtitle={subtitle} wide={wide}>
+      <div className="max-h-[min(70vh,640px)] overflow-y-auto -mx-1 px-1">{children}</div>
+    </GlassModal>
   )
 }
 

@@ -40,7 +40,7 @@ export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDial
 
   return (
     <div
-      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm animate-fade-in flex items-start justify-center pt-[8vh] px-4"
+      className="fixed inset-0 z-[60] liquid-glass-modal-backdrop animate-fade-in flex items-start justify-center pt-[8vh] px-4"
       onClick={onClose}
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose()
@@ -51,22 +51,22 @@ export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDial
         role="dialog"
         aria-modal="true"
         aria-label="Help"
-        className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden"
+        className="liquid-glass-modal-panel w-full max-w-lg overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-700/50">
-          <h2 className="text-lg font-semibold text-white">Help</h2>
+        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.06]">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)]">Help</h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1 hover:bg-slate-700 rounded-lg transition text-slate-400 hover:text-white"
+            className="p-1 hover:bg-white/5 rounded-lg transition text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
             aria-label="Close help"
           >
-            <X className="w-4 h-4" />
+            <X className="w-4 h-4" strokeWidth={1.75} />
           </button>
         </div>
 
-        <div className="flex border-b border-slate-700/50 px-2 pt-1" role="tablist" aria-label="Help sections">
+        <div className="flex border-b border-white/[0.06] px-2 pt-1" role="tablist" aria-label="Help sections">
           {TABS.map((t) => (
             <button
               key={t.id}
@@ -77,7 +77,7 @@ export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDial
               className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === t.id
                   ? 'border-blue-500 text-blue-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-300'
+                  : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
             >
               {t.icon}

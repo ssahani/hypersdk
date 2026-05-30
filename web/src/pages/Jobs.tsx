@@ -117,7 +117,7 @@ export default function JobsPage() {
             refreshList()
             refreshDetail()
           }}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-600 text-sm text-slate-200 hover:bg-slate-800"
+          className="btn-secondary text-sm inline-flex items-center gap-1.5"
         >
           <RefreshCw className="w-4 h-4" aria-hidden />
           Refresh
@@ -139,8 +139,8 @@ export default function JobsPage() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
-          <h2 className="text-lg font-semibold text-slate-200 mb-3">Recent jobs</h2>
+        <div className="card p-4">
+          <h2 className="text-lg font-semibold text-[var(--text-primary)] mb-3">Recent jobs</h2>
           {loading && jobs.length === 0 ? (
             <p className="text-slate-500 text-sm">Loading…</p>
           ) : jobs.length === 0 ? (
@@ -176,7 +176,7 @@ export default function JobsPage() {
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-700/60 bg-slate-900/40 p-4 flex flex-col min-h-[20rem]">
+        <div className="card p-4 flex flex-col min-h-[20rem]">
           {!selectedId ? (
             <p className="text-slate-500 text-sm">Select a job from the list to view logs.</p>
           ) : !detail ? (

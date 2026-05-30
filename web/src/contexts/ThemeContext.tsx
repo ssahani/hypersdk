@@ -39,11 +39,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     localStorage.setItem('machina-theme', theme)
     const root = document.documentElement
-    root.classList.remove('steel-theme', 'aurora-theme')
+    root.classList.remove('steel-theme', 'aurora-theme', 'liquid-glass-app')
     if (theme === 'steel') {
       root.classList.add('steel-theme')
     } else if (theme === 'aurora') {
       root.classList.add('aurora-theme')
+    } else {
+      root.classList.add('liquid-glass-app')
     }
   }, [theme])
 
