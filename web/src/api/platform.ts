@@ -726,6 +726,39 @@ export type FleetLinuxHealthOverview = {
 export const getFleetLinuxHealth = () =>
   platformFetch<FleetLinuxHealthOverview>('/api/v1/fleet/linux-health')
 
+export type VmActivityItem = {
+  vm_id: string
+  vm_name: string
+  host_id?: string | null
+  observed_state: string
+  cpu_percent: number
+  memory_used_mib: number
+  memory_mib: number
+}
+
+export type HostActivityItem = {
+  host_id: string
+  hostname: string
+  state: string
+  cpu_percent: number
+  memory_percent: number
+  vm_count: number
+  io_pressure_pct: number
+  thermal_max_c: number
+  status: string
+}
+
+export type FleetActivityOverview = {
+  summary: string
+  top_vms: VmActivityItem[]
+  hosts: HostActivityItem[]
+  pressure_hosts: number
+  running_vms: number
+}
+
+export const getFleetActivity = () =>
+  platformFetch<FleetActivityOverview>('/api/v1/fleet/activity')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

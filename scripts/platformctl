@@ -76,6 +76,7 @@ case "$cmd" in
     sub=${2:-}
     case "$sub" in
       linux-health) api GET /api/v1/fleet/linux-health | jq . ;;
+      activity) api GET /api/v1/fleet/activity | jq . ;;
       diagnose) api POST /api/v1/ai/fleet/diagnose -d "{\"query\":\"${3:-fleet linux pressure}\"}" | jq . ;;
       *) echo "unknown fleet subcommand: $sub" >&2; exit 1 ;;
     esac

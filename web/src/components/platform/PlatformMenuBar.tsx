@@ -28,6 +28,10 @@ export default function PlatformMenuBar() {
       <Link to="/platform/tasks" className="hover:text-slate-100 transition">
         {desktop.active_tasks} tasks
       </Link>
+      <Link to="/platform/activity" className="inline-flex items-center gap-1 hover:text-blue-200 transition">
+        <Activity className="w-3 h-3" />
+        Activity
+      </Link>
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${sloTone}`}>
         {desktop.slo_breach_count > 0 ? `${desktop.slo_breach_count} SLO breach` : `${desktop.slo_count} SLO OK`}
       </span>

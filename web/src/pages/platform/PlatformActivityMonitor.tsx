@@ -1,65 +1,128 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Activity } from 'lucide-react'
+import { Link } from 'react-router'
+import { Activity, Server, Terminal } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
-import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
-import { listPlatformVms, getPlatformVmMetrics, type PlatformVm } from '../../api/platform'
+import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { getFleetActivity, type FleetActivityOverview } from '../../api/platform'
+
+type Tab = 'vms' | 'hosts'
+
+function bar(label: string, pct: number, tone: 'cpu' | 'mem' | 'io' | 'thermal') {
+  const color =
+    tone === 'io' || tone === 'thermal'
+      ? pct > 50 ? 'bg-rose-500' : pct > 20 ? 'bg-amber-500' : 'bg-emerald-500'
+      : pct > 85 ? 'bg-rose-500' : pct > 60 ? 'bg-amber-500' : 'bg-blue-500'
+  return (
+    <div className="flex items-center gap-2 text-[10px] text-slate-500">
+      <span className="w-14 shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
+        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      </div>
+      <span className="w-10 text-right">{pct.toFixed(0)}%</span>
+    </div>
+  )
+}
 
 export default function PlatformActivityMonitor() {
-  const [vms, setVms] = useState<PlatformVm[]>([])
-  const [metrics, setMetrics] = useState<Record<string, { memory_used_mib: number; cpu_percent: number }>>({})
+  const [tab, setTab] = useState<Tab>('vms')
+  const [data, setData] = useState<FleetActivityOverview | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
-    const v = await listPlatformVms()
-    setVms(v.filter((x) => x.observed_state === 'running'))
-    const m: Record<string, { memory_used_mib: number; cpu_percent: number }> = {}
-    await Promise.all(
-      v.slice(0, 20).map(async (vm) => {
-        try {
-          const row = await getPlatformVmMetrics(vm.id)
-          m[vm.id] = { memory_used_mib: row.memory_used_mib, cpu_percent: row.cpu_percent }
-        } catch { /* no metrics yet */ }
-      }),
-    )
-    setMetrics(m)
+    setError(null)
+    try {
+      setData(await getFleetActivity())
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Activity load failed')
+      setData(null)
+    }
   }, [])
 
   useEffect(() => { void load() }, [load])
 
-  const sorted = [...vms].sort((a, b) => (metrics[b.id]?.memory_used_mib ?? 0) - (metrics[a.id]?.memory_used_mib ?? 0))
-  const maxMem = Math.max(1, ...sorted.map((v) => metrics[v.id]?.memory_used_mib ?? 0))
+  const maxVmMem = Math.max(1, ...(data?.top_vms.map((v) => v.memory_used_mib) ?? [1]))
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <MacSectionTitle title="Activity Monitor" subtitle="Top resource consumers — bar meters like macOS Activity Monitor." />
-      {sorted.length === 0 ? (
-        <PlatformEmptyState title="No running VMs" subtitle="Start a VM to see live CPU and memory usage." />
-      ) : (
-        <ul className="space-y-2">
-          {sorted.map((vm) => {
-            const m = metrics[vm.id]
-            const memPct = m ? Math.min(100, (m.memory_used_mib / maxMem) * 100) : 0
-            const cpuPct = m ? Math.min(100, m.cpu_percent) : 0
-            return (
-              <li key={vm.id} className="platform-mac-stat rounded-xl border border-white/[0.06] bg-slate-900/50 p-4">
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium text-slate-200">{vm.name}</span>
-                  <span className="text-xs text-slate-500">{m ? `${m.memory_used_mib} MiB · ${m.cpu_percent.toFixed(0)}% CPU` : '—'}</span>
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500"><span className="w-12">Memory</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{ width: `${memPct}%` }} /></div>
+      <MacSectionTitle
+        title="Activity Monitor"
+        subtitle="Fleet-wide CPU, memory, and Linux PSI — macOS Activity Monitor for your hypervisors."
+      />
+      {data && <p className="text-sm text-slate-400">{data.summary}</p>}
+      {error && <p className="text-sm text-red-400">{error}</p>}
+
+      <div className="flex flex-wrap gap-2">
+        {([
+          { id: 'vms' as Tab, label: 'VMs', icon: <Terminal className="w-3 h-3" /> },
+          { id: 'hosts' as Tab, label: 'Hosts', icon: <Server className="w-3 h-3" /> },
+        ]).map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border ${
+              tab === t.id ? 'border-blue-400/50 bg-blue-500/10 text-blue-200' : 'border-white/[0.08] text-slate-400'
+            }`}
+            onClick={() => setTab(t.id)}
+          >
+            {t.icon} {t.label}
+          </button>
+        ))}
+        <button type="button" className="btn-secondary text-xs ml-auto" onClick={() => void load()}>Refresh</button>
+      </div>
+
+      {tab === 'vms' && (
+        data?.top_vms.length ? (
+          <ul className="space-y-2">
+            {data.top_vms.map((vm) => {
+              const memPct = Math.min(100, (vm.memory_used_mib / maxVmMem) * 100)
+              return (
+                <li key={vm.vm_id} className="platform-mac-stat rounded-xl border border-white/[0.06] bg-slate-900/50 p-4">
+                  <div className="flex justify-between items-center mb-2">
+                    <Link to={`/platform/vms/${vm.vm_id}`} className="font-medium text-slate-200 hover:text-blue-300">{vm.vm_name}</Link>
+                    <span className="text-xs text-slate-500">{vm.memory_used_mib} / {vm.memory_mib} MiB</span>
                   </div>
-                  <div className="flex items-center gap-2 text-[10px] text-slate-500"><span className="w-12">CPU</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden"><div className="h-full bg-emerald-500 rounded-full" style={{ width: `${cpuPct}%` }} /></div>
+                  <div className="space-y-1.5">
+                    {bar('Memory', memPct, 'mem')}
+                    {bar('CPU', vm.cpu_percent, 'cpu')}
                   </div>
+                </li>
+              )
+            })}
+          </ul>
+        ) : (
+          <PlatformEmptyState title="No running VMs" subtitle="Start a VM to see live CPU and memory usage." />
+        )
+      )}
+
+      {tab === 'hosts' && (
+        data?.hosts.length ? (
+          <MacGlassPanel title="Hypervisor hosts" subtitle="Inventory CPU/memory + Linux PSI when agent online">
+            {data.hosts.map((h) => (
+              <div key={h.host_id} className="py-3 border-b border-white/[0.04] last:border-0">
+                <MacListRow
+                  title={h.hostname}
+                  subtitle={`${h.vm_count} VM(s) · ${h.state} · ${h.status}`}
+                  badge={
+                    h.status !== 'ok' && h.status !== 'offline' ? (
+                      <span className="text-[10px] text-amber-400">{h.status}</span>
+                    ) : undefined
+                  }
+                  href={`/platform/hosts/${h.host_id}`}
+                />
+                <div className="mt-2 space-y-1 pl-1 max-w-md">
+                  {bar('CPU', h.cpu_percent, 'cpu')}
+                  {bar('Memory', h.memory_percent, 'mem')}
+                  {h.io_pressure_pct > 0 && bar('IO PSI', h.io_pressure_pct, 'io')}
+                  {h.thermal_max_c > 0 && bar('Thermal', Math.min(100, h.thermal_max_c), 'thermal')}
                 </div>
-                <p className="text-xs text-slate-500 mt-2">{m && m.memory_used_mib > 8192 ? 'High memory — consider right-sizing' : 'Normal'}</p>
-              </li>
-            )
-          })}
-        </ul>
+              </div>
+            ))}
+          </MacGlassPanel>
+        ) : (
+          <PlatformEmptyState title="No hosts" subtitle="Enroll hypervisors to monitor fleet activity." />
+        )
       )}
     </div>
   )
