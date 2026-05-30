@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { Activity, Archive, Bell, LayoutGrid, Server, Sparkles, Users } from 'lucide-react'
+import { Activity, Archive, Bell, LayoutGrid, Server, Sparkles, Users, Workflow } from 'lucide-react'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 
@@ -94,6 +94,10 @@ export default function PlatformMenuBar() {
       <Link to="/platform/backups" className="inline-flex items-center gap-1 hover:text-violet-200 transition">
         <Archive className="w-3 h-3" />
         Time Machine
+      </Link>
+      <Link to="/platform/blueprints" className="inline-flex items-center gap-1 hover:text-emerald-200 transition">
+        <Workflow className="w-3 h-3" />
+        Shortcuts
       </Link>
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${sloTone}`}>
         {desktop.slo_breach_count > 0 ? `${desktop.slo_breach_count} SLO breach` : `${desktop.slo_count} SLO OK`}

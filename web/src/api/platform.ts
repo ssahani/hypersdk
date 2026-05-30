@@ -970,6 +970,27 @@ export type FleetUsersOverview = {
 export const getFleetUsers = () =>
   platformFetch<FleetUsersOverview>('/api/v1/fleet/users')
 
+export type FleetShortcutItem = {
+  id: string
+  name: string
+  description: string
+  actions: string[]
+  vm_count: number
+  action_count: number
+}
+
+export type FleetShortcutsOverview = {
+  summary: string
+  blueprint_count: number
+  total_vms_covered: number
+  runbook_count: number
+  executions_24h: number
+  shortcuts: FleetShortcutItem[]
+}
+
+export const getFleetShortcuts = () =>
+  platformFetch<FleetShortcutsOverview>('/api/v1/fleet/shortcuts')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

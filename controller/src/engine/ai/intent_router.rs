@@ -126,6 +126,20 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("shortcut")
+        || (ql.contains("launchpad") && ql.contains("blueprint"))
+        || (ql.contains("blueprint") && ql.contains("run"))
+    {
+        intents.push(intent(
+            "fleet-shortcuts",
+            "Shortcuts",
+            "Blueprint Launchpad — one-click automation across VM sets.",
+            "navigate",
+            None,
+            Some("/platform/blueprints?tab=launchpad".into()),
+            None,
+        ));
+    }
     if ql.contains("users and groups") || ql.contains("users & groups") || ql.contains("workspace switch")
         || ql.contains("switch workspace") || ql.contains("switch tenant")
     {
