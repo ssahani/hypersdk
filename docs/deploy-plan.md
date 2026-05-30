@@ -16,8 +16,8 @@
 
 | Commit | Message |
 |--------|---------|
+| `273c017` | Fix invalid UUID seeds in enterprise hardening migration |
 | `6ce5f74` | Update deploy plan commit pin after Linux build fix |
-| `875c89f` | Fix guest port scan compile on Linux remote deploy |
 | `1ba2d34` | Ship Phase 47 Stage Manager — workspace spaces strip and fleet rollup |
 
 Branch: `main` (synced with `origin/main`)
@@ -67,6 +67,16 @@ Spotlight smoke (platform UI): `stage manager`, `shortcut launchpad`, `users and
 
 - Fixed invalid UUID seeds in `033_enterprise_hardening.sql` (`t1000000` / `m1000000` → valid hex).
 - Fixed `guest_ports.rs` `?` in `Vec` return for Linux remote `make release`.
+
+### Last deploy result (2026-05-30)
+
+| Check | Result |
+|-------|--------|
+| Remote deploy (`--quick --platform`) | **Success** |
+| Daemon UI | https://212.8.252.194:5092/ |
+| Controller | http://212.8.252.194:5093/api/v1/health |
+| Full E2E | 277 passed, **5 failed** (pre-existing: guest-ports, lldp, storage tiers, network-diag, fleet/storage) |
+| Phases 46–47 APIs | `GET /fleet/shortcuts`, `GET /fleet/spaces` — verify after login |
 
 ## Next up (Phase 48+)
 
