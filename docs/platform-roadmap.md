@@ -312,14 +312,15 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 39 | 592–601 | Finder — smart folders + tag/project sidebar | **Shipped (v1)** |
 | 40 | 602–611 | Network — System Settings pane + Network Lens tab | **Shipped (v1)** |
 | 41 | 612–621 | Disk Utility — storage pool health rings + SMART rollup | **Shipped (v1)** |
+| 42 | 622–631 | Console — unified fleet log tail | **Shipped (v1)** |
 
-### Horizon — macOS OS Manager (Phases 42–237)
+### Horizon — macOS OS Manager (Phases 43–237)
 
 Full **200-phase** macOS metaphor map: [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md).
 
 | Phase | AI range | macOS app | Theme |
 |-------|----------|-----------|--------|
-| 42 | 622–631 | Console — unified fleet log tail | Planned |
+| 43 | 632–641 | Software Update — host patch catalog | Planned |
 | 48–237 | 682–2581 | All macOS layers | 20 layers × ~10 phases each |
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.

@@ -113,6 +113,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("console") || ql.contains("fleet log") || ql.contains("audit log")
+        || (ql.contains("task") && ql.contains("fail"))
+    {
+        intents.push(intent(
+            "fleet-console",
+            "Console",
+            "Unified fleet log tail — audit, platform events, and task failures.",
+            "navigate",
+            None,
+            Some("/platform/events".into()),
+            None,
+        ));
+    }
     if ql.contains("network lens") || ql.contains("reachability") || (ql.contains("why") && ql.contains("reach")) {
         intents.push(intent(
             "network-lens",

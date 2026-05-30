@@ -81,6 +81,7 @@ case "$cmd" in
       finder) api GET /api/v1/fleet/finder | jq . ;;
       network) api GET /api/v1/fleet/network | jq . ;;
       storage) api GET /api/v1/fleet/storage | jq . ;;
+      console) api GET /api/v1/fleet/console | jq . ;;
       diagnose) api POST /api/v1/ai/fleet/diagnose -d "{\"query\":\"${3:-fleet linux pressure}\"}" | jq . ;;
       *) echo "unknown fleet subcommand: $sub" >&2; exit 1 ;;
     esac

@@ -866,6 +866,32 @@ export type FleetStorageOverview = {
 export const getFleetStorage = () =>
   platformFetch<FleetStorageOverview>('/api/v1/fleet/storage')
 
+export type FleetConsoleEntry = {
+  source: string
+  id: string
+  severity: string
+  actor?: string | null
+  action: string
+  message: string
+  resource_type?: string | null
+  created_at: string
+}
+
+export type FleetConsoleOverview = {
+  summary: string
+  total_24h: number
+  audit_24h: number
+  events_24h: number
+  tasks_failed_24h: number
+  audit_count: number
+  event_count: number
+  task_count: number
+  entries: FleetConsoleEntry[]
+}
+
+export const getFleetConsole = () =>
+  platformFetch<FleetConsoleOverview>('/api/v1/fleet/console')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

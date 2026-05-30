@@ -11,6 +11,7 @@ use crate::engine::fleet_backups;
 use crate::engine::fleet_finder;
 use crate::engine::fleet_network;
 use crate::engine::fleet_storage;
+use crate::engine::fleet_console;
 use crate::state::AppState;
 
 pub async fn desktop_overview(
@@ -71,6 +72,15 @@ pub async fn storage_overview(
     State(state): State<AppState>,
 ) -> Result<Json<fleet_storage::FleetStorageOverview>, ApiError> {
     fleet_storage::overview(&state.pool, &state.config)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn console_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_console::FleetConsoleOverview>, ApiError> {
+    fleet_console::overview(&state.pool)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

@@ -100,7 +100,7 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
       { to: '/platform/support', label: 'Support', icon: ic(LifeBuoy) },
       { to: '/platform/settings', label: 'Settings', icon: ic(Settings) },
       { to: '/platform/enroll', label: 'Add Host', icon: ic(Key) },
-      { to: '/platform/events', label: 'Logs & Audit', icon: ic(LifeBuoy) },
+      { to: '/platform/events', label: 'Console', icon: ic(LifeBuoy) },
     ],
   },
 ]
@@ -141,5 +141,5 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/support': 'Support',
   '/platform/settings': 'Settings',
   '/platform/enroll': 'Add Host',
-  '/platform/events': 'Logs & Audit',
+  '/platform/events': 'Console',
 }
