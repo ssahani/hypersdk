@@ -117,6 +117,61 @@ pub fn builtin_profiles() -> Vec<FirewallProfile> {
             StealthLevel::Emergency,
             vec![allow_tcp("22", vec!["zeus-management"]), allow_tcp("443", vec!["backup-network"])],
         ),
+        profile(
+            "BareMetalBmc",
+            "Bare Metal BMC",
+            "BMC VLAN only — IPMI/Redfish from admin network",
+            "deny",
+            "allow",
+            StealthLevel::Standard,
+            vec![
+                allow_tcp("623", vec!["bmc-vlan", "admin-network"]),
+                allow_tcp("443", vec!["bmc-vlan", "admin-network"]),
+            ],
+        ),
+        profile(
+            "BareMetalPxe",
+            "Bare Metal PXE",
+            "PXE isolation — boot services from provisioning net only",
+            "deny",
+            "allow",
+            StealthLevel::Standard,
+            vec![
+                allow_tcp("67", vec!["pxe-vlan"]),
+                allow_tcp("69", vec!["pxe-vlan"]),
+                allow_tcp("4011", vec!["pxe-vlan"]),
+            ],
+        ),
+        profile(
+            "ProvisioningDenyAll",
+            "Provisioning Deny All",
+            "Deny-all on provisioning segment",
+            "deny",
+            "deny",
+            StealthLevel::Strict,
+            vec![],
+        ),
+        profile(
+            "MetalLockdown",
+            "Metal Lockdown",
+            "Emergency BMC-only management",
+            "deny",
+            "deny",
+            StealthLevel::Emergency,
+            vec![allow_tcp("623", vec!["zeus-management"]), allow_tcp("443", vec!["zeus-management"])],
+        ),
+        profile(
+            "BareMetalRedfish",
+            "Bare Metal Redfish",
+            "Redfish HTTPS + restricted IPMI",
+            "deny",
+            "allow",
+            StealthLevel::Standard,
+            vec![
+                allow_tcp("443", vec!["bmc-vlan"]),
+                allow_tcp("623", vec!["zeus-management"]),
+            ],
+        ),
     ]
 }
 

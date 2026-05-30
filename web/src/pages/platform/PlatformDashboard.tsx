@@ -14,6 +14,8 @@ import {
   AlertTriangle,
   HardDrive,
   RefreshCw,
+  Shield,
+  Sparkles,
 } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import ActionCard from '../../components/platform/ActionCard'
@@ -34,7 +36,7 @@ import {
   type PlatformHost,
   type PlatformTask,
 } from '../../api/platform'
-import { getAiSecurity, getAiSettings, getZeusSummary, getRemediateHub, runAutopilotSafe, type AiSettings, type SecurityReport } from '../../api/ai'
+import { getAiSecurity, getAiSettings, getZeusSummary, runAutopilotSafe, type AiSettings, type SecurityReport } from '../../api/ai'
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -50,7 +52,12 @@ export default function PlatformDashboard() {
   const [capacity, setCapacity] = useState<CapacityReport | null>(null)
   const [security, setSecurity] = useState<SecurityReport | null>(null)
   const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
-  const [zeusStrip, setZeusStrip] = useState<string | null>(null)
+  const [zeusStrip, setZeusStrip] = useState<{
+    status: string
+    tagline: string
+    firewallCritical: number
+    firewallDrift: number
+  } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
 
@@ -81,8 +88,13 @@ export default function PlatformDashboard() {
   useEffect(() => { void load() }, [load])
 
   useEffect(() => {
-    void Promise.all([getZeusSummary(), getRemediateHub()])
-      .then(([z, h]) => setZeusStrip(`${z.status} · ${h.summary}`))
+    void getZeusSummary()
+      .then((z) => setZeusStrip({
+        status: z.status,
+        tagline: z.tagline,
+        firewallCritical: z.firewall_critical_hosts ?? 0,
+        firewallDrift: z.firewall_drift_hosts ?? 0,
+      }))
       .catch(() => {})
   }, [])
 
@@ -143,10 +155,35 @@ export default function PlatformDashboard() {
 
       {error && <ErrorBanner message={error} />}
       {zeusStrip && (
-        <p className="text-xs text-orange-200/80 border border-orange-500/20 rounded-lg px-3 py-2 bg-orange-500/5">
-          Machina Zeus OS — {zeusStrip}
-          <Link to="/platform/zeus" className="text-blue-400 ml-2">Open hub →</Link>
-        </p>
+        <MacGlassPanel
+          title="Machina Zeus OS"
+          subtitle={zeusStrip.tagline}
+          action={<Link to="/platform/zeus" className="text-xs text-blue-400">Open hub →</Link>}
+        >
+          <div className="flex flex-wrap items-center gap-3 -mt-1">
+            <span className="inline-flex items-center gap-1.5 text-sm text-orange-200/90">
+              <Sparkles className="w-4 h-4 text-orange-400" />
+              {zeusStrip.status}
+            </span>
+            <Link
+              to="/platform/zeus/security/firewall"
+              className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition ${
+                zeusStrip.firewallCritical > 0
+                  ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                  : zeusStrip.firewallDrift > 0
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
+                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              }`}
+            >
+              <Shield className="w-3 h-3" />
+              {zeusStrip.firewallCritical > 0
+                ? `${zeusStrip.firewallCritical} critical firewall host(s)`
+                : zeusStrip.firewallDrift > 0
+                  ? `${zeusStrip.firewallDrift} host(s) with drift`
+                  : 'Firewall posture OK'}
+            </Link>
+          </div>
+        </MacGlassPanel>
       )}
 
       {mode === 'autopilot' && (

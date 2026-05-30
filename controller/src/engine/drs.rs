@@ -89,6 +89,7 @@ pub async fn get_cluster_settings(pool: &PgPool) -> anyhow::Result<ClusterSettin
     Ok(sqlx::query_as(
         "SELECT drs_auto_migrate, drs_cpu_threshold, ha_enabled, placement_policy,
                 inventory_sync_interval_secs, require_vm_delete_approval,
+                firewall_approval_sla_hours,
                 finops_vcpu_hour_usd, finops_gib_hour_usd
          FROM clusters ORDER BY created_at LIMIT 1",
     )
@@ -142,6 +143,12 @@ pub async fn update_cluster_settings(pool: &PgPool, settings: &ClusterSettingsPa
             .execute(pool)
             .await?;
     }
+    if let Some(v) = settings.firewall_approval_sla_hours {
+        sqlx::query("UPDATE clusters SET firewall_approval_sla_hours = $1")
+            .bind(v.clamp(1, 720))
+            .execute(pool)
+            .await?;
+    }
     if let Some(v) = settings.finops_vcpu_hour_usd {
         sqlx::query("UPDATE clusters SET finops_vcpu_hour_usd = $1")
             .bind(v)
@@ -165,6 +172,7 @@ pub struct ClusterSettings {
     pub placement_policy: String,
     pub inventory_sync_interval_secs: i32,
     pub require_vm_delete_approval: bool,
+    pub firewall_approval_sla_hours: i32,
     pub finops_vcpu_hour_usd: f64,
     pub finops_gib_hour_usd: f64,
 }
@@ -177,6 +185,7 @@ pub struct ClusterSettingsPatch {
     pub placement_policy: Option<String>,
     pub inventory_sync_interval_secs: Option<i32>,
     pub require_vm_delete_approval: Option<bool>,
+    pub firewall_approval_sla_hours: Option<i32>,
     pub finops_vcpu_hour_usd: Option<f64>,
     pub finops_gib_hour_usd: Option<f64>,
 }

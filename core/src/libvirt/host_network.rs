@@ -663,6 +663,257 @@ pub fn get_systemd_network_diagnostics() -> Result<SystemdNetworkDiagnostics, Li
     })
 }
 
+// ── LLDP (systemd-networkd / NetworkManager) ─────────────────────
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LldpNeighbor {
+    pub local_interface: String,
+    pub chassis_id: String,
+    pub system_name: String,
+    pub port_id: String,
+    pub port_description: String,
+    pub system_description: String,
+    pub capabilities: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LldpInventory {
+    /// `systemd_networkd`, `network_manager`, or `none`
+    pub source: String,
+    pub neighbors: Vec<LldpNeighbor>,
+    pub raw_text: String,
+    pub summary: String,
+}
+
+/// Gather LLDP neighbors from systemd-networkd (`networkctl lldp`) or NetworkManager (`nmcli device lldp list`).
+pub fn gather_lldp_neighbors() -> LldpInventory {
+    let networkd_active = is_service_active("systemd-networkd").unwrap_or(false);
+    let nm_active = is_service_active("NetworkManager").unwrap_or(false);
+
+    if networkd_active {
+        if let Ok(inv) = gather_lldp_from_networkctl() {
+            if !inv.neighbors.is_empty() {
+                return inv;
+            }
+        }
+        if let Ok(inv) = gather_lldp_from_systemd_json_dir() {
+            if !inv.neighbors.is_empty() {
+                return inv;
+            }
+        }
+    }
+
+    if nm_active {
+        if let Ok(inv) = gather_lldp_from_nmcli() {
+            if !inv.neighbors.is_empty() {
+                return inv;
+            }
+        }
+    }
+
+    let hint = if networkd_active {
+        "No LLDP neighbors yet — set LLDP=yes in .network files or wait for switch advertisements."
+    } else if nm_active {
+        "No LLDP neighbors — set connection.lldp=on in NetworkManager profiles."
+    } else {
+        "Neither systemd-networkd nor NetworkManager is active for LLDP collection."
+    };
+
+    LldpInventory {
+        source: "none".into(),
+        neighbors: vec![],
+        raw_text: String::new(),
+        summary: hint.into(),
+    }
+}
+
+fn gather_lldp_from_networkctl() -> Result<LldpInventory, LibvirtError> {
+    let networkctl = find_bin("networkctl");
+    let raw = run_capture_soft(&networkctl, &["lldp"]);
+    if raw.contains("(failed to run") || raw.contains("(exit ") {
+        return Err(LibvirtError::Operation("networkctl lldp unavailable".into()));
+    }
+    let neighbors = parse_networkctl_lldp_text(&raw);
+    let summary = if neighbors.is_empty() {
+        "systemd-networkd LLDP — no neighbors advertised".into()
+    } else {
+        format!(
+            "{} LLDP neighbor(s) via systemd-networkd",
+            neighbors.len()
+        )
+    };
+    Ok(LldpInventory {
+        source: "systemd_networkd".into(),
+        neighbors,
+        raw_text: raw,
+        summary,
+    })
+}
+
+fn gather_lldp_from_systemd_json_dir() -> Result<LldpInventory, LibvirtError> {
+    let dir = Path::new("/run/systemd/netif/lldp");
+    if !dir.is_dir() {
+        return Err(LibvirtError::Operation("no systemd lldp dir".into()));
+    }
+    let mut neighbors = Vec::new();
+    let mut raw_parts = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(|e| LibvirtError::Operation(e.to_string()))? {
+        let entry = entry.map_err(|e| LibvirtError::Operation(e.to_string()))?;
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        let text = std::fs::read_to_string(&path).unwrap_or_default();
+        raw_parts.push(text.clone());
+        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&text) {
+            if let Some(arr) = parsed.as_array() {
+                for item in arr {
+                    neighbors.push(json_lldp_neighbor(item));
+                }
+            } else if parsed.is_object() {
+                neighbors.push(json_lldp_neighbor(&parsed));
+            }
+        }
+    }
+    if neighbors.is_empty() {
+        return Err(LibvirtError::Operation("empty systemd lldp json".into()));
+    }
+    Ok(LldpInventory {
+        source: "systemd_networkd".into(),
+        summary: format!("{} LLDP neighbor(s) from systemd JSON", neighbors.len()),
+        neighbors,
+        raw_text: raw_parts.join("\n---\n"),
+    })
+}
+
+fn json_lldp_neighbor(v: &serde_json::Value) -> LldpNeighbor {
+    LldpNeighbor {
+        local_interface: v
+            .get("IfName")
+            .or_else(|| v.get("ifname"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        chassis_id: v
+            .get("ChassisID")
+            .or_else(|| v.get("chassis_id"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        system_name: v
+            .get("SystemName")
+            .or_else(|| v.get("system_name"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        port_id: v
+            .get("PortID")
+            .or_else(|| v.get("port_id"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        port_description: v
+            .get("PortDescription")
+            .or_else(|| v.get("port_description"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        system_description: v
+            .get("SystemDescription")
+            .or_else(|| v.get("system_description"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("")
+            .to_string(),
+        capabilities: v
+            .get("Capabilities")
+            .or_else(|| v.get("capabilities"))
+            .map(|x| x.to_string())
+            .unwrap_or_default(),
+    }
+}
+
+fn gather_lldp_from_nmcli() -> Result<LldpInventory, LibvirtError> {
+    let nmcli = find_bin("nmcli");
+    let raw = run_capture_soft(&nmcli, &["-t", "device", "lldp", "list"]);
+    if raw.contains("(failed to run") {
+        return Err(LibvirtError::Operation("nmcli lldp unavailable".into()));
+    }
+    let neighbors = parse_nmcli_lldp_text(&raw);
+    let summary = if neighbors.is_empty() {
+        "NetworkManager LLDP — no neighbors advertised".into()
+    } else {
+        format!("{} LLDP neighbor(s) via NetworkManager", neighbors.len())
+    };
+    Ok(LldpInventory {
+        source: "network_manager".into(),
+        neighbors,
+        raw_text: raw,
+        summary,
+    })
+}
+
+fn parse_networkctl_lldp_text(raw: &str) -> Vec<LldpNeighbor> {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let t = line.trim();
+        if t.is_empty()
+            || t.starts_with("IDX")
+            || t.starts_with("LINK")
+            || t.starts_with("──")
+            || t.starts_with("No neighbors")
+        {
+            continue;
+        }
+        let parts: Vec<&str> = t.split_whitespace().collect();
+        if parts.len() < 5 {
+            continue;
+        }
+        // Skip optional numeric index column.
+        let base = if parts[0].chars().all(|c| c.is_ascii_digit()) {
+            1
+        } else {
+            0
+        };
+        if parts.len() <= base + 4 {
+            continue;
+        }
+        out.push(LldpNeighbor {
+            local_interface: parts[base].to_string(),
+            chassis_id: parts[base + 1].to_string(),
+            system_name: parts.get(base + 2).copied().unwrap_or("").to_string(),
+            capabilities: parts.get(base + 3).copied().unwrap_or("").to_string(),
+            port_id: parts.get(base + 4).copied().unwrap_or("").to_string(),
+            port_description: parts.get(base + 5..).map(|p| p.join(" ")).unwrap_or_default(),
+            system_description: String::new(),
+        });
+    }
+    out
+}
+
+fn parse_nmcli_lldp_text(raw: &str) -> Vec<LldpNeighbor> {
+    let mut out = Vec::new();
+    for line in raw.lines() {
+        let t = line.trim();
+        if t.is_empty() {
+            continue;
+        }
+        let cols: Vec<&str> = t.split(':').collect();
+        if cols.len() < 4 {
+            continue;
+        }
+        out.push(LldpNeighbor {
+            local_interface: cols[0].to_string(),
+            chassis_id: cols.get(1).copied().unwrap_or("").to_string(),
+            system_name: cols.get(2).copied().unwrap_or("").to_string(),
+            port_id: cols.get(3).copied().unwrap_or("").to_string(),
+            port_description: cols.get(4..).map(|c| c.join(":")).unwrap_or_default(),
+            system_description: String::new(),
+            capabilities: String::new(),
+        });
+    }
+    out
+}
+
 pub fn get_systemd_interface_status(iface: &str) -> Result<String, LibvirtError> {
     if iface.is_empty()
         || !iface

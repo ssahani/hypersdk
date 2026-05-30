@@ -23,6 +23,7 @@ pub struct ControllerConfig {
     pub guestkit_insecure_tls: bool,
     pub packetwolf_enabled: bool,
     pub packetwolf_base_url: String,
+    pub packetwolf_api_key: Option<String>,
     pub packetwolf_insecure_tls: bool,
 }
 
@@ -64,6 +65,7 @@ impl Default for ControllerConfig {
                 .unwrap_or(false),
             packetwolf_base_url: std::env::var("PACKETWOLF_BASE_URL")
                 .unwrap_or_else(|_| "http://127.0.0.1:9091".into()),
+            packetwolf_api_key: std::env::var("PACKETWOLF_API_KEY").ok(),
             packetwolf_insecure_tls: std::env::var("PACKETWOLF_INSECURE_TLS")
                 .map(|v| matches!(v.to_lowercase().as_str(), "1" | "true" | "yes"))
                 .unwrap_or(true),

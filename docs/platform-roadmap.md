@@ -43,6 +43,22 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 46 | Mac UI wave 3 (admin pages) + Control Center 2.0 | **Shipped (v1)** |
 | 47 | Help dialog Platform tab + docs sync | **Shipped (v1)** |
 | 48 | Host stale detection, E2E extensions, remote deploy verify | **Shipped (v1)** |
+| 49 | Mac UI wave 4 — VM/Host detail, Settings hub, Blueprints, Topology glass panels | **Shipped (v1)** |
+| 50 | Control Center 3.0 — module grid + Zeus firewall strip | **Shipped (v1)** |
+| 51 | Settings hub macOS sidebar (`MacSettingsPane`) — Security + Network firewall panes | **Shipped (v1)** |
+| 52 | VM Security tab — guest firewall ports | **Shipped (v1)** |
+| 53 | Spotlight intents — firewall settings, block incoming, open ports | **Shipped (v1)** |
+| 54 | Zeus Firewall macOS Security pane — toggles, stealth, profiles (AI-372–378) | **Shipped (v1)** |
+| 55 | Fleet firewall views — Overview, Activity, Ports, K8s/Cloud/Connectivity (AI-379–384) | **Shipped (v1)** |
+| 56 | E2E + docs AI-372–391 / UX-49–56 | **Shipped (v1)** |
+
+## Batch 312–331 deliverables (Bare metal + Zeus Firewall — Phase 23)
+
+- **312–318:** Metal profiles in `core/src/firewall/profiles.rs`; synthetic inventory in `core/src/firewall/metal.rs`
+- **314–317:** `bare_metal` targets in Zeus overview/detail/plan/apply; `024_baremetal_firewall.sql`
+- **315/319/323:** Exposure scan + temporary PXE/BMC rules APIs
+- **326–328:** GitOps policy on register; timeline events; SIEM `metal` tag
+- **320/331:** Compliance kind `metal`; docs `zeus-os-ai-312-331.md`; E2E Phase 23 smoke
 
 ## Batch 41–48 deliverables (Awesome Sweep)
 
@@ -53,6 +69,16 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **45–46:** Mac UI on remaining platform pages; Control Center memory/offline/alerts sparkline row
 - **47:** Help → Platform tab; `platform-ux-vision.md` / `platform-roadmap.md` updated
 - **48:** Host `last_heartbeat_at` > 2m → `offline` in API; E2E storage discover + template readiness
+
+## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
+
+- **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid
+- **AI-372–374:** `MacToggle`, `MacSettingsPane`, `MacListRow`, `MacSegmentedControl` in `PlatformMacUi.tsx`
+- **AI-375–378:** Firewall target detail — working on/off, stealth, profile apply with preview sheet
+- **AI-379–384:** Fleet Overview (Launchpad grid), Activity timeline, Ports list rows; K8s/Cloud/Connectivity without page-body JSON
+- **AI-385–387:** VM Security tab, Settings Network/Firewall pane, Control Center Zeus strip
+- **AI-388–391:** Spotlight intents, E2E smoke extensions, `docs/zeus-os-ai-372-391.md`
+- **Backend:** `enable: false` firewall apply in `core/src/firewall/apply.rs`; `firewall_approval_sla_hours` in cluster settings API
 
 
 Batches are grouped into **phases** (~10 batches each). Phases 1–2 (batches 1–16) established core platform + enterprise v1. Phases 3–10 below extend toward full vCenter parity.
@@ -238,3 +264,44 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-159 | Compliance reports (production, SSH, DB, drift) |
 | AI-160 | SIEM export hooks on firewall timeline |
 | AI-161 | Template firewall profiles + remediate hub firewall items |
+
+### Phase 15 — Zeus Firewall hardening + PacketWolf live (AI-162–171)
+
+| Batch | Deliverable |
+|-------|-------------|
+| AI-162 | PacketWolf live REST bridge (`/api/v1/flows`, stats) + `PACKETWOLF_API_KEY` |
+| AI-163 | Firewall drift auto-sync on `host.inventory` + timeline events |
+| AI-164 | `firewall_approvals` table + list/approve/reject APIs |
+| AI-165 | MachineFirewallPolicy GitOps export + sync (`/policies/gitops/*`) |
+| AI-166 | Zeus summary `firewall_drift_hosts` + compliance approvals UI |
+| AI-167 | E2E retry for flaky fleet heatmap + Phase 15 smoke |
+| AI-168 | Spotlight intents — firewall approvals + GitOps |
+| AI-169 | Guest QEMU-agent port enrichment via `GetGuestFirewallPorts` |
+| AI-170 | Cloud security group read adapters (AWS/Azure/GCP CLI) |
+| AI-171 | Phase 15 E2E + docs |
+
+### Phases 16–25 — next 200 batches (AI-172–371)
+
+Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
+
+| Phase | AI range | Theme | Status |
+|-------|----------|--------|--------|
+| 16 | 172–191 | K8s NetworkPolicy/Cilium apply + GitOps operator | **Shipped (v1)** |
+| 17 | 192–211 | PacketWolf deep — anomalies, correlation | **Shipped (v1)** |
+| 18 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
+| 19 | 232–251 | Guest in-guest QEMU-agent port scan | **Shipped (v1)** |
+| 20 | 252–271 | Connectivity matrix simulation GA | **Shipped (v1)** |
+| 21 | 272–291 | Enterprise — PDF export, approval SLA | **Shipped (v1)** |
+| 22 | 292–311 | FinOps × Security exposure cost | **Shipped (v1)** |
+| 23 | 312–331 | Bare metal + firewall profiles | **Shipped (v1)** |
+| 24 | 332–351 | Multi-site federated policy | **Shipped (v1)** |
+| 25 | 352–371 | AI operator autonomous secure-machine | **Shipped (v1)** |
+| 26 | 392–411 | NSX-class overlays + micro-segmentation | **Shipped (v1)** |
+
+### Horizon — phases 27–64 (AI-412–500+)
+
+| Phase | AI range | Theme |
+|-------|----------|--------|
+| 27–64 | 412–500+ | Vault/MFA, air-gap, marketplace, full vCenter parity |
+
+See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.

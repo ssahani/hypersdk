@@ -166,6 +166,9 @@ pub async fn analyze_impact(pool: &PgPool, req: &ImpactRequest) -> anyhow::Resul
         ("isolate", "network") | ("shutdown", "network") => {
             network_isolate_impact(pool, &req.target_id).await
         }
+        ("isolate", "segment") | ("shutdown", "segment") => {
+            segment_isolate_impact(pool, &req.target_id).await
+        }
         ("shutdown", "vm") | ("stop", "vm") | ("delete", "vm") => {
             vm_shutdown_impact(pool, &req.target_id).await
         }
@@ -176,13 +179,13 @@ pub async fn analyze_impact(pool: &PgPool, req: &ImpactRequest) -> anyhow::Resul
             action: req.action.clone(),
             target: format!("{}:{}", req.target_kind, req.target_id),
             severity: "info".into(),
-            summary: "Supported: host shutdown/migrate, network isolate, vm shutdown, storage drain.".into(),
+            summary: "Supported: host shutdown/migrate, network/segment isolate, vm shutdown, storage drain.".into(),
             affected_vms: vec![],
             affected_applications: vec![],
             storage_risks: vec![],
             network_notes: vec![],
             recommendations: vec![
-                "Use target_kind host/vm/network/storage with shutdown/migrate/isolate/drain.".into(),
+                "Use target_kind host/vm/network/segment/storage with shutdown/migrate/isolate/drain.".into(),
             ],
         }),
     }
@@ -491,6 +494,82 @@ async fn network_isolate_impact(pool: &PgPool, target: &str) -> anyhow::Result<I
             "Update security groups and load balancer backends.".into(),
         ],
     })
+}
+
+async fn segment_isolate_impact(pool: &PgPool, target: &str) -> anyhow::Result<ImpactAnalysis> {
+    let segment_id = resolve_segment(pool, target).await?;
+    let (name, east_west): (String, String) = sqlx::query_as(
+        "SELECT name, east_west_default FROM network_segments WHERE id = $1",
+    )
+    .bind(segment_id)
+    .fetch_one(pool)
+    .await?;
+
+    let vms: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT v.name FROM network_reservations nr
+         JOIN networks n ON n.id = nr.network_id
+         JOIN vms v ON v.id = nr.vm_id
+         WHERE n.segment_id = $1 ORDER BY v.name",
+    )
+    .bind(segment_id)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let network_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM networks WHERE segment_id = $1",
+    )
+    .bind(segment_id)
+    .fetch_one(pool)
+    .await?;
+
+    let severity = if vms.len() >= 10 {
+        "critical"
+    } else if vms.is_empty() {
+        "low"
+    } else {
+        "high"
+    };
+
+    let summary = if vms.is_empty() {
+        format!(
+            "Segment {name} ({network_count} network(s)) has no VM reservations — low blast radius."
+        )
+    } else {
+        format!(
+            "Isolating overlay segment {name} (east-west={east_west}) affects {} VM(s) across {network_count} network(s).",
+            vms.len()
+        )
+    };
+
+    Ok(ImpactAnalysis {
+        action: "isolate".into(),
+        target: format!("segment:{name}"),
+        severity: severity.into(),
+        summary,
+        affected_vms: vms,
+        affected_applications: vec![],
+        storage_risks: vec![],
+        network_notes: vec![
+            "Micro-segmentation policy blocks east-west on this overlay (stub).".into(),
+            "Verify Zeus firewall profile and emergency unlock before production isolation.".into(),
+        ],
+        recommendations: vec![
+            "Run segment connectivity matrix before isolation.".into(),
+            "Migrate workloads to alternate tier-1 segment if deny-all is enabled.".into(),
+        ],
+    })
+}
+
+async fn resolve_segment(pool: &PgPool, target: &str) -> anyhow::Result<Uuid> {
+    if let Ok(id) = Uuid::parse_str(target) {
+        return Ok(id);
+    }
+    let id: Option<Uuid> = sqlx::query_scalar("SELECT id FROM network_segments WHERE name = $1")
+        .bind(target)
+        .fetch_optional(pool)
+        .await?;
+    id.ok_or_else(|| anyhow::anyhow!("segment not found: {target}"))
 }
 
 async fn resolve_network(pool: &PgPool, target: &str) -> anyhow::Result<Uuid> {

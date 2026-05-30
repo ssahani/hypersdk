@@ -151,6 +151,96 @@ async fn build_topology(
         }
     }
 
+    let segments: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, name, tier FROM network_segments ORDER BY name",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    for (sid, name, tier) in &segments {
+        let node_id = format!("segment-{sid}");
+        nodes.push(TopologyNode {
+            kind: "segment".into(),
+            id: node_id.clone(),
+            name: format!("{name} ({tier})"),
+            state: None,
+        });
+        edges.push(TopologyEdge {
+            from: "cluster".into(),
+            to: node_id.clone(),
+            label: "overlay".into(),
+        });
+
+        let bound: Vec<(Uuid, String)> = sqlx::query_as(
+            "SELECT id, name FROM networks WHERE segment_id = $1",
+        )
+        .bind(sid)
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default();
+        for (nid, net_name) in bound {
+            let net_node = format!("network-{nid}");
+            if !nodes.iter().any(|n| n.id == net_node) {
+                nodes.push(TopologyNode {
+                    kind: "network".into(),
+                    id: net_node.clone(),
+                    name: net_name,
+                    state: None,
+                });
+                edges.push(TopologyEdge {
+                    from: "cluster".into(),
+                    to: net_node.clone(),
+                    label: "network".into(),
+                });
+            }
+            edges.push(TopologyEdge {
+                from: node_id.clone(),
+                to: net_node,
+                label: "member".into(),
+            });
+        }
+    }
+
+    let online_hosts: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, hostname, COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr)
+         FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 20",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    for (hid, hostname, console_addr) in online_hosts {
+        if let Ok(lldp) = crate::engine::network_overlay::fetch_host_lldp(&console_addr).await {
+            for (i, neighbor) in lldp.neighbors.iter().enumerate() {
+                let switch_id = format!("switch-{hid}-{i}");
+                let switch_name = if neighbor.system_name.is_empty() {
+                    neighbor.chassis_id.clone()
+                } else {
+                    neighbor.system_name.clone()
+                };
+                nodes.push(TopologyNode {
+                    kind: "switch".into(),
+                    id: switch_id.clone(),
+                    name: switch_name,
+                    state: Some(lldp.source.clone()),
+                });
+                edges.push(TopologyEdge {
+                    from: hid.to_string(),
+                    to: switch_id,
+                    label: "uplink".into(),
+                });
+            }
+            if lldp.neighbors.is_empty() && !lldp.summary.is_empty() {
+                warnings.push(TopologyWarning {
+                    severity: "info".into(),
+                    message: format!("{hostname}: {}", lldp.summary),
+                    fix_action: None,
+                });
+            }
+        }
+    }
+
     Ok(TopologyGraph {
         nodes,
         edges,

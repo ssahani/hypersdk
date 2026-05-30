@@ -3,7 +3,7 @@
 use serde::Serialize;
 use sqlx::PgPool;
 
-use machina_core::{compute_diff, FirewallPlanRequest};
+use machina_core::FirewallPlanRequest;
 use crate::config::ControllerConfig;
 use crate::engine::zeus_firewall::inventory::{plan_target, target_detail};
 
@@ -151,21 +151,38 @@ pub async fn simulate_plan(
         },
     )
     .await?;
-    let after_rules: Vec<machina_core::ZeusFirewallRule> = detail
-        .inventory
-        .rules
-        .iter()
-        .cloned()
-        .collect();
-    let diff = compute_diff(&detail.inventory.rules, &after_rules);
+    let after_rules: Vec<machina_core::ZeusFirewallRule> = machina_core::profile_by_name(profile)
+        .map(|p| {
+            p.rules
+                .iter()
+                .enumerate()
+                .map(|(i, r)| machina_core::ZeusFirewallRule {
+                    id: format!("sim-{i}"),
+                    direction: r.direction.clone(),
+                    protocol: r.protocol.clone(),
+                    ports: r.ports.clone(),
+                    sources: r.sources.clone(),
+                    targets: vec![],
+                    action: r.action.clone(),
+                    temporary: false,
+                    expires_at: None,
+                    description: Some(r.name.clone()),
+                    scope: "host".into(),
+                    backend_ref: None,
+                })
+                .collect()
+        })
+        .unwrap_or_else(|| detail.inventory.rules.clone());
+    let matrix = machina_core::simulate_connectivity(&detail.inventory, &after_rules);
     Ok(serde_json::json!({
         "diff": plan.diff,
         "warnings": plan.diff.warnings,
         "simulation": {
-            "allows": ["admin subnet → SSH", "app servers → database"],
-            "blocks": ["unknown external IP → database", "developer laptop → SSH unless temporary rule added"]
+            "allows": matrix.allows,
+            "blocks": matrix.blocks,
         },
-        "connectivity_notes": diff.warnings
+        "connectivity_matrix": matrix,
+        "connectivity_notes": plan.diff.warnings
     }))
 }
 
@@ -175,18 +192,26 @@ pub async fn compliance_report(
     report_kind: &str,
 ) -> anyhow::Result<serde_json::Value> {
     let overview = crate::engine::zeus_firewall::overview(pool, cfg).await?;
-    let critical: Vec<_> = overview
-        .targets
+    let targets: Vec<_> = if report_kind == "metal" {
+        overview
+            .targets
+            .iter()
+            .filter(|t| t.kind == "bare_metal")
+            .collect()
+    } else {
+        overview.targets.iter().collect()
+    };
+    let critical: Vec<_> = targets
         .iter()
         .filter(|t| t.risk == "critical")
-        .map(|t| serde_json::json!({ "name": t.name, "score": t.score, "open_ports": t.open_ports }))
+        .map(|t| serde_json::json!({ "name": t.name, "kind": t.kind, "score": t.score, "open_ports": t.open_ports }))
         .collect();
     Ok(serde_json::json!({
         "report": report_kind,
-        "machines_scanned": overview.targets.len(),
-        "compliant": overview.targets.iter().filter(|t| t.risk == "low").count(),
-        "warnings": overview.warning_count,
-        "critical": overview.critical_count,
+        "machines_scanned": targets.len(),
+        "compliant": targets.iter().filter(|t| t.risk == "low").count(),
+        "warnings": targets.iter().filter(|t| t.risk == "warning").count(),
+        "critical": critical.len(),
         "critical_machines": critical,
         "export_formats": ["pdf", "csv", "json"]
     }))

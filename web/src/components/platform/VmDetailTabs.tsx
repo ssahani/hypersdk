@@ -7,6 +7,7 @@ export type VmDetailTab =
   | 'performance'
   | 'disks'
   | 'network'
+  | 'security'
   | 'snapshots'
   | 'backup'
   | 'events'
@@ -19,6 +20,7 @@ const TABS: { id: VmDetailTab; label: string }[] = [
   { id: 'performance', label: 'Performance' },
   { id: 'disks', label: 'Disks' },
   { id: 'network', label: 'Network' },
+  { id: 'security', label: 'Security' },
   { id: 'snapshots', label: 'Snapshots' },
   { id: 'backup', label: 'Backup' },
   { id: 'events', label: 'Events' },

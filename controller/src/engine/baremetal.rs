@@ -13,6 +13,10 @@ pub struct BaremetalServer {
     pub state: String,
     pub cpu_cores: i32,
     pub memory_mib: i64,
+    pub firewall_profile: String,
+    pub firewall_enabled: bool,
+    pub bmc_vlan: String,
+    pub pxe_vlan: String,
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
@@ -26,10 +30,26 @@ pub struct RegisterBaremetalBody {
     pub cpu_cores: i32,
     #[serde(default)]
     pub memory_mib: i64,
+    #[serde(default = "default_metal_profile")]
+    pub firewall_profile: String,
+    #[serde(default = "default_true")]
+    pub firewall_enabled: bool,
+    #[serde(default)]
+    pub bmc_vlan: String,
+    #[serde(default)]
+    pub pxe_vlan: String,
 }
 
 fn default_bmc_type() -> String {
     "redfish".into()
+}
+
+fn default_metal_profile() -> String {
+    "BareMetalBmc".into()
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Serialize)]
@@ -43,7 +63,8 @@ pub struct BaremetalCapacityPlan {
 
 pub async fn list_servers(pool: &PgPool) -> anyhow::Result<Vec<BaremetalServer>> {
     let rows = sqlx::query_as::<_, BaremetalServer>(
-        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib, created_at
+        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib,
+                firewall_profile, firewall_enabled, bmc_vlan, pxe_vlan, created_at
          FROM baremetal_servers ORDER BY hostname",
     )
     .fetch_all(pool)
@@ -54,8 +75,10 @@ pub async fn list_servers(pool: &PgPool) -> anyhow::Result<Vec<BaremetalServer>>
 pub async fn register(pool: &PgPool, body: &RegisterBaremetalBody) -> anyhow::Result<BaremetalServer> {
     let id = Uuid::new_v4();
     sqlx::query(
-        "INSERT INTO baremetal_servers (id, hostname, bmc_address, bmc_type, cpu_cores, memory_mib, state)
-         VALUES ($1, $2, $3, $4, $5, $6, 'registered')",
+        "INSERT INTO baremetal_servers
+         (id, hostname, bmc_address, bmc_type, cpu_cores, memory_mib, state,
+          firewall_profile, firewall_enabled, bmc_vlan, pxe_vlan)
+         VALUES ($1, $2, $3, $4, $5, $6, 'registered', $7, $8, $9, $10)",
     )
     .bind(id)
     .bind(body.hostname.trim())
@@ -63,17 +86,42 @@ pub async fn register(pool: &PgPool, body: &RegisterBaremetalBody) -> anyhow::Re
     .bind(&body.bmc_type)
     .bind(body.cpu_cores.max(0))
     .bind(body.memory_mib.max(0))
+    .bind(&body.firewall_profile)
+    .bind(body.firewall_enabled)
+    .bind(body.bmc_vlan.trim())
+    .bind(body.pxe_vlan.trim())
     .execute(pool)
     .await?;
 
+    let _ = crate::engine::zeus_firewall::metal::upsert_gitops_policy(pool, body.hostname.trim(), &body.firewall_profile).await;
+
     sqlx::query_as::<_, BaremetalServer>(
-        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib, created_at
+        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib,
+                firewall_profile, firewall_enabled, bmc_vlan, pxe_vlan, created_at
          FROM baremetal_servers WHERE id = $1",
     )
     .bind(id)
     .fetch_one(pool)
     .await
     .map_err(Into::into)
+}
+
+pub async fn link_host_firewall_profile(
+    pool: &PgPool,
+    baremetal_id: Uuid,
+    host_id: Uuid,
+) -> anyhow::Result<()> {
+    let profile: String = sqlx::query_scalar("SELECT firewall_profile FROM baremetal_servers WHERE id = $1")
+        .bind(baremetal_id)
+        .fetch_one(pool)
+        .await?;
+    sqlx::query("UPDATE hosts SET baremetal_origin_id = $1, notes = COALESCE(notes, '') || $2 WHERE id = $3")
+        .bind(baremetal_id)
+        .bind(format!("\n[zeus] metal profile {profile} (policy stub until agent apply)"))
+        .bind(host_id)
+        .execute(pool)
+        .await?;
+    Ok(())
 }
 
 pub fn plan_capacity(query: &str) -> BaremetalCapacityPlan {
@@ -125,7 +173,8 @@ pub async fn set_power(
     }
 
     let row: BaremetalServer = sqlx::query_as(
-        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib, created_at
+        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib,
+                firewall_profile, firewall_enabled, bmc_vlan, pxe_vlan, created_at
          FROM baremetal_servers WHERE id = $1",
     )
     .bind(id)
@@ -168,7 +217,7 @@ pub async fn set_power(
         previous_state: row.state,
         new_state: new_state.into(),
         dry_run: false,
-        summary: format!("BMC power command applied (preview — no live IPMI/Redfish call)."),
+        summary: "BMC power command applied (preview — no live IPMI/Redfish call).".into(),
     })
 }
 
@@ -182,7 +231,8 @@ pub struct BaremetalProvisionPlan {
 
 pub async fn provision_preview(pool: &PgPool, id: Uuid) -> anyhow::Result<BaremetalProvisionPlan> {
     let row: BaremetalServer = sqlx::query_as(
-        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib, created_at
+        "SELECT id, hostname, bmc_address, bmc_type, state, cpu_cores, memory_mib,
+                firewall_profile, firewall_enabled, bmc_vlan, pxe_vlan, created_at
          FROM baremetal_servers WHERE id = $1",
     )
     .bind(id)
@@ -191,9 +241,9 @@ pub async fn provision_preview(pool: &PgPool, id: Uuid) -> anyhow::Result<Bareme
     .ok_or_else(|| anyhow::anyhow!("server not found"))?;
 
     let steps = vec![
-        format!("PXE boot {} via BMC {}", row.hostname, row.bmc_address),
+        format!("PXE boot {} via BMC {} (VLAN {})", row.hostname, row.bmc_address, row.pxe_vlan),
         "Match hardware profile to image catalog (Ubuntu 24.04 / RHEL 9)".into(),
-        "Apply cloud-init / ignition for host enrollment".into(),
+        format!("Apply Zeus profile {} on provisioning network", row.firewall_profile),
         "Register host in Machina fleet after first boot".into(),
     ];
 

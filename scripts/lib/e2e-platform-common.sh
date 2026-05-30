@@ -25,6 +25,22 @@ e2e_platform_http_code() {
   e2e_platform_curl -o /dev/null -w '%{http_code}' "$@"
 }
 
+# Retry flaky endpoints during deploy smoke (connection reset / HTTP 000).
+e2e_platform_http_code_retry() {
+  local url="$1" attempts="${2:-3}" delay="${3:-5}"
+  local http i
+  for ((i = 1; i <= attempts; i++)); do
+    http="$(e2e_platform_http_code "$url")"
+    if [[ "$http" != "000" && -n "$http" ]]; then
+      echo "$http"
+      return 0
+    fi
+    sleep "$delay"
+  done
+  echo "$http"
+  return 0
+}
+
 e2e_platform_assert_http() {
   local got="$1" want="$2" label="$3"
   if [[ "$got" == "$want" ]]; then

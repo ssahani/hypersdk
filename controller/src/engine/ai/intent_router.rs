@@ -137,6 +137,28 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if (ql.contains("exposure cost") || ql.contains("firewall waste") || ql.contains("port waste")
+        || (ql.contains("exposure") && ql.contains("finops")))
+    {
+        intents.push(intent(
+            "finops-exposure",
+            "Exposure cost rollup",
+            "Fleet firewall exposure waste and chargeback line items.",
+            "navigate",
+            None,
+            Some("/platform/reports".into()),
+            None,
+        ));
+        intents.push(intent(
+            "finops-exposure-firewall",
+            "Zeus Firewall FinOps",
+            "Per-target exposure monthly cost and idle port ranking.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
     if ql.contains("capacity") || ql.contains("headroom") {
         intents.push(intent(
             "capacity",
@@ -159,7 +181,117 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
-    if ql.contains("firewall") || ql.contains("open port") || ql.contains("machine shield") {
+    if ql.contains("firewall settings") || ql.contains("firewall preference") {
+        intents.push(intent(
+            "zeus-fw-settings",
+            "Firewall settings",
+            "System Settings → Network → Firewall fleet summary and SLA.",
+            "navigate",
+            None,
+            Some("/platform/settings".into()),
+            None,
+        ));
+    }
+    if ql.contains("block incoming") || ql.contains("block all incoming") {
+        intents.push(intent(
+            "zeus-block-incoming",
+            "Block incoming connections",
+            "Apply strict firewall profile or stealth mode on a machine.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
+    if ql.contains("open ports") || ql.contains("open port") {
+        intents.push(intent(
+            "zeus-open-ports",
+            "Open ports",
+            "Review fleet port exposure and allowed services.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/ports".into()),
+            None,
+        ));
+    }
+    if ql.contains("bare metal firewall") || ql.contains("bmc exposure") || ql.contains("ipmi exposed") {
+        intents.push(intent(
+            "zeus-metal-firewall",
+            "Bare metal firewall",
+            "BMC/PXE exposure and metal firewall profiles.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
+    if ql.contains("pxe isolation") || ql.contains("provisioning network") {
+        intents.push(intent(
+            "zeus-pxe-isolation",
+            "PXE isolation",
+            "Apply BareMetalPxe profile on provisioning network.",
+            "navigate",
+            None,
+            Some("/platform/zeus?tab=baremetal".into()),
+            None,
+        ));
+    }
+    if ql.contains("dr firewall") || ql.contains("multi-site") || ql.contains("multisite") {
+        intents.push(intent(
+            "zeus-multisite",
+            "Multi-site DR firewall",
+            "Federated policy export and cross-site profile sync.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
+    if ql.contains("secure all hosts") || ql.contains("autonomous firewall") || ql.contains("ai operator") {
+        intents.push(intent(
+            "zeus-operator",
+            "AI operator secure plan",
+            "Guardrailed fleet secure-machine preview and approval gate.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
+    if ql.contains("micro-segment") || ql.contains("micro segment") {
+        intents.push(intent(
+            "overlay-microseg",
+            "Micro-segmentation overview",
+            "Overlay segments, east-west policy, and compliance grade.",
+            "navigate",
+            None,
+            Some("/platform/networks?tab=segments".into()),
+            None,
+        ));
+    }
+    if ql.contains("overlay network") || ql.contains("overlay segment") || ql.contains("nsx") {
+        intents.push(intent(
+            "overlay-network",
+            "Overlay networks",
+            "Tier-0/Tier-1 segments and libvirt network binding.",
+            "navigate",
+            None,
+            Some("/platform/networks?tab=segments".into()),
+            None,
+        ));
+    }
+    if ql.contains("ipam") || (ql.contains("allocate") && ql.contains("ip")) {
+        intents.push(intent(
+            "overlay-ipam",
+            "IPAM pools",
+            "Allocate next-free addresses from segment pools.",
+            "navigate",
+            None,
+            Some("/platform/networks?tab=ipam".into()),
+            None,
+        ));
+    }
+    if ql.contains("firewall") || ql.contains("machine shield") {
         intents.push(intent(
             "zeus-firewall",
             "Zeus Firewall",
@@ -193,6 +325,28 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             "navigate",
             None,
             Some("/platform/zeus/security/ports".into()),
+            None,
+        ));
+    }
+    if ql.contains("firewall approval") || ql.contains("risky firewall") || ql.contains("approve firewall") {
+        intents.push(intent(
+            "zeus-fw-approval",
+            "Firewall approvals",
+            "Review pending risky firewall profile changes.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/compliance".into()),
+            None,
+        ));
+    }
+    if ql.contains("gitops") && ql.contains("firewall") {
+        intents.push(intent(
+            "zeus-fw-gitops",
+            "Firewall GitOps",
+            "Export or sync MachineFirewallPolicy bundles.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/compliance".into()),
             None,
         ));
     }

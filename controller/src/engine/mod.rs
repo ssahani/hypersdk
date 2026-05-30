@@ -20,6 +20,7 @@ pub mod template_readiness;
 pub mod vm_health;
 pub mod vm_lifecycle;
 pub mod network_sync;
+pub mod network_overlay;
 pub mod storage_sync;
 pub mod webhooks;
 pub mod webhook_worker;

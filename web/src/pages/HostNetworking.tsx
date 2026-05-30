@@ -12,10 +12,11 @@ import {
   getSysctlTuning,
   getSystemdNetworkDiagnostics,
   getSystemdInterfaceStatus,
+  getLldpNeighbors,
   getHostRoutingTables,
   postHostKernelRoute,
   HostInterface, PortForwardRule, FirewallRule, SysctlTuningResponse, SysctlTuningRow, SystemdNetworkDiagnostics,
-  HostRoutingTables,
+  HostRoutingTables, LldpInventory,
 } from '../api/hostNetwork'
 import { useToastContext } from '../contexts/ToastContext'
 import {
@@ -70,6 +71,8 @@ export default function HostNetworkingPage() {
   const [sysctlCopied, setSysctlCopied] = useState(false)
   const [diag, setDiag] = useState<SystemdNetworkDiagnostics | null>(null)
   const [diagLoading, setDiagLoading] = useState(false)
+  const [lldp, setLldp] = useState<LldpInventory | null>(null)
+  const [lldpLoading, setLldpLoading] = useState(false)
   const [routing, setRouting] = useState<HostRoutingTables | null>(null)
   const [routesError, setRoutesError] = useState<string | null>(null)
   const [routeFamily, setRouteFamily] = useState<'ipv4' | 'ipv6'>('ipv4')
@@ -120,13 +123,19 @@ export default function HostNetworkingPage() {
 
   const loadSystemdDiag = useCallback(async () => {
     setDiagLoading(true)
+    setLldpLoading(true)
     try {
-      const out = await getSystemdNetworkDiagnostics()
+      const [out, lldpOut] = await Promise.all([
+        getSystemdNetworkDiagnostics(),
+        getLldpNeighbors().catch(() => null),
+      ])
       setDiag(out)
+      setLldp(lldpOut)
     } catch (e: unknown) {
       toast.error(`Systemd network diagnostics: ${formatUserError(e)}`)
     } finally {
       setDiagLoading(false)
+      setLldpLoading(false)
     }
   }, [toast])
 
@@ -767,6 +776,59 @@ export default function HostNetworkingPage() {
                   {diag.network_manager_active ? 'active' : 'inactive'}
                 </div>
               </div>
+            </div>
+          )}
+
+          {(lldp || lldpLoading) && (
+            <div className="bg-slate-900/40 rounded-xl border border-slate-700/40 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div>
+                  <div className="text-sm text-slate-200 font-medium">LLDP neighbors</div>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    From {lldp?.source === 'systemd_networkd' ? 'systemd-networkd (networkctl)' : lldp?.source === 'network_manager' ? 'NetworkManager (nmcli)' : 'systemd-networkd / NetworkManager'}
+                  </p>
+                </div>
+                {lldp && (
+                  <span className="text-xs text-slate-400">{lldp.summary}</span>
+                )}
+              </div>
+              {lldpLoading && !lldp && (
+                <p className="text-sm text-slate-500">Collecting LLDP…</p>
+              )}
+              {lldp && lldp.neighbors.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="text-slate-500 border-b border-slate-700/40">
+                        <th className="text-left py-2 pr-3">Local IF</th>
+                        <th className="text-left py-2 pr-3">Chassis</th>
+                        <th className="text-left py-2 pr-3">System</th>
+                        <th className="text-left py-2 pr-3">Port</th>
+                        <th className="text-left py-2">Description</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {lldp.neighbors.map((n, i) => (
+                        <tr key={`${n.local_interface}-${n.chassis_id}-${i}`} className="border-b border-slate-800/60">
+                          <td className="py-2 pr-3 text-cyan-300/90">{n.local_interface}</td>
+                          <td className="py-2 pr-3 text-slate-300 break-all">{n.chassis_id}</td>
+                          <td className="py-2 pr-3 text-slate-200">{n.system_name || '—'}</td>
+                          <td className="py-2 pr-3 text-slate-300">{n.port_id || '—'}</td>
+                          <td className="py-2 text-slate-400">{n.port_description || n.system_description || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : lldp ? (
+                <p className="text-sm text-slate-500">{lldp.summary}</p>
+              ) : null}
+              {lldp?.raw_text && (
+                <details className="mt-3">
+                  <summary className="text-xs text-slate-400 cursor-pointer hover:text-slate-200">Raw LLDP output</summary>
+                  <pre className="mt-2 text-xs text-slate-500 overflow-x-auto whitespace-pre-wrap max-h-48">{lldp.raw_text.trim() || 'No output.'}</pre>
+                </details>
+              )}
             </div>
           )}
 

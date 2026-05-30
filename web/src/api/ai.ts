@@ -379,6 +379,9 @@ export const getZeusSummary = () =>
     security_risk: string
     compliance_grade: string
     firewall_critical_hosts?: number
+    firewall_drift_hosts?: number
+    baremetal_critical_count?: number
+    exposure_waste_usd?: number
     highlights: string[]
   }>('/api/v1/ai/zeus/summary')
 
@@ -436,7 +439,7 @@ export const executeFleetRebalance = (dryRun = true, maxMoves = 5) =>
 
 export interface CostAttributionReport {
   total_monthly_usd: number
-  teams: Array<{ team: string; vm_count: number; estimated_monthly_usd: number; share_pct: number }>
+  teams: Array<{ team: string; vm_count: number; estimated_monthly_usd: number; exposure_monthly_usd?: number; share_pct: number }>
   unattributed_monthly_usd: number
   summary: string
 }
@@ -601,11 +604,26 @@ export interface BaremetalServer {
   state: string
   cpu_cores: number
   memory_mib: number
+  firewall_profile?: string
+  firewall_enabled?: boolean
+  bmc_vlan?: string
+  pxe_vlan?: string
+  created_at?: string
 }
 
 export const listBaremetalServers = () => platformFetch<BaremetalServer[]>('/api/v1/baremetal/servers')
 
-export const registerBaremetalServer = (body: { hostname: string; bmc_address: string; bmc_type?: string; cpu_cores?: number; memory_mib?: number }) =>
+export const registerBaremetalServer = (body: {
+  hostname: string
+  bmc_address: string
+  bmc_type?: string
+  cpu_cores?: number
+  memory_mib?: number
+  firewall_profile?: string
+  firewall_enabled?: boolean
+  bmc_vlan?: string
+  pxe_vlan?: string
+}) =>
   platformFetch<BaremetalServer>('/api/v1/baremetal/servers', { method: 'POST', body: JSON.stringify(body) })
 
 export const planBaremetalCapacity = (query: string) =>

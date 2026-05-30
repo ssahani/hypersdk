@@ -32,6 +32,7 @@ service HostAgent {
   rpc GetFirewallInventory(GetFirewallInventoryRequest) returns (GetFirewallInventoryResponse);
   rpc ApplyFirewallPlan(ApplyFirewallPlanRequest) returns (ApplyFirewallPlanResponse);
   rpc GetFirewallActivity(GetFirewallActivityRequest) returns (GetFirewallActivityResponse);
+  rpc GetGuestFirewallPorts(GetGuestFirewallPortsRequest) returns (GetGuestFirewallPortsResponse);
 }
 
 message RegisterRequest {
@@ -393,4 +394,22 @@ message GetFirewallActivityResponse {
   bool ok = 1;
   string activity_json = 2;
   string message = 3;
+}
+
+message GuestFirewallPort {
+  uint32 port = 1;
+  string protocol = 2;
+  string bind_address = 3;
+  string process = 4;
+}
+
+message GetGuestFirewallPortsRequest {
+  string vm_name = 1;
+}
+
+message GetGuestFirewallPortsResponse {
+  bool ok = 1;
+  bool agent_reachable = 2;
+  repeated GuestFirewallPort ports = 3;
+  string message = 4;
 }

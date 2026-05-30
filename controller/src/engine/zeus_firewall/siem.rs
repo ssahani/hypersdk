@@ -36,14 +36,24 @@ pub async fn export_timeline(pool: &PgPool, hours: i32) -> anyhow::Result<SiemFi
 
     let events: Vec<SiemEvent> = rows
         .into_iter()
-        .map(|(target_kind, target_id, kind, summary, actor, created_at, detail)| SiemEvent {
-            target_kind,
-            target_id: target_id.to_string(),
-            kind,
-            summary,
-            actor,
-            created_at: created_at.to_rfc3339(),
-            detail,
+        .map(|(target_kind, target_id, kind, summary, actor, created_at, detail)| {
+            let mut detail = detail;
+            if target_kind == "bare_metal" {
+                if let Some(obj) = detail.as_object_mut() {
+                    obj.entry("tag".to_string()).or_insert(serde_json::json!("metal"));
+                } else {
+                    detail = serde_json::json!({ "tag": "metal", "raw": detail });
+                }
+            }
+            SiemEvent {
+                target_kind,
+                target_id: target_id.to_string(),
+                kind,
+                summary,
+                actor,
+                created_at: created_at.to_rfc3339(),
+                detail,
+            }
         })
         .collect();
     let event_count = events.len();

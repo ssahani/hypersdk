@@ -21,10 +21,13 @@ pub struct RemediateHub {
 }
 
 pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
+    let cfg = crate::config::ControllerConfig::default();
     let sre = super::sre_remediate::propose(pool).await?;
     let compliance = super::compliance_remediate::propose(pool).await?;
     let power = super::fleet_power::optimize(pool).await?;
     let firewall = super::firewall_remediate::propose(pool).await?;
+    let exposure_waste = super::exposure_finops::propose_waste(pool, &cfg).await.ok();
+    let joint = super::exposure_finops::joint_sre_finops(pool, &cfg).await.ok();
 
     let mut items = Vec::new();
 
@@ -32,6 +35,8 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
     let compliance_count = compliance.remediations.len();
     let power_count = power.optimizations.len().min(5);
     let firewall_count = firewall.remediations.len();
+    let finops_count = exposure_waste.as_ref().map(|w| w.items.len()).unwrap_or(0);
+    let joint_count = joint.as_ref().map(|j| j.len()).unwrap_or(0);
 
     for r in sre.remediations {
         items.push(RemediationItem {
@@ -55,6 +60,34 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
             priority: r.priority,
             risk: r.risk,
         });
+    }
+
+    if let Some(waste) = exposure_waste {
+        for w in waste.items {
+            items.push(RemediationItem {
+                id: w.id,
+                source: "finops".into(),
+                label: w.label,
+                review: w.review,
+                action: w.action,
+                priority: w.priority,
+                risk: w.risk,
+            });
+        }
+    }
+
+    if let Some(joints) = joint {
+        for j in joints {
+            items.push(RemediationItem {
+                id: j.id,
+                source: "sre_finops".into(),
+                label: j.label,
+                review: j.review,
+                action: j.action,
+                priority: j.priority,
+                risk: j.risk,
+            });
+        }
     }
 
     for (i, r) in compliance.remediations.iter().enumerate() {
@@ -84,13 +117,15 @@ pub async fn hub(pool: &PgPool) -> anyhow::Result<RemediateHub> {
     items.sort_by_key(|i| i.priority);
 
     let summary = if items.is_empty() {
-        "Remediation hub clear — no open SRE, compliance, firewall, or fleet actions.".into()
+        "Remediation hub clear — no open SRE, compliance, firewall, FinOps, or fleet actions.".into()
     } else {
         format!(
-            "{} unified remediation(s): {} SRE · {} firewall · {} compliance · {} fleet",
+            "{} unified remediation(s): {} SRE · {} firewall · {} FinOps · {} joint · {} compliance · {} fleet",
             items.len(),
             sre_count,
             firewall_count,
+            finops_count,
+            joint_count,
             compliance_count,
             power_count
         )

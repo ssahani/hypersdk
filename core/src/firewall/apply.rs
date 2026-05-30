@@ -13,6 +13,25 @@ pub fn compile_profile_plan(
     req: &FirewallPlanRequest,
 ) -> Result<FirewallPlanResult, LibvirtError> {
     let current = gather_firewall_inventory(hostname)?;
+    let enabled = req.enable.unwrap_or(true);
+
+    if !enabled {
+        let backend = detect_backend();
+        let mut operations = match backend {
+            FirewallBackend::Ufw => vec!["ufw --force disable".into()],
+            FirewallBackend::Firewalld => vec![
+                "firewall-cmd --panic-on".into(),
+                "firewall-cmd --reload".into(),
+            ],
+            _ => vec!["iptables -P INPUT ACCEPT".into()],
+        };
+        if let Some(stealth) = req.stealth_level {
+            operations.push(format!("zeus-stealth:{stealth:?}"));
+        }
+        let diff = compute_diff(&current.rules, &[]);
+        return Ok(FirewallPlanResult { diff, operations });
+    }
+
     let profile_name = req
         .profile
         .clone()
@@ -25,13 +44,10 @@ pub fn compile_profile_plan(
     let backend = detect_backend();
     match backend {
         FirewallBackend::Ufw => {
-            operations.extend(ufw::apply_profile_ops(&profile.name, req.enable.unwrap_or(true))?);
+            operations.extend(ufw::apply_profile_ops(&profile.name, true)?);
         }
         FirewallBackend::Firewalld => {
-            operations.extend(firewalld::apply_profile_ops(
-                &profile.name,
-                req.enable.unwrap_or(true),
-            )?);
+            operations.extend(firewalld::apply_profile_ops(&profile.name, true)?);
         }
         _ => {
             operations.push("iptables -P INPUT DROP".into());

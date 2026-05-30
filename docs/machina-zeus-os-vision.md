@@ -39,10 +39,23 @@ Zeus Firewall unifies host firewalls (firewalld, UFW, nftables, iptables) and op
 - `GET /api/v1/zeus-firewall/status` — feature readiness (AI-142)
 - `GET /api/v1/zeus-firewall/overview` — fleet posture cards
 - `GET /api/v1/zeus-firewall/targets/{id}/ports` — open port exposure scanner
+- `GET /api/v1/zeus-firewall/k8s/status` — K8s NP/Cilium readiness (AI-172)
+- `POST /api/v1/zeus-firewall/k8s/apply` — apply Zeus profile as NetworkPolicy
+- `GET /api/v1/zeus-firewall/cloud/overview` — AWS/Azure/GCP security groups (AI-212)
+- `GET /api/v1/zeus-firewall/vms/{id}/guest-ports` — in-guest QEMU-agent ports (AI-232)
+- `POST /api/v1/zeus-firewall/connectivity` — connectivity matrix simulation (AI-252)
+- `GET /api/v1/zeus-firewall/compliance/{kind}/export.pdf` — PDF compliance export (AI-272)
+- `GET /api/v1/zeus-firewall/baremetal/overview` — bare-metal firewall fleet slice (AI-317)
+- `POST /api/v1/zeus-firewall/baremetal/{id}/scan` — BMC/PXE exposure scan (AI-315)
+- `POST /api/v1/zeus-firewall/baremetal/{id}/temporary` — PXE/BMC temporary allow (AI-319/323)
 - `POST /api/v1/ai/firewall/secure-plan` — AI safe-machine plan
 - `POST /api/v1/zeus-firewall/targets/{id}/lockdown` — Emergency Isolation
 
 UI: `/platform/zeus/security/firewall` and related Machine Security views.
+
+**macOS-like UX (AI-372–391, UX-49–56):** System Settings firewall pane per host (`MacToggle`, stealth segmented control, profile preview sheet), fleet Launchpad overview, VM Security tab (guest ports), Settings hub Network/Firewall pane, Control Center 3.0 module grid. See [`zeus-os-ai-372-391.md`](zeus-os-ai-372-391.md).
+
+**Bare metal firewall (AI-312–331):** `bare_metal` targets in Zeus overview, metal profiles, exposure scan, policy-only apply. See [`zeus-os-ai-312-331.md`](zeus-os-ai-312-331.md).
 
 Daemon: `GET /api/v1/guestkit/status` proxies worker health when `[guestkit]` enabled in `config.toml`.
 

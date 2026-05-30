@@ -25,6 +25,7 @@ mod maintenance;
 mod metrics;
 mod migration_jobs;
 mod networks;
+mod network_segments;
 mod notifications;
 mod oidc;
 mod placement;
@@ -71,6 +72,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/detail", get(hosts::get_host_detail))
         .route("/api/v1/hosts/{id}/validate", get(hosts::validate_host).post(hosts::enqueue_validate_host))
         .route("/api/v1/hosts/{id}/sync", post(hosts::sync_host))
+        .route("/api/v1/hosts/{id}/lldp", get(hosts::host_lldp))
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))
         .route(
@@ -157,7 +159,27 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-firewall/policies", get(zeus_firewall::list_policies).post(zeus_firewall::create_policy))
         .route("/api/v1/zeus-firewall/temporary-rules", post(zeus_firewall::create_temporary_rule))
         .route("/api/v1/zeus-firewall/simulate", post(zeus_firewall::simulate))
-        .route("/api/v1/zeus-firewall/approvals", post(zeus_firewall::request_risky_change))
+        .route("/api/v1/zeus-firewall/approvals", get(zeus_firewall::list_approvals).post(zeus_firewall::request_risky_change))
+        .route("/api/v1/zeus-firewall/approvals/{id}/approve", post(zeus_firewall::approve_change))
+        .route("/api/v1/zeus-firewall/approvals/{id}/reject", post(zeus_firewall::reject_change))
+        .route("/api/v1/zeus-firewall/policies/gitops/export", get(zeus_firewall::export_gitops))
+        .route("/api/v1/zeus-firewall/policies/gitops/sync", post(zeus_firewall::sync_gitops))
+        .route("/api/v1/zeus-firewall/k8s/status", get(zeus_firewall::k8s_status))
+        .route("/api/v1/zeus-firewall/k8s/plan", post(zeus_firewall::k8s_plan))
+        .route("/api/v1/zeus-firewall/k8s/apply", post(zeus_firewall::k8s_apply))
+        .route("/api/v1/zeus-firewall/baremetal/overview", get(zeus_firewall::baremetal_overview))
+        .route("/api/v1/zeus-firewall/baremetal/{id}/scan", post(zeus_firewall::baremetal_scan))
+        .route("/api/v1/zeus-firewall/baremetal/{id}/temporary", post(zeus_firewall::baremetal_temporary))
+        .route("/api/v1/zeus-firewall/finops/exposure", get(zeus_firewall::finops_exposure))
+        .route(
+            "/api/v1/zeus-firewall/finops/exposure/export.csv",
+            get(zeus_firewall::finops_exposure_export_csv),
+        )
+        .route("/api/v1/zeus-firewall/cloud/overview", get(zeus_firewall::cloud_overview))
+        .route("/api/v1/zeus-firewall/vms/{id}/guest-ports", get(zeus_firewall::vm_guest_ports))
+        .route("/api/v1/zeus-firewall/connectivity", post(zeus_firewall::connectivity_matrix))
+        .route("/api/v1/zeus-firewall/compliance/{kind}/export.pdf", get(zeus_firewall::compliance_export_pdf))
+        .route("/api/v1/zeus-firewall/packetwolf/anomalies", get(zeus_firewall::packetwolf_anomalies))
         .route("/api/v1/zeus-firewall/compliance/{kind}", get(zeus_firewall::compliance_report))
         .route("/api/v1/zeus-firewall/siem/export", get(zeus_firewall::siem_export))
         .route("/api/v1/zeus-firewall/targets/{id}", get(zeus_firewall::get_target))
@@ -175,6 +197,16 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-firewall/targets/{id}/rollback", post(zeus_firewall::rollback))
         .route("/api/v1/ai/firewall/explain", post(zeus_firewall::ai_explain))
         .route("/api/v1/ai/firewall/secure-plan", post(zeus_firewall::ai_secure_plan))
+        .route("/api/v1/zeus-firewall/multisite/overview", get(zeus_firewall::multisite_overview))
+        .route("/api/v1/zeus-firewall/multisite/export", get(zeus_firewall::multisite_export))
+        .route("/api/v1/zeus-firewall/multisite/drift", get(zeus_firewall::multisite_drift))
+        .route("/api/v1/zeus-firewall/multisite/connectivity", get(zeus_firewall::multisite_connectivity))
+        .route("/api/v1/zeus-firewall/multisite/sync", post(zeus_firewall::multisite_sync))
+        .route("/api/v1/zeus-firewall/multisite/timeline", get(zeus_firewall::multisite_timeline))
+        .route("/api/v1/zeus-firewall/multisite/dr-templates", get(zeus_firewall::multisite_dr_templates))
+        .route("/api/v1/zeus-firewall/operator/plan", get(zeus_firewall::operator_plan))
+        .route("/api/v1/zeus-firewall/operator/execute", post(zeus_firewall::operator_execute))
+        .route("/api/v1/zeus-firewall/operator/thresholds", get(zeus_firewall::operator_thresholds))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(
@@ -274,6 +306,35 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/networks/{id}",
             patch(networks::patch_network).delete(networks::delete_network),
+        )
+        .route(
+            "/api/v1/network/segments/overview",
+            get(network_segments::segments_overview),
+        )
+        .route(
+            "/api/v1/network/segments",
+            post(network_segments::create_segment),
+        )
+        .route(
+            "/api/v1/network/segments/gitops/export",
+            get(network_segments::gitops_export),
+        )
+        .route("/api/v1/network/ipam/pools", get(network_segments::ipam_pools))
+        .route(
+            "/api/v1/network/segments/{id}/connectivity",
+            post(network_segments::segment_connectivity),
+        )
+        .route(
+            "/api/v1/network/segments/{id}/ipam/allocate",
+            post(network_segments::ipam_allocate),
+        )
+        .route(
+            "/api/v1/network/segments/{id}/emergency-unlock",
+            post(network_segments::emergency_unlock),
+        )
+        .route(
+            "/api/v1/network/segments/{id}/bind/{network_id}",
+            post(network_segments::bind_network_to_segment),
         )
         .route("/api/v1/placement/recommendations", get(placement::list_recommendations))
         .route("/api/v1/placement/refresh", post(placement::refresh_recommendations))

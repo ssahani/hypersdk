@@ -1,9 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { Cpu, Search, Server, Shield, Workflow } from 'lucide-react'
-import { MacGlassPanel, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import {
   analyzeAttackPath,
@@ -36,7 +36,13 @@ import {
 type Tab = 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal'
 
 export default function PlatformZeusOs() {
-  const [tab, setTab] = useState<Tab>('fleet')
+  const [searchParams] = useSearchParams()
+  const initialTab = searchParams.get('tab')
+  const [tab, setTab] = useState<Tab>(
+    initialTab === 'baremetal' || initialTab === 'security' || initialTab === 'knowledge' || initialTab === 'services'
+      ? initialTab
+      : 'fleet',
+  )
   const [error, setError] = useState<string | null>(null)
   const [heatmap, setHeatmap] = useState<FleetHeatmap | null>(null)
   const [rebalance, setRebalance] = useState<RebalanceProposal | null>(null)
@@ -48,6 +54,9 @@ export default function PlatformZeusOs() {
   const [baremetal, setBaremetal] = useState<BaremetalServer[]>([])
   const [bmcHost, setBmcHost] = useState('')
   const [bmcAddr, setBmcAddr] = useState('')
+  const [bmcVlan, setBmcVlan] = useState('')
+  const [pxeVlan, setPxeVlan] = useState('')
+  const [metalProfile, setMetalProfile] = useState('BareMetalBmc')
   const [capacitySummary, setCapacitySummary] = useState<string | null>(null)
   const [rebalancePreview, setRebalancePreview] = useState<string | null>(null)
   const [frameworksSummary, setFrameworksSummary] = useState<string | null>(null)
@@ -286,15 +295,29 @@ export default function PlatformZeusOs() {
 
       {tab === 'baremetal' && (
         <div className="space-y-4">
-          <MacGlassPanel title="Bare metal servers" subtitle="Redfish / IPMI inventory foundation">
+          <MacGlassPanel title="Bare metal servers" subtitle="Redfish / IPMI inventory + Zeus Firewall policy">
             <div className="flex flex-wrap gap-2 mb-3">
               <input className="input text-sm" placeholder="hostname" value={bmcHost} onChange={(e) => setBmcHost(e.target.value)} />
               <input className="input text-sm" placeholder="BMC address" value={bmcAddr} onChange={(e) => setBmcAddr(e.target.value)} />
+              <input className="input text-sm w-24" placeholder="BMC VLAN" value={bmcVlan} onChange={(e) => setBmcVlan(e.target.value)} />
+              <input className="input text-sm w-24" placeholder="PXE VLAN" value={pxeVlan} onChange={(e) => setPxeVlan(e.target.value)} />
+              <select className="input text-sm" value={metalProfile} onChange={(e) => setMetalProfile(e.target.value)}>
+                <option value="BareMetalBmc">BareMetal BMC</option>
+                <option value="BareMetalPxe">BareMetal PXE</option>
+                <option value="BareMetalRedfish">BareMetal Redfish</option>
+                <option value="MetalLockdown">Metal Lockdown</option>
+              </select>
               <button
                 type="button"
                 className="btn-secondary text-xs"
                 onClick={async () => {
-                  await registerBaremetalServer({ hostname: bmcHost, bmc_address: bmcAddr })
+                  await registerBaremetalServer({
+                    hostname: bmcHost,
+                    bmc_address: bmcAddr,
+                    bmc_vlan: bmcVlan,
+                    pxe_vlan: pxeVlan,
+                    firewall_profile: metalProfile,
+                  })
                   setBmcHost('')
                   setBmcAddr('')
                   await loadBaremetal()
@@ -303,15 +326,32 @@ export default function PlatformZeusOs() {
                 Register
               </button>
             </div>
-            <ul className="text-xs text-slate-400 space-y-1">
+            <div className="space-y-1">
               {baremetal.map((s) => (
-                <li key={s.id} className="flex flex-wrap items-center gap-2">
-                  <span>{s.hostname} · {s.bmc_type} @ {s.bmc_address || '—'} · {s.state}</span>
-                  <button type="button" className="text-blue-400 hover:underline" onClick={() => void setBaremetalPower(s.id, 'on', true).then((r) => setCapacitySummary(r.summary))}>Power on (preview)</button>
-                  <button type="button" className="text-blue-400 hover:underline" onClick={() => void getBaremetalProvision(s.id).then((r) => setCapacitySummary(r.summary))}>PXE plan</button>
-                </li>
+                <MacListRow
+                  key={s.id}
+                  title={s.hostname}
+                  subtitle={`${s.bmc_type} @ ${s.bmc_address || '—'} · ${s.firewall_profile || 'BareMetalBmc'} · ${s.state}`}
+                  href={`/platform/zeus/security/firewall/${s.id}`}
+                  trailing={
+                    <span className="flex gap-2 text-[10px]">
+                      <button type="button" className="text-blue-400" onClick={(e) => {
+                        e.preventDefault()
+                        void setBaremetalPower(s.id, 'on', true).then((r) => setCapacitySummary(r.summary))
+                      }}>Power</button>
+                      <button type="button" className="text-blue-400" onClick={(e) => {
+                        e.preventDefault()
+                        void getBaremetalProvision(s.id).then((r) => setCapacitySummary(r.summary))
+                      }}>PXE</button>
+                    </span>
+                  }
+                />
               ))}
-            </ul>
+              {baremetal.length === 0 && <p className="text-sm text-slate-500 px-4 py-2">No bare-metal servers registered.</p>}
+            </div>
+            <Link to="/platform/zeus/security/firewall" className="text-xs text-blue-400 mt-3 inline-block">
+              Open Machine Security fleet →
+            </Link>
           </MacGlassPanel>
           <MacGlassPanel title="AI capacity planner" subtitle="How many servers for N engineers?">
             <button

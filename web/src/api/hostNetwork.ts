@@ -84,6 +84,23 @@ export interface SystemdNetworkDiagnostics {
   resolved_recent_logs: string
 }
 
+export interface LldpNeighbor {
+  local_interface: string
+  chassis_id: string
+  system_name: string
+  port_id: string
+  port_description: string
+  system_description: string
+  capabilities: string
+}
+
+export interface LldpInventory {
+  source: string
+  neighbors: LldpNeighbor[]
+  raw_text: string
+  summary: string
+}
+
 /** Read-only `ip route show table all` / `ip -6 route show table all` output. */
 export interface HostRoutingTables {
   ipv4: string
@@ -107,6 +124,7 @@ export const listHostInterfaces = () => readJsonArray<HostInterface>(`${API}/hos
 export const getSysctlTuning = () => readJsonObject<SysctlTuningResponse>(`${API}/host/sysctl-tuning`)
 export const getSystemdNetworkDiagnostics = () =>
   readJsonObject<SystemdNetworkDiagnostics>(`${API}/host/network-diag`)
+export const getLldpNeighbors = () => readJsonObject<LldpInventory>(`${API}/host/lldp`)
 export const getSystemdInterfaceStatus = (name: string) =>
   readJsonObject<{ interface: string; status: string }>(
     `${API}/host/network-diag/interface/${encodeURIComponent(name)}`,

@@ -130,6 +130,9 @@ const PlatformFirewallPorts = lazy(() => import('./pages/platform/security/Platf
 const PlatformFirewallServices = lazy(() => import('./pages/platform/security/PlatformFirewallServices'))
 const PlatformFirewallActivity = lazy(() => import('./pages/platform/security/PlatformFirewallActivity'))
 const PlatformFirewallCompliance = lazy(() => import('./pages/platform/security/PlatformFirewallCompliance'))
+const PlatformFirewallK8s = lazy(() => import('./pages/platform/security/PlatformFirewallK8s'))
+const PlatformFirewallCloud = lazy(() => import('./pages/platform/security/PlatformFirewallCloud'))
+const PlatformFirewallConnectivity = lazy(() => import('./pages/platform/security/PlatformFirewallConnectivity'))
 const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
@@ -299,6 +302,9 @@ function AuthenticatedShell() {
                   <Route path="zeus/security/services" element={<PlatformFirewallServices />} />
                   <Route path="zeus/security/activity" element={<PlatformFirewallActivity />} />
                   <Route path="zeus/security/compliance" element={<PlatformFirewallCompliance />} />
+                  <Route path="zeus/security/k8s" element={<PlatformFirewallK8s />} />
+                  <Route path="zeus/security/cloud" element={<PlatformFirewallCloud />} />
+                  <Route path="zeus/security/connectivity" element={<PlatformFirewallConnectivity />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />

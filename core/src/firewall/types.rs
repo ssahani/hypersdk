@@ -11,6 +11,7 @@ pub enum FirewallBackend {
     Iptables,
     K8sNetworkPolicy,
     Cilium,
+    Policy,
     Unknown,
 }
 
@@ -23,6 +24,7 @@ impl FirewallBackend {
             Self::Iptables => "iptables",
             Self::K8sNetworkPolicy => "k8s_network_policy",
             Self::Cilium => "cilium",
+            Self::Policy => "policy",
             Self::Unknown => "unknown",
         }
     }

@@ -76,6 +76,19 @@ Implemented in [`web/src/layouts/PlatformLayout.tsx`](../web/src/layouts/Platfor
 | 47 | Help → Platform tab + roadmap docs sync |
 | 48 | Stale host detection + extended platform E2E smoke |
 
+## Awesome Sweep — UX batches 49–56 (shipped)
+
+| Batch | Theme |
+|-------|--------|
+| 49 | Mac UI wave 4 — VM/Host detail, Settings, Blueprints, Topology → `MacGlassPanel` |
+| 50 | Control Center 3.0 — module grid (Cluster / Firewall / Copilot / Tasks) |
+| 51 | Control Center quick actions — sync hosts, Zeus OS, firewall overview |
+| 52 | System Settings sidebar — General · Security · Network · … via `MacSettingsPane` |
+| 53 | Settings Security + Network panes — Zeus Firewall summary, approval SLA |
+| 54 | VM Security tab — in-guest ports via QEMU agent |
+| 55 | MacToggle / sheets keyboard + touch baseline on firewall flows |
+| 56 | E2E smoke + docs for macOS-like firewall + wave 4 |
+
 ## Tagline options
 
 - *Zyvor makes KVM feel as polished as macOS and as operationally powerful as vCenter.*

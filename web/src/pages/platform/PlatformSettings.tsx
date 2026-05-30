@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
-import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { MacSectionTitle, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import {
   getClusterSummary,
@@ -81,26 +81,24 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
       )}
       {error && <ErrorBanner message={error} />}
       {leadership && (
-        <section className="card p-4 space-y-2 text-sm">
-          <h2 className="font-semibold">Controller leadership</h2>
+        <MacGlassPanel title="Controller leadership">
+          <div className="space-y-2 text-sm">
           <p className="text-slate-400">
             This instance: <span className="text-slate-200">{leadership.controller_id}</span>
             {' · '}
             {leadership.is_leader ? <span className="text-emerald-400">leader</span> : <span className="text-amber-400">follower</span>}
           </p>
           <p className="text-slate-500">Holder: {leadership.holder_id || 'none'} · lease until {new Date(leadership.lease_until).toLocaleString()}</p>
-        </section>
+          </div>
+        </MacGlassPanel>
       )}
-      <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">Cluster</h2>
+      <MacGlassPanel title="Cluster">
         <input className="input" value={clusterName} onChange={(e) => setClusterName(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try { await patchCluster({ name: clusterName }); toast.success('Cluster updated'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save cluster name</button>
-      </section>
-      <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">Inventory sync</h2>
-        <p className="text-slate-400 text-xs">Leader-only periodic host inventory sync. Set 0 to disable.</p>
+      </MacGlassPanel>
+      <MacGlassPanel title="Inventory sync" subtitle="Leader-only periodic host inventory sync. Set 0 to disable.">
         <label className="text-sm block">
           Interval (seconds)
           <input type="number" min={0} max={86400} className="input mt-1 block w-40" value={syncInterval}
@@ -113,9 +111,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             await load()
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save sync interval</button>
-      </section>
-      <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">OIDC login</h2>
+      </MacGlassPanel>
+      <MacGlassPanel title="OIDC login">
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={oidc.enabled} onChange={(e) => setOidc({ ...oidc, enabled: e.target.checked })} /> Enable OIDC</label>
         <input className="input" placeholder="issuer URL" value={oidc.issuer} onChange={(e) => setOidc({ ...oidc, issuer: e.target.value })} />
         <input className="input" placeholder="client id" value={oidc.client_id} onChange={(e) => setOidc({ ...oidc, client_id: e.target.value })} />
@@ -129,10 +126,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             <a href={getOidcLoginUrl()} className="btn-primary inline-flex items-center">Login with OIDC</a>
           )}
         </div>
-      </section>
-      <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">Project quotas</h2>
-        <p className="text-slate-400 text-xs">0 = unlimited. Enforced on VM create.</p>
+      </MacGlassPanel>
+      <MacGlassPanel title="Project quotas" subtitle="0 = unlimited. Enforced on VM create.">
         {quotas.length > 0 && (
           <ul className="text-xs text-slate-400 space-y-1">
             {quotas.map((q) => (
@@ -154,10 +149,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             await load()
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save quota</button>
-      </section>
-      <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">Machina AI (BYOK)</h2>
-        <p className="text-slate-400 text-xs">Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations.</p>
+      </MacGlassPanel>
+      <MacGlassPanel title="Machina AI (BYOK)" subtitle="Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations.">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={ai.enabled} onChange={(e) => setAi({ ...ai, enabled: e.target.checked })} />
           Enable Machina AI
@@ -234,9 +227,8 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             toast.success('AI settings saved')
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save AI settings</button>
-      </section>
-      <section className="card p-4 space-y-3">
-        <h2 className="font-semibold text-sm">CPU compatibility matrix</h2>
+      </MacGlassPanel>
+      <MacGlassPanel title="CPU compatibility matrix">
         <textarea className="input font-mono text-xs min-h-32" value={cpuJson} onChange={(e) => setCpuJson(e.target.value)} />
         <button type="button" className="btn-secondary" onClick={async () => {
           try {
@@ -246,7 +238,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
             toast.success('CPU matrix updated')
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save matrix ({cpuRules.length} rules)</button>
-      </section>
+      </MacGlassPanel>
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Workflow, Play, Trash2, Plus } from 'lucide-react'
-import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { MacSectionTitle, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import { createBlueprint, deleteBlueprint, listBlueprints, listPlatformVms, runBlueprint, type Blueprint } from '../../api/platform'
 import { aiGenerateBlueprint } from '../../api/ai'
@@ -51,8 +51,7 @@ export default function PlatformBlueprints() {
     <div className="space-y-6">
       <MacSectionTitle title="Blueprint Studio" subtitle="NL → blueprint preview → deploy automation across VM sets." />
       {error && <ErrorBanner message={error} />}
-      <div className="card p-4 space-y-3">
-        <h3 className="font-semibold text-sm">Generate from description</h3>
+      <MacGlassPanel title="Generate from description">
         <textarea className="input min-h-20" value={nlPrompt} onChange={(e) => setNlPrompt(e.target.value)} placeholder="Backup all Windows VMs every night" />
         <div className="flex gap-2 flex-wrap">
           <button type="button" className="btn-primary text-sm" disabled={generating} onClick={async () => {
@@ -72,16 +71,15 @@ export default function PlatformBlueprints() {
         {preview && (
           <p className="text-xs text-slate-400">{preview.description} · actions: {preview.actions.join(', ')}</p>
         )}
-      </div>
-      <div className="card p-4 flex flex-wrap gap-3 items-end">
+      </MacGlassPanel>
+      <MacGlassPanel title="Manual blueprint">
         <label className="text-sm">Name<input className="input block mt-1" value={name} onChange={(e) => setName(e.target.value)} /></label>
         <label className="text-sm">Actions (comma-separated)<input className="input block mt-1" value={actions} onChange={(e) => setActions(e.target.value)} placeholder="start,stop,backup" /></label>
         <button type="button" className="btn-primary flex items-center gap-2" onClick={() => void createFromVms()}><Plus className="w-4 h-4" /> Create from VMs</button>
-      </div>
+      </MacGlassPanel>
       <div className="grid gap-4 md:grid-cols-2">
         {rows.map((bp) => (
-          <article key={bp.id} className="card p-5 space-y-3">
-            <h3 className="font-semibold">{bp.name}</h3>
+          <MacGlassPanel key={bp.id} title={bp.name}>
             <p className="text-xs text-slate-500">{bp.description || 'No description'}</p>
             <p className="text-xs text-slate-400">{(bp.actions ?? []).join(', ')} · {bp.vm_ids?.length ?? 0} VMs</p>
             <div className="flex gap-2">
@@ -95,7 +93,7 @@ export default function PlatformBlueprints() {
                 try { await deleteBlueprint(bp.id); toast.success('Deleted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
               }}><Trash2 className="w-3 h-3" /> Delete</button>
             </div>
-          </article>
+          </MacGlassPanel>
         ))}
       </div>
       {rows.length === 0 && !error && <p className="text-slate-500 text-sm">Create a blueprint to automate recurring operations.</p>}

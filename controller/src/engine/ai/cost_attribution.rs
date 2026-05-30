@@ -10,6 +10,7 @@ pub struct TeamCostRow {
     pub vcpus: i64,
     pub memory_gib: f64,
     pub estimated_monthly_usd: f64,
+    pub exposure_monthly_usd: f64,
     pub share_pct: f32,
 }
 
@@ -69,6 +70,7 @@ pub async fn attribute(pool: &PgPool) -> anyhow::Result<CostAttributionReport> {
             vcpus,
             memory_gib,
             estimated_monthly_usd: monthly,
+            exposure_monthly_usd: 0.0,
             share_pct: 0.0,
         });
     }
@@ -86,6 +88,7 @@ pub async fn attribute(pool: &PgPool) -> anyhow::Result<CostAttributionReport> {
             vcpus,
             memory_gib,
             estimated_monthly_usd: monthly,
+            exposure_monthly_usd: 0.0,
             share_pct: 0.0,
         });
     }
@@ -106,6 +109,31 @@ pub async fn attribute(pool: &PgPool) -> anyhow::Result<CostAttributionReport> {
         } else {
             0.0
         };
+        row.exposure_monthly_usd = 0.0;
+    }
+
+    let cfg = crate::config::ControllerConfig::default();
+    if let Ok(exp_teams) = crate::engine::zeus_firewall::finops::team_exposure_attribution(pool, &cfg).await {
+        for (team, exposure, _) in exp_teams {
+            let key = if team.starts_with("metal:") {
+                format!("tag:{team}")
+            } else {
+                format!("tag:{team}")
+            };
+            if let Some(row) = teams.iter_mut().find(|t| t.team.contains(&team) || t.team == key) {
+                row.exposure_monthly_usd = exposure;
+            } else {
+                teams.push(TeamCostRow {
+                    team: key,
+                    vm_count: 0,
+                    vcpus: 0,
+                    memory_gib: 0.0,
+                    estimated_monthly_usd: 0.0,
+                    exposure_monthly_usd: exposure,
+                    share_pct: 0.0,
+                });
+            }
+        }
     }
 
     let unattributed = teams

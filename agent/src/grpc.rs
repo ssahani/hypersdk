@@ -831,4 +831,41 @@ impl HostAgent for AgentService {
             message: String::new(),
         }))
     }
+
+    async fn get_guest_firewall_ports(
+        &self,
+        request: Request<GetGuestFirewallPortsRequest>,
+    ) -> Result<Response<GetGuestFirewallPortsResponse>, Status> {
+        let req = request.into_inner();
+        let uri = self.libvirt_uri.clone();
+        let vm_name = req.vm_name.clone();
+        match tokio::task::spawn_blocking(move || {
+            let ctx = libvirt_ops::LibvirtCtx::open(&uri)?;
+            ctx.guest_firewall_ports(&vm_name)
+        })
+        .await
+        {
+            Ok(Ok((ports, agent_reachable))) => Ok(Response::new(GetGuestFirewallPortsResponse {
+                ok: true,
+                agent_reachable,
+                ports: ports
+                    .into_iter()
+                    .map(|p| GuestFirewallPort {
+                        port: p.port as u32,
+                        protocol: p.protocol,
+                        bind_address: p.bind_address,
+                        process: p.process.unwrap_or_default(),
+                    })
+                    .collect(),
+                message: String::new(),
+            })),
+            Ok(Err(e)) => Ok(Response::new(GetGuestFirewallPortsResponse {
+                ok: false,
+                agent_reachable: false,
+                ports: vec![],
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
 }

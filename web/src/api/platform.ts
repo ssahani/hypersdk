@@ -241,9 +241,42 @@ export const discoverPlatformNetworks = () =>
     method: 'POST',
     body: '{}',
   })
-export const createPlatformNetwork = (body: { name: string; vlan_id?: number; bridge?: string }) =>
+export const createPlatformNetwork = (body: {
+  name: string
+  vlan_id?: number
+  bridge?: string
+  segment_id?: string
+  firewall_profile?: string
+}) =>
   platformFetch<PlatformNetwork>('/api/v1/networks', { method: 'POST', body: JSON.stringify(body) })
 export const deletePlatformNetwork = (id: string) => platformFetch(`/api/v1/networks/${id}`, { method: 'DELETE' })
+
+export const getNetworkSegmentsOverview = () =>
+  platformFetch<NetworkSegmentsOverview>('/api/v1/network/segments/overview')
+
+export const createNetworkSegment = (body: {
+  name: string
+  tier: string
+  cidr: string
+  east_west_default?: string
+  firewall_profile?: string
+  gitops_namespace?: string
+}) =>
+  platformFetch('/api/v1/network/segments', { method: 'POST', body: JSON.stringify(body) })
+
+export const listIpamPools = () => platformFetch<IpamPoolRow[]>('/api/v1/network/ipam/pools')
+
+export const allocateIpam = (segmentId: string, body?: { hostname?: string; network_id?: string }) =>
+  platformFetch<IpamAllocation>(`/api/v1/network/segments/${segmentId}/ipam/allocate`, {
+    method: 'POST',
+    body: JSON.stringify(body ?? {}),
+  })
+
+export const getHostLldp = (hostId: string) =>
+  platformFetch<HostLldpInventory>(`/api/v1/hosts/${hostId}/lldp`)
+
+export const exportNetworkSegmentsGitops = () =>
+  platformFetch('/api/v1/network/segments/gitops/export')
 export const getClusterSummary = () => platformFetch<ClusterSummary>('/api/v1/cluster')
 export const listMigrationJobs = () => platformFetch<MigrationJob[]>('/api/v1/migrations')
 export const listFenceEvents = () => platformFetch<FenceEvent[]>('/api/v1/fence/events')
@@ -504,6 +537,7 @@ export interface ClusterSettings {
   placement_policy: string
   inventory_sync_interval_secs: number
   require_vm_delete_approval?: boolean
+  firewall_approval_sla_hours?: number
   finops_vcpu_hour_usd?: number
   finops_gib_hour_usd?: number
 }
@@ -557,6 +591,62 @@ export interface PlatformNetwork {
   backend: string
   vlan_id?: number | null
   bridge?: string | null
+  segment_id?: string | null
+}
+
+export interface NetworkSegmentOverview {
+  id: string
+  name: string
+  tier: string
+  cidr: string
+  east_west_default: string
+  firewall_profile?: string | null
+  gitops_namespace: string
+  network_count: number
+  vm_count: number
+  micro_seg_grade: string
+  micro_seg_score: number
+}
+
+export interface NetworkSegmentsOverview {
+  segments: NetworkSegmentOverview[]
+  summary: string
+}
+
+export interface IpamPoolRow {
+  id: string
+  segment_id: string
+  segment_name: string
+  cidr: string
+  gateway?: string | null
+  next_offset: number
+  reservation_count: number
+}
+
+export interface IpamAllocation {
+  reservation_id: string
+  pool_id: string
+  ip_address: string
+  hostname?: string | null
+  segment_id: string
+  segment_name: string
+}
+
+export interface HostLldpNeighbor {
+  local_interface: string
+  chassis_id: string
+  system_name: string
+  port_id: string
+  port_description: string
+  system_description: string
+  capabilities: string
+}
+
+export interface HostLldpInventory {
+  source: string
+  neighbors: HostLldpNeighbor[]
+  raw_text: string
+  summary: string
 }
 
 export interface MigrationJob {

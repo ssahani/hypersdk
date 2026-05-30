@@ -305,6 +305,8 @@ pub async fn join_host(
     .fetch_one(&state.pool)
     .await?;
 
+    link_baremetal_firewall_on_join(&state.pool, host_id, &req.hostname).await;
+
     let _ = enqueue_task(
         &state,
         "host.validate",
@@ -316,6 +318,18 @@ pub async fn join_host(
     .await;
 
     get_host(State(state), Path(host_id)).await
+}
+
+async fn link_baremetal_firewall_on_join(pool: &sqlx::PgPool, host_id: Uuid, hostname: &str) {
+    if let Ok(Some(metal_id)) = sqlx::query_scalar::<_, Uuid>(
+        "SELECT id FROM baremetal_servers WHERE hostname = $1 LIMIT 1",
+    )
+    .bind(hostname)
+    .fetch_optional(pool)
+    .await
+    {
+        let _ = crate::engine::baremetal::link_host_firewall_profile(pool, metal_id, host_id).await;
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -488,4 +502,23 @@ pub async fn delete_host(
         .await?;
     write_audit(&state, &actor.username, "host.delete", "host", Some(id), serde_json::json!({})).await?;
     Ok(Json(serde_json::json!({ "deleted": true })))
+}
+
+pub async fn host_lldp(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<machina_core::libvirt::host_network::LldpInventory>, ApiError> {
+    let row: (String, String) = sqlx::query_as(
+        "SELECT hostname, COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr)
+         FROM hosts WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| ApiError::not_found("host not found"))?;
+
+    crate::engine::network_overlay::fetch_host_lldp(&row.1)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(format!("{} LLDP: {}", row.0, e)))
 }

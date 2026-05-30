@@ -2,13 +2,32 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
-import { MacGlassPanel, MacSectionTitle } from '../../../components/platform/mac/PlatformMacUi'
+import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../../components/ErrorBanner'
 import { getFirewallActivity, getFirewallOverview } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
 
+type ActivityEvent = Record<string, unknown> & { target?: string; group?: string }
+
+function eventTitle(e: ActivityEvent): string {
+  const verdict = e.verdict ?? e.action ?? e.kind
+  const port = e.destination_port ?? e.port ?? e.target_port
+  if (port) return `${String(verdict || 'flow')} · port ${port}`
+  return String(e.summary ?? e.message ?? verdict ?? 'Network event')
+}
+
+function eventSubtitle(e: ActivityEvent): string {
+  const parts = [
+    e.target,
+    e.source_ip ?? e.source,
+    e.destination_ip ?? e.destination,
+  ].filter(Boolean)
+  return parts.map(String).join(' · ')
+}
+
 export default function PlatformFirewallActivity() {
-  const [events, setEvents] = useState<Array<Record<string, unknown>>>([])
+  const [blocked, setBlocked] = useState<ActivityEvent[]>([])
+  const [allowed, setAllowed] = useState<ActivityEvent[]>([])
   const [note, setNote] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -16,18 +35,26 @@ export default function PlatformFirewallActivity() {
     setError(null)
     try {
       const ov = await getFirewallOverview()
-      const merged: Array<Record<string, unknown>> = []
+      const blockedEv: ActivityEvent[] = []
+      const allowedEv: ActivityEvent[] = []
       for (const t of ov.targets) {
         const act = await getFirewallActivity(t.id)
         if (typeof act.note === 'string') setNote(act.note)
         const ev = act.events
-        if (Array.isArray(ev)) {
-          for (const e of ev) {
-            if (e && typeof e === 'object') merged.push({ ...e as Record<string, unknown>, target: t.name })
+        if (!Array.isArray(ev)) continue
+        for (const raw of ev) {
+          if (!raw || typeof raw !== 'object') continue
+          const e = { ...(raw as Record<string, unknown>), target: t.name } as ActivityEvent
+          const v = String(e.verdict ?? e.action ?? '').toLowerCase()
+          if (v.includes('drop') || v.includes('block') || v.includes('deny')) {
+            blockedEv.push({ ...e, group: 'blocked' })
+          } else {
+            allowedEv.push({ ...e, group: 'allowed' })
           }
         }
       }
-      setEvents(merged)
+      setBlocked(blockedEv)
+      setAllowed(allowedEv)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -37,18 +64,35 @@ export default function PlatformFirewallActivity() {
 
   return (
     <div className="space-y-6">
-      <MacSectionTitle title="Firewall Activity" subtitle="Blocked and allowed connections" />
+      <MacSectionTitle title="Firewall Activity" subtitle="Notification Center-style connection log" />
       <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
       {error && <ErrorBanner message={error} />}
-      <MacGlassPanel title="Live activity" subtitle={note || 'PacketWolf provides live blocked flows when connected'}>
-        {events.length === 0 ? (
-          <p className="text-sm text-slate-500">No blocked connection events yet. Enable PacketWolf for live scans and probe detection.</p>
+      <MacGlassPanel title="Today" subtitle={note || 'PacketWolf provides live flows when connected'}>
+        {blocked.length === 0 && allowed.length === 0 ? (
+          <p className="text-sm text-slate-500">No connection events yet. Enable PacketWolf for live blocked flows.</p>
         ) : (
-          <ul className="space-y-2 text-sm text-slate-300">
-            {events.map((e, i) => (
-              <li key={i} className="border-b border-white/[0.04] pb-2">{JSON.stringify(e)}</li>
-            ))}
-          </ul>
+          <div className="space-y-4">
+            {blocked.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-red-300/90 uppercase tracking-wide mb-2 px-1">Blocked</p>
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                  {blocked.slice(0, 25).map((e, i) => (
+                    <MacListRow key={`b-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {allowed.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-emerald-300/80 uppercase tracking-wide mb-2 px-1">Allowed</p>
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+                  {allowed.slice(0, 15).map((e, i) => (
+                    <MacListRow key={`a-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         )}
       </MacGlassPanel>
     </div>

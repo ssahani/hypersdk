@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity } from 'lucide-react'
+import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield } from 'lucide-react'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
 import VmDetailTabs, { type VmDetailTab } from '../../components/platform/VmDetailTabs'
+import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import {
@@ -44,6 +45,7 @@ import {
   type VmHealthReport,
 } from '../../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
+import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -75,6 +77,8 @@ export default function PlatformVmDetail() {
   const [healthLoading, setHealthLoading] = useState(false)
   const [doctorLoading, setDoctorLoading] = useState(false)
   const [guestInstalling, setGuestInstalling] = useState(false)
+  const [guestPorts, setGuestPorts] = useState<GuestPortReport | null>(null)
+  const [guestPortsLoading, setGuestPortsLoading] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -137,6 +141,22 @@ export default function PlatformVmDetail() {
   useEffect(() => { void runHealth() }, [runHealth])
   useEffect(() => { void runDoctor() }, [runDoctor])
 
+  const loadGuestPorts = useCallback(async () => {
+    if (!id) return
+    setGuestPortsLoading(true)
+    try {
+      setGuestPorts(await getVmGuestFirewallPorts(id))
+    } catch {
+      setGuestPorts(null)
+    } finally {
+      setGuestPortsLoading(false)
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (tab === 'security' && id) void loadGuestPorts()
+  }, [tab, id, loadGuestPorts])
+
   useEffect(() => {
     setContextVmId(id ?? null)
     return () => setContextVmId(null)
@@ -181,10 +201,12 @@ export default function PlatformVmDetail() {
           </header>
 
           {vm.managed === false && (
-            <div className="card p-4 flex items-center justify-between gap-3">
-              <p className="text-sm text-amber-400">Discovered on a host — adopt to manage lifecycle from the platform.</p>
-              <button type="button" className="btn-primary" onClick={() => void act('VM adopted', () => adoptPlatformVm(id))}>Adopt VM</button>
-            </div>
+            <MacGlassPanel title="Discovered VM">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-amber-400">Discovered on a host — adopt to manage lifecycle from the platform.</p>
+                <button type="button" className="btn-primary" onClick={() => void act('VM adopted', () => adoptPlatformVm(id))}>Adopt VM</button>
+              </div>
+            </MacGlassPanel>
           )}
           {vm.last_error && (
             <StructuredErrorBanner error={{ message: vm.last_error, error_code: 'vm_error', remediation: 'Check Tasks for the failed operation and retry after fixing the root cause.' }} />
@@ -215,18 +237,21 @@ export default function PlatformVmDetail() {
                 <InfoCard label="Project" value={project || 'default'} />
                 <InfoCard label="Backup" value={backups.some((b) => b.status === 'completed') ? 'Protected' : 'Not configured'} />
               </div>
-              <div className="card p-4 flex flex-wrap gap-3 items-end">
-                <div>
-                  <label className="text-xs text-slate-500 block mb-1">Project</label>
-                  <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
+              <MacGlassPanel title="Project & tags">
+                <div className="flex flex-wrap gap-3 items-end">
+                  <div>
+                    <label className="text-xs text-slate-500 block mb-1">Project</label>
+                    <input className="input" value={project} onChange={(e) => setProject(e.target.value)} placeholder="default" />
+                  </div>
+                  <div className="flex-1 min-w-[12rem]">
+                    <label className="text-xs text-slate-500 block mb-1">Tags</label>
+                    <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
+                  </div>
+                  <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
                 </div>
-                <div className="flex-1 min-w-[12rem]">
-                  <label className="text-xs text-slate-500 block mb-1">Tags</label>
-                  <input className="input w-full" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prod, web" />
-                </div>
-                <button type="button" className="btn-secondary" onClick={() => void act('Project updated', () => patchVm(id, { project, tags: tags.split(',').map((t) => t.trim()).filter(Boolean) }))}>Save</button>
-              </div>
-              <div className="card p-4 grid gap-4 md:grid-cols-2">
+              </MacGlassPanel>
+              <MacGlassPanel title="Operations">
+                <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <h3 className="font-semibold mb-2 flex items-center gap-2"><MoveRight className="w-4 h-4" /> Live migrate</h3>
                   <select className="input w-full mb-2" value={destHost} onChange={(e) => setDestHost(e.target.value)}>
@@ -259,7 +284,8 @@ export default function PlatformVmDetail() {
                   <input className="input w-full mb-2" placeholder="new-vm-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} />
                   <button type="button" className="btn-secondary" disabled={!cloneName} onClick={() => void act('Clone queued', () => vmClone(id, cloneName))}>Clone</button>
                 </div>
-              </div>
+                </div>
+              </MacGlassPanel>
             </div>
           )}
 
@@ -279,14 +305,16 @@ export default function PlatformVmDetail() {
           )}
 
           {tab === 'console' && (
-            <div className="card p-8 text-center pt-2">
-              <Terminal className="w-12 h-12 mx-auto text-slate-600 mb-4" />
-              <Link to={`/platform/vms/${id}/console`} className="btn-primary inline-flex items-center gap-2"><Terminal className="w-4 h-4" /> Open console</Link>
-            </div>
+            <MacGlassPanel title="Console" className="pt-2">
+              <div className="text-center py-4">
+                <Terminal className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+                <Link to={`/platform/vms/${id}/console`} className="btn-primary inline-flex items-center gap-2"><Terminal className="w-4 h-4" /> Open console</Link>
+              </div>
+            </MacGlassPanel>
           )}
 
           {tab === 'performance' && (
-            <div className="card p-5 pt-2 space-y-3">
+            <MacGlassPanel title="Performance" className="pt-2">
               {metrics ? (
                 <>
                   <div className="flex flex-wrap gap-6 text-sm">
@@ -299,38 +327,85 @@ export default function PlatformVmDetail() {
               ) : (
                 <p className="text-slate-500 text-sm">Metrics appear after the next host inventory sync.</p>
               )}
-            </div>
+            </MacGlassPanel>
           )}
 
           {tab === 'disks' && (
             <div className="space-y-4 pt-2">
               {disks.length > 0 && (
-                <section className="card p-4">
+                <MacGlassPanel title="Attached disks">
                   <ul className="text-sm text-slate-400 space-y-2">{disks.map((d) => (
                     <li key={d.id}>{d.name} · {d.size_gib} GiB · {d.storage_class}{d.path ? ` · ${d.path}` : ''}</li>
                   ))}</ul>
-                </section>
+                </MacGlassPanel>
               )}
-              <section className="card p-4">
-                <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm"><HardDrive className="w-4 h-4" /> Attach disk</h3>
+              <MacGlassPanel title="Attach disk">
                 <div className="flex flex-wrap gap-3 items-end">
                   <label className="text-xs text-slate-500">Path<input className="input mt-1 block min-w-[18rem]" value={attachPath} onChange={(e) => setAttachPath(e.target.value)} /></label>
                   <label className="text-xs text-slate-500">Target dev<input className="input mt-1 block w-24" value={attachDev} onChange={(e) => setAttachDev(e.target.value)} /></label>
                   <button type="button" className="btn-secondary" disabled={vm.managed === false} onClick={() => void act('Attach disk queued', () => attachVmDisk(id, { disk_path: attachPath, target_dev: attachDev }))}>Attach</button>
                 </div>
-              </section>
+              </MacGlassPanel>
             </div>
           )}
 
           {tab === 'network' && (
-            <div className="card p-5 pt-2 text-sm text-slate-400">
-              <p>Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
+            <MacGlassPanel title="Network" className="pt-2">
+              <p className="text-sm text-slate-400">Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
               <Link to="/platform/networks" className="text-blue-400 text-sm mt-2 inline-block">Manage networks →</Link>
+            </MacGlassPanel>
+          )}
+
+          {tab === 'security' && (
+            <div className="space-y-4 pt-2">
+              <MacGlassPanel
+                title="Security"
+                subtitle="In-guest listening ports via QEMU guest agent · host firewall on parent machine"
+              >
+                {vm.host_id && (
+                  <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className="text-sm text-blue-400 inline-flex items-center gap-1 mb-4">
+                    <Shield className="w-4 h-4" /> Host firewall (Zeus) →
+                  </Link>
+                )}
+                {guestPortsLoading && <p className="text-sm text-slate-500">Loading guest ports…</p>}
+                {!guestPortsLoading && guestPorts && (
+                  <>
+                    <p className="text-xs text-slate-500 mb-3">
+                      {guestPorts.summary}
+                      {!guestPorts.agent_reachable && ' · Guest agent unreachable — install Guest Tools'}
+                    </p>
+                    {guestPorts.ports.length === 0 ? (
+                      <p className="text-sm text-slate-500">No listening ports reported inside the guest.</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {guestPorts.ports.map((p) => (
+                          <MacListRow
+                            key={`${p.port}-${p.protocol}`}
+                            title={`${p.port}/${p.protocol}`}
+                            subtitle={[p.service_name || p.process, String(p.risk)].filter(Boolean).join(' · ')}
+                            badge={
+                              (p.risk === 'Critical' || p.risk === 'critical') ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">critical</span>
+                              ) : (p.risk === 'Warning' || p.risk === 'warning') ? (
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">warning</span>
+                              ) : undefined
+                            }
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+                {!guestPortsLoading && !guestPorts && (
+                  <p className="text-sm text-slate-500">Could not load guest firewall ports. Ensure Guest Tools are installed and the VM is running.</p>
+                )}
+                <button type="button" className="btn-secondary text-xs mt-3" onClick={() => void loadGuestPorts()}>Refresh</button>
+              </MacGlassPanel>
             </div>
           )}
 
           {tab === 'snapshots' && (
-            <div className="card p-4 pt-2 space-y-3">
+            <MacGlassPanel title="Snapshots" className="pt-2">
               <input className="input w-full max-w-xs" value={snapName} onChange={(e) => setSnapName(e.target.value)} />
               <div className="flex gap-2">
                 <button type="button" className="btn-secondary text-xs" onClick={() => void act('Snapshot queued', () => createVmSnapshot(id, snapName))}>Create snapshot</button>
@@ -346,11 +421,11 @@ export default function PlatformVmDetail() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </MacGlassPanel>
           )}
 
           {tab === 'backup' && (
-            <div className="card p-4 pt-2 space-y-3">
+            <MacGlassPanel title="Backup" className="pt-2">
               <p className="text-xs text-slate-500">Restore will not overwrite the current VM unless you choose restore in place.</p>
               <button type="button" className="btn-secondary text-xs" onClick={() => void act('Backup queued', () => createVmBackup(id))}><Archive className="w-3 h-3 inline" /> Backup now</button>
               <ul className="text-xs space-y-2">
@@ -363,27 +438,25 @@ export default function PlatformVmDetail() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </MacGlassPanel>
           )}
 
           {tab === 'events' && (
-            <div className="card p-5 pt-2 text-sm">
+            <MacGlassPanel title="Events" className="pt-2">
               <Link to="/platform/tasks" className="text-blue-400">View task history →</Link>
-            </div>
+            </MacGlassPanel>
           )}
 
           {tab === 'settings' && (
             <div className="space-y-4 pt-2">
-              <div className="card p-4">
-                <h3 className="font-semibold mb-2">High availability</h3>
+              <MacGlassPanel title="High availability">
                 <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={ha.enabled} onChange={(e) => setHa({ ...ha, enabled: e.target.checked })} /> Restart on host failure</label>
                 <label className="flex items-center gap-2 text-sm mt-2"><input type="checkbox" checked={ha.fence_on_failure} onChange={(e) => setHa({ ...ha, fence_on_failure: e.target.checked })} /> Fence host on failure</label>
                 <button type="button" className="btn-secondary mt-2" onClick={() => void act('HA policy updated', () => setVmHa(id, ha))}>Save HA policy</button>
-              </div>
-              <section className="card p-4">
-                <h3 className="font-semibold mb-2 text-sm">Pro view — spec JSON</h3>
+              </MacGlassPanel>
+              <MacGlassPanel title="Pro view — spec JSON">
                 <pre className="text-xs overflow-auto max-h-64 text-slate-400">{specJson}</pre>
-              </section>
+              </MacGlassPanel>
             </div>
           )}
         </>

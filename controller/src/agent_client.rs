@@ -471,6 +471,45 @@ pub async fn apply_firewall_plan(
     }
 }
 
+pub struct GuestFirewallPortsResponse {
+    pub agent_reachable: bool,
+    pub ports: Vec<machina_core::GuestListeningPort>,
+}
+
+pub async fn get_guest_firewall_ports(
+    addr: &str,
+    vm_name: &str,
+) -> anyhow::Result<GuestFirewallPortsResponse> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_guest_firewall_ports(GetGuestFirewallPortsRequest {
+            vm_name: vm_name.into(),
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        Ok(GuestFirewallPortsResponse {
+            agent_reachable: resp.agent_reachable,
+            ports: resp
+                .ports
+                .into_iter()
+                .map(|p| machina_core::GuestListeningPort {
+                    port: p.port as u16,
+                    protocol: p.protocol,
+                    bind_address: p.bind_address,
+                    process: if p.process.is_empty() {
+                        None
+                    } else {
+                        Some(p.process)
+                    },
+                })
+                .collect(),
+        })
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
 pub async fn get_firewall_activity(addr: &str, hours: u32) -> anyhow::Result<serde_json::Value> {
     let mut client = connect(addr).await?;
     let resp = client
@@ -482,4 +521,21 @@ pub async fn get_firewall_activity(addr: &str, hours: u32) -> anyhow::Result<ser
     } else {
         anyhow::bail!(resp.message)
     }
+}
+
+pub async fn get_lldp(
+    agent_console_addr: &str,
+) -> anyhow::Result<machina_core::libvirt::host_network::LldpInventory> {
+    let normalized = normalize_agent_addr(agent_console_addr);
+    let url = format!("http://{normalized}/api/v1/host/lldp");
+    let resp = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(8))
+        .build()?
+        .get(&url)
+        .send()
+        .await?;
+    if !resp.status().is_success() {
+        anyhow::bail!("agent LLDP HTTP {}", resp.status());
+    }
+    Ok(resp.json().await?)
 }

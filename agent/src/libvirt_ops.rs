@@ -469,6 +469,15 @@ impl LibvirtCtx {
         })
     }
 
+    pub fn guest_firewall_ports(
+        &self,
+        name: &str,
+    ) -> Result<(Vec<machina_core::GuestListeningPort>, bool), LibvirtError> {
+        let health = self.guest_health(name)?;
+        let ports = machina_core::scan_guest_listening_ports(name);
+        Ok((ports, health.agent_reachable))
+    }
+
     pub fn install_guest_tools(&self, name: &str) -> Result<(), LibvirtError> {
         use virt::domain::Domain;
         let dom = Domain::lookup_by_name(&self.conn, name)

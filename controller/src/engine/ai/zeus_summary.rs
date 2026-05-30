@@ -15,6 +15,9 @@ pub struct ZeusOsSummary {
     pub fleet_hotspots: usize,
     pub compliance_grade: String,
     pub firewall_critical_hosts: usize,
+    pub firewall_drift_hosts: i64,
+    pub baremetal_critical_count: usize,
+    pub exposure_waste_usd: f64,
     pub highlights: Vec<String>,
 }
 
@@ -40,8 +43,32 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
         .filter(|r| r.risk == "Critical")
         .count();
 
+    let firewall_drift_hosts: i64 = sqlx::query_scalar(
+        "SELECT COUNT(DISTINCT target_id) FROM firewall_timeline
+         WHERE kind = 'drift' AND created_at > NOW() - INTERVAL '7 days'",
+    )
+    .fetch_one(pool)
+    .await
+    .unwrap_or(0);
+
+    let baremetal_critical_count = if let Ok(ov) =
+        crate::engine::zeus_firewall::metal::metal_overview(pool).await
+    {
+        ov.critical_count
+    } else {
+        0
+    };
+
+    let cfg = crate::config::ControllerConfig::default();
+    let exposure_waste_usd = crate::engine::zeus_firewall::finops::exposure_rollup(pool, &cfg)
+        .await
+        .map(|r| r.idle_port_waste_usd + r.fleet_exposure_monthly_usd * 0.05)
+        .unwrap_or(0.0);
+
     let status = if security.risk_level == "high"
         || firewall_critical > 0
+        || baremetal_critical_count > 0
+        || firewall_drift_hosts > 0
         || sre.forecasts.iter().any(|f| f.severity == "critical")
     {
         "attention"
@@ -57,11 +84,25 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
             "{firewall_critical} host(s) with critical firewall exposure"
         ));
     }
+    if firewall_drift_hosts > 0 {
+        highlights.push(format!("{firewall_drift_hosts} host(s) with firewall drift (7d)"));
+    }
+    if baremetal_critical_count > 0 {
+        highlights.push(format!(
+            "{baremetal_critical_count} bare-metal BMC exposure(s) need attention"
+        ));
+    }
     if !heat.hotspots.is_empty() {
         highlights.push(format!("{} fleet hotspot(s)", heat.hotspots.len()));
     }
     if cost.idle_vm_count > 0 {
         highlights.push(format!("{} idle VMs — FinOps opportunity", cost.idle_vm_count));
+    }
+    if exposure_waste_usd > 25.0 {
+        highlights.push(format!(
+            "${:.0}/mo exposure waste — FinOps × Security",
+            exposure_waste_usd
+        ));
     }
     if sre.forecasts.len() > 0 {
         highlights.push(format!("{} SRE forecast(s)", sre.forecasts.len()));
@@ -81,6 +122,9 @@ pub async fn summarize(pool: &PgPool) -> anyhow::Result<ZeusOsSummary> {
         fleet_hotspots: heat.hotspots.len(),
         compliance_grade: compliance.grade,
         firewall_critical_hosts: firewall_critical,
+        firewall_drift_hosts,
+        baremetal_critical_count,
+        exposure_waste_usd,
         highlights,
     })
 }

@@ -210,3 +210,191 @@ export function PresetTemplateCard({
     </button>
   )
 }
+
+/** macOS Settings-style toggle switch */
+export function MacToggle({
+  checked,
+  onChange,
+  disabled,
+  label,
+  description,
+  id,
+}: {
+  checked: boolean
+  onChange: (next: boolean) => void
+  disabled?: boolean
+  label: string
+  description?: string
+  id?: string
+}) {
+  const toggleId = id ?? label.replace(/\s+/g, '-').toLowerCase()
+  return (
+    <div className="flex items-start justify-between gap-4 py-2">
+      <div className="min-w-0">
+        <label htmlFor={toggleId} className="text-sm font-medium text-slate-100 cursor-pointer">
+          {label}
+        </label>
+        {description && <p className="text-xs text-slate-500 mt-0.5">{description}</p>}
+      </div>
+      <button
+        id={toggleId}
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`platform-mac-toggle relative shrink-0 w-11 h-6 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
+          checked ? 'bg-emerald-500' : 'bg-slate-600'
+        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        <span
+          className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
+            checked ? 'translate-x-5' : 'translate-x-0'
+          }`}
+        />
+      </button>
+    </div>
+  )
+}
+
+/** Segmented control (Stealth mode, etc.) */
+export function MacSegmentedControl<T extends string>({
+  options,
+  value,
+  onChange,
+  label,
+}: {
+  options: Array<{ value: T; label: string }>
+  value: T
+  onChange: (v: T) => void
+  label?: string
+}) {
+  return (
+    <div className="space-y-2">
+      {label && <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{label}</p>}
+      <div className="inline-flex p-0.5 rounded-xl bg-slate-950/60 border border-white/[0.06]" role="tablist">
+        {options.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            role="tab"
+            aria-selected={value === opt.value}
+            onClick={() => onChange(opt.value)}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${
+              value === opt.value
+                ? 'bg-slate-700 text-white shadow-sm'
+                : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/** Settings list row (Security & Privacy style) */
+export function MacListRow({
+  title,
+  subtitle,
+  trailing,
+  href,
+  onClick,
+  badge,
+}: {
+  title: string
+  subtitle?: string
+  trailing?: React.ReactNode
+  href?: string
+  onClick?: () => void
+  badge?: React.ReactNode
+}) {
+  const cls =
+    'flex items-center gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition text-left w-full'
+  const inner = (
+    <>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-slate-100 truncate">{title}</p>
+        {subtitle && <p className="text-xs text-slate-500 truncate mt-0.5">{subtitle}</p>}
+      </div>
+      {badge}
+      {trailing}
+    </>
+  )
+  if (href) {
+    return (
+      <Link to={href} className={cls}>
+        {inner}
+      </Link>
+    )
+  }
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={cls}>
+        {inner}
+      </button>
+    )
+  }
+  return <div className={cls}>{inner}</div>
+}
+
+/** System Settings sidebar + detail layout */
+export function MacSettingsPane({
+  sections,
+  active,
+  onSelect,
+  title,
+  children,
+}: {
+  sections: Array<{ id: string; label: string; icon?: React.ReactNode }>
+  active: string
+  onSelect: (id: string) => void
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col lg:flex-row gap-0 min-h-[28rem] rounded-2xl border border-white/[0.06] overflow-hidden bg-slate-950/30">
+      <aside className="lg:w-52 shrink-0 border-b lg:border-b-0 lg:border-r border-white/[0.06] p-3">
+        <h2 className="text-lg font-semibold text-slate-100 px-2 mb-3 hidden lg:block">{title}</h2>
+        <nav className="flex lg:flex-col gap-1 overflow-x-auto lg:overflow-visible">
+          {sections.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              onClick={() => onSelect(s.id)}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
+                active === s.id
+                  ? 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                  : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
+              }`}
+            >
+              {s.icon}
+              {s.label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <div className="flex-1 min-w-0 p-5 lg:p-6">{children}</div>
+    </div>
+  )
+}
+
+export function MacSettingsGroup({
+  title,
+  children,
+}: {
+  title?: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="mb-6 last:mb-0">
+      {title && (
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 px-1">{title}</h3>
+      )}
+      <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 overflow-hidden divide-y divide-white/[0.04]">
+        {children}
+      </div>
+    </section>
+  )
+}

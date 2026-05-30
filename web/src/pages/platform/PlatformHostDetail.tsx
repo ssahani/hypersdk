@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { ArrowLeft, Server } from 'lucide-react'
-import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { MacSectionTitle, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import { getPlatformHostDetail, hostMaintenance, syncHost, fenceHost, patchHost, enqueueValidateHost, type PlatformHostDetail } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -41,8 +41,7 @@ export default function PlatformHostDetailPage() {
             Machine Security → Zeus Firewall
           </Link>
           {(host.validation_report?.length ?? 0) > 0 && (
-            <section className="card p-4 space-y-2">
-              <h3 className="font-semibold text-sm">Join validation checklist</h3>
+            <MacGlassPanel title="Join validation checklist">
               <ul className="text-sm space-y-2">
                 {host.validation_report!.map((c) => (
                   <li key={c.name} className={c.passed ? 'text-emerald-400' : 'text-red-400'}>
@@ -53,7 +52,7 @@ export default function PlatformHostDetailPage() {
                   </li>
                 ))}
               </ul>
-            </section>
+            </MacGlassPanel>
           )}
           <div className="flex gap-2 flex-wrap">
             <button type="button" className="btn-secondary" onClick={async () => { await syncHost(id); toast.success('Sync queued') }}>Sync</button>
@@ -65,7 +64,8 @@ export default function PlatformHostDetailPage() {
               try { await fenceHost(id); toast.success('Fence invoked'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
             }}>Fence host</button>
           </div>
-          <div className="card p-4 grid gap-2 text-sm md:grid-cols-2">
+          <MacGlassPanel title="Host details">
+            <div className="grid gap-2 text-sm md:grid-cols-2">
             <div>CPU model: {host.cpu_model || '—'}</div>
             <div>Libvirt: {host.libvirt_version || '—'}</div>
             <div>QEMU: {host.qemu_version || '—'}</div>
@@ -73,16 +73,15 @@ export default function PlatformHostDetailPage() {
             <div>Agent: {host.agent_grpc_addr}</div>
             <div>Console: {host.agent_console_addr}</div>
             <div className="md:col-span-2 font-mono text-xs">URI: {host.libvirt_uri}</div>
-          </div>
-          <div className="card p-4 space-y-2">
-            <label className="text-xs text-slate-500">Notes</label>
+            </div>
+          </MacGlassPanel>
+          <MacGlassPanel title="Notes">
             <textarea className="input min-h-20 text-sm" value={notes} onChange={(e) => setNotes(e.target.value)} />
             <button type="button" className="btn-secondary text-sm" onClick={async () => {
               try { await patchHost(id, { notes }); toast.success('Notes saved'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
             }}>Save notes</button>
-          </div>
-          <div className="card p-4 space-y-3">
-            <h3 className="font-semibold text-sm">Fencing (IPMI / shell)</h3>
+          </MacGlassPanel>
+          <MacGlassPanel title="Fencing (IPMI / shell)">
             <select className="input" value={fenceMethod} onChange={(e) => setFenceMethod(e.target.value)}>
               <option value="shell">Shell command</option>
               <option value="ipmi">IPMI (ipmitool)</option>
@@ -105,7 +104,7 @@ export default function PlatformHostDetailPage() {
                 toast.success('Fence config saved')
               } catch (e: unknown) { toast.error(formatUserError(e)) }
             }}>Save fence config</button>
-          </div>
+          </MacGlassPanel>
         </>
       )}
     </div>

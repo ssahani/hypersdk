@@ -34,6 +34,11 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
         "019_baremetal.sql",
         "020_zeus_firewall.sql",
         "021_template_firewall.sql",
+        "022_firewall_phase15.sql",
+        "023_firewall_phases16_25.sql",
+        "024_baremetal_firewall.sql",
+        "025_multisite_firewall.sql",
+        "026_network_overlays.sql",
     ] {
         let sql = match name {
             "001_platform.sql" => include_str!("../../migrations/001_platform.sql"),
@@ -57,6 +62,11 @@ pub async fn migrate(pool: &PgPool) -> anyhow::Result<()> {
             "019_baremetal.sql" => include_str!("../../migrations/019_baremetal.sql"),
             "020_zeus_firewall.sql" => include_str!("../../migrations/020_zeus_firewall.sql"),
             "021_template_firewall.sql" => include_str!("../../migrations/021_template_firewall.sql"),
+            "022_firewall_phase15.sql" => include_str!("../../migrations/022_firewall_phase15.sql"),
+            "023_firewall_phases16_25.sql" => include_str!("../../migrations/023_firewall_phases16_25.sql"),
+            "024_baremetal_firewall.sql" => include_str!("../../migrations/024_baremetal_firewall.sql"),
+            "025_multisite_firewall.sql" => include_str!("../../migrations/025_multisite_firewall.sql"),
+            "026_network_overlays.sql" => include_str!("../../migrations/026_network_overlays.sql"),
             _ => continue,
         };
         for stmt in sql.split(';').map(str::trim).filter(|s| !s.is_empty()) {

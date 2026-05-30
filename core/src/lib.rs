@@ -29,6 +29,7 @@ pub mod obs_counters;
 pub mod kubevirt;
 pub mod openstack;
 pub mod libvirt;
+pub mod network;
 pub mod state;
 pub mod system_accounts;
 pub mod validate;
@@ -52,10 +53,22 @@ pub use observability_settings::{
     OtlpSettingsView,
 };
 pub use firewall::{
-    apply_plan, compile_profile_plan, compute_diff, compute_firewall_score, detect_backend,
-    gather_firewall_inventory, builtin_profiles, profile_by_name, FirewallBackend, FirewallInventory,
-    FirewallPlanRequest, FirewallPlanResult, FirewallPosture, FirewallProfile, FirewallRule as ZeusFirewallRule,
-    FirewallScore, OpenPort, StealthLevel,
+    apply_k8s_plan, apply_plan, cloud_sg_monthly_cost, compile_k8s_policies, compile_profile_plan,
+    compute_diff, compute_firewall_score, detect_backend, detect_k8s_backend, exposure_chargeback_tag,
+    fleet_exposure_monthly, gather_cloud_inventory, gather_firewall_inventory, gpu_profile_exposure_cost,
+    guest_ports_to_open_ports, idle_open_port_cost, is_public_bind, k8s_cluster_ready, mission_stack_network_cost,
+    port_monthly_cost, profile_exposure_multiplier, public_port_finops_alert, scan_guest_listening_ports,
+    simulate_connectivity, compile_metal_plan, gather_metal_inventory, scan_ipmi_exposure,
+    metal_preset_temporary_bmc, metal_preset_temporary_pxe, storage_profile_exposure_cost, MetalExposureScan,
+    MetalServerInput, builtin_profiles, profile_by_name,
+    CloudFirewallInventory, CloudProvider, ConnectivityMatrix, ExposureRisk, FirewallBackend, FirewallInventory,
+    FirewallPlanRequest, FirewallPlanResult, FirewallPosture, FirewallProfile,
+    FirewallRule as ZeusFirewallRule, FirewallScore, GuestListeningPort, K8sPolicyManifest,
+    OpenPort, StealthLevel,     GPU_EXPOSURE_MULTIPLIER, STORAGE_EXPOSURE_MULTIPLIER,
+};
+pub use network::overlay::{
+    compile_micro_segment_rules, default_segment_presets, ip_from_cidr_offset, segment_micro_seg_grade,
+    validate_cidr, EastWestDefault, SegmentSpec, SegmentTier,
 };
 pub use config::{
     AuthConfig, FleetConfig, FleetPeer, GuestkitConfig, HypersdkConfig, KubeVirtConfig, LdapConfig, MachinaConfig,

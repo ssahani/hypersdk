@@ -16,6 +16,7 @@ pub struct MissionStackPlan {
     pub inference_ready: bool,
     pub preview_only: bool,
     pub estimated_monthly_usd: f64,
+    pub network_monthly_usd: f64,
     pub phases: Vec<MissionStackPhase>,
 }
 
@@ -33,6 +34,7 @@ pub fn plan_mission_stack(query: &str, vcpu_rate: f64, gib_rate: f64) -> Mission
     let mem_gib = 64 * gpu_nodes;
     let hourly = vcpus as f64 * vcpu_rate + mem_gib as f64 * gib_rate;
     let estimated_monthly_usd = hourly * 730.0;
+    let network_monthly_usd = machina_core::mission_stack_network_cost(gpu_nodes);
 
     let label = if ql.contains("llama") || ql.contains("inference") {
         "GPU inference stack for Llama serving".into()
@@ -74,13 +76,15 @@ pub fn plan_mission_stack(query: &str, vcpu_rate: f64, gib_rate: f64) -> Mission
 
     MissionStackPlan {
         review: format!(
-            "{gpu_nodes} GPU nodes · ~${estimated_monthly_usd:.0}/mo infra · K8s + inference phases require review"
+            "{gpu_nodes} GPU nodes · ~${:.0}/mo infra · ${:.0}/mo network · K8s + inference phases require review",
+            estimated_monthly_usd, network_monthly_usd
         ),
         label,
         gpu_node_count: gpu_nodes,
         inference_ready: false,
         preview_only: true,
-        estimated_monthly_usd,
+        estimated_monthly_usd: estimated_monthly_usd + network_monthly_usd,
+        network_monthly_usd,
         phases,
     }
 }

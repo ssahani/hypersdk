@@ -2,13 +2,24 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Lock, Shield } from 'lucide-react'
-import { MacGlassPanel, MacSectionTitle } from '../../../components/platform/mac/PlatformMacUi'
+import { ArrowLeft, ChevronRight, Lock, Server, Shield } from 'lucide-react'
+import {
+  MacGlassPanel,
+  MacListRow,
+  MacSectionTitle,
+  MacSegmentedControl,
+  MacSettingsGroup,
+  MacSettingsPane,
+  MacSheet,
+  MacToggle,
+} from '../../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../../components/ErrorBanner'
 import {
+  applyFirewall,
   applyFirewallProfile,
   detectFirewallDrift,
   explainFirewall,
+  getFirewallServices,
   getFirewallTarget,
   getFirewallTimeline,
   listFirewallCheckpoints,
@@ -16,40 +27,63 @@ import {
   lockdownMachine,
   planFirewall,
   rollbackFirewall,
+  scanBaremetalExposure,
+  createBaremetalTemporaryRule,
   secureMachinePlan,
+  type AllowedService,
   type FirewallTargetDetail,
 } from '../../../api/zeusFirewall'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
 
+type StealthLevel = 'off' | 'standard' | 'strict'
+type PaneId = 'firewall' | 'connections' | 'advanced'
+
+const STEALTH_OPTIONS: Array<{ value: StealthLevel; label: string }> = [
+  { value: 'off', label: 'Off' },
+  { value: 'standard', label: 'Standard' },
+  { value: 'strict', label: 'Strict' },
+]
+
 export default function PlatformFirewallTargetDetail() {
   const { id } = useParams<{ id: string }>()
   const toast = useToastContext()
+  const [pane, setPane] = useState<PaneId>('firewall')
   const [detail, setDetail] = useState<FirewallTargetDetail | null>(null)
-  const [aiExplain, setAiExplain] = useState<string | null>(null)
-  const [securePlan, setSecurePlan] = useState<string | null>(null)
+  const [services, setServices] = useState<AllowedService[]>([])
   const [profiles, setProfiles] = useState<Array<{ name: string; display_name: string }>>([])
-  const [selectedProfile, setSelectedProfile] = useState('WebServer')
+  const [selectedProfile, setSelectedProfile] = useState('ProductionServer')
+  const [stealth, setStealth] = useState<StealthLevel>('off')
   const [drift, setDrift] = useState<string | null>(null)
   const [timeline, setTimeline] = useState<Array<Record<string, unknown>>>([])
   const [checkpoints, setCheckpoints] = useState<Array<{ id: string; label: string; created_at: string }>>([])
+  const [aiExplain, setAiExplain] = useState<string | null>(null)
+  const [securePlan, setSecurePlan] = useState<string | null>(null)
+  const [previewSheet, setPreviewSheet] = useState<{ open: boolean; body: string }>({ open: false, body: '' })
+  const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
     setError(null)
     try {
-      const [d, profs, tl, cps, dr] = await Promise.all([
+      const [d, profs, svc, tl, cps, dr] = await Promise.all([
         getFirewallTarget(id),
         listFirewallProfiles(),
+        getFirewallServices(id).catch(() => []),
         getFirewallTimeline(id).catch(() => []),
         listFirewallCheckpoints(id).catch(() => []),
         detectFirewallDrift(id).catch(() => null),
       ])
       setDetail(d)
       setProfiles(profs)
+      setServices(svc)
       setTimeline(tl)
       setCheckpoints(cps)
+      setSelectedProfile(d.target.profile || (d.target.kind === 'bare_metal' ? 'BareMetalBmc' : 'ProductionServer'))
+      const sl = d.inventory.posture.stealth_level?.toLowerCase()
+      if (sl === 'standard' || sl === 'strict') setStealth(sl)
+      else setStealth('off')
       if (dr) {
         setDrift(dr.drift_detected ? `${dr.summary} — expected: ${dr.expected}` : dr.summary)
       }
@@ -60,9 +94,32 @@ export default function PlatformFirewallTargetDetail() {
 
   useEffect(() => { void load() }, [load])
 
-  if (!id) return null
+  const applyWithPreview = async (body: Record<string, unknown>, confirmMsg: string) => {
+    if (!id) return
+    try {
+      const preview = await planFirewall(id, { ...body, dry_run: true })
+      setPreviewSheet({
+        open: true,
+        body: JSON.stringify({
+          operations: preview.operations,
+          warnings: preview.diff?.warnings,
+        }, null, 2),
+      })
+      if (!confirm(confirmMsg)) return
+      setBusy(true)
+      await applyFirewall(id, { ...body, dry_run: false })
+      toast.success('Firewall updated')
+      void load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
+  if (!id) return null
   const inv = detail?.inventory
+  const isMetal = detail?.target.kind === 'bare_metal'
 
   return (
     <div className="space-y-6">
@@ -74,202 +131,329 @@ export default function PlatformFirewallTargetDetail() {
         <>
           <MacSectionTitle
             title={detail.target.name}
-            subtitle={`Firewall ${inv.posture.enabled ? 'On' : 'Off'} · ${detail.target.backend} · Score ${inv.score.score}/100`}
+            subtitle={`${isMetal ? 'Bare metal BMC/PXE policy' : 'macOS-style machine protection'} · ${detail.target.backend} · Score ${inv.score.score}/100`}
           />
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              ['Profile', detail.target.profile || '—'],
-              ['Risk', detail.target.risk],
-              ['Open ports', String(detail.target.open_ports)],
-              ['Blocked today', String(detail.target.blocked_today)],
-            ].map(([k, v]) => (
-              <div key={k} className="rounded-xl border border-white/[0.06] bg-slate-950/40 p-3">
-                <p className="text-xs text-slate-500">{k}</p>
-                <p className="text-sm text-slate-100 mt-1">{v}</p>
-              </div>
-            ))}
-          </div>
-          <MacGlassPanel title="Controls" subtitle="Large simple toggles">
-            <div className="flex flex-wrap gap-2">
-              <button type="button" className="px-4 py-2 rounded-xl bg-emerald-600/80 text-white text-sm" disabled>
-                Firewall {inv.posture.enabled ? 'On' : 'Off'}
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 rounded-xl bg-slate-700 text-slate-100 text-sm"
-                onClick={async () => {
-                  try {
-                    await planFirewall(id, { preset: 'allow_ssh', dry_run: true })
-                    toast.success('SSH restrict plan ready (dry-run)')
-                  } catch (e: unknown) {
-                    toast.error(formatUserError(e))
-                  }
-                }}
-              >
-                Allow SSH (admin)
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 rounded-xl bg-slate-700 text-slate-100 text-sm"
-                onClick={async () => {
-                  try {
-                    const r = await secureMachinePlan(id)
-                    setSecurePlan(r.steps.map((s) => `${s.step}. ${s.action}`).join('\n'))
-                  } catch (e: unknown) {
-                    toast.error(formatUserError(e))
-                  }
-                }}
-              >
-                Secure This Machine
-              </button>
-              <button
-                type="button"
-                className="px-4 py-2 rounded-xl bg-red-700/80 text-white text-sm flex items-center gap-1"
-                onClick={async () => {
-                  if (!confirm('Enable Emergency Isolation lockdown?')) return
-                  try {
-                    await lockdownMachine(id, true)
-                    toast.success('Lockdown initiated')
-                    void load()
-                  } catch (e: unknown) {
-                    toast.error(formatUserError(e))
-                  }
-                }}
-              >
-                <Lock className="w-4 h-4" /> Lock Down
-              </button>
+          {isMetal && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+              Policy-only — live BMC firewall apply is on the roadmap. Profiles and scans update desired posture in Zeus OS.
             </div>
-          </MacGlassPanel>
-          <MacGlassPanel title="Firewall profile" subtitle="Apply safe preset with diff preview">
-            <div className="flex flex-wrap gap-2 items-center">
-              <select
-                className="input text-sm"
-                value={selectedProfile}
-                onChange={(e) => setSelectedProfile(e.target.value)}
-              >
-                {profiles.map((p) => (
-                  <option key={p.name} value={p.name}>{p.display_name}</option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="btn-secondary text-xs"
-                onClick={async () => {
-                  try {
-                    const r = await applyFirewallProfile(id, selectedProfile, true)
-                    toast.success(`Dry-run: ${r.operations.length} operations`)
-                  } catch (e: unknown) {
-                    toast.error(formatUserError(e))
-                  }
-                }}
-              >
-                Preview diff
-              </button>
-              <button
-                type="button"
-                className="btn-primary text-xs"
-                onClick={async () => {
-                  if (!confirm(`Apply profile ${selectedProfile}?`)) return
-                  try {
-                    await applyFirewallProfile(id, selectedProfile, false)
-                    toast.success('Profile applied')
-                    void load()
-                  } catch (e: unknown) {
-                    toast.error(formatUserError(e))
-                  }
-                }}
-              >
-                Apply profile
-              </button>
-            </div>
-          </MacGlassPanel>
-          {drift && (
-            <MacGlassPanel title="Drift detection" subtitle="Changes outside Zeus OS">
-              <p className="text-sm text-slate-300">{drift}</p>
-            </MacGlassPanel>
           )}
-          {securePlan && (
-            <MacGlassPanel title="AI Secure Plan" subtitle="Review before apply">
-              <pre className="text-xs text-slate-300 whitespace-pre-wrap">{securePlan}</pre>
-            </MacGlassPanel>
-          )}
-          <MacGlassPanel
-            title="AI Firewall"
-            subtitle="Why is this machine exposed?"
-            action={
-              <button
-                type="button"
-                className="text-xs text-blue-400"
-                onClick={async () => {
-                  try {
-                    const r = await explainFirewall(id, 'Why is this machine exposed?')
-                    setAiExplain(`${r.summary}\n\n${r.evidence.join('\n')}\n\nRecommended: ${r.recommendation}`)
-                  } catch (e: unknown) {
-                    toast.error(formatUserError(e))
-                  }
-                }}
-              >
-                Explain
-              </button>
-            }
+          <MacSettingsPane
+            title="Security"
+            active={pane}
+            onSelect={(p) => setPane(p as PaneId)}
+            sections={[
+              { id: 'firewall', label: 'Firewall', icon: <Shield className="w-4 h-4" /> },
+              { id: 'connections', label: 'Incoming', icon: <Server className="w-4 h-4" /> },
+              { id: 'advanced', label: 'Advanced', icon: <Lock className="w-4 h-4" /> },
+            ]}
           >
-            {aiExplain ? (
-              <pre className="text-xs text-slate-300 whitespace-pre-wrap">{aiExplain}</pre>
-            ) : (
-              <p className="text-sm text-slate-500 flex items-center gap-2">
-                <Shield className="w-4 h-4" /> Ask Zeus AI about firewall posture and risky ports.
-              </p>
+            {pane === 'firewall' && (
+              <>
+                <MacSettingsGroup title="Firewall">
+                  <div className="px-4 py-2">
+                    <MacToggle
+                      checked={inv.posture.enabled}
+                      disabled={busy}
+                      label="Firewall"
+                      description="Block incoming connections to this machine"
+                      onChange={(on) => {
+                        void applyWithPreview(
+                          { enable: on, profile: selectedProfile, stealth_level: stealth === 'off' ? undefined : stealth },
+                          on ? 'Turn firewall on?' : 'Turn firewall off? All incoming may be allowed.',
+                        )
+                      }}
+                    />
+                  </div>
+                </MacSettingsGroup>
+                <MacSettingsGroup title="Stealth Mode">
+                  <div className="px-4 py-3">
+                    <MacSegmentedControl
+                      label="Reduce probe visibility"
+                      options={STEALTH_OPTIONS}
+                      value={stealth}
+                      onChange={(v) => {
+                        setStealth(v)
+                        void applyWithPreview(
+                          {
+                            enable: true,
+                            profile: selectedProfile,
+                            stealth_level: v === 'off' ? undefined : v,
+                          },
+                          `Apply stealth mode: ${v}?`,
+                        )
+                      }}
+                    />
+                  </div>
+                </MacSettingsGroup>
+                <MacSettingsGroup title="Profile">
+                  <div className="px-4 py-3 space-y-3">
+                    <select
+                      className="input text-sm w-full max-w-md"
+                      value={selectedProfile}
+                      onChange={(e) => setSelectedProfile(e.target.value)}
+                    >
+                      {profiles.map((p) => (
+                        <option key={p.name} value={p.name}>{p.display_name}</option>
+                      ))}
+                    </select>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        disabled={busy}
+                        onClick={async () => {
+                          try {
+                            const r = await applyFirewallProfile(id, selectedProfile, true)
+                            setPreviewSheet({
+                              open: true,
+                              body: JSON.stringify({ operations: r.operations }, null, 2),
+                            })
+                          } catch (e: unknown) {
+                            toast.error(formatUserError(e))
+                          }
+                        }}
+                      >
+                        Preview changes
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-primary text-xs"
+                        disabled={busy}
+                        onClick={() => void applyWithPreview(
+                          { enable: true, profile: selectedProfile },
+                          `Apply profile ${selectedProfile}?`,
+                        )}
+                      >
+                        Apply profile
+                      </button>
+                    </div>
+                  </div>
+                </MacSettingsGroup>
+                {drift && (
+                  <MacGlassPanel title="Drift detected" subtitle="Changed outside Zeus OS">
+                    <p className="text-sm text-amber-200/90">{drift}</p>
+                  </MacGlassPanel>
+                )}
+                <div className="mt-4 flex flex-wrap gap-2 text-sm">
+                  <Link to="/platform/zeus/security/ports" className="text-blue-400">Open Ports</Link>
+                  <Link to="/platform/zeus/security/activity" className="text-blue-400">Activity</Link>
+                  <Link to="/platform/zeus/security/compliance" className="text-blue-400">Compliance</Link>
+                </div>
+              </>
             )}
-          </MacGlassPanel>
-          <MacGlassPanel title="Score breakdown">
-            <ul className="space-y-2 text-sm">
-              {inv.score.breakdown.map((b) => (
-                <li key={b.category} className="flex justify-between text-slate-300">
-                  <span>{b.detail}</span>
-                  <span className={b.points < 0 ? 'text-amber-300' : 'text-slate-500'}>{b.points}</span>
-                </li>
-              ))}
-            </ul>
-          </MacGlassPanel>
-          {checkpoints.length > 0 && (
-            <MacGlassPanel title="Rollback checkpoints">
-              <ul className="space-y-2 text-sm">
-                {checkpoints.map((c) => (
-                  <li key={c.id} className="flex justify-between items-center">
-                    <span className="text-slate-300">{c.label} · {new Date(c.created_at).toLocaleString()}</span>
-                    <button
-                      type="button"
-                      className="text-xs text-blue-400"
+            {pane === 'connections' && (
+              <>
+                <MacSettingsGroup title="Allowed incoming connections">
+                  {services.length === 0 && inv.open_ports.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-slate-500">No mapped services — scan exposure on Advanced tab.</p>
+                  ) : (
+                    (services.length > 0 ? services.map((s) => (
+                      <MacListRow
+                        key={`${s.name}-${s.port}`}
+                        title={s.name}
+                        subtitle={`${s.protocol}/${s.port} · Allowed from ${s.allowed_from}`}
+                        badge={
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                            {String(s.status)}
+                          </span>
+                        }
+                      />
+                    )) : inv.open_ports.map((p) => (
+                      <MacListRow
+                        key={`${p.port}-${p.protocol}`}
+                        title={`${p.service_name} (${p.port}/${p.protocol})`}
+                        subtitle={`Bind ${p.bind_address} · ${p.allowed_from.join(', ') || 'any'}`}
+                        badge={
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            String(p.risk).toLowerCase() === 'critical' ? 'bg-red-500/20 text-red-300' : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {String(p.risk)}
+                          </span>
+                        }
+                      />
+                    )))
+                  )}
+                </MacSettingsGroup>
+                <MacSettingsGroup title="Quick rules">
+                  <MacListRow
+                    title="Allow SSH (admin subnet only)"
+                    subtitle="Dry-run preset"
+                    trailing={<ChevronRight className="w-4 h-4 text-slate-600" />}
+                    onClick={async () => {
+                      try {
+                        const r = await planFirewall(id, { preset: 'allow_ssh', dry_run: true })
+                        setPreviewSheet({ open: true, body: JSON.stringify(r, null, 2) })
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      }
+                    }}
+                  />
+                </MacSettingsGroup>
+              </>
+            )}
+            {pane === 'advanced' && (
+              <>
+                {isMetal && (
+                  <MacSettingsGroup title="BMC / PXE exposure">
+                    <MacListRow
+                      title="Run exposure scan"
+                      subtitle="IPMI 623 / Redfish 443 heuristic"
                       onClick={async () => {
                         try {
-                          await rollbackFirewall(id, c.id)
-                          toast.success('Rollback recorded')
+                          const r = await scanBaremetalExposure(id)
+                          setPreviewSheet({ open: true, body: JSON.stringify(r, null, 2) })
+                          toast.success('Exposure scan complete')
                           void load()
                         } catch (e: unknown) {
                           toast.error(formatUserError(e))
                         }
                       }}
-                    >
-                      Rollback
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </MacGlassPanel>
-          )}
-          {timeline.length > 0 && (
-            <MacGlassPanel title="Firewall timeline">
-              <ul className="space-y-2 text-xs text-slate-400">
-                {timeline.map((e, i) => (
-                  <li key={i}>
-                    {String(e.created_at || '')} — {String(e.summary || e.kind || '')}
-                  </li>
-                ))}
-              </ul>
-            </MacGlassPanel>
-          )}
+                    />
+                    <MacListRow
+                      title="Temporary PXE allow (1h)"
+                      subtitle="Ports 67/69 from admin subnet"
+                      onClick={async () => {
+                        try {
+                          await createBaremetalTemporaryRule(id, { preset: 'pxe', reason: 'Provisioning window' })
+                          toast.success('Temporary PXE rule queued')
+                          void load()
+                        } catch (e: unknown) {
+                          toast.error(formatUserError(e))
+                        }
+                      }}
+                    />
+                    <MacListRow
+                      title="Temporary BMC access (4h)"
+                      subtitle="IPMI/Redfish from admin subnet"
+                      onClick={async () => {
+                        try {
+                          await createBaremetalTemporaryRule(id, { preset: 'bmc', reason: 'Break-glass BMC' })
+                          toast.success('Temporary BMC rule queued')
+                          void load()
+                        } catch (e: unknown) {
+                          toast.error(formatUserError(e))
+                        }
+                      }}
+                    />
+                  </MacSettingsGroup>
+                )}
+                <MacSettingsGroup title="Emergency">
+                  <MacListRow
+                    title="Lock Down Machine"
+                    subtitle="Emergency Isolation — blocks all traffic except management"
+                    trailing={<Lock className="w-4 h-4 text-red-400" />}
+                    onClick={async () => {
+                      if (!confirm('Enable Emergency Isolation lockdown?')) return
+                      try {
+                        await lockdownMachine(id, true)
+                        toast.success('Lockdown initiated')
+                        void load()
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      }
+                    }}
+                  />
+                  <MacListRow
+                    title="Secure This Machine (AI plan)"
+                    subtitle="Review steps before apply"
+                    onClick={async () => {
+                      try {
+                        const r = await secureMachinePlan(id)
+                        setSecurePlan(r.steps.map((s) => `${s.step}. ${s.action}`).join('\n'))
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      }
+                    }}
+                  />
+                </MacSettingsGroup>
+                {securePlan && (
+                  <MacGlassPanel title="AI Secure Plan">
+                    <pre className="text-xs text-slate-300 whitespace-pre-wrap">{securePlan}</pre>
+                  </MacGlassPanel>
+                )}
+                <MacSettingsGroup title="AI Explain">
+                  <MacListRow
+                    title="Why is this machine exposed?"
+                    onClick={async () => {
+                      try {
+                        const r = await explainFirewall(id, 'Why is this machine exposed?')
+                        setAiExplain(`${r.summary}\n\n${r.evidence.join('\n')}\n\nRecommended: ${r.recommendation}`)
+                      } catch (e: unknown) {
+                        toast.error(formatUserError(e))
+                      }
+                    }}
+                  />
+                </MacSettingsGroup>
+                {aiExplain && (
+                  <MacGlassPanel title="Exposure analysis">
+                    <pre className="text-xs text-slate-300 whitespace-pre-wrap">{aiExplain}</pre>
+                  </MacGlassPanel>
+                )}
+                {checkpoints.length > 0 && (
+                  <MacSettingsGroup title="Rollback checkpoints">
+                    {checkpoints.map((c) => (
+                      <MacListRow
+                        key={c.id}
+                        title={c.label}
+                        subtitle={new Date(c.created_at).toLocaleString()}
+                        trailing={
+                          <button
+                            type="button"
+                            className="text-xs text-blue-400"
+                            onClick={async (ev) => {
+                              ev.stopPropagation()
+                              try {
+                                await rollbackFirewall(id, c.id)
+                                toast.success('Rollback recorded')
+                                void load()
+                              } catch (e: unknown) {
+                                toast.error(formatUserError(e))
+                              }
+                            }}
+                          >
+                            Rollback
+                          </button>
+                        }
+                      />
+                    ))}
+                  </MacSettingsGroup>
+                )}
+                {timeline.length > 0 && (
+                  <MacGlassPanel title="Timeline">
+                    <ul className="space-y-2 text-xs text-slate-400">
+                      {timeline.map((e, i) => (
+                        <li key={i}>
+                          {String(e.created_at || '')} — {String(e.summary || e.kind || '')}
+                        </li>
+                      ))}
+                    </ul>
+                  </MacGlassPanel>
+                )}
+                <MacGlassPanel title="Score">
+                  <ul className="space-y-2 text-sm">
+                    {inv.score.breakdown.map((b) => (
+                      <li key={b.category} className="flex justify-between text-slate-300">
+                        <span>{b.detail}</span>
+                        <span className={b.points < 0 ? 'text-amber-300' : 'text-slate-500'}>{b.points}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </MacGlassPanel>
+              </>
+            )}
+          </MacSettingsPane>
         </>
       )}
+      <MacSheet
+        open={previewSheet.open}
+        onClose={() => setPreviewSheet({ open: false, body: '' })}
+        title="Preview changes"
+        subtitle="Review before applying on the host"
+        wide
+      >
+        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{previewSheet.body}</pre>
+      </MacSheet>
     </div>
   )
 }

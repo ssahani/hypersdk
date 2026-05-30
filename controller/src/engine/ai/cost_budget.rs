@@ -65,6 +65,39 @@ pub async fn analyze(pool: &PgPool) -> anyhow::Result<CostBudgetReport> {
         });
     }
 
+    let cfg = crate::config::ControllerConfig::default();
+    if let Ok(exp) = crate::engine::zeus_firewall::finops::exposure_rollup(pool, &cfg).await {
+        if exp.fleet_exposure_monthly_usd > current_spend_usd * 0.05 {
+            alerts.push(BudgetAlert {
+                id: "firewall-exposure-overlap".into(),
+                severity: if exp.fleet_exposure_monthly_usd > current_spend_usd * 0.1 {
+                    "warning".into()
+                } else {
+                    "info".into()
+                },
+                message: format!(
+                    "Firewall exposure est ${:.0}/mo ({:.0}% of infra spend) — FinOps × Security overlap",
+                    exp.fleet_exposure_monthly_usd,
+                    if current_spend_usd > 0.0 {
+                        exp.fleet_exposure_monthly_usd / current_spend_usd * 100.0
+                    } else {
+                        0.0
+                    }
+                ),
+            });
+        }
+        if exp.idle_port_waste_usd > 50.0 {
+            alerts.push(BudgetAlert {
+                id: "idle-port-waste".into(),
+                severity: "info".into(),
+                message: format!(
+                    "${:.0}/mo idle open port waste across fleet",
+                    exp.idle_port_waste_usd
+                ),
+            });
+        }
+    }
+
     let status = if alerts.iter().any(|a| a.severity == "critical") {
         "over_budget"
     } else if alerts.iter().any(|a| a.severity == "warning") {

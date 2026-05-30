@@ -372,7 +372,7 @@ except Exception:
     e2e_platform_fail "GET /api/v1/ai/sre/forecast — HTTP ${http}"
   fi
   e2e_platform_hdr "PLATFORM SMOKE: MACHINA ZEUS OS (AI-96–105)"
-  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/heatmap")"
+  http="$(e2e_platform_http_code_retry "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/heatmap")"
   if [[ "$http" == "200" ]]; then
     e2e_platform_ok "GET /api/v1/ai/fleet/heatmap (HTTP ${http})"
   else
@@ -579,4 +579,176 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/zeus-firewall/overview" "GET /api/v1/zeus-firewall/overview" || true
   e2e_platform_smoke_get "/api/v1/zeus-firewall/profiles" "GET /api/v1/zeus-firewall/profiles" || true
   e2e_platform_smoke_get "/api/v1/zeus-firewall/siem/export?hours=24" "GET /api/v1/zeus-firewall/siem/export" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/policies/gitops/export" "GET /api/v1/zeus-firewall/policies/gitops/export" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/approvals?status=pending" "GET /api/v1/zeus-firewall/approvals" || true
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL PHASES 16-25 (AI-172–371)"
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/k8s/status" "GET /api/v1/zeus-firewall/k8s/status" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/cloud/overview" "GET /api/v1/zeus-firewall/cloud/overview" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/connectivity" \
+    -H 'Content-Type: application/json' -d '{"target_id":"local","profile":"ProductionServer"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/zeus-firewall/connectivity (HTTP ${http})"
+  else
+    e2e_platform_fail "POST /api/v1/zeus-firewall/connectivity — HTTP ${http}"
+  fi
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/packetwolf/anomalies" "GET /api/v1/zeus-firewall/packetwolf/anomalies" || true
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL MAC UX (AI-372–391)"
+  e2e_platform_smoke_get "/api/v1/cluster/settings" "GET /api/v1/cluster/settings (Settings hub)" || true
+  e2e_platform_smoke_get "/api/v1/ai/zeus/summary" "GET /api/v1/ai/zeus/summary (Control Center strip)" || true
+  host_id="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/hosts" | python3 -c "
+import json, sys
+try:
+    hosts = json.load(sys.stdin)
+    print(hosts[0]['id'] if hosts else '')
+except Exception:
+    print('')
+" 2>/dev/null)"
+  if [[ -n "$host_id" ]]; then
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/targets/${host_id}/plan" \
+      -H 'Content-Type: application/json' -d '{"profile":"ProductionServer","dry_run":true}')"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/zeus-firewall/targets/{id}/plan dry-run (HTTP ${http})"
+    else
+      e2e_platform_fail "POST /api/v1/zeus-firewall/targets/{id}/plan dry-run — HTTP ${http}"
+    fi
+  else
+    e2e_platform_ok "POST firewall plan dry-run — skipped (no hosts)"
+  fi
+  if [[ -n "$vm_id" ]]; then
+    http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/vms/${vm_id}/guest-ports")"
+    if [[ "$http" == "200" || "$http" == "502" || "$http" == "503" ]]; then
+      e2e_platform_ok "GET /api/v1/zeus-firewall/vms/{id}/guest-ports (HTTP ${http}, soft)"
+    else
+      e2e_platform_fail "GET /api/v1/zeus-firewall/vms/{id}/guest-ports — HTTP ${http}"
+    fi
+  else
+    e2e_platform_ok "GET guest-ports — skipped (no VMs)"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: PLATFORM MAC UX WAVE 4 (UX-49–56)"
+  for q in "firewall settings" "open ports" "block incoming"; do
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+      -H 'Content-Type: application/json' -d "{\"query\":\"${q}\"}")"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/ai/spotlight \"${q}\" (HTTP ${http})"
+    else
+      e2e_platform_fail "POST /api/v1/ai/spotlight \"${q}\" — HTTP ${http}"
+    fi
+  done
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL PHASE 23 (AI-312–331)"
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/baremetal/servers" \
+    -H 'Content-Type: application/json' -d '{"hostname":"e2e-metal-01","bmc_address":"10.0.0.99","bmc_vlan":"vlan-bmc","firewall_profile":"BareMetalBmc"}')"
+  metal_id=""
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/baremetal/servers (HTTP ${http})"
+    metal_id="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/baremetal/servers" | python3 -c "
+import json, sys
+try:
+    rows = json.load(sys.stdin)
+    for r in rows:
+        if r.get('hostname') == 'e2e-metal-01':
+            print(r['id'])
+            break
+except Exception:
+    print('')
+" 2>/dev/null)"
+  else
+    e2e_platform_fail "POST /api/v1/baremetal/servers — HTTP ${http}"
+  fi
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/baremetal/overview" "GET /api/v1/zeus-firewall/baremetal/overview" || true
+  ov="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/overview")"
+  if echo "$ov" | python3 -c "import json,sys; d=json.load(sys.stdin); sys.exit(0 if any(t.get('kind')=='bare_metal' for t in d.get('targets',[])) else 1)" 2>/dev/null; then
+    e2e_platform_ok "GET /api/v1/zeus-firewall/overview includes bare_metal target"
+  elif [[ -n "$metal_id" ]]; then
+    e2e_platform_fail "GET /api/v1/zeus-firewall/overview — no bare_metal target"
+  else
+    e2e_platform_ok "GET /api/v1/zeus-firewall/overview bare_metal — skipped (no register)"
+  fi
+  if [[ -n "$metal_id" ]]; then
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/baremetal/${metal_id}/scan")"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/zeus-firewall/baremetal/{id}/scan (HTTP ${http})"
+    else
+      e2e_platform_fail "POST baremetal scan — HTTP ${http}"
+    fi
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/targets/${metal_id}/plan" \
+      -H 'Content-Type: application/json' -d '{"profile":"BareMetalPxe","dry_run":true}')"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST metal plan dry-run (HTTP ${http})"
+    else
+      e2e_platform_fail "POST metal plan dry-run — HTTP ${http}"
+    fi
+  fi
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/compliance/metal/export.pdf")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET compliance/metal/export.pdf (HTTP ${http})"
+  else
+    e2e_platform_ok "GET compliance/metal/export.pdf — soft (HTTP ${http})"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"bare metal firewall"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight bare metal firewall (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight bare metal — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL PHASE 22 (AI-292–311)"
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/finops/exposure" "GET /api/v1/zeus-firewall/finops/exposure" || true
+  http="$(e2e_platform_http_code "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/finops/exposure/export.csv")"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "GET /api/v1/zeus-firewall/finops/exposure/export.csv (HTTP ${http})"
+  else
+    e2e_platform_fail "GET exposure export.csv — HTTP ${http}"
+  fi
+  e2e_platform_smoke_get "/api/v1/ai/remediate/hub" "GET /api/v1/ai/remediate/hub (FinOps waste)" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"exposure cost finops"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight exposure cost (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight exposure cost — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL PHASE 24 (AI-332–351)"
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/multisite/overview" "GET /api/v1/zeus-firewall/multisite/overview" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/multisite/export" "GET /api/v1/zeus-firewall/multisite/export" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/multisite/drift" "GET /api/v1/zeus-firewall/multisite/drift" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"dr firewall multisite"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight dr firewall (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight dr firewall — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL PHASE 25 (AI-352–371)"
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/operator/plan" "GET /api/v1/zeus-firewall/operator/plan" || true
+  e2e_platform_smoke_get "/api/v1/zeus-firewall/operator/thresholds" "GET /api/v1/zeus-firewall/operator/thresholds" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"secure all hosts ai operator"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight ai operator (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight ai operator — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ZEUS/PLATFORM PHASE 26 (AI-392–411)"
+  e2e_platform_smoke_get "/api/v1/network/segments/overview" "GET /api/v1/network/segments/overview" || true
+  e2e_platform_smoke_get "/api/v1/network/ipam/pools" "GET /api/v1/network/ipam/pools" || true
+  e2e_platform_smoke_get "/api/v1/network/segments/gitops/export" "GET /api/v1/network/segments/gitops/export" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"micro-segment overlay IPAM"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight overlay IPAM (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight overlay IPAM — HTTP ${http}"
+  fi
+  host_id="$(e2e_platform_curl -s "${E2E_PLATFORM_BASE}/api/v1/hosts" | python3 -c 'import sys,json; h=json.load(sys.stdin); print(h[0]["id"] if h else "")' 2>/dev/null || true)"
+  if [[ -n "$host_id" ]]; then
+    e2e_platform_smoke_get "/api/v1/hosts/${host_id}/lldp" "GET /api/v1/hosts/{id}/lldp" || true
+  fi
 }

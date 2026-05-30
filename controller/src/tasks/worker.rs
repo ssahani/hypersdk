@@ -315,6 +315,12 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     if let Err(e) = crate::engine::storage_sync::sync_host_storage(&state.pool, host_id, &agent_addr).await {
         tracing::warn!(%host_id, "storage sync during inventory: {e:#}");
     }
+    if let Err(e) =
+        crate::engine::zeus_firewall::sync::sync_host_posture(&state.pool, &state.config, host_id, &agent_addr)
+            .await
+    {
+        tracing::warn!(%host_id, "firewall posture sync during inventory: {e:#}");
+    }
 
     update_task_progress(&state.pool, msg.task_id, 100, "inventory synced").await?;
     Ok(())

@@ -281,7 +281,7 @@ fn pdf_escape(s: &str) -> String {
         .collect()
 }
 
-fn simple_text_pdf(title: &str, body_lines: &[String]) -> Vec<u8> {
+pub fn simple_text_pdf(title: &str, body_lines: &[String]) -> Vec<u8> {
     let mut stream = String::from("BT\n/F1 16 Tf\n72 750 Td\n");
     stream.push_str(&format!("({}) Tj\n", pdf_escape(title)));
     stream.push_str("0 -22 Td\n/F1 10 Tf\n");

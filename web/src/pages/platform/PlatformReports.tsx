@@ -6,6 +6,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import { getCapacityReport, getFinOpsReport, listProjects, type CapacityReport, type FinOpsReport, type ProjectRow } from '../../api/platform'
 import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type SecurityReport } from '../../api/ai'
+import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformReports() {
@@ -19,12 +20,13 @@ export default function PlatformReports() {
   const [autopilotHistory, setAutopilotHistory] = useState<AutopilotHistoryEntry[]>([])
   const [attribution, setAttribution] = useState<CostAttributionReport | null>(null)
   const [budget, setBudget] = useState<CostBudgetReport | null>(null)
+  const [exposureFinops, setExposureFinops] = useState<ExposureFinOpsReport | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [p, c, f, costR, capR, secR, compR, hist, attrR, budgetR] = await Promise.all([
+      const [p, c, f, costR, capR, secR, compR, hist, attrR, budgetR, expR] = await Promise.all([
         listProjects(),
         getCapacityReport(),
         getFinOpsReport(),
@@ -35,6 +37,7 @@ export default function PlatformReports() {
         getAutopilotHistory(10).catch(() => []),
         getCostAttribution().catch(() => null),
         getCostBudget().catch(() => null),
+        getFirewallExposureFinOps().catch(() => null),
       ])
       setProjects(p)
       setCap(c)
@@ -46,6 +49,7 @@ export default function PlatformReports() {
       setAutopilotHistory(hist)
       setAttribution(attrR)
       setBudget(budgetR)
+      setExposureFinops(expR)
     } catch (e: unknown) { setError(formatUserError(e)) }
   }, [])
 
@@ -123,6 +127,30 @@ export default function PlatformReports() {
               ))}
             </ul>
           )}
+        </MacGlassPanel>
+      )}
+      {exposureFinops && (
+        <MacGlassPanel title="FinOps × Zeus Firewall" subtitle={exposureFinops.summary}>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 -mt-2">
+            <MacStatWidget label="Fleet exposure" value={`$${exposureFinops.fleet_exposure_monthly_usd.toFixed(0)}/mo`} icon={<DollarSign className="w-4 h-4" />} tone="warn" />
+            <MacStatWidget label="Idle port waste" value={`$${exposureFinops.idle_port_waste_usd.toFixed(0)}/mo`} icon={<DollarSign className="w-4 h-4" />} />
+            <MacStatWidget label="Cloud SG" value={`$${exposureFinops.cloud_sg_monthly_usd.toFixed(0)}/mo`} icon={<DollarSign className="w-4 h-4" />} />
+            <MacStatWidget label="GPU / storage" value={`$${(exposureFinops.gpu_exposure_usd + exposureFinops.storage_exposure_usd).toFixed(0)}/mo`} icon={<DollarSign className="w-4 h-4" />} tone="ok" />
+          </div>
+          {exposureFinops.vm_idle_ranking.length > 0 && (
+            <ul className="mt-4 text-xs space-y-1">
+              {exposureFinops.vm_idle_ranking.slice(0, 5).map((v) => (
+                <li key={v.vm_id} className="text-slate-400">
+                  #{v.rank} {v.vm_name} — ${v.waste_usd.toFixed(0)}/mo ({v.idle_ports} idle ports)
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap gap-2 mt-3">
+            <a className="btn-secondary text-xs" href={getFirewallExposureFinOpsExportUrl()} download>
+              Export exposure CSV
+            </a>
+          </div>
         </MacGlassPanel>
       )}
       {cost && (

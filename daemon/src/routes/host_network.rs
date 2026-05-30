@@ -44,6 +44,12 @@ async fn get_systemd_network_diagnostics(
     Ok(Json(serde_json::json!(out)))
 }
 
+async fn get_lldp_neighbors(
+    State(_manager): State<LibvirtManager>,
+) -> Json<host_network::LldpInventory> {
+    Json(host_network::gather_lldp_neighbors())
+}
+
 async fn get_systemd_interface_status(
     State(_manager): State<LibvirtManager>,
     Path(name): Path<String>,
@@ -177,6 +183,7 @@ pub fn host_network_routes() -> Router<LibvirtManager> {
         .route("/host/backends", get(get_network_backends))
         .route("/host/sysctl-tuning", get(get_sysctl_tuning))
         .route("/host/network-diag", get(get_systemd_network_diagnostics))
+        .route("/host/lldp", get(get_lldp_neighbors))
         .route(
             "/host/network-diag/interface/{name}",
             get(get_systemd_interface_status),

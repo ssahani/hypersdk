@@ -266,6 +266,7 @@ pub mod sre_remediate;
 pub mod compliance_remediate;
 pub mod fleet_power;
 pub mod zeus_summary;
+pub mod exposure_finops;
 pub mod remediate_hub;
 pub mod knowledge_runbook;
 pub mod cost_budget;

@@ -89,6 +89,26 @@ pub async fn overview(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<F
         }
     }
 
+    if let Ok(rows) = super::metal::load_all(pool).await {
+        for row in rows {
+            let inv = machina_core::gather_metal_inventory(&super::metal::row_to_input(&row));
+            let risk = risk_label(&inv);
+            if risk == "critical" {
+                critical += 1;
+            } else if risk == "warning" {
+                warning += 1;
+            }
+            targets.push(summary_from_inventory(
+                row.id.to_string(),
+                "bare_metal".into(),
+                row.hostname.clone(),
+                row.hostname,
+                &inv,
+                false,
+            ));
+        }
+    }
+
     let profiles: Vec<String> = builtin_profiles().into_iter().map(|p| p.name).collect();
     let summary = format!(
         "{} machines scanned · {} critical · {} warnings",
@@ -123,21 +143,36 @@ pub async fn target_detail(
         return Ok(FirewallTargetDetail { target, inventory: inv });
     }
 
-    let host_id = Uuid::parse_str(target_id)?;
-    let row: (String, String, String) =
-        sqlx::query_as("SELECT hostname, COALESCE(agent_grpc_addr, ''), state FROM hosts WHERE id = $1")
-            .bind(host_id)
-            .fetch_one(pool)
-            .await?;
-    let (hostname, agent_addr, state) = row;
-    let (inv, reachable) = fetch_inventory(cfg, &agent_addr, &hostname, state == "online").await;
+    let id = Uuid::parse_str(target_id)?;
+    if let Some(row) = sqlx::query_as::<_, (String, String, String)>(
+        "SELECT hostname, COALESCE(agent_grpc_addr, ''), state FROM hosts WHERE id = $1",
+    )
+    .bind(id)
+    .fetch_optional(pool)
+    .await?
+    {
+        let (hostname, agent_addr, state) = row;
+        let (inv, reachable) = fetch_inventory(cfg, &agent_addr, &hostname, state == "online").await;
+        let target = summary_from_inventory(
+            target_id.into(),
+            "host".into(),
+            hostname.clone(),
+            hostname,
+            &inv,
+            reachable,
+        );
+        return Ok(FirewallTargetDetail { target, inventory: inv });
+    }
+
+    let row = super::metal::load_row(pool, id).await?;
+    let inv = machina_core::gather_metal_inventory(&super::metal::row_to_input(&row));
     let target = summary_from_inventory(
         target_id.into(),
-        "host".into(),
-        hostname.clone(),
-        hostname,
+        "bare_metal".into(),
+        row.hostname.clone(),
+        row.hostname,
         &inv,
-        reachable,
+        false,
     );
     Ok(FirewallTargetDetail { target, inventory: inv })
 }
@@ -175,6 +210,20 @@ pub async fn plan_target(
     target_id: &str,
     req: FirewallPlanRequest,
 ) -> anyhow::Result<FirewallPlanResult> {
+    if target_id != "local" {
+        if let Ok(id) = Uuid::parse_str(target_id) {
+            if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = $1")
+                .bind(id)
+                .fetch_one(pool)
+                .await?
+                == 0
+            {
+                if super::metal::load_row(pool, id).await.is_ok() {
+                    return super::metal::plan_metal(pool, id, req).await;
+                }
+            }
+        }
+    }
     let hostname = resolve_hostname(pool, cfg, target_id).await?;
     if let Some(addr) = resolve_agent(pool, cfg, target_id).await? {
         return agent_client::apply_firewall_plan(&addr, &req, req.dry_run).await;
@@ -190,6 +239,20 @@ pub async fn apply_target(
     req: FirewallPlanRequest,
     actor: &str,
 ) -> anyhow::Result<FirewallPlanResult> {
+    if target_id != "local" {
+        if let Ok(id) = Uuid::parse_str(target_id) {
+            if sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM hosts WHERE id = $1")
+                .bind(id)
+                .fetch_one(pool)
+                .await?
+                == 0
+            {
+                if super::metal::load_row(pool, id).await.is_ok() {
+                    return super::metal::apply_metal(pool, id, req, actor).await;
+                }
+            }
+        }
+    }
     let mut apply_req = req;
     apply_req.dry_run = false;
     if let Ok(host_id) = Uuid::parse_str(target_id) {
@@ -293,7 +356,7 @@ fn summary_from_inventory(
     }
 }
 
-fn risk_label(inv: &FirewallInventory) -> &'static str {
+pub fn risk_label(inv: &FirewallInventory) -> &'static str {
     if inv.open_ports.iter().any(|p| {
         matches!(
             p.risk,
@@ -312,12 +375,16 @@ async fn resolve_hostname(pool: &PgPool, cfg: &ControllerConfig, target_id: &str
     if target_id == "local" {
         return Ok("localhost".into());
     }
-    let host_id = Uuid::parse_str(target_id)?;
-    let hostname: String = sqlx::query_scalar("SELECT hostname FROM hosts WHERE id = $1")
-        .bind(host_id)
-        .fetch_one(pool)
-        .await?;
-    Ok(hostname)
+    let id = Uuid::parse_str(target_id)?;
+    if let Some(hostname) = sqlx::query_scalar::<_, String>("SELECT hostname FROM hosts WHERE id = $1")
+        .bind(id)
+        .fetch_optional(pool)
+        .await?
+    {
+        return Ok(hostname);
+    }
+    let row = super::metal::load_row(pool, id).await?;
+    Ok(row.hostname)
 }
 
 async fn resolve_agent(pool: &PgPool, cfg: &ControllerConfig, target_id: &str) -> anyhow::Result<Option<String>> {
@@ -355,9 +422,9 @@ pub async fn apply_profile(
 pub async fn zeus_firewall_status() -> serde_json::Value {
     serde_json::json!({
         "feature": "zeus-firewall",
-        "phase": 1,
-        "ai_id": "AI-142",
-        "backends": ["firewalld", "ufw", "nftables", "iptables"],
+        "phase": 3,
+        "ai_id": "AI-172",
+        "backends": ["firewalld", "ufw", "nftables", "iptables", "k8s_network_policy", "cilium", "aws", "azure", "gcp"],
         "ready": true
     })
 }

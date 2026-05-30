@@ -2,12 +2,11 @@
 
 import { Link, useSearchParams } from 'react-router'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { LayoutGrid, List, Plus, RefreshCw, Server } from 'lucide-react'
+import { LayoutGrid, List, Monitor, Plus, RefreshCw, Server } from 'lucide-react'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
-import VmCard from '../../components/platform/VmCard'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
-import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { MacSectionTitle, LaunchpadAppIcon } from '../../components/platform/mac/PlatformMacUi'
 import SimpleCreateVmWizard, { sizeToSpec, type VmWizardInitial } from '../../components/platform/SimpleCreateVmWizard'
 import WindowsCreateWizard from '../../components/platform/WindowsCreateWizard'
 import MigratePrecheckModal from '../../components/platform/MigratePrecheckModal'
@@ -24,8 +23,19 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-type ViewMode = 'grid' | 'list'
+type ViewMode = 'launchpad' | 'list'
 type VmFilter = 'all' | 'running' | 'stopped' | 'discovered'
+
+const VM_VIEW_STORAGE_KEY = 'platform-vms-view'
+
+function readStoredView(): ViewMode {
+  try {
+    const v = localStorage.getItem(VM_VIEW_STORAGE_KEY)
+    if (v === 'list' || v === 'launchpad') return v
+    if (v === 'grid') return 'launchpad'
+  } catch { /* private mode */ }
+  return 'launchpad'
+}
 
 export default function PlatformVms() {
   const toast = useToastContext()
@@ -34,7 +44,7 @@ export default function PlatformVms() {
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<{ message: string; error_code?: string; remediation?: string } | null>(null)
   const [vmFilter, setVmFilter] = useState<VmFilter>('all')
-  const [view, setView] = useState<ViewMode>('grid')
+  const [view, setView] = useState<ViewMode>(() => readStoredView())
   const [wizardOpen, setWizardOpen] = useState(false)
   const [wizardInitial, setWizardInitial] = useState<VmWizardInitial | undefined>()
   const [windowsOpen, setWindowsOpen] = useState(false)
@@ -66,6 +76,10 @@ export default function PlatformVms() {
   }, [vmFilter])
 
   useEffect(() => { void load() }, [load])
+
+  useEffect(() => {
+    try { localStorage.setItem(VM_VIEW_STORAGE_KEY, view) } catch { /* ignore */ }
+  }, [view])
 
   useEffect(() => {
     const create = searchParams.get('create')
@@ -169,7 +183,7 @@ export default function PlatformVms() {
         <MacSectionTitle title="Virtual Machines" subtitle="Finder-style browse — drag a VM onto a host to migrate." />
         <div className="flex flex-wrap gap-2">
           <div className="flex rounded-lg border border-white/[0.06] overflow-hidden">
-            <button type="button" className={`p-2 ${view === 'grid' ? 'bg-slate-800 text-white' : 'text-slate-400'}`} onClick={() => setView('grid')} aria-label="Grid view"><LayoutGrid className="w-4 h-4" /></button>
+            <button type="button" className={`p-2 ${view === 'launchpad' ? 'bg-slate-800 text-white' : 'text-slate-400'}`} onClick={() => setView('launchpad')} aria-label="Launchpad view"><LayoutGrid className="w-4 h-4" /></button>
             <button type="button" className={`p-2 ${view === 'list' ? 'bg-slate-800 text-white' : 'text-slate-400'}`} onClick={() => setView('list')} aria-label="List view"><List className="w-4 h-4" /></button>
           </div>
           <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></button>
@@ -197,17 +211,34 @@ export default function PlatformVms() {
             <PlatformEmptyState title="No virtual machines" subtitle="Create a VM or sync hosts to discover libvirt domains.">
               <button type="button" className="btn-primary mt-3" onClick={() => setWizardOpen(true)}>Create VM</button>
             </PlatformEmptyState>
-          ) : view === 'grid' ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3">
-              {filteredVms.map((v) => (
-                <VmCard
-                  key={v.id}
-                  vm={v}
-                  draggable
-                  onDragStart={() => setDragVmId(v.id)}
-                  hostLabel={v.host_id ? hostMap.get(v.host_id) : undefined}
-                />
-              ))}
+          ) : view === 'launchpad' ? (
+            <div className="grid gap-6 grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7">
+              {filteredVms.map((v) => {
+                const running = v.observed_state === 'running'
+                return (
+                  <div
+                    key={v.id}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData('application/x-platform-vm', v.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      setDragVmId(v.id)
+                    }}
+                    className="cursor-grab active:cursor-grabbing"
+                  >
+                    <Link to={`/platform/vms/${v.id}`} onClick={(e) => e.stopPropagation()} className="block">
+                      <LaunchpadAppIcon
+                        name={v.name}
+                        icon={<Monitor className={`w-8 h-8 sm:w-9 sm:h-9 ${running ? '' : 'opacity-60'}`} />}
+                        gradient={running ? 'from-emerald-600 to-teal-700' : 'from-slate-600 to-slate-800'}
+                      />
+                    </Link>
+                    {v.managed === false && (
+                      <p className="text-[10px] text-amber-400 text-center -mt-3">Discovered</p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           ) : (
             <div className="platform-mac-panel rounded-2xl border border-white/[0.06] overflow-x-auto">
