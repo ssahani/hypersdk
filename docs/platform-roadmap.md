@@ -302,11 +302,12 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 29 | 452–471 | Operations runbooks + compliance showback | **Shipped (v1)** |
 | 30 | 472–491 | Developer ecosystem — SDK + Terraform GA schemas | **Shipped (v1)** |
 | 31 | 492–511 | Observability — tracing, SLO dashboards, runbook scheduler | **Shipped (v1)** |
+| 32 | 512–531 | Enterprise hardening — Vault sync, MFA compliance, FIPS, tenants | **Shipped (v1)** |
 
-### Horizon — phases 32–64 (AI-512–500+)
+### Horizon — phases 33–64 (AI-532–500+)
 
 | Phase | AI range | Theme |
 |-------|----------|--------|
-| 32–64 | 512–500+ | Full vCenter parity, live Vault/MFA, FIPS, multi-tenant isolation |
+| 33–64 | 532–500+ | Full vCenter parity, live Vault/MFA, FIPS enforcement, multi-tenant isolation |
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.

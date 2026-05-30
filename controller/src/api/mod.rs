@@ -388,8 +388,20 @@ pub fn router(state: AppState) -> Router {
             get(enterprise_security::list_vault_providers).post(enterprise_security::register_vault_provider),
         )
         .route(
+            "/api/v1/enterprise/vault/providers/{id}/sync",
+            post(enterprise_security::sync_vault_provider),
+        )
+        .route(
+            "/api/v1/enterprise/vault/sync-all",
+            post(enterprise_security::sync_all_vault_providers),
+        )
+        .route(
             "/api/v1/enterprise/mfa/policies",
             get(enterprise_security::list_mfa_policies),
+        )
+        .route(
+            "/api/v1/enterprise/mfa/compliance",
+            get(enterprise_security::mfa_compliance),
         )
         .route(
             "/api/v1/enterprise/mfa/policies/{role}",
@@ -402,6 +414,18 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/enterprise/air-gap/bundles/{id}",
             get(enterprise_security::get_air_gap_bundle),
+        )
+        .route(
+            "/api/v1/enterprise/fips/matrix",
+            get(enterprise_security::fips_matrix),
+        )
+        .route(
+            "/api/v1/enterprise/tenants/overview",
+            get(enterprise_security::tenant_isolation_overview),
+        )
+        .route(
+            "/api/v1/enterprise/tenants/policies/{project}",
+            post(enterprise_security::upsert_tenant_policy),
         )
         .route("/api/v1/ha/status", get(ha::get_ha_status))
         .route("/api/v1/migrations", get(migration_jobs::list_migration_jobs))

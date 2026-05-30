@@ -29,5 +29,6 @@ pub mod platform_plugins;
 pub mod storage_sync;
 pub mod storage_tiers;
 pub mod enterprise_security;
+pub mod vault_sync_scheduler;
 pub mod webhooks;
 pub mod webhook_worker;

@@ -849,4 +849,23 @@ except Exception:
   else
     e2e_platform_fail "POST spotlight enterprise security — HTTP ${http}"
   fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: ENTERPRISE HARDENING (AI-512–531)"
+  e2e_platform_smoke_get "/api/v1/enterprise/mfa/compliance" "GET /api/v1/enterprise/mfa/compliance" || true
+  e2e_platform_smoke_get "/api/v1/enterprise/fips/matrix" "GET /api/v1/enterprise/fips/matrix" || true
+  e2e_platform_smoke_get "/api/v1/enterprise/tenants/overview" "GET /api/v1/enterprise/tenants/overview" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/enterprise/vault/sync-all" \
+    -H 'Content-Type: application/json' -d '{}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/enterprise/vault/sync-all (HTTP ${http})"
+  else
+    e2e_platform_fail "POST vault sync-all — HTTP ${http}"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"fips tenant isolation vault sync"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight enterprise hardening (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight enterprise hardening — HTTP ${http}"
+  fi
 }

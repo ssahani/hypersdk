@@ -9,6 +9,7 @@ use crate::api::ApiError;
 use crate::auth::AuthUser;
 use crate::engine::enterprise_security::{
     self, CreateAirGapBundleRequest, RegisterVaultProviderRequest, UpsertMfaPolicyRequest,
+    UpsertTenantPolicyRequest,
 };
 use crate::state::AppState;
 
@@ -90,4 +91,64 @@ pub async fn get_air_gap_bundle(
         .await
         .map(Json)
         .map_err(|e| ApiError::not_found(e.to_string()))
+}
+
+pub async fn sync_vault_provider(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<enterprise_security::VaultSyncResult>, ApiError> {
+    enterprise_security::sync_vault_provider(&state.pool, id)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+}
+
+pub async fn sync_all_vault_providers(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+) -> Result<Json<enterprise_security::VaultSyncAllResult>, ApiError> {
+    enterprise_security::sync_all_vault_providers(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn mfa_compliance(
+    State(state): State<AppState>,
+) -> Result<Json<enterprise_security::MfaComplianceReport>, ApiError> {
+    enterprise_security::mfa_compliance(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn fips_matrix(
+    State(state): State<AppState>,
+) -> Result<Json<enterprise_security::FipsMatrix>, ApiError> {
+    enterprise_security::fips_matrix(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn tenant_isolation_overview(
+    State(state): State<AppState>,
+) -> Result<Json<enterprise_security::TenantIsolationOverview>, ApiError> {
+    enterprise_security::tenant_isolation_overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn upsert_tenant_policy(
+    State(state): State<AppState>,
+    Extension(_actor): Extension<AuthUser>,
+    Path(project): Path<String>,
+    Json(body): Json<UpsertTenantPolicyRequest>,
+) -> Result<Json<enterprise_security::TenantIsolationItem>, ApiError> {
+    enterprise_security::upsert_tenant_policy(&state.pool, &project, &body)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::bad_request(e.to_string()))
 }

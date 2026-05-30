@@ -262,6 +262,9 @@ export type EnterpriseSecurityOverview = {
   mfa_policies: number
   mfa_required_roles: number
   air_gap_bundles: number
+  mfa_enrolled_users: number
+  tenant_policies: number
+  fips_profiles: number
   summary: string
 }
 
@@ -323,6 +326,85 @@ export const listAirGapBundles = () =>
 
 export const createAirGapBundle = (body: { name: string }) =>
   platformFetch<AirGapBundle>('/api/v1/enterprise/air-gap/bundles', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export type VaultSyncResult = {
+  provider_id: string
+  provider_name: string
+  status: string
+  message: string
+  last_sync_at: string
+}
+
+export type MfaComplianceReport = {
+  required_roles: number
+  compliant_users: number
+  non_compliant_users: number
+  users: Array<{
+    username: string
+    role: string
+    required_method: string
+    enrolled: boolean
+    compliant: boolean
+  }>
+  summary: string
+}
+
+export type FipsMatrix = {
+  active_profile: string
+  openssl_version: string
+  profiles: Array<{
+    id: string
+    name: string
+    tls_min_version: string
+    fips_mode: string
+    cipher_suites: string
+    notes: string
+  }>
+  summary: string
+}
+
+export type TenantIsolationItem = {
+  project_name: string
+  vm_count: number
+  network_isolation: string
+  max_vms: number
+  max_storage_gib: number
+  enforce_quotas: boolean
+  quota_status: string
+}
+
+export type TenantIsolationOverview = {
+  projects: TenantIsolationItem[]
+  enforced_count: number
+  summary: string
+}
+
+export const syncVaultProvider = (id: string) =>
+  platformFetch<VaultSyncResult>(`/api/v1/enterprise/vault/providers/${id}/sync`, { method: 'POST', body: '{}' })
+
+export const syncAllVaultProviders = () =>
+  platformFetch<{ synced: number; summary: string; results: VaultSyncResult[] }>(
+    '/api/v1/enterprise/vault/sync-all',
+    { method: 'POST', body: '{}' },
+  )
+
+export const getMfaCompliance = () =>
+  platformFetch<MfaComplianceReport>('/api/v1/enterprise/mfa/compliance')
+
+export const getFipsMatrix = () =>
+  platformFetch<FipsMatrix>('/api/v1/enterprise/fips/matrix')
+
+export const getTenantIsolationOverview = () =>
+  platformFetch<TenantIsolationOverview>('/api/v1/enterprise/tenants/overview')
+
+export const upsertTenantPolicy = (
+  project: string,
+  body: { network_isolation?: string; max_vms?: number; max_storage_gib?: number; enforce_quotas?: boolean },
+) =>
+  platformFetch<TenantIsolationItem>(`/api/v1/enterprise/tenants/policies/${encodeURIComponent(project)}`, {
     method: 'POST',
     body: JSON.stringify(body),
   })

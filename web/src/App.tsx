@@ -137,6 +137,7 @@ const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprint
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
 const PlatformDeveloper = lazy(() => import('./pages/platform/PlatformDeveloper'))
 const PlatformObservability = lazy(() => import('./pages/platform/PlatformObservability'))
+const PlatformEnterprise = lazy(() => import('./pages/platform/PlatformEnterprise'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
 const MissionControl = lazy(() => import('./pages/MissionControl'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
@@ -299,6 +300,7 @@ function AuthenticatedShell() {
                   <Route path="topology" element={<PlatformTopology />} />
                   <Route path="developer" element={<PlatformDeveloper />} />
                   <Route path="observability" element={<PlatformObservability />} />
+                  <Route path="enterprise" element={<PlatformEnterprise />} />
                   <Route path="zeus" element={<PlatformZeusOs />} />
                   <Route path="zeus/security/firewall" element={<PlatformFirewallOverview />} />
                   <Route path="zeus/security/firewall/:id" element={<PlatformFirewallTargetDetail />} />

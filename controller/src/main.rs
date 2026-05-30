@@ -74,6 +74,7 @@ async fn main() -> anyhow::Result<()> {
     machina_controller::engine::ai::worker::spawn(state.clone());
     machina_controller::engine::zeus_firewall::worker::spawn(state.clone());
     machina_controller::engine::operations_scheduler::spawn(state.clone());
+    machina_controller::engine::vault_sync_scheduler::spawn(state.clone());
 
     let app = api::router(state)
         .layer(TraceLayer::new_for_http())
