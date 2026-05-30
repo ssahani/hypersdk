@@ -120,12 +120,22 @@ pub struct MultisiteSyncRequest {
     pub target_site: String,
     #[serde(default)]
     pub include_lockdown: bool,
+    #[serde(default)]
+    pub apply_profiles: bool,
+    #[serde(default = "default_lockdown_profile")]
+    pub lockdown_profile: String,
+}
+
+fn default_lockdown_profile() -> String {
+    "MetalLockdown".into()
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct MultisiteSyncResult {
     pub synced_policies: usize,
     pub lockdown_applied: bool,
+    pub hosts_applied: usize,
+    pub apply_errors: Vec<String>,
     pub summary: String,
 }
 
@@ -133,16 +143,46 @@ pub async fn ensure_default_sites(pool: &PgPool) -> anyhow::Result<()> {
     let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM firewall_sites")
         .fetch_one(pool)
         .await?;
-    if count > 0 {
-        return Ok(());
+    if count == 0 {
+        sqlx::query(
+            "INSERT INTO firewall_sites (name, region, role, gitops_namespace, dr_pair) VALUES
+             ('primary-local', 'local', 'primary', 'site-primary', 'dr-replica'),
+             ('dr-replica', 'dr', 'replica', 'site-dr', 'primary-local')",
+        )
+        .execute(pool)
+        .await?;
     }
-    sqlx::query(
-        "INSERT INTO firewall_sites (name, region, role, gitops_namespace, dr_pair) VALUES
-         ('primary-local', 'local', 'primary', 'site-primary', 'dr-replica'),
-         ('dr-replica', 'dr', 'replica', 'site-dr', 'primary-local')",
-    )
-    .execute(pool)
-    .await?;
+
+    let policy_count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM firewall_site_policies")
+        .fetch_one(pool)
+        .await?;
+    if policy_count == 0 {
+        let primary_id: Uuid = sqlx::query_scalar("SELECT id FROM firewall_sites WHERE name = 'primary-local'")
+            .fetch_one(pool)
+            .await?;
+        let dr_id: Uuid = sqlx::query_scalar("SELECT id FROM firewall_sites WHERE name = 'dr-replica'")
+            .fetch_one(pool)
+            .await?;
+        for (site_id, name, profile) in [
+            (primary_id, "fleet-production", "ProductionServer"),
+            (primary_id, "fleet-public", "WebServer"),
+            (dr_id, "fleet-dr-standby", "MetalLockdown"),
+        ] {
+            sqlx::query(
+                "INSERT INTO firewall_site_policies (site_id, policy_name, profile, spec_yaml)
+                 VALUES ($1, $2, $3, $4)
+                 ON CONFLICT (site_id, policy_name) DO NOTHING",
+            )
+            .bind(site_id)
+            .bind(name)
+            .bind(profile)
+            .bind(format!(
+                "apiVersion: zeus.machina/v1\nkind: MachineFirewallPolicy\nmetadata:\n  name: {name}\nspec:\n  profile: {profile}\n"
+            ))
+            .execute(pool)
+            .await?;
+        }
+    }
     Ok(())
 }
 
@@ -329,6 +369,7 @@ pub async fn dr_template_bundle(pool: &PgPool) -> anyhow::Result<DrTemplateBundl
 
 pub async fn cross_site_sync(
     pool: &PgPool,
+    cfg: &ControllerConfig,
     req: MultisiteSyncRequest,
     actor: &str,
 ) -> anyhow::Result<MultisiteSyncResult> {
@@ -344,26 +385,34 @@ pub async fn cross_site_sync(
         .await?
         .ok_or_else(|| anyhow::anyhow!("unknown target site"))?;
 
-    let policies: Vec<(String, String)> = sqlx::query_as(
-        "SELECT policy_name, spec_yaml FROM firewall_site_policies WHERE site_id = $1",
+    let policies: Vec<(String, String, String)> = sqlx::query_as(
+        "SELECT policy_name, spec_yaml, profile FROM firewall_site_policies WHERE site_id = $1",
     )
     .bind(source_id)
     .fetch_all(pool)
     .await?;
 
     let mut synced = 0usize;
-    for (name, yaml) in policies {
+    let mut profiles_to_apply: Vec<String> = Vec::new();
+    for (name, yaml, profile) in policies {
         sqlx::query(
-            "INSERT INTO firewall_site_policies (site_id, policy_name, spec_yaml)
-             VALUES ($1, $2, $3)
-             ON CONFLICT (site_id, policy_name) DO UPDATE SET spec_yaml = EXCLUDED.spec_yaml, updated_at = NOW()",
+            "INSERT INTO firewall_site_policies (site_id, policy_name, profile, spec_yaml)
+             VALUES ($1, $2, $3, $4)
+             ON CONFLICT (site_id, policy_name) DO UPDATE SET
+               spec_yaml = EXCLUDED.spec_yaml,
+               profile = EXCLUDED.profile,
+               updated_at = NOW()",
         )
         .bind(target_id)
         .bind(&name)
+        .bind(&profile)
         .bind(&yaml)
         .execute(pool)
         .await?;
         synced += 1;
+        if !profiles_to_apply.contains(&profile) {
+            profiles_to_apply.push(profile);
+        }
     }
 
     let lockdown_applied = if req.include_lockdown {
@@ -371,16 +420,60 @@ pub async fn cross_site_sync(
             .bind(target_id)
             .execute(pool)
             .await?;
+        if !profiles_to_apply.contains(&req.lockdown_profile) {
+            profiles_to_apply.push(req.lockdown_profile.clone());
+        }
         true
     } else {
         false
     };
+
+    let mut hosts_applied = 0usize;
+    let mut apply_errors = Vec::new();
+    if req.apply_profiles || req.include_lockdown {
+        let online_hosts: Vec<(String,)> = sqlx::query_as(
+            "SELECT id::text FROM hosts WHERE state = 'online' ORDER BY hostname",
+        )
+        .fetch_all(pool)
+        .await?;
+
+        if req.apply_profiles {
+            if let Some(profile) = profiles_to_apply.first() {
+                for (host_id,) in &online_hosts {
+                    match super::inventory::apply_profile(pool, cfg, host_id, profile, actor, false).await {
+                        Ok(_) => hosts_applied += 1,
+                        Err(e) => apply_errors.push(format!("{host_id} {profile}: {e}")),
+                    }
+                }
+            }
+        }
+
+        if req.include_lockdown {
+            for (host_id,) in &online_hosts {
+                match super::inventory::apply_profile(
+                    pool,
+                    cfg,
+                    host_id,
+                    &req.lockdown_profile,
+                    actor,
+                    false,
+                )
+                .await
+                {
+                    Ok(_) => hosts_applied += 1,
+                    Err(e) => apply_errors.push(format!("{host_id} {}: {e}", req.lockdown_profile)),
+                }
+            }
+        }
+    }
 
     let detail = serde_json::json!({
         "source": req.source_site,
         "target": req.target_site,
         "synced": synced,
         "lockdown": lockdown_applied,
+        "hosts_applied": hosts_applied,
+        "apply_errors": apply_errors.len(),
     });
     sqlx::query(
         "INSERT INTO firewall_site_timeline (site_id, kind, detail_json, actor) VALUES ($1, 'sync', $2, $3)",
@@ -394,9 +487,17 @@ pub async fn cross_site_sync(
     Ok(MultisiteSyncResult {
         synced_policies: synced,
         lockdown_applied,
+        hosts_applied,
+        apply_errors: apply_errors.into_iter().take(10).collect(),
         summary: format!(
-            "Synced {synced} policy stub(s) from {} → {}",
-            req.source_site, req.target_site
+            "Synced {synced} policy(ies) from {} → {}{}",
+            req.source_site,
+            req.target_site,
+            if hosts_applied > 0 {
+                format!(" · applied to {hosts_applied} host/profile pair(s)")
+            } else {
+                String::new()
+            }
         ),
     })
 }

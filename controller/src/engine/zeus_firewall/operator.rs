@@ -1,12 +1,13 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// AI operator — guardrailed autonomous secure-machine (Phase 25).
+// AI operator — guardrailed autonomous secure-machine (Phase 25, hardened apply path).
 
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 
 use crate::config::ControllerConfig;
 
-use super::inventory::overview;
+use super::approvals::{self, ApprovalRequest};
+use super::inventory::{apply_profile, overview};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorThresholds {
@@ -40,6 +41,7 @@ pub struct FleetSecurePlan {
 #[derive(Debug, Deserialize)]
 pub struct OperatorExecuteRequest {
     pub host_id: String,
+    #[serde(default)]
     pub profile: String,
     #[serde(default)]
     pub dry_run: bool,
@@ -47,13 +49,41 @@ pub struct OperatorExecuteRequest {
     pub force: bool,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct OperatorBatchExecuteRequest {
+    #[serde(default)]
+    pub host_ids: Vec<String>,
+    #[serde(default)]
+    pub dry_run: bool,
+    #[serde(default)]
+    pub force: bool,
+    #[serde(default = "default_auto_only")]
+    pub auto_only: bool,
+}
+
+fn default_auto_only() -> bool {
+    true
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct OperatorExecuteResult {
     pub dry_run: bool,
     pub host_id: String,
+    pub applied: bool,
     pub enqueued: bool,
     pub task_id: Option<String>,
+    pub approval_id: Option<String>,
+    pub operations: usize,
     pub message: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct OperatorBatchExecuteResult {
+    pub dry_run: bool,
+    pub results: Vec<OperatorExecuteResult>,
+    pub applied_count: usize,
+    pub approval_count: usize,
+    pub summary: String,
 }
 
 pub fn thresholds() -> OperatorThresholds {
@@ -137,43 +167,91 @@ pub async fn execute_secure(
         .find(|p| p.host_id == req.host_id)
         .ok_or_else(|| anyhow::anyhow!("host not in operator plan"))?;
 
-    if preview.requires_approval && !req.force {
-        return Ok(OperatorExecuteResult {
-            dry_run: req.dry_run,
-            host_id: req.host_id.clone(),
-            enqueued: false,
-            task_id: None,
-            message: "Approval required — use force or approve in Zeus OS".into(),
-        });
-    }
+    let profile = if req.profile.is_empty() {
+        preview.target_profile.clone()
+    } else {
+        req.profile.clone()
+    };
 
-    if req.dry_run {
+    if preview.requires_approval && !req.force {
+        if req.dry_run {
+            return Ok(OperatorExecuteResult {
+                dry_run: true,
+                host_id: req.host_id.clone(),
+                applied: false,
+                enqueued: false,
+                task_id: None,
+                approval_id: None,
+                operations: 0,
+                message: format!(
+                    "Dry-run: would queue approval for {} → {}",
+                    preview.hostname, profile
+                ),
+            });
+        }
+        let approval = approvals::request_approval(
+            pool,
+            ApprovalRequest {
+                target_id: req.host_id.clone(),
+                profile: Some(profile.clone()),
+                plan_json: Some(serde_json::json!({
+                    "operator": true,
+                    "hostname": preview.hostname,
+                    "current_score": preview.current_score,
+                    "predicted_score": preview.predicted_score,
+                    "monthly_exposure_usd": preview.monthly_exposure_usd,
+                })),
+            },
+            actor,
+        )
+        .await?;
         return Ok(OperatorExecuteResult {
-            dry_run: true,
+            dry_run: false,
             host_id: req.host_id.clone(),
-            enqueued: false,
+            applied: false,
+            enqueued: true,
             task_id: None,
+            approval_id: Some(approval.id.to_string()),
+            operations: 0,
             message: format!(
-                "Dry-run: would apply {} to {}",
-                req.profile, preview.hostname
+                "Approval required for {} → {} — review in Compliance",
+                preview.hostname, profile
             ),
         });
     }
 
+    if req.dry_run {
+        let preview_result = apply_profile(pool, cfg, &req.host_id, &profile, actor, true).await?;
+        return Ok(OperatorExecuteResult {
+            dry_run: true,
+            host_id: req.host_id.clone(),
+            applied: false,
+            enqueued: false,
+            task_id: None,
+            approval_id: None,
+            operations: preview_result.operations.len(),
+            message: format!(
+                "Dry-run: {} operation(s) to apply {} to {}",
+                preview_result.operations.len(),
+                profile,
+                preview.hostname
+            ),
+        });
+    }
+
+    let result = apply_profile(pool, cfg, &req.host_id, &profile, actor, false).await?;
+    let host_id = uuid::Uuid::parse_str(&req.host_id).unwrap_or_else(|_| uuid::Uuid::nil());
     let _ = sqlx::query(
         "INSERT INTO firewall_timeline (target_kind, target_id, kind, summary, detail_json, actor)
          VALUES ('host', $1, 'operator_secure', $2, $3, $4)",
     )
-    .bind(
-        uuid::Uuid::parse_str(&req.host_id)
-            .map(|u| u)
-            .unwrap_or_else(|_| uuid::Uuid::nil()),
-    )
-    .bind(format!("Operator secure {} → {}", preview.hostname, req.profile))
+    .bind(host_id)
+    .bind(format!("Operator applied {} → {}", preview.hostname, profile))
     .bind(serde_json::json!({
-        "profile": req.profile,
+        "profile": profile,
         "hostname": preview.hostname,
-        "stub": true,
+        "operations": result.operations,
+        "forced": req.force,
     }))
     .bind(actor)
     .execute(pool)
@@ -182,11 +260,71 @@ pub async fn execute_secure(
     Ok(OperatorExecuteResult {
         dry_run: false,
         host_id: req.host_id.clone(),
+        applied: true,
         enqueued: false,
         task_id: None,
+        approval_id: None,
+        operations: result.operations.len(),
         message: format!(
-            "Operator audit recorded — apply {} to {} via secure-plan (stub enqueue)",
-            req.profile, preview.hostname
+            "Applied {} to {} ({} operation(s))",
+            profile,
+            preview.hostname,
+            result.operations.len()
         ),
+    })
+}
+
+pub async fn execute_secure_batch(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    req: &OperatorBatchExecuteRequest,
+    actor: &str,
+) -> anyhow::Result<OperatorBatchExecuteResult> {
+    let plan = fleet_secure_preview(pool, cfg).await?;
+    let targets: Vec<&SecureMachinePreview> = if req.host_ids.is_empty() {
+        plan.previews
+            .iter()
+            .filter(|p| !req.auto_only || !p.requires_approval)
+            .collect()
+    } else {
+        plan.previews
+            .iter()
+            .filter(|p| req.host_ids.iter().any(|id| id == &p.host_id))
+            .filter(|p| !req.auto_only || !p.requires_approval || req.force)
+            .collect()
+    };
+
+    let mut results = Vec::new();
+    let mut applied_count = 0usize;
+    let mut approval_count = 0usize;
+
+    for preview in targets {
+        let single = OperatorExecuteRequest {
+            host_id: preview.host_id.clone(),
+            profile: preview.target_profile.clone(),
+            dry_run: req.dry_run,
+            force: req.force,
+        };
+        let result = execute_secure(pool, cfg, &single, actor).await?;
+        if result.applied {
+            applied_count += 1;
+        }
+        if result.approval_id.is_some() {
+            approval_count += 1;
+        }
+        results.push(result);
+    }
+
+    Ok(OperatorBatchExecuteResult {
+        dry_run: req.dry_run,
+        applied_count,
+        approval_count,
+        summary: format!(
+            "{} host(s) processed · {} applied · {} approval(s) queued",
+            results.len(),
+            applied_count,
+            approval_count
+        ),
+        results,
     })
 }

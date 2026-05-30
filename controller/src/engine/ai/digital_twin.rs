@@ -142,6 +142,46 @@ pub async fn build_graph(pool: &PgPool) -> anyhow::Result<DigitalTwinGraph> {
         });
     }
 
+    let segments: Vec<(Uuid, String, String)> =
+        sqlx::query_as("SELECT id, name, tier FROM network_segments ORDER BY name")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+    for (sid, name, tier) in segments {
+        let id = format!("segment-{sid}");
+        nodes.push(TwinNode {
+            kind: "segment".into(),
+            id: id.clone(),
+            name: format!("{name} ({tier})"),
+            state: None,
+        });
+        edges.push(TwinEdge {
+            from: "cluster".into(),
+            to: id,
+            label: "overlay".into(),
+        });
+    }
+
+    if let Ok(lldp) = crate::engine::network_overlay::lldp_topology_from_cache(pool).await {
+        for node in lldp.nodes {
+            if !nodes.iter().any(|n| n.id == node.id) {
+                nodes.push(TwinNode {
+                    kind: node.kind,
+                    id: node.id,
+                    name: node.name,
+                    state: node.state,
+                });
+            }
+        }
+        for edge in lldp.edges {
+            edges.push(TwinEdge {
+                from: edge.from,
+                to: edge.to,
+                label: edge.label,
+            });
+        }
+    }
+
     let edge_count = edges.len();
     let node_count = nodes.len();
     Ok(DigitalTwinGraph {
@@ -168,6 +208,9 @@ pub async fn analyze_impact(pool: &PgPool, req: &ImpactRequest) -> anyhow::Resul
         }
         ("isolate", "segment") | ("shutdown", "segment") => {
             segment_isolate_impact(pool, &req.target_id).await
+        }
+        ("isolate", "switch") | ("shutdown", "switch") => {
+            switch_isolate_impact(pool, &req.target_id).await
         }
         ("shutdown", "vm") | ("stop", "vm") | ("delete", "vm") => {
             vm_shutdown_impact(pool, &req.target_id).await
@@ -557,6 +600,68 @@ async fn segment_isolate_impact(pool: &PgPool, target: &str) -> anyhow::Result<I
         recommendations: vec![
             "Run segment connectivity matrix before isolation.".into(),
             "Migrate workloads to alternate tier-1 segment if deny-all is enabled.".into(),
+        ],
+    })
+}
+
+async fn switch_isolate_impact(pool: &PgPool, target: &str) -> anyhow::Result<ImpactAnalysis> {
+    let switch_id = target.strip_prefix("switch-").unwrap_or(target);
+    let rows: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT c.host_id, h.hostname
+         FROM host_lldp_cache c
+         JOIN hosts h ON h.id = c.host_id
+         WHERE c.neighbors_json::text ILIKE $1
+         ORDER BY h.hostname",
+    )
+    .bind(format!("%{switch_id}%"))
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    let hostnames: Vec<String> = rows.iter().map(|(_, name)| name.clone()).collect();
+    let vms: Vec<String> = if rows.is_empty() {
+        vec![]
+    } else {
+        sqlx::query_scalar(
+            "SELECT name FROM vms WHERE host_id = ANY($1::uuid[]) ORDER BY name LIMIT 50",
+        )
+        .bind(rows.iter().map(|(id, _)| *id).collect::<Vec<_>>())
+        .fetch_all(pool)
+        .await
+        .unwrap_or_default()
+    };
+
+    let severity = if vms.len() >= 10 {
+        "critical"
+    } else if hostnames.is_empty() {
+        "low"
+    } else {
+        "high"
+    };
+
+    Ok(ImpactAnalysis {
+        action: "isolate".into(),
+        target: format!("switch:{target}"),
+        severity: severity.into(),
+        summary: if hostnames.is_empty() {
+            format!("Switch {target} has no cached LLDP uplinks — verify topology refresh.")
+        } else {
+            format!(
+                "Isolating switch uplink affects {} host(s) and {} VM(s).",
+                hostnames.len(),
+                vms.len()
+            )
+        },
+        affected_vms: vms,
+        affected_applications: vec![],
+        storage_risks: vec![],
+        network_notes: hostnames
+            .iter()
+            .map(|h| format!("Host {h} loses northbound LLDP uplink."))
+            .collect(),
+        recommendations: vec![
+            "Confirm redundant uplinks before switch maintenance.".into(),
+            "Refresh LLDP cache from Platform Topology.".into(),
         ],
     })
 }

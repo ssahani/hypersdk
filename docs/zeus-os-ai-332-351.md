@@ -13,9 +13,11 @@
 - `GET /api/v1/zeus-firewall/multisite/dr-templates` — Primary/DR profile pairs with geo-fence stubs
 - `GET /api/v1/zeus-firewall/multisite/overview` — site cards, compliance rollup, policy conflict detection
 
-## AI-334–338 — Sync + lockdown
+## AI-334–338 — Sync + lockdown (hardened)
 
-- `POST /api/v1/zeus-firewall/multisite/sync` — cross-site profile sync stub + optional replica lockdown
+- `POST /api/v1/zeus-firewall/multisite/sync` — copies site policies; optional `apply_profiles` + `include_lockdown` invoke real Zeus `apply_profile` on online hosts
+
+See also [`zeus-os-hardening-v1-stubs.md`](zeus-os-hardening-v1-stubs.md).
 
 ## AI-336–348 — Connectivity + drift
 

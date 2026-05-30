@@ -472,3 +472,161 @@ pub async fn fetch_host_lldp(
 ) -> anyhow::Result<machina_core::libvirt::host_network::LldpInventory> {
     crate::agent_client::get_lldp(agent_console_addr).await
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LldpTopologyContribution {
+    pub nodes: Vec<LldpTopologyNode>,
+    pub edges: Vec<LldpTopologyEdge>,
+    pub warnings: Vec<LldpTopologyWarning>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LldpTopologyNode {
+    pub kind: String,
+    pub id: String,
+    pub name: String,
+    pub state: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LldpTopologyEdge {
+    pub from: String,
+    pub to: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct LldpTopologyWarning {
+    pub severity: String,
+    pub message: String,
+}
+
+fn switch_node_id(key: &str) -> String {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    key.hash(&mut h);
+    format!("switch-{:x}", h.finish())
+}
+
+fn switch_key(neighbor: &machina_core::libvirt::host_network::LldpNeighbor) -> String {
+    if !neighbor.system_name.is_empty() {
+        neighbor.system_name.clone()
+    } else if !neighbor.chassis_id.is_empty() {
+        format!("chassis:{}", neighbor.chassis_id)
+    } else {
+        format!("iface:{}", neighbor.local_interface)
+    }
+}
+
+pub async fn refresh_lldp_cache(pool: &PgPool, max_age_secs: i64) -> anyhow::Result<usize> {
+    let hosts: Vec<(Uuid, String, String)> = sqlx::query_as(
+        "SELECT id, hostname, COALESCE(NULLIF(agent_console_addr, ''), agent_grpc_addr)
+         FROM hosts WHERE state = 'online' ORDER BY hostname",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut refreshed = 0usize;
+    for (host_id, hostname, addr) in hosts {
+        if addr.is_empty() {
+            continue;
+        }
+        let fetched_at: Option<chrono::DateTime<chrono::Utc>> =
+            sqlx::query_scalar("SELECT fetched_at FROM host_lldp_cache WHERE host_id = $1")
+                .bind(host_id)
+                .fetch_optional(pool)
+                .await?;
+        if let Some(ts) = fetched_at {
+            if (chrono::Utc::now() - ts).num_seconds() < max_age_secs {
+                continue;
+            }
+        }
+
+        match fetch_host_lldp(&addr).await {
+            Ok(lldp) => {
+                let neighbors_json = serde_json::to_value(&lldp.neighbors)?;
+                sqlx::query(
+                    "INSERT INTO host_lldp_cache (host_id, source, neighbors_json, summary, fetched_at)
+                     VALUES ($1, $2, $3, $4, NOW())
+                     ON CONFLICT (host_id) DO UPDATE SET
+                       source = EXCLUDED.source,
+                       neighbors_json = EXCLUDED.neighbors_json,
+                       summary = EXCLUDED.summary,
+                       fetched_at = NOW()",
+                )
+                .bind(host_id)
+                .bind(&lldp.source)
+                .bind(neighbors_json)
+                .bind(&lldp.summary)
+                .execute(pool)
+                .await?;
+                refreshed += 1;
+            }
+            Err(e) => {
+                tracing::debug!("LLDP refresh failed for {hostname}: {e}");
+            }
+        }
+    }
+    Ok(refreshed)
+}
+
+pub async fn lldp_topology_from_cache(pool: &PgPool) -> anyhow::Result<LldpTopologyContribution> {
+    let _ = refresh_lldp_cache(pool, 300).await;
+
+    let rows: Vec<(Uuid, String, String, serde_json::Value, String)> = sqlx::query_as(
+        "SELECT c.host_id, h.hostname, c.source, c.neighbors_json, c.summary
+         FROM host_lldp_cache c
+         JOIN hosts h ON h.id = c.host_id
+         ORDER BY h.hostname",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut nodes = Vec::new();
+    let mut edges = Vec::new();
+    let mut warnings = Vec::new();
+    let mut switch_ids: std::collections::HashMap<String, String> = std::collections::HashMap::new();
+
+    for (host_id, hostname, source, neighbors_json, summary) in rows {
+        let neighbors: Vec<machina_core::libvirt::host_network::LldpNeighbor> =
+            serde_json::from_value(neighbors_json).unwrap_or_default();
+        for neighbor in &neighbors {
+            let key = switch_key(neighbor);
+            let switch_id = switch_ids
+                .entry(key.clone())
+                .or_insert_with(|| {
+                    let id = switch_node_id(&key);
+                    let name = if neighbor.system_name.is_empty() {
+                        neighbor.chassis_id.clone()
+                    } else {
+                        neighbor.system_name.clone()
+                    };
+                    nodes.push(LldpTopologyNode {
+                        kind: "switch".into(),
+                        id: id.clone(),
+                        name: if name.is_empty() { "switch".into() } else { name },
+                        state: Some(source.clone()),
+                    });
+                    id
+                })
+                .clone();
+            edges.push(LldpTopologyEdge {
+                from: host_id.to_string(),
+                to: switch_id,
+                label: "uplink".into(),
+            });
+        }
+        if neighbors.is_empty() && !summary.is_empty() {
+            warnings.push(LldpTopologyWarning {
+                severity: "info".into(),
+                message: format!("{hostname}: {summary}"),
+            });
+        }
+    }
+
+    Ok(LldpTopologyContribution {
+        nodes,
+        edges,
+        warnings,
+    })
+}

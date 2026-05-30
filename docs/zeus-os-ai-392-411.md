@@ -30,7 +30,9 @@
 - `POST /api/v1/network/segments/{id}/connectivity`
 - `POST /api/v1/network/segments/{id}/ipam/allocate`
 - `GET /api/v1/network/segments/gitops/export`
-- Topology merges segment + LLDP nodes ([`topology.rs`](../controller/src/api/topology.rs))
+- Topology merges segment + LLDP nodes ([`topology.rs`](../controller/src/api/topology.rs)) with `host_lldp_cache` refresh + deduped switch IDs
+
+See also [`zeus-os-hardening-v1-stubs.md`](zeus-os-hardening-v1-stubs.md).
 
 ## AI-403–404 — UI
 

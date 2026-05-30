@@ -2,59 +2,34 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Cable, GitBranch, Layers } from 'lucide-react'
+import { Cable, GitBranch, Layers, RefreshCw } from 'lucide-react'
 import { MacSectionTitle, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
-import {
-  getClusterTopology,
-  getHostLldp,
-  listPlatformHosts,
-  type HostLldpInventory,
-  type TopologyGraph,
-} from '../../api/platform'
+import { getClusterTopology, type TopologyGraph } from '../../api/platform'
 
 type LldpStripEntry = {
   hostId: string
   hostname: string
-  lldp: HostLldpInventory | null
-  error?: string
+  neighbors: Array<{ local_interface: string; system_name: string; chassis_id: string; port_id: string }>
+  source?: string
 }
 
 export default function PlatformTopology() {
   const [graph, setGraph] = useState<TopologyGraph | null>(null)
-  const [lldpStrip, setLldpStrip] = useState<LldpStripEntry[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
-      const [topo, hosts] = await Promise.all([
-        getClusterTopology(),
-        listPlatformHosts(),
-      ])
-      setGraph(topo)
-
-      const online = hosts.filter((h) => h.state === 'online').slice(0, 8)
-      const strip = await Promise.all(
-        online.map(async (h) => {
-          try {
-            const lldp = await getHostLldp(h.id)
-            return { hostId: h.id, hostname: h.hostname, lldp }
-          } catch (e: unknown) {
-            return {
-              hostId: h.id,
-              hostname: h.hostname,
-              lldp: null,
-              error: e instanceof Error ? e.message : 'LLDP unavailable',
-            }
-          }
-        }),
-      )
-      setLldpStrip(strip)
+      setGraph(await getClusterTopology())
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to load topology')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -70,15 +45,43 @@ export default function PlatformTopology() {
     [graph],
   )
 
+  const lldpStrip = useMemo((): LldpStripEntry[] => {
+    if (!graph) return []
+    const hosts = graph.nodes.filter((n) => n.kind === 'host')
+    const switches = new Map(graph.nodes.filter((n) => n.kind === 'switch').map((n) => [n.id, n]))
+    return hosts
+      .map((host) => {
+        const uplinks = graph.edges.filter((e) => e.from === host.id && e.label === 'uplink')
+        const neighbors = uplinks.map((e) => {
+          const sw = switches.get(e.to)
+          return {
+            local_interface: 'uplink',
+            system_name: sw?.name ?? 'switch',
+            chassis_id: sw?.id ?? e.to,
+            port_id: '',
+          }
+        })
+        const source = switches.get(uplinks[0]?.to ?? '')?.state ?? undefined
+        return { hostId: host.id, hostname: host.name, neighbors, source }
+      })
+      .filter((entry) => entry.neighbors.length > 0)
+  }, [graph])
+
   return (
     <div className="space-y-6">
-      <MacSectionTitle title="Topology" subtitle="Digital twin graph — hosts, VMs, overlay segments, and LLDP uplinks" />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <MacSectionTitle title="Topology" subtitle="Digital twin graph — hosts, VMs, overlay segments, and LLDP uplinks" />
+        <button type="button" className="btn-secondary text-xs flex items-center gap-2" disabled={loading} onClick={() => void load()}>
+          <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+          Refresh LLDP
+        </button>
+      </div>
       {error && <ErrorBanner message={error} />}
       <MachinaDigitalTwin />
       <MachinaNetworkLens vmNames={graph?.nodes.filter((n) => n.kind === 'vm').map((n) => n.name) ?? []} />
 
       {(segmentLegend.length > 0 || uplinkEdges.length > 0) && (
-        <MacGlassPanel title="Overlay legend" subtitle="Segment nodes and LLDP uplink edges from cluster topology.">
+        <MacGlassPanel title="Overlay legend" subtitle="Segment nodes and LLDP uplink edges from cached cluster topology.">
           <div className="flex flex-wrap gap-4 text-sm">
             {segmentLegend.map((s) => (
               <span key={s.id} className="flex items-center gap-2 text-violet-300">
@@ -95,7 +98,7 @@ export default function PlatformTopology() {
       )}
 
       {lldpStrip.length > 0 && (
-        <MacGlassPanel title="LLDP uplink strip" subtitle="Per-host switch neighbors (lazy fetch from online agents).">
+        <MacGlassPanel title="LLDP uplink strip" subtitle="Switch neighbors from topology cache (deduped chassis IDs).">
           <div className="space-y-3">
             {lldpStrip.map((entry) => (
               <div key={entry.hostId} className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
@@ -103,27 +106,19 @@ export default function PlatformTopology() {
                   <Link to={`/platform/hosts/${entry.hostId}`} className="text-sm font-medium text-blue-300 hover:underline">
                     {entry.hostname}
                   </Link>
-                  {entry.lldp && (
-                    <span className="text-xs text-slate-500">{entry.lldp.source.replace(/_/g, ' ')}</span>
+                  {entry.source && (
+                    <span className="text-xs text-slate-500">{entry.source.replace(/_/g, ' ')}</span>
                   )}
                 </div>
-                {entry.error && (
-                  <p className="text-xs text-slate-500">{entry.error}</p>
-                )}
-                {entry.lldp && entry.lldp.neighbors.length > 0 ? (
-                  <ul className="text-xs font-mono space-y-1 text-slate-300">
-                    {entry.lldp.neighbors.map((n, i) => (
-                      <li key={i} className="flex flex-wrap gap-x-3">
-                        <span className="text-cyan-400/90">{n.local_interface}</span>
-                        <span>→</span>
-                        <span>{n.system_name || n.chassis_id || 'switch'}</span>
-                        {n.port_id && <span className="text-slate-500">port {n.port_id}</span>}
-                      </li>
-                    ))}
-                  </ul>
-                ) : entry.lldp ? (
-                  <p className="text-xs text-slate-500">{entry.lldp.summary}</p>
-                ) : null}
+                <ul className="text-xs font-mono space-y-1 text-slate-300">
+                  {entry.neighbors.map((n, i) => (
+                    <li key={i} className="flex flex-wrap gap-x-3">
+                      <span className="text-cyan-400/90">{n.local_interface}</span>
+                      <span>→</span>
+                      <span>{n.system_name || n.chassis_id || 'switch'}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>

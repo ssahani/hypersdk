@@ -717,6 +717,13 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/zeus-firewall/multisite/overview" "GET /api/v1/zeus-firewall/multisite/overview" || true
   e2e_platform_smoke_get "/api/v1/zeus-firewall/multisite/export" "GET /api/v1/zeus-firewall/multisite/export" || true
   e2e_platform_smoke_get "/api/v1/zeus-firewall/multisite/drift" "GET /api/v1/zeus-firewall/multisite/drift" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/multisite/sync" \
+    -H 'Content-Type: application/json' -d '{"source_site":"primary-local","target_site":"dr-replica","apply_profiles":false}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/zeus-firewall/multisite/sync (HTTP ${http})"
+  else
+    e2e_platform_fail "POST multisite sync — HTTP ${http}"
+  fi
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
     -H 'Content-Type: application/json' -d '{"query":"dr firewall multisite"}')"
   if [[ "$http" == "200" ]]; then
@@ -728,6 +735,13 @@ except Exception:
   e2e_platform_hdr "PLATFORM SMOKE: ZEUS FIREWALL PHASE 25 (AI-352–371)"
   e2e_platform_smoke_get "/api/v1/zeus-firewall/operator/plan" "GET /api/v1/zeus-firewall/operator/plan" || true
   e2e_platform_smoke_get "/api/v1/zeus-firewall/operator/thresholds" "GET /api/v1/zeus-firewall/operator/thresholds" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/operator/execute" \
+    -H 'Content-Type: application/json' -d '{"host_id":"00000000-0000-0000-0000-000000000001","dry_run":true}')"
+  if [[ "$http" == "200" || "$http" == "400" ]]; then
+    e2e_platform_ok "POST /api/v1/zeus-firewall/operator/execute dry-run (HTTP ${http})"
+  else
+    e2e_platform_fail "POST operator execute dry-run — HTTP ${http}"
+  fi
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
     -H 'Content-Type: application/json' -d '{"query":"secure all hosts ai operator"}')"
   if [[ "$http" == "200" ]]; then
@@ -751,6 +765,16 @@ except Exception:
   if [[ -n "$host_id" ]]; then
     e2e_platform_smoke_get "/api/v1/hosts/${host_id}/lldp" "GET /api/v1/hosts/{id}/lldp" || true
   fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: V1 STUB HARDENING (operator apply, multisite sync, LLDP cache)"
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/zeus-firewall/operator/execute-batch" \
+    -H 'Content-Type: application/json' -d '{"dry_run":true,"auto_only":true}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/zeus-firewall/operator/execute-batch dry-run (HTTP ${http})"
+  else
+    e2e_platform_fail "POST operator execute-batch — HTTP ${http}"
+  fi
+  e2e_platform_smoke_get "/api/v1/topology" "GET /api/v1/topology (LLDP cache edges)" || true
 
   e2e_platform_hdr "PLATFORM SMOKE: MARKETPLACE PLUGINS + PHASE 26 POLISH"
   e2e_platform_smoke_get "/api/v1/marketplace/plugins" "GET /api/v1/marketplace/plugins" || true

@@ -517,8 +517,25 @@ pub async fn host_lldp(
     .await?
     .ok_or_else(|| ApiError::not_found("host not found"))?;
 
-    crate::engine::network_overlay::fetch_host_lldp(&row.1)
+    let lldp = crate::engine::network_overlay::fetch_host_lldp(&row.1)
         .await
-        .map(Json)
-        .map_err(|e| ApiError::internal(format!("{} LLDP: {}", row.0, e)))
+        .map_err(|e| ApiError::internal(format!("{} LLDP: {}", row.0, e)))?;
+    if let Ok(neighbors_json) = serde_json::to_value(&lldp.neighbors) {
+        let _ = sqlx::query(
+            "INSERT INTO host_lldp_cache (host_id, source, neighbors_json, summary, fetched_at)
+             VALUES ($1, $2, $3, $4, NOW())
+             ON CONFLICT (host_id) DO UPDATE SET
+               source = EXCLUDED.source,
+               neighbors_json = EXCLUDED.neighbors_json,
+               summary = EXCLUDED.summary,
+               fetched_at = NOW()",
+        )
+        .bind(id)
+        .bind(&lldp.source)
+        .bind(neighbors_json)
+        .bind(&lldp.summary)
+        .execute(&state.pool)
+        .await;
+    }
+    Ok(Json(lldp))
 }

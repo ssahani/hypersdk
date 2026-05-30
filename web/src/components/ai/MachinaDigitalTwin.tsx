@@ -15,7 +15,7 @@ export default function MachinaDigitalTwin() {
   const [impact, setImpact] = useState<ImpactAnalysis | null>(null)
   const [hostId, setHostId] = useState('')
   const [simAction, setSimAction] = useState<'shutdown' | 'migrate' | 'isolate'>('shutdown')
-  const [simKind, setSimKind] = useState<'host' | 'network' | 'storage'>('host')
+  const [simKind, setSimKind] = useState<'host' | 'network' | 'storage' | 'switch'>('host')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,7 +47,7 @@ export default function MachinaDigitalTwin() {
     setBusy(true)
     setError(null)
     try {
-      const action = simKind === 'network' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction
+      const action = simKind === 'network' || simKind === 'switch' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction
       const r = await analyzeTwinImpact({
         action,
         target_kind: simKind,
@@ -64,7 +64,8 @@ export default function MachinaDigitalTwin() {
   const hosts = graph?.nodes.filter((n) => n.kind === 'host') ?? []
   const networks = graph?.nodes.filter((n) => n.kind === 'network') ?? []
   const storages = graph?.nodes.filter((n) => n.kind === 'storage') ?? []
-  const targets = simKind === 'network' ? networks : simKind === 'storage' ? storages : hosts
+  const switches = graph?.nodes.filter((n) => n.kind === 'switch') ?? []
+  const targets = simKind === 'network' ? networks : simKind === 'storage' ? storages : simKind === 'switch' ? switches : hosts
 
   return (
     <MacGlassPanel
@@ -74,10 +75,11 @@ export default function MachinaDigitalTwin() {
       <div className="flex flex-wrap items-end gap-3 text-sm">
         <label className="block">
           <span className="text-xs text-slate-500">Target</span>
-          <select className="input mt-1 block text-xs" value={simKind} onChange={(e) => setSimKind(e.target.value as 'host' | 'network' | 'storage')}>
+          <select className="input mt-1 block text-xs" value={simKind} onChange={(e) => setSimKind(e.target.value as 'host' | 'network' | 'storage' | 'switch')}>
             <option value="host">Host</option>
             <option value="network">Network</option>
             <option value="storage">Storage pool</option>
+            <option value="switch">Switch (LLDP)</option>
           </select>
         </label>
         {simKind === 'host' && (

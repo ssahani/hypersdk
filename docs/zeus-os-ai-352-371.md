@@ -9,9 +9,12 @@
 - `GET /api/v1/zeus-firewall/operator/thresholds` — risk score, budget guard, auto-apply flag (off by default)
 - `GET /api/v1/zeus-firewall/operator/plan` — fleet secure-machine previews with FinOps exposure overlap
 
-## AI-354–355 — Execute stub
+## AI-354–355 — Execute (hardened)
 
-- `POST /api/v1/zeus-firewall/operator/execute` — dry-run or approval-gated execute; records `operator_secure` timeline event (stub enqueue)
+- `POST /api/v1/zeus-firewall/operator/execute` — dry-run via `apply_profile(dry_run=true)`; live apply via agent-backed `apply_profile`; approval queue for risky hosts
+- `POST /api/v1/zeus-firewall/operator/execute-batch` — fleet auto-eligible dry-run/apply
+
+See also [`zeus-os-hardening-v1-stubs.md`](zeus-os-hardening-v1-stubs.md).
 
 ## AI-359 — Mission Control strip
 

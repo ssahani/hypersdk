@@ -402,3 +402,60 @@ export interface FleetSecurePlan {
 
 export const getOperatorSecurePlan = () =>
   platformFetch<FleetSecurePlan>('/api/v1/zeus-firewall/operator/plan')
+
+export interface OperatorExecuteResult {
+  dry_run: boolean
+  host_id: string
+  applied: boolean
+  enqueued: boolean
+  task_id?: string | null
+  approval_id?: string | null
+  operations: number
+  message: string
+}
+
+export const executeOperatorSecure = (body: {
+  host_id: string
+  profile?: string
+  dry_run?: boolean
+  force?: boolean
+}) =>
+  platformFetch<OperatorExecuteResult>('/api/v1/zeus-firewall/operator/execute', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const executeOperatorSecureBatch = (body: {
+  host_ids?: string[]
+  dry_run?: boolean
+  force?: boolean
+  auto_only?: boolean
+}) =>
+  platformFetch<{
+    dry_run: boolean
+    applied_count: number
+    approval_count: number
+    summary: string
+    results: OperatorExecuteResult[]
+  }>('/api/v1/zeus-firewall/operator/execute-batch', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const syncMultisiteFirewall = (body: {
+  source_site: string
+  target_site: string
+  include_lockdown?: boolean
+  apply_profiles?: boolean
+  lockdown_profile?: string
+}) =>
+  platformFetch<{
+    synced_policies: number
+    lockdown_applied: boolean
+    hosts_applied: number
+    apply_errors: string[]
+    summary: string
+  }>('/api/v1/zeus-firewall/multisite/sync', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })

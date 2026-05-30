@@ -210,33 +210,70 @@ async fn build_topology(
     .await
     .unwrap_or_default();
 
-    for (hid, hostname, console_addr) in online_hosts {
-        if let Ok(lldp) = crate::engine::network_overlay::fetch_host_lldp(&console_addr).await {
-            for (i, neighbor) in lldp.neighbors.iter().enumerate() {
-                let switch_id = format!("switch-{hid}-{i}");
-                let switch_name = if neighbor.system_name.is_empty() {
-                    neighbor.chassis_id.clone()
-                } else {
-                    neighbor.system_name.clone()
-                };
-                nodes.push(TopologyNode {
-                    kind: "switch".into(),
-                    id: switch_id.clone(),
-                    name: switch_name,
-                    state: Some(lldp.source.clone()),
-                });
-                edges.push(TopologyEdge {
-                    from: hid.to_string(),
-                    to: switch_id,
-                    label: "uplink".into(),
-                });
-            }
-            if lldp.neighbors.is_empty() && !lldp.summary.is_empty() {
-                warnings.push(TopologyWarning {
-                    severity: "info".into(),
-                    message: format!("{hostname}: {}", lldp.summary),
-                    fix_action: None,
-                });
+    let lldp = crate::engine::network_overlay::lldp_topology_from_cache(pool)
+        .await
+        .unwrap_or_else(|_| crate::engine::network_overlay::LldpTopologyContribution {
+            nodes: vec![],
+            edges: vec![],
+            warnings: vec![],
+        });
+    let cache_empty = lldp.nodes.is_empty();
+
+    for node in lldp.nodes {
+        if !nodes.iter().any(|n| n.id == node.id) {
+            nodes.push(TopologyNode {
+                kind: node.kind,
+                id: node.id,
+                name: node.name,
+                state: node.state,
+            });
+        }
+    }
+    for edge in lldp.edges {
+        edges.push(TopologyEdge {
+            from: edge.from,
+            to: edge.to,
+            label: edge.label,
+        });
+    }
+    for warn in lldp.warnings {
+        warnings.push(TopologyWarning {
+            severity: warn.severity,
+            message: warn.message,
+            fix_action: None,
+        });
+    }
+
+    // Fallback: probe agents directly when cache is empty but hosts are online.
+    if cache_empty {
+        for (hid, hostname, console_addr) in online_hosts {
+            if let Ok(lldp_live) = crate::engine::network_overlay::fetch_host_lldp(&console_addr).await {
+                for (i, neighbor) in lldp_live.neighbors.iter().enumerate() {
+                    let switch_id = format!("switch-{hid}-{i}");
+                    let switch_name = if neighbor.system_name.is_empty() {
+                        neighbor.chassis_id.clone()
+                    } else {
+                        neighbor.system_name.clone()
+                    };
+                    nodes.push(TopologyNode {
+                        kind: "switch".into(),
+                        id: switch_id.clone(),
+                        name: switch_name,
+                        state: Some(lldp_live.source.clone()),
+                    });
+                    edges.push(TopologyEdge {
+                        from: hid.to_string(),
+                        to: switch_id,
+                        label: "uplink".into(),
+                    });
+                }
+                if lldp_live.neighbors.is_empty() && !lldp_live.summary.is_empty() {
+                    warnings.push(TopologyWarning {
+                        severity: "info".into(),
+                        message: format!("{hostname}: {}", lldp_live.summary),
+                        fix_action: None,
+                    });
+                }
             }
         }
     }

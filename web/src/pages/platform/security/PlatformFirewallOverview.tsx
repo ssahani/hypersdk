@@ -15,11 +15,16 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import {
   getFirewallOverview,
   getMultisiteOverview,
+  getOperatorSecurePlan,
+  executeOperatorSecureBatch,
+  syncMultisiteFirewall,
   getZeusFirewallStatus,
   type FirewallOverview,
   type FirewallTargetSummary,
+  type FleetSecurePlan,
   type MultisiteOverview,
 } from '../../../api/zeusFirewall'
+import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
 
 type KindFilter = 'all' | 'host' | 'bare_metal'
@@ -31,22 +36,30 @@ function riskDot(risk: string) {
 }
 
 export default function PlatformFirewallOverview() {
+  const toast = useToastContext()
   const [overview, setOverview] = useState<FirewallOverview | null>(null)
   const [multisite, setMultisite] = useState<MultisiteOverview | null>(null)
+  const [operatorPlan, setOperatorPlan] = useState<FleetSecurePlan | null>(null)
   const [statusLine, setStatusLine] = useState<string | null>(null)
   const [kindFilter, setKindFilter] = useState<KindFilter>('all')
   const [error, setError] = useState<string | null>(null)
+  const [operatorBusy, setOperatorBusy] = useState(false)
+  const [syncBusy, setSyncBusy] = useState(false)
+  const [applyProfiles, setApplyProfiles] = useState(true)
+  const [includeLockdown, setIncludeLockdown] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [ov, st, ms] = await Promise.all([
+      const [ov, st, ms, op] = await Promise.all([
         getFirewallOverview(),
         getZeusFirewallStatus(),
         getMultisiteOverview().catch(() => null),
+        getOperatorSecurePlan().catch(() => null),
       ])
       setOverview(ov)
       setMultisite(ms)
+      setOperatorPlan(op)
       const pw = st.packetwolf as { summary?: string }
       setStatusLine(pw?.summary || 'Zeus Firewall active')
     } catch (e: unknown) {
@@ -64,6 +77,40 @@ export default function PlatformFirewallOverview() {
 
   const metalCount = overview?.targets.filter((t) => t.kind === 'bare_metal').length ?? 0
   const hostCount = overview?.targets.filter((t) => t.kind === 'host').length ?? 0
+
+  const runOperatorBatch = async (dryRun: boolean) => {
+    setOperatorBusy(true)
+    try {
+      const r = await executeOperatorSecureBatch({ dry_run: dryRun, auto_only: true })
+      toast.success(r.summary)
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setOperatorBusy(false)
+    }
+  }
+
+  const runMultisiteSync = async () => {
+    setSyncBusy(true)
+    try {
+      const r = await syncMultisiteFirewall({
+        source_site: 'primary-local',
+        target_site: 'dr-replica',
+        apply_profiles: applyProfiles,
+        include_lockdown: includeLockdown,
+      })
+      toast.success(r.summary)
+      if (r.apply_errors.length > 0) {
+        toast.warning(`${r.apply_errors.length} apply error(s) — check agent connectivity`)
+      }
+      await load()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSyncBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -117,6 +164,26 @@ export default function PlatformFirewallOverview() {
               ))}
             </div>
           </MacGlassPanel>
+          {operatorPlan && operatorPlan.previews.length > 0 && (
+            <MacGlassPanel title="AI operator" subtitle={operatorPlan.summary}>
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button type="button" className="btn-secondary text-xs" disabled={operatorBusy} onClick={() => void runOperatorBatch(true)}>
+                  Dry-run auto-eligible
+                </button>
+                <button type="button" className="btn-primary text-xs" disabled={operatorBusy || operatorPlan.auto_eligible === 0} onClick={() => void runOperatorBatch(false)}>
+                  Apply auto-eligible ({operatorPlan.auto_eligible})
+                </button>
+              </div>
+              <ul className="text-xs text-slate-400 space-y-1 max-h-32 overflow-y-auto">
+                {operatorPlan.previews.slice(0, 6).map((p) => (
+                  <li key={p.host_id}>
+                    {p.hostname} → {p.target_profile}
+                    {p.requires_approval ? ' · needs approval' : ' · auto-eligible'}
+                  </li>
+                ))}
+              </ul>
+            </MacGlassPanel>
+          )}
           {multisite && (
             <MacGlassPanel title="Multi-site federation" subtitle={multisite.summary}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 -mt-1">
@@ -126,6 +193,19 @@ export default function PlatformFirewallOverview() {
                     <p className="text-xs text-slate-500 mt-0.5">{s.gitops_namespace} · {s.target_count} targets · grade {multisite.compliance_rollup.sites.find((c) => c.site === s.name)?.grade ?? '—'}</p>
                   </div>
                 ))}
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-400">
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={applyProfiles} onChange={(e) => setApplyProfiles(e.target.checked)} />
+                  Apply synced profiles to online hosts
+                </label>
+                <label className="flex items-center gap-2">
+                  <input type="checkbox" checked={includeLockdown} onChange={(e) => setIncludeLockdown(e.target.checked)} />
+                  DR lockdown profile
+                </label>
+                <button type="button" className="btn-secondary text-xs" disabled={syncBusy} onClick={() => void runMultisiteSync()}>
+                  {syncBusy ? 'Syncing…' : 'Sync primary → DR'}
+                </button>
               </div>
               {multisite.policy_conflicts.length > 0 && (
                 <ul className="mt-3 text-xs text-amber-300 space-y-1">

@@ -209,6 +209,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-firewall/multisite/dr-templates", get(zeus_firewall::multisite_dr_templates))
         .route("/api/v1/zeus-firewall/operator/plan", get(zeus_firewall::operator_plan))
         .route("/api/v1/zeus-firewall/operator/execute", post(zeus_firewall::operator_execute))
+        .route(
+            "/api/v1/zeus-firewall/operator/execute-batch",
+            post(zeus_firewall::operator_execute_batch),
+        )
         .route("/api/v1/zeus-firewall/operator/thresholds", get(zeus_firewall::operator_thresholds))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))

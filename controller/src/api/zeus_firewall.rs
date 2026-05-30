@@ -690,7 +690,7 @@ pub async fn multisite_sync(
     Extension(actor): Extension<AuthUser>,
     Json(body): Json<zeus_firewall::multisite::MultisiteSyncRequest>,
 ) -> Result<Json<zeus_firewall::multisite::MultisiteSyncResult>, ApiError> {
-    zeus_firewall::multisite::cross_site_sync(&state.pool, body, &actor.username)
+    zeus_firewall::multisite::cross_site_sync(&state.pool, &state.config, body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
         .map(Json)
@@ -740,6 +740,17 @@ pub async fn operator_execute(
     Json(body): Json<zeus_firewall::operator::OperatorExecuteRequest>,
 ) -> Result<Json<zeus_firewall::operator::OperatorExecuteResult>, ApiError> {
     zeus_firewall::operator::execute_secure(&state.pool, &state.config, &body, &actor.username)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn operator_execute_batch(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<zeus_firewall::operator::OperatorBatchExecuteRequest>,
+) -> Result<Json<zeus_firewall::operator::OperatorBatchExecuteResult>, ApiError> {
+    zeus_firewall::operator::execute_secure_batch(&state.pool, &state.config, &body, &actor.username)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
         .map(Json)
