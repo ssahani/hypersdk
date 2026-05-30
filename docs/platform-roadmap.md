@@ -300,11 +300,13 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 27 | 412–431 | Storage tiers + backup SLA stubs | **Shipped (v1)** |
 | 28 | 432–451 | Vault/MFA inventory + air-gap bundles | **Shipped (v1)** |
 | 29 | 452–471 | Operations runbooks + compliance showback | **Shipped (v1)** |
+| 30 | 472–491 | Developer ecosystem — SDK + Terraform GA schemas | **Shipped (v1)** |
+| 31 | 492–511 | Observability — tracing, SLO dashboards, runbook scheduler | **Shipped (v1)** |
 
-### Horizon — phases 30–64 (AI-472–500+)
+### Horizon — phases 32–64 (AI-512–500+)
 
 | Phase | AI range | Theme |
 |-------|----------|--------|
-| 30–64 | 472–500+ | Full vCenter parity, live Vault/MFA, FIPS, multi-tenant isolation |
+| 32–64 | 512–500+ | Full vCenter parity, live Vault/MFA, FIPS, multi-tenant isolation |
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.

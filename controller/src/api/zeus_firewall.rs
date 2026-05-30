@@ -436,8 +436,8 @@ pub async fn approve_change(
     Extension(actor): Extension<AuthUser>,
     Path(id): Path<Uuid>,
     Json(body): Json<zeus_firewall::approvals::ReviewBody>,
-) -> Result<Json<zeus_firewall::approvals::FirewallApproval>, ApiError> {
-    zeus_firewall::approve(&state.pool, id, &actor.username, body.note.as_deref())
+) -> Result<Json<zeus_firewall::approvals::ApprovalApplyResult>, ApiError> {
+    zeus_firewall::approve_and_apply(&state.pool, &state.config, id, &actor.username, body.note.as_deref())
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
         .map(Json)

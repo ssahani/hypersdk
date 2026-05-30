@@ -1,0 +1,37 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+use axum::extract::{Query, State};
+use axum::Json;
+
+use crate::api::ApiError;
+use crate::engine::observability;
+use crate::state::AppState;
+
+#[derive(Debug, serde::Deserialize)]
+pub struct TraceListQuery {
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+}
+
+fn default_limit() -> i64 {
+    50
+}
+
+pub async fn overview(
+    State(state): State<AppState>,
+) -> Result<Json<observability::ObservabilityOverview>, ApiError> {
+    observability::overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn list_traces(
+    State(state): State<AppState>,
+    Query(q): Query<TraceListQuery>,
+) -> Result<Json<Vec<observability::TraceSpanRow>>, ApiError> {
+    observability::list_traces(&state.pool, q.limit)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}

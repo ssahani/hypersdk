@@ -393,6 +393,69 @@ export const executeOpsRunbook = (incident: string, context: Record<string, unkn
 export const getOpsShowback = () =>
   platformFetch<OpsShowbackOverview>('/api/v1/operations/showback')
 
+export type SdkPackageInfo = {
+  path: string
+  version: string
+  install: string
+  resources: string[]
+}
+
+export type TerraformResourceSchema = {
+  name: string
+  kind: string
+  api_path: string
+  attributes: string[]
+}
+
+export type DeveloperOverview = {
+  openapi_url: string
+  sdk_typescript: SdkPackageInfo
+  terraform: {
+    provider_source: string
+    examples_path: string
+    resources: TerraformResourceSchema[]
+  }
+  summary: string
+}
+
+export type SloStatusItem = {
+  name: string
+  target: string
+  objective_pct: number
+  current_pct: number
+  burn_rate: number
+  status: string
+  description: string
+}
+
+export type ObservabilityOverview = {
+  slos: SloStatusItem[]
+  trace_count_1h: number
+  p95_latency_ms: number
+  summary: string
+}
+
+export type ApiTraceSpan = {
+  id: string
+  method: string
+  path: string
+  status_code: number
+  duration_ms: number
+  recorded_at: string
+}
+
+export const getDeveloperOverview = () =>
+  platformFetch<DeveloperOverview>('/api/v1/developer/overview')
+
+export const getTerraformSchema = () =>
+  platformFetch<TerraformResourceSchema[]>('/api/v1/developer/terraform/schema')
+
+export const getObservabilityOverview = () =>
+  platformFetch<ObservabilityOverview>('/api/v1/observability/overview')
+
+export const listApiTraces = (limit = 50) =>
+  platformFetch<ApiTraceSpan[]>(`/api/v1/observability/traces?limit=${limit}`)
+
 export const listPlatformNetworks = () => platformFetch<PlatformNetwork[]>('/api/v1/networks')
 export const discoverPlatformNetworks = () =>
   platformFetch<{ imported: number; networks: PlatformNetwork[] }>('/api/v1/networks/discover', {

@@ -30,6 +30,9 @@ mod networks;
 mod network_segments;
 mod notifications;
 mod operations;
+mod developer;
+mod observability;
+mod observability_middleware;
 mod oidc;
 mod placement;
 mod policy;
@@ -454,6 +457,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/operations/executions", get(operations::list_executions))
         .route("/api/v1/operations/showback", get(operations::showback_overview))
+        .route("/api/v1/developer/overview", get(developer::overview))
+        .route("/api/v1/developer/terraform/schema", get(developer::terraform_schema))
+        .route("/api/v1/observability/overview", get(observability::overview))
+        .route("/api/v1/observability/traces", get(observability::list_traces))
         .route(
             "/api/v1/blueprints",
             get(blueprints::list_blueprints).post(blueprints::create_blueprint),
@@ -482,6 +489,7 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/cpu-compat",
             get(cpu_compat::get_cpu_compat_matrix).patch(cpu_compat::patch_cpu_compat_matrix),
         )
+        .route_layer(middleware::from_fn_with_state(state.clone(), observability_middleware::trace_middleware))
         .route_layer(middleware::from_fn_with_state(rate_limiter.clone(), rate_limit_middleware))
         .route_layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 

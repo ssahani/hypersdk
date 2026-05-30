@@ -25,6 +25,8 @@ import {
   Cpu,
   GitBranch,
   ShieldAlert,
+  Code2,
+  Gauge,
 } from 'lucide-react'
 
 export interface PlatformNavItem {
@@ -78,6 +80,13 @@ export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
       { to: '/platform/zeus/security/cloud', label: 'Cloud SGs', icon: ic(ShieldAlert) },
       { to: '/platform/zeus/security/connectivity', label: 'Connectivity', icon: ic(ShieldAlert) },
       { to: '/platform/topology', label: 'Topology', icon: ic(GitBranch) },
+      { to: '/platform/observability', label: 'Observability', icon: ic(Gauge) },
+    ],
+  },
+  {
+    label: 'Developer',
+    items: [
+      { to: '/platform/developer', label: 'SDK & Terraform', icon: ic(Code2) },
     ],
   },
   {
@@ -121,6 +130,8 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/zeus/security/cloud': 'Cloud Security Groups',
   '/platform/zeus/security/connectivity': 'Connectivity Matrix',
   '/platform/topology': 'Topology',
+  '/platform/observability': 'Observability',
+  '/platform/developer': 'SDK & Terraform',
   '/platform/users': 'Users & Access',
   '/platform/projects': 'Workspaces',
   '/platform/reports': 'Reports',

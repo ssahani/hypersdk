@@ -41,6 +41,10 @@ Commands:
   support-bundle            Download support bundle JSON
   upgrade-matrix            Agent upgrade compatibility matrix
   cluster                   Cluster summary
+  developer                 Developer ecosystem overview (SDK + Terraform)
+  observability             SLO dashboard + trace summary
+  slo                       Alias for observability
+  operations                Operations runbooks overview
 
 Environment:
   MACHINA_CONTROLLER_URL   (default http://127.0.0.1:5093)
@@ -103,6 +107,9 @@ case "$cmd" in
   support-bundle) api GET /api/v1/support/bundle | jq . ;;
   upgrade-matrix) api GET /api/v1/upgrade/matrix | jq . ;;
   cluster) api GET /api/v1/cluster | jq . ;;
+  developer) api GET /api/v1/developer/overview | jq . ;;
+  observability|slo) api GET /api/v1/observability/overview | jq . ;;
+  operations) api GET /api/v1/operations/overview | jq . ;;
   -h|--help|help|'') usage ;;
   *) echo "unknown command: $cmd" >&2; usage; exit 1 ;;
 esac

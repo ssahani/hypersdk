@@ -788,6 +788,34 @@ except Exception:
     e2e_platform_fail "POST spotlight operations — HTTP ${http}"
   fi
 
+  e2e_platform_hdr "PLATFORM SMOKE: DEVELOPER ECOSYSTEM (AI-472–491)"
+  e2e_platform_smoke_get "/api/v1/developer/overview" "GET /api/v1/developer/overview" || true
+  e2e_platform_smoke_get "/api/v1/developer/terraform/schema" "GET /api/v1/developer/terraform/schema" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"terraform sdk developer overview"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight developer (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight developer — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: OBSERVABILITY (AI-492–511)"
+  e2e_platform_smoke_get "/api/v1/observability/overview" "GET /api/v1/observability/overview" || true
+  e2e_platform_smoke_get "/api/v1/observability/traces" "GET /api/v1/observability/traces" || true
+  body="$(e2e_platform_curl "${E2E_PLATFORM_BASE}/api/v1/metrics/prometheus")"
+  if [[ "$body" == *machina_slo_current_pct* || "$body" == *machina_api_trace_p95_ms* ]]; then
+    e2e_platform_ok "GET /api/v1/metrics/prometheus SLO gauges"
+  else
+    e2e_platform_fail "Prometheus missing SLO gauges"
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"slo observability traces dashboard"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight observability (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight observability — HTTP ${http}"
+  fi
+
   e2e_platform_hdr "PLATFORM SMOKE: MARKETPLACE PLUGINS + PHASE 26 POLISH"
   e2e_platform_smoke_get "/api/v1/marketplace/plugins" "GET /api/v1/marketplace/plugins" || true
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \

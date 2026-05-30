@@ -278,8 +278,15 @@ export const requestFirewallApproval = (body: { target_id: string; profile?: str
     body: JSON.stringify(body),
   })
 
+export type FirewallApprovalApplyResult = {
+  approval: FirewallApproval
+  applied: boolean
+  operations: number
+  message: string
+}
+
 export const approveFirewallChange = (id: string, note?: string) =>
-  platformFetch<FirewallApproval>(`/api/v1/zeus-firewall/approvals/${id}/approve`, {
+  platformFetch<FirewallApprovalApplyResult>(`/api/v1/zeus-firewall/approvals/${id}/approve`, {
     method: 'POST',
     body: JSON.stringify({ note }),
   })

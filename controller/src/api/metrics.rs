@@ -75,5 +75,6 @@ pub async fn prometheus_metrics(State(state): State<AppState>) -> impl IntoRespo
             row.cpu_percent,
         ));
     }
+    body.push_str(&crate::engine::observability::prometheus_slo_gauges(&state.pool).await);
     ([(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4")], body)
 }

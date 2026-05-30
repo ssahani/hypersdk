@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::config::ControllerConfig;
+
+use super::inventory::apply_profile;
+
 #[derive(Debug, Clone, Serialize)]
 pub struct FirewallApproval {
     pub id: Uuid,
@@ -105,6 +109,54 @@ pub async fn list_approvals(
     };
 
     Ok(rows.into_iter().map(map_row).collect())
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ApprovalApplyResult {
+    pub approval: FirewallApproval,
+    pub applied: bool,
+    pub operations: usize,
+    pub message: String,
+}
+
+pub async fn approve_and_apply(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    approval_id: Uuid,
+    reviewer: &str,
+    note: Option<&str>,
+) -> anyhow::Result<ApprovalApplyResult> {
+    let pending = get_approval(pool, approval_id).await?;
+    if pending.status != "pending" {
+        anyhow::bail!("approval not pending");
+    }
+    let target_id = pending.target_id.to_string();
+    let profile = pending.profile.clone();
+    let approval = review(pool, approval_id, reviewer, "approved", note).await?;
+
+    let mut applied = false;
+    let mut operations = 0usize;
+    let mut message = "Approved without firewall apply (no profile)".into();
+
+    if let Some(ref prof) = profile {
+        match apply_profile(pool, cfg, &target_id, prof, reviewer, false).await {
+            Ok(result) => {
+                applied = true;
+                operations = result.operations.len();
+                message = format!("Approved and applied {prof} ({operations} operation(s))");
+            }
+            Err(e) => {
+                message = format!("Approved but apply failed: {e}");
+            }
+        }
+    }
+
+    Ok(ApprovalApplyResult {
+        approval,
+        applied,
+        operations,
+        message,
+    })
 }
 
 pub async fn approve(

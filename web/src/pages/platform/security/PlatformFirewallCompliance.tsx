@@ -12,8 +12,10 @@ import {
   rejectFirewallChange,
   exportFirewallGitOps,
   type FirewallApproval,
+  type FirewallApprovalApplyResult,
 } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
+import { useToastContext } from '../../../contexts/ToastContext'
 
 const REPORTS = [
   'production',
@@ -25,6 +27,7 @@ const REPORTS = [
 ]
 
 export default function PlatformFirewallCompliance() {
+  const toast = useToastContext()
   const [report, setReport] = useState<Record<string, unknown> | null>(null)
   const [kind, setKind] = useState('production')
   const [error, setError] = useState<string | null>(null)
@@ -82,7 +85,10 @@ export default function PlatformFirewallCompliance() {
                   <button
                     type="button"
                     className="text-xs px-2 py-1 rounded bg-emerald-700 text-white"
-                    onClick={() => void approveFirewallChange(a.id).then(() => loadApprovals())}
+                    onClick={() => void approveFirewallChange(a.id).then((r: FirewallApprovalApplyResult) => {
+                      toast.success(r.message)
+                      return loadApprovals()
+                    })}
                   >
                     Approve
                   </button>

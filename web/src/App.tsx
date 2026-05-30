@@ -135,6 +135,8 @@ const PlatformFirewallCloud = lazy(() => import('./pages/platform/security/Platf
 const PlatformFirewallConnectivity = lazy(() => import('./pages/platform/security/PlatformFirewallConnectivity'))
 const PlatformBlueprints = lazy(() => import('./pages/platform/PlatformBlueprints'))
 const PlatformSupport = lazy(() => import('./pages/platform/PlatformSupport'))
+const PlatformDeveloper = lazy(() => import('./pages/platform/PlatformDeveloper'))
+const PlatformObservability = lazy(() => import('./pages/platform/PlatformObservability'))
 const RdpConsole = lazy(() => import('./pages/RdpConsole'))
 const MissionControl = lazy(() => import('./pages/MissionControl'))
 const SystemCheck = lazy(() => import('./pages/SystemCheck'))
@@ -295,6 +297,8 @@ function AuthenticatedShell() {
                   <Route path="activity" element={<PlatformActivityMonitor />} />
                   <Route path="recommendations" element={<PlatformRecommendations />} />
                   <Route path="topology" element={<PlatformTopology />} />
+                  <Route path="developer" element={<PlatformDeveloper />} />
+                  <Route path="observability" element={<PlatformObservability />} />
                   <Route path="zeus" element={<PlatformZeusOs />} />
                   <Route path="zeus/security/firewall" element={<PlatformFirewallOverview />} />
                   <Route path="zeus/security/firewall/:id" element={<PlatformFirewallTargetDetail />} />

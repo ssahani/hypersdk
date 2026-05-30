@@ -1,49 +1,34 @@
-# Machina Platform Terraform Provider (skeleton)
+# Machina Platform Terraform (GA v1 schemas)
 
-This directory holds a **stub** Terraform provider for machina-controller resources. Full provider implementation is tracked for batch 16 after API stabilization.
+Terraform resource schemas are exported from the controller API. Use the HTTP provider example until the native `zyvor/machina` provider is published to the Registry.
 
-## Planned resources
-
-- `machina_host`
-- `machina_vm`
-- `machina_storage_pool`
-- `machina_network`
-- `machina_project_quota`
-
-## Local development
+## Quick start
 
 ```bash
 export MACHINA_CONTROLLER_URL=http://127.0.0.1:5093
 export MACHINA_CONTROLLER_USER=admin
 export MACHINA_CONTROLLER_PASS=...
 
-# Use platformctl or curl until provider is published
-./scripts/platformctl vms
+cd terraform/machina/examples
+terraform init
+terraform plan
 ```
 
-## Example (future)
+## Schema API
 
-```hcl
-terraform {
-  required_providers {
-    machina = {
-      source = "zyvor/machina"
-    }
-  }
-}
-
-provider "machina" {
-  url      = "http://212.8.252.194:5093"
-  username = var.controller_user
-  password = var.controller_pass
-}
-
-resource "machina_vm" "web" {
-  name          = "web-01"
-  desired_state = "running"
-  vcpus         = 2
-  memory_mib    = 4096
-}
+```bash
+./scripts/platformctl developer
+curl -s -u "$MACHINA_CONTROLLER_USER:$MACHINA_CONTROLLER_PASS" \
+  "$MACHINA_CONTROLLER_URL/api/v1/developer/terraform/schema" | jq .
 ```
 
-See [`docs/platform-roadmap.md`](../../docs/platform-roadmap.md) for batch tracker.
+## Resources (v1)
+
+| Name | Kind | API |
+|------|------|-----|
+| `machina_vm` | resource | `POST /api/v1/vms` |
+| `machina_host` | data | `GET /api/v1/hosts` |
+| `machina_storage_pool` | resource | `POST /api/v1/storage/pools` |
+| `machina_network` | resource | `POST /api/v1/networks` |
+
+See [`docs/zeus-os-ai-472-491.md`](../../docs/zeus-os-ai-472-491.md) and [`examples/README.md`](examples/README.md).
