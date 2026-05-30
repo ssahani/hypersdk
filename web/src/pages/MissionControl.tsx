@@ -20,6 +20,7 @@ import MachinaInfrastructureTimeline from '../components/ai/MachinaInfrastructur
 import MachinaMissionStack from '../components/ai/MachinaMissionStack'
 import { useKeyboardShortcut } from '../hooks/useKeyboardShortcut'
 import { formatUserError } from '../utils/apiError'
+import { useFleetDesktop } from '../hooks/useFleetDesktop'
 
 export default function MissionControl() {
   const [hosts, setHosts] = useState<PlatformHost[]>([])
@@ -33,6 +34,7 @@ export default function MissionControl() {
   const [sreForecasts, setSreForecasts] = useState<SreForecast[]>([])
   const [zeusStatus, setZeusStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const { desktop, linuxHealth } = useFleetDesktop(true, 120_000)
 
   const load = useCallback(async () => {
     setError(null)
@@ -120,6 +122,18 @@ export default function MissionControl() {
       {zeusStatus && (
         <div className="px-6 pb-2">
           <Link to="/platform/zeus" className="text-xs text-orange-300/90 hover:underline">{zeusStatus}</Link>
+        </div>
+      )}
+      {desktop && (
+        <div className="px-6 pb-2 flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full border border-white/[0.08] bg-slate-900/60 px-3 py-1 text-slate-300">
+            {desktop.summary}
+          </span>
+          {(linuxHealth?.pressure_hosts ?? desktop.pressure_hosts) > 0 && (
+            <Link to="/platform/hosts" className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-200">
+              {linuxHealth?.summary ?? desktop.linux_summary}
+            </Link>
+          )}
         </div>
       )}
       <div className="px-6 pb-4 space-y-4">

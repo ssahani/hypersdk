@@ -16,11 +16,13 @@ mod enterprise_security;
 mod error;
 mod events;
 mod fence;
+mod fleet;
 mod guestkit;
 mod zeus_firewall;
 mod ha;
 mod health;
 mod health_check;
+mod host_os;
 mod hosts;
 mod maintenance;
 mod marketplace;
@@ -80,6 +82,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/validate", get(hosts::validate_host).post(hosts::enqueue_validate_host))
         .route("/api/v1/hosts/{id}/sync", post(hosts::sync_host))
         .route("/api/v1/hosts/{id}/lldp", get(hosts::host_lldp))
+        .route("/api/v1/hosts/{id}/linux/observability", get(host_os::host_linux_observability))
+        .route("/api/v1/hosts/{id}/linux/network-diag", get(host_os::host_network_diagnostics))
+        .route("/api/v1/hosts/{id}/linux/audit", get(host_os::host_linux_audit))
+        .route("/api/v1/hosts/{id}/diagnose", post(host_os::diagnose_host))
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))
         .route(
@@ -93,6 +99,9 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/metrics", get(vms::get_vm_metrics))
         .route("/api/v1/vms/{id}/adopt", post(vms::adopt_vm))
         .route("/api/v1/vms/{id}/health-check", post(health_check::vm_health_check))
+        .route("/api/v1/vms/{id}/guest/health", get(host_os::vm_guest_health))
+        .route("/api/v1/vms/{id}/guest/services", get(host_os::vm_guest_services))
+        .route("/api/v1/vms/{id}/diagnose", post(host_os::diagnose_vm))
         .route("/api/v1/vms/{id}/doctor", get(ai::vm_doctor))
         .route("/api/v1/ai/settings", get(ai::get_settings).patch(ai::patch_settings))
         .route("/api/v1/ai/spotlight", post(ai::spotlight))
@@ -481,6 +490,9 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/operations/executions", get(operations::list_executions))
         .route("/api/v1/operations/showback", get(operations::showback_overview))
+        .route("/api/v1/fleet/desktop", get(fleet::desktop_overview))
+        .route("/api/v1/fleet/linux-health", get(fleet::linux_health))
+        .route("/api/v1/ai/fleet/diagnose", post(fleet::fleet_diagnose))
         .route("/api/v1/developer/overview", get(developer::overview))
         .route("/api/v1/developer/terraform/schema", get(developer::terraform_schema))
         .route("/api/v1/observability/overview", get(observability::overview))

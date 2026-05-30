@@ -30,5 +30,8 @@ pub mod storage_sync;
 pub mod storage_tiers;
 pub mod enterprise_security;
 pub mod vault_sync_scheduler;
+pub mod host_os;
+pub mod fleet_desktop;
+pub mod fleet_linux;
 pub mod webhooks;
 pub mod webhook_worker;

@@ -111,10 +111,10 @@ export const patchAiSettings = (body: Partial<AiSettings & { api_key?: string }>
 export const aiSpotlight = (query: string) =>
   platformFetch<SpotlightResult>('/api/v1/ai/spotlight', { method: 'POST', body: JSON.stringify({ query }) })
 
-export const aiCopilotChat = (message: string, vmId?: string) =>
+export const aiCopilotChat = (message: string, vmId?: string, hostId?: string) =>
   platformFetch<CopilotResponse>('/api/v1/ai/copilot/chat', {
     method: 'POST',
-    body: JSON.stringify({ message, vm_id: vmId }),
+    body: JSON.stringify({ message, vm_id: vmId, host_id: hostId }),
   })
 
 export interface CopilotStreamEvent {
@@ -129,13 +129,14 @@ export async function aiCopilotStream(
   message: string,
   vmId: string | undefined,
   onEvent: (ev: CopilotStreamEvent) => void,
+  hostId?: string,
 ): Promise<void> {
   const url = `${getControllerBase()}/api/v1/ai/copilot/stream`
   const res = await fetch(url, {
     method: 'POST',
     credentials: 'same-origin',
     headers: platformHeaders(),
-    body: JSON.stringify({ message, vm_id: vmId }),
+    body: JSON.stringify({ message, vm_id: vmId, host_id: hostId }),
   })
   if (!res.ok) {
     throw new Error(`Copilot stream failed (HTTP ${res.status})`)
@@ -537,6 +538,15 @@ export const diagnoseKnowledge = (query: string) =>
     '/api/v1/ai/knowledge/diagnose',
     { method: 'POST', body: JSON.stringify({ query }) },
   )
+
+export const diagnoseFleet = (query: string) =>
+  platformFetch<{
+    query: string
+    summary: string
+    zeus_status: string
+    linux_summary: string
+    hypotheses: Array<{ title: string; confidence: number; evidence: string; action: string }>
+  }>('/api/v1/ai/fleet/diagnose', { method: 'POST', body: JSON.stringify({ query }) })
 
 export const simulateServiceImpact = (service: string) =>
   platformFetch<{ summary: string; severity: string; affected_vms: string[] }>(

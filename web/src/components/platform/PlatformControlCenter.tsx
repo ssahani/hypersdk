@@ -16,6 +16,7 @@ import {
   Server,
   RefreshCw,
   Sparkles,
+  Activity,
 } from 'lucide-react'
 import {
   getCapacityReport,
@@ -35,6 +36,7 @@ import {
 import { getZeusSummary } from '../../api/ai'
 import { getOperatorSecurePlan } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
+import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
@@ -42,6 +44,7 @@ export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()
   const toast = useToastContext()
   const [open, setOpen] = useState(false)
+  const { desktop, linuxHealth } = useFleetDesktop(open, 0)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [vms, setVms] = useState<{ observed_state: string }[]>([])
   const [tasks, setTasks] = useState<PlatformTask[]>([])
@@ -212,6 +215,15 @@ export default function PlatformControlCenter() {
                   label="AI operator"
                   value={operatorSummary}
                   href="/platform/zeus/security/firewall"
+                  tone="warn"
+                />
+              )}
+              {(desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0 && (
+                <Row
+                  icon={<Activity className="w-4 h-4 text-amber-400" />}
+                  label="Linux pressure"
+                  value={desktop?.linux_summary ?? linuxHealth?.summary ?? 'Hosts under IO/thermal pressure'}
+                  href="/platform/hosts"
                   tone="warn"
                 />
               )}

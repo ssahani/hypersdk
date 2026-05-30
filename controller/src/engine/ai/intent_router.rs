@@ -91,6 +91,50 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("disk pressure") || ql.contains("io pressure") || (ql.contains("host") && ql.contains("slow")) {
+        intents.push(intent(
+            "host-disk-pressure",
+            "Host disk / IO pressure",
+            "Open host Linux pane — PSI, SMART, thermal.",
+            "navigate",
+            None,
+            Some("/platform/hosts".into()),
+            None,
+        ));
+    }
+    if ql.contains("systemd") && (ql.contains("network") || ql.contains("networkd") || ql.contains("down")) {
+        intents.push(intent(
+            "host-systemd-network",
+            "systemd network diagnostics",
+            "Check networkd/resolved status on hypervisor hosts.",
+            "navigate",
+            None,
+            Some("/platform/hosts".into()),
+            None,
+        ));
+    }
+    if ql.contains("guest") && (ql.contains("port") || ql.contains("exposed")) {
+        intents.push(intent(
+            "guest-ports-exposed",
+            "Guest ports exposed",
+            "Review guest firewall ports on VM detail.",
+            "navigate",
+            None,
+            Some("/platform/vms".into()),
+            None,
+        ));
+    }
+    if ql.contains("firewall drift") || (ql.contains("fix") && ql.contains("firewall") && ql.contains("drift")) {
+        intents.push(intent(
+            "fix-firewall-drift",
+            "Fix firewall drift",
+            "Review Zeus Firewall targets with configuration drift.",
+            "navigate",
+            None,
+            Some("/platform/zeus/security/firewall".into()),
+            None,
+        ));
+    }
     if let Some(name) = extract_after(&ql, "create vm ") {
         intents.push(intent(
             "create-vm",

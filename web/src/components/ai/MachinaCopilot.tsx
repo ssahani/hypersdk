@@ -9,7 +9,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
 export default function MachinaCopilot() {
-  const { copilotOpen, closeCopilot, contextVmId, mode } = useAi()
+  const { copilotOpen, closeCopilot, contextVmId, contextHostId, mode } = useAi()
   const { info } = usePlatformInfo()
   const toast = useToastContext()
   const platform = Boolean(info?.control_plane?.proxy_url)
@@ -63,7 +63,7 @@ export default function MachinaCopilot() {
             return next
           })
         }
-      })
+      }, contextHostId ?? undefined)
     } catch (e: unknown) {
       setMessages((m) => {
         const next = [...m]
@@ -73,7 +73,7 @@ export default function MachinaCopilot() {
     } finally {
       setBusy(false)
     }
-  }, [input, busy, platform, contextVmId, messages.length])
+  }, [input, busy, platform, contextVmId, contextHostId, messages.length])
 
   const runAction = async (action: ProposedAction) => {
     setExecutingId(action.id)

@@ -868,4 +868,55 @@ except Exception:
   else
     e2e_platform_fail "POST spotlight enterprise hardening — HTTP ${http}"
   fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: HOST OS (AI-532–541)"
+  host_id="$(e2e_platform_curl -s "${E2E_PLATFORM_BASE}/api/v1/hosts" | python3 -c 'import sys,json; h=json.load(sys.stdin); print(h[0]["id"] if h else "")' 2>/dev/null || true)"
+  if [[ -n "$host_id" ]]; then
+    e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/observability" "GET /api/v1/hosts/{id}/linux/observability" || true
+    e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/network-diag" "GET /api/v1/hosts/{id}/linux/network-diag" || true
+    e2e_platform_smoke_get "/api/v1/hosts/${host_id}/linux/audit" "GET /api/v1/hosts/{id}/linux/audit" || true
+  fi
+  vm_id="$(e2e_platform_curl -s "${E2E_PLATFORM_BASE}/api/v1/vms" | python3 -c 'import sys,json; v=json.load(sys.stdin); print(v[0]["id"] if v else "")' 2>/dev/null || true)"
+  if [[ -n "$vm_id" ]]; then
+    e2e_platform_smoke_get "/api/v1/vms/${vm_id}/guest/health" "GET /api/v1/vms/{id}/guest/health" || true
+    e2e_platform_smoke_get "/api/v1/vms/${vm_id}/guest/services" "GET /api/v1/vms/{id}/guest/services" || true
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: HOST OS AI (AI-542–551)"
+  if [[ -n "$host_id" ]]; then
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/hosts/${host_id}/diagnose" \
+      -H 'Content-Type: application/json' -d '{"query":"host disk pressure"}')"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/hosts/{id}/diagnose (HTTP ${http})"
+    else
+      e2e_platform_fail "POST host diagnose — HTTP ${http}"
+    fi
+  fi
+  if [[ -n "$vm_id" ]]; then
+    http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/vms/${vm_id}/diagnose" \
+      -H 'Content-Type: application/json' -d '{"query":"guest ports exposed"}')"
+    if [[ "$http" == "200" ]]; then
+      e2e_platform_ok "POST /api/v1/vms/{id}/diagnose (HTTP ${http})"
+    else
+      e2e_platform_fail "POST vm diagnose — HTTP ${http}"
+    fi
+  fi
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"host disk pressure systemd network down"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight host OS intents (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight host OS intents — HTTP ${http}"
+  fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: FLEET DESKTOP (Phases 35–36)"
+  e2e_platform_smoke_get "/api/v1/fleet/desktop" "GET /api/v1/fleet/desktop" || true
+  e2e_platform_smoke_get "/api/v1/fleet/linux-health" "GET /api/v1/fleet/linux-health" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/diagnose" \
+    -H 'Content-Type: application/json' -d '{"query":"fleet linux pressure"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/fleet/diagnose (HTTP ${http})"
+  else
+    e2e_platform_fail "POST fleet diagnose — HTTP ${http}"
+  fi
 }

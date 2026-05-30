@@ -153,6 +153,25 @@ export default function PlatformDashboard() {
         </div>
       </header>
 
+      <nav className="flex flex-wrap gap-2 px-1">
+        {[
+          { to: '/mission-control', label: 'Mission Control' },
+          { to: '/platform/hosts', label: 'Hosts' },
+          { to: '/platform/vms', label: 'VMs' },
+          { to: '/platform/storage', label: 'Storage' },
+          { to: '/platform/zeus', label: 'Zeus OS' },
+          { to: '/platform/settings', label: 'Settings' },
+        ].map((item) => (
+          <Link
+            key={item.to}
+            to={item.to}
+            className="px-3 py-1.5 rounded-xl border border-white/[0.06] bg-slate-900/50 text-xs text-slate-300 hover:bg-slate-800/60 transition"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+
       {error && <ErrorBanner message={error} />}
       {zeusStrip && (
         <MacGlassPanel

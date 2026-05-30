@@ -3,7 +3,7 @@
 use serde::Serialize;
 use sqlx::PgPool;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct DiagnoseHypothesis {
     pub title: String,
     pub confidence: f32,

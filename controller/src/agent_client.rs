@@ -539,3 +539,42 @@ pub async fn get_lldp(
     }
     Ok(resp.json().await?)
 }
+
+pub async fn get_linux_observability(addr: &str) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_linux_observability(GetLinuxObservabilityRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux obs json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn get_systemd_network_diagnostics(addr: &str) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_systemd_network_diagnostics(GetSystemdNetworkDiagnosticsRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("network diag json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn get_linux_audit(addr: &str) -> anyhow::Result<serde_json::Value> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_linux_audit(GetLinuxAuditRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.json).map_err(|e| anyhow::anyhow!("linux audit json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}

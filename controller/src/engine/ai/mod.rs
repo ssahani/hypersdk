@@ -19,8 +19,16 @@ pub struct CopilotResponse {
     pub context_summary: Option<String>,
 }
 
-pub async fn copilot_chat(pool: &PgPool, message: &str, vm_id: Option<Uuid>) -> anyhow::Result<CopilotResponse> {
-    let base = build_copilot_base(pool, message, vm_id).await?;
+use crate::config::ControllerConfig;
+
+pub async fn copilot_chat(
+    pool: &PgPool,
+    cfg: &ControllerConfig,
+    message: &str,
+    vm_id: Option<Uuid>,
+    host_id: Option<Uuid>,
+) -> anyhow::Result<CopilotResponse> {
+    let base = build_copilot_base(pool, cfg, message, vm_id, host_id).await?;
     let mut reply = base.reply;
 
     let system = "You are Machina Copilot, an infrastructure assistant. Be concise. Use bullet points.";
@@ -55,13 +63,29 @@ pub struct CopilotBase {
 
 pub async fn build_copilot_base(
     pool: &PgPool,
+    cfg: &ControllerConfig,
     message: &str,
     vm_id: Option<Uuid>,
+    host_id: Option<Uuid>,
 ) -> anyhow::Result<CopilotBase> {
-    let ctx = context::assemble(pool, vm_id).await?;
+    let ctx = context::assemble(pool, cfg, vm_id, host_id).await?;
     let mut reply = String::new();
 
     let ml = message.to_lowercase();
+    if let Some(ref host) = ctx.host {
+        if ml.contains("pressure") || ml.contains("linux") || ml.contains("smart") || ml.contains("thermal") {
+            if let Some(io) = host.io_pressure_pct {
+                reply.push_str(&format!(
+                    "**{}** Linux IO pressure: **{:.0}%**.\n",
+                    host.hostname, io
+                ));
+            }
+            if let Some(ref s) = host.linux_summary {
+                reply.push_str(&format!("{s}\n"));
+            }
+            reply.push_str(&format!("Host state: **{}**.\n\n", host.state));
+        }
+    }
     if ml.contains("unhealthy") || ml.contains("slow") || ml.contains("why") && ml.contains("vm") {
         if let Some(ref vm) = ctx.vm {
             if let Ok(id) = Uuid::parse_str(&vm.id) {

@@ -15,6 +15,8 @@ interface AiContextValue {
   toggleCopilot: () => void
   contextVmId: string | null
   setContextVmId: (id: string | null) => void
+  contextHostId: string | null
+  setContextHostId: (id: string | null) => void
 }
 
 const AiContext = createContext<AiContextValue | null>(null)
@@ -32,6 +34,7 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
   const [mode, setMode] = useState<AiMode>('advisor')
   const [copilotOpen, setCopilotOpen] = useState(false)
   const [contextVmId, setContextVmId] = useState<string | null>(null)
+  const [contextHostId, setContextHostId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!platform) {
@@ -57,8 +60,10 @@ export function AiProvider({ children }: { children: React.ReactNode }) {
       toggleCopilot,
       contextVmId,
       setContextVmId,
+      contextHostId,
+      setContextHostId,
     }),
-    [mode, copilotOpen, openCopilot, closeCopilot, toggleCopilot, contextVmId],
+    [mode, copilotOpen, openCopilot, closeCopilot, toggleCopilot, contextVmId, contextHostId],
   )
 
   return <AiContext.Provider value={value}>{children}</AiContext.Provider>

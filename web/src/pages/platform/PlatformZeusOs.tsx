@@ -5,9 +5,11 @@ import { Link, useSearchParams } from 'react-router'
 import { Cpu, Search, Server, Shield, Workflow } from 'lucide-react'
 import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
 import {
   analyzeAttackPath,
   diagnoseKnowledge,
+  diagnoseFleet,
   executeFleetRebalance,
   getComplianceFrameworks,
   getGpuPlacement,
@@ -68,20 +70,25 @@ export default function PlatformZeusOs() {
   const [hubSummary, setHubSummary] = useState<string | null>(null)
   const [hubItems, setHubItems] = useState<Array<{ id: string; source: string; label: string; review: string }>>([])
   const [runbookSummary, setRunbookSummary] = useState<string | null>(null)
+  const [linuxHealth, setLinuxHealth] = useState<FleetLinuxHealthOverview | null>(null)
+  const [fleetDiagnoseQuery, setFleetDiagnoseQuery] = useState('fleet linux pressure and failed tasks')
+  const [fleetDiagnoseSummary, setFleetDiagnoseSummary] = useState<string | null>(null)
 
   const loadFleet = useCallback(async () => {
     setError(null)
     try {
-      const [h, r, gpu, power] = await Promise.all([
+      const [h, r, gpu, power, linux] = await Promise.all([
         getFleetHeatmap(),
         getFleetRebalanceProposal(),
         getGpuPlacement('inference'),
         getFleetPowerOptimize(),
+        getFleetLinuxHealth().catch(() => null),
       ])
       setHeatmap(h)
       setRebalance(r)
       setGpuSummary(gpu.summary)
       setPowerSummary(power.summary)
+      setLinuxHealth(linux)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Fleet load failed')
     }
@@ -204,6 +211,34 @@ export default function PlatformZeusOs() {
 
       {tab === 'fleet' && heatmap && (
         <div className="space-y-4">
+          {linuxHealth && (
+            <MacGlassPanel title="Fleet Linux health" subtitle="PSI · thermal · SMART rollup from hypervisors">
+              <p className="text-sm text-slate-300">{linuxHealth.summary}</p>
+              {linuxHealth.hosts.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs mt-3">
+                  {linuxHealth.hosts.slice(0, 6).map((h) => (
+                    <Link key={h.host_id} to={`/platform/hosts/${h.host_id}`} className="rounded-lg border border-white/[0.06] p-2 hover:bg-slate-800/40">
+                      <p className="font-medium text-slate-200">{h.hostname}</p>
+                      <p className="text-slate-500">IO {h.io_pressure_pct.toFixed(0)}% · {h.status}</p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </MacGlassPanel>
+          )}
+          <MacGlassPanel title="Fleet AI diagnose" subtitle="NL diagnosis across Zeus + Linux health">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <input className="input text-sm flex-1 min-w-[12rem]" value={fleetDiagnoseQuery} onChange={(e) => setFleetDiagnoseQuery(e.target.value)} />
+              <button
+                type="button"
+                className="btn-secondary text-xs"
+                onClick={() => void diagnoseFleet(fleetDiagnoseQuery).then((d) => setFleetDiagnoseSummary(d.summary)).catch((e: unknown) => setFleetDiagnoseSummary(e instanceof Error ? e.message : 'Diagnose failed'))}
+              >
+                Diagnose fleet
+              </button>
+            </div>
+            {fleetDiagnoseSummary && <p className="text-sm text-slate-300">{fleetDiagnoseSummary}</p>}
+          </MacGlassPanel>
           <MacGlassPanel title="Fleet heat map" subtitle="Hot, cold, and power-waste hosts">
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 text-xs">
               {heatmap.hosts.map((h) => (

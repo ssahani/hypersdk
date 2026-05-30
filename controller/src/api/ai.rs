@@ -78,13 +78,20 @@ pub async fn spotlight(
 pub struct CopilotBody {
     pub message: String,
     pub vm_id: Option<Uuid>,
+    pub host_id: Option<Uuid>,
 }
 
 pub async fn copilot_chat(
     State(state): State<AppState>,
     Json(body): Json<CopilotBody>,
 ) -> Result<Json<ai::CopilotResponse>, ApiError> {
-    ai::copilot_chat(&state.pool, &body.message, body.vm_id)
+    ai::copilot_chat(
+        &state.pool,
+        &state.config,
+        &body.message,
+        body.vm_id,
+        body.host_id,
+    )
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
@@ -96,8 +103,10 @@ pub async fn copilot_stream(
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let (tx, rx) = tokio::sync::mpsc::channel::<Result<Event, Infallible>>(64);
     let pool = state.pool.clone();
+    let config = state.config.clone();
     let message = body.message;
     let vm_id = body.vm_id;
+    let host_id = body.host_id;
 
     tokio::spawn(async move {
         let send = |data: String| async {
@@ -106,7 +115,7 @@ pub async fn copilot_stream(
                 .await;
         };
 
-        match ai::build_copilot_base(&pool, &message, vm_id).await {
+        match ai::build_copilot_base(&pool, &config, &message, vm_id, host_id).await {
             Ok(base) => {
                 for chunk in ai::chunk_text(&base.reply, 48) {
                     let payload = serde_json::json!({ "type": "chunk", "text": chunk }).to_string();

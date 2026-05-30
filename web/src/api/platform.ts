@@ -578,6 +578,154 @@ export const allocateIpam = (segmentId: string, body?: { hostname?: string; netw
 export const getHostLldp = (hostId: string) =>
   platformFetch<HostLldpInventory>(`/api/v1/hosts/${hostId}/lldp`)
 
+export type HostLinuxObservability = {
+  pressure?: {
+    cpu?: { some: number; full: number; available?: boolean }
+    memory?: { some: number; full: number; available?: boolean }
+    io?: { some: number; full: number; available?: boolean }
+    available?: boolean
+  }
+  thermal?: Array<{ sensor: string; label: string; temp_celsius: number; critical_celsius?: number }>
+  smart?: Array<{ device: string; passed: boolean; summary: string; probed: boolean }>
+  disk_io?: Array<{ device: string; read_bytes: number; write_bytes: number }>
+}
+
+export type HostNetworkDiag = {
+  systemd_networkd_active?: boolean
+  resolved_active?: boolean
+  interfaces?: Array<{ name: string; state?: string; addresses?: string[] }>
+  networkd_recent_logs?: string
+  resolved_recent_logs?: string
+}
+
+export type HostLinuxAuditReport = {
+  auditd_active?: boolean
+  auditd_enabled?: boolean
+  rules_count?: number
+  recent_events?: number
+  summary?: string
+}
+
+export const getHostLinuxObservability = (hostId: string) =>
+  platformFetch<HostLinuxObservability>(`/api/v1/hosts/${hostId}/linux/observability`)
+
+export const getHostNetworkDiag = (hostId: string) =>
+  platformFetch<HostNetworkDiag>(`/api/v1/hosts/${hostId}/linux/network-diag`)
+
+export const getHostLinuxAudit = (hostId: string) =>
+  platformFetch<HostLinuxAuditReport>(`/api/v1/hosts/${hostId}/linux/audit`)
+
+export type VmGuestHealthReport = {
+  vm_id: string
+  vm_name: string
+  agent_reachable: boolean
+  healthy: boolean
+  os_pretty_name: string
+  guest_ip: string
+  guest_hostname: string
+  issues: string[]
+  summary: string
+}
+
+export type VmGuestServicesReport = {
+  vm_id: string
+  vm_name: string
+  agent_reachable: boolean
+  services: Array<{ name: string; status: string; detail: string }>
+  summary: string
+}
+
+export const getVmGuestHealth = (vmId: string) =>
+  platformFetch<VmGuestHealthReport>(`/api/v1/vms/${vmId}/guest/health`)
+
+export const getVmGuestServices = (vmId: string) =>
+  platformFetch<VmGuestServicesReport>(`/api/v1/vms/${vmId}/guest/services`)
+
+export type OsDiagnoseHypothesis = {
+  title: string
+  confidence: number
+  evidence: string
+  action: string
+}
+
+export type OsDiagnoseAction = {
+  label: string
+  action: string
+  detail: string
+}
+
+export type HostOsDiagnoseReport = {
+  host_id: string
+  hostname: string
+  query: string
+  summary: string
+  hypotheses: OsDiagnoseHypothesis[]
+  fix_actions: OsDiagnoseAction[]
+}
+
+export type VmOsDiagnoseReport = {
+  vm_id: string
+  vm_name: string
+  query: string
+  summary: string
+  guest_healthy: boolean
+  hypotheses: OsDiagnoseHypothesis[]
+  fix_actions: OsDiagnoseAction[]
+}
+
+export const diagnoseHost = (hostId: string, query?: string) =>
+  platformFetch<HostOsDiagnoseReport>(`/api/v1/hosts/${hostId}/diagnose`, {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  })
+
+export const diagnoseVm = (vmId: string, query?: string) =>
+  platformFetch<VmOsDiagnoseReport>(`/api/v1/vms/${vmId}/diagnose`, {
+    method: 'POST',
+    body: JSON.stringify({ query }),
+  })
+
+export type FleetDesktopOverview = {
+  summary: string
+  zeus_status: string
+  zeus_highlights: string[]
+  slo_count: number
+  slo_breach_count: number
+  p95_latency_ms: number
+  hosts_online: number
+  hosts_total: number
+  vm_count: number
+  active_tasks: number
+  failed_tasks_24h: number
+  unread_notifications: number
+  pressure_hosts: number
+  linux_summary: string
+}
+
+export const getFleetDesktop = () =>
+  platformFetch<FleetDesktopOverview>('/api/v1/fleet/desktop')
+
+export type FleetLinuxHostItem = {
+  host_id: string
+  hostname: string
+  io_pressure_pct: number
+  thermal_max_c: number
+  smart_failures: number
+  status: string
+}
+
+export type FleetLinuxHealthOverview = {
+  hosts_scanned: number
+  pressure_hosts: number
+  thermal_alerts: number
+  smart_alerts: number
+  hosts: FleetLinuxHostItem[]
+  summary: string
+}
+
+export const getFleetLinuxHealth = () =>
+  platformFetch<FleetLinuxHealthOverview>('/api/v1/fleet/linux-health')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

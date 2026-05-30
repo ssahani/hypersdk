@@ -868,4 +868,86 @@ impl HostAgent for AgentService {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
+
+    async fn get_linux_observability(
+        &self,
+        _request: Request<GetLinuxObservabilityRequest>,
+    ) -> Result<Response<GetLinuxObservabilityResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::host_linux_obs::gather_linux_observability).await
+        {
+            Ok(Ok(obs)) => match serde_json::to_string(&obs) {
+                Ok(json) => Ok(Response::new(GetLinuxObservabilityResponse {
+                    ok: true,
+                    json,
+                    message: String::new(),
+                })),
+                Err(e) => Ok(Response::new(GetLinuxObservabilityResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(GetLinuxObservabilityResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_systemd_network_diagnostics(
+        &self,
+        _request: Request<GetSystemdNetworkDiagnosticsRequest>,
+    ) -> Result<Response<GetSystemdNetworkDiagnosticsResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::libvirt::host_network::get_systemd_network_diagnostics)
+            .await
+        {
+            Ok(Ok(diag)) => match serde_json::to_string(&diag) {
+                Ok(json) => Ok(Response::new(GetSystemdNetworkDiagnosticsResponse {
+                    ok: true,
+                    json,
+                    message: String::new(),
+                })),
+                Err(e) => Ok(Response::new(GetSystemdNetworkDiagnosticsResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(GetSystemdNetworkDiagnosticsResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_linux_audit(
+        &self,
+        _request: Request<GetLinuxAuditRequest>,
+    ) -> Result<Response<GetLinuxAuditResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::linux_audit::gather_linux_audit_configured).await
+        {
+            Ok(Ok(report)) => match serde_json::to_string(&report) {
+                Ok(json) => Ok(Response::new(GetLinuxAuditResponse {
+                    ok: true,
+                    json,
+                    message: String::new(),
+                })),
+                Err(e) => Ok(Response::new(GetLinuxAuditResponse {
+                    ok: false,
+                    json: String::new(),
+                    message: e.to_string(),
+                })),
+            },
+            Ok(Err(e)) => Ok(Response::new(GetLinuxAuditResponse {
+                ok: false,
+                json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
 }

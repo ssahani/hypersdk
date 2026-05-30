@@ -33,6 +33,9 @@ service HostAgent {
   rpc ApplyFirewallPlan(ApplyFirewallPlanRequest) returns (ApplyFirewallPlanResponse);
   rpc GetFirewallActivity(GetFirewallActivityRequest) returns (GetFirewallActivityResponse);
   rpc GetGuestFirewallPorts(GetGuestFirewallPortsRequest) returns (GetGuestFirewallPortsResponse);
+  rpc GetLinuxObservability(GetLinuxObservabilityRequest) returns (GetLinuxObservabilityResponse);
+  rpc GetSystemdNetworkDiagnostics(GetSystemdNetworkDiagnosticsRequest) returns (GetSystemdNetworkDiagnosticsResponse);
+  rpc GetLinuxAudit(GetLinuxAuditRequest) returns (GetLinuxAuditResponse);
 }
 
 message RegisterRequest {
@@ -412,4 +415,28 @@ message GetGuestFirewallPortsResponse {
   bool agent_reachable = 2;
   repeated GuestFirewallPort ports = 3;
   string message = 4;
+}
+
+message GetLinuxObservabilityRequest {}
+
+message GetLinuxObservabilityResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
+}
+
+message GetSystemdNetworkDiagnosticsRequest {}
+
+message GetSystemdNetworkDiagnosticsResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
+}
+
+message GetLinuxAuditRequest {}
+
+message GetLinuxAuditResponse {
+  bool ok = 1;
+  string json = 2;
+  string message = 3;
 }

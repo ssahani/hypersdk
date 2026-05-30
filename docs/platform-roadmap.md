@@ -303,11 +303,15 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 30 | 472–491 | Developer ecosystem — SDK + Terraform GA schemas | **Shipped (v1)** |
 | 31 | 492–511 | Observability — tracing, SLO dashboards, runbook scheduler | **Shipped (v1)** |
 | 32 | 512–531 | Enterprise hardening — Vault sync, MFA compliance, FIPS, tenants | **Shipped (v1)** |
+| 33 | 532–541 | Host Linux OS lift — agent RPC, host MacSettingsPane, guest VM panes | **Shipped (v1)** |
+| 34 | 542–551 | Host/VM AI diagnose + Fix It — Copilot context, Spotlight intents | **Shipped (v1)** |
+| 35 | 552–561 | Fleet desktop shell — menu bar, dock, `GET /fleet/desktop` | **Shipped (v1)** |
+| 36 | 562–571 | Fleet linux-health rollup + fleet AI diagnose | **Shipped (v1)** |
 
-### Horizon — phases 33–64 (AI-532–500+)
+### Horizon — phases 37–64 (AI-572–500+)
 
 | Phase | AI range | Theme |
 |-------|----------|--------|
-| 33–64 | 532–500+ | Full vCenter parity, live Vault/MFA, FIPS enforcement, multi-tenant isolation |
+| 37–64 | 572–500+ | Full vCenter parity, live Vault/MFA, FIPS enforcement, multi-tenant isolation |
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.

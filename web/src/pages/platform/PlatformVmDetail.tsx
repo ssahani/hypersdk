@@ -6,6 +6,7 @@ import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, 
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
+import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
 import VmDetailTabs, { type VmDetailTab } from '../../components/platform/VmDetailTabs'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
@@ -43,6 +44,12 @@ import {
   type VmDiskRow,
   type BackupRecord,
   type VmHealthReport,
+  getVmGuestHealth,
+  getVmGuestServices,
+  diagnoseVm,
+  type VmGuestHealthReport,
+  type VmGuestServicesReport,
+  type VmOsDiagnoseReport,
 } from '../../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../../api/ai'
 import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFirewall'
@@ -52,7 +59,7 @@ import { formatUserError } from '../../utils/apiError'
 
 export default function PlatformVmDetail() {
   const { id } = useParams<{ id: string }>()
-  const { setContextVmId } = useAi()
+  const { setContextVmId, openCopilot } = useAi()
   const toast = useToastContext()
   const [vm, setVm] = useState<PlatformVm | null>(null)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
@@ -79,6 +86,12 @@ export default function PlatformVmDetail() {
   const [guestInstalling, setGuestInstalling] = useState(false)
   const [guestPorts, setGuestPorts] = useState<GuestPortReport | null>(null)
   const [guestPortsLoading, setGuestPortsLoading] = useState(false)
+  const [guestHealth, setGuestHealth] = useState<VmGuestHealthReport | null>(null)
+  const [guestHealthLoading, setGuestHealthLoading] = useState(false)
+  const [guestServices, setGuestServices] = useState<VmGuestServicesReport | null>(null)
+  const [guestServicesLoading, setGuestServicesLoading] = useState(false)
+  const [vmDiagnose, setVmDiagnose] = useState<VmOsDiagnoseReport | null>(null)
+  const [vmDiagnoseLoading, setVmDiagnoseLoading] = useState(false)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -153,9 +166,47 @@ export default function PlatformVmDetail() {
     }
   }, [id])
 
+  const loadGuestHealth = useCallback(async () => {
+    if (!id) return
+    setGuestHealthLoading(true)
+    try {
+      setGuestHealth(await getVmGuestHealth(id))
+    } catch {
+      setGuestHealth(null)
+    } finally {
+      setGuestHealthLoading(false)
+    }
+  }, [id])
+
+  const loadGuestServices = useCallback(async () => {
+    if (!id) return
+    setGuestServicesLoading(true)
+    try {
+      setGuestServices(await getVmGuestServices(id))
+    } catch {
+      setGuestServices(null)
+    } finally {
+      setGuestServicesLoading(false)
+    }
+  }, [id])
+
+  const runVmDiagnose = useCallback(async (query?: string) => {
+    if (!id) return
+    setVmDiagnoseLoading(true)
+    try {
+      setVmDiagnose(await diagnoseVm(id, query))
+    } catch {
+      setVmDiagnose(null)
+    } finally {
+      setVmDiagnoseLoading(false)
+    }
+  }, [id])
+
   useEffect(() => {
-    if (tab === 'security' && id) void loadGuestPorts()
-  }, [tab, id, loadGuestPorts])
+    if ((tab === 'security' || tab === 'guestPorts') && id) void loadGuestPorts()
+    if (tab === 'guestHealth' && id) void loadGuestHealth()
+    if (tab === 'guestServices' && id) void loadGuestServices()
+  }, [tab, id, loadGuestPorts, loadGuestHealth, loadGuestServices])
 
   useEffect(() => {
     setContextVmId(id ?? null)
@@ -354,6 +405,102 @@ export default function PlatformVmDetail() {
               <p className="text-sm text-slate-400">Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
               <Link to="/platform/networks" className="text-blue-400 text-sm mt-2 inline-block">Manage networks →</Link>
             </MacGlassPanel>
+          )}
+
+          {tab === 'guestHealth' && (
+            <div className="space-y-4 pt-2">
+              <MacGlassPanel title="Guest OS health" subtitle="QEMU guest agent · in-VM health signals">
+                {guestHealthLoading && <p className="text-sm text-slate-500">Loading…</p>}
+                {!guestHealthLoading && guestHealth && (
+                  <>
+                    <p className="text-xs text-slate-500 mb-3">{guestHealth.summary}</p>
+                    <div className="grid gap-2 text-sm md:grid-cols-2 mb-3">
+                      <div>OS: {guestHealth.os_pretty_name || '—'}</div>
+                      <div>IP: {guestHealth.guest_ip || '—'}</div>
+                      <div>Hostname: {guestHealth.guest_hostname || '—'}</div>
+                      <div className={guestHealth.healthy ? 'text-emerald-400' : 'text-amber-400'}>
+                        {guestHealth.healthy ? 'Healthy' : 'Needs attention'}
+                      </div>
+                    </div>
+                    {guestHealth.issues.length > 0 && (
+                      <ul className="text-sm space-y-1 text-amber-200">
+                        {guestHealth.issues.map((issue) => (
+                          <li key={issue}>• {issue}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
+                <button type="button" className="btn-secondary text-xs mt-3" onClick={() => void loadGuestHealth()}>Refresh</button>
+                <OsDiagnosePanel
+                  resourceId={id!}
+                  resourceKind="vm"
+                  defaultQuery="guest health and agent connectivity"
+                  loading={vmDiagnoseLoading}
+                  report={vmDiagnose}
+                  onRun={(q) => void runVmDiagnose(q)}
+                  onAskCopilot={openCopilot}
+                />
+              </MacGlassPanel>
+            </div>
+          )}
+
+          {tab === 'guestPorts' && (
+            <div className="space-y-4 pt-2">
+              <div className="flex justify-end">
+                <ExplainButton screen="guest_ports" objectRef={{ vm_id: id }} />
+              </div>
+              <MacGlassPanel title="Guest listening ports" subtitle="In-guest ports via QEMU agent">
+                {guestPortsLoading && <p className="text-sm text-slate-500">Loading…</p>}
+                {!guestPortsLoading && guestPorts && (
+                  <>
+                    <p className="text-xs text-slate-500 mb-3">{guestPorts.summary}</p>
+                    {guestPorts.ports.length === 0 ? (
+                      <p className="text-sm text-slate-500">No listening ports reported.</p>
+                    ) : (
+                      guestPorts.ports.map((p) => (
+                        <MacListRow
+                          key={`${p.port}-${p.protocol}`}
+                          title={`${p.port}/${p.protocol}`}
+                          subtitle={[p.service_name || p.process, String(p.risk)].filter(Boolean).join(' · ')}
+                        />
+                      ))
+                    )}
+                  </>
+                )}
+                <button type="button" className="btn-secondary text-xs mt-3" onClick={() => void loadGuestPorts()}>Refresh</button>
+              </MacGlassPanel>
+            </div>
+          )}
+
+          {tab === 'guestServices' && (
+            <div className="space-y-4 pt-2">
+              <MacGlassPanel title="Guest services" subtitle="Agent + listening process inventory (v1)">
+                {guestServicesLoading && <p className="text-sm text-slate-500">Loading…</p>}
+                {!guestServicesLoading && guestServices && (
+                  <>
+                    <p className="text-xs text-slate-500 mb-3">{guestServices.summary}</p>
+                    {guestServices.services.length === 0 ? (
+                      <p className="text-sm text-slate-500">No guest services reported.</p>
+                    ) : (
+                      guestServices.services.map((s, i) => (
+                        <MacListRow key={`${s.name}-${i}`} title={s.name} subtitle={`${s.status} · ${s.detail}`} />
+                      ))
+                    )}
+                  </>
+                )}
+                <button type="button" className="btn-secondary text-xs mt-3" onClick={() => void loadGuestServices()}>Refresh</button>
+                <OsDiagnosePanel
+                  resourceId={id!}
+                  resourceKind="vm"
+                  defaultQuery="guest services and exposed ports"
+                  loading={vmDiagnoseLoading}
+                  report={vmDiagnose}
+                  onRun={(q) => void runVmDiagnose(q)}
+                  onAskCopilot={openCopilot}
+                />
+              </MacGlassPanel>
+            </div>
           )}
 
           {tab === 'security' && (
