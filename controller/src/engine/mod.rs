@@ -23,5 +23,6 @@ pub mod network_sync;
 pub mod network_overlay;
 pub mod platform_plugins;
 pub mod storage_sync;
+pub mod storage_tiers;
 pub mod webhooks;
 pub mod webhook_worker;

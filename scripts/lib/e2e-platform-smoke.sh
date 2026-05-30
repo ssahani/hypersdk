@@ -761,4 +761,15 @@ except Exception:
   else
     e2e_platform_fail "POST spotlight plugin marketplace — HTTP ${http}"
   fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: STORAGE TIERS (AI-412–431)"
+  e2e_platform_smoke_get "/api/v1/storage/tiers/overview" "GET /api/v1/storage/tiers/overview" || true
+  e2e_platform_smoke_get "/api/v1/storage/backup-sla" "GET /api/v1/storage/backup-sla" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"storage tier backup sla"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight storage tiers (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight storage tiers — HTTP ${http}"
+  fi
 }

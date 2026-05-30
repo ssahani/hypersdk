@@ -235,6 +235,26 @@ export const discoverStoragePools = () =>
     method: 'POST',
     body: '{}',
   })
+
+export const getStorageTiersOverview = () =>
+  platformFetch<StorageTiersOverview>('/api/v1/storage/tiers/overview')
+
+export const bindStoragePoolTier = (poolId: string, tierId: string) =>
+  platformFetch(`/api/v1/storage/pools/${poolId}/tier/${tierId}`, { method: 'POST', body: '{}' })
+
+export const getStorageBackupSla = () =>
+  platformFetch<StorageBackupSlaOverview>('/api/v1/storage/backup-sla')
+
+export const upsertStorageBackupSla = (poolId: string, body: { rpo_hours: number; rto_hours: number; retention_days: number }) =>
+  platformFetch<StorageBackupSla>(`/api/v1/storage/pools/${poolId}/backup-sla`, {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const getStorageSnapshotPolicy = (poolId: string) =>
+  platformFetch<{ pool_name: string; snapshot_retention_days: number; summary: string }>(
+    `/api/v1/storage/pools/${poolId}/snapshot-policy`,
+  )
 export const listPlatformNetworks = () => platformFetch<PlatformNetwork[]>('/api/v1/networks')
 export const discoverPlatformNetworks = () =>
   platformFetch<{ imported: number; networks: PlatformNetwork[] }>('/api/v1/networks/discover', {
@@ -667,6 +687,43 @@ export interface StoragePool {
   path?: string | null
   capacity_gib: number
   used_gib: number
+  tier_id?: string | null
+}
+
+export interface StorageTierOverview {
+  id: string
+  name: string
+  tier_class: string
+  iops_tier: string
+  replication: string
+  snapshot_retention_days: number
+  backup_rpo_hours: number
+  description: string
+  pool_count: number
+  capacity_gib: number
+  used_gib: number
+}
+
+export interface StorageTiersOverview {
+  tiers: StorageTierOverview[]
+  summary: string
+}
+
+export interface StorageBackupSla {
+  id: string
+  pool_id: string
+  pool_name: string
+  tier_name?: string | null
+  rpo_hours: number
+  rto_hours: number
+  retention_days: number
+  last_backup_at?: string | null
+  compliance_grade: string
+}
+
+export interface StorageBackupSlaOverview {
+  policies: StorageBackupSla[]
+  summary: string
 }
 
 export interface PlatformNetwork {

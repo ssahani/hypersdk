@@ -297,11 +297,12 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 24 | 332–351 | Multi-site federated policy | **Shipped (v1)** |
 | 25 | 352–371 | AI operator autonomous secure-machine | **Shipped (v1)** |
 | 26 | 392–411 | NSX-class overlays + micro-segmentation | **Shipped (v1)** |
+| 27 | 412–431 | Storage tiers + backup SLA stubs | **Shipped (v1)** |
 
-### Horizon — phases 27–64 (AI-412–500+)
+### Horizon — phases 28–64 (AI-432–500+)
 
 | Phase | AI range | Theme |
 |-------|----------|--------|
-| 27–64 | 412–500+ | Vault/MFA, air-gap, marketplace, full vCenter parity |
+| 28–64 | 432–500+ | Vault/MFA, air-gap, full vCenter parity |
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for explicit deferrals.

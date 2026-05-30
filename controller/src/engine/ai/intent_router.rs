@@ -302,6 +302,17 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("storage tier") || ql.contains("vsan") || (ql.contains("backup") && ql.contains("sla")) {
+        intents.push(intent(
+            "storage-tiers",
+            "Storage tiers & SLA",
+            "vSAN-class gold/silver/bronze tiers and backup compliance.",
+            "navigate",
+            None,
+            Some("/platform/storage?tab=tiers".into()),
+            None,
+        ));
+    }
     if ql.contains("firewall") || ql.contains("machine shield") {
         intents.push(intent(
             "zeus-firewall",

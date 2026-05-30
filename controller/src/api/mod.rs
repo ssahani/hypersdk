@@ -37,6 +37,7 @@ mod reports;
 mod snapshots;
 mod sse;
 mod storage;
+mod storage_tiers;
 mod support;
 mod tasks;
 mod templates;
@@ -308,6 +309,20 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/storage/pools/{id}",
             patch(storage::patch_storage_pool).delete(storage::delete_storage_pool),
+        )
+        .route("/api/v1/storage/tiers/overview", get(storage_tiers::tiers_overview))
+        .route(
+            "/api/v1/storage/pools/{pool_id}/tier/{tier_id}",
+            post(storage_tiers::bind_pool_tier),
+        )
+        .route("/api/v1/storage/backup-sla", get(storage_tiers::backup_sla_overview))
+        .route(
+            "/api/v1/storage/pools/{id}/backup-sla",
+            post(storage_tiers::upsert_backup_sla),
+        )
+        .route(
+            "/api/v1/storage/pools/{id}/snapshot-policy",
+            get(storage_tiers::pool_snapshot_policy),
         )
         .route(
             "/api/v1/networks",

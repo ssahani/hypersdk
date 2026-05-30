@@ -20,6 +20,7 @@ pub struct StoragePoolRow {
     pub path: Option<String>,
     pub capacity_gib: i64,
     pub used_gib: i64,
+    pub tier_id: Option<Uuid>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,7 +51,7 @@ pub async fn discover_storage_pools(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     let rows = sqlx::query_as::<_, StoragePoolRow>(
-        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib
+        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id
          FROM storage_pools ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -65,7 +66,7 @@ pub async fn list_storage_pools(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<StoragePoolRow>>, ApiError> {
     let rows = sqlx::query_as::<_, StoragePoolRow>(
-        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib
+        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id
          FROM storage_pools ORDER BY name",
     )
     .fetch_all(&state.pool)
@@ -98,7 +99,7 @@ pub async fn create_storage_pool(
     .await?;
 
     let row = sqlx::query_as::<_, StoragePoolRow>(
-        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib FROM storage_pools WHERE id = $1",
+        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id FROM storage_pools WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&state.pool)
@@ -134,6 +135,7 @@ pub struct PatchStoragePoolBody {
     pub path: Option<String>,
     pub capacity_gib: Option<i64>,
     pub used_gib: Option<i64>,
+    pub tier_id: Option<Uuid>,
 }
 
 pub async fn patch_storage_pool(
@@ -162,8 +164,13 @@ pub async fn patch_storage_pool(
             .execute(&state.pool)
             .await?;
     }
+    if let Some(tier) = body.tier_id {
+        crate::engine::storage_tiers::bind_pool_tier(&state.pool, id, tier)
+            .await
+            .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    }
     let row = sqlx::query_as::<_, StoragePoolRow>(
-        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib FROM storage_pools WHERE id = $1",
+        "SELECT id, name, storage_class, backend, path, capacity_gib, used_gib, tier_id FROM storage_pools WHERE id = $1",
     )
     .bind(id)
     .fetch_one(&state.pool)
