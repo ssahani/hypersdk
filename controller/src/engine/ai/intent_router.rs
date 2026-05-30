@@ -135,6 +135,17 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("time machine") || (ql.contains("backup") && !ql.contains("restore")) {
+        intents.push(intent(
+            "time-machine-fleet",
+            "Time Machine backups",
+            "Fleet backup and snapshot timeline — restore with confidence.",
+            "navigate",
+            None,
+            Some("/platform/backups".into()),
+            None,
+        ));
+    }
     if let Some(name) = extract_after(&ql, "create vm ") {
         intents.push(intent(
             "create-vm",

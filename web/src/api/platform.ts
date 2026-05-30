@@ -759,6 +759,29 @@ export type FleetActivityOverview = {
 export const getFleetActivity = () =>
   platformFetch<FleetActivityOverview>('/api/v1/fleet/activity')
 
+export type FleetBackupEvent = {
+  kind: string
+  id: string
+  vm_id: string
+  vm_name: string
+  label: string
+  status: string
+  created_at: string
+}
+
+export type FleetBackupOverview = {
+  summary: string
+  total_events: number
+  backups_completed_24h: number
+  backups_failed_24h: number
+  snapshots_total: number
+  vms_with_backup_7d: number
+  recent: FleetBackupEvent[]
+}
+
+export const getFleetBackups = () =>
+  platformFetch<FleetBackupOverview>('/api/v1/fleet/backups')
+
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
 

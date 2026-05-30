@@ -913,6 +913,7 @@ except Exception:
   e2e_platform_smoke_get "/api/v1/fleet/desktop" "GET /api/v1/fleet/desktop" || true
   e2e_platform_smoke_get "/api/v1/fleet/linux-health" "GET /api/v1/fleet/linux-health" || true
   e2e_platform_smoke_get "/api/v1/fleet/activity" "GET /api/v1/fleet/activity" || true
+  e2e_platform_smoke_get "/api/v1/fleet/backups" "GET /api/v1/fleet/backups" || true
   http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/fleet/diagnose" \
     -H 'Content-Type: application/json' -d '{"query":"fleet linux pressure"}')"
   if [[ "$http" == "200" ]]; then

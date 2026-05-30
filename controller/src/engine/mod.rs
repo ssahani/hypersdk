@@ -34,5 +34,6 @@ pub mod host_os;
 pub mod fleet_desktop;
 pub mod fleet_linux;
 pub mod fleet_activity;
+pub mod fleet_backups;
 pub mod webhooks;
 pub mod webhook_worker;

@@ -7,6 +7,7 @@ use crate::api::ApiError;
 use crate::engine::fleet_desktop;
 use crate::engine::fleet_linux;
 use crate::engine::fleet_activity;
+use crate::engine::fleet_backups;
 use crate::state::AppState;
 
 pub async fn desktop_overview(
@@ -31,6 +32,15 @@ pub async fn activity_overview(
     State(state): State<AppState>,
 ) -> Result<Json<fleet_activity::FleetActivityOverview>, ApiError> {
     fleet_activity::overview(&state.pool, &state.config)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn backup_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_backups::FleetBackupOverview>, ApiError> {
+    fleet_backups::overview(&state.pool)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

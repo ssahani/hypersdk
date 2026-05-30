@@ -94,4 +94,4 @@ Implemented in [`web/src/layouts/PlatformLayout.tsx`](../web/src/layouts/Platfor
 - *Zyvor makes KVM feel as polished as macOS and as operationally powerful as vCenter.*
 - *Manage your entire virtual datacenter like a modern operating system — not like a pile of scripts.*
 
-See also [`platform-roadmap.md`](platform-roadmap.md) for engine/API batches.
+See also [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md) for Phases 38–237 (macOS OS Manager horizon).

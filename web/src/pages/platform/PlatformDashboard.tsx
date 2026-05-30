@@ -159,6 +159,7 @@ export default function PlatformDashboard() {
           { to: '/platform/hosts', label: 'Hosts' },
           { to: '/platform/vms', label: 'VMs' },
           { to: '/platform/storage', label: 'Storage' },
+          { to: '/platform/backups', label: 'Time Machine' },
           { to: '/platform/zeus', label: 'Zeus OS' },
           { to: '/platform/settings', label: 'Settings' },
         ].map((item) => (

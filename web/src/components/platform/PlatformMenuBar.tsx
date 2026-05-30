@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { Link } from 'react-router'
-import { Activity, Bell, LayoutGrid, Server, Sparkles } from 'lucide-react'
+import { Activity, Archive, Bell, LayoutGrid, Server, Sparkles } from 'lucide-react'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 
 export default function PlatformMenuBar() {
@@ -31,6 +31,10 @@ export default function PlatformMenuBar() {
       <Link to="/platform/activity" className="inline-flex items-center gap-1 hover:text-blue-200 transition">
         <Activity className="w-3 h-3" />
         Activity
+      </Link>
+      <Link to="/platform/backups" className="inline-flex items-center gap-1 hover:text-violet-200 transition">
+        <Archive className="w-3 h-3" />
+        Time Machine
       </Link>
       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${sloTone}`}>
         {desktop.slo_breach_count > 0 ? `${desktop.slo_breach_count} SLO breach` : `${desktop.slo_count} SLO OK`}
