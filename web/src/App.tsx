@@ -230,6 +230,20 @@ function RouteRecorder() {
 }
 
 function AuthenticatedShell() {
+  return (
+    <WebSocketProvider>
+      <PlatformInfoProvider>
+        <AiProvider>
+          <BrowserRouter>
+            <AuthenticatedShellRoutes />
+          </BrowserRouter>
+        </AiProvider>
+      </PlatformInfoProvider>
+    </WebSocketProvider>
+  )
+}
+
+function AuthenticatedShellRoutes() {
   const { theme } = useTheme()
   const location = useLocation()
   const isPlatformRoute = location.pathname.startsWith('/platform')
@@ -251,10 +265,7 @@ function AuthenticatedShell() {
         : 'min-h-screen bg-slate-950 text-slate-100'
 
   return (
-    <WebSocketProvider>
-      <PlatformInfoProvider>
-        <AiProvider>
-        <BrowserRouter>
+    <>
           <RouteRecorder />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
@@ -404,10 +415,7 @@ function AuthenticatedShell() {
           </main>
           <AppZyvorFooter />
         </div>
-        </BrowserRouter>
-        </AiProvider>
-      </PlatformInfoProvider>
-    </WebSocketProvider>
+    </>
   )
 }
 
