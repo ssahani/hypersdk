@@ -291,6 +291,17 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("plugin marketplace") || ql.contains("install plugin") || (ql.contains("marketplace") && ql.contains("plugin")) {
+        intents.push(intent(
+            "marketplace-plugins",
+            "Plugin marketplace",
+            "Browse and install platform integration modules.",
+            "navigate",
+            None,
+            Some("/platform/templates?tab=plugins".into()),
+            None,
+        ));
+    }
     if ql.contains("firewall") || ql.contains("machine shield") {
         intents.push(intent(
             "zeus-firewall",

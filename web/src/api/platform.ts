@@ -277,6 +277,90 @@ export const getHostLldp = (hostId: string) =>
 
 export const exportNetworkSegmentsGitops = () =>
   platformFetch('/api/v1/network/segments/gitops/export')
+
+export interface SegmentConnectivityCell {
+  source: string
+  destination: string
+  port: number
+  protocol: string
+  verdict: string
+  reason: string
+}
+
+export interface SegmentConnectivityResult {
+  segment_id: string
+  segment_name: string
+  vm_count: number
+  rules: number
+  matrix: {
+    allows: SegmentConnectivityCell[]
+    blocks: SegmentConnectivityCell[]
+    warnings: string[]
+    summary: string
+  }
+}
+
+export const bindNetworkToSegment = (segmentId: string, networkId: string) =>
+  platformFetch<{ bound: boolean }>(`/api/v1/network/segments/${segmentId}/bind/${networkId}`, {
+    method: 'POST',
+    body: '{}',
+  })
+
+export const patchPlatformNetwork = (id: string, body: { segment_id?: string; vlan_id?: number; bridge?: string }) =>
+  platformFetch<PlatformNetwork>(`/api/v1/networks/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
+
+export const simulateSegmentConnectivity = (segmentId: string) =>
+  platformFetch<SegmentConnectivityResult>(`/api/v1/network/segments/${segmentId}/connectivity`, {
+    method: 'POST',
+    body: '{}',
+  })
+
+export interface MarketplacePlugin {
+  id: string
+  slug: string
+  name: string
+  category: string
+  description: string
+  version: string
+  author: string
+  featured: boolean
+  installed: boolean
+}
+
+export interface MarketplaceOverview {
+  plugins: MarketplacePlugin[]
+  installed_count: number
+  summary: string
+}
+
+export const getMarketplacePlugins = () =>
+  platformFetch<MarketplaceOverview>('/api/v1/marketplace/plugins')
+
+export const installMarketplacePlugin = (slug: string) =>
+  platformFetch<{ slug: string; name: string; installed: boolean; summary: string }>(
+    `/api/v1/marketplace/plugins/${encodeURIComponent(slug)}/install`,
+    { method: 'POST', body: '{}' },
+  )
+
+export const uninstallMarketplacePlugin = (slug: string) =>
+  platformFetch<{ slug: string; name: string; installed: boolean; summary: string }>(
+    `/api/v1/marketplace/plugins/${encodeURIComponent(slug)}/uninstall`,
+    { method: 'POST', body: '{}' },
+  )
+
+export const publishMarketplacePlugin = (body: {
+  slug: string
+  name: string
+  category: string
+  description: string
+  version: string
+  author?: string
+  featured?: boolean
+}) =>
+  platformFetch<MarketplacePlugin>('/api/v1/marketplace/plugins', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
 export const getClusterSummary = () => platformFetch<ClusterSummary>('/api/v1/cluster')
 export const listMigrationJobs = () => platformFetch<MigrationJob[]>('/api/v1/migrations')
 export const listFenceEvents = () => platformFetch<FenceEvent[]>('/api/v1/fence/events')

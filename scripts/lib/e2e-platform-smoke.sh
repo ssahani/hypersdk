@@ -751,4 +751,14 @@ except Exception:
   if [[ -n "$host_id" ]]; then
     e2e_platform_smoke_get "/api/v1/hosts/${host_id}/lldp" "GET /api/v1/hosts/{id}/lldp" || true
   fi
+
+  e2e_platform_hdr "PLATFORM SMOKE: MARKETPLACE PLUGINS + PHASE 26 POLISH"
+  e2e_platform_smoke_get "/api/v1/marketplace/plugins" "GET /api/v1/marketplace/plugins" || true
+  http="$(e2e_platform_curl -o /dev/null -w '%{http_code}' -X POST "${E2E_PLATFORM_BASE}/api/v1/ai/spotlight" \
+    -H 'Content-Type: application/json' -d '{"query":"plugin marketplace install"}')"
+  if [[ "$http" == "200" ]]; then
+    e2e_platform_ok "POST /api/v1/ai/spotlight plugin marketplace (HTTP ${http})"
+  else
+    e2e_platform_fail "POST spotlight plugin marketplace — HTTP ${http}"
+  fi
 }

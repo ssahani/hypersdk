@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   AlertTriangle,
   HardDrive,
+  Layers,
   Loader2,
   HelpCircle,
   Bot,
@@ -23,6 +24,7 @@ import {
   listPlatformHosts,
   listPlatformTasks,
   listPlatformVms,
+  getNetworkSegmentsOverview,
   syncAllHosts,
   type CapacityReport,
   type ClusterSummary,
@@ -47,11 +49,12 @@ export default function PlatformControlCenter() {
   const [unreadAlerts, setUnreadAlerts] = useState(0)
   const [zeus, setZeus] = useState<{ firewall_critical_hosts?: number; firewall_drift_hosts?: number; baremetal_critical_count?: number } | null>(null)
   const [operatorSummary, setOperatorSummary] = useState<string | null>(null)
+  const [segmentCount, setSegmentCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
 
   const load = useCallback(async () => {
     try {
-      const [h, v, t, c, cap, alerts, zs, op] = await Promise.all([
+      const [h, v, t, c, cap, alerts, zs, op, segs] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
@@ -60,6 +63,7 @@ export default function PlatformControlCenter() {
         listNotifications(true).catch(() => []),
         getZeusSummary().catch(() => null),
         getOperatorSecurePlan().catch(() => null),
+        getNetworkSegmentsOverview().catch(() => ({ segments: [] })),
       ])
       setHosts(h)
       setVms(v)
@@ -69,6 +73,7 @@ export default function PlatformControlCenter() {
       setUnreadAlerts(alerts.length)
       setZeus(zs)
       setOperatorSummary(op?.summary ?? null)
+      setSegmentCount(segs.segments.length)
     } catch {
       /* optional panel */
     }
@@ -158,6 +163,13 @@ export default function PlatformControlCenter() {
                   href="/platform/tasks"
                   spark={failedTasks ? `${failedTasks} failed` : undefined}
                   tone={failedTasks ? 'warn' : undefined}
+                />
+                <ModuleTile
+                  icon={<Layers className="w-4 h-4 text-violet-400" />}
+                  label="Overlays"
+                  value={segmentCount ? `${segmentCount} segment(s)` : 'None'}
+                  href="/platform/networks?tab=segments"
+                  tone={segmentCount > 0 ? 'ok' : undefined}
                 />
               </div>
 

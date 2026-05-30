@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
-import { Layers, Link2, Loader2, Network, Plus, RefreshCw, Router, Shield, Wifi } from 'lucide-react'
+import { Cable, Layers, Link2, Loader2, Network, Plus, RefreshCw, Router, Shield, Wifi } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import {
   MacGlassPanel,
+  MacListRow,
   MacSectionTitle,
   MacSheet,
   MacStatWidget,
@@ -13,6 +14,7 @@ import {
 } from '../../components/platform/mac/PlatformMacUi'
 import {
   allocateIpam,
+  bindNetworkToSegment,
   createNetworkSegment,
   createPlatformNetwork,
   deletePlatformNetwork,
@@ -21,10 +23,12 @@ import {
   listIpamPools,
   listPlatformHosts,
   listPlatformNetworks,
+  simulateSegmentConnectivity,
   syncAllHosts,
   type IpamPoolRow,
   type NetworkSegmentOverview,
   type PlatformNetwork,
+  type SegmentConnectivityResult,
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -59,6 +63,15 @@ export default function PlatformNetworks() {
   const [segEastWest, setSegEastWest] = useState('allow')
   const [segProfile, setSegProfile] = useState('ProductionServer')
   const [allocating, setAllocating] = useState<string | null>(null)
+  const [ipamHostname, setIpamHostname] = useState('')
+  const [bindDraft, setBindDraft] = useState<Record<string, string>>({})
+  const [binding, setBinding] = useState<string | null>(null)
+  const [connectivitySegment, setConnectivitySegment] = useState<NetworkSegmentOverview | null>(null)
+  const [connectivity, setConnectivity] = useState<SegmentConnectivityResult | null>(null)
+  const [connectivityLoading, setConnectivityLoading] = useState(false)
+
+  const segmentName = (id?: string | null) =>
+    segments.find((s) => s.id === id)?.name ?? null
 
   const setTab = (next: TabId) => {
     setSearchParams(next === 'networks' ? {} : { tab: next })
@@ -168,13 +181,41 @@ export default function PlatformNetworks() {
   const runAllocate = async (segmentId: string) => {
     setAllocating(segmentId)
     try {
-      const r = await allocateIpam(segmentId)
-      toast.success(`Allocated ${r.ip_address} on ${r.segment_name}`)
+      const r = await allocateIpam(segmentId, ipamHostname.trim() ? { hostname: ipamHostname.trim() } : undefined)
+      toast.success(`Allocated ${r.ip_address}${r.hostname ? ` (${r.hostname})` : ''} on ${r.segment_name}`)
+      setIpamHostname('')
       await load(false)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     } finally {
       setAllocating(null)
+    }
+  }
+
+  const bindNetwork = async (networkId: string, segmentId: string) => {
+    setBinding(networkId)
+    try {
+      await bindNetworkToSegment(segmentId, networkId)
+      toast.success('Network bound to segment')
+      await load(false)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBinding(null)
+    }
+  }
+
+  const runSegmentConnectivity = async (segment: NetworkSegmentOverview) => {
+    setConnectivitySegment(segment)
+    setConnectivity(null)
+    setConnectivityLoading(true)
+    try {
+      setConnectivity(await simulateSegmentConnectivity(segment.id))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+      setConnectivitySegment(null)
+    } finally {
+      setConnectivityLoading(false)
     }
   }
 
@@ -281,7 +322,38 @@ export default function PlatformNetworks() {
                       <dt className="text-slate-500">VLAN</dt>
                       <dd className="text-slate-200 mt-0.5">{n.vlan_id ?? '—'}</dd>
                     </div>
+                    <div className="col-span-2">
+                      <dt className="text-slate-500">Segment</dt>
+                      <dd className="text-slate-200 mt-0.5">
+                        {segmentName(n.segment_id) ?? 'Unbound'}
+                      </dd>
+                    </div>
                   </dl>
+                  {segments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <select
+                        className="input text-xs flex-1 min-w-[8rem]"
+                        value={bindDraft[n.id] ?? n.segment_id ?? ''}
+                        onChange={(e) => setBindDraft((d) => ({ ...d, [n.id]: e.target.value }))}
+                      >
+                        <option value="">Select segment…</option>
+                        {segments.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        disabled={binding === n.id || !(bindDraft[n.id] ?? n.segment_id)}
+                        onClick={() => {
+                          const seg = bindDraft[n.id] ?? n.segment_id
+                          if (seg) void bindNetwork(n.id, seg)
+                        }}
+                      >
+                        {binding === n.id ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Bind'}
+                      </button>
+                    </div>
+                  )}
                   <button
                     type="button"
                     className="btn-danger text-xs w-fit mt-auto"
@@ -329,6 +401,8 @@ export default function PlatformNetworks() {
                       <th className="py-2 px-2">Grade</th>
                       <th className="py-2 px-2">VMs</th>
                       <th className="py-2 px-2">Profile</th>
+                      <th className="py-2 px-2">Networks</th>
+                      <th className="py-2 px-2" />
                     </tr>
                   </thead>
                   <tbody>
@@ -353,6 +427,16 @@ export default function PlatformNetworks() {
                             <Link to="/platform/zeus/security/firewall" className="text-orange-300 hover:underline">{s.firewall_profile}</Link>
                           ) : '—'}
                         </td>
+                        <td className="py-2.5 px-2">{s.network_count}</td>
+                        <td className="py-2.5 px-2">
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs flex items-center gap-1"
+                            onClick={() => void runSegmentConnectivity(s)}
+                          >
+                            <Cable className="w-3 h-3" /> Matrix
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -365,6 +449,15 @@ export default function PlatformNetworks() {
 
       {tab === 'ipam' && (
         <MacGlassPanel title="IPAM pools" subtitle="Next-free allocation from segment CIDR pools.">
+          <label className="block text-sm mb-4 max-w-md">
+            <span className="text-slate-400">Default hostname (optional)</span>
+            <input
+              className="input w-full mt-1.5 font-mono text-sm"
+              value={ipamHostname}
+              onChange={(e) => setIpamHostname(e.target.value)}
+              placeholder="app-01.prod"
+            />
+          </label>
           {ipamPools.length === 0 ? (
             <p className="text-sm text-slate-400">No IPAM pools — create a segment with an IPAM pool enabled.</p>
           ) : (
@@ -482,6 +575,54 @@ export default function PlatformNetworks() {
             </button>
           </div>
         </div>
+      </MacSheet>
+
+      <MacSheet
+        open={!!connectivitySegment}
+        onClose={() => { setConnectivitySegment(null); setConnectivity(null) }}
+        title={connectivitySegment ? `Connectivity — ${connectivitySegment.name}` : 'Connectivity'}
+        subtitle="East-west micro-segmentation simulation for this overlay"
+        wide
+      >
+        {connectivityLoading && (
+          <p className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Simulating…</p>
+        )}
+        {connectivity && (
+          <div className="space-y-4">
+            <p className="text-sm text-slate-400">{connectivity.matrix.summary}</p>
+            {connectivity.matrix.warnings.length > 0 && (
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-1">
+                {connectivity.matrix.warnings.map((w) => (
+                  <p key={w}>{w}</p>
+                ))}
+              </div>
+            )}
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs font-semibold text-emerald-400 uppercase mb-2">Allowed</p>
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-64 overflow-y-auto">
+                  {connectivity.matrix.allows.map((c, i) => (
+                    <MacListRow key={`a-${i}`} title={`${c.source} → ${c.destination}:${c.port}`} subtitle={c.reason} />
+                  ))}
+                  {connectivity.matrix.allows.length === 0 && (
+                    <p className="px-4 py-3 text-sm text-slate-500">No allowed paths</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-red-400 uppercase mb-2">Blocked</p>
+                <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-64 overflow-y-auto">
+                  {connectivity.matrix.blocks.map((c, i) => (
+                    <MacListRow key={`b-${i}`} title={`${c.source} → ${c.destination}:${c.port}`} subtitle={c.reason} />
+                  ))}
+                  {connectivity.matrix.blocks.length === 0 && (
+                    <p className="px-4 py-3 text-sm text-slate-500">No blocked paths</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </MacSheet>
     </div>
   )

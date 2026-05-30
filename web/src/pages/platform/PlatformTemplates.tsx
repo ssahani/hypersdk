@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router'
-import { AlertTriangle, CheckCircle2, Layers, Loader2, Plus, RefreshCw, Sparkles, Star } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router'
+import { AlertTriangle, CheckCircle2, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import { MacGlassPanel, MacSectionTitle, MacSheet } from '../../components/platform/mac/PlatformMacUi'
 import {
@@ -10,14 +10,21 @@ import {
   createTemplate,
   deleteTemplate,
   getTemplateReadiness,
+  getMarketplacePlugins,
+  installMarketplacePlugin,
   listMarketplaceTemplates,
   seedDefaultTemplates,
+  uninstallMarketplacePlugin,
+  type MarketplacePlugin,
   type PlatformTemplate,
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
 const CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance'] as const
+const PLUGIN_CATEGORIES = ['All', 'automation', 'observability', 'migration', 'security', 'kubernetes', 'networking'] as const
+
+type TabId = 'templates' | 'plugins'
 
 function templateIcon(t: PlatformTemplate) {
   if (t.icon) return t.icon
@@ -30,7 +37,13 @@ function templateIcon(t: PlatformTemplate) {
 
 export default function PlatformTemplates() {
   const toast = useToastContext()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tab = (searchParams.get('tab') as TabId) || 'templates'
   const [rows, setRows] = useState<PlatformTemplate[]>([])
+  const [plugins, setPlugins] = useState<MarketplacePlugin[]>([])
+  const [pluginCategory, setPluginCategory] = useState<string>('All')
+  const [pluginLoading, setPluginLoading] = useState(false)
+  const [pluginAction, setPluginAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState<string>('All')
@@ -93,6 +106,46 @@ export default function PlatformTemplates() {
 
   useEffect(() => { void load(true) }, [load])
 
+  const setTab = (next: TabId) => {
+    setSearchParams(next === 'templates' ? {} : { tab: next })
+  }
+
+  const loadPlugins = useCallback(async () => {
+    setPluginLoading(true)
+    try {
+      const r = await getMarketplacePlugins()
+      setPlugins(r.plugins)
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    } finally {
+      setPluginLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (tab === 'plugins') void loadPlugins()
+  }, [tab, loadPlugins])
+
+  const filteredPlugins = useMemo(() => {
+    if (pluginCategory === 'All') return plugins
+    return plugins.filter((p) => p.category === pluginCategory)
+  }, [plugins, pluginCategory])
+
+  const togglePlugin = async (p: MarketplacePlugin) => {
+    setPluginAction(p.slug)
+    try {
+      const r = p.installed
+        ? await uninstallMarketplacePlugin(p.slug)
+        : await installMarketplacePlugin(p.slug)
+      toast.success(r.summary)
+      await loadPlugins()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setPluginAction(null)
+    }
+  }
+
   const featuredRows = useMemo(() => rows.filter((t) => t.featured), [rows])
   const filtered = useMemo(() => {
     if (category === 'All') return rows
@@ -144,23 +197,52 @@ export default function PlatformTemplates() {
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">App Store</p>
-          <MacSectionTitle title="Template Marketplace" subtitle="Golden images for Linux, Windows, databases, and appliances — deploy in one click." />
+          <MacSectionTitle title="Marketplace" subtitle="Golden image templates and platform integration plugins." />
         </div>
         <div className="flex gap-2">
-          <button type="button" className="btn-secondary text-sm" onClick={() => void load(false)} disabled={loading}>
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          </button>
-          <button type="button" className="btn-secondary text-sm" onClick={() => void seedDefaultTemplates().then((r) => { setRows(r.templates); toast.success(`Catalog: ${r.templates.length} templates`) }).catch((e) => toast.error(formatUserError(e)))}>
-            Restore defaults
-          </button>
-          <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setPublishOpen(true)}>
-            <Plus className="w-4 h-4" /> Publish
-          </button>
+          {tab === 'templates' && (
+            <>
+              <button type="button" className="btn-secondary text-sm" onClick={() => void load(false)} disabled={loading}>
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button type="button" className="btn-secondary text-sm" onClick={() => void seedDefaultTemplates().then((r) => { setRows(r.templates); toast.success(`Catalog: ${r.templates.length} templates`) }).catch((e) => toast.error(formatUserError(e)))}>
+                Restore defaults
+              </button>
+              <button type="button" className="btn-primary text-sm flex items-center gap-1.5" onClick={() => setPublishOpen(true)}>
+                <Plus className="w-4 h-4" /> Publish
+              </button>
+            </>
+          )}
+          {tab === 'plugins' && (
+            <button type="button" className="btn-secondary text-sm flex items-center gap-1.5" disabled={pluginLoading} onClick={() => void loadPlugins()}>
+              <RefreshCw className={`w-4 h-4 ${pluginLoading ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          )}
         </div>
       </header>
 
+      <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
+        {([
+          ['templates', 'Templates', Layers],
+          ['plugins', 'Plugins', Puzzle],
+        ] as const).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm rounded-t-lg flex items-center gap-2 transition ${
+              tab === id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </div>
+
       {error && <ErrorBanner message={error} />}
 
+      {tab === 'templates' && (
+        <>
       {loading && rows.length === 0 && (
         <div className="flex items-center justify-center gap-2 text-slate-400 py-16">
           <Loader2 className="w-5 h-5 animate-spin" /> Loading marketplace…
@@ -304,6 +386,59 @@ export default function PlatformTemplates() {
           <button type="button" className="btn-primary md:col-span-2" onClick={() => void add()}>Publish to marketplace</button>
         </div>
       </MacSheet>
+        </>
+      )}
+
+      {tab === 'plugins' && (
+        <MacGlassPanel title="Platform plugins" subtitle="Integration modules — install toggles inventory only (v1 stub).">
+          {pluginLoading && plugins.length === 0 ? (
+            <p className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading plugins…</p>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-2 mb-4">
+                {PLUGIN_CATEGORIES.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setPluginCategory(c)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium capitalize transition ${
+                      pluginCategory === c
+                        ? 'bg-violet-500/20 text-violet-200 border border-violet-500/30'
+                        : 'bg-slate-900/60 text-slate-400 border border-white/[0.06]'
+                    }`}
+                  >
+                    {c}
+                  </button>
+                ))}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredPlugins.map((p) => (
+                  <article key={p.id} className="rounded-2xl border border-white/[0.06] bg-slate-900/40 p-4 flex flex-col gap-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <p className="font-semibold text-slate-100 flex items-center gap-2">
+                          <Package className="w-4 h-4 text-violet-400" /> {p.name}
+                        </p>
+                        <p className="text-xs text-slate-500 mt-0.5">{p.author} · v{p.version} · {p.category}</p>
+                      </div>
+                      {p.featured && <Star className="w-4 h-4 text-amber-400 shrink-0" />}
+                    </div>
+                    <p className="text-sm text-slate-400 flex-1">{p.description}</p>
+                    <button
+                      type="button"
+                      className={p.installed ? 'btn-secondary text-xs' : 'btn-primary text-xs'}
+                      disabled={pluginAction === p.slug}
+                      onClick={() => void togglePlugin(p)}
+                    >
+                      {pluginAction === p.slug ? <Loader2 className="w-3 h-3 animate-spin inline" /> : p.installed ? 'Uninstall' : 'Install'}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            </>
+          )}
+        </MacGlassPanel>
+      )}
     </div>
   )
 }

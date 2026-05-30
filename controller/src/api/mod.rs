@@ -22,6 +22,7 @@ mod health;
 mod health_check;
 mod hosts;
 mod maintenance;
+mod marketplace;
 mod metrics;
 mod migration_jobs;
 mod networks;
@@ -280,6 +281,16 @@ pub fn router(state: AppState) -> Router {
             "/api/v1/templates/marketplace",
             get(templates::list_marketplace_templates),
         )
+        .route("/api/v1/marketplace/plugins", get(marketplace::plugins_overview))
+        .route(
+            "/api/v1/marketplace/plugins/{slug}/install",
+            post(marketplace::install_plugin),
+        )
+        .route(
+            "/api/v1/marketplace/plugins/{slug}/uninstall",
+            post(marketplace::uninstall_plugin),
+        )
+        .route("/api/v1/marketplace/plugins", post(marketplace::publish_plugin))
         .route("/api/v1/templates/seed", post(templates::seed_templates))
         .route(
             "/api/v1/templates/{name}/{version}",
