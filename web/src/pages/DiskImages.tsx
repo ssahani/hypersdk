@@ -29,6 +29,7 @@ import { computeVirtImageBuildTimeline, VIRT_IMAGE_TIMELINE_LABELS } from '../ut
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
+import { statusDestructiveButtonClasses } from '../utils/semanticColors'
 
 function formatBytes(b: number): string {
   if (b === 0) return '0 B'
@@ -506,7 +507,7 @@ export default function DiskImagesPage() {
                     <button
                       onClick={() => setConfirmPath(img.path)}
                       disabled={deleting === img.path}
-                      className="opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-red-600/20 hover:bg-red-600/40 text-red-400 hover:text-red-300 text-xs font-medium transition disabled:opacity-40"
+                      className={`opacity-0 group-hover:opacity-100 inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition disabled:opacity-40 ${statusDestructiveButtonClasses('hover:opacity-90')}`}
                       title="Delete image file"
                     >
                       {deleting === img.path ? (

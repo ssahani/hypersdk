@@ -10,6 +10,7 @@ import { getWsToken } from '../api/client'
 import { appendVmConnection } from '../api/vm'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { connectionStatusTone, statusToneClass } from '../utils/semanticColors'
 import { useTranslation } from 'react-i18next'
 
 function wsConnQs(connection: string | null): string {
@@ -119,15 +120,7 @@ export default function RdpConsolePage() {
           <p className="text-slate-400">{t('rdp.tunnelNote')}</p>
           <p>
             <span className="text-slate-500">{t('rdp.wsStatus')}:</span>{' '}
-            <span
-              className={
-                status === 'connected'
-                  ? 'text-emerald-400'
-                  : status === 'error'
-                    ? 'text-red-400'
-                    : 'text-amber-400'
-              }
-            >
+            <span className={statusToneClass(connectionStatusTone(status))}>
               {status}
             </span>
           </p>

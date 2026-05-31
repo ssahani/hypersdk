@@ -10,6 +10,7 @@ import { listNetworks, NetworkInfo } from '../api/network'
 import { BrowseHostPathModal, isHostDiskImageFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusSurfaceClasses } from '../utils/semanticColors'
 import { ArrowLeft, Upload, HardDrive, FolderOpen } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -194,7 +195,7 @@ export default function ImportVMPage() {
       {step === 'configure' && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
           <h3 className="text-lg font-semibold">Configure VM</h3>
-          <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-lg text-sm text-green-400">
+          <div className={`p-3 rounded-lg border text-sm ${statusSurfaceClasses('ok')}`}>
             Disk imported to: <code className="font-mono">{importedPath}</code>
           </div>
 

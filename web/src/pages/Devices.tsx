@@ -7,6 +7,7 @@ import { listDevices, getDeviceXml, NodeDeviceInfo } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import { RefreshCw, Usb, Code, X } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function DevicesPage() {
   const [devices, setDevices] = useState<NodeDeviceInfo[]>([])
@@ -74,11 +75,11 @@ export default function DevicesPage() {
               {filtered.map((dev) => (
                 <tr key={dev.name} className="hover:bg-slate-700/50">
                   <td className="px-6 py-3 font-medium font-mono text-sm">{dev.name}</td>
-                  <td className="px-6 py-3"><span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-400">{dev.capability_type}</span></td>
+                  <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses('info')}`}>{dev.capability_type}</span></td>
                   <td className="px-6 py-3 hidden md:table-cell text-sm text-slate-400">{dev.driver || '-'}</td>
                   <td className="px-6 py-3 hidden md:table-cell text-sm text-slate-400 font-mono">{dev.parent || '-'}</td>
                   <td className="px-6 py-3 text-right">
-                    <button onClick={() => showXml(dev.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className="w-4 h-4 text-blue-400" /></button>
+                    <button onClick={() => showXml(dev.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
                   </td>
                 </tr>
               ))}

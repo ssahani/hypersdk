@@ -10,6 +10,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { listAdminSessions, revokeAdminSession, AdminSessionsResponse } from '../api/adminSessions'
 import { logout as apiLogout } from '../api/auth'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function AdminSessionsPage() {
   const { username, isRoot } = useAuth()
@@ -40,7 +41,7 @@ export default function AdminSessionsPage() {
           Only the UNIX <strong className="text-slate-300">root</strong> user may list or revoke browser sessions.
           You are signed in as <code className="bg-slate-800 px-1 rounded text-slate-300">{username || '?'}</code>.
         </p>
-        <Link to="/" className="inline-block text-blue-400 hover:text-blue-300 text-sm">Back to dashboard</Link>
+        <Link to="/" className={`inline-block text-sm ${statusActionLinkClasses('info')}`}>Back to dashboard</Link>
       </div>
     )
   }
@@ -98,14 +99,14 @@ export default function AdminSessionsPage() {
                 <td className="px-4 py-3 font-mono text-xs text-slate-400 break-all max-w-[200px]">{s.session_id}</td>
                 <td className="px-4 py-3 font-medium">
                   {s.username}
-                  {s.is_current && <span className="ml-2 text-[10px] uppercase text-blue-400">This browser</span>}
+                  {s.is_current && <span className={`ml-2 text-[10px] uppercase ${statusBadgeClasses('info')}`}>This browser</span>}
                 </td>
                 <td className="px-4 py-3 text-slate-400">{formatDuration(s.age_secs)}</td>
                 <td className="px-4 py-3 text-slate-400">{formatDuration(s.expires_in_secs)}</td>
                 <td className="px-4 py-3 text-right">
                   <button
                     type="button"
-                    className="p-1.5 rounded-lg hover:bg-red-600/20 text-red-400 disabled:opacity-40 disabled:pointer-events-none"
+                    className={`p-1.5 rounded-lg hover:bg-red-600/20 disabled:opacity-40 disabled:pointer-events-none ${statusToneClass('error')}`}
                     title={s.is_current ? 'Ends this browser session (you will need to sign in again)' : 'Revoke session'}
                     aria-label="Revoke session"
                     onClick={async () => {

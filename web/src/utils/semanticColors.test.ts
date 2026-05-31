@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { checkStatusTone, hostStateTone, httpStatusTone, k8sPhaseTone, migrationReadinessTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, sessionBadgeClasses, serviceStateTone, statusChipClasses, statusSurfaceClasses, taskStatusTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
+import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, sessionBadgeClasses, serviceStateTone, statusChipClasses, statusSurfaceClasses, taskStatusTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -53,5 +53,14 @@ describe('semanticColors', () => {
     expect(prereqTone(true)).toBe('ok')
     expect(prereqTone(false)).toBe('warn')
     expect(prereqTone(false, 'error')).toBe('error')
+  })
+
+  it('maps job, journal, connection, and notification tones', () => {
+    expect(jobStatusTone('running')).toBe('warn')
+    expect(jobStatusTone('completed')).toBe('ok')
+    expect(journalPriorityTone('err')).toBe('error')
+    expect(journalPriorityTone('warning')).toBe('warn')
+    expect(connectionStatusTone('connected')).toBe('ok')
+    expect(notificationChannelTone('email')).toBe('info')
   })
 })

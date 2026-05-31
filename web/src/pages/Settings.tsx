@@ -32,7 +32,7 @@ import {
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { formatUserError } from '../utils/apiError'
-import { statusBadgeClasses, statusSurfaceClasses, statusToneClass, userRoleTone } from '../utils/semanticColors'
+import { notificationChannelTone, statusBadgeClasses, statusSurfaceClasses, statusToneClass, userRoleTone } from '../utils/semanticColors'
 import {
   getObservabilitySettings,
   putObservabilitySettings,
@@ -965,7 +965,7 @@ export default function SettingsPage() {
               <tbody className="divide-y divide-slate-700/30">
                 {notificationChannels.map((ch, i) => (
                   <tr key={ch.id} className="table-row-hover">
-                    <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${ch.channel_type === 'slack' ? 'bg-purple-500/20 text-purple-400' : ch.channel_type === 'email' ? 'bg-blue-500/20 text-blue-400' : ch.channel_type === 'telegram' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-slate-700 text-slate-400'}`}>{ch.channel_type}</span></td>
+                    <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(notificationChannelTone(ch.channel_type))}`}>{ch.channel_type}</span></td>
                     <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next) }} /></td>
                     <td className="px-6 py-3 text-right flex items-center justify-end gap-1">

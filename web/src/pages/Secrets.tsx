@@ -8,6 +8,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Shield, Trash2, RefreshCw, Search, Code, X, Plus } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 
 export default function SecretsPage() {
   const [secrets, setSecrets] = useState<SecretInfo[]>([])
@@ -106,8 +107,8 @@ export default function SecretsPage() {
                   <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.usage_id}</td>
                   <td className="px-6 py-3 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => showXml(s.uuid)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className="w-4 h-4 text-blue-400" /></button>
-                      <button onClick={() => setDeleteTarget(s.uuid)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                      <button onClick={() => showXml(s.uuid)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                      <button onClick={() => setDeleteTarget(s.uuid)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </div>
                   </td>
                 </tr>

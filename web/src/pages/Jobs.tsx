@@ -18,11 +18,10 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import ErrorBanner from '../components/ErrorBanner'
+import { jobStatusTone, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 function statusBadge(status: string) {
-  if (status === 'running') return 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
-  if (status === 'completed') return 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
-  return 'bg-rose-500/20 text-rose-200 border border-rose-500/40'
+  return statusSurfaceClasses(jobStatusTone(status), 'px-2 py-0.5 rounded text-xs font-medium border')
 }
 
 export default function JobsPage() {
@@ -108,7 +107,7 @@ export default function JobsPage() {
           <ChevronLeft className="w-5 h-5" />
         </Link>
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Activity className="w-7 h-7 text-amber-400" aria-hidden />
+          <Activity className={`w-7 h-7 ${statusToneClass('warn')}`} aria-hidden />
           Jobs
         </h1>
         <button

@@ -7,6 +7,7 @@ import { getJournalBoots, getJournalLogs, JournalBootEntry, JournalEntry } from 
 import { RefreshCw, Search } from 'lucide-react'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { journalPriorityTone, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 const PRIORITIES = ['emerg', 'alert', 'crit', 'err', 'warning', 'notice', 'info', 'debug'] as const
 const LINE_COUNTS = [50, 100, 500, 1000] as const
@@ -17,29 +18,15 @@ const BOOT_FILTERS = [
 ] as const
 
 function priorityColor(p: string): string {
-  switch (p) {
-    case 'emerg': case 'alert': case 'crit': case 'err':
-      return 'text-red-400'
-    case 'warning':
-      return 'text-yellow-400'
-    case 'notice':
-      return 'text-blue-300'
-    case 'debug':
-      return 'text-slate-500'
-    default:
-      return 'text-slate-300'
-  }
+  return statusToneClass(journalPriorityTone(p))
 }
 
 function priorityBg(p: string): string {
-  switch (p) {
-    case 'emerg': case 'alert': case 'crit': case 'err':
-      return 'bg-red-500/10 border-l-2 border-red-500/50'
-    case 'warning':
-      return 'bg-yellow-500/5 border-l-2 border-yellow-500/40'
-    default:
-      return ''
+  const tone = journalPriorityTone(p)
+  if (tone === 'error' || tone === 'warn') {
+    return statusSurfaceClasses(tone, 'border-l-2')
   }
+  return ''
 }
 
 export default function LogsPage() {
@@ -298,7 +285,7 @@ export default function LogsPage() {
                   <tr key={i} className={`border-b border-slate-700/10 ${priorityBg(entry.priority)}`}>
                     <td className="px-3 py-1.5 text-slate-500 whitespace-nowrap">{entry.timestamp}</td>
                     <td className={`px-3 py-1.5 font-semibold ${priorityColor(entry.priority)}`}>{entry.priority}</td>
-                    <td className="px-3 py-1.5 text-blue-400 whitespace-nowrap">{entry.unit}</td>
+                    <td className={`px-3 py-1.5 whitespace-nowrap ${statusToneClass('info')}`}>{entry.unit}</td>
                     <td className={`px-3 py-1.5 ${priorityColor(entry.priority)} break-all`}>{entry.message}</td>
                   </tr>
                 ))}

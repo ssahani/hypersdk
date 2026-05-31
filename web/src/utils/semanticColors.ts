@@ -197,3 +197,29 @@ export function prereqTone(ok: boolean | null, missing: 'warn' | 'error' | 'neut
   if (ok) return 'ok'
   return missing
 }
+
+export function jobStatusTone(status: string): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (status === 'running') return 'warn'
+  if (status === 'completed') return 'ok'
+  if (status === 'failed') return 'error'
+  return 'neutral'
+}
+
+export function journalPriorityTone(priority: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
+  if (['emerg', 'alert', 'crit', 'err'].includes(priority)) return 'error'
+  if (priority === 'warning') return 'warn'
+  if (priority === 'notice') return 'info'
+  if (priority === 'debug') return 'neutral'
+  return 'neutral'
+}
+
+export function connectionStatusTone(status: string): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (status === 'connected') return 'ok'
+  if (status === 'error') return 'error'
+  return 'warn'
+}
+
+export function notificationChannelTone(type: string): 'info' | 'neutral' {
+  if (type === 'email' || type === 'webhook' || type === 'telegram') return 'info'
+  return 'neutral'
+}

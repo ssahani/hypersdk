@@ -29,7 +29,7 @@ import {
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo, SnapshotDiskSpec } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
-import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
 import { guestIpv4GatewayHints } from '../utils/guestIpv4GatewayHints'
@@ -1449,7 +1449,7 @@ export default function VMDetailsPage() {
               )}
               <div className="mt-2">
                 <div className="flex justify-between text-xs text-slate-400 mb-1"><span>Memory</span><span>{metrics.memory_pct.toFixed(0)}%</span></div>
-                <div className="w-full bg-slate-700 rounded-full h-2"><div className="bg-blue-500 h-2 rounded-full transition-all" style={{ width: `${metrics.memory_pct}%` }} /></div>
+                <div className="w-full bg-slate-700 rounded-full h-2"><div className={`h-2 rounded-full transition-all ${statusBgClass(utilizationTone(metrics.memory_pct))}`} style={{ width: `${metrics.memory_pct}%` }} /></div>
               </div>
             </div>
           )}
@@ -2099,10 +2099,10 @@ export default function VMDetailsPage() {
                 <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-4 space-y-3">
                   <div className="flex flex-wrap gap-3 text-sm">
                     <span className="text-slate-300">Operation type: <strong className="text-slate-100">{blockJob.job_type}</strong></span>
-                    <span className="text-slate-300">Progress: <strong className="text-emerald-300">{blockJob.end > 0 ? Math.round((blockJob.cur / blockJob.end) * 100) : 0}%</strong></span>
+                    <span className="text-slate-300">Progress: <strong className={statusToneClass('ok')}>{blockJob.end > 0 ? Math.round((blockJob.cur / blockJob.end) * 100) : 0}%</strong></span>
                   </div>
                   <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
-                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${blockJob.end > 0 ? Math.min(100, (blockJob.cur / blockJob.end) * 100) : 0}%` }} />
+                    <div className={`h-full rounded-full transition-all ${statusBgClass('info')}`} style={{ width: `${blockJob.end > 0 ? Math.min(100, (blockJob.cur / blockJob.end) * 100) : 0}%` }} />
                   </div>
                   <p className="text-xs text-slate-500">{blockJob.cur.toLocaleString()} / {blockJob.end.toLocaleString()} bytes · bandwidth {blockJob.bandwidth}</p>
                 </div>

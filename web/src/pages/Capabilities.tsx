@@ -15,6 +15,7 @@ import OpenStackSetupPanel from '../components/OpenStackSetupPanel'
 import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import SysinfoDisplay from '../components/SysinfoDisplay'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses } from '../utils/semanticColors'
 
 export default function CapabilitiesPage() {
   const [capabilities, setCapabilities] = useState<CapabilitiesInfo | null>(null)
@@ -118,7 +119,7 @@ export default function CapabilitiesPage() {
             </div>
             <div className="flex items-center justify-between py-2">
               <span className="text-slate-400 text-sm">SPICE Graphics</span>
-              <span className={`text-sm font-medium px-2 py-0.5 rounded ${capabilities.spice_available ? 'bg-green-900/50 text-green-400' : 'bg-slate-700/50 text-slate-400'}`}>
+              <span className={`text-sm font-medium px-2 py-0.5 rounded ${statusBadgeClasses(capabilities.spice_available ? 'ok' : 'neutral')}`}>
                 {capabilities.spice_available ? 'Available' : 'Not available'}
               </span>
             </div>
