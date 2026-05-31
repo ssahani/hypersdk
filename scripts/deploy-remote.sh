@@ -247,6 +247,7 @@ RUN_E2E=false
 INSTALL_PLATFORM=false
 SKIP_PLATFORM_E2E=false
 SKIP_DAEMON_E2E=false
+SKIP_LIVE_UX=false
 
 parse_flags() {
     while [[ $# -gt 0 ]]; do
@@ -257,6 +258,7 @@ parse_flags() {
             --platform) INSTALL_PLATFORM=true; shift ;;
             --skip-platform-e2e) SKIP_PLATFORM_E2E=true; shift ;;
             --skip-daemon-e2e) SKIP_DAEMON_E2E=true; shift ;;
+            --skip-live-ux) SKIP_LIVE_UX=true; shift ;;
             --cleanup) CLEANUP=true; shift ;;
             --open-firewall) OPEN_FW=true; shift ;;
             --no-start) NO_START=true; shift ;;
@@ -572,6 +574,15 @@ if $RUN_E2E; then
                 deploy_ui_celebrate "Full E2E passed"
             else
                 warn "Full E2E failed (deploy itself succeeded)"
+            fi
+            if ! $SKIP_LIVE_UX; then
+                deploy_ui_highlight "🧪 Post-deploy live UX wiring (Playwright)"
+                if PLAYWRIGHT_LIVE_URL="https://${HOST}:5092" PLAYWRIGHT_LIVE_USER="${USER}" PLAYWRIGHT_LIVE_PASS="${VSPASS:-${SSHPASS:-}}" \
+                    npm --prefix "${SCRIPT_DIR}/../web" run test:e2e:live-ux; then
+                    deploy_ui_celebrate "Live UX wiring passed"
+                else
+                    warn "Live UX wiring failed (deploy itself succeeded)"
+                fi
             fi
         elif ! $SKIP_DAEMON_E2E; then
             deploy_ui_highlight "🧪 Post-deploy E2E (daemon :5092)"

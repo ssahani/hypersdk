@@ -51,9 +51,17 @@ test('live health', async ({ request }) => {
 
 test('live openapi spec', async ({ request }) => {
   const host = new URL(live!).hostname
-  const res = await request.get(`http://${host}:5093/api/v1/openapi.json`)
-  expect(res.ok()).toBeTruthy()
-  const body = await res.json()
-  expect(body.openapi).toMatch(/^3\./)
-  expect(Object.keys(body.paths ?? {}).length).toBeGreaterThan(0)
+  const ctrl = await request.get(`http://${host}:5093/api/v1/openapi.json`)
+  expect(ctrl.ok()).toBeTruthy()
+  const ctrlBody = await ctrl.json()
+  expect(ctrlBody.openapi).toMatch(/^3\./)
+  expect(Object.keys(ctrlBody.paths ?? {}).length).toBeGreaterThan(200)
+
+  const daemon = await request.get(`${live}/api/v1/openapi.json`, { ignoreHTTPSErrors: true })
+  expect(daemon.ok()).toBeTruthy()
+  const ct = daemon.headers()['content-type'] ?? ''
+  expect(ct).toContain('application/json')
+  const daemonBody = await daemon.json()
+  expect(daemonBody.openapi).toMatch(/^3\./)
+  expect(Object.keys(daemonBody.paths ?? {}).length).toBeGreaterThan(200)
 })

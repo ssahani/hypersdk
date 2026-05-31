@@ -1,0 +1,489 @@
+{
+  "host": "212.8.252.194",
+  "generated_at": "2026-05-31T02:40:09.033Z",
+  "passed": 61,
+  "failed": 0,
+  "skipped": 19,
+  "results": [
+    {
+      "id": "classic:/",
+      "path": "/",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/api-docs",
+      "path": "/api-docs",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/audit",
+      "path": "/audit",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/backups",
+      "path": "/backups",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/capabilities",
+      "path": "/capabilities",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/devices",
+      "path": "/devices",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/disk-images",
+      "path": "/disk-images",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/events",
+      "path": "/events",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/fleet",
+      "path": "/fleet",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/host-networking",
+      "path": "/host-networking",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/import",
+      "path": "/import",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/jobs",
+      "path": "/jobs",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "k8s:/k8s",
+      "path": "/k8s",
+      "status": "skipped",
+      "reason": "k8s disabled"
+    },
+    {
+      "id": "k8s:/k8s/kata",
+      "path": "/k8s/kata",
+      "status": "skipped",
+      "reason": "k8s disabled"
+    },
+    {
+      "id": "k8s:/k8s/workloads",
+      "path": "/k8s/workloads",
+      "status": "skipped",
+      "reason": "k8s disabled"
+    },
+    {
+      "id": "classic:/logs",
+      "path": "/logs",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/networks",
+      "path": "/networks",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/node",
+      "path": "/node",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/nwfilters",
+      "path": "/nwfilters",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "openstack:/openstack",
+      "path": "/openstack",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/flavors",
+      "path": "/openstack/flavors",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/floating-ips",
+      "path": "/openstack/floating-ips",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/heat",
+      "path": "/openstack/heat",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/identity",
+      "path": "/openstack/identity",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/images",
+      "path": "/openstack/images",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/instances",
+      "path": "/openstack/instances",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/keypairs",
+      "path": "/openstack/keypairs",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/load-balancers",
+      "path": "/openstack/load-balancers",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/migrations",
+      "path": "/openstack/migrations",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/networking",
+      "path": "/openstack/networking",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/security-groups",
+      "path": "/openstack/security-groups",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/server-groups",
+      "path": "/openstack/server-groups",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/topology",
+      "path": "/openstack/topology",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/volume-snapshots",
+      "path": "/openstack/volume-snapshots",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "openstack:/openstack/volumes",
+      "path": "/openstack/volumes",
+      "status": "skipped",
+      "reason": "openstack disabled"
+    },
+    {
+      "id": "platform:/platform",
+      "path": "/platform",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/activity",
+      "path": "/platform/activity",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/api-keys",
+      "path": "/platform/api-keys",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/applications",
+      "path": "/platform/applications",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/backups",
+      "path": "/platform/backups",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/blueprints",
+      "path": "/platform/blueprints",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/content",
+      "path": "/platform/content",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/developer",
+      "path": "/platform/developer",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/enroll",
+      "path": "/platform/enroll",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/enterprise",
+      "path": "/platform/enterprise",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/events",
+      "path": "/platform/events",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/hosts",
+      "path": "/platform/hosts",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/integrations",
+      "path": "/platform/integrations",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/maintenance",
+      "path": "/platform/maintenance",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/migration",
+      "path": "/platform/migration",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/networks",
+      "path": "/platform/networks",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/notifications",
+      "path": "/platform/notifications",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/observability",
+      "path": "/platform/observability",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/placement",
+      "path": "/platform/placement",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/policy",
+      "path": "/platform/policy",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/projects",
+      "path": "/platform/projects",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/recommendations",
+      "path": "/platform/recommendations",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/reports",
+      "path": "/platform/reports",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/settings",
+      "path": "/platform/settings",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "id": "platform:/platform/storage",
+      "path": "/platform/storage",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/support",
+      "path": "/platform/support",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/tasks",
+      "path": "/platform/tasks",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/templates",
+      "path": "/platform/templates",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/topology",
+      "path": "/platform/topology",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/users",
+      "path": "/platform/users",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/vms",
+      "path": "/platform/vms",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/webhooks",
+      "path": "/platform/webhooks",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus",
+      "path": "/platform/zeus",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/security/cloud",
+      "path": "/platform/zeus/security/cloud",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/security/connectivity",
+      "path": "/platform/zeus/security/connectivity",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/security/firewall",
+      "path": "/platform/zeus/security/firewall",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/security/k8s",
+      "path": "/platform/zeus/security/k8s",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/security/policies",
+      "path": "/platform/zeus/security/policies",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/secrets",
+      "path": "/secrets",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/services",
+      "path": "/services",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/settings",
+      "path": "/settings",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/snapshots",
+      "path": "/snapshots",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/storage",
+      "path": "/storage",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/system-check",
+      "path": "/system-check",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "classic:/vms",
+      "path": "/vms",
+      "status": "passed",
+      "warnings": 1
+    }
+  ]
+}

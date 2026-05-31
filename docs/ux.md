@@ -66,8 +66,28 @@ HyperSDK: [`HypersdkStatusBanner`](../web/src/components/HypersdkStatusBanner.ts
 ## Developer / API Console
 
 - [`PlatformDeveloper.tsx`](../web/src/pages/platform/PlatformDeveloper.tsx) — SDK tab + **API Console** (OpenAPI try-it for all controller routes)
-- [`PlatformApiConsole.tsx`](../web/src/components/platform/PlatformApiConsole.tsx) — grouped operations, path params, JsonInspector responses
+- [`PlatformApiConsole.tsx`](../web/src/components/platform/PlatformApiConsole.tsx) — **Controller | Host** tabs, OpenAPI try-it, agent/ws hints
+- Generate specs: `node scripts/generate-openapi.mjs` → [`docs/openapi-controller.json`](openapi-controller.json), [`docs/openapi-daemon.json`](openapi-daemon.json)
 - Coverage gate: `cd web && npm run api-ux-coverage:check` (see [`docs/api-ux-coverage.json`](api-ux-coverage.json))
+
+## Live UX → API verification (P12)
+
+Proves buttons and page loads hit working backends on a real host (not mocked Playwright).
+
+```bash
+# Regenerate page matrix
+node scripts/generate-ux-live-manifest.mjs
+
+# Against remote host (requires PAM credentials)
+VSPASS='…' ./scripts/e2e-live-ux-remote.sh sus 212.8.252.194
+
+# Included in deploy when --e2e and VSPASS are set (skip with --skip-live-ux)
+VSPASS='…' ./scripts/deploy-remote.sh sus HOST --quick --e2e
+```
+
+Report: [`docs/ux-wiring-live-report.json`](ux-wiring-live-report.json) — pass/fail per route with API failure details.
+
+Optional GitHub Actions: workflow_dispatch job `live-ux` (secrets: `LIVE_HOST`, `LIVE_USER`, `LIVE_PASS`).
 
 ## Dashboard & shell
 

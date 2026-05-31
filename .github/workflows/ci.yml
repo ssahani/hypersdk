@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   rust:
@@ -44,9 +45,36 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - run: npm run generate-openapi:check
       - run: npx tsc --noEmit
       - run: npm test
       - run: npm run build
       - run: npm run api-ux-coverage:check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  live-ux:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e:live-ux
+        env:
+          PLAYWRIGHT_LIVE_URL: https://${{ secrets.LIVE_HOST }}:5092
+          PLAYWRIGHT_LIVE_USER: ${{ secrets.LIVE_USER }}
+          PLAYWRIGHT_LIVE_PASS: ${{ secrets.LIVE_PASS }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ux-wiring-live-report
+          path: docs/ux-wiring-live-report.json

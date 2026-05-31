@@ -1,7 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
+use axum::response::IntoResponse;
 use axum::Json;
 use serde_json::json;
 
@@ -30,14 +31,8 @@ pub async fn ready(State(state): State<AppState>) -> Result<Json<serde_json::Val
     Ok(Json(json!({ "ready": true })))
 }
 
-pub async fn openapi() -> Json<serde_json::Value> {
-    Json(json!({
-        "openapi": "3.0.0",
-        "info": { "title": "Machina Platform API", "version": "v1" },
-        "paths": {
-            "/api/v1/health": { "get": { "summary": "Health check" } },
-            "/api/v1/cluster": { "get": { "summary": "Cluster summary" } },
-            "/api/v1/vms": { "get": { "summary": "List VMs" }, "post": { "summary": "Create VM" } },
-        }
-    }))
+const OPENAPI_JSON: &str = include_str!("../../../docs/openapi-controller.json");
+
+pub async fn openapi() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "application/json")], OPENAPI_JSON)
 }

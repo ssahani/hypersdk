@@ -216,15 +216,14 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
       })
     }
     if (url.includes('/openapi.json')) {
-      return route.fulfill({
-        json: {
-          openapi: '3.0.0',
-          paths: {
-            '/api/v1/health': { get: { summary: 'Health check' } },
-            '/api/v1/vms': { get: { summary: 'List VMs' } },
-          },
-        },
-      })
+      const paths: Record<string, Record<string, { summary: string; tags?: string[] }>> = {}
+      for (let i = 0; i < 60; i += 1) {
+        paths[`/api/v1/hosts/h${i}`] = { get: { summary: `Get host ${i}`, tags: ['hosts'] } }
+      }
+      paths['/api/v1/hosts'] = { get: { summary: 'List hosts', tags: ['hosts'] } }
+      paths['/api/v1/vms'] = { get: { summary: 'List VMs', tags: ['vms'] } }
+      paths['/api/v1/health'] = { get: { summary: 'Health check', tags: ['health'] } }
+      return route.fulfill({ json: { openapi: '3.0.3', paths } })
     }
     if (url.includes('/users/me')) {
       return route.fulfill({ json: { id: 'u1', username: 'admin', role: 'admin' } })

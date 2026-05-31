@@ -1,11 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Play, Search } from 'lucide-react'
+import { Copy, Play, Search } from 'lucide-react'
 import JsonInspector from './JsonInspector'
-import { getControllerBase, platformFetch } from '../../api/platform'
+import { getControllerBase, platformFetch, platformHeaders } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 
+type ApiTarget = 'controller' | 'host'
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT'
 
 interface OpenApiOp {
@@ -14,23 +15,33 @@ interface OpenApiOp {
   path: string
   summary: string
   tag: string
+  transport?: 'websocket'
 }
 
 interface OpenApiSpec {
-  paths?: Record<string, Record<string, { summary?: string; operationId?: string }>>
+  paths?: Record<string, Record<string, {
+    summary?: string
+    operationId?: string
+    description?: string
+    'x-machina-transport'?: string
+  }>>
 }
 
 const METHODS: HttpMethod[] = ['GET', 'POST', 'PATCH', 'DELETE', 'PUT']
 
 const AGENT_ONLY = new Set([
   '/api/v1/hosts/join',
+  '/install.sh',
   '/api/v1/install.sh',
   '/api/v1/metrics/prometheus',
 ])
 
+const WS_HINT =
+  'WebSocket endpoint — use wscat or a WS client. Obtain a short-lived token via POST /api/v1/ws-token, then connect with ?token=…'
+
 function groupTag(path: string) {
-  const parts = path.replace(/^\/api\/v1\//, '').split('/')
-  return parts[0] || 'root'
+  const stripped = path.replace(/^\/api\/v1\//, '').replace(/^\/ws\/v1\//, '')
+  return stripped.split('/')[0] || 'root'
 }
 
 function buildOps(spec: OpenApiSpec): OpenApiOp[] {
@@ -40,6 +51,7 @@ function buildOps(spec: OpenApiSpec): OpenApiOp[] {
       const lower = method.toLowerCase()
       if (!methods[lower]) continue
       const meta = methods[lower]
+      if (meta['x-machina-transport'] === 'websocket') continue
       ops.push({
         id: `${method}:${path}`,
         method,
@@ -48,41 +60,49 @@ function buildOps(spec: OpenApiSpec): OpenApiOp[] {
         tag: groupTag(path),
       })
     }
+    const wsMeta = methods.get
+    if (wsMeta?.['x-machina-transport'] === 'websocket') {
+      ops.push({
+        id: `WS:${path}`,
+        method: 'GET',
+        path,
+        summary: wsMeta.summary ?? `WebSocket ${path}`,
+        tag: groupTag(path),
+        transport: 'websocket',
+      })
+    }
   }
   return ops.sort((a, b) => a.path.localeCompare(b.path) || a.method.localeCompare(b.method))
 }
 
-/** Fallback catalog when openapi.json is minimal — covers controller routes for try-it UX. */
-function fallbackOps(): OpenApiOp[] {
-  const paths = [
-    '/api/v1/health',
-    '/api/v1/cluster',
-    '/api/v1/hosts',
-    '/api/v1/vms',
-    '/api/v1/users/me',
-    '/api/v1/backup-targets',
-    '/api/v1/network/segments/gitops/export',
-    '/api/v1/developer/overview',
-    '/api/v1/fleet/mission',
-    '/api/v1/ai/fleet/heatmap',
-    '/api/v1/zeus-firewall/compliance/production',
-  ]
-  return paths.flatMap((path) => {
-    const m: HttpMethod[] = path.includes('export') || path.includes('heatmap') || path.includes('compliance') || path.includes('overview') || path.includes('mission') || path.includes('health') || path.includes('cluster') || path.includes('me') || path.endsWith('hosts') || path.endsWith('vms') || path.endsWith('backup-targets')
-      ? ['GET']
-      : ['GET', 'POST']
-    return m.map((method) => ({
-      id: `${method}:${path}`,
-      method,
-      path,
-      summary: `${method} ${path}`,
-      tag: groupTag(path),
-    }))
+async function fetchHostSpec(): Promise<OpenApiSpec> {
+  const res = await fetch('/api/v1/openapi.json', { credentials: 'same-origin' })
+  if (!res.ok) throw new Error(`Host OpenAPI HTTP ${res.status}`)
+  return res.json() as Promise<OpenApiSpec>
+}
+
+async function fetchControllerSpec(): Promise<OpenApiSpec> {
+  return platformFetch<OpenApiSpec>('/api/v1/openapi.json')
+}
+
+async function executeHost(path: string, init: RequestInit) {
+  const res = await fetch(path, {
+    credentials: 'same-origin',
+    ...init,
+    headers: platformHeaders(init.headers),
   })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `${res.status} ${res.statusText}`)
+  }
+  if (res.status === 204) return null
+  return res.json()
 }
 
 export default function PlatformApiConsole() {
+  const [target, setTarget] = useState<ApiTarget>('controller')
   const [spec, setSpec] = useState<OpenApiSpec | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState<OpenApiOp | null>(null)
   const [body, setBody] = useState('{}')
@@ -92,22 +112,31 @@ export default function PlatformApiConsole() {
   const [busy, setBusy] = useState(false)
 
   useEffect(() => {
-    void platformFetch<OpenApiSpec>('/api/v1/openapi.json')
+    setSpec(null)
+    setSelected(null)
+    setLoadError(null)
+    const load = target === 'controller' ? fetchControllerSpec : fetchHostSpec
+    void load()
       .then(setSpec)
-      .catch(() => setSpec({ paths: {} }))
-  }, [])
+      .catch((e: unknown) => {
+        setLoadError(formatUserError(e))
+        setSpec({ paths: {} })
+      })
+  }, [target])
 
-  const ops = useMemo(() => {
-    const built = spec ? buildOps(spec) : []
-    return built.length > 3 ? built : fallbackOps()
-  }, [spec])
+  const ops = useMemo(() => buildOps(spec ?? {}), [spec])
 
   const tags = useMemo(() => [...new Set(ops.map((o) => o.tag))].sort(), [ops])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
     if (!q) return ops
-    return ops.filter((o) => o.path.toLowerCase().includes(q) || o.summary.toLowerCase().includes(q) || o.tag.includes(q))
+    return ops.filter(
+      (o) =>
+        o.path.toLowerCase().includes(q) ||
+        o.summary.toLowerCase().includes(q) ||
+        o.tag.includes(q),
+    )
   }, [ops, query])
 
   const selectOp = (op: OpenApiOp) => {
@@ -129,6 +158,14 @@ export default function PlatformApiConsole() {
     return p
   }, [selected, pathParams])
 
+  const copyCurl = (path: string, method: string) => {
+    const base = target === 'controller' ? getControllerBase() : window.location.origin
+    const url = path.startsWith('http') ? path : `${base}${path.startsWith('/') ? path : `/${path}`}`
+    const lines = [`curl -fsS -X ${method} '${url}'`]
+    if (method !== 'GET' && method !== 'DELETE') lines.push("  -H 'Content-Type: application/json' -d '{}'")
+    void navigator.clipboard.writeText(lines.join(' \\\n'))
+  }
+
   const execute = async () => {
     if (!selected) return
     setBusy(true)
@@ -136,10 +173,14 @@ export default function PlatformApiConsole() {
     setResult(null)
     try {
       const path = resolvedPath()
-      if (AGENT_ONLY.has(selected.path)) {
+      if (selected.transport === 'websocket') {
+        setResult({ note: WS_HINT, wscat: `wscat -c 'wss://${window.location.host}${path}?token=YOUR_WS_TOKEN'` })
+        return
+      }
+      if (AGENT_ONLY.has(selected.path) || AGENT_ONLY.has(path)) {
         setResult({
-          note: 'Agent-only route — use shell command instead',
-          curl: `curl -fsS ${getControllerBase()}${path}`,
+          note: 'Agent-only route — use shell command instead of browser try-it',
+          curl: `curl -fsS ${target === 'controller' ? getControllerBase() : window.location.origin}${path}`,
         })
         return
       }
@@ -148,7 +189,10 @@ export default function PlatformApiConsole() {
         init.body = body
         init.headers = { 'Content-Type': 'application/json' }
       }
-      const data = await platformFetch<unknown>(path, init)
+      const data =
+        target === 'controller'
+          ? await platformFetch<unknown>(path, init)
+          : await executeHost(path, init)
       setResult(data)
     } catch (e: unknown) {
       setError(formatUserError(e))
@@ -158,85 +202,120 @@ export default function PlatformApiConsole() {
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <div className="tahoe-glass-card p-4 space-y-3">
-        <div className="relative">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" />
-          <input
-            className="w-full pl-8 pr-3 py-2 rounded-lg bg-black/25 border border-white/10 text-sm text-white"
-            placeholder="Filter operations…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-        <div className="max-h-[28rem] overflow-y-auto space-y-3">
-          {tags.map((tag) => {
-            const group = filtered.filter((o) => o.tag === tag)
-            if (!group.length) return null
-            return (
-              <section key={tag}>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">{tag}</h3>
-                <ul className="space-y-1">
-                  {group.map((op) => (
-                    <li key={op.id}>
-                      <button
-                        type="button"
-                        onClick={() => selectOp(op)}
-                        className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition ${
-                          selected?.id === op.id ? 'bg-sky-500/15 text-sky-100' : 'text-slate-300 hover:bg-white/[0.04]'
-                        }`}
-                      >
-                        <span className="font-mono text-sky-300/90">{op.method}</span>{' '}
-                        <span className="font-mono">{op.path}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )
-          })}
-        </div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        {([
+          ['controller', 'Controller (fleet)'],
+          ['host', 'Host (daemon)'],
+        ] as const).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTarget(id)}
+            className={`px-3 py-1.5 rounded-lg text-sm transition ${
+              target === id ? 'bg-sky-600/30 text-sky-100 border border-sky-500/40' : 'text-slate-400 hover:text-slate-200 border border-white/10'
+            }`}
+          >
+            {label}
+            <span className="ml-2 text-xs text-slate-500">{ops.length}</span>
+          </button>
+        ))}
       </div>
+      {loadError ? <p className="text-sm text-amber-300">{loadError}</p> : null}
 
-      <div className="tahoe-glass-card p-4 space-y-3">
-        {!selected ? (
-          <p className="text-sm text-slate-400">Select an operation to try it against the controller.</p>
-        ) : (
-          <>
-            <div>
-              <p className="text-sm font-medium text-white">{selected.summary}</p>
-              <p className="text-xs font-mono text-slate-400 mt-1">{selected.method} {resolvedPath()}</p>
-            </div>
-            {Object.keys(pathParams).length > 0 && (
-              <div className="grid gap-2 sm:grid-cols-2">
-                {Object.keys(pathParams).map((k) => (
-                  <label key={k} className="text-xs text-slate-400">
-                    {k}
-                    <input
-                      className="input text-sm mt-1 w-full"
-                      value={pathParams[k]}
-                      onChange={(e) => setPathParams((prev) => ({ ...prev, [k]: e.target.value }))}
-                    />
-                  </label>
-                ))}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
+        <div className="tahoe-glass-card p-4 space-y-3">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/40" />
+            <input
+              className="w-full pl-8 pr-3 py-2 rounded-lg bg-black/25 border border-white/10 text-sm text-white"
+              placeholder="Filter operations…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
+          <div className="max-h-[28rem] overflow-y-auto space-y-3">
+            {tags.map((tag) => {
+              const group = filtered.filter((o) => o.tag === tag)
+              if (!group.length) return null
+              return (
+                <section key={tag}>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1">
+                    {tag} <span className="text-slate-600">({group.length})</span>
+                  </h3>
+                  <ul className="space-y-1">
+                    {group.map((op) => (
+                      <li key={op.id}>
+                        <button
+                          type="button"
+                          onClick={() => selectOp(op)}
+                          className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition ${
+                            selected?.id === op.id ? 'bg-sky-500/15 text-sky-100' : 'text-slate-300 hover:bg-white/[0.04]'
+                          }`}
+                        >
+                          <span className="font-mono text-sky-300/90">{op.transport === 'websocket' ? 'WS' : op.method}</span>{' '}
+                          <span className="font-mono">{op.path}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )
+            })}
+          </div>
+        </div>
+
+        <div className="tahoe-glass-card p-4 space-y-3">
+          {!selected ? (
+            <p className="text-sm text-slate-400">
+              Select an operation to try it against the {target === 'controller' ? 'controller' : 'host daemon'}.
+            </p>
+          ) : (
+            <>
+              <div>
+                <p className="text-sm font-medium text-white">{selected.summary}</p>
+                <p className="text-xs font-mono text-slate-400 mt-1">
+                  {selected.transport === 'websocket' ? 'WS' : selected.method} {resolvedPath()}
+                </p>
               </div>
-            )}
-            {selected.method !== 'GET' && selected.method !== 'DELETE' && (
-              <textarea
-                className="input text-xs font-mono min-h-[8rem] w-full"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-              />
-            )}
-            <button type="button" className="tahoe-btn-primary text-sm" disabled={busy} onClick={() => void execute()}>
-              <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : 'Execute'}
-            </button>
-            {error ? <p className="text-sm text-red-300">{error}</p> : null}
-            {result != null ? (
-              <JsonInspector data={result} />
-            ) : null}
-          </>
-        )}
+              {Object.keys(pathParams).length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {Object.keys(pathParams).map((k) => (
+                    <label key={k} className="text-xs text-slate-400">
+                      {k}
+                      <input
+                        className="input text-sm mt-1 w-full"
+                        value={pathParams[k]}
+                        onChange={(e) => setPathParams((prev) => ({ ...prev, [k]: e.target.value }))}
+                      />
+                    </label>
+                  ))}
+                </div>
+              )}
+              {selected.method !== 'GET' && selected.method !== 'DELETE' && selected.transport !== 'websocket' && (
+                <textarea
+                  className="input text-xs font-mono min-h-[8rem] w-full"
+                  value={body}
+                  onChange={(e) => setBody(e.target.value)}
+                />
+              )}
+              <div className="flex flex-wrap gap-2">
+                <button type="button" className="tahoe-btn-primary text-sm" disabled={busy} onClick={() => void execute()}>
+                  <Play className="w-3.5 h-3.5" /> {busy ? 'Running…' : selected.transport === 'websocket' ? 'Show WS hint' : 'Execute'}
+                </button>
+                <button
+                  type="button"
+                  className="tahoe-btn-secondary text-sm"
+                  onClick={() => copyCurl(resolvedPath(), selected.method)}
+                >
+                  <Copy className="w-3.5 h-3.5" /> Copy curl
+                </button>
+              </div>
+              {error ? <p className="text-sm text-red-300">{error}</p> : null}
+              {result != null ? <JsonInspector data={result} /> : null}
+            </>
+          )}
+        </div>
       </div>
     </div>
   )

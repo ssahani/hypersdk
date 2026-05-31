@@ -70,6 +70,12 @@ export default function PlatformIntegrations() {
             Import wizards, libvirt node tools, NW filters, secrets, and the classic audit viewer — same daemon, classic UI chrome.
           </p>
           <PlatformClassicToolLinks tools={CLASSIC_TOOL_CARDS} />
+          <p className="text-sm text-slate-400 mt-4 pt-4 border-t border-white/[0.06]">
+            Host REST catalog:{' '}
+            <Link to="/api-docs" className="text-blue-400 hover:underline">Classic API explorer</Link>
+            {' · '}
+            <Link to="/platform/developer" className="text-blue-400 hover:underline">Platform Developer console</Link>
+          </p>
         </MacGlassPanel>
 
         <MacGlassPanel title="Leaving the desktop">

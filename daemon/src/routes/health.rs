@@ -3,7 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 use axum::extract::State;
-use axum::http::StatusCode;
+use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::routing::get;
 use axum::{Json, Router};
@@ -215,6 +215,12 @@ async fn host_libvirt_boot_status() -> Json<serde_json::Value> {
     })
 }
 
+const OPENAPI_JSON: &str = include_str!("../../../docs/openapi-daemon.json");
+
+async fn openapi_spec() -> impl IntoResponse {
+    ([(header::CONTENT_TYPE, "application/json")], OPENAPI_JSON)
+}
+
 pub fn health_routes() -> Router<LibvirtManager> {
     Router::new()
         .route("/health", get(health_check))
@@ -222,4 +228,5 @@ pub fn health_routes() -> Router<LibvirtManager> {
         .route("/host/virtualization", get(host_virtualization))
         .route("/host/libvirt-boot", get(host_libvirt_boot_status))
         .route("/libvirt/summary", get(libvirt_summary))
+        .route("/openapi.json", get(openapi_spec))
 }

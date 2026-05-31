@@ -6,11 +6,12 @@ This document is an honest inventory of how much controller/daemon surface area 
 
 ## Summary
 
-| Layer | Approx. count | Wired to Platform UX |
-|-------|---------------|----------------------|
-| Controller HTTP routes (`controller/src/api/mod.rs`) | ~290 | ~15–20% have a dedicated Platform page/tab |
-| TypeScript API clients (`web/src/api/*`) | ~400+ exports | ~35% imported by at least one page |
-| Full product UIs | 4 shells | Platform, Classic (`/`), OpenStack (`/openstack/*`), K8s (`/k8s/*`) |
+| Layer | Approx. count | Wired to UX |
+|-------|---------------|-------------|
+| Controller HTTP routes | ~292 | API Console tab + ~174 import-graph page hits |
+| Daemon HTTP routes | ~423 | Host API Console tab + Classic pages |
+| WebSocket routes | ~10 | Documented in OpenAPI (`x-machina-transport: websocket`) |
+| TypeScript API clients | ~400+ exports | Import-graph tracked in coverage JSON |
 
 **Your intuition is directionally correct:** most backend code exists for power users, agents, and future surfaces. The Platform desktop intentionally shows a **small Normal tier**; Advanced exposes more but still does not mirror every route.
 
@@ -73,14 +74,40 @@ Run `rg "platformFetch" web/src/api` vs `rg "from '../../api" web/src/pages/plat
 
 ### P10 — Full API ↔ UX parity (shipped)
 
-- [x] `scripts/api-ux-coverage.mjs` + CI gate (`npm run api-ux-coverage:check`) — 293/293 routes mapped
-- [x] Platform core: backup destinations, VM topology tab, network GitOps export, marketplace plugin publish, users/me + role edit
-- [x] Zeus Firewall: bare-metal rollup, multisite DR/export, global temporary rules
-- [x] Migration depth: GuestKit job history + capabilities, HyperSDK proxy explorer
-- [x] Integrations embeds: OpenStack + K8s preview panels
-- [x] Classic parity: CPU compare, job stats API, local firewall inventory, daemon automation mirror
-- [x] OpenAPI **API Console** on `/platform/developer` for remaining controller routes
-- [x] Observability: controller Prometheus scrape link
+- [x] Platform core wiring, Zeus Firewall, migration depth, Classic parity (see git history `b915846`)
+- [x] Initial API Console on `/platform/developer`
+
+### P11 — Console-first full backend catalog (shipped)
+
+- [x] `scripts/generate-openapi.mjs` — controller + daemon + WebSocket routes → `docs/openapi-*.json`
+- [x] Runtime OpenAPI: controller `GET /api/v1/openapi.json`, daemon `GET /api/v1/openapi.json` (public)
+- [x] **Unified API Console** — Controller | Host tabs on `/platform/developer` (Advanced tier)
+- [x] Classic `/api-docs` loads runtime daemon spec; Integrations cross-links
+- [x] Honest coverage gate: `npm run api-ux-coverage:check` — controller + daemon + ws (725 routes, import-graph + OpenAPI console classification)
+
+```bash
+node scripts/generate-openapi.mjs          # regenerate specs
+cd web && npm run generate-openapi:check   # CI drift gate
+cd web && npm run api-ux-coverage:check    # 0 unmapped
+```
+
+**Policy:** daily operator flows stay on Platform/Classic pages; every other HTTP route is reachable via API Console or `/api-docs`. Agent install, Prometheus scrape, and WebSocket routes are **documented** (copy-ready commands), not browser try-it.
+
+### P12 — Live UX → API proof (shipped)
+
+Static coverage (P11) proves wiring *intent*; live verification proves *runtime* behavior.
+
+- [x] [`docs/ux-wiring-live-manifest.json`](ux-wiring-live-manifest.json) — full nav matrix + safe tab/button actions
+- [x] [`scripts/generate-ux-live-manifest.mjs`](../scripts/generate-ux-live-manifest.mjs) — regenerate manifest from `platformNav.ts`
+- [x] Playwright [`web/e2e/live-ux-wiring.spec.ts`](../web/e2e/live-ux-wiring.spec.ts) — authenticated remote run, API response watch (fail on 5xx / HTML-on-API)
+- [x] [`scripts/e2e-live-ux-remote.sh`](../scripts/e2e-live-ux-remote.sh) + deploy-remote `--e2e` Phase B (`--skip-live-ux` to opt out)
+- [x] Report artifact: [`docs/ux-wiring-live-report.json`](ux-wiring-live-report.json)
+
+```bash
+VSPASS='…' ./scripts/e2e-live-ux-remote.sh sus 212.8.252.194
+# or after deploy:
+VSPASS='…' ./scripts/deploy-remote.sh sus 212.8.252.194 --quick --e2e
+```
 
 ## How to measure progress
 

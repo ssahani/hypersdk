@@ -39,7 +39,7 @@ export default function ApiDocs() {
   const [tryLoading, setTryLoading] = useState(false)
 
   useEffect(() => {
-    fetch('/openapi.json')
+    fetch('/api/v1/openapi.json', { credentials: 'same-origin' })
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
         return r.json()

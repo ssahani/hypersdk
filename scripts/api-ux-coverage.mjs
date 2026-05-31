@@ -1,16 +1,26 @@
 #!/usr/bin/env node
 /**
- * Maps controller HTTP routes to UX surfaces.
+ * Honest API ↔ UX coverage for controller + daemon routes.
  * Usage: node scripts/api-ux-coverage.mjs [--check] [--write]
  */
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  parseControllerRoutes,
+  parseDaemonRoutes,
+  parseWsRoutes,
+  parseControllerWsRoutes,
+  daemonPathToFull,
+  readFile,
+} from './lib/parse-routes.mjs'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const MOD_RS = path.join(ROOT, 'controller/src/api/mod.rs')
 const WEB_SRC = path.join(ROOT, 'web/src')
+const API_DIR = path.join(WEB_SRC, 'api')
 const MANIFEST = path.join(ROOT, 'docs/api-ux-route-manifest.json')
+const OPENAPI_CTRL = path.join(ROOT, 'docs/openapi-controller.json')
+const OPENAPI_DAEMON = path.join(ROOT, 'docs/openapi-daemon.json')
 const OUT_JSON = path.join(ROOT, 'docs/api-ux-coverage.json')
 const OUT_MD = path.join(ROOT, 'docs/api-ux-coverage.md')
 
@@ -18,101 +28,137 @@ const DOCUMENTED = new Set([
   '/api/v1/health/ready',
   '/api/v1/metrics/prometheus',
   '/api/v1/install.sh',
+  '/install.sh',
   '/api/v1/hosts/join',
 ])
 
-const CONSOLE_PREFIXES = ['/api/v1/']
-
-function read(p) {
-  return fs.readFileSync(p, 'utf8')
-}
-
-function walk(dir, acc = []) {
+function walkUi(dir, acc = []) {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, ent.name)
-    if (ent.isDirectory()) walk(full, acc)
+    if (ent.isDirectory()) walkUi(full, acc)
     else if (/\.(tsx?|jsx?)$/.test(ent.name)) acc.push(full)
   }
   return acc
-}
-
-function parseRoutes(modSrc) {
-  const routes = []
-  const re = /\.route\s*\(\s*"([^"]+)"\s*,([^)]+(?:\([^)]*\)[^)]*)*)\)/gs
-  let m
-  while ((m = re.exec(modSrc)) !== null) {
-    const routePath = m[1]
-    const handlers = m[2]
-    const methods = []
-    if (/\bget\s*\(/.test(handlers)) methods.push('GET')
-    if (/\bpost\s*\(/.test(handlers)) methods.push('POST')
-    if (/\bpatch\s*\(/.test(handlers)) methods.push('PATCH')
-    if (/\bdelete\s*\(/.test(handlers)) methods.push('DELETE')
-    if (/\bput\s*\(/.test(handlers)) methods.push('PUT')
-    routes.push({ path: routePath, methods })
-  }
-  return routes
 }
 
 function normPath(p) {
   return p.replace(/\{[^}]+\}/g, '{id}')
 }
 
-function pathRegex(routePath) {
-  const escaped = routePath.replace(/\{[^}]+\}/g, '[^/]+').replace(/\//g, '\\/')
-  return new RegExp(escaped)
-}
-
-function surfaceForFile(file) {
+function surfaceForUiFile(file) {
   const rel = path.relative(WEB_SRC, file).replace(/\\/g, '/')
   if (rel.startsWith('pages/platform/')) return 'page'
-  if (rel.startsWith('pages/OpenStack') || rel.includes('/openstack')) return 'openstack'
+  if (rel.startsWith('components/platform/')) return 'page'
+  if (rel.startsWith('pages/OpenStack')) return 'openstack'
   if (rel.startsWith('pages/K8s') || rel === 'pages/KataContainers.tsx') return 'k8s'
   if (rel.startsWith('pages/')) return 'classic'
-  if (rel.startsWith('components/platform/')) return 'page'
   return null
 }
 
-function buildUsageIndex(files) {
+function parseImports(src) {
+  const specs = []
+  const re = /import\s+(?:type\s+)?(?:\{([^}]+)\}|(\w+))\s+from\s+['"]([^'"]+)['"]/g
+  let m
+  while ((m = re.exec(src)) !== null) {
+    const names = m[1]
+      ? m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0].trim()).filter(Boolean)
+      : [m[2]]
+    specs.push({ module: m[3], names })
+  }
+  return specs
+}
+
+function resolveApiModule(fromFile, spec) {
+  if (!spec.module.includes('api')) return null
+  const base = path.dirname(fromFile)
+  let target = path.normalize(path.join(base, spec.module))
+  if (!target.endsWith('.ts') && !target.endsWith('.tsx')) {
+    if (fs.existsSync(`${target}.ts`)) target = `${target}.ts`
+    else if (fs.existsSync(`${target}/index.ts`)) target = `${target}/index.ts`
+    else target = `${target}.ts`
+  }
+  if (!fs.existsSync(target)) return null
+  return target
+}
+
+function extractApiPaths(apiFile) {
+  const src = readFile(apiFile)
+  const paths = new Set()
+  for (const m of src.matchAll(/platformFetch(?:<[^>]*>)?\(\s*[`'"]([^`'"]+)[`'"]/g)) {
+    paths.add(normPath(m[1].split('?')[0]))
+  }
+  for (const m of src.matchAll(/[`'"](\/api\/v1[^`'"]*)[`'"]/g)) {
+    paths.add(normPath(m[1].split('?')[0]))
+  }
+  for (const m of src.matchAll(/[`'"](\/openstack\/[^`'"]*)[`'"]/g)) {
+    paths.add(normPath(m[1].split('?')[0]))
+  }
+  for (const m of src.matchAll(/[`'"](\/k8s\/[^`'"]*)[`'"]/g)) {
+    paths.add(normPath(m[1].split('?')[0]))
+  }
+  return paths
+}
+
+function buildImportGraph() {
+  const uiFiles = walkUi(path.join(WEB_SRC, 'pages')).concat(walkUi(path.join(WEB_SRC, 'components')))
   const byPath = new Map()
-  for (const file of files) {
-    const src = read(file)
-    const surface = surfaceForFile(file)
+
+  for (const file of uiFiles) {
+    const surface = surfaceForUiFile(file)
     if (!surface) continue
-    const paths = [...src.matchAll(/['"`](\/api\/v1[^'"`$]*|\/openstack[^'"`$]*|\/k8s[^'"`$]*)['"`]/g)].map((x) => x[1])
-    for (const p of paths) {
-      const key = normPath(p.split('?')[0])
-      if (!byPath.has(key)) byPath.set(key, new Set())
-      byPath.get(key).add(surface)
+    const src = readFile(file)
+    for (const imp of parseImports(src)) {
+      const apiFile = resolveApiModule(file, imp)
+      if (!apiFile) continue
+      for (const apiPath of extractApiPaths(apiFile)) {
+        if (!byPath.has(apiPath)) byPath.set(apiPath, new Set())
+        byPath.get(apiPath).add(surface)
+      }
     }
   }
   return byPath
 }
 
-function classify(route, usageIndex, manifest) {
+function loadOpenapiPaths(file) {
+  if (!fs.existsSync(file)) return new Set()
+  const spec = JSON.parse(readFile(file))
+  return new Set(Object.keys(spec.paths ?? {}).map(normPath))
+}
+
+function inventoryRoutes() {
+  const controller = parseControllerRoutes(path.join(ROOT, 'controller/src/api/mod.rs'))
+  const daemonRaw = parseDaemonRoutes(path.join(ROOT, 'daemon/src/routes'))
+  const daemon = daemonRaw.map((r) => ({
+    path: daemonPathToFull(r.path),
+    methods: r.methods,
+    source: 'daemon',
+  }))
+  const controllerRows = controller.map((r) => ({ ...r, source: 'controller' }))
+  const wsDaemon = parseWsRoutes(path.join(ROOT, 'daemon/src/routes/ws.rs')).map((r) => ({
+    ...r,
+    source: 'websocket',
+  }))
+  const wsCtrl = parseControllerWsRoutes(path.join(ROOT, 'controller/src/console.rs')).map((r) => ({
+    ...r,
+    source: 'websocket',
+  }))
+  return [...controllerRows, ...daemon, ...wsDaemon, ...wsCtrl]
+}
+
+function classify(route, importGraph, openapiPaths, manifest) {
   const key = normPath(route.path)
   if (manifest.routes?.[route.path]) return manifest.routes[route.path]
   if (manifest.routes?.[key]) return manifest.routes[key]
   if (DOCUMENTED.has(route.path) || DOCUMENTED.has(key)) return 'documented'
+  if (route.source === 'websocket') return 'documented'
 
-  const surfaces = usageIndex.get(key)
+  const surfaces = importGraph.get(key)
   if (surfaces?.has('page')) return 'page'
   if (surfaces?.has('openstack')) return 'openstack'
   if (surfaces?.has('k8s')) return 'k8s'
   if (surfaces?.has('classic')) return 'classic'
 
-  for (const [usedPath, s] of usageIndex) {
-    if (pathRegex(route.path).test(usedPath) || pathRegex(usedPath).test(route.path)) {
-      if (s.has('page')) return 'page'
-      if (s.has('openstack')) return 'openstack'
-      if (s.has('k8s')) return 'k8s'
-      if (s.has('classic')) return 'classic'
-    }
-  }
-
-  if (manifest.defaults?.console && CONSOLE_PREFIXES.some((p) => route.path.startsWith(p))) {
-    return 'console'
-  }
+  if (openapiPaths.has(key)) return 'console'
   return 'unmapped'
 }
 
@@ -121,27 +167,39 @@ function main() {
   const write = process.argv.includes('--write') || !check
 
   const manifest = fs.existsSync(MANIFEST)
-    ? JSON.parse(read(MANIFEST))
-    : { defaults: { console: true }, routes: {} }
+    ? JSON.parse(readFile(MANIFEST))
+    : { routes: {} }
 
-  const routes = parseRoutes(read(MOD_RS))
-  const files = walk(WEB_SRC)
-  const usageIndex = buildUsageIndex(files)
+  const importGraph = buildImportGraph()
+  const openapiPaths = new Set([
+    ...loadOpenapiPaths(OPENAPI_CTRL),
+    ...loadOpenapiPaths(OPENAPI_DAEMON),
+  ])
 
+  const routes = inventoryRoutes()
   const rows = routes.map((r) => ({
     path: r.path,
     methods: r.methods,
-    surface: classify(r, usageIndex, manifest),
+    source: r.source,
+    surface: classify(r, importGraph, openapiPaths, manifest),
   }))
 
   const counts = {}
   for (const row of rows) counts[row.surface] = (counts[row.surface] || 0) + 1
+
+  const bySource = {}
+  for (const row of rows) bySource[row.source] = (bySource[row.source] || 0) + 1
+
   const unmapped = rows.filter((r) => r.surface === 'unmapped')
 
   const report = {
     generated_at: new Date().toISOString(),
+    controller_total: rows.filter((r) => r.source === 'controller').length,
+    daemon_total: rows.filter((r) => r.source === 'daemon').length,
+    websocket_total: rows.filter((r) => r.source === 'websocket').length,
     total_routes: rows.length,
     counts,
+    by_source: bySource,
     unmapped_count: unmapped.length,
     routes: rows,
   }
@@ -153,13 +211,24 @@ function main() {
       '',
       `Generated: ${report.generated_at}`,
       '',
+      '| Metric | Count |',
+      '|--------|-------|',
+      `| Controller routes | ${report.controller_total} |`,
+      `| Daemon routes | ${report.daemon_total} |`,
+      `| WebSocket routes | ${report.websocket_total} |`,
+      `| **Total** | **${report.total_routes}** |`,
+      '',
       '| Surface | Routes |',
       '|---------|--------|',
-      ...Object.entries(counts).sort().map(([k, v]) => `| ${k} | ${v} |`),
+      ...Object.entries(counts)
+        .sort()
+        .map(([k, v]) => `| ${k} | ${v} |`),
       '',
       unmapped.length
         ? `**Unmapped:** ${unmapped.length} — see \`api-ux-coverage.json\``
         : '**All routes mapped.**',
+      '',
+      'Console-first policy: routes in generated OpenAPI are satisfied by Platform Developer → API Console or Classic `/api-docs`.',
       '',
     ].join('\n')
     fs.writeFileSync(OUT_MD, md)
@@ -168,10 +237,12 @@ function main() {
 
   if (check && unmapped.length > 0) {
     console.error(`API UX coverage check failed: ${unmapped.length} unmapped route(s)`)
-    for (const u of unmapped.slice(0, 20)) console.error(`  ${u.methods.join(',')} ${u.path}`)
+    for (const u of unmapped.slice(0, 30)) {
+      console.error(`  [${u.source}] ${u.methods.join(',')} ${u.path}`)
+    }
     process.exit(1)
   }
-  if (check) console.log(`API UX coverage OK (${rows.length} routes)`)
+  if (check) console.log(`API UX coverage OK (${rows.length} routes, ${unmapped.length} unmapped)`)
 }
 
 main()

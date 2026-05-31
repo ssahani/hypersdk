@@ -9,10 +9,14 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:live-ux": "playwright test -c playwright.live-ux.config.ts",
     "test:e2e:ui": "playwright test --ui",
     "check-ui-tokens": "node scripts/check-ui-tokens.mjs",
+    "generate-openapi": "node ../scripts/generate-openapi.mjs",
+    "generate-openapi:check": "node ../scripts/generate-openapi.mjs --check",
     "api-ux-coverage": "node ../scripts/api-ux-coverage.mjs --write",
-    "api-ux-coverage:check": "node ../scripts/api-ux-coverage.mjs --check"
+    "api-ux-coverage:check": "node ../scripts/api-ux-coverage.mjs --check",
+    "generate-ux-live-manifest": "node ../scripts/generate-ux-live-manifest.mjs"
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",

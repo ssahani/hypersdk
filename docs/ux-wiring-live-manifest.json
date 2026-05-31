@@ -1,0 +1,763 @@
+{
+  "version": 1,
+  "generated_at": "2026-05-31T02:01:15.912Z",
+  "entries": [
+    {
+      "id": "classic:/",
+      "shell": "classic",
+      "path": "/",
+      "tier": "normal",
+      "headingPattern": "Machina|Dashboard|VMs",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/api-docs",
+      "shell": "classic",
+      "path": "/api-docs",
+      "tier": "normal",
+      "headingPattern": "Machina Host|Machina API|API",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/audit",
+      "shell": "classic",
+      "path": "/audit",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/backups",
+      "shell": "classic",
+      "path": "/backups",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/capabilities",
+      "shell": "classic",
+      "path": "/capabilities",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/devices",
+      "shell": "classic",
+      "path": "/devices",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/disk-images",
+      "shell": "classic",
+      "path": "/disk-images",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/events",
+      "shell": "classic",
+      "path": "/events",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/fleet",
+      "shell": "classic",
+      "path": "/fleet",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/host-networking",
+      "shell": "classic",
+      "path": "/host-networking",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/import",
+      "shell": "classic",
+      "path": "/import",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/jobs",
+      "shell": "classic",
+      "path": "/jobs",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "k8s:/k8s",
+      "shell": "k8s",
+      "path": "/k8s",
+      "tier": "power",
+      "headingPattern": "Kubernetes|KubeVirt|Cluster",
+      "requires": "k8s",
+      "actions": []
+    },
+    {
+      "id": "k8s:/k8s/kata",
+      "shell": "k8s",
+      "path": "/k8s/kata",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "k8s",
+      "actions": []
+    },
+    {
+      "id": "k8s:/k8s/workloads",
+      "shell": "k8s",
+      "path": "/k8s/workloads",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "k8s",
+      "actions": []
+    },
+    {
+      "id": "classic:/logs",
+      "shell": "classic",
+      "path": "/logs",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/networks",
+      "shell": "classic",
+      "path": "/networks",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/node",
+      "shell": "classic",
+      "path": "/node",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/nwfilters",
+      "shell": "classic",
+      "path": "/nwfilters",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack",
+      "shell": "openstack",
+      "path": "/openstack",
+      "tier": "power",
+      "headingPattern": "OpenStack|Overview",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/flavors",
+      "shell": "openstack",
+      "path": "/openstack/flavors",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/floating-ips",
+      "shell": "openstack",
+      "path": "/openstack/floating-ips",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/heat",
+      "shell": "openstack",
+      "path": "/openstack/heat",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/identity",
+      "shell": "openstack",
+      "path": "/openstack/identity",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/images",
+      "shell": "openstack",
+      "path": "/openstack/images",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/instances",
+      "shell": "openstack",
+      "path": "/openstack/instances",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/keypairs",
+      "shell": "openstack",
+      "path": "/openstack/keypairs",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/load-balancers",
+      "shell": "openstack",
+      "path": "/openstack/load-balancers",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/migrations",
+      "shell": "openstack",
+      "path": "/openstack/migrations",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/networking",
+      "shell": "openstack",
+      "path": "/openstack/networking",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/security-groups",
+      "shell": "openstack",
+      "path": "/openstack/security-groups",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/server-groups",
+      "shell": "openstack",
+      "path": "/openstack/server-groups",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/topology",
+      "shell": "openstack",
+      "path": "/openstack/topology",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/volume-snapshots",
+      "shell": "openstack",
+      "path": "/openstack/volume-snapshots",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "openstack:/openstack/volumes",
+      "shell": "openstack",
+      "path": "/openstack/volumes",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": "openstack",
+      "actions": []
+    },
+    {
+      "id": "platform:/platform",
+      "shell": "platform",
+      "path": "/platform",
+      "tier": "normal",
+      "headingPattern": "Dashboard|Production Cluster|Platform",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/activity",
+      "shell": "platform",
+      "path": "/platform/activity",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/api-keys",
+      "shell": "platform",
+      "path": "/platform/api-keys",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/applications",
+      "shell": "platform",
+      "path": "/platform/applications",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/backups",
+      "shell": "platform",
+      "path": "/platform/backups",
+      "tier": "normal",
+      "headingPattern": "Backup|Time Machine",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "Timeline"
+        },
+        {
+          "kind": "tab",
+          "label": "Destinations"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/blueprints",
+      "shell": "platform",
+      "path": "/platform/blueprints",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/content",
+      "shell": "platform",
+      "path": "/platform/content",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/developer",
+      "shell": "platform",
+      "path": "/platform/developer",
+      "tier": "advanced",
+      "headingPattern": "Developer",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "tab",
+          "label": "API Console"
+        },
+        {
+          "kind": "click",
+          "role": "button",
+          "name": "Controller (fleet)"
+        },
+        {
+          "kind": "click",
+          "role": "button",
+          "name": "Host (daemon)"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/enroll",
+      "shell": "platform",
+      "path": "/platform/enroll",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/enterprise",
+      "shell": "platform",
+      "path": "/platform/enterprise",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/events",
+      "shell": "platform",
+      "path": "/platform/events",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/hosts",
+      "shell": "platform",
+      "path": "/platform/hosts",
+      "tier": "normal",
+      "headingPattern": "Hosts",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/integrations",
+      "shell": "platform",
+      "path": "/platform/integrations",
+      "tier": "normal",
+      "headingPattern": "Apps & Integrations",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/maintenance",
+      "shell": "platform",
+      "path": "/platform/maintenance",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/migration",
+      "shell": "platform",
+      "path": "/platform/migration",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/networks",
+      "shell": "platform",
+      "path": "/platform/networks",
+      "tier": "power",
+      "headingPattern": "Networks",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/notifications",
+      "shell": "platform",
+      "path": "/platform/notifications",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/observability",
+      "shell": "platform",
+      "path": "/platform/observability",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/placement",
+      "shell": "platform",
+      "path": "/platform/placement",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/policy",
+      "shell": "platform",
+      "path": "/platform/policy",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/projects",
+      "shell": "platform",
+      "path": "/platform/projects",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/recommendations",
+      "shell": "platform",
+      "path": "/platform/recommendations",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/reports",
+      "shell": "platform",
+      "path": "/platform/reports",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/settings",
+      "shell": "platform",
+      "path": "/platform/settings",
+      "tier": "normal",
+      "headingPattern": "Settings|General",
+      "requires": null,
+      "actions": [
+        {
+          "kind": "settingsSection",
+          "label": "General"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Security"
+        },
+        {
+          "kind": "settingsSection",
+          "label": "Network"
+        }
+      ]
+    },
+    {
+      "id": "platform:/platform/storage",
+      "shell": "platform",
+      "path": "/platform/storage",
+      "tier": "power",
+      "headingPattern": "Storage|Disk",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/support",
+      "shell": "platform",
+      "path": "/platform/support",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/tasks",
+      "shell": "platform",
+      "path": "/platform/tasks",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/templates",
+      "shell": "platform",
+      "path": "/platform/templates",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/topology",
+      "shell": "platform",
+      "path": "/platform/topology",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/users",
+      "shell": "platform",
+      "path": "/platform/users",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/vms",
+      "shell": "platform",
+      "path": "/platform/vms",
+      "tier": "normal",
+      "headingPattern": "Finder|Virtual Machines",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/webhooks",
+      "shell": "platform",
+      "path": "/platform/webhooks",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus",
+      "shell": "platform",
+      "path": "/platform/zeus",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/cloud",
+      "shell": "platform",
+      "path": "/platform/zeus/security/cloud",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/connectivity",
+      "shell": "platform",
+      "path": "/platform/zeus/security/connectivity",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/firewall",
+      "shell": "platform",
+      "path": "/platform/zeus/security/firewall",
+      "tier": "power",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/k8s",
+      "shell": "platform",
+      "path": "/platform/zeus/security/k8s",
+      "tier": "advanced",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/security/policies",
+      "shell": "platform",
+      "path": "/platform/zeus/security/policies",
+      "tier": "advanced",
+      "headingPattern": "Policy Studio",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/secrets",
+      "shell": "classic",
+      "path": "/secrets",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/services",
+      "shell": "classic",
+      "path": "/services",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/settings",
+      "shell": "classic",
+      "path": "/settings",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/snapshots",
+      "shell": "classic",
+      "path": "/snapshots",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/storage",
+      "shell": "classic",
+      "path": "/storage",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/system-check",
+      "shell": "classic",
+      "path": "/system-check",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "classic:/vms",
+      "shell": "classic",
+      "path": "/vms",
+      "tier": "normal",
+      "headingPattern": ".+",
+      "requires": null,
+      "actions": []
+    }
+  ]
+}

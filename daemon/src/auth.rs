@@ -557,7 +557,7 @@ pub async fn auth_middleware(
     let path = req.uri().path();
 
     // Public endpoints (paths after nest stripping of /api/v1 or /ws/v1)
-    if path == "/health" || path.starts_with("/auth/") {
+    if path == "/health" || path == "/openapi.json" || path.starts_with("/auth/") {
         return next.run(req).await;
     }
 
