@@ -7,15 +7,13 @@ import ExplainButton from '../../components/ai/ExplainButton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
 import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
+import { statusBgClass, taskStatusTone } from '../../utils/semanticColors'
 import { cancelTask, listPlatformTasks, retryTask, type PlatformTask } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
 function statusColor(status: string) {
-  if (status === 'completed' || status === 'succeeded') return 'bg-emerald-500'
-  if (status === 'failed' || status === 'error') return 'bg-red-500'
-  if (status === 'running' || status === 'pending') return 'bg-blue-500'
-  return 'bg-slate-600'
+  return statusBgClass(taskStatusTone(status))
 }
 
 export default function PlatformTasks() {

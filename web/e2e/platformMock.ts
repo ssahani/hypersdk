@@ -54,6 +54,31 @@ const sampleHost = {
   state: 'online',
   maintenance_mode: false,
   vm_count: 2,
+  last_heartbeat_at: new Date().toISOString(),
+}
+
+const staleHost = {
+  id: 'h-stale',
+  hostname: 'stale-host',
+  address: '127.0.0.2',
+  state: 'offline',
+  maintenance_mode: false,
+  vm_count: 0,
+  last_heartbeat_at: new Date(Date.now() - 5 * 60_000).toISOString(),
+}
+
+const sampleTemplate = {
+  id: 'tpl-1',
+  name: 'ubuntu-24.04',
+  version: '1',
+  source_disk: '/var/lib/libvirt/images/ubuntu.qcow2',
+  cloud_init: true,
+  os_family: 'linux',
+  category: 'Ubuntu',
+  description: 'Ubuntu 24.04 LTS golden image',
+  featured: true,
+  marketplace: true,
+  icon: 'ubuntu',
 }
 
 const sampleVm = {
@@ -71,8 +96,14 @@ const sampleVm = {
   tags: [],
 }
 
-export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'power' | 'advanced' }) {
+export async function mockPlatformApi(page: Page, opts?: {
+  tier?: 'normal' | 'power' | 'advanced'
+  staleHost?: boolean
+  emptyStorage?: boolean
+}) {
   const tier = opts?.tier ?? 'normal'
+  let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
+    opts?.emptyStorage ? [] : [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
   await page.addInitScript((t) => {
     localStorage.setItem('zyvor-platform-welcome-done', '1')
     localStorage.setItem('machina-platform-desktop-tier', t)
@@ -162,17 +193,18 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/fence/events')) {
       return route.fulfill({ json: [] })
     }
+    if (url.includes('/storage/pools/discover')) {
+      storagePools = [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
+      return route.fulfill({ json: { imported: 1, pools: storagePools } })
+    }
     if (url.includes('/storage/pools') && !url.includes('/discover')) {
-      return route.fulfill({ json: [] })
+      return route.fulfill({ json: storagePools })
     }
     if (url.includes('/storage/tiers')) {
       return route.fulfill({ json: { tiers: [], pools: [] } })
     }
     if (url.includes('/storage/backup-sla')) {
       return route.fulfill({ json: { policies: [], summary: 'No SLA configured' } })
-    }
-    if (url.includes('/storage/pools/discover')) {
-      return route.fulfill({ json: { imported: 0, pools: [] } })
     }
     if (url.includes('/fleet/storage')) {
       return route.fulfill({
@@ -395,8 +427,33 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/cluster')) {
       return route.fulfill({ json: { name: 'e2e-cluster', hosts: 1, vms: 2, offline_hosts: 0 } })
     }
+    if (url.includes('/templates/') && url.includes('/readiness')) {
+      return route.fulfill({
+        json: {
+          disk_exists: true,
+          host_online: 1,
+          cloud_init: true,
+          ready: true,
+          remediation: 'Disk present on 1 online host(s).',
+          source_disk: sampleTemplate.source_disk,
+        },
+      })
+    }
+    if (url.includes('/templates/seed')) {
+      return route.fulfill({ json: { inserted: 1, templates: [sampleTemplate] } })
+    }
+    if (url.includes('/templates/marketplace')) {
+      return route.fulfill({ json: [sampleTemplate] })
+    }
+    if (url.includes('/templates')) {
+      return route.fulfill({ json: [sampleTemplate] })
+    }
     if (url.includes('/hosts')) {
-      return route.fulfill({ json: [sampleHost] })
+      if (opts?.emptyStorage) {
+        return route.fulfill({ json: [{ ...sampleHost, state: 'offline' }] })
+      }
+      const hosts = opts?.staleHost ? [sampleHost, staleHost] : [sampleHost]
+      return route.fulfill({ json: hosts })
     }
     if (url.match(/\/vms\/[^/]+\/topology/)) {
       return route.fulfill({

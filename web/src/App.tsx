@@ -301,7 +301,7 @@ function AuthenticatedShellRoutes() {
               className={
                 isPlatformRoute
                   ? 'platform-route-main flex-1 min-w-0 min-h-0 flex flex-col'
-                  : `app-shell flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`
+                  : `app-shell tahoe-page-root platform-readable flex-1 min-w-0 py-6 lg:py-8${theme === 'steel' ? ' steel-content' : ''}${theme === 'aurora' ? ' aurora-content' : ''}`
               }
               role="main"
             >

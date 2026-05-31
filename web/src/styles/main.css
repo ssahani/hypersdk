@@ -655,6 +655,17 @@ a.tahoe-context-app-title:hover {
   }
 }
 
+/* Machina semantic status tokens (color system v1) */
+:root {
+  --machina-status-ok: rgb(52, 211, 153);
+  --machina-status-warn: rgb(251, 191, 36);
+  --machina-status-error: rgb(248, 113, 113);
+  --machina-status-info: rgb(96, 165, 250);
+  --machina-status-neutral: rgb(148, 163, 184);
+  --machina-accent: rgb(56, 189, 248);
+  --machina-accent-ai: rgb(168, 85, 247);
+}
+
 /* Retrofit legacy platform cards/tables to glass inside desktop shell */
 .tahoe-page-root .card,
 .liquid-glass-app .card {
@@ -720,6 +731,22 @@ a.tahoe-context-app-title:hover {
 .tahoe-page-root .btn-secondary:hover:not(:disabled) {
   background: var(--glass-bg-elevated);
   border-color: var(--glass-border-strong);
+}
+
+.tahoe-page-root table thead {
+  color: var(--text-muted, rgb(148, 163, 184));
+}
+
+.tahoe-page-root table tbody tr:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.tahoe-page-root .input,
+.tahoe-page-root select,
+.tahoe-page-root textarea {
+  border-radius: var(--radius-liquid-sm, 0.75rem);
+  border-color: var(--glass-border, rgba(255, 255, 255, 0.08));
+  background: rgba(15, 23, 42, 0.45);
 }
 
 .platform-route-main {

@@ -18,10 +18,12 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone } from '../../utils/semanticColors'
 
 function hostTone(h: PlatformHost): 'ok' | 'warn' | 'default' {
-  if (h.state === 'online' && !h.fenced && !h.maintenance_mode) return 'ok'
-  if (h.state === 'offline' || h.fenced) return 'warn'
+  const tone = hostStateTone(h.state, h.fenced, h.maintenance_mode)
+  if (tone === 'ok') return 'ok'
+  if (tone === 'warn' || tone === 'error') return 'warn'
   return 'default'
 }
 
