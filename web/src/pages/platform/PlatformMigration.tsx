@@ -13,6 +13,8 @@ import { useOpenStackConnection } from '../../hooks/useOpenStackConnection'
 import OpenStackUnreachablePanel from '../../components/OpenStackUnreachablePanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { tasksHubHref } from '../../utils/platformHubLinks'
 import PageSkeleton from '../../components/PageSkeleton'
 
 const SOURCES = [
@@ -28,6 +30,7 @@ type ScanVm = { name: string; status: string; os: string; note: string; provider
 
 export default function PlatformMigration() {
   const { info } = usePlatformInfo()
+  const [tier] = usePlatformDesktopTier()
   const openstackConn = useOpenStackConnection()
   const navigate = useNavigate()
   const toast = useToastContext()
@@ -364,7 +367,7 @@ export default function PlatformMigration() {
           <Link to="/import" className="text-blue-400 inline-flex items-center gap-1">Single-VM import <ExternalLink className="w-3 h-3" /></Link>
           {openstack && <Link to="/openstack/migrations" className="text-blue-400 inline-flex items-center gap-1">OpenStack migrations <ExternalLink className="w-3 h-3" /></Link>}
           <Link to="/platform/integrations" className="text-blue-400">All migration tools →</Link>
-          <Link to="/platform/tasks" className="text-blue-400">View migration tasks →</Link>
+          <Link to={tasksHubHref(tier)} className="text-blue-400">View migration tasks →</Link>
         </p>
       </section>
       </>

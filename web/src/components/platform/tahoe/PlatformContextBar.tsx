@@ -12,6 +12,7 @@ import {
   type ContextNavItem,
 } from '../../../utils/platformContextNav'
 import { showPlatformMenuBarForTier } from '../../../utils/platformDesktopTier'
+import { operationsHubHref } from '../../../utils/platformHubLinks'
 
 function ContextPill({ item, pathname, search }: { item: ContextNavItem; pathname: string; search: string }) {
   const hasQuery = item.to.includes('?')
@@ -145,7 +146,7 @@ export default function PlatformContextBar() {
               <Server className="w-3 h-3" />
               {desktop.hosts_online}/{desktop.hosts_total}
             </Link>
-            <Link to="/platform/operations" className="tahoe-context-status-chip" title="Operations">
+            <Link to={operationsHubHref(tier)} className="tahoe-context-status-chip" title="Operations">
               {desktop.active_tasks} tasks
             </Link>
             <Link to="/platform/zeus" className="tahoe-context-status-chip text-orange-200/80" title="Zeus">
@@ -153,7 +154,7 @@ export default function PlatformContextBar() {
               {desktop.zeus_status}
             </Link>
             {desktop.unread_notifications > 0 ? (
-              <Link to="/platform/operations" className="tahoe-context-status-chip text-amber-200/90" title="Alerts">
+              <Link to={operationsHubHref(tier)} className="tahoe-context-status-chip text-amber-200/90" title="Alerts">
                 <Bell className="w-3 h-3" />
                 {desktop.unread_notifications}
               </Link>

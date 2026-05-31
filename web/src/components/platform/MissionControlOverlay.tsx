@@ -28,6 +28,8 @@ import { formatUserError } from '../../utils/apiError'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useMissionControl } from './mac/MissionControlContext'
 import { loadPlatformDesktopTabs } from '../../utils/platformDesktopTabs'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { operationsHubHref, tasksHubHref } from '../../utils/platformHubLinks'
 
 export default function MissionControlOverlay() {
   const { open, closeMissionControl } = useMissionControl()
@@ -44,6 +46,7 @@ export default function MissionControlOverlay() {
   const [zeusStatus, setZeusStatus] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { desktop, linuxHealth } = useFleetDesktop(open, 120_000)
+  const [tier] = usePlatformDesktopTier()
 
   const load = useCallback(async () => {
     setError(null)
@@ -248,7 +251,7 @@ export default function MissionControlOverlay() {
                 ))}
               </ul>
             )}
-            <Link to="/platform/operations" className="text-xs text-blue-400" onClick={closeMissionControl}>Open Operations hub →</Link>
+            <Link to={operationsHubHref(tier)} className="text-xs text-blue-400" onClick={closeMissionControl}>Open Operations hub →</Link>
           </section>
           <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2"><ArrowRightLeft className="w-4 h-4" /> Migrations & tasks</h2>
@@ -258,7 +261,7 @@ export default function MissionControlOverlay() {
                 <li key={t.id} className="text-red-300 truncate">{t.operation} — {t.status}</li>
               ))}
             </ul>
-            <Link to="/platform/operations" className="text-xs text-blue-400" onClick={closeMissionControl}>View all tasks →</Link>
+            <Link to={tasksHubHref(tier)} className="text-xs text-blue-400" onClick={closeMissionControl}>View all tasks →</Link>
           </section>
         </div>
       </div>

@@ -70,3 +70,13 @@ test('normal tier alerts quick action opens notification center', async ({ page 
   await page.getByRole('link', { name: 'Alerts' }).click()
   await expect(page).toHaveURL(/\/platform\/notifications/)
 })
+
+test('settings context bar collapses overflow into More menu', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'advanced' })
+  await page.goto('/platform/settings?section=policy')
+  await expect(page.locator('.tahoe-context-bar')).toBeVisible()
+  await expect(page.locator('.tahoe-context-pill', { hasText: 'Policy' })).toBeVisible()
+  await expect(page.locator('.tahoe-context-more')).toBeVisible()
+  await page.locator('.tahoe-context-more').click()
+  await expect(page.locator('.tahoe-context-overflow-item', { hasText: 'About' })).toBeVisible()
+})

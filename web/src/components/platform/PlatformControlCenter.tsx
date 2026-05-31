@@ -44,6 +44,7 @@ import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { hubTilesForTier, type DesktopHubTile } from '../../utils/platformHubZones'
+import { operationsHubHref } from '../../utils/platformHubLinks'
 
 export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()
@@ -215,7 +216,7 @@ export default function PlatformControlCenter() {
                     icon={<Loader2 className={`w-4 h-4 text-emerald-400 ${activeTasks ? 'animate-spin' : ''}`} />}
                     label="Tasks"
                     value={String(activeTasks)}
-                    href="/platform/operations"
+                    href={operationsHubHref(tier)}
                     spark={failedTasks ? `${failedTasks} failed` : undefined}
                     tone={failedTasks ? 'warn' : undefined}
                   />
@@ -290,7 +291,7 @@ export default function PlatformControlCenter() {
                 icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
                 label="Alerts"
                 value={unreadAlerts ? `${unreadAlerts} unread` : warnings ? `${warnings} item(s)` : 'None'}
-                href="/platform/operations"
+                href={operationsHubHref(tier)}
                 tone={unreadAlerts || warnings ? 'warn' : 'ok'}
               />
             </div>
@@ -312,7 +313,7 @@ export default function PlatformControlCenter() {
               </Link>
               <Link to="/platform/settings?section=general" className="btn-secondary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Settings</Link>
               {showPower && (
-              <Link to="/platform/operations" className="btn-primary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Operations</Link>
+              <Link to={operationsHubHref(tier)} className="btn-primary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Operations</Link>
               )}
             </div>
             <div className="px-4 pb-3 text-xs text-slate-500">

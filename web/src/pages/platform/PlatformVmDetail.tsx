@@ -64,11 +64,14 @@ import { formatUserError } from '../../utils/apiError'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { tasksHubHref } from '../../utils/platformHubLinks'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
   const isPopout = isCenterPopoutMode(location.search)
   const { id } = useParams<{ id: string }>()
+  const [tier] = usePlatformDesktopTier()
   const { setContextVmId, openCopilot } = useAi()
   const toast = useToastContext()
   const [vm, setVm] = useState<PlatformVm | null>(null)
@@ -680,7 +683,7 @@ export default function PlatformVmDetail() {
                 )}
               </MacGlassPanel>
               <MacGlassPanel title="Events">
-                <Link to="/platform/tasks" className="text-blue-400">View task history →</Link>
+                <Link to={tasksHubHref(tier)} className="text-blue-400">View task history →</Link>
               </MacGlassPanel>
             </div>
           )}

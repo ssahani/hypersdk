@@ -13,7 +13,7 @@ import {
   Wrench,
 } from 'lucide-react'
 import type { PlatformDesktopTier } from './platformDesktopTier'
-import { isPathAllowedForTier } from './platformDesktopTier'
+import { isPathAllowedForTier, tierAtLeast } from './platformDesktopTier'
 import { platformPageLabel } from './platformDesktopTabs'
 
 export type ContextNavItem = {
@@ -36,15 +36,32 @@ type ContextDefinition = {
   items: ContextNavItem[]
 }
 
-const SETTINGS_SECTIONS: ContextNavItem[] = [
+type SettingsNavEntry = ContextNavItem & { minTier?: PlatformDesktopTier }
+
+const SETTINGS_ENTRIES: SettingsNavEntry[] = [
   { to: '/platform/settings?section=general', label: 'General' },
   { to: '/platform/settings?section=security', label: 'Security' },
   { to: '/platform/settings?section=network', label: 'Network' },
   { to: '/platform/settings?section=users', label: 'Users' },
+  { to: '/platform/settings?section=stage-manager', label: 'Stage Manager', minTier: 'power' },
+  { to: '/platform/settings?section=keychain', label: 'Keychain', minTier: 'power' },
+  { to: '/platform/settings?section=policy', label: 'Policy', minTier: 'power' },
+  { to: '/platform/settings?section=api-keys', label: 'API Keys', minTier: 'power' },
+  { to: '/platform/settings?section=webhooks', label: 'Webhooks', minTier: 'power' },
+  { to: '/platform/settings?section=reports', label: 'Reports', minTier: 'power' },
+  { to: '/platform/settings?section=console', label: 'Console', minTier: 'power' },
+  { to: '/platform/settings?section=resources', label: 'Resources', minTier: 'power' },
   { to: '/platform/settings?section=updates', label: 'Updates' },
   { to: '/platform/settings?section=integrations', label: 'Integrations' },
+  { to: '/platform/settings?section=support', label: 'Support' },
   { to: '/platform/settings?section=about', label: 'About' },
 ]
+
+export function settingsItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
+  return SETTINGS_ENTRIES
+    .filter((item) => tierAtLeast(tier, item.minTier ?? 'normal'))
+    .map(({ to, label }) => ({ to, label }))
+}
 
 const SECURITY_ITEMS: ContextNavItem[] = [
   { to: '/platform/zeus/security', label: 'Security Center' },
@@ -144,7 +161,7 @@ const CONTEXT_DEFINITIONS: ContextDefinition[] = [
     appLabel: 'Settings',
     appIcon: Settings,
     hubPath: '/platform/settings',
-    items: SETTINGS_SECTIONS,
+    items: [],
   },
   {
     match: (p) => p.startsWith('/platform/integrations') || p.startsWith('/platform/applications'),
@@ -200,7 +217,9 @@ export function contextNavForPath(pathname: string, tier: PlatformDesktopTier): 
     }
   }
 
-  const items = filterItems(def.items, tier)
+  const items = pathname.startsWith('/platform/settings')
+    ? settingsItemsForTier(tier)
+    : filterItems(def.items, tier)
   if (items.length <= 1) {
     return {
       appLabel: def.appLabel,
