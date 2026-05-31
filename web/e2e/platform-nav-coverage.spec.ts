@@ -100,6 +100,24 @@ test('settings context bar collapses overflow into More menu', async ({ page }) 
   await expect(page.locator('.tahoe-context-overflow-item', { hasText: 'About' })).toBeVisible()
 })
 
+test('policy workspace shows settings context bar on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/policy')
+  await expect(page.getByRole('heading', { name: /Policy & Quotas/i })).toBeVisible({ timeout: 15_000 })
+  await expect(page.locator('.tahoe-context-bar')).toBeVisible()
+  await expect(page.locator('.tahoe-context-pill', { hasText: 'Policy' })).toBeVisible()
+})
+
+test('mobile jump nav reflects settings workspace on policy route', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/platform/policy')
+  const jump = page.getByRole('combobox', { name: 'Navigate platform' })
+  await expect(jump).toHaveValue('/platform/settings?section=policy')
+  await jump.selectOption('/platform/settings?section=security')
+  await expect(page).toHaveURL(/\/platform\/settings\?section=security/)
+})
+
 test('zeus context bar collapses overflow into More menu', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/zeus?tab=knowledge')

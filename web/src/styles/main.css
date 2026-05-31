@@ -370,6 +370,8 @@ a.tahoe-context-app-title:hover {
   left: 0;
   top: calc(100% + 0.35rem);
   z-index: 50;
+  display: flex;
+  flex-direction: column;
   min-width: 11rem;
   padding: 0.35rem;
   border-radius: 0.875rem;

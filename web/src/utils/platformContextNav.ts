@@ -63,6 +63,32 @@ export function settingsItemsForTier(tier: PlatformDesktopTier): ContextNavItem[
     .map(({ to, label }) => ({ to, label }))
 }
 
+/** Full-page settings workspaces linked from inline Settings panes. */
+export const SETTINGS_WORKSPACE_PATHS: Record<string, string> = {
+  '/platform/users': 'users',
+  '/platform/projects': 'stage-manager',
+  '/platform/enterprise': 'keychain',
+  '/platform/policy': 'policy',
+  '/platform/api-keys': 'api-keys',
+  '/platform/webhooks': 'webhooks',
+  '/platform/events': 'console',
+}
+
+export function isSettingsWorkspacePath(pathname: string): boolean {
+  return pathname in SETTINGS_WORKSPACE_PATHS
+}
+
+export function isSettingsContextPath(pathname: string): boolean {
+  return pathname.startsWith('/platform/settings') || isSettingsWorkspacePath(pathname)
+}
+
+function settingsSectionFromPath(pathname: string, search: string): string {
+  if (pathname.startsWith('/platform/settings')) {
+    return new URLSearchParams(search).get('section') ?? 'general'
+  }
+  return SETTINGS_WORKSPACE_PATHS[pathname] ?? 'general'
+}
+
 const SECURITY_ITEMS: ContextNavItem[] = [
   { to: '/platform/zeus/security', label: 'Security Center' },
   { to: '/platform/zeus/security/firewall', label: 'Firewall' },
@@ -200,7 +226,10 @@ function filterItems(items: ContextNavItem[], tier: PlatformDesktopTier): Contex
 }
 
 export function contextNavForPath(pathname: string, tier: PlatformDesktopTier): PlatformContextNav | null {
-  const def = CONTEXT_DEFINITIONS.find((d) => d.match(pathname))
+  let def = CONTEXT_DEFINITIONS.find((d) => d.match(pathname))
+  if (isSettingsWorkspacePath(pathname)) {
+    def = CONTEXT_DEFINITIONS.find((d) => d.appLabel === 'Settings')
+  }
   if (!def) {
     const label = platformPageLabel(pathname)
     if (pathname === '/platform') {
@@ -217,7 +246,7 @@ export function contextNavForPath(pathname: string, tier: PlatformDesktopTier): 
     }
   }
 
-  const items = pathname.startsWith('/platform/settings')
+  const items = isSettingsContextPath(pathname)
     ? settingsItemsForTier(tier)
     : filterItems(def.items, tier)
   if (items.length <= 1) {
@@ -245,10 +274,9 @@ export function isContextNavActive(pathname: string, search: string, item: Conte
     const current = new URLSearchParams(search)
 
     if (itemPath === '/platform/settings') {
-      if (!pathname.startsWith('/platform/settings')) return false
+      if (!isSettingsContextPath(pathname)) return false
       const expectedSection = expected.get('section') ?? 'general'
-      const currentSection = current.get('section') ?? 'general'
-      return expectedSection === currentSection
+      return settingsSectionFromPath(pathname, search) === expectedSection
     }
 
     if (pathname !== itemPath && !pathname.startsWith(`${itemPath}/`)) return false

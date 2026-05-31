@@ -17,4 +17,11 @@ describe('spotlightNavForTier', () => {
     const grouped = groupSpotlightByZone(spotlightNavForTier('advanced'))
     expect(grouped[0]?.zone).toBe('Platform hubs')
   })
+
+  it('includes settings panes on power tier', () => {
+    const entries = spotlightNavForTier('power')
+    const settings = entries.filter((entry) => entry.zone === 'Settings')
+    expect(settings.some((entry) => entry.label === 'Policy')).toBe(true)
+    expect(settings.every((entry) => entry.path.includes('section='))).toBe(true)
+  })
 })

@@ -70,4 +70,12 @@ describe('settingsItemsForTier', () => {
     const ctx = contextNavForPath('/platform/tasks', 'power')
     expect(ctx?.items.some((item) => item.label === 'Observability')).toBe(true)
   })
+
+  it('shows settings context on full policy workspace', () => {
+    const ctx = contextNavForPath('/platform/policy', 'power')
+    expect(ctx?.appLabel).toBe('Settings')
+    expect(ctx?.items.some((item) => item.label === 'Policy')).toBe(true)
+    const policy = { to: '/platform/settings?section=policy', label: 'Policy' }
+    expect(isContextNavActive('/platform/policy', '', policy)).toBe(true)
+  })
 })
