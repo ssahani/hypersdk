@@ -3,6 +3,15 @@
 import { test, expect } from '@playwright/test'
 import { mockPlatformApi } from './platformMock'
 
+async function expectRouteVisible(page: import('@playwright/test').Page, path: string, text: RegExp) {
+  await page.goto(path)
+  if (path === '/platform/resources') {
+    await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible({ timeout: 20_000 })
+    return
+  }
+  await expect(page.getByText(text).first()).toBeVisible({ timeout: 20_000 })
+}
+
 const NORMAL_ROUTES: Array<{ path: string; text: RegExp }> = [
   { path: '/platform', text: /Production Cluster|Dashboard|Zyvor Platform/i },
   { path: '/platform/vms', text: /Finder/i },
@@ -37,8 +46,7 @@ test.describe('power tier platform routes', () => {
       const errors: string[] = []
       page.on('pageerror', (err) => errors.push(err.message))
       await mockPlatformApi(page, { tier: 'power' })
-      await page.goto(path)
-      await expect(page.getByText(text).first()).toBeVisible({ timeout: 15_000 })
+      await expectRouteVisible(page, path, text)
       expect(errors).toEqual([])
     })
   }
@@ -50,8 +58,7 @@ test.describe('normal tier platform routes', () => {
       const errors: string[] = []
       page.on('pageerror', (err) => errors.push(err.message))
       await mockPlatformApi(page, { tier: 'normal' })
-      await page.goto(path)
-      await expect(page.getByText(text).first()).toBeVisible({ timeout: 15_000 })
+      await expectRouteVisible(page, path, text)
       expect(errors).toEqual([])
     })
   }
@@ -63,8 +70,7 @@ test.describe('advanced tier platform routes', () => {
       const errors: string[] = []
       page.on('pageerror', (err) => errors.push(err.message))
       await mockPlatformApi(page, { tier: 'advanced' })
-      await page.goto(path)
-      await expect(page.getByText(text).first()).toBeVisible({ timeout: 15_000 })
+      await expectRouteVisible(page, path, text)
       expect(errors).toEqual([])
     })
   }

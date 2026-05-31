@@ -29,6 +29,7 @@ import {
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo, SnapshotDiskSpec } from '../api/snapshot'
 import { getStateBadgeClasses, formatBytes } from '../utils/vm'
+import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 import { loadVmSshPrefs, saveVmSshPrefs } from '../utils/vmSshPrefs'
 import { addRecentVM } from '../utils/recentVMs'
 import { guestIpv4GatewayHints } from '../utils/guestIpv4GatewayHints'
@@ -84,14 +85,14 @@ function SnapshotTableRows({
             </td>
             <td className="px-6 py-3 text-sm text-slate-400">{snap.state}</td>
             <td className="px-6 py-3 text-sm text-slate-400">{snap.creation_time ? new Date(snap.creation_time * 1000).toLocaleString() : '-'}</td>
-            <td className="px-6 py-3">{snap.is_current && <span className="text-green-400 text-xs font-medium">Current</span>}</td>
+            <td className="px-6 py-3">{snap.is_current && <span className={`text-xs font-medium ${statusToneClass('ok')}`}>Current</span>}</td>
             <td className="px-6 py-3 text-right">
               <div className="flex items-center justify-end gap-1">
                 <button type="button" onClick={() => onRevert(snap.name)} className="p-1 hover:bg-blue-600/20 rounded transition" title="Revert" aria-label={`Revert ${snap.name}`}>
                   <RotateCw className="w-4 h-4 text-blue-400" />
                 </button>
                 <button type="button" onClick={() => onDelete(snap.name)} className="p-1 hover:bg-red-600/20 rounded transition" title="Delete" aria-label={`Delete ${snap.name}`}>
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} />
                 </button>
               </div>
             </td>
@@ -1101,13 +1102,13 @@ export default function VMDetailsPage() {
           <div className="flex items-center gap-3 mt-1">
             <span className={`px-2 py-0.5 rounded text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
             {vm.libvirt_connection === 'session' && (
-              <span className="px-2 py-0.5 rounded text-xs font-medium bg-amber-500/15 text-amber-400 border border-amber-500/25" title="Domain on qemu:///session">
+              <span className={sessionBadgeClasses('text-xs')} title="Domain on qemu:///session">
                 session
               </span>
             )}
             <span className="text-sm text-slate-500 font-mono">{vm.uuid}</span>
             {vm.guest_ip && (
-              <span className="text-sm text-emerald-400/90 font-mono" title="From libvirt lease / ARP / guest agent">
+              <span className={`text-sm font-mono ${statusToneClass('ok')} opacity-90`} title="From libvirt lease / ARP / guest agent">
                 · {vm.guest_ip}
               </span>
             )}
@@ -1116,7 +1117,7 @@ export default function VMDetailsPage() {
             {vmTags.map((t) => (
               <span key={t} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-xs font-medium">
                 <Tag className="w-3 h-3" />{t}
-                <button onClick={async () => { const next = vmTags.filter(x => x !== t); try { await apiSetVmTags(vm.name, next); setVmTags(next) } catch (e: unknown) { toast.error(formatUserError(e)) } }} className="hover:text-red-400 ml-0.5" aria-label={`Remove tag ${t}`}><X className="w-3 h-3" /></button>
+                <button onClick={async () => { const next = vmTags.filter(x => x !== t); try { await apiSetVmTags(vm.name, next); setVmTags(next) } catch (e: unknown) { toast.error(formatUserError(e)) } }} className={`ml-0.5 opacity-70 hover:opacity-100 ${statusToneClass('error')}`} aria-label={`Remove tag ${t}`}><X className="w-3 h-3" /></button>
               </span>
             ))}
             <form className="inline-flex items-center gap-1" onSubmit={async (e) => { e.preventDefault(); const tag = newTag.trim(); if (!tag || vmTags.includes(tag)) return; const next = [...vmTags, tag]; try { await apiSetVmTags(vm.name, next); setVmTags(next); setNewTag('') } catch (e: unknown) { toast.error(formatUserError(e)) } }}>
@@ -1210,8 +1211,8 @@ export default function VMDetailsPage() {
             <div className="flex items-center justify-between py-2">
               <span className="text-slate-400 text-sm">Autostart</span>
               <button onClick={toggleAutostart} className="flex items-center gap-2 text-sm">
-                {vm.autostart ? <ToggleRight className="w-5 h-5 text-green-400" /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
-                <span className={vm.autostart ? 'text-green-400' : 'text-slate-500'}>{vm.autostart ? 'Enabled' : 'Disabled'}</span>
+                {vm.autostart ? <ToggleRight className={`w-5 h-5 ${statusToneClass('ok')}`} /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
+                <span className={vm.autostart ? statusToneClass('ok') : 'text-slate-500'}>{vm.autostart ? 'Enabled' : 'Disabled'}</span>
               </button>
             </div>
             <p className="text-xs text-slate-500 leading-snug">
@@ -1232,7 +1233,7 @@ export default function VMDetailsPage() {
                       setFwChoice(f.includes('efi') || f.includes('ovmf') || f.includes('uefi') ? 'uefi' : 'bios')
                       openDialog('firmware')
                     }}
-                    className="text-xs text-amber-400 hover:text-amber-300 transition"
+                    className={`text-xs transition ${statusActionLinkClasses('warn')}`}
                   >
                     Firmware…
                   </button>
@@ -1330,7 +1331,7 @@ export default function VMDetailsPage() {
                         </div>
                       ) : null}
                       {ip.source === 'arp' ? (
-                        <div className="text-amber-400/90">
+                        <div className={`${statusToneClass('warn')} opacity-90`}>
                           ARP-derived — kernel cache; can be stale vs guest reality.
                         </div>
                       ) : null}
@@ -1338,7 +1339,7 @@ export default function VMDetailsPage() {
                         <div
                           className={
                             ip.lease_seconds_remaining != null && ip.lease_seconds_remaining < 0
-                              ? 'text-red-400/90'
+                              ? `${statusToneClass('error')} opacity-90`
                               : 'text-slate-400'
                           }
                         >
@@ -1376,7 +1377,7 @@ export default function VMDetailsPage() {
                   ))}
                 </ul>
               ) : (
-                <p className="mt-1 text-xs text-emerald-400/90">No issues detected</p>
+                <p className={`mt-1 text-xs ${statusToneClass('ok')} opacity-90`}>No issues detected</p>
               )}
             </div>
           )}
@@ -1505,7 +1506,7 @@ export default function VMDetailsPage() {
             </ResponsiveContainer>
           </div>
           <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
-            <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4"><HardDrive className="w-4 h-4 text-emerald-400" /> Disk I/O</h3>
+            <h3 className="text-sm font-semibold text-white flex items-center gap-2 mb-4"><HardDrive className={`w-4 h-4 ${statusToneClass('ok')}`} /> Disk I/O</h3>
             <ResponsiveContainer width="100%" height={180}>
               <AreaChart data={metricsHistory}>
                 <defs>
@@ -1600,14 +1601,14 @@ export default function VMDetailsPage() {
                             title="Tune disk"
                             aria-label={`Tune ${d.target}`}
                           >
-                            <Sliders className="w-4 h-4 text-amber-400" />
+                            <Sliders className={`w-4 h-4 ${statusToneClass('warn')}`} />
                           </button>
                         )}
                         {d.device === 'disk' && <button onClick={() => { setResizeTarget(d.target); setResizeGb(20); setDialog('resize-disk') }} className="p-1 hover:bg-blue-600/20 rounded transition" title="Resize disk" aria-label={`Resize ${d.target}`}>
                           <HardDrive className="w-4 h-4 text-blue-400" />
                         </button>}
                         <button onClick={() => setDetachDiskTarget(d.target)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach disk" aria-label={`Detach ${d.target}`}>
-                          <Trash2 className="w-4 h-4 text-red-400" />
+                          <Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} />
                         </button>
                       </div>
                     </td>
@@ -1707,10 +1708,10 @@ export default function VMDetailsPage() {
                           title="Tune NIC"
                           aria-label={`Tune ${iface.mac_address}`}
                         >
-                          <Sliders className="w-4 h-4 text-amber-400" />
+                          <Sliders className={`w-4 h-4 ${statusToneClass('warn')}`} />
                         </button>
                         <button onClick={() => setDetachNicMac(iface.mac_address)} className="p-1 hover:bg-red-600/20 rounded transition" title="Detach NIC" aria-label={`Detach ${iface.mac_address}`}>
-                          <Trash2 className="w-4 h-4 text-red-400" />
+                          <Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} />
                         </button>
                       </div>
                     </td>
@@ -1788,7 +1789,7 @@ export default function VMDetailsPage() {
           {/* Shared directories (virtiofs) */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold flex items-center gap-2"><FolderOpen className="w-5 h-5 text-emerald-400" /> Shared directories</h3>
+              <h3 className="text-lg font-semibold flex items-center gap-2"><FolderOpen className={`w-5 h-5 ${statusToneClass('ok')}`} /> Shared directories</h3>
               <span className="text-xs text-slate-500">virtiofs (Linux guests)</span>
             </div>
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 space-y-4">
@@ -1996,7 +1997,7 @@ export default function VMDetailsPage() {
           </div>
 
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><Trash2 className="w-5 h-5 text-red-400" /> Delete VM</h3>
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Trash2 className={`w-5 h-5 ${statusToneClass('error')}`} /> Delete VM</h3>
             <p className="text-xs text-slate-400">Optional <code className="text-slate-300">undefine</code> flags (query params on DELETE). Typically use with VM shut off.</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
               <label className="flex items-center gap-2 cursor-pointer text-slate-300">
@@ -2286,7 +2287,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'clone' && (
-            <DialogBox title="Clone VM" icon={<Copy className="w-5 h-5 text-green-400" />} onClose={() => setDialog(null)} onConfirm={handleClone} confirmLabel="Clone">
+            <DialogBox title="Clone VM" icon={<Copy className={`w-5 h-5 ${statusToneClass('ok')}`} />} onClose={() => setDialog(null)} onConfirm={handleClone} confirmLabel="Clone">
               <label htmlFor="dlg-clone" className="block text-sm text-slate-400 mb-1">New VM Name</label>
               <input id="dlg-clone" type="text" autoFocus value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="input-field" placeholder="my-vm-clone" />
               <p className="text-xs text-slate-500 mt-2">Creates a copy of the VM definition with new UUID and MAC addresses. Disk images are NOT copied.</p>
@@ -2294,7 +2295,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'rename' && (
-            <DialogBox title="Rename VM" icon={<Pencil className="w-5 h-5 text-yellow-400" />} onClose={() => setDialog(null)} onConfirm={handleRename} confirmLabel="Rename">
+            <DialogBox title="Rename VM" icon={<Pencil className={`w-5 h-5 ${statusToneClass('warn')}`} />} onClose={() => setDialog(null)} onConfirm={handleRename} confirmLabel="Rename">
               <label htmlFor="dlg-rename" className="block text-sm text-slate-400 mb-1">New Name</label>
               <input id="dlg-rename" type="text" autoFocus value={newName} onChange={(e) => setNewName(e.target.value)} className="input-field" />
               <p className="text-xs text-slate-500 mt-2">VM must be shut off to rename.</p>
@@ -2332,7 +2333,7 @@ export default function VMDetailsPage() {
           {dialog === 'snapshot' && (
             <DialogBox
               title="Create Snapshot"
-              icon={<Camera className="w-5 h-5 text-green-400" />}
+              icon={<Camera className={`w-5 h-5 ${statusToneClass('ok')}`} />}
               onClose={() => {
                 setDialog(null)
                 setSnapDiskOnly(false)
@@ -2529,7 +2530,7 @@ export default function VMDetailsPage() {
                     <span className="flex-1 text-sm font-medium">{dev}</span>
                     <button onClick={() => moveBootDevice(i, -1)} disabled={i === 0} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move up"><ChevronUp className="w-4 h-4" /></button>
                     <button onClick={() => moveBootDevice(i, 1)} disabled={i === bootDevices.length - 1} className="p-0.5 hover:bg-slate-700 rounded disabled:opacity-30" aria-label="Move down"><ChevronDown className="w-4 h-4" /></button>
-                    <button onClick={() => setBootDevices(bootDevices.filter((_, j) => j !== i))} className="p-0.5 hover:bg-red-600/20 rounded" aria-label="Remove"><X className="w-4 h-4 text-red-400" /></button>
+                    <button onClick={() => setBootDevices(bootDevices.filter((_, j) => j !== i))} className="p-0.5 hover:bg-red-600/20 rounded" aria-label="Remove"><X className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                   </div>
                 ))}
               </div>
@@ -2552,7 +2553,7 @@ export default function VMDetailsPage() {
                   {cdromDisks.map((d, i) => (
                     <div key={i} className="flex items-center justify-between py-1">
                       <span className="text-sm"><span className="font-mono text-blue-400">{d.target}</span> {d.source ? <span className="text-slate-400 text-xs ml-2">{d.source.split('/').pop()}</span> : <span className="text-slate-500 text-xs ml-2">(empty)</span>}</span>
-                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target, conn).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${formatUserError(e)}`)) } }} className="px-2 py-0.5 bg-red-600/20 hover:bg-red-600/30 rounded text-xs text-red-400 transition">Eject</button>}
+                      {d.source && <button onClick={() => { if (name) { ejectCdrom(name, d.target, conn).then(() => { toast.success('CD-ROM ejected'); setDialog(null); load() }).catch((e: unknown) => toast.error(`Eject failed: ${formatUserError(e)}`)) } }} className={`px-2 py-0.5 rounded text-xs transition ${statusBadgeClasses('error')}`}>Eject</button>}
                     </div>
                   ))}
                 </div>
@@ -2691,7 +2692,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'disk-tune' && (
-            <DialogBox title={`Tune disk ${tuneDiskTarget}`} icon={<Sliders className="w-5 h-5 text-amber-400" />} onClose={() => setDialog(null)} onConfirm={handleDiskTune} confirmLabel="Apply">
+            <DialogBox title={`Tune disk ${tuneDiskTarget}`} icon={<Sliders className={`w-5 h-5 ${statusToneClass('warn')}`} />} onClose={() => setDialog(null)} onConfirm={handleDiskTune} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-2">Leave fields empty to skip. Readonly/shareable: choose “no change”, on, or off.</p>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2742,7 +2743,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'nic-tune' && (
-            <DialogBox title="Tune network interface" icon={<Sliders className="w-5 h-5 text-amber-400" />} onClose={() => setDialog(null)} onConfirm={handleNicTune} confirmLabel="Apply">
+            <DialogBox title="Tune network interface" icon={<Sliders className={`w-5 h-5 ${statusToneClass('warn')}`} />} onClose={() => setDialog(null)} onConfirm={handleNicTune} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-2 font-mono">{tuneMac}</p>
               <label className="block text-sm text-slate-400 mb-1">Model</label>
               <select value={tuneNicModel} onChange={(e) => setTuneNicModel(e.target.value)} className="input-field">
@@ -2768,7 +2769,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'watchdog' && (
-            <DialogBox title="Attach watchdog" icon={<Settings className="w-5 h-5 text-red-400" />} onClose={() => setDialog(null)} onConfirm={handleWatchdogAttach} confirmLabel="Attach">
+            <DialogBox title="Attach watchdog" icon={<Settings className={`w-5 h-5 ${statusToneClass('error')}`} />} onClose={() => setDialog(null)} onConfirm={handleWatchdogAttach} confirmLabel="Attach">
               <label className="block text-sm text-slate-400 mb-1">Model</label>
               <select value={wdModel} onChange={(e) => setWdModel(e.target.value)} className="input-field">
                 <option value="i6300esb">i6300esb</option>
@@ -2818,7 +2819,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'resize-disk' && (
-            <DialogBox title={`Resize Disk (${resizeTarget})`} icon={<HardDrive className="w-5 h-5 text-green-400" />} onClose={() => setDialog(null)} onConfirm={handleResizeDisk} confirmLabel="Resize">
+            <DialogBox title={`Resize Disk (${resizeTarget})`} icon={<HardDrive className={`w-5 h-5 ${statusToneClass('ok')}`} />} onClose={() => setDialog(null)} onConfirm={handleResizeDisk} confirmLabel="Resize">
               <label htmlFor="dlg-resize" className="block text-sm text-slate-400 mb-1">New Size (GB)</label>
               <input id="dlg-resize" type="number" min={1} max={10240} autoFocus value={resizeGb} onChange={(e) => setResizeGb(parseInt(e.target.value) || 1)} className="input-field" />
               <p className="text-xs text-slate-500 mt-2">Can only grow, not shrink. VM must be running with guest agent or shut off.</p>
@@ -2855,7 +2856,7 @@ export default function VMDetailsPage() {
           {dialog === 'delete-vm' && (
             <DialogBox
               title="Delete VM permanently"
-              icon={<Trash2 className="w-5 h-5 text-red-400" />}
+              icon={<Trash2 className={`w-5 h-5 ${statusToneClass('error')}`} />}
               onClose={() => setDialog(null)}
               onConfirm={handleDeleteVm}
               confirmLabel="Delete"
@@ -2943,7 +2944,7 @@ export default function VMDetailsPage() {
           )}
 
           {dialog === 'emulator-pin' && (
-            <DialogBox title="Pin QEMU emulator to host CPUs" icon={<Cpu className="w-5 h-5 text-amber-400" />} onClose={() => setDialog(null)} onConfirm={() => void handleEmulatorPinSave()} confirmLabel="Apply">
+            <DialogBox title="Pin QEMU emulator to host CPUs" icon={<Cpu className={`w-5 h-5 ${statusToneClass('warn')}`} />} onClose={() => setDialog(null)} onConfirm={() => void handleEmulatorPinSave()} confirmLabel="Apply">
               <p className="text-xs text-slate-500 mb-2">Host CPUs 0–63 (first 64 logical CPUs), same grid as vCPU pinning.</p>
               <div className="max-h-40 overflow-y-auto border border-slate-700 rounded p-2 grid grid-cols-8 gap-1">
                 {emuPinMap.map((on, i) => (
@@ -3018,7 +3019,7 @@ export default function VMDetailsPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true">
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-              <span className="text-lg font-semibold flex items-center gap-2"><Terminal className="w-5 h-5 text-green-400" /> SSH Connection</span>
+              <span className="text-lg font-semibold flex items-center gap-2"><Terminal className={`w-5 h-5 ${statusToneClass('ok')}`} /> SSH Connection</span>
               <button onClick={() => setSshDialogOpen(false)} className="p-1 hover:bg-slate-700 rounded transition"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-3">
