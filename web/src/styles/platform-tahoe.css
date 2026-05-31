@@ -370,6 +370,16 @@
   transform: translateX(2px);
 }
 
+.tahoe-hub-preview-card {
+  opacity: 0.82;
+  border-style: dashed;
+}
+
+.tahoe-hub-preview-card:hover {
+  opacity: 1;
+  border-color: rgba(56, 189, 248, 0.25);
+}
+
 .tahoe-sidebar-section + .tahoe-sidebar-section {
   margin-top: 0.125rem;
 }

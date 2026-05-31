@@ -11,8 +11,15 @@ import { aiRunbook } from '../../api/ai'
 import ExplainButton from '../../components/ai/ExplainButton'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import type { PlatformDesktopTier } from '../../utils/platformDesktopTier'
+import { tasksHubHref } from '../../utils/platformHubLinks'
 
-function actionForKind(kind: string, payload: Record<string, unknown>): { label: string; href?: string; action?: () => Promise<void> } | null {
+function actionForKind(
+  kind: string,
+  payload: Record<string, unknown>,
+  tier: PlatformDesktopTier,
+): { label: string; href?: string; action?: () => Promise<void> } | null {
   if (kind.includes('backup') && kind.includes('fail')) {
     const vmId = payload.vm_id as string | undefined
     return { label: 'Retry backup', action: vmId ? async () => { await createVmBackup(vmId) } : undefined }
@@ -22,13 +29,14 @@ function actionForKind(kind: string, payload: Record<string, unknown>): { label:
     return vmId ? { label: 'Open VM', href: `/platform/vms/${vmId}` } : null
   }
   if (kind.includes('task') && kind.includes('fail')) {
-    return { label: 'View tasks', href: '/platform/operations' }
+    return { label: 'View tasks', href: tasksHubHref(tier) }
   }
   return null
 }
 
 export default function PlatformNotifications() {
   const toast = useToastContext()
+  const [tier] = usePlatformDesktopTier()
   const [rows, setRows] = useState<NotificationRow[]>([])
   const [error, setError] = useState<string | null>(null)
   const [undeliveredOnly, setUndeliveredOnly] = useState(true)
@@ -77,7 +85,7 @@ export default function PlatformNotifications() {
       ) : (
         <ul className="space-y-3">
           {rows.map((n) => {
-            const act = actionForKind(n.kind, n.payload)
+            const act = actionForKind(n.kind, n.payload, tier)
             return (
               <li key={n.id} className={`rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
                 n.delivered ? 'border-white/[0.04] bg-slate-900/30 opacity-70' : 'border-amber-500/20 bg-amber-500/5'

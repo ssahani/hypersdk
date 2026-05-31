@@ -34,6 +34,7 @@ import {
 import { aiSpotlight, type SpotlightIntent, type SpotlightResult } from '../api/ai'
 import { isInputFocused } from '../hooks/useKeyboardShortcut'
 import { loadPlatformDesktopTier } from '../utils/platformDesktopTier'
+import { operationsHubHref, tasksHubHref, activityHubHref } from '../utils/platformHubLinks'
 import { groupSpotlightByZone, spotlightNavForTier, spotlightZoneOrder } from '../utils/platformSpotlightNav'
 
 interface CommandPaletteProps {
@@ -242,13 +243,14 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   }
 
   // Platform quick actions (deduped when already in hub zone nav)
+  const desktopTier = loadPlatformDesktopTier()
   const platformActions: PaletteItem[] = [
     { id: 'plat-create-vm', icon: <Plus className="w-4 h-4" />, label: 'Create VM', sublabel: 'Platform wizard', action: () => go('/platform/vms'), category: 'Platform Actions' },
     { id: 'plat-migrate', icon: <Upload className="w-4 h-4" />, label: 'Import VMware VM', sublabel: 'Migration Assistant', action: () => go('/platform/migration'), category: 'Platform Actions' },
     { id: 'plat-iso', icon: <HardDrive className="w-4 h-4" />, label: 'Upload ISO', action: () => go('/platform/content'), category: 'Platform Actions' },
-    { id: 'plat-tasks', icon: <ClipboardList className="w-4 h-4" />, label: 'Show running tasks', action: () => go('/platform/operations'), category: 'Platform Actions' },
-    { id: 'plat-alerts', icon: <Bell className="w-4 h-4" />, label: 'Show alerts', action: () => go('/platform/operations'), category: 'Platform Actions' },
-    { id: 'plat-activity', icon: <Activity className="w-4 h-4" />, label: 'Activity Monitor', action: () => go('/platform/activity'), category: 'Platform Actions' },
+    { id: 'plat-tasks', icon: <ClipboardList className="w-4 h-4" />, label: 'Show running tasks', action: () => go(tasksHubHref(desktopTier)), category: 'Platform Actions' },
+    { id: 'plat-alerts', icon: <Bell className="w-4 h-4" />, label: 'Show alerts', action: () => go(operationsHubHref(desktopTier)), category: 'Platform Actions' },
+    { id: 'plat-activity', icon: <Activity className="w-4 h-4" />, label: 'Activity Monitor', action: () => go(activityHubHref(desktopTier)), category: 'Platform Actions' },
     { id: 'plat-settings', icon: <Settings className="w-4 h-4" />, label: 'Platform settings', action: () => go('/platform/settings'), category: 'Platform Actions' },
   ]
   for (const action of platformActions) {
@@ -257,9 +259,9 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
         'plat-create-vm': '/platform/vms',
         'plat-migrate': '/platform/migration',
         'plat-iso': '/platform/content',
-        'plat-tasks': '/platform/operations',
-        'plat-alerts': '/platform/operations',
-        'plat-activity': '/platform/activity',
+        'plat-tasks': tasksHubHref(desktopTier),
+        'plat-alerts': operationsHubHref(desktopTier),
+        'plat-activity': activityHubHref(desktopTier),
         'plat-settings': '/platform/settings',
       }
       if (platformSpotlightPaths.has(pathById[action.id] ?? '')) continue

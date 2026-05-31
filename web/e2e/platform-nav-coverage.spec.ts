@@ -63,3 +63,10 @@ test('mobile jump nav stays visible when sidebar is hidden', async ({ page }) =>
   await page.keyboard.press('Meta+Alt+s')
   await expect(page.locator('#platform-mobile-jump')).toBeVisible()
 })
+
+test('normal tier alerts quick action opens notification center', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await page.getByRole('link', { name: 'Alerts' }).click()
+  await expect(page).toHaveURL(/\/platform\/notifications/)
+})

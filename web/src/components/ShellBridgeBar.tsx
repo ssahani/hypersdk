@@ -1,5 +1,6 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { ArrowLeft, LayoutGrid, Puzzle } from 'lucide-react'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -9,11 +10,17 @@ export { shellLabel } from './shellBridgeUtils'
 
 export default function ShellBridgeBar() {
   const { pathname } = useLocation()
-  const { info } = usePlatformInfo()
+  const { info, loading } = usePlatformInfo()
   const label = shellLabel(pathname)
   const fleetMode = Boolean(info?.control_plane?.proxy_url)
+  const [stickyFleet, setStickyFleet] = useState(false)
 
-  if (!label || !fleetMode) return null
+  useEffect(() => {
+    if (fleetMode) setStickyFleet(true)
+  }, [fleetMode])
+
+  if (!label) return null
+  if (!stickyFleet && !loading) return null
 
   return (
     <div

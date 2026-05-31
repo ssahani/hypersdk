@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { ListTodo, X, RefreshCw } from 'lucide-react'
 import { listPlatformTasks, getControllerBase, type PlatformTask } from '../api/platform'
+import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
+import { operationsHubHref } from '../utils/platformHubLinks'
 
 interface PlatformTaskDrawerProps {
   open: boolean
@@ -13,6 +15,8 @@ interface PlatformTaskDrawerProps {
 export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawerProps) {
   const [tasks, setTasks] = useState<PlatformTask[]>([])
   const [loading, setLoading] = useState(false)
+  const [tier] = usePlatformDesktopTier()
+  const operationsHref = operationsHubHref(tier)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -66,7 +70,7 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
           {tasks.length === 0 && (
             <p className="text-sm text-slate-500">
               No active tasks.{' '}
-              <Link to="/platform/operations" className="text-blue-400" onClick={onClose}>
+              <Link to={operationsHref} className="text-blue-400" onClick={onClose}>
                 Open Operations hub
               </Link>
             </p>
@@ -85,7 +89,7 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
           ))}
         </div>
         <div className="p-4 border-t border-white/[0.08]">
-          <Link to="/platform/operations" className="text-sm text-blue-400 hover:underline" onClick={onClose}>
+          <Link to={operationsHref} className="text-sm text-blue-400 hover:underline" onClick={onClose}>
             Open Operations hub →
           </Link>
         </div>

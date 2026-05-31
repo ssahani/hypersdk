@@ -1,0 +1,18 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { describe, expect, it } from 'vitest'
+import { activityHubHref, operationsHubHref, tasksHubHref } from './platformHubLinks'
+
+describe('platformHubLinks', () => {
+  it('routes Normal tier to notification center', () => {
+    expect(operationsHubHref('normal')).toBe('/platform/notifications')
+    expect(tasksHubHref('normal')).toBe('/platform/notifications')
+    expect(activityHubHref('normal')).toBe('/platform/notifications')
+  })
+
+  it('routes Power and Advanced tiers to hub pages', () => {
+    expect(operationsHubHref('power')).toBe('/platform/operations')
+    expect(tasksHubHref('advanced')).toBe('/platform/tasks')
+    expect(activityHubHref('power')).toBe('/platform/activity')
+  })
+})

@@ -3,10 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
+import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
+import { activityHubHref, operationsHubHref } from '../../../utils/platformHubLinks'
 import { getSreForecast, type SreForecast } from '../../../api/ai'
 
 export default function PlatformDynamicIsland() {
   const { desktop, linuxHealth } = useFleetDesktop(true, 60_000)
+  const [tier] = usePlatformDesktopTier()
   const [expanded, setExpanded] = useState(false)
   const [forecasts, setForecasts] = useState<SreForecast[]>([])
 
@@ -74,7 +77,7 @@ export default function PlatformDynamicIsland() {
           {failedTasks > 0 && (
             <p className="text-xs text-amber-300/90 mb-2">
               {formatCount(failedTasks)} failed task{failedTasks === 1 ? '' : 's'} in the last 24 hours —{' '}
-              <Link to="/platform/operations" className="text-sky-400 hover:underline" onClick={() => setExpanded(false)}>Operations hub</Link>
+              <Link to={operationsHubHref(tier)} className="text-sky-400 hover:underline" onClick={() => setExpanded(false)}>Operations hub</Link>
             </p>
           )}
           {actionableIssues > 0 && (
@@ -96,8 +99,8 @@ export default function PlatformDynamicIsland() {
           )}
           <div className="flex flex-wrap gap-2">
             <Link to="/platform/hosts" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Hosts</Link>
-            <Link to="/platform/operations" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Operations</Link>
-            <Link to="/platform/activity" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Activity</Link>
+            <Link to={operationsHubHref(tier)} className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Operations</Link>
+            <Link to={activityHubHref(tier)} className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Activity</Link>
           </div>
         </div>
       )}

@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router'
+import { Link, useNavigate } from 'react-router'
 import {
   Boxes,
   Plus,
@@ -45,10 +45,13 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
-import { hubTilesForTier, showPlatformHubsForTier } from '../../utils/platformHubZones'
+import { hubTilesForTier, showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS } from '../../utils/platformHubZones'
+import { operationsHubHref } from '../../utils/platformHubLinks'
+import { unlockDockPreviewPath } from '../../utils/platformDockPins'
 
 export default function PlatformDashboard() {
   const toast = useToastContext()
+  const navigate = useNavigate()
   const { mode } = useAi()
   const [tier] = usePlatformDesktopTier()
   const showPower = tierAtLeast(tier, 'power')
@@ -117,6 +120,7 @@ export default function PlatformDashboard() {
   const healthy = warnings === 0 && onlineHosts === hosts.length
   const securityFindings = security?.findings?.length ?? 0
   const hubTiles = hubTilesForTier(tier)
+  const previewHubTiles = hubTilesForTier('power').filter((hub) => DOCK_PREVIEW_HUB_PATHS.includes(hub.href))
 
   const hubActionIcon = (id: string) => {
     switch (id) {
@@ -285,10 +289,37 @@ export default function PlatformDashboard() {
             <>
               <ActionCard icon={<Boxes className="w-5 h-5" />} title="Apps & Integrations" subtitle="OpenStack, K8s, classic tools" to="/platform/integrations" />
               <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
-              <ActionCard icon={<Bell className="w-5 h-5" />} title="Alerts" subtitle={`${warnings} need attention`} to="/platform/operations" />
+              <ActionCard icon={<Bell className="w-5 h-5" />} title="Alerts" subtitle={`${warnings} need attention`} to={operationsHubHref(tier)} />
             </>
           )}
         </div>
+        {tier === 'normal' && previewHubTiles.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35">Hub previews · Power user</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {previewHubTiles.map((hub) => (
+                <button
+                  key={hub.id}
+                  type="button"
+                  className="platform-action-card tahoe-hub-preview-card flex flex-col items-start gap-3 p-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.05] transition-all text-left w-full"
+                  onClick={() => {
+                    if (unlockDockPreviewPath(hub.href)) {
+                      toast.success('Switched to Power user — hub unlocked')
+                      navigate(hub.href)
+                    }
+                  }}
+                >
+                  <div className="p-2.5 rounded-xl bg-slate-800/60 text-slate-300">{hubActionIcon(hub.id)}</div>
+                  <div>
+                    <p className="font-semibold text-slate-200">{hub.label}</p>
+                    <p className="text-xs text-slate-500 mt-1">{hub.description}</p>
+                    <p className="text-[10px] text-sky-400/80 mt-2">Tap to unlock Power user</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         {showPlatformHubsForTier(tier) && hubTiles.length > 0 && (
           <div className="space-y-3">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35">Platform hubs</p>

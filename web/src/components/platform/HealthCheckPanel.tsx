@@ -1,6 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useNavigate } from 'react-router'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { tasksHubHref } from '../../utils/platformHubLinks'
 import {
   adoptPlatformVm,
   createVmBackup,
@@ -24,6 +26,7 @@ interface HealthCheckPanelProps {
 export default function HealthCheckPanel({ vmId, report, loading, onRefresh, onTab }: HealthCheckPanelProps) {
   const toast = useToastContext()
   const navigate = useNavigate()
+  const [tier] = usePlatformDesktopTier()
 
   const fix = async (issue: HealthIssue) => {
     try {
@@ -93,7 +96,7 @@ export default function HealthCheckPanel({ vmId, report, loading, onRefresh, onT
         </>
       )}
       {!report && !loading && (
-        <button type="button" className="btn-secondary text-sm" onClick={() => navigate('/platform/operations')}>View tasks</button>
+        <button type="button" className="btn-secondary text-sm" onClick={() => navigate(tasksHubHref(tier))}>View tasks</button>
       )}
     </div>
   )
