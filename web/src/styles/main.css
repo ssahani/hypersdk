@@ -318,6 +318,7 @@ a.tahoe-context-app-title:hover {
 .tahoe-context-pill {
   display: inline-flex;
   align-items: center;
+  gap: 0.25rem;
   padding: 0.35rem 0.85rem;
   border-radius: 9999px;
   font-size: 0.75rem;
@@ -325,18 +326,58 @@ a.tahoe-context-app-title:hover {
   white-space: nowrap;
   color: rgba(255, 255, 255, 0.55);
   border: 1px solid transparent;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
 
 .tahoe-context-pill:hover {
   color: rgba(255, 255, 255, 0.88);
   background: rgba(255, 255, 255, 0.05);
+  transform: translateY(-1px);
 }
 
 .tahoe-context-pill-active {
   color: rgba(255, 255, 255, 0.95);
   background: rgba(56, 189, 248, 0.12);
   border-color: rgba(56, 189, 248, 0.22);
+}
+
+.tahoe-context-more {
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.tahoe-context-overflow-menu {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 0.35rem);
+  z-index: 50;
+  min-width: 11rem;
+  padding: 0.35rem;
+  border-radius: 0.875rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(15, 23, 42, 0.96);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 40px -16px rgba(0, 0, 0, 0.65);
+}
+
+.tahoe-context-overflow-item {
+  display: block;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.72);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.tahoe-context-overflow-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: white;
+}
+
+.tahoe-context-overflow-item-active {
+  background: rgba(56, 189, 248, 0.12);
+  color: rgb(186, 230, 253);
 }
 
 .tahoe-context-status-chip {

@@ -362,6 +362,14 @@
   color: rgb(186, 230, 253);
 }
 
+.tahoe-sidebar-link {
+  transition: background 0.15s ease, color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
+}
+
+.tahoe-sidebar-link:hover:not(.tahoe-sidebar-link-active) {
+  transform: translateX(2px);
+}
+
 .tahoe-sidebar-section + .tahoe-sidebar-section {
   margin-top: 0.125rem;
 }

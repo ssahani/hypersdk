@@ -246,3 +246,33 @@ export function isContextNavActive(pathname: string, search: string, item: Conte
 
   return pathname === itemPath || pathname.startsWith(`${itemPath}/`)
 }
+
+export const MAX_CONTEXT_PILLS = 6
+
+/** Keep primary pills visible; tuck the rest under More (always include active route). */
+export function splitContextNavItems(
+  items: ContextNavItem[],
+  pathname: string,
+  search: string,
+  maxVisible = MAX_CONTEXT_PILLS,
+): { visible: ContextNavItem[]; overflow: ContextNavItem[] } {
+  if (items.length <= maxVisible) return { visible: items, overflow: [] }
+
+  const activeIndex = items.findIndex((item) => isContextNavActive(pathname, search, item))
+  const primary = items.slice(0, maxVisible - 1)
+  const active = activeIndex >= 0 ? items[activeIndex] : null
+
+  if (active && !primary.some((item) => item.to === active.to)) {
+    const visible = [...primary, active]
+    const visiblePaths = new Set(visible.map((item) => item.to))
+    return {
+      visible,
+      overflow: items.filter((item) => !visiblePaths.has(item.to)),
+    }
+  }
+
+  return {
+    visible: items.slice(0, maxVisible),
+    overflow: items.slice(maxVisible),
+  }
+}

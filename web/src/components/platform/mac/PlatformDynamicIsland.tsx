@@ -74,7 +74,7 @@ export default function PlatformDynamicIsland() {
           {failedTasks > 0 && (
             <p className="text-xs text-amber-300/90 mb-2">
               {formatCount(failedTasks)} failed task{failedTasks === 1 ? '' : 's'} in the last 24 hours —{' '}
-              <Link to="/platform/tasks" className="text-sky-400 hover:underline" onClick={() => setExpanded(false)}>review Tasks</Link>
+              <Link to="/platform/operations" className="text-sky-400 hover:underline" onClick={() => setExpanded(false)}>Operations hub</Link>
             </p>
           )}
           {actionableIssues > 0 && (
@@ -96,7 +96,7 @@ export default function PlatformDynamicIsland() {
           )}
           <div className="flex flex-wrap gap-2">
             <Link to="/platform/hosts" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Hosts</Link>
-            <Link to="/platform/notifications" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Alerts</Link>
+            <Link to="/platform/operations" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Operations</Link>
             <Link to="/platform/activity" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Activity</Link>
           </div>
         </div>

@@ -93,7 +93,7 @@ export default function HealthCheckPanel({ vmId, report, loading, onRefresh, onT
         </>
       )}
       {!report && !loading && (
-        <button type="button" className="btn-secondary text-sm" onClick={() => navigate('/platform/tasks')}>View tasks</button>
+        <button type="button" className="btn-secondary text-sm" onClick={() => navigate('/platform/operations')}>View tasks</button>
       )}
     </div>
   )

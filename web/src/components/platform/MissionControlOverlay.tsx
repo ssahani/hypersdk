@@ -248,7 +248,7 @@ export default function MissionControlOverlay() {
                 ))}
               </ul>
             )}
-            <Link to="/platform/notifications" className="text-xs text-blue-400" onClick={closeMissionControl}>Open Notification Center →</Link>
+            <Link to="/platform/operations" className="text-xs text-blue-400" onClick={closeMissionControl}>Open Operations hub →</Link>
           </section>
           <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2"><ArrowRightLeft className="w-4 h-4" /> Migrations & tasks</h2>
@@ -258,7 +258,7 @@ export default function MissionControlOverlay() {
                 <li key={t.id} className="text-red-300 truncate">{t.operation} — {t.status}</li>
               ))}
             </ul>
-            <Link to="/platform/tasks" className="text-xs text-blue-400" onClick={closeMissionControl}>View all tasks →</Link>
+            <Link to="/platform/operations" className="text-xs text-blue-400" onClick={closeMissionControl}>View all tasks →</Link>
           </section>
         </div>
       </div>

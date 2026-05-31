@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from 'react'
 import { NavLink } from 'react-router'
-import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight, Boxes, FolderOpen, Plug } from 'lucide-react'
 import { sidebarForTier } from '../../utils/platformNavFilter'
 import { integrationNavItems } from '../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
@@ -11,6 +11,12 @@ import { usePlatformMacDesktop } from './mac/PlatformMacDesktopContext'
 import type { PlatformNavSection } from '../../utils/platformNav'
 
 const SECTION_COLLAPSE_PREFIX = 'machina-sidebar-section-'
+
+const SECTION_ICONS: Record<string, typeof Plug> = {
+  Fleet: Plug,
+  Platform: FolderOpen,
+  'Connected platforms': Boxes,
+}
 
 function sectionCollapseKey(label: string) {
   return `${SECTION_COLLAPSE_PREFIX}${label}`
@@ -120,6 +126,7 @@ function SidebarNav({
       {sections.map((section, sectionIdx) => {
         const isFavoritesZone = sectionIdx === 0 && section.label === 'Favorites'
         const isSectionClosed = section.collapsible && sectionCollapsed[section.label]
+        const SectionIcon = SECTION_ICONS[section.label]
 
         return (
           <div key={section.label} className="tahoe-sidebar-section">
@@ -133,11 +140,13 @@ function SidebarNav({
                   <ChevronDown
                     className={`h-3 w-3 shrink-0 transition-transform ${isSectionClosed ? '-rotate-90' : ''}`}
                   />
+                  {SectionIcon ? <SectionIcon className="h-3 w-3 shrink-0 opacity-60" /> : null}
                   <span className="truncate">{section.label}</span>
                 </button>
               ) : (
-                <p className="tahoe-sidebar-section-header px-3 py-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-                  {section.label}
+                <p className="tahoe-sidebar-section-header flex items-center gap-1.5 px-3 py-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                  {SectionIcon ? <SectionIcon className="h-3 w-3 shrink-0 opacity-60" /> : null}
+                  <span>{section.label}</span>
                 </p>
               )
             )}

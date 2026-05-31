@@ -1,11 +1,50 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { useEffect, useMemo, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router'
-import { Bell, Server, Sparkles } from 'lucide-react'
+import { Bell, ChevronDown, Server, Sparkles } from 'lucide-react'
 import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
-import { contextNavForPath, isContextNavActive } from '../../../utils/platformContextNav'
+import {
+  contextNavForPath,
+  isContextNavActive,
+  splitContextNavItems,
+  type ContextNavItem,
+} from '../../../utils/platformContextNav'
 import { showPlatformMenuBarForTier } from '../../../utils/platformDesktopTier'
+
+function ContextPill({ item, pathname, search }: { item: ContextNavItem; pathname: string; search: string }) {
+  const hasQuery = item.to.includes('?')
+  const hubExact =
+    item.to === '/platform/zeus/security'
+    || item.to === '/platform/resources'
+    || item.to === '/platform/operations'
+    || item.to === '/platform/integrations'
+    || item.to === '/platform/zeus'
+
+  if (hasQuery) {
+    const active = isContextNavActive(pathname, search, item)
+    return (
+      <Link
+        to={item.to}
+        className={`tahoe-context-pill ${active ? 'tahoe-context-pill-active' : ''}`}
+        aria-current={active ? 'page' : undefined}
+      >
+        {item.label}
+      </Link>
+    )
+  }
+
+  return (
+    <NavLink
+      to={item.to}
+      end={hubExact}
+      className={({ isActive }) => `tahoe-context-pill ${isActive ? 'tahoe-context-pill-active' : ''}`}
+    >
+      {item.label}
+    </NavLink>
+  )
+}
 
 export default function PlatformContextBar() {
   const location = useLocation()
@@ -13,8 +52,23 @@ export default function PlatformContextBar() {
   const { desktop } = useFleetDesktop(true, 90_000)
   const ctx = contextNavForPath(location.pathname, tier)
   const AppIcon = ctx?.appIcon
+  const [moreOpen, setMoreOpen] = useState(false)
+
+  const { visible, overflow } = useMemo(() => {
+    if (!ctx || ctx.items.length <= 1) return { visible: [] as ContextNavItem[], overflow: [] as ContextNavItem[] }
+    return splitContextNavItems(ctx.items, location.pathname, location.search)
+  }, [ctx, location.pathname, location.search])
+
+  useEffect(() => {
+    if (!moreOpen) return
+    const close = () => setMoreOpen(false)
+    window.addEventListener('click', close)
+    return () => window.removeEventListener('click', close)
+  }, [moreOpen])
 
   if (!ctx) return null
+
+  const overflowActive = overflow.some((item) => isContextNavActive(location.pathname, location.search, item))
 
   return (
     <div className="tahoe-context-bar shrink-0" role="navigation" aria-label="Context navigation">
@@ -35,35 +89,40 @@ export default function PlatformContextBar() {
         </div>
 
         {ctx.items.length > 1 ? (
-          <nav className="tahoe-context-pills flex-1 min-w-0 overflow-x-auto" aria-label={`${ctx.appLabel} sections`}>
-            <div className="flex items-center gap-1.5 min-w-max pr-2">
-              {ctx.items.map((item) => {
-                const hasQuery = item.to.includes('?')
-                if (hasQuery) {
-                  const active = isContextNavActive(location.pathname, location.search, item)
-                  return (
-                    <Link
-                      key={item.to}
-                      to={item.to}
-                      className={`tahoe-context-pill ${active ? 'tahoe-context-pill-active' : ''}`}
-                      aria-current={active ? 'page' : undefined}
-                    >
-                      {item.label}
-                    </Link>
-                  )
-                }
-                return (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === '/platform/zeus/security' || item.to === '/platform/resources' || item.to === '/platform/operations' || item.to === '/platform/integrations' || item.to === '/platform/zeus'}
-                    className={({ isActive }) => `tahoe-context-pill ${isActive ? 'tahoe-context-pill-active' : ''}`}
-                  >
-                    {item.label}
-                  </NavLink>
-                )
-              })}
-            </div>
+          <nav className="tahoe-context-pills flex-1 min-w-0 flex items-center gap-1.5" aria-label={`${ctx.appLabel} sections`}>
+            {visible.map((item) => (
+              <ContextPill key={item.to} item={item} pathname={location.pathname} search={location.search} />
+            ))}
+            {overflow.length > 0 ? (
+              <div className="relative shrink-0" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  className={`tahoe-context-pill tahoe-context-more ${overflowActive ? 'tahoe-context-pill-active' : ''}`}
+                  aria-expanded={moreOpen}
+                  onClick={() => setMoreOpen((open) => !open)}
+                >
+                  More
+                  <ChevronDown className={`h-3 w-3 transition-transform ${moreOpen ? 'rotate-180' : ''}`} />
+                </button>
+                {moreOpen ? (
+                  <div className="tahoe-context-overflow-menu">
+                    {overflow.map((item) => {
+                      const active = isContextNavActive(location.pathname, location.search, item)
+                      return (
+                        <Link
+                          key={item.to}
+                          to={item.to}
+                          className={`tahoe-context-overflow-item ${active ? 'tahoe-context-overflow-item-active' : ''}`}
+                          onClick={() => setMoreOpen(false)}
+                        >
+                          {item.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </nav>
         ) : (
           <div className="flex-1 min-w-0" />
@@ -75,7 +134,7 @@ export default function PlatformContextBar() {
               <Server className="w-3 h-3" />
               {desktop.hosts_online}/{desktop.hosts_total}
             </Link>
-            <Link to="/platform/operations" className="tahoe-context-status-chip" title="Tasks">
+            <Link to="/platform/operations" className="tahoe-context-status-chip" title="Operations">
               {desktop.active_tasks} tasks
             </Link>
             <Link to="/platform/zeus" className="tahoe-context-status-chip text-orange-200/80" title="Zeus">
