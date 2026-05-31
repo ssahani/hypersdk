@@ -93,3 +93,73 @@ pub async fn scan(pool: &PgPool) -> anyhow::Result<SecurityReport> {
         findings,
     })
 }
+
+pub async fn explain_event(
+    event: &serde_json::Value,
+    host_id: Option<&str>,
+) -> anyhow::Result<serde_json::Value> {
+    let kind = event.get("kind").and_then(|v| v.as_str()).unwrap_or("security");
+    let summary = event
+        .get("summary")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Security event");
+    let severity = event.get("severity").and_then(|v| v.as_str()).unwrap_or("info");
+    let risk = match severity {
+        "critical" => "Critical — investigate immediately",
+        "high" => "High — likely requires operator review",
+        "medium" => "Medium — monitor and correlate",
+        _ => "Low — likely routine activity",
+    };
+    Ok(serde_json::json!({
+        "host_id": host_id,
+        "kind": kind,
+        "summary": summary,
+        "explanation": format!("Event type '{kind}': {summary}. {risk}."),
+        "risk": risk,
+        "recommendation": "Review timeline for related events; use attack reconstruction if severity is high."
+    }))
+}
+
+pub fn attack_reconstruct_sync(timeline: &serde_json::Value) -> serde_json::Value {
+    let events = timeline
+        .get("events")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut chain: Vec<String> = Vec::new();
+    for (i, ev) in events.iter().take(8).enumerate() {
+        let s = ev
+            .get("summary")
+            .and_then(|v| v.as_str())
+            .unwrap_or("event");
+        chain.push(format!("{}. {}", i + 1, s));
+    }
+    serde_json::json!({
+        "attack_chain": chain,
+        "summary": if chain.is_empty() {
+            "No events in window — unable to reconstruct chain.".into()
+        } else {
+            format!("Reconstructed {} step(s) from security timeline.", chain.len())
+        }
+    })
+}
+
+pub fn translate_nl_search(query: &str) -> String {
+    let q = query.to_lowercase();
+    if q.contains("port 8080") || q.contains("8080") {
+        return "8080 network_connect".into();
+    }
+    if q.contains("sudo") {
+        return "sudo privilege".into();
+    }
+    if q.contains("ssh") {
+        return "sshd ssh".into();
+    }
+    if q.contains("curl") {
+        return "curl".into();
+    }
+    if q.contains("russia") || q.contains("russian") {
+        return "suspicious dns .ru".into();
+    }
+    query.to_string()
+}

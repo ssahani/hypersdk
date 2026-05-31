@@ -6,6 +6,7 @@ import { ArrowLeft, Loader2, Plus, Scale, Trash2 } from 'lucide-react'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
+import PageSkeleton from '../components/PageSkeleton'
 import {
   createOpenStackLbHealthMonitor,
   createOpenStackLbListener,
@@ -103,7 +104,7 @@ function OpenStackLoadBalancerDetailContent() {
     if (expandedPool) void loadPoolDetails(expandedPool)
   }, [expandedPool, loadPoolDetails])
 
-  if (loading) return <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto py-12" />
+  if (loading) return <PageSkeleton />
   if (!lb || !id) {
     return (
       <div className="space-y-4">

@@ -1,0 +1,172 @@
+# Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+from __future__ import annotations
+
+from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
+
+from .models import CaptureRequest, IngestBatch, SearchRequest, SecurityEvent
+from . import store
+
+app = FastAPI(title="PacketWolf Security Fabric", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+@app.get("/health")
+def health() -> dict:
+    return {"status": "ok", "service": "packetwolf"}
+
+
+@app.post("/api/v1/ingest/{host_id}")
+def ingest_tetragon(host_id: str, body: IngestBatch) -> dict:
+    count = store.ingest_raw(host_id, body.events)
+    return {"ingested": count, "host_id": host_id}
+
+
+@app.post("/api/v1/ingest/{host_id}/event")
+def ingest_event(host_id: str, event: SecurityEvent) -> dict:
+    event.host_id = host_id
+    store.ingest(event)
+    return {"ok": True, "id": event.id}
+
+
+@app.get("/api/v1/hosts/{host_id}/summary")
+def host_summary(host_id: str) -> dict:
+    return store.host_summary(host_id)
+
+
+@app.get("/api/v1/hosts/{host_id}/processes")
+def host_processes(host_id: str, hours: int = Query(24), limit: int = Query(100)) -> dict:
+    from .models import EventKind
+
+    events = store.list_events(host_id=host_id, kind=EventKind.PROCESS_EXEC, hours=hours, limit=limit)
+    return {"host_id": host_id, "processes": [e.model_dump(mode="json") for e in events]}
+
+
+@app.get("/api/v1/hosts/{host_id}/connections")
+def host_connections(host_id: str, hours: int = Query(24), limit: int = Query(100)) -> dict:
+    from .models import EventKind
+
+    events = store.list_events(host_id=host_id, kind=EventKind.NETWORK_CONNECT, hours=hours, limit=limit)
+    return {"host_id": host_id, "connections": [e.model_dump(mode="json") for e in events]}
+
+
+@app.get("/api/v1/hosts/{host_id}/dns")
+def host_dns(host_id: str, hours: int = Query(24), limit: int = Query(100)) -> dict:
+    from .models import EventKind
+
+    events = store.list_events(host_id=host_id, kind=EventKind.DNS_QUERY, hours=hours, limit=limit)
+    return {"host_id": host_id, "dns": [e.model_dump(mode="json") for e in events]}
+
+
+@app.get("/api/v1/hosts/{host_id}/files")
+def host_files(host_id: str, hours: int = Query(168), limit: int = Query(100)) -> dict:
+    from .models import EventKind
+
+    events = store.list_events(host_id=host_id, kind=EventKind.FILE_WRITE, hours=hours, limit=limit)
+    return {"host_id": host_id, "files": [e.model_dump(mode="json") for e in events]}
+
+
+@app.get("/api/v1/hosts/{host_id}/ports")
+def host_ports(host_id: str) -> dict:
+    return {"host_id": host_id, "ports": store.open_ports(host_id)}
+
+
+@app.get("/api/v1/hosts/{host_id}/timeline")
+def host_timeline(host_id: str, hours: int = Query(24), limit: int = Query(200)) -> dict:
+    events = store.list_events(host_id=host_id, hours=hours, limit=limit)
+    return {"host_id": host_id, "events": [e.model_dump(mode="json") for e in events]}
+
+
+@app.get("/api/v1/hosts/{host_id}/process-graph")
+def host_process_graph(host_id: str, pid: int | None = Query(None)) -> dict:
+    return store.process_graph(host_id, pid)
+
+
+@app.get("/api/v1/flows")
+def flows(host_id: str | None = Query(None), limit: int = Query(50), verdict: str | None = Query(None)) -> dict:
+    events = store.list_events(host_id=host_id, limit=limit)
+    flows_out = []
+    for e in events:
+        if e.kind.value not in ("network_connect", "security"):
+            continue
+        v = e.verdict
+        if verdict and verdict.upper() not in v.upper():
+            if verdict.upper() == "DROPPED" and v != "blocked":
+                continue
+        flows_out.append(
+            {
+                "host_id": e.host_id,
+                "verdict": e.verdict.upper() if e.verdict == "blocked" else "FORWARDED",
+                "process": e.process.binary,
+                "destination_ip": e.network.dst_ip,
+                "destination_port": e.network.port,
+                "summary": e.summary,
+                "timestamp": e.timestamp.isoformat(),
+            }
+        )
+    return {"flows": flows_out[:limit]}
+
+
+@app.get("/api/v1/flows/stats")
+def flow_stats(host_id: str | None = Query(None)) -> dict:
+    events = store.list_events(host_id=host_id, limit=500)
+    dropped = sum(1 for e in events if e.verdict == "blocked")
+    forwarded = len(events) - dropped
+    return {"dropped": dropped, "forwarded": forwarded, "dropped_count": dropped, "allowed": forwarded}
+
+
+@app.get("/api/v1/anomalies")
+def anomalies(limit: int = Query(25)) -> dict:
+    from .models import Severity
+
+    events = store.list_events(limit=500)
+    anomalies_out = [
+        {
+            "id": e.id,
+            "host_id": e.host_id,
+            "severity": e.severity.value,
+            "kind": e.kind.value,
+            "summary": e.summary,
+            "timestamp": e.timestamp.isoformat(),
+        }
+        for e in events
+        if e.severity in (Severity.HIGH, Severity.CRITICAL)
+    ][:limit]
+    return {"anomalies": anomalies_out}
+
+
+@app.post("/api/v1/search")
+def search(body: SearchRequest) -> dict:
+    return {"results": store.search(body.query, body.host_id, body.limit)}
+
+
+@app.get("/api/v1/fleet/threat-summary")
+def fleet_threat() -> dict:
+    return store.fleet_threat_summary()
+
+
+@app.get("/api/v1/sensors")
+def sensors() -> dict:
+    return {"sensors": store.list_sensors()}
+
+
+@app.post("/api/v1/sensors/{host_id}/register")
+def register_sensor(host_id: str, tetragon_version: str = Query("1.0.0")) -> dict:
+    return store.register_sensor(host_id, tetragon_version)
+
+
+@app.post("/api/v1/capture/start")
+def capture_start(body: CaptureRequest) -> dict:
+    store.register_sensor(body.host_id)
+    return {"ok": True, "host_id": body.host_id, "duration_secs": body.duration_secs}
+
+
+@app.get("/api/v1/asset-inventory")
+def asset_inventory() -> dict:
+    return store.asset_inventory()

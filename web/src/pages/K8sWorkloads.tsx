@@ -41,6 +41,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import Hero from '../components/Hero'
 import EmptyState from '../components/EmptyState'
+import PageSkeleton from '../components/PageSkeleton'
 import JsonInspector, { asArray, asRecord } from '../components/platform/JsonInspector'
 import { formatUserError } from '../utils/apiError'
 
@@ -73,14 +74,14 @@ export default function K8sWorkloadsPage() {
   const [logOut, setLogOut] = useState('')
   const [applyYaml, setApplyYaml] = useState('')
   const [applyDry, setApplyDry] = useState(true)
-  const [applyOut, setApplyOut] = useState('')
+  const [applyOut, setApplyOut] = useState<unknown>(null)
   const [caniVerb, setCaniVerb] = useState('get')
   const [caniRes, setCaniRes] = useState('pods')
   const [caniNs, setCaniNs] = useState('')
   const [caniOut, setCaniOut] = useState('')
-  const [helmJson, setHelmJson] = useState('')
+  const [helmJson, setHelmJson] = useState<unknown>(null)
   const [explorerKind, setExplorerKind] = useState('ingresses')
-  const [explorerJson, setExplorerJson] = useState('')
+  const [explorerJson, setExplorerJson] = useState<unknown>(null)
 
   const nsValue = namespace === 'all' ? undefined : namespace
 
@@ -187,7 +188,7 @@ export default function K8sWorkloadsPage() {
   }, [deployments, pods, services, kubevirtRows])
 
   if (loading) {
-    return <div className="flex items-center justify-center h-36"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+    return <PageSkeleton />
   }
 
   return (
@@ -493,9 +494,11 @@ export default function K8sWorkloadsPage() {
             <label className="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" checked={applyDry} onChange={(e) => setApplyDry(e.target.checked)} /> Server dry-run</label>
             <textarea className="w-full min-h-[120px] bg-slate-900 border border-slate-600 rounded p-2 text-xs font-mono text-slate-200" value={applyYaml} onChange={(e) => setApplyYaml(e.target.value)} placeholder="apiVersion: v1&#10;kind: ConfigMap&#10;..." />
             <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-amber-700/40 text-amber-100 border border-amber-600/40" onClick={() => {
-              void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(JSON.stringify(r, null, 2))).catch((e: unknown) => setApplyOut(formatUserError(e)))
+              void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(r)).catch((e: unknown) => setApplyOut(formatUserError(e)))
             }}>Apply</button>
-            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-40 overflow-auto text-slate-300">{applyOut || '—'}</pre>
+            {applyOut != null && (typeof applyOut === 'object' ? <JsonInspector data={applyOut} /> : (
+              <p className="text-xs text-slate-300 whitespace-pre-wrap">{String(applyOut)}</p>
+            ))}
           </div>
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">kubectl auth can-i</div>
@@ -512,9 +515,11 @@ export default function K8sWorkloadsPage() {
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">Helm releases</div>
             <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
-              void getK8sHelmReleases('*', ctxTrim).then((h) => setHelmJson(JSON.stringify(h, null, 2))).catch((e: unknown) => setHelmJson(formatUserError(e)))
+              void getK8sHelmReleases('*', ctxTrim).then((h) => setHelmJson(h)).catch((e: unknown) => setHelmJson(formatUserError(e)))
             }}>helm list -A (JSON)</button>
-            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-48 overflow-auto text-slate-300">{helmJson || '—'}</pre>
+            {helmJson != null && (typeof helmJson === 'object' ? <JsonInspector data={helmJson} /> : (
+              <p className="text-xs text-slate-300 whitespace-pre-wrap">{String(helmJson)}</p>
+            ))}
           </div>
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">API list explorer</div>
@@ -536,10 +541,12 @@ export default function K8sWorkloadsPage() {
                   if (explorerKind === 'pvs') return getK8sPersistentVolumes(c)
                   return getK8sStorageClasses(c)
                 })()
-                void p.then((x) => setExplorerJson(JSON.stringify(x, null, 2))).catch((e: unknown) => setExplorerJson(formatUserError(e)))
+                void p.then((x) => setExplorerJson(x)).catch((e: unknown) => setExplorerJson(formatUserError(e)))
               }}>Fetch</button>
             </div>
-            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-64 overflow-auto text-slate-300">{explorerJson || '—'}</pre>
+            {explorerJson != null && (typeof explorerJson === 'object' ? <JsonInspector data={explorerJson} /> : (
+              <p className="text-xs text-slate-300 whitespace-pre-wrap">{String(explorerJson)}</p>
+            ))}
           </div>
         </div>
       </details>

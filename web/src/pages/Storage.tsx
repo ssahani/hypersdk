@@ -11,6 +11,8 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize, ToggleLeft, ToggleRight } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import ErrorBanner from '../components/ErrorBanner'
+import PageSkeleton from '../components/PageSkeleton'
+import EmptyState from '../components/EmptyState'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 
 export default function StoragePage() {
@@ -109,7 +111,7 @@ export default function StoragePage() {
     } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+  if (loading) return <PageSkeleton />
 
   if (selectedPool) {
     return (
@@ -233,6 +235,13 @@ export default function StoragePage() {
           headline={loadError}
           hints={libvirtErrorHints(loadError)}
           onRetry={loadPools}
+        />
+      )}
+      {pools.length === 0 && !loadError && (
+        <EmptyState
+          title="No storage pools"
+          description="Create a libvirt pool or import from an existing path on this host."
+          primaryAction={<button type="button" className="btn-primary" onClick={() => setShowCreatePool(true)}>Create pool</button>}
         />
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

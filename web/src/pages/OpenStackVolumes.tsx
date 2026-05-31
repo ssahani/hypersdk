@@ -34,6 +34,7 @@ import { listOpenStackImages } from '../api/openstack'
 import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
+import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import { HardDrive, Loader2, RefreshCw } from 'lucide-react'
@@ -372,7 +373,7 @@ function OpenStackVolumesContent() {
       </div>
 
       {loading ? (
-        <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto" />
+        <PageSkeleton />
       ) : (
         <>
           <div className="rounded-xl border border-slate-700 overflow-hidden">

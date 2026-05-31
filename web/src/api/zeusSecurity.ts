@@ -1,0 +1,103 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { platformFetch } from './platform'
+
+export interface ZeusSecurityStatus {
+  packetwolf: { enabled: boolean; reachable: boolean; summary: string; base_url: string }
+  zeus_firewall: Record<string, unknown>
+  fabric_reachable: boolean
+}
+
+export interface FleetThreatSummary {
+  fleet_threat_score: number
+  firewall_targets: number
+  critical_events: Array<Record<string, unknown>>
+  packetwolf: Record<string, unknown>
+  security_graph_summary: string
+}
+
+export interface SecurityGraphNode {
+  id: string
+  kind: string
+  label: string
+  risk?: string
+}
+
+export interface SecurityGraph {
+  nodes: SecurityGraphNode[]
+  edges: Array<{ from: string; to: string; label: string }>
+}
+
+export interface SecurityEvent {
+  id?: string
+  host_id?: string
+  timestamp?: string
+  kind?: string
+  severity?: string
+  summary?: string
+  process?: { pid?: number; ppid?: number; user?: string; binary?: string; args?: string }
+  network?: { dst_ip?: string; port?: number; protocol?: string }
+  dns?: { query?: string }
+  file?: { path?: string; action?: string }
+  k8s?: { namespace?: string; pod?: string; container?: string }
+  verdict?: string
+}
+
+export const getZeusSecurityStatus = () => platformFetch<ZeusSecurityStatus>('/api/v1/zeus-security/status')
+export const getFleetThreatSummary = () => platformFetch<FleetThreatSummary>('/api/v1/zeus-security/fleet/threat')
+export const getZeusSecurityGraph = () => platformFetch<SecurityGraph>('/api/v1/zeus-security/graph')
+export const getZeusSecuritySensors = () => platformFetch<{ sensors: Array<Record<string, unknown>> }>('/api/v1/zeus-security/sensors')
+export const getZeusAssetInventory = () => platformFetch<Record<string, unknown>>('/api/v1/zeus-security/asset-inventory')
+
+export const getHostSecuritySummary = (hostId: string) =>
+  platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/summary`)
+
+export const getHostProcesses = (hostId: string, hours = 24) =>
+  platformFetch<{ processes: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/processes?hours=${hours}`)
+
+export const getHostConnections = (hostId: string, hours = 24) =>
+  platformFetch<{ connections: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/connections?hours=${hours}`)
+
+export const getHostDns = (hostId: string, hours = 24) =>
+  platformFetch<{ dns: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/dns?hours=${hours}`)
+
+export const getHostSecurityFiles = (hostId: string, hours = 168) =>
+  platformFetch<{ files: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/files?hours=${hours}`)
+
+export const getHostSecurityPorts = (hostId: string) =>
+  platformFetch<{ ports: Array<Record<string, unknown>> }>(`/api/v1/zeus-security/hosts/${hostId}/ports`)
+
+export const getHostSecurityTimeline = (hostId: string, hours = 24) =>
+  platformFetch<{ events: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/timeline?hours=${hours}`)
+
+export const getHostProcessGraph = (hostId: string, pid?: number) => {
+  const q = pid != null ? `?pid=${pid}` : ''
+  return platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/process-graph${q}`)
+}
+
+export const installTetragonSensor = (hostId: string) =>
+  platformFetch<{ task_id: string; summary: string }>(`/api/v1/zeus-security/hosts/${hostId}/tetragon/install`, { method: 'POST' })
+
+export const searchZeusSecurity = (query: string, hostId?: string) =>
+  platformFetch<{ results: SecurityEvent[] }>('/api/v1/zeus-security/search', {
+    method: 'POST',
+    body: JSON.stringify({ query, host_id: hostId }),
+  })
+
+export const explainSecurityEvent = (event: SecurityEvent, hostId?: string) =>
+  platformFetch<{ explanation: string; risk: string; recommendation: string }>('/api/v1/ai/security/explain-event', {
+    method: 'POST',
+    body: JSON.stringify({ event, host_id: hostId }),
+  })
+
+export const reconstructAttack = (hostId: string, hours = 24) =>
+  platformFetch<{ attack_chain: string[]; summary: string }>('/api/v1/ai/security/attack-reconstruct', {
+    method: 'POST',
+    body: JSON.stringify({ host_id: hostId, hours }),
+  })
+
+export const nlSecuritySearch = (query: string, hostId?: string) =>
+  platformFetch<{ original_query: string; search_query: string; results: Record<string, unknown> }>(
+    '/api/v1/ai/security/nl-search',
+    { method: 'POST', body: JSON.stringify({ query, host_id: hostId }) },
+  )

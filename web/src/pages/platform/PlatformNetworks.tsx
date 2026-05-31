@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Cable, Layers, Link2, Loader2, Network, Plus, RefreshCw, Router, Shield, Wifi } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { PlatformOpenStackNetworkLink } from '../../components/platform/PlatformCrossLinks'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
@@ -292,11 +294,7 @@ export default function PlatformNetworks() {
       </div>
 
       {error && <ErrorBanner message={error} />}
-      {loading && rows.length === 0 && !discovering && !error && (
-        <div className="flex items-center justify-center gap-2 text-sm text-slate-400 py-12">
-          <Loader2 className="w-5 h-5 animate-spin" /> Loading networks…
-        </div>
-      )}
+      {loading && rows.length === 0 && !discovering && !error && <PageSkeleton />}
 
       {tab === 'networks' && (
         <>
@@ -306,20 +304,22 @@ export default function PlatformNetworks() {
             <MacStatWidget label="Segments" value={String(segments.length)} icon={<Layers className="w-4 h-4" />} />
           </div>
 
-          {rows.length === 0 && !discovering && !error && (
-            <MacGlassPanel title="No networks yet" subtitle="Your cluster inventory is empty — this is normal on a fresh install.">
-              <div className="space-y-4 -mt-2">
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  Click <strong className="text-slate-200">Import from hosts</strong> to pull libvirt networks,
-                  or create a bridge-backed network for VMs.
-                </p>
+          {rows.length === 0 && !discovering && !error && !loading && (
+            <PlatformEmptyState
+              icon={Network}
+              title="No networks yet"
+              subtitle="Import libvirt networks from online hosts or create a bridge-backed network for VMs."
+              action={(
                 <div className="flex flex-wrap gap-2">
                   <button type="button" className="btn-primary" onClick={() => void runDiscover()}>Import from hosts</button>
                   <button type="button" className="btn-secondary" onClick={() => void syncHosts()}>Sync all hosts</button>
                   <button type="button" className="btn-secondary" onClick={() => setSheetOpen(true)}>Create network</button>
+                  {hostCount === 0 && (
+                    <Link to="/platform/enroll" className="btn-secondary">Enroll a host</Link>
+                  )}
                 </div>
-              </div>
-            </MacGlassPanel>
+              )}
+            />
           )}
 
           {discovering && rows.length === 0 && (
@@ -443,7 +443,14 @@ export default function PlatformNetworks() {
               </button>
             </div>
             {segments.length === 0 ? (
-              <p className="text-sm text-slate-400">No segments yet — create one or use seeded prod-tier1 / dmz-tier0 after migration.</p>
+              <PlatformEmptyState
+                icon={Layers}
+                title="No network segments"
+                subtitle="Create a segment for east-west policy, or seed prod-tier1 / dmz-tier0 after migration."
+                action={(
+                  <button type="button" className="btn-primary text-sm" onClick={() => setSegmentSheetOpen(true)}>Create segment</button>
+                )}
+              />
             ) : (
               <div className="overflow-x-auto -mx-2">
                 <table className="w-full text-sm">
@@ -528,7 +535,11 @@ export default function PlatformNetworks() {
             />
           </label>
           {ipamPools.length === 0 ? (
-            <p className="text-sm text-slate-400">No IPAM pools — create a segment with an IPAM pool enabled.</p>
+            <PlatformEmptyState
+              title="No IPAM pools"
+              subtitle="Create a network segment with IPAM enabled to allocate addresses from a CIDR."
+              action={<button type="button" className="btn-secondary text-sm" onClick={() => setTab('segments')}>Open segments</button>}
+            />
           ) : (
             <div className="overflow-x-auto -mx-2">
               <table className="w-full text-sm">

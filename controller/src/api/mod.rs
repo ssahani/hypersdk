@@ -19,6 +19,7 @@ mod fence;
 mod fleet;
 mod guestkit;
 mod zeus_firewall;
+mod zeus_security;
 mod ha;
 mod health;
 mod health_check;
@@ -227,6 +228,24 @@ pub fn router(state: AppState) -> Router {
             post(zeus_firewall::operator_execute_batch),
         )
         .route("/api/v1/zeus-firewall/operator/thresholds", get(zeus_firewall::operator_thresholds))
+        .route("/api/v1/zeus-security/status", get(zeus_security::status))
+        .route("/api/v1/zeus-security/fleet/threat", get(zeus_security::fleet_threat))
+        .route("/api/v1/zeus-security/sensors", get(zeus_security::sensors))
+        .route("/api/v1/zeus-security/asset-inventory", get(zeus_security::asset_inventory))
+        .route("/api/v1/zeus-security/graph", get(zeus_security::security_graph))
+        .route("/api/v1/zeus-security/search", post(zeus_security::search))
+        .route("/api/v1/zeus-security/hosts/{id}/summary", get(zeus_security::host_summary))
+        .route("/api/v1/zeus-security/hosts/{id}/processes", get(zeus_security::host_processes))
+        .route("/api/v1/zeus-security/hosts/{id}/connections", get(zeus_security::host_connections))
+        .route("/api/v1/zeus-security/hosts/{id}/dns", get(zeus_security::host_dns))
+        .route("/api/v1/zeus-security/hosts/{id}/files", get(zeus_security::host_files))
+        .route("/api/v1/zeus-security/hosts/{id}/ports", get(zeus_security::host_ports))
+        .route("/api/v1/zeus-security/hosts/{id}/timeline", get(zeus_security::host_timeline))
+        .route("/api/v1/zeus-security/hosts/{id}/process-graph", get(zeus_security::host_process_graph))
+        .route("/api/v1/zeus-security/hosts/{id}/tetragon/install", post(zeus_security::install_tetragon))
+        .route("/api/v1/ai/security/explain-event", post(zeus_security::explain_event))
+        .route("/api/v1/ai/security/attack-reconstruct", post(zeus_security::attack_reconstruct))
+        .route("/api/v1/ai/security/nl-search", post(zeus_security::nl_search))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(

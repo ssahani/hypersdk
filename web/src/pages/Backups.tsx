@@ -11,6 +11,8 @@ import {
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
+import PageSkeleton from '../components/PageSkeleton'
+import EmptyState from '../components/EmptyState'
 import { formatUserError } from '../utils/apiError'
 import {
   Archive, Trash2, RotateCcw, RefreshCw, Play, HardDrive, Server,
@@ -161,7 +163,7 @@ export default function BackupsPage() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+  if (loading) return <PageSkeleton />
 
   return (
     <div className="space-y-6 animate-fade-in">

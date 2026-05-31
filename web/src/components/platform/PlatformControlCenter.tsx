@@ -284,9 +284,14 @@ export default function PlatformControlCenter() {
                   <Sparkles className="w-3 h-3" /> Zeus OS
                 </Link>
                 {showAdvanced && (
+                <>
+                <Link to="/platform/zeus/security" className="btn-secondary text-xs" onClick={() => setOpen(false)}>
+                  Security Center
+                </Link>
                 <Link to="/platform/zeus/security/firewall" className="btn-secondary text-xs" onClick={() => setOpen(false)}>
                   Firewall
                 </Link>
+                </>
                 )}
               </div>
               </>

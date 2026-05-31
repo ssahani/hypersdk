@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { AlertTriangle, CheckCircle2, Layers, Loader2, Package, Plus, RefreshCw, Sparkles, Star, Puzzle } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacGlassPanel, MacSectionTitle, MacSheet } from '../../components/platform/mac/PlatformMacUi'
 import {
   createFromTemplate,
@@ -268,17 +270,15 @@ export default function PlatformTemplates() {
 
       {tab === 'templates' && (
         <>
-      {loading && rows.length === 0 && (
-        <div className="flex items-center justify-center gap-2 text-slate-400 py-16">
-          <Loader2 className="w-5 h-5 animate-spin" /> Loading marketplace…
-        </div>
-      )}
+      {loading && rows.length === 0 && <PageSkeleton />}
 
       {!loading && rows.length === 0 && (
-        <MacGlassPanel title="Marketplace is empty" subtitle="Load the bundled Zyvor template catalog.">
-          <p className="text-sm text-slate-400 mb-4">Includes Ubuntu, Debian, CentOS Stream, Windows, PostgreSQL, Photon OS, and more.</p>
-          <button type="button" className="btn-primary" onClick={() => void load(true)}>Load default templates</button>
-        </MacGlassPanel>
+        <PlatformEmptyState
+          icon={Package}
+          title="Marketplace is empty"
+          subtitle="Load the bundled Zyvor template catalog — Ubuntu, Debian, Windows, PostgreSQL, and more."
+          action={<button type="button" className="btn-primary" onClick={() => void load(true)}>Load default templates</button>}
+        />
       )}
 
       {featuredRows.length > 0 && (

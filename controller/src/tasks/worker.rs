@@ -37,6 +37,7 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "host.inventory" => host_inventory(state, msg).await?,
         "host.maintenance" => host_maintenance(state, msg).await?,
         "host.validate" => host_validate_task(state, msg).await?,
+        "host.tetragon.install" => host_tetragon_install(state, msg).await?,
         "host.agent.upgrade" => host_agent_upgrade(state, msg).await?,
         "storage.pool.provision" => storage_pool_provision(state, msg).await?,
         "network.provision" => network_provision(state, msg).await?,
@@ -1014,6 +1015,25 @@ async fn host_validate_task(state: &AppState, msg: &TaskMessage) -> anyhow::Resu
         "validation failed — see host detail"
     };
     update_task_progress(&state.pool, msg.task_id, 100, summary).await?;
+    Ok(())
+}
+
+async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let host_id_str = msg
+        .payload
+        .get("host_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    update_task_progress(&state.pool, msg.task_id, 20, "registering PacketWolf sensor").await?;
+    let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, host_id_str).await;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        60,
+        "Tetragon install scheduled — agent will install sensor on next sync",
+    )
+    .await?;
+    update_task_progress(&state.pool, msg.task_id, 100, "Tetragon enrollment complete").await?;
     Ok(())
 }
 

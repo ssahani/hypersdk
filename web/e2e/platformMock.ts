@@ -273,6 +273,76 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
         },
       })
     }
+    if (url.includes('/zeus-security/')) {
+      if (url.includes('/status')) {
+        return route.fulfill({
+          json: {
+            fabric_reachable: true,
+            packetwolf: { enabled: true, reachable: true, summary: 'PacketWolf connected', base_url: 'http://127.0.0.1:9091' },
+            zeus_firewall: { ready: true },
+          },
+        })
+      }
+      if (url.includes('/fleet/threat')) {
+        return route.fulfill({
+          json: {
+            fleet_threat_score: 78,
+            firewall_targets: 1,
+            critical_events: [{ summary: 'Possible reverse shell on port 4444', host_id: 'h1', severity: 'critical' }],
+            packetwolf: { fleet_threat_score: 78 },
+            security_graph_summary: '4 nodes · 3 edges in infrastructure security graph',
+          },
+        })
+      }
+      if (url.includes('/graph')) {
+        return route.fulfill({
+          json: {
+            nodes: [
+              { id: 'user-1', kind: 'user', label: 'admin', risk: 'high' },
+              { id: 'host-h1', kind: 'host', label: 'host-1', risk: 'medium' },
+            ],
+            edges: [{ from: 'user-1', to: 'host-h1', label: 'admin access' }],
+          },
+        })
+      }
+      if (url.includes('/sensors')) {
+        return route.fulfill({ json: { sensors: [{ host_id: 'h1', status: 'healthy', tetragon_version: '1.0.0' }] } })
+      }
+      if (url.includes('/process-graph')) {
+        return route.fulfill({
+          json: {
+            nodes: [{ pid: 1000, binary: '/usr/sbin/sshd' }, { pid: 1234, binary: '/bin/bash' }],
+            edges: [{ from: 1000, to: 1234, binary: '/bin/bash' }],
+          },
+        })
+      }
+      if (url.includes('/timeline') || url.includes('/processes')) {
+        return route.fulfill({
+          json: {
+            events: [{ summary: 'curl started', kind: 'process_exec', severity: 'info', timestamp: new Date().toISOString() }],
+            processes: [{ summary: 'kubectl started', kind: 'process_exec', process: { binary: '/usr/bin/kubectl', pid: 1235 } }],
+          },
+        })
+      }
+      if (url.includes('/summary')) {
+        return route.fulfill({ json: { host_id: 'h1', threat_score: 75, sensor: { status: 'healthy' } } })
+      }
+      if (url.includes('/asset-inventory')) {
+        return route.fulfill({
+          json: { hosts: [{ host_id: 'h1', processes: ['nginx', 'postgres'], connections: [{ from: 'nginx', to: 'redis:6379' }] }] },
+        })
+      }
+      return route.fulfill({ json: { ports: [], connections: [], dns: [], files: [] } })
+    }
+    if (url.includes('/ai/security/explain-event')) {
+      return route.fulfill({ json: { explanation: 'Routine administrative activity.', risk: 'Low', recommendation: 'Monitor timeline.' } })
+    }
+    if (url.includes('/ai/security/attack-reconstruct')) {
+      return route.fulfill({ json: { attack_chain: ['1. curl downloaded file', '2. payload executed'], summary: '2 steps' } })
+    }
+    if (url.includes('/ai/security/nl-search')) {
+      return route.fulfill({ json: { original_query: 'curl', search_query: 'curl', results: { results: [] } } })
+    }
     if (url.includes('/ai/')) {
       return route.fulfill({
         json: { summary: 'OK', remediations: [], forecasts: [], highlights: [], status: 'idle', tagline: 'OK' },

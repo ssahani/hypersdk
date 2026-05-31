@@ -12,6 +12,9 @@ type ActivityEvent = Record<string, unknown> & { target?: string; group?: string
 function eventTitle(e: ActivityEvent): string {
   const verdict = e.verdict ?? e.action ?? e.kind
   const port = e.destination_port ?? e.port ?? e.target_port
+  const proc = e.process ?? e.process_name
+  if (proc && port) return `${String(proc)} · ${String(verdict || 'flow')} port ${port}`
+  if (proc) return `${String(proc)} · ${String(verdict || 'flow')}`
   if (port) return `${String(verdict || 'flow')} · port ${port}`
   return String(e.summary ?? e.message ?? verdict ?? 'Network event')
 }

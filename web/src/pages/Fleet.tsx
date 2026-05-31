@@ -7,6 +7,8 @@ import { Link } from 'react-router'
 import { Server, RefreshCw, Play, Square, Power, BarChart3 } from 'lucide-react'
 import PageHeader from '../components/PageHeader'
 import ErrorBanner from '../components/ErrorBanner'
+import PageSkeleton from '../components/PageSkeleton'
+import EmptyState from '../components/EmptyState'
 import CopyButton from '../components/CopyButton'
 import {
   getFleetStatus,
@@ -31,6 +33,7 @@ export default function FleetPage() {
   const { t } = useTranslation()
   const toast = useToastContext()
   const [loadError, setLoadError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [peers, setPeers] = useState<FleetPeerStatus[]>([])
   const [vms, setVms] = useState<FleetVmRow[]>([])
   const [enabled, setEnabled] = useState(false)
@@ -66,6 +69,8 @@ export default function FleetPage() {
       setFleetAlertsTotal(alerts.total_unacknowledged ?? 0)
     } catch (e: unknown) {
       setLoadError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -89,6 +94,9 @@ export default function FleetPage() {
 
   return (
     <div className="space-y-6">
+      {loading && <PageSkeleton />}
+      {!loading && (
+      <>
       <PageHeader
         title={t('fleet.title')}
         subtitle={t('fleet.subtitle')}
@@ -479,6 +487,8 @@ export default function FleetPage() {
           ) : null}
         </div>
       </section>
+      </>
+      )}
     </div>
   )
 }

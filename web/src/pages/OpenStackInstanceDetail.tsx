@@ -19,6 +19,7 @@ import {
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
+import PageSkeleton from '../components/PageSkeleton'
 import {
   ArrowLeft, Play, Square, RotateCcw, Trash2, Camera, Copy, Cloud, HardDrive, Layers, Lock, Network, Archive,
 } from 'lucide-react'
@@ -151,7 +152,7 @@ function OpenStackInstanceDetailContent() {
   }
 
   if (loading) {
-    return <div className="text-slate-500 py-12 text-center">Loading instance…</div>
+    return <PageSkeleton />
   }
   if (!inst) {
     return (

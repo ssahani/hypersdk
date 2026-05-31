@@ -79,7 +79,7 @@ export default function PlatformFirewallPorts() {
                 key={`${p.targetId}-${p.port}-${p.protocol}`}
                 href={`/platform/zeus/security/firewall/${p.targetId}`}
                 title={`${p.port}/${p.protocol} · ${p.service_name}`}
-                subtitle={`${p.target} · ${p.bind_address}`}
+                subtitle={`${p.target} · ${p.bind_address}${p.process ? ` · ${p.process}` : ''}`}
                 badge={
                   <span className={`text-xs px-2 py-0.5 rounded-full ${riskClass(String(p.risk))}`}>
                     {String(p.risk)}

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { BookOpen, DollarSign, FolderKanban, PieChart } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import {
   getCapacityReport,
@@ -54,9 +56,11 @@ export default function PlatformReports() {
   const [showback, setShowback] = useState<OpsShowbackOverview | null>(null)
   const [runbookBusy, setRunbookBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [p, c, f, costR, capR, secR, compR, hist, attrR, budgetR, expR] = await Promise.all([
         listProjects(),
@@ -95,6 +99,7 @@ export default function PlatformReports() {
         if (sb) setShowback(sb)
       }
     } catch (e: unknown) { setError(formatUserError(e)) }
+    finally { setLoading(false) }
   }, [tab])
 
   useEffect(() => { void load() }, [load])
@@ -134,8 +139,9 @@ export default function PlatformReports() {
         ))}
       </div>
       {error && <ErrorBanner message={error} />}
+      {loading && <PageSkeleton />}
 
-      {tab === 'runbooks' && (
+      {!loading && tab === 'runbooks' && (
         <>
           {opsOverview && (
             <div className="grid gap-3 sm:grid-cols-3">
@@ -146,7 +152,9 @@ export default function PlatformReports() {
           )}
           <MacGlassPanel title="Runbook catalog" subtitle="Execute incident playbooks — records steps in execution history.">
             <ul className="space-y-2 text-sm">
-              {runbooks.map((rb) => (
+              {runbooks.length === 0 ? (
+                <PlatformEmptyState title="No runbooks" subtitle="Runbook catalog loads from the controller — check connectivity and retry." />
+              ) : runbooks.map((rb) => (
                 <li key={rb.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
                   <div>
                     <p className="text-slate-200">{rb.title}</p>
@@ -174,7 +182,7 @@ export default function PlatformReports() {
         </>
       )}
 
-      {tab === 'showback' && showback && (
+      {!loading && tab === 'showback' && showback && (
         <>
           <MacGlassPanel title="Compliance showback" subtitle={showback.summary}>
             <p className="text-2xl font-bold text-emerald-300 -mt-2">
@@ -207,7 +215,7 @@ export default function PlatformReports() {
         </>
       )}
 
-      {tab === 'reports' && cap && (
+      {!loading && tab === 'reports' && cap && (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <MacStatWidget label="Online hosts" value={String(cap.hosts_online)} icon={<FolderKanban className="w-4 h-4" />} />
           <MacStatWidget label="Running VMs" value={String(cap.running_vms)} icon={<FolderKanban className="w-4 h-4" />} tone="ok" />
@@ -215,7 +223,7 @@ export default function PlatformReports() {
           <MacStatWidget label="Avg CPU" value={`${cap.avg_cpu_percent.toFixed(0)}%`} icon={<FolderKanban className="w-4 h-4" />} />
         </div>
       )}
-      {tab === 'reports' && compliance && (
+      {!loading && tab === 'reports' && compliance && (
         <MacGlassPanel title="Machina Compliance" subtitle={`Grade ${compliance.grade} · ${compliance.score}/100`}>
           <p className="text-2xl font-bold text-slate-100 -mt-2">{compliance.score}/100</p>
           <p className="text-sm text-slate-400 mt-1">{compliance.summary}</p>
@@ -259,7 +267,7 @@ export default function PlatformReports() {
           </div>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && budget && (
+      {!loading && tab === 'reports' && budget && (
         <MacGlassPanel title="FinOps budget guard" subtitle={budget.summary}>
           <p className="text-2xl font-bold text-slate-100 -mt-2">
             ${budget.current_spend_usd.toFixed(0)}
@@ -277,7 +285,7 @@ export default function PlatformReports() {
           )}
         </MacGlassPanel>
       )}
-      {tab === 'reports' && exposureFinops && (
+      {!loading && tab === 'reports' && exposureFinops && (
         <MacGlassPanel title="FinOps × Zeus Firewall" subtitle={exposureFinops.summary}>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 -mt-2">
             <MacStatWidget label="Fleet exposure" value={`$${exposureFinops.fleet_exposure_monthly_usd.toFixed(0)}/mo`} icon={<DollarSign className="w-4 h-4" />} tone="warn" />
@@ -301,7 +309,7 @@ export default function PlatformReports() {
           </div>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && cost && (
+      {!loading && tab === 'reports' && cost && (
         <MacGlassPanel title="Machina Cost Guardian" subtitle="Idle, oversized, and snapshot-heavy VMs.">
           <p className="text-2xl font-bold text-emerald-300 -mt-2">${cost.estimated_monthly_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> est. / month</span></p>
           {cost.predicted_next_month_usd != null && (
@@ -322,7 +330,7 @@ export default function PlatformReports() {
           </a>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && attribution && attribution.teams.length > 0 && (
+      {!loading && tab === 'reports' && attribution && attribution.teams.length > 0 && (
         <MacGlassPanel title="Team cost attribution" subtitle={attribution.summary}>
           <ul className="text-xs space-y-2 text-slate-400 mt-2">
             {attribution.teams.slice(0, 8).map((t) => (
@@ -337,7 +345,7 @@ export default function PlatformReports() {
           </a>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && autopilotHistory.length > 0 && (
+      {!loading && tab === 'reports' && autopilotHistory.length > 0 && (
         <MacGlassPanel title="Autopilot history" subtitle="Recent audited auto-fix runs">
           <ul className="text-xs space-y-2 -mt-2">
             {autopilotHistory.map((h) => (
@@ -349,7 +357,7 @@ export default function PlatformReports() {
           </ul>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && aiCap && (
+      {!loading && tab === 'reports' && aiCap && (
         <MacGlassPanel title="Machina Capacity Planner" subtitle="Headroom and simple onboarding projections.">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm -mt-2">
             <p>CPU headroom: <span className="text-slate-200">{aiCap.cpu_headroom_percent}%</span></p>
@@ -365,7 +373,7 @@ export default function PlatformReports() {
           </a>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && security && security.findings.length > 0 && (
+      {!loading && tab === 'reports' && security && security.findings.length > 0 && (
         <MacGlassPanel title="Machina Security Sentinel" subtitle={`Risk level: ${security.risk_level}`}>
           <ul className="text-sm space-y-2 -mt-2">
             {security.findings.slice(0, 8).map((f) => (
@@ -377,7 +385,7 @@ export default function PlatformReports() {
           </ul>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && finops && (
+      {!loading && tab === 'reports' && finops && (
         <MacGlassPanel title="FinOps estimate" subtitle="Rough monthly cost from vCPU and memory rates.">
           <p className="text-3xl font-bold text-emerald-300 -mt-2">${finops.estimated_monthly_usd.toFixed(2)}<span className="text-sm font-normal text-slate-500"> / month</span></p>
           <div className="grid gap-3 sm:grid-cols-3 text-sm text-slate-400 mt-3">
@@ -387,7 +395,7 @@ export default function PlatformReports() {
           </div>
         </MacGlassPanel>
       )}
-      {tab === 'reports' && (
+      {!loading && tab === 'reports' && (
       <MacGlassPanel title="Workspaces" subtitle="Project quotas and VM counts.">
         <ul className="text-sm space-y-2 -mt-2">{projects.map((p) => (
           <li key={p.name} className="flex justify-between border-b border-white/[0.04] pb-2"><span className="text-slate-200">{p.name}</span><span className="text-slate-500">{p.vm_count} VMs</span></li>

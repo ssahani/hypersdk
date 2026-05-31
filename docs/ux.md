@@ -90,6 +90,33 @@ Report: [`docs/ux-wiring-live-report.json`](ux-wiring-live-report.json) — pass
 
 Optional GitHub Actions: workflow_dispatch job `live-ux` (secrets: `LIVE_HOST`, `LIVE_USER`, `LIVE_PASS`).
 
+## Overall UX polish (P14)
+
+Cross-shell presentation pass after backend wiring (P6–P13). See [`backend-ux-wiring-audit.md`](backend-ux-wiring-audit.md) P14 for the full checklist.
+
+| Area | Pattern |
+|------|---------|
+| Initial fetch | [`PageSkeleton`](web/src/components/PageSkeleton.tsx) — never a blank content area |
+| Zero rows | [`PlatformEmptyState`](web/src/components/platform/PlatformEmptyState.tsx) (Platform) or [`EmptyState`](web/src/components/EmptyState.tsx) (Classic/OpenStack/K8s) with at least one CTA |
+| API payloads | [`JsonInspector`](web/src/components/platform/JsonInspector.tsx) — summary/table first; raw JSON behind toggle |
+| Domain failures | [`formatUserError`](web/src/utils/apiError.ts) + hints ([`libvirtHints`](web/src/utils/libvirtHints.ts), [`openstackHints`](web/src/utils/openstackHints.ts), [`hostErrorPresentation`](web/src/utils/hostErrorPresentation.ts), [`storageErrorPresentation`](web/src/utils/storageErrorPresentation.ts)) |
+| Cross-shell nav | [`ShellBridgeBar`](web/src/components/ShellBridgeBar.tsx) on Classic, OpenStack, K8s routes |
+
+**E2E (mocked):**
+
+```bash
+cd web && npm run build && npm run test:e2e -- e2e/platform-full.spec.ts e2e/shell-bridge.spec.ts
+```
+
+**Manual QA additions (P14):**
+
+| Scenario | Check |
+|----------|--------|
+| Platform Storage discover with no hosts | Structured banner + link to Hosts |
+| Platform Host detail, agent offline | Remediation links to Enroll + classic Node |
+| K8s Workloads explorer | Table/summary default; raw JSON toggle |
+| OpenStack enabled but unreachable on Migration | OpenStackUnreachablePanel |
+
 ## Dashboard & shell
 
 - **Help** (top bar) — dropdown: **Keyboard shortcuts** (`?`) and **About** ([`HelpDialog.tsx`](../web/src/components/HelpDialog.tsx), [`ZyvorAbout.tsx`](../web/src/components/ZyvorAbout.tsx)): [zyvor.dev](https://zyvor.dev), product links, copyright © 2026, documentation hub.

@@ -5,6 +5,9 @@ import { Link, useSearchParams } from 'react-router'
 import { Cpu, Search, Server, Shield, Workflow } from 'lucide-react'
 import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import { formatUserError } from '../../utils/apiError'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
 import {
   analyzeAttackPath,
@@ -48,6 +51,7 @@ export default function PlatformZeusOs() {
       : 'fleet',
   )
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [heatmap, setHeatmap] = useState<FleetHeatmap | null>(null)
   const [rebalance, setRebalance] = useState<RebalanceProposal | null>(null)
   const [attackSummary, setAttackSummary] = useState<string | null>(null)
@@ -79,6 +83,7 @@ export default function PlatformZeusOs() {
 
   const loadFleet = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [h, r, gpu, power, linux, summary, local] = await Promise.all([
         getFleetHeatmap(),
@@ -96,7 +101,9 @@ export default function PlatformZeusOs() {
       setLinuxHealth(linux)
       setFleetSummaryLine([summary?.summary, local?.summary].filter(Boolean).join(' · ') || null)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Fleet load failed')
+      setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -111,7 +118,7 @@ export default function PlatformZeusOs() {
         fw.frameworks.map((f) => `${f.framework} ${f.grade} (${f.score})`).join(' · ') || fw.summary,
       )
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Security graph failed')
+      setError(formatUserError(e))
     }
   }, [])
 
@@ -127,7 +134,7 @@ export default function PlatformZeusOs() {
       setMemoryCount(mem.incidents.length)
       if (impact) setServiceImpact(impact.summary)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Service graph failed')
+      setError(formatUserError(e))
     }
   }, [])
 
@@ -136,7 +143,7 @@ export default function PlatformZeusOs() {
     try {
       setBaremetal(await listBaremetalServers())
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Bare metal load failed')
+      setError(formatUserError(e))
     }
   }, [])
 
@@ -166,7 +173,7 @@ export default function PlatformZeusOs() {
       setDiagnosisSummary(diag.hypotheses[0]?.title ?? diag.summary)
       setRunbookSummary(`${rb.runbook_title}: ${rb.steps[0] ?? rb.summary}`)
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Search failed')
+      setError(formatUserError(e))
     }
   }
 
@@ -185,6 +192,7 @@ export default function PlatformZeusOs() {
         subtitle="Fleet intelligence · AI security graph · knowledge engine · service fabric · bare metal"
       />
       {error && <ErrorBanner message={error} />}
+      {loading && tab === 'fleet' && !heatmap && <PageSkeleton />}
       {zeusSummary && <p className="text-sm text-orange-200/90">{zeusSummary}</p>}
       {hubSummary && (
         <MacGlassPanel title="Remediation hub" subtitle="SRE · compliance · fleet power — unified review queue">
@@ -239,7 +247,7 @@ export default function PlatformZeusOs() {
               <button
                 type="button"
                 className="btn-secondary text-xs"
-                onClick={() => void diagnoseFleet(fleetDiagnoseQuery).then((d) => setFleetDiagnoseSummary(d.summary)).catch((e: unknown) => setFleetDiagnoseSummary(e instanceof Error ? e.message : 'Diagnose failed'))}
+                onClick={() => void diagnoseFleet(fleetDiagnoseQuery).then((d) => setFleetDiagnoseSummary(d.summary)).catch((e: unknown) => setFleetDiagnoseSummary(formatUserError(e)))}
               >
                 Diagnose fleet
               </button>
@@ -291,7 +299,12 @@ export default function PlatformZeusOs() {
 
       {tab === 'security' && (
         <div className="space-y-4">
-          <MacGlassPanel title="Zeus Firewall" subtitle="Machine protection — open ports, profiles, lockdown">
+          <MacGlassPanel title="PacketWolf Security Fabric" subtitle="eBPF nervous system — processes, network, DNS, files">
+            <Link to="/platform/zeus/security" className="text-sm text-blue-400 hover:underline">
+              Open Security Center → threat score, timeline, process graph
+            </Link>
+          </MacGlassPanel>
+          <MacGlassPanel title="Machine Security (Firewall)" subtitle="Host firewall profiles, lockdown, ports">
             <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 hover:underline">
               Open Machine Security → Zeus Firewall
             </Link>
@@ -390,7 +403,12 @@ export default function PlatformZeusOs() {
                 />
               ))}
               {baremetal.length === 0 && (
-                <p className="text-sm text-slate-500 px-4 py-2">No bare-metal servers registered — enroll BMC targets from Machine Security.</p>
+                <PlatformEmptyState
+                  icon={Server}
+                  title="No bare-metal servers"
+                  subtitle="Register BMC targets from Machine Security to manage power, PXE, and firewall profiles."
+                  action={<Link to="/platform/zeus/security/firewall" className="btn-primary text-sm">Open Machine Security</Link>}
+                />
               )}
             </div>
             <Link to="/platform/zeus/security/firewall" className="text-xs text-blue-400 mt-3 inline-block">

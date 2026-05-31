@@ -52,6 +52,9 @@ import { getSession, type SessionRole } from '../api/auth'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { serviceAction } from '../api/extras'
 import { formatUserError } from '../utils/apiError'
+import { libvirtErrorHints } from '../utils/libvirtHints'
+import ErrorBanner from '../components/ErrorBanner'
+import PageSkeleton from '../components/PageSkeleton'
 
 interface StatsPoint { time: string; cpu: number; mem: number; disk: number; load: number }
 
@@ -492,7 +495,7 @@ export default function NodeInfoPage() {
     return () => clearInterval(interval)
   }, [load])
 
-  if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+  if (loading) return <PageSkeleton />
   if (!node) return <div className="text-center text-slate-500 py-12">Failed to load host info</div>
 
   const formatUptime = (secs: number) => {
@@ -529,6 +532,10 @@ export default function NodeInfoPage() {
             </button>
           ) : null}
         </div>
+      )}
+
+      {health && !health.libvirt && (
+        <ErrorBanner message={`Libvirt is not healthy: ${health.status}`} hints={libvirtErrorHints(health.status)} />
       )}
 
       {/* Health Status */}

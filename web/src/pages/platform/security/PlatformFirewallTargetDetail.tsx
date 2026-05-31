@@ -14,6 +14,7 @@ import {
   MacToggle,
 } from '../../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../../components/ErrorBanner'
+import JsonInspector from '../../../components/platform/JsonInspector'
 import { formatAllowedFrom } from '../../../utils/firewallDisplay'
 import {
   applyFirewall,
@@ -370,7 +371,7 @@ export default function PlatformFirewallTargetDetail() {
                 </MacSettingsGroup>
                 {securePlan && (
                   <MacGlassPanel title="AI Secure Plan">
-                    <pre className="text-xs text-slate-300 whitespace-pre-wrap">{securePlan}</pre>
+                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{securePlan}</p>
                   </MacGlassPanel>
                 )}
                 <MacSettingsGroup title="AI Explain">
@@ -388,7 +389,7 @@ export default function PlatformFirewallTargetDetail() {
                 </MacSettingsGroup>
                 {aiExplain && (
                   <MacGlassPanel title="Exposure analysis">
-                    <pre className="text-xs text-slate-300 whitespace-pre-wrap">{aiExplain}</pre>
+                    <p className="text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">{aiExplain}</p>
                   </MacGlassPanel>
                 )}
                 {checkpoints.length > 0 && (
@@ -453,7 +454,14 @@ export default function PlatformFirewallTargetDetail() {
         subtitle="Review before applying on the host"
         wide
       >
-        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{previewSheet.body}</pre>
+        {(() => {
+          try {
+            const parsed = JSON.parse(previewSheet.body) as unknown
+            return <JsonInspector data={parsed} />
+          } catch {
+            return <p className="text-sm text-slate-300 whitespace-pre-wrap font-mono">{previewSheet.body}</p>
+          }
+        })()}
       </MacSheet>
     </div>
   )

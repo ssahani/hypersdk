@@ -36,6 +36,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import PageSkeleton from '../components/PageSkeleton'
 import { Loader2, Network, Plus, RefreshCw } from 'lucide-react'
 
 export default function OpenStackNetworkingPage() {
@@ -394,7 +395,7 @@ function OpenStackNetworkingContent() {
       </div>
 
       {loading ? (
-        <Loader2 className="w-8 h-8 animate-spin text-sky-400 mx-auto" />
+        <PageSkeleton />
       ) : (
         <div className="grid lg:grid-cols-2 gap-4">
           <Section title={`Networks (${networks.length})`}>

@@ -5,6 +5,7 @@ import { Link } from 'react-router'
 import { CheckCircle2, XCircle } from 'lucide-react'
 import { MacGlassPanel, MacSectionTitle, MacSheet } from '../../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../../components/ErrorBanner'
+import CopyButton from '../../../components/CopyButton'
 import { getK8sFirewallStatus, planK8sFirewall, applyK8sFirewall } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
 import { useToastContext } from '../../../contexts/ToastContext'
@@ -76,7 +77,16 @@ export default function PlatformFirewallK8s() {
         </div>
       </MacGlassPanel>
       <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Manifest preview" subtitle="Dry-run YAML" wide>
-        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{manifestYaml || 'No manifests'}</pre>
+        {manifestYaml ? (
+          <div className="space-y-2">
+            <div className="flex justify-end">
+              <CopyButton text={manifestYaml} label="Copy YAML" />
+            </div>
+            <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono max-h-[60vh] overflow-auto">{manifestYaml}</pre>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No manifests generated — choose a namespace and profile, then Preview manifests.</p>
+        )}
       </MacSheet>
     </div>
   )

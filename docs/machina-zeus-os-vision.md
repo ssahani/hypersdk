@@ -36,7 +36,9 @@
 
 ## Zeus Firewall (machine protection)
 
-Zeus Firewall unifies host firewalls (firewalld, UFW, nftables, iptables) and optional PacketWolf traffic intelligence into one macOS-like control center under **Machine Security**.
+Zeus Firewall unifies host firewalls (firewalld, UFW, nftables, iptables) and **PacketWolf eBPF security fabric** into one macOS-like control center under **Machine Security**.
+
+See [`packetwolf-zeus-fabric.md`](packetwolf-zeus-fabric.md) for the full Security Center architecture (Tetragon ingest, ClickHouse, process graph, AI copilot).
 
 - `GET /api/v1/zeus-firewall/status` — feature readiness (AI-142)
 - `GET /api/v1/zeus-firewall/overview` — fleet posture cards

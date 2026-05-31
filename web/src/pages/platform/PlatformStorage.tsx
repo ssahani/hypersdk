@@ -128,7 +128,9 @@ export default function PlatformStorage() {
       toast.success(found.length ? `Found ${found.length} pool(s)` : 'No libvirt pools on online hosts')
       await load(false)
     } catch (e: unknown) {
-      toast.error(formatUserError(e))
+      const msg = formatUserError(e)
+      setError(msg)
+      toast.error(msg)
     } finally {
       setDiscovering(false)
     }

@@ -9,6 +9,8 @@ import { getGuestkitStatus, guestkitDoctor, guestkitMigratePlan, submitGuestkitI
 import JsonInspector from '../../components/platform/JsonInspector'
 import { getMigrationAdvisor, type MigrationAdvisorReport } from '../../api/ai'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
+import { useOpenStackConnection } from '../../hooks/useOpenStackConnection'
+import OpenStackUnreachablePanel from '../../components/OpenStackUnreachablePanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import PageSkeleton from '../../components/PageSkeleton'
@@ -26,6 +28,7 @@ type ScanVm = { name: string; status: string; os: string; note: string; provider
 
 export default function PlatformMigration() {
   const { info } = usePlatformInfo()
+  const openstackConn = useOpenStackConnection()
   const navigate = useNavigate()
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -214,7 +217,12 @@ export default function PlatformMigration() {
       <>
       {loading && scan.length === 0 && <PageSkeleton />}
       <div className="grid gap-3 sm:grid-cols-3">
-        {openstack && (
+        {openstack && openstackConn.phase !== 'live' && (
+          <div className="sm:col-span-3">
+            <OpenStackUnreachablePanel />
+          </div>
+        )}
+        {openstack && openstackConn.phase === 'live' && (
           <Link to="/openstack/migrations" className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 text-sm hover:border-sky-400/50 transition">
             <p className="font-semibold text-sky-100 flex items-center gap-2">OpenStack migrations <ExternalLink className="w-3.5 h-3.5" /></p>
             <p className="text-xs text-sky-200/70 mt-1">Glance import, instance export, and cross-cloud lift-and-shift.</p>

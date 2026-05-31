@@ -305,11 +305,23 @@ fn default_siem_hours() -> i32 {
 pub async fn siem_export(
     State(state): State<AppState>,
     Query(q): Query<SiemExportQuery>,
-) -> Result<Json<zeus_firewall::siem::SiemFirewallExport>, ApiError> {
-    zeus_firewall::siem::export_timeline(&state.pool, q.hours)
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let export = zeus_firewall::siem::export_timeline(&state.pool, q.hours)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
-        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let pw = packetwolf_bridge::fetch_anomalies(&state.config).await;
+    let anomalies = pw
+        .get("anomalies")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    Ok(Json(serde_json::json!({
+        "exported_at": export.exported_at,
+        "event_count": export.event_count + anomalies.len(),
+        "events": export.events,
+        "packetwolf_anomalies": anomalies,
+        "sources": ["firewall_timeline", "packetwolf"]
+    })))
 }
 
 #[derive(Debug, Deserialize)]

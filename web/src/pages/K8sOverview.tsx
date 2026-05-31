@@ -9,6 +9,7 @@ import JsonInspector, { asArray, asRecord } from '../components/platform/JsonIns
 import { AlertTriangle, CheckCircle2, Download, LayoutGrid, Loader2, Puzzle, RefreshCw, ShieldAlert, Server, Package,
 } from 'lucide-react'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
+import EmptyState from '../components/EmptyState'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import {
   buildK8sAuditBundleJson,
@@ -593,6 +594,11 @@ export default function K8sOverviewPage() {
           />
         </div>
       )}
+
+      <div className="rounded-xl border border-violet-500/25 bg-violet-950/20 px-4 py-3 text-sm text-violet-100/90">
+        Tetragon + PacketWolf sensors enrich K8s node events with namespace/pod/container metadata.{' '}
+        <Link to="/platform/zeus/security" className="text-violet-300 underline">Open Security Center</Link>
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6 gap-3">
         {counts.map((c) => (
@@ -1602,7 +1608,13 @@ export default function K8sOverviewPage() {
             </tbody>
           </table>
         </div>
-        {nodes.length === 0 && <div className="p-8 text-center text-slate-500">No nodes found</div>}
+        {nodes.length === 0 && (
+          <EmptyState
+            title="No cluster nodes"
+            description="Install k3s/rke2 on this host or configure kubectl context in daemon settings."
+            primaryAction={<Link to="/k8s" className="btn-primary text-sm">Review bootstrap</Link>}
+          />
+        )}
         {nodes.length > 0 && filteredNodes.length === 0 && (
           <div className="p-8 text-center text-slate-500">No nodes match filters</div>
         )}

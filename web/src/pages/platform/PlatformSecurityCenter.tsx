@@ -1,0 +1,215 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
+import { AlertTriangle, Radar, RefreshCw, Shield, ShieldAlert } from 'lucide-react'
+import {
+  MacGlassPanel,
+  MacSectionTitle,
+  MacStatWidget,
+} from '../../components/platform/mac/PlatformMacUi'
+import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import {
+  getFleetThreatSummary,
+  getZeusSecurityGraph,
+  getZeusSecuritySensors,
+  getZeusSecurityStatus,
+  nlSecuritySearch,
+  type FleetThreatSummary,
+  type SecurityGraph,
+  type ZeusSecurityStatus,
+} from '../../api/zeusSecurity'
+import { formatUserError } from '../../utils/apiError'
+import { useToastContext } from '../../contexts/ToastContext'
+
+function threatTone(score: number): 'ok' | 'warn' | 'default' {
+  if (score >= 80) return 'ok'
+  if (score >= 50) return 'warn'
+  return 'default'
+}
+
+function SecurityGraphViz({ graph }: { graph: SecurityGraph | null }) {
+  if (!graph?.nodes?.length) {
+    return <p className="text-sm text-slate-500">Security graph will populate when hosts and users are enrolled.</p>
+  }
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {graph.nodes.slice(0, 12).map((n) => (
+        <div
+          key={n.id}
+          className={`rounded-lg border px-3 py-2 text-sm ${
+            n.risk === 'high'
+              ? 'border-red-500/40 bg-red-950/20 text-red-100'
+              : 'border-white/[0.08] bg-slate-900/40 text-slate-200'
+          }`}
+        >
+          <p className="font-medium truncate">{n.label}</p>
+          <p className="text-xs text-slate-500">{n.kind}{n.risk ? ` · ${n.risk} risk` : ''}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export default function PlatformSecurityCenter() {
+  const toast = useToastContext()
+  const [status, setStatus] = useState<ZeusSecurityStatus | null>(null)
+  const [threat, setThreat] = useState<FleetThreatSummary | null>(null)
+  const [graph, setGraph] = useState<SecurityGraph | null>(null)
+  const [sensorCount, setSensorCount] = useState(0)
+  const [nlQuery, setNlQuery] = useState('')
+  const [nlResults, setNlResults] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  const load = useCallback(async () => {
+    setError(null)
+    setLoading(true)
+    try {
+      const [st, th, gr, sensors] = await Promise.all([
+        getZeusSecurityStatus(),
+        getFleetThreatSummary(),
+        getZeusSecurityGraph(),
+        getZeusSecuritySensors(),
+      ])
+      setStatus(st)
+      setThreat(th)
+      setGraph(gr)
+      setSensorCount(sensors.sensors?.length ?? 0)
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  const runNlSearch = () => {
+    if (!nlQuery.trim()) return
+    void nlSecuritySearch(nlQuery.trim())
+      .then((r) => {
+        const hits = (r.results as { results?: unknown[] })?.results ?? []
+        setNlResults(`${hits.length} result(s) for "${r.search_query}"`)
+      })
+      .catch((e: unknown) => toast.error(formatUserError(e)))
+  }
+
+  const score = threat?.fleet_threat_score ?? 0
+  const critical = threat?.critical_events ?? []
+
+  return (
+    <div className="space-y-6">
+      <MacSectionTitle
+        title="Security Center"
+        subtitle="PacketWolf eBPF fabric — observe, understand, secure"
+      />
+      <Link to="/platform/zeus" className="text-sm text-blue-400">← Machina Zeus OS</Link>
+      {error && <ErrorBanner message={error} />}
+      {loading && !threat && <PageSkeleton />}
+
+      {status && !status.fabric_reachable && status.packetwolf.enabled && (
+        <PlatformEmptyState
+          title="PacketWolf fabric unreachable"
+          subtitle={status.packetwolf.summary}
+          action={
+            <Link to="/platform/integrations" className="btn-primary text-sm">Wire in Integrations</Link>
+          }
+        />
+      )}
+
+      {threat && (
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MacStatWidget
+              label="Fleet threat score"
+              value={String(Math.round(score))}
+              icon={<Shield className="w-4 h-4" />}
+              tone={threatTone(score)}
+            />
+            <MacStatWidget
+              label="Critical events"
+              value={String(critical.length)}
+              icon={<ShieldAlert className="w-4 h-4" />}
+              tone={critical.length > 0 ? 'warn' : 'ok'}
+            />
+            <MacStatWidget
+              label="Tetragon sensors"
+              value={String(sensorCount)}
+              icon={<Radar className="w-4 h-4" />}
+            />
+            <MacStatWidget
+              label="Firewall targets"
+              value={String(threat.firewall_targets)}
+              icon={<AlertTriangle className="w-4 h-4" />}
+            />
+          </div>
+
+          <MacGlassPanel title="Critical" subtitle="Requires attention">
+            {critical.length === 0 ? (
+              <p className="text-sm text-slate-500">No critical security events in the current window.</p>
+            ) : (
+              <ul className="space-y-2">
+                {critical.slice(0, 8).map((ev, i) => (
+                  <li key={i} className="text-sm text-red-200/90 flex items-start gap-2">
+                    <span className="text-red-400 shrink-0">•</span>
+                    <span>
+                      {String(ev.summary ?? ev.kind ?? 'event')}
+                      {ev.host_id ? (
+                        <>
+                          {' '}
+                          <Link to={`/platform/zeus/machines/${String(ev.host_id)}`} className="text-blue-400">
+                            ({String(ev.host_id)})
+                          </Link>
+                        </>
+                      ) : null}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </MacGlassPanel>
+
+          <MacGlassPanel title="Infrastructure security graph" subtitle={threat.security_graph_summary}>
+            <SecurityGraphViz graph={graph} />
+          </MacGlassPanel>
+
+          <MacGlassPanel title="Security Copilot search" subtitle="Natural language event search">
+            <div className="flex flex-wrap gap-2 mb-2">
+              <input
+                className="input text-sm flex-1 min-w-[14rem]"
+                placeholder="Show every process that opened port 8080 last week"
+                value={nlQuery}
+                onChange={(e) => setNlQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && runNlSearch()}
+              />
+              <button type="button" className="btn-secondary text-sm" onClick={runNlSearch}>Search</button>
+            </div>
+            {nlResults && <p className="text-sm text-slate-400">{nlResults}</p>}
+          </MacGlassPanel>
+
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <Link to="/platform/zeus/security/firewall" className="rounded-xl border border-white/[0.08] p-4 hover:border-blue-500/40 transition">
+              <p className="font-semibold text-slate-100">Machine Security (Firewall)</p>
+              <p className="text-xs text-slate-500 mt-1">Host firewall profiles, ports, lockdown</p>
+            </Link>
+            <Link to="/platform/zeus/security/activity" className="rounded-xl border border-white/[0.08] p-4 hover:border-blue-500/40 transition">
+              <p className="font-semibold text-slate-100">Firewall Activity</p>
+              <p className="text-xs text-slate-500 mt-1">Blocked and allowed connections</p>
+            </Link>
+            <Link to="/platform/zeus/security/ports" className="rounded-xl border border-white/[0.08] p-4 hover:border-blue-500/40 transition">
+              <p className="font-semibold text-slate-100">Open Ports</p>
+              <p className="text-xs text-slate-500 mt-1">Exposure scanner with process metadata</p>
+            </Link>
+          </div>
+
+          <button type="button" className="btn-secondary text-sm flex items-center gap-2" onClick={() => void load()}>
+            <RefreshCw className="w-4 h-4" /> Refresh
+          </button>
+        </>
+      )}
+    </div>
+  )
+}

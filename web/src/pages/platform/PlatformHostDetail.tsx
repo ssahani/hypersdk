@@ -11,6 +11,8 @@ import {
   MacListRow,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import { hostErrorPresentation } from '../../utils/hostErrorPresentation'
 import { getLocalFirewallInventory } from '../../api/advanced'
@@ -84,6 +86,7 @@ export default function PlatformHostDetailPage() {
   const [diagnose, setDiagnose] = useState<HostOsDiagnoseReport | null>(null)
   const [diagnoseLoading, setDiagnoseLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [notes, setNotes] = useState('')
   const [localFw, setLocalFw] = useState<Record<string, unknown> | null>(null)
   const [site, setSite] = useState('')
@@ -97,6 +100,7 @@ export default function PlatformHostDetailPage() {
   const load = useCallback(async () => {
     if (!id) return
     setError(null)
+    setLoading(true)
     try {
       const h = await getPlatformHostDetail(id)
       setHost(h)
@@ -106,6 +110,8 @@ export default function PlatformHostDetailPage() {
       setRackU(h.rack_u != null ? String(h.rack_u) : '')
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [id])
 
@@ -173,6 +179,14 @@ export default function PlatformHostDetailPage() {
       ) : (
         <ErrorBanner message={error} />
       ))}
+      {error && hostErrorPresentation(error)?.error_code === 'host_agent_offline' && (
+        <p className="text-xs text-slate-500">
+          <Link to="/platform/enroll" className="text-blue-400">Add Host / re-enroll agent</Link>
+          {' · '}
+          <Link to="/node" className="text-blue-400">Classic node tools</Link>
+        </p>
+      )}
+      {loading && !host && <PageSkeleton />}
       {host && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -217,7 +231,7 @@ export default function PlatformHostDetailPage() {
                 )}
                 <MacSettingsGroup title="Actions">
                   <div className="p-3 flex flex-wrap gap-2">
-                    <button type="button" className="btn-secondary text-sm" onClick={() => void syncHost(id).then(() => toast.success('Sync queued'))}>Sync</button>
+                    <button type="button" className="btn-secondary text-sm" onClick={() => void syncHost(id).then(() => toast.success('Sync queued')).catch((e: unknown) => setError(formatUserError(e)))}>Sync</button>
                     <button type="button" className="btn-secondary text-sm" onClick={() => void enqueueValidateHost(id).then(() => { toast.success('Validation queued'); return load() })}>Validate</button>
                     <button type="button" className="btn-secondary text-sm" onClick={() => void hostMaintenance(id, 'enter').then(() => toast.success('Maintenance'))}>Maintenance</button>
                     <button type="button" className="btn-danger text-sm" onClick={() => void fenceHost(id).then(() => { toast.success('Fence invoked'); return load() })}>Fence</button>
@@ -307,7 +321,12 @@ export default function PlatformHostDetailPage() {
                     ))}
                   </MacGlassPanel>
                 ) : (
-                  <p className="text-sm text-slate-500">Network diagnostics unavailable — ensure agent is online.</p>
+                  <p className="text-sm text-slate-500">
+                    Network diagnostics unavailable —{' '}
+                    <Link to="/platform/enroll" className="text-blue-400">check agent install</Link>
+                    {' or '}
+                    <Link to="/node" className="text-blue-400">classic node tools</Link>.
+                  </p>
                 )}
                 {lldp && lldp.neighbors.length > 0 && (
                   <MacGlassPanel title={`LLDP (${lldp.source})`}>
@@ -369,7 +388,12 @@ export default function PlatformHostDetailPage() {
                     )}
                   </>
                 ) : (
-                  <p className="text-sm text-slate-500">Linux observability unavailable — agent must run on Linux host.</p>
+                  <p className="text-sm text-slate-500">
+                    Linux observability unavailable —{' '}
+                    <Link to="/platform/enroll" className="text-blue-400">check agent install</Link>
+                    {' or '}
+                    <Link to="/node" className="text-blue-400">classic node tools</Link>.
+                  </p>
                 )}
                 <OsDiagnosePanel
                   resourceId={id}

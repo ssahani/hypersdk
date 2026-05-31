@@ -12,6 +12,7 @@ import {
   type TerraformResourceSchema,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import CopyButton from '../../components/CopyButton'
 
 type DevTab = 'sdk' | 'console'
 
@@ -67,7 +68,10 @@ export default function PlatformDeveloper() {
           </div>
           <MacGlassPanel title="TypeScript SDK">
             <p className="text-sm text-slate-300 mb-2">Path: <code className="text-blue-300">{overview.sdk_typescript.path}</code></p>
-            <pre className="text-xs bg-slate-950/80 rounded-lg p-3 overflow-x-auto text-slate-300">{overview.sdk_typescript.install}</pre>
+            <div className="flex items-start gap-2">
+              <pre className="text-xs bg-slate-950/80 rounded-lg p-3 overflow-x-auto text-slate-300 flex-1">{overview.sdk_typescript.install}</pre>
+              <CopyButton text={overview.sdk_typescript.install} label="Copy install" />
+            </div>
             <ul className="mt-3 flex flex-wrap gap-2">
               {overview.sdk_typescript.resources.map((r) => (
                 <li key={r} className="text-xs px-2 py-1 rounded bg-slate-800 text-slate-300">{r}</li>

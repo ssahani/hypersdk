@@ -115,6 +115,39 @@ VSPASS='…' ./scripts/deploy-remote.sh sus 212.8.252.194 --quick --e2e
 - [x] [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) — refreshable preview panels with recent Nova instances
 - [x] JsonInspector on firewall policy simulation + air-gap bundle manifests in Settings → Security
 
+### P14 — Overall UX polish (all shells, shipped)
+
+**Wave 1 — Loading & empty states**
+
+- [x] Platform high-traffic pages: [`PageSkeleton`](../web/src/components/PageSkeleton.tsx) + [`PlatformEmptyState`](../web/src/components/platform/PlatformEmptyState.tsx) on Networks, ZeusOs, HostDetail, Templates, Maintenance, Topology, Reports
+- [x] Classic: Storage, NodeInfo, Fleet, Backups — initial skeleton; Storage empty pools [`EmptyState`](../web/src/components/EmptyState.tsx)
+- [x] OpenStack: Networking, Volumes, Instance/LB detail — skeleton on fetch/tab switch
+- [x] K8s: Overview node empty state; Workloads tab skeleton
+
+**Wave 2 — JSON humanization**
+
+- [x] [`K8sWorkloads`](../web/src/pages/K8sWorkloads.tsx) — Helm/RBAC/apply/explorer panels via JsonInspector (logs stay text)
+- [x] [`PlatformFirewallTargetDetail`](../web/src/pages/platform/security/PlatformFirewallTargetDetail.tsx) — structured cards + JsonInspector toggle
+- [x] [`PlatformVmDetail`](../web/src/pages/platform/PlatformVmDetail.tsx) — spec tab human-first
+- [x] [`K8sOverview`](../web/src/pages/K8sOverview.tsx) — inventory history table + JsonInspector
+- [x] [`PlatformFirewallK8s`](../web/src/pages/platform/security/PlatformFirewallK8s.tsx) — manifest copy + empty collapse
+- [x] [`PlatformDeveloper`](../web/src/pages/platform/PlatformDeveloper.tsx) — SDK snippet CopyButton
+- [x] VMDetails block jobs / Jobs log panels already structured (timeline + text log, not JSON-first)
+
+**Wave 3 — Actionable errors & QA**
+
+- [x] [`hostErrorPresentation`](../web/src/utils/hostErrorPresentation.ts) + enroll/node links on [`PlatformHostDetail`](../web/src/pages/platform/PlatformHostDetail.tsx)
+- [x] [`storageErrorPresentation`](../web/src/utils/storageErrorPresentation.ts) + host/node links on [`PlatformStorage`](../web/src/pages/platform/PlatformStorage.tsx)
+- [x] [`PlatformZeusOs`](../web/src/pages/platform/PlatformZeusOs.tsx) — `formatUserError` on all catches
+- [x] Classic [`Storage`](../web/src/pages/Storage.tsx) / [`NodeInfo`](../web/src/pages/NodeInfo.tsx) — libvirt hints
+- [x] [`PlatformMigration`](../web/src/pages/platform/PlatformMigration.tsx) — [`OpenStackUnreachablePanel`](../web/src/components/OpenStackUnreachablePanel.tsx) when OpenStack enabled but not live
+- [x] Playwright [`shell-bridge.spec.ts`](../web/e2e/shell-bridge.spec.ts) — Platform ↔ K8s bridge + classic Storage empty state
+
+```bash
+cd web && npm test
+cd web && npm run build && npm run test:e2e -- e2e/platform-full.spec.ts e2e/shell-bridge.spec.ts
+```
+
 ## How to measure progress
 
 ```bash

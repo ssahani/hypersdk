@@ -1,0 +1,30 @@
+services:
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - ./schema/clickhouse.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    environment:
+      CLICKHOUSE_DB: packetwolf
+
+  opensearch:
+    image: opensearchproject/opensearch:2.17.0
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+
+  packetwolf:
+    build: .
+    ports:
+      - "9091:9091"
+    environment:
+      CLICKHOUSE_URL: http://clickhouse:8123
+      OPENSEARCH_URL: http://opensearch:9200
+    depends_on:
+      - clickhouse
+      - opensearch

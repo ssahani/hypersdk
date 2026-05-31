@@ -5,10 +5,14 @@ import { Link } from 'react-router'
 import { Cable, GitBranch, Layers, RefreshCw } from 'lucide-react'
 import { MacSectionTitle, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import { formatUserError } from '../../utils/apiError'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
 import { getClusterTopology, type TopologyGraph } from '../../api/platform'
 import { getSimilarIncidents } from '../../api/ai'
+import { getZeusAssetInventory } from '../../api/zeusSecurity'
 
 type LldpStripEntry = {
   hostId: string
@@ -20,17 +24,23 @@ type LldpStripEntry = {
 export default function PlatformTopology() {
   const [graph, setGraph] = useState<TopologyGraph | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [incidentQuery, setIncidentQuery] = useState('network partition host offline')
   const [similarIncidents, setSimilarIncidents] = useState<Array<{ label: string; score: number; summary: string }>>([])
+  const [trafficHosts, setTrafficHosts] = useState<Array<Record<string, unknown>>>([])
 
   const load = useCallback(async () => {
     setError(null)
     setLoading(true)
     try {
-      setGraph(await getClusterTopology())
+      const [topo, inv] = await Promise.all([
+        getClusterTopology(),
+        getZeusAssetInventory().catch(() => ({ hosts: [] })),
+      ])
+      setGraph(topo)
+      setTrafficHosts((inv.hosts as Array<Record<string, unknown>>) ?? [])
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to load topology')
+      setError(formatUserError(e))
     } finally {
       setLoading(false)
     }
@@ -80,6 +90,15 @@ export default function PlatformTopology() {
         </button>
       </div>
       {error && <ErrorBanner message={error} />}
+      {loading && !graph && <PageSkeleton />}
+      {!loading && graph && graph.nodes.length === 0 && (
+        <PlatformEmptyState
+          icon={GitBranch}
+          title="Topology is empty"
+          subtitle="Enroll hosts and import networks to build the cluster digital twin."
+          action={<Link to="/platform/enroll" className="btn-primary text-sm">Enroll a host</Link>}
+        />
+      )}
       <MacGlassPanel title="Similar incidents" subtitle="GET /api/v1/ai/memory/similar">
         <div className="flex flex-wrap gap-2 mb-3">
           <input className="input text-sm flex-1 min-w-[12rem]" value={incidentQuery} onChange={(e) => setIncidentQuery(e.target.value)} />
@@ -106,6 +125,21 @@ export default function PlatformTopology() {
         )}
       </MacGlassPanel>
       <MachinaDigitalTwin />
+      {trafficHosts.length > 0 && (
+        <MacGlassPanel title="Live traffic overlay" subtitle="Observed connections from PacketWolf asset inventory">
+          <ul className="text-sm text-slate-300 space-y-1">
+            {trafficHosts.flatMap((h) => {
+              const conns = (h.connections as Array<{ from?: string; to?: string }>) ?? []
+              return conns.slice(0, 6).map((c, i) => (
+                <li key={`${h.host_id}-${i}`}>
+                  <span className="text-slate-500">{String(h.host_id)}</span> · {c.from} → {c.to}
+                </li>
+              ))
+            })}
+          </ul>
+          <Link to="/platform/zeus/security" className="text-xs text-blue-400 mt-2 inline-block">Security Center</Link>
+        </MacGlassPanel>
+      )}
       <MachinaNetworkLens vmNames={graph?.nodes.filter((n) => n.kind === 'vm').map((n) => n.name) ?? []} />
 
       {(segmentLegend.length > 0 || uplinkEdges.length > 0) && (

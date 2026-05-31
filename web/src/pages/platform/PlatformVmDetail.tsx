@@ -10,6 +10,7 @@ import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
 import VmDetailTabs, { type VmDetailTab } from '../../components/platform/VmDetailTabs'
 import { MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import JsonInspector from '../../components/platform/JsonInspector'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import {
   createVmBackup,
@@ -78,6 +79,7 @@ export default function PlatformVmDetail() {
   const [precheck, setPrecheck] = useState<MigratePrecheckResult | null>(null)
   const [ha, setHa] = useState<HaPolicy>({ enabled: false, restart_attempts: 3, restart_priority: 'medium', fence_on_failure: false, anti_affinity: false })
   const [specJson, setSpecJson] = useState<string>('')
+  const [specData, setSpecData] = useState<Record<string, unknown> | null>(null)
   const [snapName, setSnapName] = useState('snap-01')
   const [project, setProject] = useState('')
   const [tags, setTags] = useState('')
@@ -122,6 +124,7 @@ export default function PlatformVmDetail() {
       setHosts(h)
       setHa(policy)
       setSpecJson(JSON.stringify(spec, null, 2))
+      setSpecData(spec as Record<string, unknown>)
       setProject(v.project || '')
       setTags((v.tags || []).join(', '))
       setSnapshots(snaps)
@@ -689,8 +692,8 @@ export default function PlatformVmDetail() {
                 <label className="flex items-center gap-2 text-sm mt-2"><input type="checkbox" checked={ha.fence_on_failure} onChange={(e) => setHa({ ...ha, fence_on_failure: e.target.checked })} /> Fence host on failure</label>
                 <button type="button" className="btn-secondary mt-2" onClick={() => void act('HA policy updated', () => setVmHa(id, ha))}>Save HA policy</button>
               </MacGlassPanel>
-              <MacGlassPanel title="Pro view — spec JSON">
-                <pre className="text-xs overflow-auto max-h-64 text-slate-400">{specJson}</pre>
+              <MacGlassPanel title="VM spec">
+                {specData ? <JsonInspector data={specData} /> : <p className="text-sm text-slate-500">Spec unavailable</p>}
               </MacGlassPanel>
             </div>
           )}

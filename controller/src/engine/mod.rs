@@ -7,6 +7,7 @@ pub mod host_validate;
 pub mod guestkit_bridge;
 pub mod packetwolf_bridge;
 pub mod zeus_firewall;
+pub mod zeus_security;
 pub mod migrate_precheck;
 pub mod placement;
 pub mod baremetal;

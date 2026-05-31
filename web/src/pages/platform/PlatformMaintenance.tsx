@@ -10,6 +10,8 @@ import {
   MacStatWidget,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import {
   createMaintenanceSchedule,
@@ -39,6 +41,7 @@ export default function PlatformMaintenance() {
   const [rows, setRows] = useState<MaintenanceSchedule[]>([])
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [pageLoading, setPageLoading] = useState(true)
   const [loadingUpdates, setLoadingUpdates] = useState(false)
   const [hostId, setHostId] = useState('')
   const [runAt, setRunAt] = useState('')
@@ -69,6 +72,7 @@ export default function PlatformMaintenance() {
 
   const load = useCallback(async () => {
     setError(null)
+    setPageLoading(true)
     try {
       if (tab === 'updates') {
         await loadUpdates()
@@ -77,6 +81,8 @@ export default function PlatformMaintenance() {
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setPageLoading(false)
     }
   }, [tab, loadUpdates, loadSchedules])
 
@@ -119,8 +125,9 @@ export default function PlatformMaintenance() {
       </div>
 
       {error && <ErrorBanner message={error} />}
+      {pageLoading && <PageSkeleton />}
 
-      {tab === 'updates' && (
+      {!pageLoading && tab === 'updates' && (
         <div className="space-y-4">
           {fleet && (
             <>
@@ -215,7 +222,7 @@ export default function PlatformMaintenance() {
         </div>
       )}
 
-      {tab === 'schedules' && (
+      {tab === 'schedules' && !pageLoading && (
         <>
           <div className="card p-4 grid gap-3 md:grid-cols-4">
             <select className="input" value={hostId} onChange={(e) => setHostId(e.target.value)}>
@@ -230,6 +237,13 @@ export default function PlatformMaintenance() {
               } catch (e: unknown) { toast.error(formatUserError(e)) }
             }}><Plus className="w-4 h-4" /> Schedule</button>
           </div>
+          {rows.length === 0 ? (
+            <PlatformEmptyState
+              icon={CalendarClock}
+              title="No maintenance windows"
+              subtitle="Schedule deferred evacuate or patch windows for hypervisors."
+            />
+          ) : (
           <div className="card overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="text-slate-400 border-b border-slate-800"><th className="p-3 text-left">Host</th><th className="p-3">Action</th><th className="p-3">Run at</th><th className="p-3">Status</th><th className="p-3" /></tr></thead>
@@ -252,6 +266,7 @@ export default function PlatformMaintenance() {
               ))}</tbody>
             </table>
           </div>
+          )}
         </>
       )}
       {tab === 'updates' && <FleetSettingsPane kind="updates" />}
