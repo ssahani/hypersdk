@@ -15,6 +15,7 @@ import {
 } from '../api/kubevirt'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 
 type Props = {
   open: boolean
@@ -290,7 +291,7 @@ function BundleView({
         {bundle.cluster_exec_enabled ? (
           <span className="text-violet-300"> · daemon exec enabled</span>
         ) : (
-          <span className="text-amber-300/90"> · enable [kubevirt] exec_enabled for one-click upload</span>
+          <span className={statusToneClass('warn')}> · enable [kubevirt] exec_enabled for one-click upload</span>
         )}
       </p>
       {bundle.cluster_exec_enabled && (

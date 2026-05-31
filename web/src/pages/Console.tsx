@@ -16,6 +16,7 @@ import {
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import AiTerminalCompanion from '../components/ai/AiTerminalCompanion'
+import { statusBadgeClasses } from '../utils/semanticColors'
 
 interface ConsoleInfo {
   name: string
@@ -170,7 +171,7 @@ export default function ConsolePage() {
           <a
             href={virtViewerVvUrl(name, conn)}
             download={`${name}.vv`}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-800/60 hover:bg-emerald-700/70 text-sm text-emerald-100 transition"
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm transition ${statusBadgeClasses('ok')} border-[color-mix(in_srgb,var(--machina-status-ok)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_15%,transparent)]`}
           >
             <Download className="w-4 h-4" aria-hidden />
             Virt-Viewer .vv

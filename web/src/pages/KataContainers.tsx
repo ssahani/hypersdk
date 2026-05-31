@@ -311,10 +311,10 @@ export default function KataContainersPage() {
           Installs RBAC, DaemonSet, RuntimeClasses, and related objects via the OCI chart on <code className="text-slate-400">ghcr.io</code>. Requires Helm 3.8+, <code className="text-slate-400">curl</code> (to read the latest release tag), and cluster pull access to the registry.
         </p>
         <p className={`text-xs rounded-lg border px-3 py-2 ${statusSurfaceClasses('warn')}`}>
-          <strong className="text-amber-100">k3s / RKE2:</strong> If kata-deploy logs say it cannot read{' '}
-          <code className="text-amber-100/90">/etc/containerd/config.toml</code>, reinstall with{' '}
-          <code className="text-amber-100/90">--set k8sDistribution=k3s</code> (or <code className="text-amber-100/90">rke2</code>). Plain Kubernetes keeps config under{' '}
-          <code className="text-amber-100/90">/etc/containerd/</code>; k3s uses paths under <code className="text-amber-100/90">/var/lib/rancher/k3s/...</code>.
+          <strong className={statusToneClass('warn')}>k3s / RKE2:</strong> If kata-deploy logs say it cannot read{' '}
+          <code className="opacity-90">/etc/containerd/config.toml</code>, reinstall with{' '}
+          <code className="opacity-90">--set k8sDistribution=k3s</code> (or <code className="opacity-90">rke2</code>). Plain Kubernetes keeps config under{' '}
+          <code className="opacity-90">/etc/containerd/</code>; k3s uses paths under <code className="opacity-90">/var/lib/rancher/k3s/...</code>.
         </p>
         <CopyBlock label="helm (Kubernetes)" text={CMD_HELM} />
         <CopyBlock label="helm (k3s — sets chart distro)" text={CMD_HELM_K3S} />

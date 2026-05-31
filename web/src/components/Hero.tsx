@@ -7,6 +7,7 @@ import { Link } from 'react-router'
 import { Activity, Lock, Shield, Boxes, KeyRound, Wifi, WifiOff, Cloud } from 'lucide-react'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
+import { statusBadgeClasses, statusBorderClass } from '../utils/semanticColors'
 
 interface HeroProps {
   /** Page title (rendered as gradient headline). */
@@ -35,12 +36,12 @@ interface BadgeProps {
 function Badge({ on, label, icon, title, tone = 'default' }: BadgeProps) {
   const onCls =
     tone === 'info'
-      ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
+      ? `${statusBadgeClasses('info')} border ${statusBorderClass('info')}`
       : tone === 'warn'
-        ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
+        ? `${statusBadgeClasses('warn')} border ${statusBorderClass('warn')}`
         : tone === 'error'
-          ? 'border-red-500/40 bg-red-500/10 text-red-200'
-          : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+          ? `${statusBadgeClasses('error')} border ${statusBorderClass('error')}`
+          : `${statusBadgeClasses('ok')} border ${statusBorderClass('ok')}`
   const offCls = 'border-slate-700/60 bg-slate-800/40 text-slate-400'
   return (
     <span

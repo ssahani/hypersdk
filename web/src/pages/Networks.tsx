@@ -10,7 +10,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X, Pencil } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
-import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 
@@ -148,10 +148,10 @@ export default function NetworksPage() {
       )}
 
       {libvirtBoot?.needs_attention && libvirtBoot.detail && (
-        <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className={`rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${statusSurfaceClasses('warn')}`}>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-amber-100">Libvirt networks after host reboot</p>
-            <p className="text-xs text-amber-100/85 mt-1 leading-relaxed">{libvirtBoot.detail}</p>
+            <p className={`text-sm font-medium ${statusToneClass('warn')}`}>Libvirt networks after host reboot</p>
+            <p className={`text-xs mt-1 leading-relaxed opacity-90 ${statusToneClass('warn')}`}>{libvirtBoot.detail}</p>
             <p className="text-xs text-slate-500 mt-1.5">
               Per-network Autostart below only applies once the libvirt daemon for NAT (<code className="text-slate-400">virtnetworkd</code> or <code className="text-slate-400">libvirtd</code>) starts at boot.
             </p>
@@ -161,7 +161,7 @@ export default function NetworksPage() {
               type="button"
               disabled={libvirtBootBusy}
               onClick={() => void enableLibvirtBootUnit()}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/25 text-amber-100 border border-amber-500/40 hover:bg-amber-600/40 disabled:opacity-50 transition"
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 transition ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_15%,transparent)]`}
             >
               {libvirtBootBusy ? 'Running…' : `Enable at boot (${libvirtBoot.systemd_unit})`}
             </button>
@@ -232,7 +232,7 @@ export default function NetworksPage() {
             </div>
             <div className="p-5 flex-1 min-h-0 flex flex-col gap-3">
               {editTarget.active && (
-                <p className="text-xs text-amber-200/90 bg-amber-950/40 border border-amber-600/30 rounded-lg px-3 py-2">
+                <p className={`text-xs rounded-lg px-3 py-2 ${statusSurfaceClasses('warn')}`}>
                   This network is active. Saving applies the new definition and briefly restarts the network (guest NICs may drop traffic for a moment).
                 </p>
               )}

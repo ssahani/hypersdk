@@ -103,6 +103,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **OpenStack:** Instances/InstanceDetail/CreateInstance/Migrations warn banners; locked badges; hypervisor maintenance, port admin-down, floating-IP dissociate, volume-transfer auth key, network delete confirm; semantic hover on row action icons
 - **Deferred:** primary CTAs (`bg-emerald-600` start/create), `ChoiceCards` accents, Identity admin buttons (`bg-amber-700`)
 
+## Batch 61 deliverables (classic operator color tail — shipped)
+
+- **Classic pages:** Networks libvirt-boot + active-network edit warn; DiskImages OpenStack/mkosi/virt-builder hints; Jobs empty-state link; KataContainers k3s/RKE2 callout; SystemCheck OpenStack hint; Services stop hover; HostNetworking topology legend; Console virt-viewer download chip; VMList row action hovers
+- **VMDetails:** tune-disk hover + filesystem mount tag tone
+- **Shared:** Hero capability badges; LibvirtOpenStackPushModal running hint; KubeVirtQcow2Modal exec hint; KubeVirtExposeServiceModal command tone; BuildStepTimeline failed step
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

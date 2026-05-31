@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react'
 import { Check, Loader2 } from 'lucide-react'
+import { statusBadgeClasses, statusBorderClass, statusToneClass } from '../utils/semanticColors'
 
 type Variant = 'slate' | 'amber' | 'violet'
 
@@ -65,7 +66,7 @@ export function BuildStepTimeline({
             done
               ? variantDone[v]
               : errHere
-                ? 'border-rose-500/70 bg-rose-950/80 text-rose-200'
+                ? `${statusBadgeClasses('error')} border-2 ${statusBorderClass('error')}`
                 : current
                   ? `border-slate-600 bg-slate-800 ${variantRing[v]} ring-2`
                   : 'border-slate-600 bg-slate-900/80 text-slate-500'
@@ -84,7 +85,7 @@ export function BuildStepTimeline({
         </div>
         <span
           className={`mt-1.5 text-center text-[10px] font-medium leading-snug sm:text-[11px] ${
-            done || current ? 'text-slate-200' : errHere ? 'text-rose-200/90' : 'text-slate-500'
+            done || current ? 'text-slate-200' : errHere ? statusToneClass('error') : 'text-slate-500'
           }`}
         >
           {label}

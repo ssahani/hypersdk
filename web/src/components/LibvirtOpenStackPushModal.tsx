@@ -18,6 +18,7 @@ import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import HypersdkStatusBanner from './HypersdkStatusBanner'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 
 type Props = {
   open: boolean
@@ -191,7 +192,7 @@ export default function LibvirtOpenStackPushModal({
               <p className="text-slate-400">
                 Root disk: <code className="text-slate-200 break-all">{preview.root_disk}</code>
                 {preview.vm_running && (
-                  <span className="text-amber-400 ml-2">(running — stop recommended before upload)</span>
+                  <span className={`ml-2 ${statusToneClass('warn')}`}>(running — stop recommended before upload)</span>
                 )}
               </p>
               <label className="flex items-center gap-2 text-slate-300">

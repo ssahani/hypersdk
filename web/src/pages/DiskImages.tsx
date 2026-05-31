@@ -29,7 +29,7 @@ import { computeVirtImageBuildTimeline, VIRT_IMAGE_TIMELINE_LABELS } from '../ut
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
-import { statusDestructiveButtonClasses } from '../utils/semanticColors'
+import { statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 function formatBytes(b: number): string {
   if (b === 0) return '0 B'
@@ -272,7 +272,7 @@ export default function DiskImagesPage() {
         </p>
       )}
       {openstackUploadHint && (
-        <p className="inline-flex items-center gap-2 text-xs text-amber-300/90 border border-amber-500/30 bg-amber-950/20 rounded-lg px-3 py-2">
+        <p className={`inline-flex items-center gap-2 text-xs rounded-lg px-3 py-2 ${statusSurfaceClasses('warn')}`}>
           <Cloud className="w-3.5 h-3.5 shrink-0" />
           {openstackUploadHint}
         </p>
@@ -284,11 +284,11 @@ export default function DiskImagesPage() {
             Scanned directories (libvirt storage pools plus host defaults):{' '}
             <span className="text-slate-300 font-mono break-all">{scanDirectories.join(', ')}</span>
           </p>
-          <p className="text-amber-200/90 border-t border-amber-900/30 pt-2 mt-2">
-            <strong className="text-amber-100/90">mkosi temp:</strong> failed image builds may leave large folders under{' '}
-            <code className="text-amber-100/80">/var/tmp/machina-mkosi-ws/</code>. Remove stale ones when you no longer
+          <p className={`border-t pt-2 mt-2 ${statusToneClass('warn')}`}>
+            <strong className="opacity-90">mkosi temp:</strong> failed image builds may leave large folders under{' '}
+            <code className="opacity-80">/var/tmp/machina-mkosi-ws/</code>. Remove stale ones when you no longer
             need logs to free host space (successful builds clean up unless{' '}
-            <code className="text-amber-100/80">MACHINA_MKOSI_KEEP_WORKSPACE</code> is set).
+            <code className="opacity-80">MACHINA_MKOSI_KEEP_WORKSPACE</code> is set).
           </p>
         </div>
       )}
@@ -323,11 +323,11 @@ export default function DiskImagesPage() {
           ) : (
             <>
           {!vbAllowed ? (
-            <p className="text-sm text-amber-200/90">
+            <p className={`text-sm ${statusToneClass('warn')}`}>
               virt-builder is disabled in daemon config (<code className="text-slate-300">virt_builder_allowed</code>).
             </p>
           ) : vbCatalog.virt_builder_installed === false ? (
-            <p className="text-sm text-amber-200/90">
+            <p className={`text-sm ${statusToneClass('warn')}`}>
               <code className="text-slate-300">virt-builder</code> is not available on this host (install libguestfs
               tools).
             </p>

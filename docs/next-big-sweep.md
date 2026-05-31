@@ -14,6 +14,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 58 Color Tail** | `3f3c332` | Zeus Firewall security pages + `riskTone`; platform dashboard/widget status chips; VMDetails warn/error surfaces; shared primitives (GlassButton danger, FilterPills, BuildStepTimeline, KubeVirt modal, AI panels); classic focus-ring token parity on Logs/NodeInfo/Backups |
 | **Batch 59 Platform Color Tail** | `fe0646f` | Remaining platform status surfaces (Events, Security Center, Observability, Notifications, Content, Migration, Reports, …); `utilizationBarClass`; Settings/HostNetworking warn callouts |
 | **Batch 60 Classic/OpenStack/K8s Color Tail** | `fb44a50` | Dashboard/K8sOverview/K8sWorkloads/NodeInfo status surfaces; OpenStack warn/error banners, locked badges, secondary destructive buttons; semantic hover chips on fleet/instance actions |
+| **Batch 61 Classic Operator Color Tail** | (this PR) | Networks/DiskImages/Jobs/Kata/SystemCheck warn surfaces; VMList action hovers; VMDetails/Console tail; Hero capability badges; KubeVirt/OpenStack modals; BuildStepTimeline error step |
 
 **Verification baseline**
 

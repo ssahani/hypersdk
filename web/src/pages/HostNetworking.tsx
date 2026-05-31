@@ -406,7 +406,7 @@ export default function HostNetworkingPage() {
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 overflow-x-auto">
             <div className="flex items-center gap-6 mb-4 text-xs text-slate-500">
               <span className="flex items-center gap-1"><Monitor className={`w-3 h-3 ${statusToneClass('info')}`} /> VMs</span>
-              <span className="flex items-center gap-1"><Wifi className="w-3 h-3 text-green-400" /> Networks</span>
+              <span className="flex items-center gap-1"><Wifi className={`w-3 h-3 ${statusToneClass('ok')}`} /> Networks</span>
               <span className="flex items-center gap-1"><Router className="w-3 h-3 text-orange-400" /> Bridges</span>
               <span className="flex items-center gap-1"><Cable className="w-3 h-3 text-purple-400" /> Host NICs</span>
             </div>

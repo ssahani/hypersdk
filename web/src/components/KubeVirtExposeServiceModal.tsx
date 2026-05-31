@@ -5,7 +5,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Copy, Network, Plus, Trash2, X } from 'lucide-react'
 import type { K8sService } from '../api/k8s'
-import { statusSurfaceClasses } from '../utils/semanticColors'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 export type KubeVirtExposeVmContext = {
   name: string
@@ -484,7 +484,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                     className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-lg border border-slate-700 bg-slate-950/50 px-3 py-2"
                   >
                     <span className="text-xs text-slate-500 shrink-0">{p.label}</span>
-                    <code className="text-xs font-mono text-emerald-200/90 flex-1 break-all">{p.cmd}</code>
+                    <code className={`text-xs font-mono flex-1 break-all ${statusToneClass('ok')}`}>{p.cmd}</code>
                     <button
                       type="button"
                       onClick={() => onCopy('SSH command', p.cmd)}

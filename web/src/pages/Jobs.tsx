@@ -144,7 +144,7 @@ export default function JobsPage() {
             <p className="text-slate-500 text-sm">Loading…</p>
           ) : jobs.length === 0 ? (
             <p className="text-slate-500 text-sm">
-              No jobs yet. Start a disk build from <Link to="/disk-images" className="text-amber-200/90 hover:underline">Disk Images</Link>, Golden Forge from Create VM, or create a VM with streaming logs.
+              No jobs yet. Start a disk build from <Link to="/disk-images" className={`${statusToneClass('warn')} hover:underline`}>Disk Images</Link>, Golden Forge from Create VM, or create a VM with streaming logs.
             </p>
           ) : (
             <ul className="space-y-2 max-h-[32rem] overflow-y-auto divide-y divide-slate-800/80">

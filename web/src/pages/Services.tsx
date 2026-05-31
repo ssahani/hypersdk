@@ -143,7 +143,7 @@ export default function ServicesPage() {
                       <button
                         onClick={() => handleAction(svc.name, 'stop')}
                         disabled={acting !== null}
-                        className={`p-1.5 hover:bg-red-500/20 rounded-lg transition ${statusToneClass('error')}`}
+                        className={`p-1.5 hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] rounded-lg transition ${statusToneClass('error')}`}
                         title="Stop"
                       >
                         <Square className="w-3.5 h-3.5" />

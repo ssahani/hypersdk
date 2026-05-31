@@ -322,7 +322,7 @@ export default function SystemCheckPage() {
       )}
 
       {connectionHint && results.some((r) => r.category === 'openstack' && r.status !== 'pass') && (
-        <div className="rounded-xl border border-amber-500/35 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+        <div className={`rounded-xl px-4 py-3 text-sm ${statusSurfaceClasses('warn')}`}>
           {connectionHint}
         </div>
       )}

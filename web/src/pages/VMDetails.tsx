@@ -1597,7 +1597,7 @@ export default function VMDetailsPage() {
                               setTuneShare(d.shareable === true ? 'true' : d.shareable === false ? 'false' : '')
                               openDialog('disk-tune')
                             }}
-                            className="p-1 hover:bg-amber-600/20 rounded transition"
+                            className={`p-1 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`}
                             title="Tune disk"
                             aria-label={`Tune ${d.target}`}
                           >
@@ -1704,7 +1704,7 @@ export default function VMDetailsPage() {
                             setTuneNicNet(iface.source)
                             openDialog('nic-tune')
                           }}
-                          className="p-1 hover:bg-amber-600/20 rounded transition"
+                          className={`p-1 rounded transition hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`}
                           title="Tune NIC"
                           aria-label={`Tune ${iface.mac_address}`}
                         >
@@ -1849,7 +1849,7 @@ export default function VMDetailsPage() {
                     ) : (
                       (vm?.filesystems || []).map((fs, i) => (
                         <tr key={`${fs.mount_tag}-${i}`} className="table-row-hover">
-                          <td className="px-5 py-2 font-mono text-xs text-emerald-200">{fs.mount_tag}</td>
+                          <td className={`px-5 py-2 font-mono text-xs ${statusToneClass('ok')}`}>{fs.mount_tag}</td>
                           <td className="px-5 py-2 font-mono text-xs text-slate-300 break-all">{fs.source}</td>
                           <td className="px-5 py-2 text-slate-300">{fs.driver || '-'}</td>
                           <td className="px-5 py-2 text-slate-300">{fs.xattr ? 'on' : 'off'}</td>
