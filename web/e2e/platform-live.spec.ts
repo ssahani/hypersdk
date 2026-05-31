@@ -26,7 +26,10 @@ const LIVE_ROUTES = [
   '/platform/settings',
   '/platform/storage',
   '/platform/backups',
+  '/platform/backups?tab=destinations',
   '/platform/notifications',
+  '/platform/developer',
+  '/platform/zeus/security/policies',
 ]
 
 for (const path of LIVE_ROUTES) {
@@ -44,4 +47,13 @@ for (const path of LIVE_ROUTES) {
 test('live health', async ({ request }) => {
   const res = await request.get(`${live}/api/v1/health`, { ignoreHTTPSErrors: true })
   expect(res.ok()).toBeTruthy()
+})
+
+test('live openapi spec', async ({ request }) => {
+  const host = new URL(live!).hostname
+  const res = await request.get(`http://${host}:5093/api/v1/openapi.json`)
+  expect(res.ok()).toBeTruthy()
+  const body = await res.json()
+  expect(body.openapi).toMatch(/^3\./)
+  expect(Object.keys(body.paths ?? {}).length).toBeGreaterThan(0)
 })
