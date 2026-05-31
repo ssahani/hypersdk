@@ -510,7 +510,22 @@ export default function K8sWorkloadsPage() {
                 void postK8sAuthCanI({ verb: caniVerb.trim(), resource: caniRes.trim(), namespace: caniNs.trim() || undefined, context: ctxTrim }).then((r) => setCaniOut(r.stdout.trim() || JSON.stringify(r))).catch((e: unknown) => setCaniOut(formatUserError(e)))
               }}>Check</button>
             </div>
-            <pre className="text-xs text-slate-400">{caniOut || '—'}</pre>
+            <div className={`rounded-lg border px-3 py-2 text-sm ${
+              caniOut === 'yes' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                : caniOut === 'no' ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+                  : 'border-slate-700 bg-slate-900/50 text-slate-300'
+            }`}>
+              {caniOut ? (
+                <>
+                  <span className="font-medium">{caniOut === 'yes' || caniOut === 'no' ? caniOut.toUpperCase() : 'Result'}</span>
+                  {caniOut !== 'yes' && caniOut !== 'no' && (
+                    <p className="text-xs mt-1 whitespace-pre-wrap font-mono">{caniOut}</p>
+                  )}
+                </>
+              ) : (
+                <span className="text-slate-500">Run a check to see yes/no</span>
+              )}
+            </div>
           </div>
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">Helm releases</div>

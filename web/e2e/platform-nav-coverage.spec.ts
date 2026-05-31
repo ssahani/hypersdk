@@ -268,3 +268,19 @@ test('Go menu operations navigates without tier bounce on power tier', async ({ 
   await page.locator('.mac-menu-panel').getByRole('button', { name: 'Operations' }).click()
   await expect(page).toHaveURL(/\/platform\/operations/)
 })
+
+test('spotlight platform command shows review before execute', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await spotlight.getByPlaceholder(/Machina Spotlight/i).fill('import storage')
+  await spotlight.getByRole('button', { name: /Import storage/i }).click()
+  await expect(spotlight.getByText('Review command')).toBeVisible()
+  await expect(spotlight.getByText(/Discover storage pools/i)).toBeVisible()
+  await spotlight.getByRole('button', { name: /Confirm/i }).click()
+  await expect(page.getByText(/Imported storage/i)).toBeVisible({ timeout: 10_000 })
+})

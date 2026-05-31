@@ -177,6 +177,17 @@ export default function FleetPage() {
             </div>
           ))}
         </div>
+        {enabled && peers.length === 0 && !loadError && (
+          <EmptyState
+            title={t('fleet.noPeersTitle', { defaultValue: 'No fleet peers configured' })}
+            description={t('fleet.noPeersHint', { defaultValue: 'Add peer URLs in Settings to aggregate VMs and metrics across Machina nodes.' })}
+            primaryAction={
+              <Link to="/settings" className="btn-primary text-sm">
+                {t('fleet.openSettings', { defaultValue: 'Open Settings' })}
+              </Link>
+            }
+          />
+        )}
       </section>
 
       {enabled ? (

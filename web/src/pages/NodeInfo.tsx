@@ -55,6 +55,7 @@ import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import ErrorBanner from '../components/ErrorBanner'
 import PageSkeleton from '../components/PageSkeleton'
+import EmptyState from '../components/EmptyState'
 
 interface StatsPoint { time: string; cpu: number; mem: number; disk: number; load: number }
 
@@ -496,7 +497,22 @@ export default function NodeInfoPage() {
   }, [load])
 
   if (loading) return <PageSkeleton />
-  if (!node) return <div className="text-center text-slate-500 py-12">Failed to load host info</div>
+  if (!node) {
+    return (
+      <EmptyState
+        title="Could not load host info"
+        description="The hypervisor agent may be offline or libvirt is unreachable on this node."
+        primaryAction={
+          <button type="button" className="btn-primary text-sm" onClick={() => void load()}>
+            Retry
+          </button>
+        }
+        secondaryAction={
+          <Link to="/node" className="btn-secondary text-sm">Node tools</Link>
+        }
+      />
+    )
+  }
 
   const formatUptime = (secs: number) => {
     const d = Math.floor(secs / 86400)

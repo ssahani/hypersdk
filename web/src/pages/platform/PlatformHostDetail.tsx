@@ -321,12 +321,17 @@ export default function PlatformHostDetailPage() {
                     ))}
                   </MacGlassPanel>
                 ) : (
-                  <p className="text-sm text-slate-500">
-                    Network diagnostics unavailable —{' '}
-                    <Link to="/platform/enroll" className="text-blue-400">check agent install</Link>
-                    {' or '}
-                    <Link to="/node" className="text-blue-400">classic node tools</Link>.
-                  </p>
+                  <PlatformEmptyState
+                    icon={Network}
+                    title="Network diagnostics unavailable"
+                    subtitle="Install or reconnect the host agent to load systemd-networkd and interface data."
+                    action={
+                      <div className="flex flex-wrap gap-2">
+                        <Link to="/platform/enroll" className="btn-primary text-sm">Enroll agent</Link>
+                        <Link to="/node" className="btn-secondary text-sm">Classic node tools</Link>
+                      </div>
+                    }
+                  />
                 )}
                 {lldp && lldp.neighbors.length > 0 && (
                   <MacGlassPanel title={`LLDP (${lldp.source})`}>
@@ -388,12 +393,17 @@ export default function PlatformHostDetailPage() {
                     )}
                   </>
                 ) : (
-                  <p className="text-sm text-slate-500">
-                    Linux observability unavailable —{' '}
-                    <Link to="/platform/enroll" className="text-blue-400">check agent install</Link>
-                    {' or '}
-                    <Link to="/node" className="text-blue-400">classic node tools</Link>.
-                  </p>
+                  <PlatformEmptyState
+                    icon={Activity}
+                    title="Linux observability unavailable"
+                    subtitle="PSI, thermal, SMART, and package data require a connected host agent."
+                    action={
+                      <div className="flex flex-wrap gap-2">
+                        <Link to="/platform/enroll" className="btn-primary text-sm">Enroll agent</Link>
+                        <Link to="/node" className="text-blue-400 text-sm self-center">Classic node tools →</Link>
+                      </div>
+                    }
+                  />
                 )}
                 <OsDiagnosePanel
                   resourceId={id}
