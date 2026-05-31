@@ -64,6 +64,25 @@ test('mobile jump nav stays visible when sidebar is hidden', async ({ page }) =>
   await expect(page.locator('#platform-mobile-jump')).toBeVisible()
 })
 
+test('mobile jump nav navigates to hosts on normal tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/platform')
+  const jump = page.getByRole('combobox', { name: 'Navigate platform' })
+  await jump.selectOption('/platform/hosts')
+  await expect(page).toHaveURL(/\/platform\/hosts/)
+})
+
+test('mobile jump nav includes hub sections on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/platform/tasks')
+  const jump = page.getByRole('combobox', { name: 'Navigate platform' })
+  await expect(jump).toHaveValue('/platform/tasks')
+  await jump.selectOption('/platform/observability')
+  await expect(page).toHaveURL(/\/platform\/observability/)
+})
+
 test('normal tier alerts quick action opens notification center', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')

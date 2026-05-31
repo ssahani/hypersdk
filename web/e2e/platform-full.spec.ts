@@ -26,6 +26,8 @@ const ADVANCED_ROUTES: Array<{ path: string; text: RegExp }> = [
 const POWER_ROUTES: Array<{ path: string; text: RegExp }> = [
   { path: '/platform/observability', text: /Observability/i },
   { path: '/platform/placement', text: /Placement & HA/i },
+  { path: '/platform/policy', text: /Policy & Quotas/i },
+  { path: '/platform/api-keys', text: /API Keys/i },
 ]
 
 test.describe('power tier platform routes', () => {

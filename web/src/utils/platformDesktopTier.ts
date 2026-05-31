@@ -73,6 +73,11 @@ const POWER_PATHS = [
   '/platform/reports',
   '/platform/observability',
   '/platform/placement',
+  '/platform/policy',
+  '/platform/api-keys',
+  '/platform/webhooks',
+  '/platform/users',
+  '/platform/enterprise',
 ]
 
 export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
