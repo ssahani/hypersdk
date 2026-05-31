@@ -94,30 +94,60 @@ pub async fn scan(pool: &PgPool) -> anyhow::Result<SecurityReport> {
     })
 }
 
-pub async fn explain_event(
+fn explain_event_heuristic(
     event: &serde_json::Value,
     host_id: Option<&str>,
-) -> anyhow::Result<serde_json::Value> {
-    let kind = event.get("kind").and_then(|v| v.as_str()).unwrap_or("security");
+) -> serde_json::Value {
+    let kind = event
+        .get("kind")
+        .and_then(|v| v.as_str())
+        .unwrap_or("security");
     let summary = event
         .get("summary")
         .and_then(|v| v.as_str())
         .unwrap_or("Security event");
-    let severity = event.get("severity").and_then(|v| v.as_str()).unwrap_or("info");
+    let severity = event
+        .get("severity")
+        .and_then(|v| v.as_str())
+        .unwrap_or("info");
     let risk = match severity {
         "critical" => "Critical — investigate immediately",
         "high" => "High — likely requires operator review",
         "medium" => "Medium — monitor and correlate",
         _ => "Low — likely routine activity",
     };
-    Ok(serde_json::json!({
+    serde_json::json!({
         "host_id": host_id,
         "kind": kind,
         "summary": summary,
         "explanation": format!("Event type '{kind}': {summary}. {risk}."),
         "risk": risk,
-        "recommendation": "Review timeline for related events; use attack reconstruction if severity is high."
-    }))
+        "recommendation": "Review timeline for related events; use attack reconstruction if severity is high.",
+        "llm_powered": false
+    })
+}
+
+pub async fn explain_event(
+    pool: &PgPool,
+    event: &serde_json::Value,
+    host_id: Option<&str>,
+) -> anyhow::Result<serde_json::Value> {
+    let mut out = explain_event_heuristic(event, host_id);
+    if let Ok(Some(llm)) = super::llm::complete(
+        pool,
+        "You are a Machina Zeus security analyst. Explain Tetragon/eBPF security events for operators in 2-4 sentences. End with one concrete next step.",
+        &format!(
+            "Host: {}\nEvent:\n{}",
+            host_id.unwrap_or("unknown"),
+            serde_json::to_string_pretty(event).unwrap_or_else(|_| event.to_string())
+        ),
+    )
+    .await
+    {
+        out["explanation"] = serde_json::Value::String(llm);
+        out["llm_powered"] = serde_json::Value::Bool(true);
+    }
+    Ok(out)
 }
 
 pub fn attack_reconstruct_sync(timeline: &serde_json::Value) -> serde_json::Value {
@@ -140,8 +170,78 @@ pub fn attack_reconstruct_sync(timeline: &serde_json::Value) -> serde_json::Valu
             "No events in window — unable to reconstruct chain.".into()
         } else {
             format!("Reconstructed {} step(s) from security timeline.", chain.len())
-        }
+        },
+        "llm_powered": false
     })
+}
+
+pub async fn attack_reconstruct(
+    pool: &PgPool,
+    timeline: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let mut out = attack_reconstruct_sync(timeline);
+    let events = timeline
+        .get("events")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if events.is_empty() {
+        return Ok(out);
+    }
+    let compact: Vec<String> = events
+        .iter()
+        .take(12)
+        .map(|ev| {
+            let ts = ev.get("timestamp").and_then(|v| v.as_str()).unwrap_or("");
+            let summary = ev.get("summary").and_then(|v| v.as_str()).unwrap_or("event");
+            let sev = ev.get("severity").and_then(|v| v.as_str()).unwrap_or("info");
+            format!("{ts} [{sev}] {summary}")
+        })
+        .collect();
+    if let Ok(Some(llm)) = super::llm::complete(
+        pool,
+        "You are a threat hunter. Given a security timeline, output a numbered attack chain (one step per line, max 8 steps) and a one-sentence summary on the last line prefixed with 'Summary: '.",
+        &format!("Timeline events:\n{}", compact.join("\n")),
+    )
+    .await
+    {
+        let (chain, summary) = parse_attack_chain_llm(&llm);
+        if !chain.is_empty() {
+            out["attack_chain"] = serde_json::json!(chain);
+        }
+        if let Some(s) = summary {
+            out["summary"] = serde_json::Value::String(s);
+        }
+        out["llm_powered"] = serde_json::Value::Bool(true);
+    }
+    Ok(out)
+}
+
+fn parse_attack_chain_llm(text: &str) -> (Vec<String>, Option<String>) {
+    let mut chain = Vec::new();
+    let mut summary = None;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("Summary:") {
+            summary = Some(rest.trim().to_string());
+            continue;
+        }
+        let step = trimmed
+            .trim_start_matches(|c: char| c.is_ascii_digit() || c == '.' || c == ')' || c == ' ')
+            .trim()
+            .to_string();
+        if !step.is_empty() {
+            chain.push(step);
+        }
+    }
+    if summary.is_none() && chain.len() > 1 {
+        summary = chain.last().cloned();
+        chain.pop();
+    }
+    (chain, summary)
 }
 
 pub fn translate_nl_search(query: &str) -> String {
@@ -153,7 +253,7 @@ pub fn translate_nl_search(query: &str) -> String {
         return "sudo privilege".into();
     }
     if q.contains("ssh") {
-        return "sshd ssh".into();
+        return "ssh sshd".into();
     }
     if q.contains("curl") {
         return "curl".into();
@@ -162,4 +262,115 @@ pub fn translate_nl_search(query: &str) -> String {
         return "suspicious dns .ru".into();
     }
     query.to_string()
+}
+
+pub async fn translate_nl_search_async(pool: &PgPool, query: &str) -> (String, bool) {
+    if let Ok(Some(llm)) = super::llm::complete(
+        pool,
+        "Convert natural-language security hunt questions into concise keyword search terms for eBPF process/network/DNS logs. Reply with keywords only — no punctuation or explanation.",
+        query,
+    )
+    .await
+    {
+        let terms = llm.lines().next().unwrap_or(&llm).trim().to_string();
+        if !terms.is_empty() {
+            return (terms, true);
+        }
+    }
+    (translate_nl_search(query), false)
+}
+
+pub fn hunt_summary_heuristic(
+    correlations: &serde_json::Value,
+    timeline: &serde_json::Value,
+) -> serde_json::Value {
+    let corr = correlations
+        .get("correlations")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let events = timeline
+        .get("events")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let critical = corr
+        .iter()
+        .filter(|c| {
+            c.get("severity")
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| s == "critical" || s == "high")
+        })
+        .count();
+    let summary = if corr.is_empty() && events.is_empty() {
+        "No correlated threats or timeline events in the current window.".into()
+    } else {
+        format!(
+            "{} correlation finding(s), {} timeline event(s), {} high/critical.",
+            corr.len(),
+            events.len(),
+            critical
+        )
+    };
+    serde_json::json!({
+        "summary": summary,
+        "priority_actions": [
+            if critical > 0 { "Review high/critical correlations in Security Center" } else { "Continue monitoring fleet timeline" },
+            "Pivot to affected hosts for process graph and container context",
+            "Sync critical alerts to Notifications if not already done",
+        ],
+        "llm_powered": false
+    })
+}
+
+pub async fn hunt_summary(
+    pool: &PgPool,
+    correlations: &serde_json::Value,
+    timeline: &serde_json::Value,
+) -> anyhow::Result<serde_json::Value> {
+    let mut out = hunt_summary_heuristic(correlations, timeline);
+    let corr = correlations
+        .get("correlations")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let events = timeline
+        .get("events")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    if corr.is_empty() && events.is_empty() {
+        return Ok(out);
+    }
+    let corr_lines: Vec<String> = corr
+        .iter()
+        .take(8)
+        .map(|c| {
+            format!(
+                "[{}] {}",
+                c.get("severity").and_then(|v| v.as_str()).unwrap_or("?"),
+                c.get("summary").and_then(|v| v.as_str()).unwrap_or("finding")
+            )
+        })
+        .collect();
+    let event_lines: Vec<String> = events
+        .iter()
+        .take(8)
+        .map(|e| e.get("summary").and_then(|v| v.as_str()).unwrap_or("event").to_string())
+        .collect();
+    if let Ok(Some(llm)) = super::llm::complete(
+        pool,
+        "You are a SOC lead summarizing a threat hunt. Write 3-5 sentences: overall posture, top risks, and recommended next steps for a Machina operator.",
+        &format!(
+            "Correlations:\n{}\n\nRecent timeline:\n{}",
+            corr_lines.join("\n"),
+            event_lines.join("\n")
+        ),
+    )
+    .await
+    {
+        out["summary"] = serde_json::Value::String(llm);
+        out["llm_powered"] = serde_json::Value::Bool(true);
+    }
+    Ok(out)
 }

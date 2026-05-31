@@ -251,6 +251,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/security/explain-event", post(zeus_security::explain_event))
         .route("/api/v1/ai/security/attack-reconstruct", post(zeus_security::attack_reconstruct))
         .route("/api/v1/ai/security/nl-search", post(zeus_security::nl_search))
+        .route("/api/v1/ai/security/hunt-summary", post(zeus_security::hunt_summary))
         .route("/api/v1/hosts/{id}/health-check", post(health_check::host_health_check))
         .route("/api/v1/recommendations", get(recommendations::list_recommendations))
         .route(

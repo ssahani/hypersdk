@@ -218,9 +218,10 @@ pub struct ExplainEventBody {
 }
 
 pub async fn explain_event(
+    State(state): State<AppState>,
     Json(body): Json<ExplainEventBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    ai_security::explain_event(&body.event, body.host_id.as_deref())
+    ai_security::explain_event(&state.pool, &body.event, body.host_id.as_deref())
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
@@ -235,7 +236,7 @@ pub struct AttackReconstructBody {
 pub async fn attack_reconstruct(
     State(state): State<AppState>,
     Json(body): Json<AttackReconstructBody>,
-) -> Json<serde_json::Value> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let timeline = zeus_security::host_resource(
         &state.config,
         &body.host_id,
@@ -243,7 +244,10 @@ pub async fn attack_reconstruct(
         body.hours.unwrap_or(24),
     )
     .await;
-    Json(ai_security::attack_reconstruct_sync(&timeline))
+    ai_security::attack_reconstruct(&state.pool, &timeline)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
 }
 
 #[derive(Debug, Deserialize)]
@@ -256,16 +260,43 @@ pub async fn nl_search(
     State(state): State<AppState>,
     Json(body): Json<NlSearchBody>,
 ) -> Json<serde_json::Value> {
-    let translated = ai_security::translate_nl_search(&body.query);
+    let (translated, llm_powered) =
+        ai_security::translate_nl_search_async(&state.pool, &body.query).await;
     let results = packetwolf_bridge::search(
         &state.config,
         &translated,
         body.host_id.as_deref(),
     )
     .await;
+    let hits = results
+        .get("results")
+        .and_then(|v| v.as_array())
+        .map(|a| a.len())
+        .or_else(|| results.as_array().map(|a| a.len()))
+        .unwrap_or(0);
     Json(serde_json::json!({
         "original_query": body.query,
         "search_query": translated,
-        "results": results
+        "results": results,
+        "hit_count": hits,
+        "llm_powered": llm_powered
     }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HuntSummaryBody {
+    pub hours: Option<u32>,
+}
+
+pub async fn hunt_summary(
+    State(state): State<AppState>,
+    Json(body): Json<HuntSummaryBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let hours = body.hours.unwrap_or(48);
+    let timeline = zeus_security::fleet_timeline(&state.config, hours).await;
+    let correlations = packetwolf_bridge::correlations(&state.config).await;
+    ai_security::hunt_summary(&state.pool, &correlations, &timeline)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
 }

@@ -2,24 +2,51 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
+import { Bot, Sparkles } from 'lucide-react'
 import { MacGlassPanel, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
 import SecurityTimelinePanel from '../../components/platform/SecurityTimelinePanel'
 import {
   getFleetSecurityTimeline,
   getSecurityCorrelations,
+  getSecurityHuntSummary,
   nlSecuritySearch,
   reconstructAttack,
   type SecurityEvent,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
 
+function LlmBadge({ powered }: { powered?: boolean }) {
+  if (!powered) return null
+  return (
+    <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-violet-300/90">
+      <Sparkles className="w-3 h-3" aria-hidden /> AI
+    </span>
+  )
+}
+
+function extractSearchHits(results: Record<string, unknown>): Array<{ summary: string; host_id?: string }> {
+  const raw = results.results
+  const list = Array.isArray(raw) ? raw : Array.isArray(results) ? results : []
+  return list.slice(0, 12).map((item) => {
+    const row = item as Record<string, unknown>
+    return {
+      summary: String(row.summary ?? row.kind ?? 'event'),
+      host_id: row.host_id ? String(row.host_id) : undefined,
+    }
+  })
+}
+
 export default function PlatformThreatHunting() {
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [correlations, setCorrelations] = useState<Array<Record<string, unknown>>>([])
   const [query, setQuery] = useState('')
-  const [searchHits, setSearchHits] = useState<string | null>(null)
+  const [searchHits, setSearchHits] = useState<Array<{ summary: string; host_id?: string }>>([])
+  const [searchMeta, setSearchMeta] = useState<{ query: string; llm?: boolean; count?: number } | null>(null)
   const [attackChain, setAttackChain] = useState<string[] | null>(null)
+  const [attackSummary, setAttackSummary] = useState<string | null>(null)
+  const [attackLlm, setAttackLlm] = useState(false)
+  const [huntSummary, setHuntSummary] = useState<{ summary: string; actions: string[]; llm?: boolean } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -38,36 +65,109 @@ export default function PlatformThreatHunting() {
 
   useEffect(() => { void load() }, [load])
 
+  const runHuntSummary = () => {
+    void getSecurityHuntSummary(48)
+      .then((r) => setHuntSummary({
+        summary: r.summary,
+        actions: r.priority_actions ?? [],
+        llm: r.llm_powered,
+      }))
+      .catch((e: unknown) => setError(formatUserError(e)))
+  }
+
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Threat hunting" subtitle="Search · timeline · graph · evidence · AI summary" />
       <Link to="/platform/zeus/security" className="text-sm text-blue-400">← Security Center</Link>
       {error && <ErrorBanner message={error} />}
 
-      <MacGlassPanel title="Natural language search" subtitle="Query OpenSearch or in-memory index">
+      <MacGlassPanel
+        title="AI hunt summary"
+        subtitle="Correlations + fleet timeline synthesis"
+        action={
+          <button type="button" className="btn-secondary text-xs flex items-center gap-1" onClick={runHuntSummary}>
+            <Bot className="w-3 h-3" /> Generate
+          </button>
+        }
+      >
+        {huntSummary ? (
+          <div className="space-y-2">
+            <p className="text-sm text-slate-300 flex items-start gap-2">
+              <LlmBadge powered={huntSummary.llm} />
+              <span>{huntSummary.summary}</span>
+            </p>
+            {huntSummary.actions.length > 0 && (
+              <ul className="text-xs text-slate-500 list-disc pl-5 space-y-1">
+                {huntSummary.actions.map((a, i) => (
+                  <li key={i}>{a}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">Generate an operator summary from current correlations and timeline.</p>
+        )}
+      </MacGlassPanel>
+
+      <MacGlassPanel title="Natural language search" subtitle="LLM query translation + PacketWolf index">
         <div className="flex flex-wrap gap-2">
           <input
             className="input text-sm flex-1 min-w-[14rem]"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find every sudo event last week"
+            onKeyDown={(e) => e.key === 'Enter' && void nlSecuritySearch(query).then((r) => {
+              setSearchHits(extractSearchHits(r.results))
+              setSearchMeta({ query: r.search_query, llm: r.llm_powered, count: r.hit_count })
+            }).catch((err: unknown) => setError(formatUserError(err)))}
           />
           <button
             type="button"
             className="btn-secondary text-sm"
-            onClick={() => void nlSecuritySearch(query).then((r) => setSearchHits(`${r.search_query}: ${JSON.stringify(r.results).slice(0, 120)}…`)).catch((e: unknown) => setError(formatUserError(e)))}
+            onClick={() => void nlSecuritySearch(query).then((r) => {
+              setSearchHits(extractSearchHits(r.results))
+              setSearchMeta({ query: r.search_query, llm: r.llm_powered, count: r.hit_count })
+            }).catch((e: unknown) => setError(formatUserError(e)))}
           >
             Search
           </button>
           <button
             type="button"
             className="btn-secondary text-sm"
-            onClick={() => void reconstructAttack('h1', 48).then((r) => setAttackChain(r.attack_chain)).catch((e: unknown) => setError(formatUserError(e)))}
+            onClick={() => void reconstructAttack('h1', 48).then((r) => {
+              setAttackChain(r.attack_chain)
+              setAttackSummary(r.summary)
+              setAttackLlm(Boolean(r.llm_powered))
+            }).catch((e: unknown) => setError(formatUserError(e)))}
           >
             Reconstruct attack (h1)
           </button>
         </div>
-        {searchHits && <p className="text-xs text-slate-400 mt-2">{searchHits}</p>}
+        {searchMeta && (
+          <p className="text-xs text-slate-500 mt-2 flex items-center gap-2">
+            <LlmBadge powered={searchMeta.llm} />
+            <span>
+              Translated: &quot;{searchMeta.query}&quot; · {searchMeta.count ?? searchHits.length} hit(s)
+            </span>
+          </p>
+        )}
+        {searchHits.length > 0 && (
+          <ul className="mt-2 space-y-1">
+            {searchHits.map((h, i) => (
+              <li key={i} className="text-sm text-slate-300">
+                {h.summary}
+                {h.host_id ? (
+                  <>
+                    {' '}
+                    <Link to={`/platform/zeus/machines/${h.host_id}`} className="text-blue-400 text-xs">
+                      {h.host_id}
+                    </Link>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
       </MacGlassPanel>
 
       <SecurityTimelinePanel events={timeline} />
@@ -93,7 +193,11 @@ export default function PlatformThreatHunting() {
       )}
 
       {attackChain && (
-        <MacGlassPanel title="AI attack reconstruction" subtitle="Timeline slice">
+        <MacGlassPanel
+          title="AI attack reconstruction"
+          subtitle={attackSummary ?? 'Timeline slice'}
+          action={<LlmBadge powered={attackLlm} />}
+        >
           <ol className="list-decimal pl-5 text-sm text-slate-300 space-y-1">
             {attackChain.map((s, i) => (
               <li key={i}>{s}</li>

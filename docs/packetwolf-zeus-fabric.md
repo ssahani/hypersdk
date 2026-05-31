@@ -77,6 +77,19 @@ OpenAPI: [`docs/openapi-packetwolf-fabric.json`](openapi-packetwolf-fabric.json)
 - **Machina:** `/api/v1/zeus-security/hosts/{id}/containers`; `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` + `k8s.tetragon.install` task (Helm release scheduled)
 - **UI:** Machine Security **Containers** tab with `ContainerHierarchyPanel`
 
+## Phase 5 — AI security copilot (PW-16–PW-18)
+
+When cluster AI is configured (Settings → AI provider + API key), security endpoints use the LLM with heuristic fallback:
+
+| Endpoint | Behavior |
+|----------|----------|
+| `POST /api/v1/ai/security/explain-event` | LLM event explanation + risk |
+| `POST /api/v1/ai/security/attack-reconstruct` | LLM attack chain from timeline |
+| `POST /api/v1/ai/security/nl-search` | LLM query translation → PacketWolf search |
+| `POST /api/v1/ai/security/hunt-summary` | Fleet hunt summary from correlations + timeline |
+
+Responses include `llm_powered: true` when the model was used. Threat Hunting workspace surfaces AI summary, translated search hits, and attack reconstruction badges.
+
 ## UI routes
 
 | Route | Page |

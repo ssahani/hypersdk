@@ -66,6 +66,7 @@ export default function PlatformSecurityCenter() {
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [nlQuery, setNlQuery] = useState('')
   const [nlResults, setNlResults] = useState<string | null>(null)
+  const [nlLlm, setNlLlm] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -99,7 +100,9 @@ export default function PlatformSecurityCenter() {
     void nlSecuritySearch(nlQuery.trim())
       .then((r) => {
         const hits = (r.results as { results?: unknown[] })?.results ?? []
-        setNlResults(`${hits.length} result(s) for "${r.search_query}"`)
+        const count = r.hit_count ?? hits.length
+        setNlResults(`${count} result(s) for "${r.search_query}"${r.llm_powered ? ' · AI translated' : ''}`)
+        setNlLlm(Boolean(r.llm_powered))
       })
       .catch((e: unknown) => toast.error(formatUserError(e)))
   }
@@ -194,7 +197,12 @@ export default function PlatformSecurityCenter() {
               />
               <button type="button" className="btn-secondary text-sm" onClick={runNlSearch}>Search</button>
             </div>
-            {nlResults && <p className="text-sm text-slate-400">{nlResults}</p>}
+            {nlResults && (
+              <p className="text-sm text-slate-400">
+                {nlResults}
+                {nlLlm ? <span className="text-violet-300/80 ml-1">· AI</span> : null}
+              </p>
+            )}
           </MacGlassPanel>
 
           <SecurityTimelinePanel events={timeline} />

@@ -380,7 +380,24 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
       return route.fulfill({ json: { attack_chain: ['1. curl downloaded file', '2. payload executed'], summary: '2 steps' } })
     }
     if (url.includes('/ai/security/nl-search')) {
-      return route.fulfill({ json: { original_query: 'curl', search_query: 'curl', results: { results: [] } } })
+      return route.fulfill({
+        json: {
+          original_query: 'curl',
+          search_query: 'curl',
+          hit_count: 1,
+          llm_powered: false,
+          results: { results: [{ summary: 'curl started', host_id: 'h1', severity: 'info' }] },
+        },
+      })
+    }
+    if (url.includes('/ai/security/hunt-summary')) {
+      return route.fulfill({
+        json: {
+          summary: '2 correlation finding(s), 4 timeline event(s), 1 high/critical.',
+          priority_actions: ['Review high/critical correlations in Security Center'],
+          llm_powered: false,
+        },
+      })
     }
     if (url.includes('/ai/')) {
       return route.fulfill({

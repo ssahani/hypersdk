@@ -109,19 +109,34 @@ export const searchZeusSecurity = (query: string, hostId?: string) =>
   })
 
 export const explainSecurityEvent = (event: SecurityEvent, hostId?: string) =>
-  platformFetch<{ explanation: string; risk: string; recommendation: string }>('/api/v1/ai/security/explain-event', {
-    method: 'POST',
-    body: JSON.stringify({ event, host_id: hostId }),
-  })
+  platformFetch<{ explanation: string; risk: string; recommendation: string; llm_powered?: boolean }>(
+    '/api/v1/ai/security/explain-event',
+    {
+      method: 'POST',
+      body: JSON.stringify({ event, host_id: hostId }),
+    },
+  )
 
 export const reconstructAttack = (hostId: string, hours = 24) =>
-  platformFetch<{ attack_chain: string[]; summary: string }>('/api/v1/ai/security/attack-reconstruct', {
-    method: 'POST',
-    body: JSON.stringify({ host_id: hostId, hours }),
-  })
+  platformFetch<{ attack_chain: string[]; summary: string; llm_powered?: boolean }>(
+    '/api/v1/ai/security/attack-reconstruct',
+    {
+      method: 'POST',
+      body: JSON.stringify({ host_id: hostId, hours }),
+    },
+  )
 
 export const nlSecuritySearch = (query: string, hostId?: string) =>
-  platformFetch<{ original_query: string; search_query: string; results: Record<string, unknown> }>(
-    '/api/v1/ai/security/nl-search',
-    { method: 'POST', body: JSON.stringify({ query, host_id: hostId }) },
+  platformFetch<{
+    original_query: string
+    search_query: string
+    results: Record<string, unknown>
+    hit_count?: number
+    llm_powered?: boolean
+  }>('/api/v1/ai/security/nl-search', { method: 'POST', body: JSON.stringify({ query, host_id: hostId }) })
+
+export const getSecurityHuntSummary = (hours = 48) =>
+  platformFetch<{ summary: string; priority_actions?: string[]; llm_powered?: boolean }>(
+    '/api/v1/ai/security/hunt-summary',
+    { method: 'POST', body: JSON.stringify({ hours }) },
   )

@@ -25,4 +25,6 @@ test('Threat hunting workspace loads', async ({ page }) => {
   await page.goto('/platform/zeus/security/hunt')
   await expect(page.getByRole('heading', { name: 'Threat hunting' })).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Threat correlations')).toBeVisible()
+  await page.getByRole('button', { name: 'Generate' }).click()
+  await expect(page.getByText(/correlation finding/)).toBeVisible({ timeout: 15_000 })
 })
