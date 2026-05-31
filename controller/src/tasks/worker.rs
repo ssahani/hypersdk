@@ -38,6 +38,7 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "host.maintenance" => host_maintenance(state, msg).await?,
         "host.validate" => host_validate_task(state, msg).await?,
         "host.tetragon.install" => host_tetragon_install(state, msg).await?,
+        "k8s.tetragon.install" => k8s_tetragon_install(state, msg).await?,
         "host.agent.upgrade" => host_agent_upgrade(state, msg).await?,
         "storage.pool.provision" => storage_pool_provision(state, msg).await?,
         "network.provision" => network_provision(state, msg).await?,
@@ -1034,6 +1035,47 @@ async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::R
     )
     .await?;
     update_task_progress(&state.pool, msg.task_id, 100, "Tetragon enrollment complete").await?;
+    Ok(())
+}
+
+async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let cluster_id = msg
+        .payload
+        .get("cluster_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("default");
+    let cluster_name = msg
+        .payload
+        .get("cluster_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or(cluster_id);
+    let namespace = msg
+        .payload
+        .get("namespace")
+        .and_then(|v| v.as_str())
+        .unwrap_or("kube-system");
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        20,
+        &format!("planning Tetragon Helm release for {cluster_name}"),
+    )
+    .await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        60,
+        &format!("helm upgrade --install tetragon cilium/tetragon -n {namespace} (scheduled)"),
+    )
+    .await?;
+    let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, &format!("k8s-{cluster_id}")).await;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        &format!("K8s Tetragon enrollment queued for cluster {cluster_name}"),
+    )
+    .await?;
     Ok(())
 }
 

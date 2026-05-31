@@ -11,10 +11,12 @@ import {
 import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import ProcessGraphCanvas from '../../components/platform/ProcessGraphCanvas'
+import ContainerHierarchyPanel from '../../components/platform/ContainerHierarchyPanel'
 import JsonInspector from '../../components/platform/JsonInspector'
 import {
   explainSecurityEvent,
   getHostConnections,
+  getHostContainers,
   getHostDns,
   getHostProcessGraph,
   getHostProcesses,
@@ -62,6 +64,7 @@ export default function PlatformMachineSecurity() {
   const [items, setItems] = useState<SecurityEvent[]>([])
   const [ports, setPorts] = useState<Array<Record<string, unknown>>>([])
   const [graph, setGraph] = useState<Record<string, unknown> | null>(null)
+  const [containers, setContainers] = useState<Record<string, unknown> | null>(null)
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [attackChain, setAttackChain] = useState<string[] | null>(null)
   const [explain, setExplain] = useState<string | null>(null)
@@ -95,6 +98,10 @@ export default function PlatformMachineSecurity() {
         const r = await getHostSecurityTimeline(hostId)
         setTimeline(r.events ?? [])
         setItems(r.events ?? [])
+      } else if (tab === 'containers') {
+        const r = await getHostContainers(hostId)
+        setContainers(r as Record<string, unknown>)
+        setItems([])
       } else {
         setItems([])
       }
@@ -172,9 +179,7 @@ export default function PlatformMachineSecurity() {
             <ProcessGraphCanvas data={graph as Parameters<typeof ProcessGraphCanvas>[0]['data']} />
           </MacGlassPanel>
         ) : tab === 'containers' ? (
-          <p className="text-sm text-slate-500 p-3">
-            K8s container hierarchy appears when Tetragon reports pod metadata on this host.
-          </p>
+          <ContainerHierarchyPanel data={containers as Parameters<typeof ContainerHierarchyPanel>[0]['data']} />
         ) : tab === 'users' ? (
           <p className="text-sm text-slate-500 p-3">
             User session events correlate from process exec and privilege escalation timelines.

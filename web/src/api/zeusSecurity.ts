@@ -49,6 +49,15 @@ export const getZeusSecurityGraph = () => platformFetch<SecurityGraph>('/api/v1/
 export const getZeusSecuritySensors = () => platformFetch<{ sensors: Array<Record<string, unknown>> }>('/api/v1/zeus-security/sensors')
 export const getZeusAssetInventory = () => platformFetch<Record<string, unknown>>('/api/v1/zeus-security/asset-inventory')
 
+export const getFleetSecurityTimeline = (hours = 24) =>
+  platformFetch<{ events: SecurityEvent[] }>(`/api/v1/zeus-security/fleet/timeline?hours=${hours}`)
+
+export const getSecurityCorrelations = () =>
+  platformFetch<{ correlations: Array<Record<string, unknown>> }>('/api/v1/zeus-security/correlations')
+
+export const syncSecurityAlerts = () =>
+  platformFetch<{ inserted: number; summary: string }>('/api/v1/zeus-security/alerts/sync', { method: 'POST' })
+
 export const getHostSecuritySummary = (hostId: string) =>
   platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/summary`)
 
@@ -66,6 +75,21 @@ export const getHostSecurityFiles = (hostId: string, hours = 168) =>
 
 export const getHostSecurityPorts = (hostId: string) =>
   platformFetch<{ ports: Array<Record<string, unknown>> }>(`/api/v1/zeus-security/hosts/${hostId}/ports`)
+
+export interface ContainerHierarchy {
+  host_id?: string
+  summary?: string
+  namespaces?: Array<Record<string, unknown>>
+}
+
+export const getHostContainers = (hostId: string) =>
+  platformFetch<ContainerHierarchy>(`/api/v1/zeus-security/hosts/${hostId}/containers`)
+
+export const installK8sTetragon = (clusterId: string, clusterName?: string) =>
+  platformFetch<{ task_id: string; summary: string }>(`/api/v1/zeus-security/k8s/${encodeURIComponent(clusterId)}/tetragon/install`, {
+    method: 'POST',
+    body: JSON.stringify({ cluster_name: clusterName ?? clusterId }),
+  })
 
 export const getHostSecurityTimeline = (hostId: string, hours = 24) =>
   platformFetch<{ events: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/timeline?hours=${hours}`)

@@ -1,0 +1,32 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { MacGlassPanel, MacListRow } from './mac/PlatformMacUi'
+import type { SecurityEvent } from '../../api/zeusSecurity'
+
+export default function SecurityTimelinePanel({
+  events,
+  title = 'Security timeline',
+  subtitle = 'Unified flight recorder — events + correlations',
+}: {
+  events: SecurityEvent[]
+  title?: string
+  subtitle?: string
+}) {
+  return (
+    <MacGlassPanel title={title} subtitle={subtitle}>
+      {events.length === 0 ? (
+        <p className="text-sm text-slate-500">No security events in this window.</p>
+      ) : (
+        <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-[420px] overflow-y-auto">
+          {events.slice(0, 40).map((e, i) => (
+            <MacListRow
+              key={e.id ?? i}
+              title={e.summary || e.kind || 'event'}
+              subtitle={[e.host_id, e.severity, e.timestamp].filter(Boolean).join(' · ')}
+            />
+          ))}
+        </div>
+      )}
+    </MacGlassPanel>
+  )
+}

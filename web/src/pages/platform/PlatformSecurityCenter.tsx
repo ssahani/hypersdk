@@ -11,13 +11,17 @@ import {
 import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import SecurityTimelinePanel from '../../components/platform/SecurityTimelinePanel'
 import {
+  getFleetSecurityTimeline,
   getFleetThreatSummary,
   getZeusSecurityGraph,
   getZeusSecuritySensors,
   getZeusSecurityStatus,
   nlSecuritySearch,
+  syncSecurityAlerts,
   type FleetThreatSummary,
+  type SecurityEvent,
   type SecurityGraph,
   type ZeusSecurityStatus,
 } from '../../api/zeusSecurity'
@@ -59,6 +63,7 @@ export default function PlatformSecurityCenter() {
   const [threat, setThreat] = useState<FleetThreatSummary | null>(null)
   const [graph, setGraph] = useState<SecurityGraph | null>(null)
   const [sensorCount, setSensorCount] = useState(0)
+  const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [nlQuery, setNlQuery] = useState('')
   const [nlResults, setNlResults] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -68,16 +73,18 @@ export default function PlatformSecurityCenter() {
     setError(null)
     setLoading(true)
     try {
-      const [st, th, gr, sensors] = await Promise.all([
+      const [st, th, gr, sensors, tl] = await Promise.all([
         getZeusSecurityStatus(),
         getFleetThreatSummary(),
         getZeusSecurityGraph(),
         getZeusSecuritySensors(),
+        getFleetSecurityTimeline(24),
       ])
       setStatus(st)
       setThreat(th)
       setGraph(gr)
       setSensorCount(sensors.sensors?.length ?? 0)
+      setTimeline(tl.events ?? [])
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {
@@ -189,6 +196,19 @@ export default function PlatformSecurityCenter() {
             </div>
             {nlResults && <p className="text-sm text-slate-400">{nlResults}</p>}
           </MacGlassPanel>
+
+          <SecurityTimelinePanel events={timeline} />
+
+          <div className="flex flex-wrap gap-2">
+            <Link to="/platform/zeus/security/hunt" className="btn-secondary text-sm">Threat hunting workspace</Link>
+            <button
+              type="button"
+              className="btn-secondary text-sm"
+              onClick={() => void syncSecurityAlerts().then((r) => toast.success(r.summary)).catch((e: unknown) => toast.error(formatUserError(e)))}
+            >
+              Sync alerts to Notifications
+            </button>
+          </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <Link to="/platform/zeus/security/firewall" className="rounded-xl border border-white/[0.08] p-4 hover:border-blue-500/40 transition">

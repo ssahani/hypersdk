@@ -16,4 +16,13 @@ test('Machine Security view shows process tabs', async ({ page }) => {
   await page.goto('/platform/zeus/machines/h1')
   await expect(page.getByText('Machine · h1')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText('Processes')).toBeVisible()
+  await page.getByRole('button', { name: 'Containers' }).click()
+  await expect(page.getByText('ns/zeus')).toBeVisible({ timeout: 15_000 })
+})
+
+test('Threat hunting workspace loads', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/security/hunt')
+  await expect(page.getByRole('heading', { name: 'Threat hunting' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Threat correlations')).toBeVisible()
 })

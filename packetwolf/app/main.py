@@ -77,6 +77,11 @@ def host_ports(host_id: str) -> dict:
     return {"host_id": host_id, "ports": store.open_ports(host_id)}
 
 
+@app.get("/api/v1/hosts/{host_id}/containers")
+def host_containers(host_id: str) -> dict:
+    return store.container_hierarchy(host_id)
+
+
 @app.get("/api/v1/hosts/{host_id}/timeline")
 def host_timeline(host_id: str, hours: int = Query(24), limit: int = Query(200)) -> dict:
     events = store.list_events(host_id=host_id, hours=hours, limit=limit)
@@ -138,7 +143,11 @@ def anomalies(limit: int = Query(25)) -> dict:
         for e in events
         if e.severity in (Severity.HIGH, Severity.CRITICAL)
     ][:limit]
-    return {"anomalies": anomalies_out}
+    from .correlator import correlations_to_anomalies
+
+    corr = correlations_to_anomalies(store.list_correlations())
+    combined = corr + anomalies_out
+    return {"anomalies": combined[:limit]}
 
 
 @app.post("/api/v1/search")
@@ -165,6 +174,16 @@ def register_sensor(host_id: str, tetragon_version: str = Query("1.0.0")) -> dic
 def capture_start(body: CaptureRequest) -> dict:
     store.register_sensor(body.host_id)
     return {"ok": True, "host_id": body.host_id, "duration_secs": body.duration_secs}
+
+
+@app.get("/api/v1/fleet/timeline")
+def fleet_timeline(hours: int = Query(24), limit: int = Query(200)) -> dict:
+    return {"events": store.fleet_timeline(hours, limit)}
+
+
+@app.get("/api/v1/correlations")
+def correlations() -> dict:
+    return {"correlations": store.list_correlations()}
 
 
 @app.get("/api/v1/asset-inventory")

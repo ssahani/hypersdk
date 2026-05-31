@@ -59,6 +59,8 @@ const POWER_PATHS = [
   '/platform/blueprints',
   '/platform/projects',
   '/platform/zeus',
+  '/platform/zeus/security',
+  '/platform/zeus/security/hunt',
   '/platform/zeus/security/firewall',
   '/platform/maintenance',
   '/platform/recommendations',

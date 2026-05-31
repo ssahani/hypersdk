@@ -20,8 +20,11 @@ function eventTitle(e: ActivityEvent): string {
 }
 
 function eventSubtitle(e: ActivityEvent): string {
+  const domain = e.dns_query ?? e.domain ?? e.destination
   const parts = [
     e.target,
+    e.process ?? e.process_name,
+    domain,
     e.source_ip ?? e.source,
     e.destination_ip ?? e.destination,
   ].filter(Boolean)
@@ -67,8 +70,8 @@ export default function PlatformFirewallActivity() {
 
   return (
     <div className="space-y-6">
-      <MacSectionTitle title="Firewall Activity" subtitle="Notification Center-style connection log" />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <MacSectionTitle title="Firewall Activity" subtitle="macOS-style blocked and allowed connections — process, domain, IP" />
+      <Link to="/platform/zeus/security" className="text-sm text-blue-400">← Security Center</Link>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Today" subtitle={note || 'PacketWolf provides live flows when connected'}>
         {blocked.length === 0 && allowed.length === 0 ? (

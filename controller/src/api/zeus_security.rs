@@ -30,6 +30,24 @@ pub async fn asset_inventory(State(state): State<AppState>) -> Json<serde_json::
     Json(packetwolf_bridge::asset_inventory(&state.config).await)
 }
 
+pub async fn fleet_timeline(
+    State(state): State<AppState>,
+    Query(q): Query<HostQuery>,
+) -> Json<serde_json::Value> {
+    Json(zeus_security::fleet_timeline(&state.config, q.hours.unwrap_or(24)).await)
+}
+
+pub async fn sync_alerts(State(state): State<AppState>) -> Result<Json<serde_json::Value>, ApiError> {
+    let n = zeus_security::sync_security_alerts(&state.pool, &state.config)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "inserted": n, "summary": format!("Synced {n} security alert(s) to notification outbox") })))
+}
+
+pub async fn correlations(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::correlations(&state.config).await)
+}
+
 pub async fn security_graph(State(state): State<AppState>) -> Result<Json<security_graph::SecurityGraph>, ApiError> {
     security_graph::build_graph(&state.pool)
         .await
@@ -86,6 +104,13 @@ pub async fn host_ports(
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
     Json(zeus_security::host_resource(&state.config, &id, "ports", 0).await)
+}
+
+pub async fn host_containers(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    Json(zeus_security::host_resource(&state.config, &id, "containers", 0).await)
 }
 
 pub async fn host_timeline(
@@ -149,6 +174,40 @@ pub async fn install_tetragon(
         "task_id": task_id.to_string(),
         "packetwolf": pw,
         "summary": "Tetragon sensor enrollment queued"
+    })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct K8sTetragonBody {
+    pub cluster_name: Option<String>,
+}
+
+pub async fn install_k8s_tetragon(
+    State(state): State<AppState>,
+    Path(cluster_id): Path<String>,
+    Json(body): Json<K8sTetragonBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use crate::tasks::enqueue::enqueue_task;
+
+    let cluster = body.cluster_name.unwrap_or_else(|| cluster_id.clone());
+    let task_id = enqueue_task(
+        &state,
+        "k8s.tetragon.install",
+        serde_json::json!({
+            "cluster_id": cluster_id,
+            "cluster_name": cluster,
+            "helm_release": "tetragon",
+            "namespace": "kube-system",
+        }),
+        Some("k8s"),
+        None,
+        None,
+    )
+    .await?;
+    Ok(Json(serde_json::json!({
+        "task_id": task_id.to_string(),
+        "cluster_id": cluster_id,
+        "summary": format!("Tetragon Helm install queued for cluster {cluster}")
     })))
 }
 

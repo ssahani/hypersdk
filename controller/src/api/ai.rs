@@ -575,10 +575,14 @@ pub async fn analyze_incident(
     State(state): State<AppState>,
     Query(q): Query<ai::root_cause::AnalyzeIncidentQuery>,
 ) -> Result<Json<ai::root_cause::IncidentAnalysis>, ApiError> {
-    ai::root_cause::analyze(&state.pool, &q)
+    let mut result = ai::root_cause::analyze(&state.pool, &q)
         .await
-        .map_err(|e| ApiError::internal(e.to_string()))
-        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    if state.config.packetwolf_enabled {
+        let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
+        ai::root_cause::merge_packetwolf(&mut result.timeline, &pw);
+    }
+    Ok(Json(result))
 }
 
 #[derive(Debug, Deserialize)]

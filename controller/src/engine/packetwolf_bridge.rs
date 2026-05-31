@@ -291,3 +291,11 @@ pub async fn register_sensor(cfg: &ControllerConfig, host_id: &str) -> serde_jso
 pub async fn asset_inventory(cfg: &ControllerConfig) -> serde_json::Value {
     fabric_get(cfg, "/api/v1/asset-inventory").await
 }
+
+pub async fn fleet_timeline(cfg: &ControllerConfig, hours: u32) -> serde_json::Value {
+    fabric_get(cfg, &format!("/api/v1/fleet/timeline?hours={hours}&limit=200")).await
+}
+
+pub async fn correlations(cfg: &ControllerConfig) -> serde_json::Value {
+    fabric_get(cfg, "/api/v1/correlations").await
+}

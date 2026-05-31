@@ -78,6 +78,14 @@ export function integrationCards(info: PlatformInfo | null): IntegrationCard[] {
       enabled: Boolean(info.guestkit?.enabled),
     },
     {
+      id: 'packetwolf',
+      title: 'PacketWolf Security Fabric',
+      description: 'Required eBPF nervous system for Zeus — processes, network, DNS, threat correlation.',
+      href: '/platform/zeus/security',
+      enabled: true,
+      configured: true,
+    },
+    {
       id: 'classic',
       title: 'Classic Machina UI',
       description: 'Legacy dashboard, VM list, storage pools, and node tools.',

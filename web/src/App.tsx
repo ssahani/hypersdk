@@ -127,6 +127,7 @@ const PlatformTopology = lazy(() => import('./pages/platform/PlatformTopology'))
 const PlatformZeusOs = lazy(() => import('./pages/platform/PlatformZeusOs'))
 const PlatformSecurityCenter = lazy(() => import('./pages/platform/PlatformSecurityCenter'))
 const PlatformMachineSecurity = lazy(() => import('./pages/platform/PlatformMachineSecurity'))
+const PlatformThreatHunting = lazy(() => import('./pages/platform/PlatformThreatHunting'))
 const PlatformFirewallOverview = lazy(() => import('./pages/platform/security/PlatformFirewallOverview'))
 const PlatformFirewallTargetDetail = lazy(() => import('./pages/platform/security/PlatformFirewallTargetDetail'))
 const PlatformFirewallPorts = lazy(() => import('./pages/platform/security/PlatformFirewallPorts'))
@@ -333,6 +334,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="observability" element={<PlatformObservability />} />
                   <Route path="enterprise" element={<PlatformEnterprise />} />
                   <Route path="zeus" element={<PlatformZeusOs />} />
+                  <Route path="zeus/security/hunt" element={<PlatformThreatHunting />} />
                   <Route path="zeus/security" element={<PlatformSecurityCenter />} />
                   <Route path="zeus/machines/:hostId" element={<PlatformMachineSecurity />} />
                   <Route path="zeus/security/firewall" element={<PlatformFirewallOverview />} />

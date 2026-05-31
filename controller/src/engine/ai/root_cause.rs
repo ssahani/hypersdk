@@ -128,6 +128,33 @@ pub async fn analyze(pool: &PgPool, q: &AnalyzeIncidentQuery) -> anyhow::Result<
     })
 }
 
+/// Merge PacketWolf anomalies and correlations into incident timeline.
+pub fn merge_packetwolf(timeline: &mut Vec<TimelineEntry>, packetwolf: &serde_json::Value) {
+    let Some(items) = packetwolf.get("anomalies").and_then(|v| v.as_array()) else {
+        return;
+    };
+    for a in items {
+        let summary = a
+            .get("summary")
+            .and_then(|v| v.as_str())
+            .unwrap_or("PacketWolf security event");
+        let severity = a
+            .get("severity")
+            .and_then(|v| v.as_str())
+            .unwrap_or("medium");
+        let kind = a.get("kind").and_then(|v| v.as_str()).unwrap_or("security");
+        timeline.push(TimelineEntry {
+            at: chrono::Utc::now(),
+            source: "packetwolf".into(),
+            kind: kind.into(),
+            message: summary.into(),
+            severity: severity.into(),
+        });
+    }
+    timeline.sort_by(|a, b| b.at.cmp(&a.at));
+    timeline.truncate(120);
+}
+
 async fn resolve_vm(
     pool: &PgPool,
     vm_id: Option<Uuid>,

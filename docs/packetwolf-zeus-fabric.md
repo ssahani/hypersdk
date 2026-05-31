@@ -51,20 +51,38 @@ insecure_tls = true
 | `GET /api/v1/zeus-security/hosts/{id}/dns` | DNS queries |
 | `GET /api/v1/zeus-security/hosts/{id}/files` | Sensitive file changes |
 | `GET /api/v1/zeus-security/hosts/{id}/ports` | Open ports + process metadata |
+| `GET /api/v1/zeus-security/hosts/{id}/containers` | K8s namespace/pod/container hierarchy |
 | `GET /api/v1/zeus-security/hosts/{id}/timeline` | Security flight recorder |
 | `GET /api/v1/zeus-security/hosts/{id}/process-graph` | Process ancestry |
 | `POST /api/v1/zeus-security/hosts/{id}/tetragon/install` | Enroll Tetragon sensor |
+| `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` | Enroll Tetragon via Helm on cluster |
 | `POST /api/v1/ai/security/explain-event` | AI event explanation |
 | `POST /api/v1/ai/security/attack-reconstruct` | Attack chain from timeline |
 | `POST /api/v1/ai/security/nl-search` | Natural language search |
+| `GET /api/v1/zeus-security/fleet/timeline` | Unified fleet security timeline |
+| `GET /api/v1/zeus-security/correlations` | Threat correlation findings |
+| `POST /api/v1/zeus-security/alerts/sync` | Push critical alerts to notification outbox |
 
 OpenAPI: [`docs/openapi-packetwolf-fabric.json`](openapi-packetwolf-fabric.json)
+
+## Phase 3 — Correlation & threat hunting (PW-10–PW-12)
+
+- **PacketWolf:** `correlator.py` (reverse shell, suspicious DNS, priv-esc chain, port scan); optional OpenSearch via `OPENSEARCH_URL`; fleet timeline + correlations API
+- **Machina:** `/api/v1/zeus-security/fleet/timeline`, `/correlations`, `/alerts/sync`; incident analyze merges PacketWolf anomalies; SIEM export includes anomalies
+- **UI:** Unified `SecurityTimelinePanel`, Threat Hunting workspace (`/platform/zeus/security/hunt`), Firewall Activity v2 (process + domain), PacketWolf card on Integrations hub
+
+## Phase 4 — K8s enrichment (PW-13–PW-15)
+
+- **PacketWolf:** K8s metadata on events; `GET /api/v1/hosts/{id}/containers` namespace → pod → container hierarchy
+- **Machina:** `/api/v1/zeus-security/hosts/{id}/containers`; `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` + `k8s.tetragon.install` task (Helm release scheduled)
+- **UI:** Machine Security **Containers** tab with `ContainerHierarchyPanel`
 
 ## UI routes
 
 | Route | Page |
 |-------|------|
 | `/platform/zeus/security` | Security Center hub |
+| `/platform/zeus/security/hunt` | Threat hunting workspace |
 | `/platform/zeus/machines/:hostId` | Machine security drill-down |
 | `/platform/zeus/security/firewall` | Machine Security (firewall) |
 | `/platform/zeus/security/activity` | Firewall activity (PacketWolf flows) |

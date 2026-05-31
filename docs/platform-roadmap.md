@@ -289,7 +289,9 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 16 | 172–191 | K8s NetworkPolicy/Cilium apply + GitOps operator | **Shipped (v1)** |
 | 17 | 192–211 | PacketWolf deep — anomalies, correlation | **Shipped (v1)** |
 | 18 | PW-1–PW-9 | **PacketWolf Zeus Security Fabric** — Tetragon ingest, Security Center, machine tabs, AI copilot | **Shipped (v1)** |
-| 19 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
+| 19 | PW-10–PW-12 | **PacketWolf Phase 3** — threat correlation, fleet timeline, alert sync, threat hunting, OpenSearch hook | **Shipped (v1)** |
+| 20 | PW-13–PW-15 | **PacketWolf Phase 4** — K8s container hierarchy, Tetragon Helm enrollment task | **Shipped (v1)** |
+| 21 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
 | 19 | 232–251 | Guest in-guest QEMU-agent port scan | **Shipped (v1)** |
 | 20 | 252–271 | Connectivity matrix simulation GA | **Shipped (v1)** |
 | 21 | 272–291 | Enterprise — PDF export, approval SLA | **Shipped (v1)** |

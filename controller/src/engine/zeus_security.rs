@@ -80,3 +80,54 @@ pub async fn host_resource(
     };
     packetwolf_bridge::host_fabric(cfg, host_id, resource, &q).await
 }
+
+pub async fn fleet_timeline(cfg: &ControllerConfig, hours: u32) -> serde_json::Value {
+    packetwolf_bridge::fleet_timeline(cfg, hours).await
+}
+
+pub async fn sync_security_alerts(pool: &PgPool, cfg: &ControllerConfig) -> anyhow::Result<usize> {
+    let pw = packetwolf_bridge::fetch_anomalies(cfg).await;
+    let anomalies = pw
+        .get("anomalies")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let mut inserted = 0usize;
+    for a in anomalies.iter().filter(|x| {
+        x.get("severity")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| s == "critical" || s == "high")
+    }) {
+        let summary = a.get("summary").and_then(|v| v.as_str()).unwrap_or("Security alert");
+        let host_id = a.get("host_id").and_then(|v| v.as_str()).unwrap_or("");
+        let id = uuid::Uuid::new_v4();
+        let payload = serde_json::json!({
+            "title": summary,
+            "host_id": host_id,
+            "severity": a.get("severity"),
+            "kind": a.get("kind"),
+            "source": "packetwolf",
+        });
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM notification_outbox
+                WHERE kind = 'security.alert' AND payload->>'title' = $1 AND created_at > NOW() - INTERVAL '1 hour'
+            )",
+        )
+        .bind(summary)
+        .fetch_one(pool)
+        .await
+        .unwrap_or(false);
+        if exists {
+            continue;
+        }
+        sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES ($1, $2, $3)")
+            .bind(id)
+            .bind("security.alert")
+            .bind(payload)
+            .execute(pool)
+            .await?;
+        inserted += 1;
+    }
+    Ok(inserted)
+}
