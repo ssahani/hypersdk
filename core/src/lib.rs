@@ -18,6 +18,7 @@ pub mod run_as_user;
 pub mod build_precheck;
 pub mod config;
 pub mod firewall;
+pub mod tetragon;
 pub mod fmt;
 pub mod host_inventory;
 pub mod metrics_history;
@@ -65,6 +66,9 @@ pub use firewall::{
     FirewallPlanRequest, FirewallPlanResult, FirewallPosture, FirewallProfile,
     FirewallRule as ZeusFirewallRule, FirewallScore, GuestListeningPort, K8sPolicyManifest,
     OpenPort, StealthLevel,     GPU_EXPOSURE_MULTIPLIER, STORAGE_EXPOSURE_MULTIPLIER,
+};
+pub use tetragon::{
+    apply_security_bundle, security_fabric_status, SecurityBundleApplyResult, SecurityFabricStatus,
 };
 pub use network::overlay::{
     compile_micro_segment_rules, default_segment_presets, ip_from_cidr_offset, segment_micro_seg_grade,

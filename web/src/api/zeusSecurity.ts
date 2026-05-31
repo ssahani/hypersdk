@@ -112,6 +112,24 @@ export const getHostProcessGraph = (hostId: string, pid?: number) => {
 export const installTetragonSensor = (hostId: string) =>
   platformFetch<{ task_id: string; summary: string }>(`/api/v1/zeus-security/hosts/${hostId}/tetragon/install`, { method: 'POST' })
 
+export interface SecurityFabricStatus {
+  policy_dir?: string
+  policy_files?: string[]
+  install_script_present?: boolean
+  tetragon_binary_found?: boolean
+  export_url?: string | null
+}
+
+export interface HostFabricStatusResponse {
+  host_id: string
+  agent_reachable: boolean
+  message?: string
+  fabric?: SecurityFabricStatus
+}
+
+export const getHostFabricStatus = (hostId: string) =>
+  platformFetch<HostFabricStatusResponse>(`/api/v1/zeus-security/hosts/${hostId}/fabric-status`)
+
 export const searchZeusSecurity = (query: string, hostId?: string) =>
   platformFetch<{ results: SecurityEvent[] }>('/api/v1/zeus-security/search', {
     method: 'POST',

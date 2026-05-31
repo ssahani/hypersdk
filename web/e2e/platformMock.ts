@@ -276,6 +276,21 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
           },
         })
       }
+      if (url.includes('/fabric-status')) {
+        return route.fulfill({
+          json: {
+            host_id: 'h1',
+            agent_reachable: true,
+            fabric: {
+              policy_dir: '/var/lib/machina/tetragon/tracing-policies',
+              policy_files: ['packetwolf-pol-deny-nc.json'],
+              install_script_present: true,
+              tetragon_binary_found: false,
+              export_url: 'http://127.0.0.1:9091/api/v1/ingest',
+            },
+          },
+        })
+      }
       if (url.includes('/summary')) {
         return route.fulfill({ json: { host_id: 'h1', threat_score: 75, sensor: { status: 'healthy' } } })
       }

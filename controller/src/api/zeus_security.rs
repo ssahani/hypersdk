@@ -3,7 +3,9 @@
 use axum::extract::{Path, Query, State};
 use axum::Json;
 use serde::Deserialize;
+use uuid::Uuid;
 
+use crate::agent_client;
 use crate::api::ApiError;
 use crate::engine::ai::security as ai_security;
 use crate::engine::ai::security_graph;
@@ -384,4 +386,35 @@ pub async fn agent_security_bundle(
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
     Json(packetwolf_bridge::agent_bundle(&state.config, &id).await)
+}
+
+pub async fn host_fabric_status(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let host_uuid = Uuid::parse_str(&id).map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let agent_addr: Option<String> = sqlx::query_scalar("SELECT agent_grpc_addr FROM hosts WHERE id = $1")
+        .bind(host_uuid)
+        .fetch_optional(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let Some(addr) = agent_addr.filter(|a| !a.is_empty()) else {
+        return Ok(Json(serde_json::json!({
+            "host_id": id,
+            "agent_reachable": false,
+            "message": "host not found or agent address missing",
+        })));
+    };
+    match agent_client::get_security_fabric_status(&addr).await {
+        Ok(fabric) => Ok(Json(serde_json::json!({
+            "host_id": id,
+            "agent_reachable": true,
+            "fabric": fabric,
+        }))),
+        Err(e) => Ok(Json(serde_json::json!({
+            "host_id": id,
+            "agent_reachable": false,
+            "message": e.to_string(),
+        }))),
+    }
 }

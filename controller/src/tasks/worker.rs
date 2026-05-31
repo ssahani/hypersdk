@@ -324,6 +324,11 @@ async fn host_inventory(state: &AppState, msg: &TaskMessage) -> anyhow::Result<(
     {
         tracing::warn!(%host_id, "firewall posture sync during inventory: {e:#}");
     }
+    if let Err(e) =
+        crate::engine::packetwolf_sync::sync_host_security_bundle(&state.config, host_id, &agent_addr).await
+    {
+        tracing::warn!(%host_id, "security bundle sync during inventory: {e:#}");
+    }
 
     update_task_progress(&state.pool, msg.task_id, 100, "inventory synced").await?;
     Ok(())
@@ -1026,16 +1031,26 @@ async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::R
         .get("host_id")
         .and_then(|v| v.as_str())
         .unwrap_or("");
+    let host_id = Uuid::parse_str(host_id_str)
+        .map_err(|_| anyhow::anyhow!("host_id missing or invalid"))?;
     update_task_progress(&state.pool, msg.task_id, 20, "registering PacketWolf sensor").await?;
     let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, host_id_str).await;
     let _ = crate::engine::packetwolf_bridge::queue_tetragon_install(&state.config, host_id_str).await;
     update_task_progress(
         &state.pool,
         msg.task_id,
-        60,
-        "Tetragon install scheduled — agent will install sensor on next sync",
+        50,
+        "pushing Tetragon bundle to machina-agent",
     )
     .await?;
+    if let Ok(agent_addr) = host_agent_addr(&state.pool, host_id).await {
+        let _ = crate::engine::packetwolf_sync::sync_host_security_bundle(
+            &state.config,
+            host_id,
+            &agent_addr,
+        )
+        .await;
+    }
     update_task_progress(&state.pool, msg.task_id, 100, "Tetragon enrollment complete").await?;
     Ok(())
 }
@@ -1108,10 +1123,20 @@ async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::
     update_task_progress(
         &state.pool,
         msg.task_id,
-        80,
-        "TracingPolicy push scheduled — machina-agent will apply on next sync",
+        60,
+        "pushing TracingPolicy bundle to machina-agent",
     )
     .await?;
+    if let Ok(host_uuid) = Uuid::parse_str(host_id) {
+        if let Ok(agent_addr) = host_agent_addr(&state.pool, host_uuid).await {
+            let _ = crate::engine::packetwolf_sync::sync_host_security_bundle(
+                &state.config,
+                host_uuid,
+                &agent_addr,
+            )
+            .await;
+        }
+    }
     update_task_progress(
         &state.pool,
         msg.task_id,

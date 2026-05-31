@@ -976,4 +976,55 @@ impl HostAgent for AgentService {
             Err(e) => Err(Status::internal(e.to_string())),
         }
     }
+
+    async fn apply_security_bundle(
+        &self,
+        request: Request<ApplySecurityBundleRequest>,
+    ) -> Result<Response<ApplySecurityBundleResponse>, Status> {
+        let req = request.into_inner();
+        let dry_run = req.dry_run;
+        let bundle_json = req.bundle_json;
+        match tokio::task::spawn_blocking(move || {
+            machina_core::apply_security_bundle(&bundle_json, dry_run)
+        })
+        .await
+        {
+            Ok(Ok(result)) => {
+                let json = serde_json::to_string(&result).unwrap_or_else(|_| "{}".into());
+                Ok(Response::new(ApplySecurityBundleResponse {
+                    ok: result.ok,
+                    result_json: json,
+                    message: result.message,
+                }))
+            }
+            Ok(Err(e)) => Ok(Response::new(ApplySecurityBundleResponse {
+                ok: false,
+                result_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
+
+    async fn get_security_fabric_status(
+        &self,
+        _request: Request<GetSecurityFabricStatusRequest>,
+    ) -> Result<Response<GetSecurityFabricStatusResponse>, Status> {
+        match tokio::task::spawn_blocking(machina_core::security_fabric_status).await {
+            Ok(Ok(status)) => {
+                let json = serde_json::to_string(&status).unwrap_or_else(|_| "{}".into());
+                Ok(Response::new(GetSecurityFabricStatusResponse {
+                    ok: true,
+                    status_json: json,
+                    message: String::new(),
+                }))
+            }
+            Ok(Err(e)) => Ok(Response::new(GetSecurityFabricStatusResponse {
+                ok: false,
+                status_json: String::new(),
+                message: e.to_string(),
+            })),
+            Err(e) => Err(Status::internal(e.to_string())),
+        }
+    }
 }

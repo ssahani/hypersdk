@@ -294,7 +294,8 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 21 | PW-16–PW-18 | **PacketWolf Phase 5** — LLM-backed explain, attack reconstruct, NL search, hunt summary | **Shipped (v1)** |
 | 22 | PW-19–PW-21 | **PacketWolf Phase 6** — runtime eBPF enforcement (deny process/DNS/port/IP) | **Shipped (v1)** |
 | 23 | PW-22–PW-24 | **PacketWolf Phase 7** — ClickHouse persistence, agent TracingPolicy bundle pull | **Shipped (v1)** |
-| 24 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
+| 24 | PW-25–PW-27 | **PacketWolf Phase 8** — agent-side TracingPolicy apply, fabric status, inventory sync | **Shipped (v1)** |
+| 25 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
 | 19 | 232–251 | Guest in-guest QEMU-agent port scan | **Shipped (v1)** |
 | 20 | 252–271 | Connectivity matrix simulation GA | **Shipped (v1)** |
 | 21 | 272–291 | Enterprise — PDF export, approval SLA | **Shipped (v1)** |

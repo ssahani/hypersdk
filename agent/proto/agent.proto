@@ -37,6 +37,8 @@ service HostAgent {
   rpc GetSystemdNetworkDiagnostics(GetSystemdNetworkDiagnosticsRequest) returns (GetSystemdNetworkDiagnosticsResponse);
   rpc GetLinuxAudit(GetLinuxAuditRequest) returns (GetLinuxAuditResponse);
   rpc GetLinuxPackageUpdates(GetLinuxPackageUpdatesRequest) returns (GetLinuxPackageUpdatesResponse);
+  rpc ApplySecurityBundle(ApplySecurityBundleRequest) returns (ApplySecurityBundleResponse);
+  rpc GetSecurityFabricStatus(GetSecurityFabricStatusRequest) returns (GetSecurityFabricStatusResponse);
 }
 
 message RegisterRequest {
@@ -447,5 +449,24 @@ message GetLinuxPackageUpdatesRequest {}
 message GetLinuxPackageUpdatesResponse {
   bool ok = 1;
   string json = 2;
+  string message = 3;
+}
+
+message ApplySecurityBundleRequest {
+  string bundle_json = 1;
+  bool dry_run = 2;
+}
+
+message ApplySecurityBundleResponse {
+  bool ok = 1;
+  string result_json = 2;
+  string message = 3;
+}
+
+message GetSecurityFabricStatusRequest {}
+
+message GetSecurityFabricStatusResponse {
+  bool ok = 1;
+  string status_json = 2;
   string message = 3;
 }

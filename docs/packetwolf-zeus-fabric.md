@@ -102,6 +102,14 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 - **Agent bundle:** `GET /api/v1/agents/{hostId}/bundle` — TracingPolicy YAML + pending Tetragon install for machina-agent pull
 - **Machina:** `/api/v1/zeus-security/agents/{id}/bundle`; Tetragon install task queues agent bundle
 
+## Phase 8 — Agent-side bundle apply (PW-25–PW-27)
+
+- **machina-core:** `tetragon/apply.rs` writes TracingPolicy JSON to `/var/lib/machina/tetragon/tracing-policies/`, install stub script, and bundle manifest
+- **machina-agent:** gRPC `ApplySecurityBundle`, `GetSecurityFabricStatus` (mirrors firewall `ApplyFirewallPlan` pattern)
+- **Controller:** `packetwolf_sync` pulls bundle from PacketWolf during `host.inventory`, `host.tetragon.install`, and `host.enforcement.apply`; acks via `POST /api/v1/agents/{id}/bundle/ack`
+- **Machina API:** `GET /api/v1/zeus-security/hosts/{id}/fabric-status` — live agent TracingPolicy inventory
+- **UI:** Machine Security header shows applied policy count and Tetragon install state
+
 ## UI routes
 
 | Route | Page |

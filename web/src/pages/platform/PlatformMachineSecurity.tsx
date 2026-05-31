@@ -24,7 +24,9 @@ import {
   getHostSecurityPorts,
   getHostSecuritySummary,
   getHostSecurityTimeline,
+  getHostFabricStatus,
   installTetragonSensor,
+  type HostFabricStatusResponse,
   reconstructAttack,
   type SecurityEvent,
 } from '../../api/zeusSecurity'
@@ -67,6 +69,7 @@ export default function PlatformMachineSecurity() {
   const [containers, setContainers] = useState<Record<string, unknown> | null>(null)
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [attackChain, setAttackChain] = useState<string[] | null>(null)
+  const [fabricStatus, setFabricStatus] = useState<HostFabricStatusResponse | null>(null)
   const [explain, setExplain] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -78,6 +81,9 @@ export default function PlatformMachineSecurity() {
     try {
       const sum = await getHostSecuritySummary(hostId)
       setSummary(sum)
+      void getHostFabricStatus(hostId)
+        .then(setFabricStatus)
+        .catch(() => setFabricStatus(null))
       if (tab === 'processes') {
         const r = await getHostProcesses(hostId)
         setItems(r.processes ?? [])
@@ -124,6 +130,11 @@ export default function PlatformMachineSecurity() {
 
   const sensor = (summary?.sensor as Record<string, unknown>) ?? {}
   const threatScore = summary?.threat_score ?? '—'
+  const policyCount = fabricStatus?.fabric?.policy_files?.length ?? 0
+  const tetragonInstalled = fabricStatus?.fabric?.tetragon_binary_found === true
+  const fabricLine = fabricStatus?.agent_reachable
+    ? `${policyCount} TracingPolicy file(s) on agent${tetragonInstalled ? ' · Tetragon installed' : ' · Tetragon pending'}`
+    : 'Agent fabric status unavailable'
 
   return (
     <div className="space-y-4">
@@ -139,6 +150,7 @@ export default function PlatformMachineSecurity() {
           <p className="text-sm text-slate-400">
             Threat score {String(threatScore)} · Sensor {String(sensor.status ?? 'unknown')}
           </p>
+          <p className="text-xs text-slate-500">{fabricLine}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button

@@ -471,6 +471,41 @@ pub async fn apply_firewall_plan(
     }
 }
 
+pub async fn apply_security_bundle(
+    addr: &str,
+    bundle_json: &str,
+    dry_run: bool,
+) -> anyhow::Result<machina_core::SecurityBundleApplyResult> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .apply_security_bundle(ApplySecurityBundleRequest {
+            bundle_json: bundle_json.to_string(),
+            dry_run,
+        })
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.result_json).map_err(|e| anyhow::anyhow!("result json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
+pub async fn get_security_fabric_status(
+    addr: &str,
+) -> anyhow::Result<machina_core::SecurityFabricStatus> {
+    let mut client = connect(addr).await?;
+    let resp = client
+        .get_security_fabric_status(GetSecurityFabricStatusRequest {})
+        .await?
+        .into_inner();
+    if resp.ok {
+        serde_json::from_str(&resp.status_json).map_err(|e| anyhow::anyhow!("status json: {e}"))
+    } else {
+        anyhow::bail!(resp.message)
+    }
+}
+
 pub struct GuestFirewallPortsResponse {
     pub agent_reachable: bool,
     pub ports: Vec<machina_core::GuestListeningPort>,

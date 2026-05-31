@@ -6,6 +6,7 @@ pub mod ha;
 pub mod host_validate;
 pub mod guestkit_bridge;
 pub mod packetwolf_bridge;
+pub mod packetwolf_sync;
 pub mod zeus_firewall;
 pub mod zeus_security;
 pub mod migrate_precheck;

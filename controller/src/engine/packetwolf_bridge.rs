@@ -350,6 +350,10 @@ pub async fn agent_bundle(cfg: &ControllerConfig, host_id: &str) -> serde_json::
     fabric_get(cfg, &format!("/api/v1/agents/{host_id}/bundle")).await
 }
 
+pub async fn ack_agent_bundle(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
+    fabric_post(cfg, &format!("/api/v1/agents/{host_id}/bundle/ack"), serde_json::json!({})).await
+}
+
 pub async fn queue_tetragon_install(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
     let cfg = cfg.clone();
     let host_id = host_id.to_string();
