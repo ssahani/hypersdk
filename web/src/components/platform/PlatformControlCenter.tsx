@@ -178,11 +178,20 @@ export default function PlatformControlCenter() {
                 />
                 {showPower && (
                   <ModuleTile
+                    icon={<Shield className="w-4 h-4 text-violet-400" />}
+                    label="Security Center"
+                    value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : 'Posture OK'}
+                    href="/platform/zeus/security"
+                    tone={fwCritical || metalCritical ? 'warn' : 'ok'}
+                  />
+                )}
+                {showPower && (
+                  <ModuleTile
                     icon={<Shield className="w-4 h-4 text-orange-400" />}
-                    label="Firewall"
+                    label="Zeus Firewall"
                     value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : fwDrift ? `${fwDrift} drift` : 'All clear'}
                     href="/platform/zeus/security/firewall"
-                    tone={fwCritical ? 'warn' : 'ok'}
+                    tone={fwCritical || fwDrift ? 'warn' : 'ok'}
                   />
                 )}
                 {showPower && (
@@ -228,15 +237,6 @@ export default function PlatformControlCenter() {
                 </div>
               )}
 
-              {showPower && (
-              <Row
-                icon={<Shield className="w-4 h-4 text-orange-400" />}
-                label="Zeus Firewall"
-                value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical host(s)` : fwDrift ? `${fwDrift} with drift` : 'Posture OK'}
-                href="/platform/zeus/security/firewall"
-                tone={fwCritical || fwDrift ? 'warn' : 'ok'}
-              />
-              )}
               {showAdvanced && operatorSummary && (
                 <Row
                   icon={<Sparkles className="w-4 h-4 text-violet-400" />}
@@ -280,19 +280,6 @@ export default function PlatformControlCenter() {
                 <button type="button" className="btn-secondary text-xs flex items-center gap-1" disabled={syncing} onClick={() => void syncHosts()}>
                   <RefreshCw className={`w-3 h-3 ${syncing ? 'animate-spin' : ''}`} /> Sync hosts
                 </button>
-                <Link to="/platform/zeus" className="btn-secondary text-xs flex items-center gap-1" onClick={() => setOpen(false)}>
-                  <Sparkles className="w-3 h-3" /> Zeus OS
-                </Link>
-                {showAdvanced && (
-                <>
-                <Link to="/platform/zeus/security" className="btn-secondary text-xs" onClick={() => setOpen(false)}>
-                  Security Center
-                </Link>
-                <Link to="/platform/zeus/security/firewall" className="btn-secondary text-xs" onClick={() => setOpen(false)}>
-                  Firewall
-                </Link>
-                </>
-                )}
               </div>
               </>
               )}

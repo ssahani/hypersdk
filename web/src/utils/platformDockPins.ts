@@ -17,6 +17,9 @@ import {
   Sparkles,
   Terminal,
   Download,
+  FolderOpen,
+  Wrench,
+  ShieldAlert,
 } from 'lucide-react'
 import { PLATFORM_SIDEBAR } from './platformNav'
 import {
@@ -51,6 +54,9 @@ const ICON_BY_PATH: Record<string, LucideIcon> = {
   '/platform/notifications': Bell,
   '/platform/zeus': Sparkles,
   '/platform/integrations': Boxes,
+  '/platform/resources': FolderOpen,
+  '/platform/operations': Wrench,
+  '/platform/zeus/security': ShieldAlert,
   '/platform/settings': Settings,
 }
 
@@ -67,6 +73,9 @@ const LABEL_BY_PATH: Record<string, string> = {
   '/platform/maintenance': 'Updates',
   '/platform/notifications': 'Alerts',
   '/platform/integrations': 'Apps',
+  '/platform/resources': 'Resources',
+  '/platform/operations': 'Ops',
+  '/platform/zeus/security': 'Security',
 }
 
 /** Default pinned apps for the Machina platform dock (v9s MacDock pattern). */

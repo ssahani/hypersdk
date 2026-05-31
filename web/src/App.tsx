@@ -117,6 +117,8 @@ const PlatformApiKeys = lazy(() => import('./pages/platform/PlatformApiKeys'))
 const PlatformMaintenance = lazy(() => import('./pages/platform/PlatformMaintenance'))
 const PlatformProjects = lazy(() => import('./pages/platform/PlatformProjects'))
 const PlatformNotifications = lazy(() => import('./pages/platform/PlatformNotifications'))
+const PlatformResourcesHub = lazy(() => import('./pages/platform/PlatformResourcesHub'))
+const PlatformOperationsHub = lazy(() => import('./pages/platform/PlatformOperationsHub'))
 const PlatformSettingsHub = lazy(() => import('./pages/platform/PlatformSettingsHub'))
 const PlatformMigration = lazy(() => import('./pages/platform/PlatformMigration'))
 const PlatformActivityMonitor = lazy(() => import('./pages/platform/PlatformActivityMonitor'))
@@ -351,6 +353,8 @@ function AuthenticatedShellRoutes() {
                   <Route path="zeus/security/policies" element={<PlatformFirewallPolicies />} />
                   <Route path="policy" element={<PlatformPolicy />} />
                   <Route path="integrations" element={<PlatformIntegrations />} />
+                  <Route path="resources" element={<PlatformResourcesHub />} />
+                  <Route path="operations" element={<PlatformOperationsHub />} />
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />

@@ -48,6 +48,7 @@ const missionOverview = {
 async function mockPlatformApi(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
     localStorage.setItem('zyvor-platform-welcome-done', '1')
+    localStorage.setItem('machina-platform-desktop-tier', 'normal')
   })
   await page.route('**/api/v1/**', async (route) => {
     const url = route.request().url()

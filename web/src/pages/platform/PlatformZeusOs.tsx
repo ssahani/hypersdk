@@ -299,15 +299,18 @@ export default function PlatformZeusOs() {
 
       {tab === 'security' && (
         <div className="space-y-4">
-          <MacGlassPanel title="PacketWolf Security Fabric" subtitle="eBPF nervous system — processes, network, DNS, files">
-            <Link to="/platform/zeus/security" className="text-sm text-blue-400 hover:underline">
-              Open Security Center → threat score, timeline, process graph
-            </Link>
-          </MacGlassPanel>
-          <MacGlassPanel title="Machine Security (Firewall)" subtitle="Host firewall profiles, lockdown, ports">
-            <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 hover:underline">
-              Open Machine Security → Zeus Firewall
-            </Link>
+          <MacGlassPanel title="Security hubs" subtitle="Threat intelligence and host firewall — open a hub for full detail">
+            <div className="flex flex-wrap gap-3">
+              <Link to="/platform/zeus/security" className="btn-secondary text-sm">
+                Security Center
+              </Link>
+              <Link to="/platform/zeus/security/firewall" className="btn-secondary text-sm">
+                Zeus Firewall
+              </Link>
+            </div>
+            <p className="text-xs text-slate-500 mt-3">
+              Threat hunting, runtime enforcement, ports, policies, and cloud rules live inside these hubs.
+            </p>
           </MacGlassPanel>
           <MacGlassPanel title="Attack path discovery" subtitle="Example: attacker → db-prod">
             <p className="text-sm text-slate-300">{attackSummary ?? 'Loading…'}</p>
@@ -406,13 +409,13 @@ export default function PlatformZeusOs() {
                 <PlatformEmptyState
                   icon={Server}
                   title="No bare-metal servers"
-                  subtitle="Register BMC targets from Machine Security to manage power, PXE, and firewall profiles."
-                  action={<Link to="/platform/zeus/security/firewall" className="btn-primary text-sm">Open Machine Security</Link>}
+                  subtitle="Register BMC targets from Zeus Firewall to manage power, PXE, and firewall profiles."
+                  action={<Link to="/platform/zeus/security/firewall" className="btn-primary text-sm">Open Zeus Firewall</Link>}
                 />
               )}
             </div>
             <Link to="/platform/zeus/security/firewall" className="text-xs text-blue-400 mt-3 inline-block">
-              Open Machine Security fleet →
+              Open Zeus Firewall fleet →
             </Link>
           </MacGlassPanel>
           <MacGlassPanel title="AI capacity planner" subtitle="How many servers for N engineers?">

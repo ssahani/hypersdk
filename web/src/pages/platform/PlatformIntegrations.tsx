@@ -1,8 +1,8 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { Link } from 'react-router'
-import { ExternalLink, Puzzle, Sparkles } from 'lucide-react'
-import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
+import { ExternalLink, Puzzle, Sparkles, Boxes } from 'lucide-react'
+import { LaunchpadAppIcon, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { integrationCards } from '../../utils/platformIntegrationsNav'
@@ -33,6 +33,14 @@ export default function PlatformIntegrations() {
       />
 
       <div className="tahoe-content space-y-6">
+        <MacGlassPanel title="Fleet apps" subtitle="Launchpad and connected platforms">
+          <div className="platform-launchpad-grid grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-4 gap-y-8 -mt-1">
+            <Link to="/platform/applications" className="block">
+              <LaunchpadAppIcon name="Applications" icon={<Boxes className="w-8 h-8" strokeWidth={1.75} />} />
+            </Link>
+          </div>
+        </MacGlassPanel>
+
         <MacGlassPanel title="Desktop density">
           <p className="text-sm text-slate-400 mb-3">
             Start with <strong className="text-slate-200">Normal</strong> for a clean Finder-style desktop. Switch to Power or Advanced when you need Zeus, firewall modules, and the full sidebar.
