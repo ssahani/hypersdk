@@ -42,7 +42,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 const PRESETS = [
   { name: 'default', bridge: 'virbr0', label: 'Default NAT', desc: 'Libvirt default — VMs get DHCP' },
@@ -477,9 +477,9 @@ export default function PlatformNetworks() {
                         <td className="py-2.5 px-2">{s.east_west_default}</td>
                         <td className="py-2.5 px-2">
                           <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                            s.micro_seg_grade === 'A' ? 'bg-emerald-500/20 text-emerald-300' :
-                            s.micro_seg_grade === 'B' ? 'bg-blue-500/20 text-blue-300' :
-                            'bg-amber-500/20 text-amber-300'
+                            statusBadgeClasses(
+                              s.micro_seg_grade === 'A' ? 'ok' : s.micro_seg_grade === 'B' ? 'info' : 'warn',
+                            )
                           }`}>
                             {s.micro_seg_grade} ({s.micro_seg_score})
                           </span>
@@ -686,7 +686,7 @@ export default function PlatformNetworks() {
           <div className="space-y-4">
             <p className="text-sm text-slate-400">{connectivity.matrix.summary}</p>
             {connectivity.matrix.warnings.length > 0 && (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-1">
+              <div className={`rounded-xl p-3 text-sm space-y-1 ${statusSurfaceClasses('warn')}`}>
                 {connectivity.matrix.warnings.map((w) => (
                   <p key={w}>{w}</p>
                 ))}

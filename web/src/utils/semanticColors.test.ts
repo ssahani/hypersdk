@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, hubLinkClasses, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, navActiveChipClasses, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, sessionBadgeClasses, serviceStateTone, statusBorderClass, statusChipClasses, statusSurfaceClasses, tabActiveClasses, taskStatusTone, toastSemanticTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
+import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, hubLinkClasses, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, navActiveChipClasses, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, riskTone, sessionBadgeClasses, serviceStateTone, statusBorderClass, statusChipClasses, statusSurfaceClasses, tabActiveClasses, taskStatusTone, toastSemanticTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -70,5 +70,15 @@ describe('semanticColors', () => {
     expect(navActiveChipClasses()).toContain('--machina-status-info')
     expect(tabActiveClasses()).toContain('--machina-status-info')
     expect(hubLinkClasses()).toContain('--machina-status-info')
+  })
+
+  it('maps firewall risk levels', () => {
+    expect(riskTone('critical')).toBe('error')
+    expect(riskTone('high')).toBe('error')
+    expect(riskTone('warning')).toBe('warn')
+    expect(riskTone('medium')).toBe('warn')
+    expect(riskTone('low')).toBe('ok')
+    expect(riskTone('info')).toBe('ok')
+    expect(riskTone('unknown')).toBe('neutral')
   })
 })

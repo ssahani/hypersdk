@@ -32,15 +32,9 @@ import {
 } from '../../../api/zeusFirewall'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
-import { hubLinkClasses } from '../../../utils/semanticColors'
+import { hubLinkClasses, riskTone, statusBgClass, statusToneClass } from '../../../utils/semanticColors'
 
 type KindFilter = 'all' | 'host' | 'bare_metal'
-
-function riskDot(risk: string) {
-  if (risk === 'critical') return 'bg-red-400'
-  if (risk === 'warning') return 'bg-amber-400'
-  return 'bg-emerald-400'
-}
 
 export default function PlatformFirewallOverview() {
   const toast = useToastContext()
@@ -136,7 +130,7 @@ export default function PlatformFirewallOverview() {
       {error && <ErrorBanner message={error} />}
       {statusLine && (
         <p className="text-sm text-slate-400 flex items-center gap-2">
-          <Shield className={`$w-4 h-4 ${hubLinkClasses()}`} />
+          <Shield className={`w-4 h-4 ${hubLinkClasses()}`} />
           {statusLine}
         </p>
       )}
@@ -165,7 +159,7 @@ export default function PlatformFirewallOverview() {
             <div className="platform-launchpad-grid grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-6">
               {filtered.map((t: FirewallTargetSummary) => (
                 <Link key={t.id} to={`/platform/zeus/security/firewall/${t.id}`} className="relative">
-                  <span className={`absolute top-0 right-6 w-2.5 h-2.5 rounded-full ${riskDot(t.risk)} ring-2 ring-slate-950`} />
+                  <span className={`absolute top-0 right-6 w-2.5 h-2.5 rounded-full ${statusBgClass(riskTone(t.risk))} ring-2 ring-slate-950`} />
                   <LaunchpadAppIcon
                     name={t.name}
                     icon={t.kind === 'bare_metal' ? <HardDrive className="w-8 h-8" /> : <Shield className="w-8 h-8" />}
@@ -242,7 +236,7 @@ export default function PlatformFirewallOverview() {
                 </button>
               </div>
               {multisite.policy_conflicts.length > 0 && (
-                <ul className="mt-3 text-xs text-amber-300 space-y-1">
+                <ul className={`mt-3 text-xs space-y-1 ${statusToneClass('warn')}`}>
                   {multisite.policy_conflicts.map((c) => (
                     <li key={c.id}>{c.policy_name}: {c.detail}</li>
                   ))}

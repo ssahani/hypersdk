@@ -6,7 +6,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../../components/
 import ErrorBanner from '../../../components/ErrorBanner'
 import { getFirewallActivity, getFirewallOverview } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hubLinkClasses } from '../../../utils/semanticColors'
+import { hubLinkClasses, statusToneClass } from '../../../utils/semanticColors'
 
 type ActivityEvent = Record<string, unknown> & { target?: string; group?: string }
 
@@ -81,7 +81,7 @@ export default function PlatformFirewallActivity() {
           <div className="space-y-4">
             {blocked.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-red-300/90 uppercase tracking-wide mb-2 px-1">Blocked</p>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${statusToneClass('error')}`}>Blocked</p>
                 <div className="rounded-xl border border-white/[0.06] overflow-hidden">
                   {blocked.slice(0, 25).map((e, i) => (
                     <MacListRow key={`b-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />
@@ -91,7 +91,7 @@ export default function PlatformFirewallActivity() {
             )}
             {allowed.length > 0 && (
               <div>
-                <p className="text-xs font-semibold text-emerald-300/80 uppercase tracking-wide mb-2 px-1">Allowed</p>
+                <p className={`text-xs font-semibold uppercase tracking-wide mb-2 px-1 ${statusToneClass('ok')}`}>Allowed</p>
                 <div className="rounded-xl border border-white/[0.06] overflow-hidden">
                   {allowed.slice(0, 15).map((e, i) => (
                     <MacListRow key={`a-${i}`} title={eventTitle(e)} subtitle={eventSubtitle(e)} />

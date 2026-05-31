@@ -30,6 +30,19 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 | [`EmptyState`](../web/src/components/EmptyState.tsx) | Zero rows in a list; include primary CTA |
 | [`PlatformEmptyState`](../web/src/components/platform/PlatformEmptyState.tsx) | Platform Mac pages — glass panel empty state with CTA |
 | [`semanticColors.ts`](../web/src/utils/semanticColors.ts) | Status/task/host tone helpers — prefer over raw Tailwind green/amber/red |
+
+### Semantic color helpers (Batch 57–58)
+
+| Helper | Use when |
+|--------|----------|
+| `statusToneClass(tone)` | Inline text for ok / warn / error / info / neutral |
+| `statusBadgeClasses(tone)` | Pill/chip backgrounds (host health, compliance grades) |
+| `statusSurfaceClasses(tone, extra?)` | Bordered callout panels (readiness, drift, destructive hints) |
+| `hubLinkClasses()` | Platform hub links and cross-shell navigation accents (info tone) |
+| `navActiveChipClasses()` | Active filter pills / segmented nav chips |
+| `riskTone(risk)` | Firewall / security risk strings → critical/high → error, warning/medium → warn, low/info → ok |
+
+**Intentionally unchanged:** primary CTAs (`bg-blue-600`), [`ChoiceCards`](../web/src/components/ChoiceCards.tsx) selection accents (wizard tone palette, not operational status), ApiDocs HTTP method colors, orange Zeus branding in Help.
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |
 | [`JsonInspector`](../web/src/components/platform/JsonInspector.tsx) | Power-user API payloads — human summary first, raw JSON behind toggle |
 | [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) | Integrations hub — live OpenStack/K8s inventory preview when backends are reachable |

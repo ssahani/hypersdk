@@ -24,7 +24,7 @@ import {
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hubLinkClasses } from '../../utils/semanticColors'
+import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 type TabId = 'users' | 'workspaces'
 
@@ -187,7 +187,7 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
                     workspace === w.name ? (
                       <span className="text-[10px] text-violet-300 border border-violet-500/30 px-2 py-0.5 rounded">active</span>
                     ) : w.enforce_quotas ? (
-                      <span className="text-[10px] text-emerald-300">enforced</span>
+                      <span className={`text-[10px] ${statusToneClass('ok')}`}>enforced</span>
                     ) : null
                   }
                   trailing={

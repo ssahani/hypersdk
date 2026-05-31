@@ -8,7 +8,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { formatUserError } from '../../utils/apiError'
-import { statusToneClass, hubLinkClasses } from '../../utils/semanticColors'
+import { statusSurfaceClasses, statusToneClass, hubLinkClasses } from '../../utils/semanticColors'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
 import { getClusterTopology, type TopologyGraph } from '../../api/platform'
@@ -189,7 +189,7 @@ export default function PlatformTopology() {
       )}
 
       {graph?.warnings.map((w, i) => (
-        <div key={i} className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+        <div key={i} className={`rounded-xl p-3 text-sm ${statusSurfaceClasses('warn')}`}>
           {w.message}
         </div>
       ))}

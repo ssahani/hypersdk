@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Play, Rocket } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import { executeMissionStack, getMissionStackStatus, planMissionStack, type MissionStackPlan } from '../../api/ai'
+import { statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaMissionStack() {
   const [query, setQuery] = useState('Build a GPU cluster for Llama serving')
@@ -52,7 +53,7 @@ export default function MachinaMissionStack() {
           <Play className="w-3 h-3" /> Preview infra
         </button>
       </div>
-      {executeSummary && <p className="text-xs text-emerald-300/90 mt-2">{executeSummary}</p>}
+      {executeSummary && <p className={`text-xs mt-2 ${statusToneClass('ok')}`}>{executeSummary}</p>}
       {stackStatus && <p className="text-xs text-slate-500 mt-1">Stack status: {stackStatus}</p>}
       {plan && (
         <div className="mt-3 text-xs space-y-2 text-slate-400">

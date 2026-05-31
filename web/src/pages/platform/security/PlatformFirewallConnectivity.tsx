@@ -6,7 +6,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../../components/
 import ErrorBanner from '../../../components/ErrorBanner'
 import { simulateConnectivity } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
+import { hubLinkClasses, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
 type Cell = { source: string; destination: string; port: number; protocol: string; verdict: string; reason: string }
 
@@ -41,9 +41,9 @@ export default function PlatformFirewallConnectivity() {
         </div>
         {summary && <p className="text-sm text-slate-400 mb-4">{summary}</p>}
         {warnings.length > 0 && (
-          <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+          <div className={`mb-4 p-3 rounded-xl ${statusSurfaceClasses('warn')}`}>
             {warnings.map((w) => (
-              <p key={w} className="text-sm text-amber-200">{w}</p>
+              <p key={w} className="text-sm">{w}</p>
             ))}
           </div>
         )}

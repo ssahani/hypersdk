@@ -6,7 +6,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle, MacStatWidget } from '../..
 import ErrorBanner from '../../../components/ErrorBanner'
 import { getCloudFirewallOverview } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hubLinkClasses } from '../../../utils/semanticColors'
+import { hubLinkClasses, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
 export default function PlatformFirewallCloud() {
   const [summary, setSummary] = useState('')
@@ -47,7 +47,7 @@ export default function PlatformFirewallCloud() {
       </div>
       {criticalPorts > 0 && (
         <MacGlassPanel title="Critical exposure" subtitle="0.0.0.0/0 on sensitive ports">
-          <p className="text-sm text-amber-200">{criticalPorts} cloud rule(s) expose critical ports to the internet.</p>
+          <p className={`text-sm ${statusToneClass('warn')}`}>{criticalPorts} cloud rule(s) expose critical ports to the internet.</p>
         </MacGlassPanel>
       )}
       <MacGlassPanel title="Security groups" subtitle={summary || 'Configure cloud CLI on controller host'}>

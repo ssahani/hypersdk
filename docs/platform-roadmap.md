@@ -81,6 +81,16 @@ Cross-shell consistency pass documented in [`next-big-sweep.md`](next-big-sweep.
 - **D:** E2e matrix — [`cross-shell.spec.ts`](../web/e2e/cross-shell.spec.ts), batch-48 + nav-coverage extensions (69 tests green)
 - **E:** Small backend hooks for runbooks / discover (only if UI blocked)
 
+## Batch 58 deliverables (cross-shell color tail — shipped)
+
+Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
+
+- **Zeus Firewall:** security pages under [`web/src/pages/platform/security/`](../web/src/pages/platform/security/) use `riskTone`, `statusBadgeClasses`, `statusSurfaceClasses`
+- **Platform widgets:** dashboard posture chips, template readiness, topology warnings, Zeus OS diagnosis/runbook lines, storage/network compliance grades
+- **Classic tail:** VMDetails warn/error surfaces, Fleet hub links, form focus rings on Logs/NodeInfo/Backups
+- **Shared primitives:** GlassButton danger, PlatformFilterPills active chip, BuildStepTimeline complete step, KubeVirtExposeServiceModal warn callouts, AI panel severity/result lines
+- **Deferred:** `ChoiceCards` selection accent palette (documented in [`ux.md`](ux.md))
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

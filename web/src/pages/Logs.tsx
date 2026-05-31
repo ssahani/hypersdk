@@ -151,7 +151,7 @@ export default function LogsPage() {
         <select
           value={priority}
           onChange={e => setPriority(e.target.value)}
-          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         >
           <option value="">All priorities</option>
           {PRIORITIES.map(p => (
@@ -166,7 +166,7 @@ export default function LogsPage() {
             placeholder="Filter by unit (e.g. sshd, machina-daemon)"
             value={unit}
             onChange={e => setUnit(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
           />
         </div>
 
@@ -177,14 +177,14 @@ export default function LogsPage() {
             placeholder="Search log messages (like --grep)"
             value={grep}
             onChange={e => setGrep(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+            className="w-full pl-10 pr-4 py-2 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
           />
         </div>
 
         <select
           value={boot}
           onChange={e => setBoot(e.target.value)}
-          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         >
           {BOOT_FILTERS.map((b) => (
             <option key={b.label} value={b.value}>{b.label}</option>
@@ -201,7 +201,7 @@ export default function LogsPage() {
           placeholder='Since (e.g. "1 hour ago" or 2026-04-20 10:00:00)'
           value={since}
           onChange={e => setSince(e.target.value)}
-          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <input
@@ -209,7 +209,7 @@ export default function LogsPage() {
           placeholder='Until (e.g. "now" or 2026-04-27 13:00:00)'
           value={until}
           onChange={e => setUntil(e.target.value)}
-          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="min-w-[230px] bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <input
@@ -218,7 +218,7 @@ export default function LogsPage() {
           placeholder="UID"
           value={uid}
           onChange={e => setUid(e.target.value)}
-          className="w-24 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="w-24 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <input
@@ -227,13 +227,13 @@ export default function LogsPage() {
           placeholder="PID"
           value={pid}
           onChange={e => setPid(e.target.value)}
-          className="w-28 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="w-28 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         />
 
         <select
           value={lineCount}
           onChange={e => setLineCount(Number(e.target.value))}
-          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          className="bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
         >
           {LINE_COUNTS.map(n => (
             <option key={n} value={n}>{n} lines</option>
@@ -245,7 +245,7 @@ export default function LogsPage() {
             type="checkbox"
             checked={autoRefresh}
             onChange={e => setAutoRefresh(e.target.checked)}
-            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/50"
+            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
           />
           Auto-refresh
         </label>
@@ -255,7 +255,7 @@ export default function LogsPage() {
             type="checkbox"
             checked={kernelOnly}
             onChange={e => setKernelOnly(e.target.checked)}
-            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/50"
+            className="rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_50%,transparent)]"
           />
           Kernel only (-k)
         </label>

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Clock, Sparkles } from 'lucide-react'
 import { analyzeIncident, type IncidentAnalysis } from '../../api/ai'
+import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: number }) {
   const [analysis, setAnalysis] = useState<IncidentAnalysis | null>(null)
@@ -19,7 +20,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
 
   useEffect(() => { void load() }, [load])
 
-  if (error) return <p className="text-red-400 text-xs">{error}</p>
+  if (error) return <p className={`text-xs ${statusToneClass('error')}`}>{error}</p>
   if (!analysis) return <p className="text-slate-500 text-xs">Loading infrastructure timeline…</p>
 
   return (
@@ -30,7 +31,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
         </p>
         <p className="text-slate-300 mt-1">{analysis.root_cause}</p>
         {analysis.suggested_actions.slice(0, 2).map((a) => (
-          <p key={a} className="text-xs text-blue-300/90 mt-1">→ {a}</p>
+          <p key={a} className={`text-xs mt-1 ${hubLinkClasses()}`}>→ {a}</p>
         ))}
       </div>
       <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs font-mono">

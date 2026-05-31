@@ -36,7 +36,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import {statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
+import {statusBadgeClasses, statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
 
 type TabId = 'disks' | 'pools' | 'tiers' | 'sla'
 
@@ -488,7 +488,7 @@ export default function PlatformStorage() {
                       <td className="py-2.5 px-2">{s.retention_days}d</td>
                       <td className="py-2.5 px-2">
                         <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
-                          s.compliance_grade === 'A' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-blue-500/20 text-blue-300'
+                          statusBadgeClasses(s.compliance_grade === 'A' ? 'ok' : s.compliance_grade === 'B' ? 'info' : 'warn')
                         }`}>{s.compliance_grade}</span>
                       </td>
                       <td className="py-2.5 px-2 text-right">

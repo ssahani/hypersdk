@@ -21,7 +21,7 @@ import {
 import JsonInspector, { asRecord } from '../../../components/platform/JsonInspector'
 import { ComplianceReportSummary, PacketwolfAnomalySummary } from '../../../components/platform/FirewallComplianceViews'
 import { formatUserError } from '../../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
+import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 
 const REPORTS = [
@@ -112,7 +112,7 @@ export default function PlatformFirewallCompliance() {
                 <div className="flex gap-2">
                   <button
                     type="button"
-                    className="text-xs px-2 py-1 rounded bg-emerald-700 text-white"
+                    className={`text-xs px-2 py-1 rounded ${statusBadgeClasses('ok')}`}
                     onClick={() => void approveFirewallChange(a.id).then((r: FirewallApprovalApplyResult) => {
                       toast.success(r.message)
                       return loadApprovals()

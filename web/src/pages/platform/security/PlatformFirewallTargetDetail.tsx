@@ -37,7 +37,7 @@ import {
 } from '../../../api/zeusFirewall'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
+import { hubLinkClasses, riskTone, statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
 type StealthLevel = 'off' | 'standard' | 'strict'
 type PaneId = 'firewall' | 'connections' | 'advanced'
@@ -137,7 +137,7 @@ export default function PlatformFirewallTargetDetail() {
             subtitle={`${isMetal ? 'Bare metal BMC/PXE policy' : 'macOS-style machine protection'} · ${detail.target.backend} · Score ${inv.score.score}/100`}
           />
           {isMetal && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            <div className={`rounded-xl px-4 py-3 text-sm ${statusSurfaceClasses('warn')}`}>
               Policy-only — live BMC firewall apply is on the roadmap. Profiles and scans update desired posture in Zeus OS.
             </div>
           )}
@@ -235,7 +235,7 @@ export default function PlatformFirewallTargetDetail() {
                 </MacSettingsGroup>
                 {drift && (
                   <MacGlassPanel title="Drift detected" subtitle="Changed outside Zeus OS">
-                    <p className="text-sm text-amber-200/90">{drift}</p>
+                    <p className={`text-sm ${statusToneClass('warn')}`}>{drift}</p>
                   </MacGlassPanel>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2 text-sm">
@@ -269,7 +269,9 @@ export default function PlatformFirewallTargetDetail() {
                         subtitle={`Bind ${p.bind_address} · ${formatAllowedFrom(p.allowed_from)}`}
                         badge={
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
-                            String(p.risk).toLowerCase() === 'critical' ? 'bg-red-500/20 text-red-300' : 'bg-slate-800 text-slate-400'
+                            riskTone(String(p.risk)) === 'neutral'
+                              ? 'bg-slate-800 text-slate-400'
+                              : statusBadgeClasses(riskTone(String(p.risk)))
                           }`}>
                             {String(p.risk)}
                           </span>
@@ -438,7 +440,7 @@ export default function PlatformFirewallTargetDetail() {
                     {inv.score.breakdown.map((b) => (
                       <li key={b.category} className="flex justify-between text-slate-300">
                         <span>{b.detail}</span>
-                        <span className={b.points < 0 ? 'text-amber-300' : 'text-slate-500'}>{b.points}</span>
+                        <span className={b.points < 0 ? statusToneClass('warn') : 'text-slate-500'}>{b.points}</span>
                       </li>
                     ))}
                   </ul>

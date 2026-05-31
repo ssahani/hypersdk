@@ -23,7 +23,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 const CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance'] as const
 const PLUGIN_CATEGORIES = ['All', 'automation', 'observability', 'migration', 'security', 'kubernetes', 'networking'] as const
@@ -348,11 +348,7 @@ export default function PlatformTemplates() {
             {readinessLoading ? (
               <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Checking readiness…</p>
             ) : readiness && (
-              <div className={`rounded-xl border p-3 text-sm ${
-                readiness.ready
-                  ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                  : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-              }`}>
+              <div className={`rounded-xl border p-3 text-sm ${statusSurfaceClasses(readiness.ready ? 'ok' : 'warn')}`}>
                 <p className="font-medium flex items-center gap-2">
                   {readiness.ready ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
                   {readiness.ready ? 'Ready to deploy' : readiness.host_online === 0 ? 'No online hosts' : 'Missing disk image'}

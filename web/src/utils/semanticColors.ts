@@ -112,11 +112,12 @@ export function httpStatusTone(code: number): 'ok' | 'warn' | 'error' | 'neutral
   return 'neutral'
 }
 
-export function riskTone(risk: string): 'ok' | 'warn' | 'error' {
+export function riskTone(risk: string): 'ok' | 'warn' | 'error' | 'neutral' {
   const r = risk.toLowerCase()
-  if (r === 'critical') return 'error'
-  if (r === 'warning' || r === 'warn') return 'warn'
-  return 'ok'
+  if (r === 'critical' || r === 'high') return 'error'
+  if (r === 'warning' || r === 'warn' || r === 'medium') return 'warn'
+  if (r === 'low' || r === 'info') return 'ok'
+  return 'neutral'
 }
 
 export function migrationReadinessTone(status: string): 'ok' | 'warn' | 'error' {

@@ -43,7 +43,7 @@ import { getAiSecurity, getAiSettings, getZeusSummary, runAutopilotSafe, type Ai
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { hubTilesForTier, showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS } from '../../utils/platformHubZones'
@@ -212,13 +212,10 @@ export default function PlatformDashboard() {
               <div className="flex flex-wrap items-center gap-2">
                 <Link
                   to="/platform/zeus/security/firewall"
-                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition ${
-                    zeusStrip.firewallCritical > 0
-                      ? 'border-red-500/30 bg-red-500/8 text-red-300/90'
-                      : zeusStrip.firewallDrift > 0
-                        ? 'border-amber-500/30 bg-amber-500/8 text-amber-300/90'
-                        : 'border-emerald-500/25 bg-emerald-500/8 text-emerald-300/90'
-                  }`}
+                  className={`${statusSurfaceClasses(
+                    zeusStrip.firewallCritical > 0 ? 'error' : zeusStrip.firewallDrift > 0 ? 'warn' : 'ok',
+                    'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition',
+                  )}`}
                 >
                   <Shield className="w-3 h-3" />
                   {zeusStrip.firewallCritical > 0
@@ -230,7 +227,7 @@ export default function PlatformDashboard() {
                 {securityFindings > 0 && (
                   <Link
                     to="/platform/zeus/security"
-                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-amber-500/30 bg-amber-500/8 text-amber-300/90"
+                    className={`${statusSurfaceClasses('warn', 'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border')}`}
                   >
                     <Shield className="w-3 h-3" />
                     {securityFindings} finding{securityFindings === 1 ? '' : 's'}

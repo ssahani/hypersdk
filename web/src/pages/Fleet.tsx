@@ -26,7 +26,7 @@ import {
 } from '../api/fleet'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
-import { statusToneClass } from '../utils/semanticColors'
+import { hubLinkClasses, statusToneClass } from '../utils/semanticColors'
 import { useTranslation } from 'react-i18next'
 
 export default function FleetPage() {
@@ -439,7 +439,7 @@ export default function FleetPage() {
                     {vm.peer === 'local' ? (
                       <Link
                         to={`/vms/${encodeURIComponent(vm.name)}`}
-                        className="text-blue-400 hover:underline"
+                        className={`${hubLinkClasses()} hover:underline`}
                       >
                         {vm.name}
                       </Link>

@@ -249,7 +249,7 @@ export default function BackupsPage() {
                   type="checkbox"
                   checked={withDisks}
                   onChange={(e) => { setWithDisks(e.target.checked); if (!e.target.checked) setIncremental(false) }}
-                  className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-blue-500"
+                  className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-[var(--machina-status-info)]"
                 />
                 <span className="text-sm">Include disk images</span>
                 {withDisks && <span className={`text-xs ${statusToneClass('warn')}`}>May be very large</span>}
@@ -260,7 +260,7 @@ export default function BackupsPage() {
                     type="checkbox"
                     checked={incremental}
                     onChange={(e) => setIncremental(e.target.checked)}
-                    className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-blue-500"
+                    className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-[var(--machina-status-info)]"
                   />
                   <span className="text-sm flex items-center gap-1"><Layers className="w-3 h-3" /> Incremental (hardlink unchanged)</span>
                 </label>

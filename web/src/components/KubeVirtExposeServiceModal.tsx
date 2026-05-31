@@ -5,6 +5,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { Copy, Network, Plus, Trash2, X } from 'lucide-react'
 import type { K8sService } from '../api/k8s'
+import { statusSurfaceClasses } from '../utils/semanticColors'
 
 export type KubeVirtExposeVmContext = {
   name: string
@@ -307,7 +308,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
         </div>
 
         <div className="overflow-y-auto flex-1 px-5 py-4 space-y-5">
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-100/90 space-y-1">
+          <div className={`rounded-lg px-3 py-2 text-xs space-y-1 ${statusSurfaceClasses('warn')}`}>
             {warnings.map((t, i) => (
               <p key={i}>{t}</p>
             ))}
@@ -418,7 +419,7 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
                           type="button"
                           disabled={rows.length <= 1}
                           onClick={() => removeRow(r.id)}
-                          className="p-1.5 rounded text-slate-500 hover:text-red-300 hover:bg-red-500/10 disabled:opacity-30"
+                          className="p-1.5 rounded text-slate-500 hover:text-[var(--machina-status-error)] hover:bg-[color-mix(in_srgb,var(--machina-status-error)_10%,transparent)] disabled:opacity-30"
                           aria-label="Remove row"
                         >
                           <Trash2 className="w-4 h-4" />
@@ -437,10 +438,10 @@ export default function KubeVirtExposeServiceModal({ vm, services, onClose, onCo
               </p>
             )}
             {svcType === 'NodePort' && rows.some((r) => r.nodePort.trim() !== '') && (
-              <p className="text-xs text-amber-200/85 mt-2 rounded border border-amber-500/25 bg-amber-500/5 px-2 py-1.5">
+              <p className={`text-xs mt-2 rounded px-2 py-1.5 ${statusSurfaceClasses('warn')}`}>
                 You entered a fixed NodePort: clusters assign ports automatically unless the Service manifest sets{' '}
-                <code className="text-amber-100/90">spec.ports[].nodePort</code> (must fall in the allowed range). After{' '}
-                <code className="text-amber-100/90">virtctl expose</code>, use <code className="text-amber-100/90">kubectl edit svc</code>{' '}
+                <code className="opacity-90">spec.ports[].nodePort</code> (must fall in the allowed range). After{' '}
+                <code className="opacity-90">virtctl expose</code>, use <code className="opacity-90">kubectl edit svc</code>{' '}
                 or apply YAML to pin the value you planned here.
               </p>
             )}

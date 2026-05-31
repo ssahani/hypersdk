@@ -7,6 +7,7 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import { getFirewallOverview, getFirewallServices, type AllowedService } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
 import { firewallRiskClass, formatAllowedFrom } from '../../../utils/firewallDisplay'
+import { statusToneClass } from '../../../utils/semanticColors'
 
 type ServiceRow = AllowedService & { target: string; targetId: string; key: string }
 
@@ -88,7 +89,7 @@ export default function PlatformFirewallServices() {
                   Allowed from: <span className="text-slate-300">{formatAllowedFrom(s.allowed_from)}</span>
                 </p>
                 {s.recommendation && (
-                  <p className="text-[13px] text-amber-200/90 mt-2 leading-relaxed">{s.recommendation}</p>
+                  <p className={`text-[13px] mt-2 leading-relaxed ${statusToneClass('warn')}`}>{s.recommendation}</p>
                 )}
               </div>
               <span className={`text-xs px-2.5 py-1 rounded-full border shrink-0 ${firewallRiskClass(String(s.status))}`}>

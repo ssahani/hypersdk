@@ -611,7 +611,7 @@ export default function NodeInfoPage() {
                   type="text"
                   value={hostnameInput}
                   onChange={e => setHostnameInput(e.target.value)}
-                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--machina-status-info)]"
                   autoFocus
                 />
                 <button onClick={async () => {
@@ -638,7 +638,7 @@ export default function NodeInfoPage() {
                   value={timezoneInput}
                   onChange={e => setTimezoneInput(e.target.value)}
                   placeholder="e.g. America/New_York"
-                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  className="bg-slate-700 border border-slate-600 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--machina-status-info)]"
                   autoFocus
                 />
                 <button onClick={async () => {

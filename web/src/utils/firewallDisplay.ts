@@ -1,5 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { riskTone, statusBadgeClasses, statusBorderClass } from './semanticColors'
+
 const ANY_SOURCE = new Set(['any', '0.0.0.0/0', 'anywhere', '*'])
 
 /** Collapse repeated firewall source CIDRs for readable UI. */
@@ -30,8 +32,6 @@ export function formatAllowedFrom(raw: string | string[] | null | undefined): st
 }
 
 export function firewallRiskClass(risk: string): string {
-  const r = risk.toLowerCase()
-  if (r === 'critical') return 'bg-rose-500/15 text-rose-300 border-rose-500/30'
-  if (r === 'warning' || r === 'warn') return 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-  return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+  const tone = riskTone(risk)
+  return `border ${statusBadgeClasses(tone)} ${statusBorderClass(tone)}`
 }

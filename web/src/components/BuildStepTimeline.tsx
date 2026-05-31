@@ -7,6 +7,9 @@ import { Check, Loader2 } from 'lucide-react'
 
 type Variant = 'slate' | 'amber' | 'violet'
 
+const doneStepClasses = 'bg-[color-mix(in_srgb,var(--machina-status-ok)_90%,transparent)] border-transparent text-white'
+const doneLineClasses = 'bg-[color-mix(in_srgb,var(--machina-status-ok)_70%,transparent)]'
+
 const variantRing: Record<Variant, string> = {
   slate: 'ring-cyan-500/50 text-cyan-300 border-cyan-500/40',
   amber: 'ring-amber-500/50 text-amber-200 border-amber-500/40',
@@ -14,15 +17,15 @@ const variantRing: Record<Variant, string> = {
 }
 
 const variantDone: Record<Variant, string> = {
-  slate: 'bg-emerald-600/90 border-transparent text-white',
-  amber: 'bg-emerald-600/90 border-transparent text-white',
-  violet: 'bg-emerald-600/90 border-transparent text-white',
+  slate: doneStepClasses,
+  amber: doneStepClasses,
+  violet: doneStepClasses,
 }
 
 const variantLineDone: Record<Variant, string> = {
-  slate: 'bg-emerald-500/70',
-  amber: 'bg-emerald-500/70',
-  violet: 'bg-emerald-500/70',
+  slate: doneLineClasses,
+  amber: doneLineClasses,
+  violet: doneLineClasses,
 }
 
 export interface BuildStepTimelineProps {

@@ -9,7 +9,7 @@ import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
 import { formatUserError } from '../../utils/apiError'
-import { hubLinkClasses } from '../../utils/semanticColors'
+import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
 import {
   analyzeAttackPath,
@@ -332,8 +332,8 @@ export default function PlatformZeusOs() {
             <input className="input flex-1 text-sm" value={knowledgeQuery} onChange={(e) => setKnowledgeQuery(e.target.value)} />
             <button type="button" className="btn-primary text-xs" onClick={() => void runKnowledge()}>Search</button>
           </div>
-          {diagnosisSummary && <p className="text-xs text-amber-200/90 mt-2">Diagnosis: {diagnosisSummary}</p>}
-          {runbookSummary && <p className="text-xs text-emerald-300/90 mt-1">Runbook: {runbookSummary}</p>}
+          {diagnosisSummary && <p className={`text-xs mt-2 ${statusToneClass('warn')}`}>Diagnosis: {diagnosisSummary}</p>}
+          {runbookSummary && <p className={`text-xs mt-1 ${statusToneClass('ok')}`}>Runbook: {runbookSummary}</p>}
           <ul className="mt-3 space-y-1.5 text-xs">
             {knowledgeHits.map((h) => (
               <li key={`${h.kind}-${h.id}`}>

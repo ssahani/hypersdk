@@ -10,7 +10,8 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Tahoe Nav Big Sweep** | `98a1410` | [`platformNavRegistry.ts`](../web/src/utils/platformNavRegistry.ts), Spotlight zones (Settings/Ops/Resources/Security/Zeus), CommandPalette platform dedupe, dead `PlatformMenuBar`, tier-aware links, nav e2e |
 | **Overall UX Polish (P14)** | `0ff5cd4` | Empty states, host/network CTAs, Fleet/NodeInfo, K8s can-i card, platform command review e2e |
 | **Batch 48 + Tahoe classic + colors v1** | `7534747` | [`platform-batch-48.spec.ts`](../web/e2e/platform-batch-48.spec.ts), `tahoe-page-root` on classic shell, [`semanticColors.ts`](../web/src/utils/semanticColors.ts) |
-| **Batch 57 Cross-Shell Consistency** | `bea8280`–`a7ce45a` + follow-up | semanticColors v2 + classic/OpenStack/K8s/Platform badge migration; Help → Platform tab + tier-aware shell bridge; CollapsibleCodeBlock operator UX; [`cross-shell.spec.ts`](../web/e2e/cross-shell.spec.ts); classic operator pages (NodeInfo, Storage, Networks, Services, SystemCheck, Events, …)
+| **Batch 57 Cross-Shell Consistency** | `bea8280`–`098f4ad` + follow-up | semanticColors v2 + classic/OpenStack/K8s/Platform badge migration; Help → Platform tab + tier-aware shell bridge; CollapsibleCodeBlock operator UX; [`cross-shell.spec.ts`](../web/e2e/cross-shell.spec.ts); classic operator pages (NodeInfo, Storage, Networks, Services, SystemCheck, Events, …); hub link tokens on 37+ platform pages |
+| **Batch 58 Color Tail** | (this PR) | Zeus Firewall security pages + `riskTone`; platform dashboard/widget status chips; VMDetails warn/error surfaces; shared primitives (GlassButton danger, FilterPills, BuildStepTimeline, KubeVirt modal, AI panels); classic focus-ring token parity on Logs/NodeInfo/Backups |
 
 **Verification baseline**
 
@@ -23,7 +24,7 @@ cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-cov
 
 ## Goal of the next sweep
 
-**Batch 57 shipped (2026-05-30).** Remaining optional polish: decorative accent colors in Settings/HostNetworking, platform overlay widgets (Mission Control, Control Center), macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/`.
+**Batch 57 shipped (2026-05-30). Batch 58 shipped (2026-05-30)** — color tail on Zeus Firewall, platform status widgets, VMDetails warn surfaces, and shared primitives. Remaining optional polish: decorative accent colors in Settings/HostNetworking, `ChoiceCards` selection accents (intentional), macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/`.
 
 One reviewable PR that makes **all four shells** (Platform, Classic, OpenStack, K8s) feel like the same product:
 

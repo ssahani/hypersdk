@@ -7,14 +7,7 @@ import PlatformFilterPills from '../../../components/platform/PlatformFilterPill
 import ErrorBanner from '../../../components/ErrorBanner'
 import { explainFirewall, getFirewallOverview, getFirewallPorts, type OpenPort } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hubLinkClasses } from '../../../utils/semanticColors'
-
-function riskClass(risk: string) {
-  const r = risk.toLowerCase()
-  if (r === 'critical') return 'bg-red-500/20 text-red-300'
-  if (r === 'warning') return 'bg-amber-500/20 text-amber-200'
-  return 'bg-emerald-500/15 text-emerald-300'
-}
+import { hubLinkClasses, riskTone, statusBadgeClasses } from '../../../utils/semanticColors'
 
 export default function PlatformFirewallPorts() {
   const [ports, setPorts] = useState<Array<OpenPort & { target: string; targetId: string }>>([])
@@ -82,7 +75,7 @@ export default function PlatformFirewallPorts() {
                 title={`${p.port}/${p.protocol} · ${p.service_name}`}
                 subtitle={`${p.target} · ${p.bind_address}${p.process ? ` · ${p.process}` : ''}`}
                 badge={
-                  <span className={`text-xs px-2 py-0.5 rounded-full ${riskClass(String(p.risk))}`}>
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClasses(riskTone(String(p.risk)))}`}>
                     {String(p.risk)}
                   </span>
                 }

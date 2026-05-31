@@ -1357,8 +1357,8 @@ export default function VMDetailsPage() {
             <div
               className={`rounded-xl p-4 border ${
                 guestHealth.healthy
-                  ? 'border-emerald-700/50 bg-emerald-950/30'
-                  : 'border-amber-700/50 bg-amber-950/20'
+                  ? statusSurfaceClasses('ok')
+                  : statusSurfaceClasses('warn')
               }`}
             >
               <div className="text-sm font-medium text-slate-100 mb-1">Guest health</div>
@@ -1371,7 +1371,7 @@ export default function VMDetailsPage() {
                   : ''}
               </div>
               {guestHealth.issues.length > 0 ? (
-                <ul className="mt-2 text-xs text-amber-200/90 list-disc pl-4">
+                <ul className={`mt-2 text-xs list-disc pl-4 ${statusToneClass('warn')}`}>
                   {guestHealth.issues.map((issue) => (
                     <li key={issue}>{issue}</li>
                   ))}
@@ -1992,8 +1992,8 @@ export default function VMDetailsPage() {
 
       {tab === 'advanced' && (
         <div className="space-y-6">
-          <div className="bg-amber-950/30 border border-amber-800/40 rounded-xl p-4 text-sm text-amber-200/90">
-            These actions map directly to libvirt (<code className="text-amber-100/80">virsh blockcommit</code>, <code className="text-amber-100/80">undefine --nvram</code>, etc.). Wrong options can destroy data or make a VM unbootable. Prefer shutoff VMs for delete and PCI attach unless you know the guest is safe.
+          <div className={`rounded-xl p-4 text-sm ${statusSurfaceClasses('warn')}`}>
+            These actions map directly to libvirt (<code className="opacity-90">virsh blockcommit</code>, <code className="opacity-90">undefine --nvram</code>, etc.). Wrong options can destroy data or make a VM unbootable. Prefer shutoff VMs for delete and PCI attach unless you know the guest is safe.
           </div>
 
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
@@ -2029,9 +2029,9 @@ export default function VMDetailsPage() {
                 <span>Keep TPM (exclusive with delete TPM)</span>
               </label>
             </div>
-            <p className="text-xs text-amber-200/80">
+            <p className={`text-xs ${statusToneClass('warn')}`}>
               UEFI: if libvirt returns “cannot undefine domain with nvram”, enable <strong>Delete UEFI NVRAM file</strong> (same as{' '}
-              <code className="text-amber-100/80">virsh undefine --nvram</code>). On delete failure the UI may enable this checkbox once so you can confirm again—uncheck if you need to keep NVRAM.
+              <code className="opacity-90">virsh undefine --nvram</code>). On delete failure the UI may enable this checkbox once so you can confirm again—uncheck if you need to keep NVRAM.
             </p>
             <button
               type="button"
@@ -2129,7 +2129,7 @@ export default function VMDetailsPage() {
               Compare host CPU
             </button>
             {cpuCompare && (
-              <p className={`text-sm ${cpuCompare.compatible ? 'text-emerald-300' : 'text-amber-300'}`}>{cpuCompare.summary}</p>
+              <p className={`text-sm ${statusToneClass(cpuCompare.compatible ? 'ok' : 'warn')}`}>{cpuCompare.summary}</p>
             )}
           </div>
 
@@ -2760,7 +2760,7 @@ export default function VMDetailsPage() {
 
           {dialog === 'firmware' && (
             <DialogBox title="Guest firmware" icon={<Settings className="w-5 h-5 text-orange-400" />} onClose={() => setDialog(null)} onConfirm={handleFirmwareSet} confirmLabel="Apply">
-              <p className="text-xs text-amber-200/80 mb-2">Changing firmware can make a guest unbootable if disk layout/OS does not match. Prefer shutoff VMs.</p>
+              <p className={`text-xs mb-2 ${statusToneClass('warn')}`}>Changing firmware can make a guest unbootable if disk layout/OS does not match. Prefer shutoff VMs.</p>
               <select value={fwChoice} onChange={(e) => setFwChoice(e.target.value as 'bios' | 'uefi')} className="input-field">
                 <option value="bios">BIOS (SeaBIOS)</option>
                 <option value="uefi">UEFI (OVMF)</option>
@@ -2868,7 +2868,7 @@ export default function VMDetailsPage() {
               </p>
 
               {/* Disk deletion */}
-              <div className={`rounded-lg border p-3 mb-3 ${deleteUndefine.delete_disks ? 'border-red-500/50 bg-red-900/10' : 'border-slate-700/50 bg-slate-800/40'}`}>
+              <div className={`rounded-lg border p-3 mb-3 ${deleteUndefine.delete_disks ? statusSurfaceClasses('error') : 'border-slate-700/50 bg-slate-800/40'}`}>
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
                     type="checkbox"
@@ -2882,7 +2882,7 @@ export default function VMDetailsPage() {
                     {deleteUndefine.delete_disks && vm?.disks && vm.disks.filter(d => d.device === 'disk').length > 0 && (
                       <ul className="mt-1.5 space-y-0.5">
                         {vm.disks.filter(d => d.device === 'disk').map(d => (
-                          <li key={d.target} className="flex items-center gap-1.5 text-xs text-red-300 font-mono">
+                          <li key={d.target} className={`flex items-center gap-1.5 text-xs font-mono ${statusToneClass('error')}`}>
                             <HardDrive className="w-3 h-3 shrink-0" />
                             {d.source}
                           </li>
@@ -3270,7 +3270,7 @@ function EditableRow({ label, value, onEdit }: { label: string; value: string | 
       <span className="text-slate-400 text-sm">{label}</span>
       <div className="flex items-center gap-2">
         <span className="text-sm font-medium">{String(value)}</span>
-        <button onClick={onEdit} className="p-0.5 hover:bg-slate-700 rounded transition" aria-label={`Edit ${label}`}><Pencil className="w-3 h-3 text-slate-500 hover:text-blue-400" /></button>
+        <button onClick={onEdit} className="p-0.5 hover:bg-slate-700 rounded transition" aria-label={`Edit ${label}`}><Pencil className="w-3 h-3 text-slate-500 hover:text-[var(--machina-status-info)]" /></button>
       </div>
     </div>
   )

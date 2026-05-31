@@ -191,7 +191,13 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
                     </span>
                   }
                   trailing={
-                    <span className={`text-[10px] ${e.status === 'active' || e.status === 'required' ? 'text-emerald-300' : e.status === 'disconnected' ? 'text-amber-300' : 'text-slate-500'}`}>
+                    <span className={`text-[10px] ${
+                      e.status === 'active' || e.status === 'required'
+                        ? statusToneClass('ok')
+                        : e.status === 'disconnected'
+                          ? statusToneClass('warn')
+                          : 'text-slate-500'
+                    }`}>
                       {e.status}
                     </span>
                   }

@@ -1,5 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { navActiveChipClasses } from '../../utils/semanticColors'
+
 export interface FilterPill {
   id: string
   label: string
@@ -24,7 +26,7 @@ export default function PlatformFilterPills({
           onClick={() => onChange(o.id)}
           className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
             value === o.id
-              ? 'bg-blue-500/20 text-blue-200 border border-blue-500/30'
+              ? `${navActiveChipClasses()} px-3 py-1.5 rounded-full text-xs font-medium border`
               : 'bg-slate-900/60 text-slate-400 border border-white/[0.06] hover:border-white/10'
           }`}
         >

@@ -9,6 +9,7 @@ import {
   type DigitalTwinGraph,
   type ImpactAnalysis,
 } from '../../api/ai'
+import { hubLinkClasses, riskTone, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaDigitalTwin() {
   const [graph, setGraph] = useState<DigitalTwinGraph | null>(null)
@@ -108,16 +109,13 @@ export default function MachinaDigitalTwin() {
           </span>
         )}
       </div>
-      {error && <p className="text-red-400 text-xs mt-2">{error}</p>}
+      {error && <p className={`text-xs mt-2 ${statusToneClass('error')}`}>{error}</p>}
       {impact && (
         <div className="mt-4 rounded-xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-2 text-sm">
           <p className="flex items-center gap-2 font-medium text-slate-200">
             <Zap className="w-4 h-4 text-orange-400" />
             {impact.summary}
-            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${
-              impact.severity === 'critical' ? 'bg-red-500/20 text-red-300' :
-              impact.severity === 'high' ? 'bg-amber-500/20 text-amber-200' : 'bg-slate-700 text-slate-300'
-            }`}>{impact.severity}</span>
+            <span className={`text-[10px] uppercase px-2 py-0.5 rounded-full ${statusBadgeClasses(riskTone(impact.severity))}`}>{impact.severity}</span>
           </p>
           {impact.affected_vms.length > 0 && (
             <p className="text-slate-400 text-xs">VMs affected: {impact.affected_vms.join(', ')}</p>
@@ -126,7 +124,7 @@ export default function MachinaDigitalTwin() {
             <p className="text-slate-400 text-xs">Applications: {impact.affected_applications.join(', ')}</p>
           )}
           {impact.recommendations.map((r) => (
-            <p key={r} className="text-blue-300/90 text-xs">→ {r}</p>
+            <p key={r} className={`text-xs ${hubLinkClasses()}`}>→ {r}</p>
           ))}
         </div>
       )}

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Layers, Play } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import { executeEnvironment, planEnvironment, type EnvironmentResourcePlan } from '../../api/ai'
+import { statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaEnvironmentPlanner() {
   const [query, setQuery] = useState('medium staging environment for 20 developers')
@@ -43,7 +44,7 @@ export default function MachinaEnvironmentPlanner() {
           <Play className="w-3 h-3" /> Preview build
         </button>
       </div>
-      {summary && <p className="text-xs text-emerald-300/90 mt-2">{summary}</p>}
+      {summary && <p className={`text-xs mt-2 ${statusToneClass('ok')}`}>{summary}</p>}
       {plan && (
         <div className="mt-3 text-xs space-y-1 text-slate-400">
           <p className="text-slate-200 font-medium">{plan.label}</p>
