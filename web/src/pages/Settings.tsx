@@ -32,6 +32,7 @@ import {
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusSurfaceClasses, statusToneClass, userRoleTone } from '../utils/semanticColors'
 import {
   getObservabilitySettings,
   putObservabilitySettings,
@@ -278,7 +279,7 @@ export default function SettingsPage() {
           </p>
         )}
         {openstackStatus?.error && (
-          <p className="text-xs text-red-400">{openstackStatus.error}</p>
+          <p className={`text-xs ${statusToneClass('error')}`}>{openstackStatus.error}</p>
         )}
         <div className="flex flex-wrap gap-2">
           <button
@@ -315,7 +316,7 @@ export default function SettingsPage() {
       {integrations && (
         <section id="integrations-status" className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3 scroll-mt-24">
           <h2 className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <Activity className="w-4 h-4 text-emerald-400" />
+            <Activity className={`w-4 h-4 ${statusToneClass('ok')}`} />
             Integrations
           </h2>
           <p className="text-xs text-slate-500">
@@ -323,7 +324,7 @@ export default function SettingsPage() {
           </p>
           <div className="flex flex-wrap gap-2 text-xs">
             {info?.openstack?.enabled && (
-              <span className={`px-2 py-1 rounded border ${osPhase === 'live' ? 'border-emerald-500/40 text-emerald-300' : 'border-amber-500/40 text-amber-300'}`}>
+              <span className={statusSurfaceClasses(osPhase === 'live' ? 'ok' : 'warn', 'px-2 py-1 rounded border')}>
                 OpenStack · {osPhase}
               </span>
             )}
@@ -331,7 +332,7 @@ export default function SettingsPage() {
               <span className="px-2 py-1 rounded border border-violet-500/40 text-violet-300">Kubernetes · exec enabled</span>
             )}
             {info?.hypersdk?.enabled && (
-              <span className={`px-2 py-1 rounded border ${hsPhase === 'live' ? 'border-emerald-500/40 text-emerald-300' : 'border-amber-500/40 text-amber-300'}`}>
+              <span className={statusSurfaceClasses(hsPhase === 'live' ? 'ok' : 'warn', 'px-2 py-1 rounded border')}>
                 HyperSDK · {hsPhase}
               </span>
             )}
@@ -700,7 +701,7 @@ export default function SettingsPage() {
                 {roles.map(r => (
                   <tr key={r.username} className="table-row-hover">
                     <td className="px-6 py-3 font-medium">{r.username}</td>
-                    <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${r.role === 'admin' ? 'bg-red-500/20 text-red-400' : r.role === 'operator' ? 'bg-blue-500/20 text-blue-400' : 'bg-slate-700 text-slate-400'}`}>{r.role}</span></td>
+                    <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(userRoleTone(r.role))}`}>{r.role}</span></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{r.role === 'admin' ? 'Full access' : r.role === 'operator' ? 'Create/modify VMs' : 'View only'}</td>
                   </tr>
                 ))}
@@ -724,7 +725,7 @@ export default function SettingsPage() {
                 </p>
               )}
               {osUserCap.libvirtGroupAvailable === false && (
-                <p className="text-xs text-amber-400/90">Host has no <code className="bg-slate-900/80 px-1 rounded">libvirt</code> UNIX group — install libvirt or create the group before enabling libvirt access for new users.</p>
+                <p className={`text-xs opacity-90 ${statusToneClass('warn')}`}>Host has no <code className="bg-slate-900/80 px-1 rounded">libvirt</code> UNIX group — install libvirt or create the group before enabling libvirt access for new users.</p>
               )}
               {(osUserCap.canDeleteOsUsers ?? osUserCap.canCreateOsUsers) ? (
                 <div className="space-y-3">
@@ -793,7 +794,7 @@ export default function SettingsPage() {
                   )}
                 </div>
               ) : (
-                <p className="text-xs text-amber-400/90">{typeof osUserCap.reason === 'string' ? osUserCap.reason : 'You cannot create system users with the current sign-in method.'}</p>
+                <p className={`text-xs opacity-90 ${statusToneClass('warn')}`}>{typeof osUserCap.reason === 'string' ? osUserCap.reason : 'You cannot create system users with the current sign-in method.'}</p>
               )}
             </div>
           )}
@@ -814,9 +815,9 @@ export default function SettingsPage() {
             <button type="button" onClick={async () => { if (!newTokenName || !newTokenUser) return; try { const t = await createToken(newTokenName, newTokenUser, newTokenRole); setCreatedToken(t.token); toast.success('Token created'); setNewTokenName(''); load() } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition shrink-0"><Plus className="w-4 h-4" /></button>
           </div>
           {createdToken && (
-            <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
-              <span className="text-xs text-green-400">New token (copy now, won't be shown again):</span>
-              <div className="font-mono text-sm text-green-300 mt-1 break-all">{createdToken}</div>
+            <div className={`p-3 rounded-lg border ${statusSurfaceClasses('ok')}`}>
+              <span className={`text-xs ${statusToneClass('ok')}`}>New token (copy now, won't be shown again):</span>
+              <div className={`font-mono text-sm mt-1 break-all ${statusToneClass('ok')} opacity-90`}>{createdToken}</div>
             </div>
           )}
           <div className="card overflow-x-auto max-w-full">
@@ -830,7 +831,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm">{t.username}</td>
                     <td className="px-6 py-3 text-xs"><span className="px-2 py-0.5 bg-slate-700 rounded">{t.role}</span></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{t.created}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={async () => { try { await deleteToken(t.token); toast.success('Deleted'); load() } catch (e: unknown) { toast.error(formatUserError(e)) } }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={async () => { try { await deleteToken(t.token); toast.success('Deleted'); load() } catch (e: unknown) { toast.error(formatUserError(e)) } }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {tokens.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No API tokens. Create one to authenticate scripts and automation.</td></tr>}
@@ -865,8 +866,8 @@ export default function SettingsPage() {
           <h3 className="text-sm font-semibold text-slate-300 mt-6">Active Alerts</h3>
           <div className="space-y-2">
             {alerts.filter(a => !a.acknowledged).map(a => (
-              <div key={a.id} className={`flex items-center gap-3 p-3 rounded-lg border ${a.severity === 'critical' ? 'bg-red-500/10 border-red-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
-                <AlertCircle className={`w-4 h-4 ${a.severity === 'critical' ? 'text-red-400' : 'text-yellow-400'}`} />
+              <div key={a.id} className={`flex items-center gap-3 p-3 rounded-lg border ${statusSurfaceClasses(a.severity === 'critical' ? 'error' : 'warn')}`}>
+                <AlertCircle className={`w-4 h-4 ${statusToneClass(a.severity === 'critical' ? 'error' : 'warn')}`} />
                 <div className="flex-1">
                   <div className="text-sm font-medium">{a.rule_name}</div>
                   <div className="text-xs text-slate-400">{a.message} — {a.timestamp}</div>
@@ -895,7 +896,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-blue-400 truncate max-w-xs">{h.url}</td>
                     <td className="px-6 py-3 text-xs text-slate-400">{h.events.join(', ')}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={h.enabled} onChange={e => { const next = [...webhooks]; next[i].enabled = e.target.checked; setWebhooks(next); saveWebhooks(next) }} /></td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {webhooks.length === 0 && <tr><td colSpan={4} className="px-6 py-8 text-center text-slate-500">No webhooks configured. Add one to receive VM event notifications.</td></tr>}
@@ -935,7 +936,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-slate-400">{s.schedule}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...schedules]; next[i].enabled = e.target.checked; setSchedules(next); saveSchedules(next) }} /></td>
                     <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = schedules.filter((_, j) => j !== i); setSchedules(next); saveSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = schedules.filter((_, j) => j !== i); setSchedules(next); saveSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {schedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No scheduled actions. Add one to auto start/stop VMs at specific times.</td></tr>}
@@ -968,8 +969,8 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm font-mono text-slate-400 truncate max-w-xs">{ch.config}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={ch.enabled} onChange={e => { const next = [...notificationChannels]; next[i].enabled = e.target.checked; setNotificationChannels(next); saveNotificationChannels(next) }} /></td>
                     <td className="px-6 py-3 text-right flex items-center justify-end gap-1">
-                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className="w-4 h-4 text-blue-400" /></button>
-                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                      <button onClick={async () => { try { await testNotification(ch); toast.success('Test sent') } catch (e: unknown) { toast.error(`${formatUserError(e)}`) } }} className="p-1 hover:bg-blue-600/20 rounded" title="Send test"><Send className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                      <button onClick={() => { const next = notificationChannels.filter((_, j) => j !== i); setNotificationChannels(next); saveNotificationChannels(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </td>
                   </tr>
                 ))}
@@ -1009,7 +1010,7 @@ export default function SettingsPage() {
                     <td className="px-6 py-3 text-sm">{s.retain_count}</td>
                     <td className="px-6 py-3 text-xs text-slate-500">{s.last_run || 'never'}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={s.enabled} onChange={e => { const next = [...snapshotSchedules]; next[i].enabled = e.target.checked; setSnapshotSchedules(next); saveSnapshotSchedules(next) }} /></td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => { const next = snapshotSchedules.filter((_, j) => j !== i); setSnapshotSchedules(next); saveSnapshotSchedules(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {snapshotSchedules.length === 0 && <tr><td colSpan={6} className="px-6 py-8 text-center text-slate-500">No snapshot schedules. Add one to automatically snapshot VMs at regular intervals.</td></tr>}

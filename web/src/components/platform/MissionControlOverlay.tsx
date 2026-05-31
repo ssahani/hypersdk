@@ -25,6 +25,7 @@ import MissionControlDesktopZones from './mac/MissionControlDesktopZones'
 import { MacSectionTitle } from './mac/PlatformMacUi'
 import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, statusActionLinkClasses, statusChipClasses, statusToneClass } from '../../utils/semanticColors'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useMissionControl } from './mac/MissionControlContext'
 import { loadPlatformDesktopTabs } from '../../utils/platformDesktopTabs'
@@ -123,7 +124,7 @@ export default function MissionControlOverlay() {
           </button>
         </header>
 
-        {error && <p className="px-6 py-2 text-red-400 text-sm">{error}</p>}
+        {error && <p className={`px-6 py-2 text-sm ${statusToneClass('error')}`}>{error}</p>}
 
         {openWindows.length > 0 && (
           <div className="px-6 py-3 border-b border-white/[0.06]">
@@ -146,17 +147,17 @@ export default function MissionControlOverlay() {
         {(aiCost || aiCap || aiComp) && (
           <div className="px-6 pb-2 flex flex-wrap gap-3 text-xs">
             {aiCost && (
-              <Link to="/platform/reports" className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-emerald-300" onClick={closeMissionControl}>
+              <Link to="/platform/reports" className={statusChipClasses('ok')} onClick={closeMissionControl}>
                 Cost ${aiCost.estimated_monthly_usd.toFixed(0)}/mo · {aiCost.idle_vm_count} idle
               </Link>
             )}
             {aiCap && (
-              <Link to="/platform/reports" className="rounded-full border border-blue-500/30 bg-blue-500/10 px-3 py-1 text-blue-300" onClick={closeMissionControl}>
+              <Link to="/platform/reports" className={statusChipClasses('info')} onClick={closeMissionControl}>
                 Capacity {aiCap.memory_headroom_mib} MiB headroom
               </Link>
             )}
             {aiComp && (
-              <Link to="/platform/reports" className="rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-orange-200" onClick={closeMissionControl}>
+              <Link to="/platform/reports" className={statusChipClasses('warn')} onClick={closeMissionControl}>
                 Compliance {aiComp.score}/100 (Grade {aiComp.grade})
               </Link>
             )}
@@ -168,9 +169,7 @@ export default function MissionControlOverlay() {
             {sreForecasts.slice(0, 4).map((f) => (
               <span
                 key={`${f.vm_id}-${f.resource}`}
-                className={`rounded-full border px-3 py-1 ${
-                  f.severity === 'critical' ? 'border-red-500/40 bg-red-500/10 text-red-200' : 'border-amber-500/30 bg-amber-500/10 text-amber-200'
-                }`}
+                className={statusChipClasses(f.severity === 'critical' ? 'error' : 'warn')}
               >
                 AI SRE: {f.message}
               </span>
@@ -188,7 +187,7 @@ export default function MissionControlOverlay() {
           <div className="px-6 pb-2 flex flex-wrap gap-2 text-xs">
             <span className="rounded-full border border-white/[0.08] bg-slate-900/60 px-3 py-1 text-slate-300">{desktop.summary}</span>
             {(linuxHealth?.pressure_hosts ?? desktop.pressure_hosts) > 0 && (
-              <Link to="/platform/hosts" className="rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-amber-200" onClick={closeMissionControl}>
+              <Link to="/platform/hosts" className={statusChipClasses('warn')} onClick={closeMissionControl}>
                 {linuxHealth?.summary ?? desktop.linux_summary}
               </Link>
             )}
@@ -221,7 +220,7 @@ export default function MissionControlOverlay() {
                 <li key={h.id}>
                   <Link to={`/platform/hosts/${h.id}`} className="flex justify-between hover:text-blue-300" onClick={closeMissionControl}>
                     <span>{h.hostname}</span>
-                    <span className={h.state === 'online' ? 'text-emerald-400' : 'text-red-400'}>{h.state}</span>
+                    <span className={statusToneClass(hostStateTone(h.state))}>{h.state}</span>
                   </Link>
                 </li>
               ))}
@@ -247,21 +246,21 @@ export default function MissionControlOverlay() {
             ) : (
               <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
                 {alerts.map((a) => (
-                  <li key={a.id} className="text-amber-200">{a.kind}</li>
+                  <li key={a.id} className={statusToneClass('warn')}>{a.kind}</li>
                 ))}
               </ul>
             )}
-            <Link to={operationsHubHref(tier)} className="text-xs text-blue-400" onClick={closeMissionControl}>Open Operations hub →</Link>
+            <Link to={operationsHubHref(tier)} className={`text-xs ${statusActionLinkClasses('info')}`} onClick={closeMissionControl}>Open Operations hub →</Link>
           </section>
           <section className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
             <h2 className="text-sm font-semibold text-slate-400 flex items-center gap-2"><ArrowRightLeft className="w-4 h-4" /> Migrations & tasks</h2>
             <p className="text-xs text-slate-500">{migrations.length} migration tasks · {failedTasks.length} failed</p>
             <ul className="space-y-2 text-sm max-h-48 overflow-y-auto">
               {failedTasks.slice(0, 8).map((t) => (
-                <li key={t.id} className="text-red-300 truncate">{t.operation} — {t.status}</li>
+                <li key={t.id} className={`truncate ${statusToneClass('error')} opacity-90`}>{t.operation} — {t.status}</li>
               ))}
             </ul>
-            <Link to={tasksHubHref(tier)} className="text-xs text-blue-400" onClick={closeMissionControl}>View all tasks →</Link>
+            <Link to={tasksHubHref(tier)} className={`text-xs ${statusActionLinkClasses('info')}`} onClick={closeMissionControl}>View all tasks →</Link>
           </section>
         </div>
       </div>

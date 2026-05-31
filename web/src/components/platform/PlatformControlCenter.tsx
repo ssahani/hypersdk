@@ -40,6 +40,7 @@ import { useAi } from '../../contexts/AiContext'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusBgClass, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
@@ -188,7 +189,7 @@ export default function PlatformControlCenter() {
         <SlidersHorizontal className="w-4 h-4" />
         <span className="hidden sm:inline">Control Center</span>
         {(warnings > 0 || fwCritical > 0 || metalCritical > 0) && (
-          <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse-dot" />
+          <span className="w-2 h-2 rounded-full bg-[var(--machina-status-warn)] animate-pulse-dot" />
         )}
       </button>
       {open && (
@@ -204,7 +205,7 @@ export default function PlatformControlCenter() {
             <div className="p-4 space-y-4 text-sm">
               <div className="grid gap-2 grid-cols-2">
                 <ModuleTile
-                  icon={<Server className="w-4 h-4 text-blue-400" />}
+                  icon={<Server className={`w-4 h-4 ${statusToneClass(offlineCount === 0 ? 'ok' : 'warn')}`} />}
                   label="Cluster"
                   value={offlineCount === 0 ? 'Healthy' : `${offlineCount} offline`}
                   href="/platform"
@@ -213,7 +214,7 @@ export default function PlatformControlCenter() {
                 />
                 {showPower && (
                   <ModuleTile
-                    icon={<Loader2 className={`w-4 h-4 text-emerald-400 ${activeTasks ? 'animate-spin' : ''}`} />}
+                    icon={<Loader2 className={`w-4 h-4 ${statusToneClass(failedTasks ? 'warn' : 'ok')} ${activeTasks ? 'animate-spin' : ''}`} />}
                     label="Tasks"
                     value={String(activeTasks)}
                     href={operationsHubHref(tier)}
@@ -271,7 +272,7 @@ export default function PlatformControlCenter() {
               )}
               {(showPower && (desktop?.pressure_hosts ?? linuxHealth?.pressure_hosts ?? 0) > 0) && (
                 <Row
-                  icon={<Activity className="w-4 h-4 text-amber-400" />}
+                  icon={<Activity className={`w-4 h-4 ${statusToneClass('warn')}`} />}
                   label="Linux pressure"
                   value={desktop?.linux_summary ?? linuxHealth?.summary ?? 'Hosts under IO/thermal pressure'}
                   href="/platform/hosts"
@@ -280,7 +281,7 @@ export default function PlatformControlCenter() {
               )}
               {offlineCount > 0 && (
                 <Row
-                  icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
+                  icon={<AlertTriangle className={`w-4 h-4 ${statusToneClass('warn')}`} />}
                   label={offlineHosts[0]?.hostname ?? 'Offline host'}
                   value="Fix — sync agent"
                   href={`/platform/hosts/${offlineHosts[0]?.id ?? ''}`}
@@ -288,7 +289,7 @@ export default function PlatformControlCenter() {
                 />
               )}
               <Row
-                icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
+                icon={<AlertTriangle className={`w-4 h-4 ${statusToneClass('warn')}`} />}
                 label="Alerts"
                 value={unreadAlerts ? `${unreadAlerts} unread` : warnings ? `${warnings} item(s)` : 'None'}
                 href={operationsHubHref(tier)}
@@ -344,7 +345,7 @@ function ModuleTile({
   spark?: string
 }) {
   const cls = `rounded-xl border p-3 text-left transition hover:bg-slate-800/50 ${
-    tone === 'warn' ? 'border-amber-500/30 bg-amber-500/5' : 'border-white/[0.06] bg-slate-950/30'
+    tone === 'warn' ? statusSurfaceClasses('warn') : 'border-white/[0.06] bg-slate-950/30'
   }`
   const inner = (
     <>
@@ -378,11 +379,11 @@ function SparklineBar({
     <div>
       <div className="flex justify-between text-xs mb-1">
         <span className="text-slate-400">{label}</span>
-        <span className={tone === 'warn' ? 'text-amber-400' : 'text-slate-300'}>{caption ?? `${pct}%`}</span>
+        <span className={tone === 'warn' ? statusToneClass('warn') : 'text-slate-300'}>{caption ?? `${pct}%`}</span>
       </div>
       <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
         <div
-          className={`h-full rounded-full ${tone === 'warn' ? 'bg-amber-500' : 'bg-blue-500'}`}
+          className={`h-full rounded-full ${statusBgClass(tone === 'warn' ? 'warn' : 'info')}`}
           style={{ width: `${Math.min(100, Math.max(0, pct))}%` }}
         />
       </div>
@@ -403,7 +404,7 @@ function Row({
   href?: string
   tone?: 'ok' | 'warn'
 }) {
-  const cls = `flex items-center gap-3 p-2 rounded-xl hover:bg-slate-800/50 transition ${tone === 'warn' ? 'text-amber-200' : ''}`
+  const cls = `flex items-center gap-3 p-2 rounded-xl hover:bg-slate-800/50 transition ${tone === 'warn' ? statusToneClass('warn') : ''}`
   const inner = (
     <>
       {icon}

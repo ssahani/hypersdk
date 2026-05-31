@@ -14,6 +14,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 interface HealthCheckPanelProps {
   vmId: string
@@ -73,7 +74,7 @@ export default function HealthCheckPanel({ vmId, report, loading, onRefresh, onT
       </div>
       {report && (
         <>
-          <p className={`text-sm font-medium capitalize ${report.healthy ? 'text-emerald-400' : 'text-amber-400'}`}>
+          <p className={`text-sm font-medium capitalize ${statusToneClass(report.healthy ? 'ok' : 'warn')}`}>
             VM health: {report.score} · {report.checks_passed}/{report.checks_total} checks passed
           </p>
           {report.issues.length === 0 ? (
@@ -82,7 +83,7 @@ export default function HealthCheckPanel({ vmId, report, loading, onRefresh, onT
             <ul className="space-y-3 text-sm">
               {report.issues.map((issue, i) => (
                 <li key={`${issue.id}-${i}`} className="border border-slate-800 rounded-lg p-3">
-                  <p className={issue.severity === 'warning' ? 'text-amber-300' : 'text-red-300'}>{issue.message}</p>
+                  <p className={statusToneClass(issue.severity === 'warning' ? 'warn' : 'error')}>{issue.message}</p>
                   {issue.remediation && <p className="text-xs text-slate-500 mt-1">{issue.remediation}</p>}
                   {issue.fix_label && issue.fix_action && (
                     <button type="button" className="btn-primary text-xs mt-2" onClick={() => void fix(issue)}>

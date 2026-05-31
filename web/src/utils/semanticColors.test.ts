@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { hostStateTone, httpStatusTone, k8sPhaseTone, migrationReadinessTone, openstackStatusTone, poolStateBadgeClasses, sessionBadgeClasses, taskStatusTone, utilizationTone, vmStateTone } from './semanticColors'
+import { hostStateTone, httpStatusTone, k8sPhaseTone, migrationReadinessTone, openstackStatusTone, poolStateBadgeClasses, sessionBadgeClasses, statusChipClasses, statusSurfaceClasses, taskStatusTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -36,5 +36,12 @@ describe('semanticColors', () => {
   it('builds pool state badge classes', () => {
     expect(poolStateBadgeClasses('running')).toContain('--machina-status-ok')
     expect(poolStateBadgeClasses('inactive')).toContain('--machina-status-neutral')
+  })
+
+  it('maps user roles and status surfaces', () => {
+    expect(userRoleTone('admin')).toBe('error')
+    expect(userRoleTone('operator')).toBe('info')
+    expect(statusChipClasses('warn')).toContain('--machina-status-warn')
+    expect(statusSurfaceClasses('ok')).toContain('--machina-status-ok')
   })
 })

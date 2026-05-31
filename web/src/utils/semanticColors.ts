@@ -151,3 +151,29 @@ export function utilizationTone(percent: number): 'ok' | 'warn' | 'error' {
 export function poolStateBadgeClasses(state: string): string {
   return statusBadgeClasses(state === 'running' ? 'ok' : 'neutral')
 }
+
+export function userRoleTone(role: string): 'error' | 'info' | 'neutral' {
+  if (role === 'admin') return 'error'
+  if (role === 'operator') return 'info'
+  return 'neutral'
+}
+
+export function statusSurfaceClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral', extra = ''): string {
+  const varName = {
+    ok: '--machina-status-ok',
+    warn: '--machina-status-warn',
+    error: '--machina-status-error',
+    info: '--machina-status-info',
+    neutral: '--machina-status-neutral',
+  }[tone]
+  return [
+    extra,
+    `border-[color-mix(in_srgb,var(${varName})_30%,transparent)]`,
+    `bg-[color-mix(in_srgb,var(${varName})_10%,transparent)]`,
+    `text-[color-mix(in_srgb,var(${varName})_75%,white)]`,
+  ].filter(Boolean).join(' ')
+}
+
+export function statusChipClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral', extra = ''): string {
+  return statusSurfaceClasses(tone, `rounded-full px-3 py-1 ${extra}`.trim())
+}

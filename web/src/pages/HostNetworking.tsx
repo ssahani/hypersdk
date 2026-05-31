@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { formatUserError } from '../utils/apiError'
+import { statusBgClass, statusToneClass } from '../utils/semanticColors'
 
 type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'routing' | 'sysctl' | 'systemd'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
@@ -462,7 +463,7 @@ export default function HostNetworkingPage() {
                     <td className="px-6 py-3 text-sm font-mono text-blue-400">{r.host_port}</td>
                     <td className="px-6 py-3 text-sm font-mono">{r.vm_ip}:{r.vm_port}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeletePortForward(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeletePortForward(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {portForwards.length === 0 && <tr><td colSpan={5} className="px-6 py-8 text-center text-slate-500">No port forwarding rules. Add one to expose a VM service on the host.</td></tr>}
@@ -483,10 +484,10 @@ export default function HostNetworkingPage() {
               <div key={br.name} className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50">
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${br.state === 'up' ? 'bg-green-500' : 'bg-slate-500'}`} />
+                    <div className={`w-2.5 h-2.5 rounded-full ${statusBgClass(br.state === 'up' ? 'ok' : 'neutral')}`} />
                     <span className="font-semibold">{br.name}</span>
                   </div>
-                  {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>}
+                  {!br.name.startsWith('virbr') && <button onClick={() => handleDeleteBridge(br.name)} className="p-1 hover:bg-red-600/20 rounded" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
                 </div>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between text-slate-400"><span>MAC</span><span className="font-mono text-xs">{br.mac}</span></div>
@@ -522,7 +523,7 @@ export default function HostNetworkingPage() {
                   <tr key={i.name} className="table-row-hover">
                     <td className="px-6 py-2 font-mono">{i.name}</td>
                     <td className="px-6 py-2"><span className={`px-1.5 py-0.5 rounded text-xs ${i.iface_type === 'physical' ? 'bg-purple-500/20 text-purple-400' : i.iface_type === 'bridge' ? 'bg-orange-500/20 text-orange-400' : 'bg-slate-700 text-slate-400'}`}>{i.iface_type}</span></td>
-                    <td className="px-6 py-2"><span className={i.state === 'up' ? 'text-green-400' : 'text-slate-500'}>{i.state}</span></td>
+                    <td className="px-6 py-2"><span className={statusToneClass(i.state === 'up' ? 'ok' : 'neutral')}>{i.state}</span></td>
                     <td className="px-6 py-2 font-mono text-xs text-slate-400">{i.mac}</td>
                     <td className="px-6 py-2 font-mono text-xs">{i.ipv4.join(', ') || '-'}</td>
                     <td className="px-6 py-2 text-slate-400">{i.mtu}</td>
@@ -548,12 +549,12 @@ export default function HostNetworkingPage() {
                 {firewallRules.map(r => (
                   <tr key={r.id} className="table-row-hover">
                     <td className="px-6 py-3 text-sm font-mono">{r.vm_ip}</td>
-                    <td className="px-6 py-3 text-sm">{r.direction === 'inbound' ? <span className="text-blue-400">Inbound</span> : <span className="text-orange-400">Outbound</span>}</td>
+                    <td className="px-6 py-3 text-sm">{r.direction === 'inbound' ? <span className={statusToneClass('info')}>Inbound</span> : <span className={statusToneClass('warn')}>Outbound</span>}</td>
                     <td className="px-6 py-3 text-sm font-mono">{r.protocol.toUpperCase()}</td>
                     <td className="px-6 py-3 text-sm font-mono">{r.port || 'all'}</td>
-                    <td className="px-6 py-3 text-sm">{r.action === 'accept' ? <span className="text-green-400">Allow</span> : <span className="text-red-400">Block</span>}</td>
+                    <td className="px-6 py-3 text-sm">{r.action === 'accept' ? <span className={statusToneClass('ok')}>Allow</span> : <span className={statusToneClass('error')}>Block</span>}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
-                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeleteFirewallRule(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className="w-4 h-4 text-red-400" /></button></td>
+                    <td className="px-6 py-3 text-right"><button onClick={() => handleDeleteFirewallRule(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>
                   </tr>
                 ))}
                 {firewallRules.length === 0 && <tr><td colSpan={7} className="px-6 py-8 text-center text-slate-500">No per-VM firewall rules. Add rules to control traffic to/from specific VMs.</td></tr>}
@@ -729,8 +730,8 @@ export default function HostNetworkingPage() {
                       <td className="px-4 py-2 text-cyan-400/90 break-all">{row.recommended}</td>
                       <td className="px-4 py-2 break-all">
                         {row.current_error
-                          ? <span className="text-red-400/90" title={row.current_error}>—</span>
-                          : <span className={sysctlMatches(row) ? 'text-green-400/90' : 'text-slate-400'}>{row.current}</span>}
+                          ? <span className={`opacity-90 ${statusToneClass('error')}`} title={row.current_error}>—</span>
+                          : <span className={sysctlMatches(row) ? `${statusToneClass('ok')} opacity-90` : 'text-slate-400'}>{row.current}</span>}
                       </td>
                       <td className="px-4 py-2 text-slate-500">{row.current_error ? '—' : sysctlMatches(row) ? 'yes' : 'no'}</td>
                     </tr>
@@ -766,13 +767,13 @@ export default function HostNetworkingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 px-4 py-3">
                 <div className="text-xs text-slate-500">systemd-networkd</div>
-                <div className={diag.systemd_networkd_active ? 'text-green-400 text-sm font-medium' : 'text-amber-400 text-sm font-medium'}>
+                <div className={`text-sm font-medium ${statusToneClass(diag.systemd_networkd_active ? 'ok' : 'warn')}`}>
                   {diag.systemd_networkd_active ? 'active' : 'inactive'}
                 </div>
               </div>
               <div className="rounded-lg border border-slate-700/40 bg-slate-900/40 px-4 py-3">
                 <div className="text-xs text-slate-500">NetworkManager</div>
-                <div className={diag.network_manager_active ? 'text-blue-400 text-sm font-medium' : 'text-slate-500 text-sm font-medium'}>
+                <div className={`text-sm font-medium ${statusToneClass(diag.network_manager_active ? 'info' : 'neutral')}`}>
                   {diag.network_manager_active ? 'active' : 'inactive'}
                 </div>
               </div>
@@ -978,7 +979,7 @@ export default function HostNetworkingPage() {
           {dialog === 'firewall' && (
             <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4 animate-fade-in" onClick={e => e.stopPropagation()}>
               <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-                <span className="text-lg font-semibold flex items-center gap-2"><Shield className="w-5 h-5 text-red-400" /> Firewall Rule</span>
+                <span className="text-lg font-semibold flex items-center gap-2"><Shield className={`w-5 h-5 ${statusToneClass('error')}`} /> Firewall Rule</span>
                 <button onClick={() => setDialog(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
               </div>
               <div className="p-5 space-y-3">
