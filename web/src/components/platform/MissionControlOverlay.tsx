@@ -21,6 +21,8 @@ import MachinaEnvironmentPlanner from '../ai/MachinaEnvironmentPlanner'
 import MachinaInfrastructureTimeline from '../ai/MachinaInfrastructureTimeline'
 import MachinaMissionStack from '../ai/MachinaMissionStack'
 import InfrastructureEarthView from './InfrastructureEarthView'
+import MissionControlDesktopZones from './mac/MissionControlDesktopZones'
+import { MacSectionTitle } from './mac/PlatformMacUi'
 import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut'
 import { formatUserError } from '../../utils/apiError'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
@@ -68,7 +70,7 @@ export default function MissionControlOverlay() {
       setAiCap(cap)
       setAiComp(comp)
       setSreForecasts(sre.forecasts ?? [])
-      setZeusStatus(zeus ? `${zeus.status} · ${zeus.highlights[0] ?? zeus.tagline}` : null)
+      setZeusStatus(zeus ? `${zeus.status} · ${zeus.highlights?.[0] ?? zeus.tagline}` : null)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -169,6 +171,14 @@ export default function MissionControlOverlay() {
             )}
           </div>
         )}
+
+        <div className="px-6 py-2">
+          <MissionControlDesktopZones onNavigate={closeMissionControl} />
+        </div>
+
+        <div className="px-6 pt-2 pb-1">
+          <MacSectionTitle title="Live fleet" subtitle="Infrastructure Earth, AI planners, and inventory" />
+        </div>
 
         <div className="px-6 py-4">
           <InfrastructureEarthView mission={mission} />
