@@ -116,6 +116,25 @@ test('spotlight lists platform hubs on power tier', async ({ page }) => {
   await expect(spotlight.getByRole('button', { name: /Operations Hub ·/i })).toBeVisible()
 })
 
+test('spotlight opens via keyboard shortcut', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  await expect(page.getByPlaceholder(/Machina Spotlight|Search or type/i)).toBeVisible({ timeout: 5000 })
+})
+
+test('context overflow closes after navigation', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/tasks')
+  const more = page.locator('.tahoe-context-more')
+  await more.click()
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
+  await page.locator('.tahoe-context-overflow-item', { hasText: 'Observability' }).click()
+  await expect(page).toHaveURL(/\/platform\/observability/)
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+})
+
 test('normal tier hub preview unlocks operations', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
