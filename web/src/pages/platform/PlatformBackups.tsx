@@ -19,6 +19,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 function dayLabel(iso: string) {
   const d = new Date(iso)
@@ -199,7 +200,7 @@ export default function PlatformBackups() {
                   {entries.map((e) => (
                     <article key={`${e.kind}-${e.id}`} className="relative tahoe-glass-card p-4 flex gap-4">
                       <span className="absolute -left-[1.35rem] top-5 w-2.5 h-2.5 rounded-full bg-slate-600 border-2 border-slate-900" />
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${e.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${e.status === 'completed' ? statusBadgeClasses('ok') : 'bg-slate-800 text-slate-400'}`}>
                         <Archive className="w-5 h-5" />
                       </div>
                       <div className="flex-1 min-w-0">

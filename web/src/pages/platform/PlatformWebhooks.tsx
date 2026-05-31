@@ -16,6 +16,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
@@ -53,7 +54,7 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
       </div>
       <ul className="card p-4 space-y-2 text-sm">{rows.map((w) => (
         <li key={w.id} className="flex justify-between gap-2 text-slate-400">
-          <span><span className={w.enabled ? 'text-emerald-400' : 'text-slate-500'}>{w.enabled ? 'on' : 'off'}</span> {w.url}</span>
+          <span><span className={statusToneClass(w.enabled ? 'ok' : 'neutral')}>{w.enabled ? 'on' : 'off'}</span> {w.url}</span>
           <span className="flex gap-2">
             <button type="button" className="btn-secondary text-xs" onClick={async () => { try { await toggleWebhook(w.id); await load() } catch (e: unknown) { toast.error(formatUserError(e)) } }}>Toggle</button>
             <button type="button" className="btn-secondary text-xs" onClick={async () => { try { await deleteWebhook(w.id); await load() } catch (e: unknown) { toast.error(formatUserError(e)) } }}>Delete</button>
@@ -75,11 +76,11 @@ export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = 
             <li key={d.id} className="border-b border-slate-800 pb-2 text-slate-400">
               <div className="flex justify-between gap-2">
                 <span>{d.event_kind} → {d.url}</span>
-                <span className={d.status === 'delivered' ? 'text-emerald-400' : d.status === 'failed' ? 'text-red-400' : 'text-amber-400'}>
+                <span className={statusToneClass(webhookDeliveryTone(d.status))}>
                   {d.status} ({d.attempts}/{d.max_attempts})
                 </span>
               </div>
-              {d.last_error && <p className="text-red-400/80 mt-1 truncate">{d.last_error}</p>}
+              {d.last_error && <p className={`${statusToneClass('error')} opacity-80 mt-1 truncate`}>{d.last_error}</p>}
               {(d.status === 'failed' || d.status === 'pending') && (
                 <button type="button" className="btn-secondary text-xs mt-1" onClick={async () => {
                   try { await retryWebhookDelivery(d.id); toast.success('Retry queued'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }

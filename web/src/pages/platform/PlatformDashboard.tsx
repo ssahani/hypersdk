@@ -43,6 +43,7 @@ import { getAiSecurity, getAiSettings, getZeusSummary, runAutopilotSafe, type Ai
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { hubTilesForTier, showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS } from '../../utils/platformHubZones'
@@ -353,7 +354,7 @@ export default function PlatformDashboard() {
               {tasks.slice(0, 6).map((t) => (
                 <li key={t.id} className="flex justify-between border-b border-white/[0.04] pb-2 last:border-0">
                   <span className="text-slate-300">{t.operation}</span>
-                  <span className={t.status === 'failed' ? 'text-red-400' : 'text-slate-500'}>{t.status} {t.progress}%</span>
+                  <span className={statusToneClass(t.status === 'failed' ? 'error' : 'neutral')}>{t.status} {t.progress}%</span>
                 </li>
               ))}
               {tasks.length === 0 && (
@@ -365,7 +366,7 @@ export default function PlatformDashboard() {
               {hosts.slice(0, 6).map((h) => (
                 <li key={h.id} className="flex justify-between items-center">
                   <Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline">{h.hostname}</Link>
-                  <span className={`text-xs capitalize ${h.state === 'online' ? 'text-emerald-400' : 'text-amber-400'}`}>{h.state} · {h.vm_count} VMs</span>
+                  <span className={`text-xs capitalize ${statusToneClass(hostStateTone(h.state))}`}>{h.state} · {h.vm_count} VMs</span>
                 </li>
               ))}
               {hosts.length === 0 && (

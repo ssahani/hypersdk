@@ -42,6 +42,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 const PRESETS = [
   { name: 'default', bridge: 'virbr0', label: 'Default NAT', desc: 'Libvirt default — VMs get DHCP' },
@@ -693,7 +694,7 @@ export default function PlatformNetworks() {
             )}
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <p className="text-xs font-semibold text-emerald-400 uppercase mb-2">Allowed</p>
+                <p className={`text-xs font-semibold uppercase mb-2 ${statusToneClass('ok')}`}>Allowed</p>
                 <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-64 overflow-y-auto">
                   {connectivity.matrix.allows.map((c, i) => (
                     <MacListRow key={`a-${i}`} title={`${c.source} → ${c.destination}:${c.port}`} subtitle={c.reason} />
@@ -704,7 +705,7 @@ export default function PlatformNetworks() {
                 </div>
               </div>
               <div>
-                <p className="text-xs font-semibold text-red-400 uppercase mb-2">Blocked</p>
+                <p className={`text-xs font-semibold uppercase mb-2 ${statusToneClass('error')}`}>Blocked</p>
                 <div className="rounded-xl border border-white/[0.06] overflow-hidden max-h-64 overflow-y-auto">
                   {connectivity.matrix.blocks.map((c, i) => (
                     <MacListRow key={`b-${i}`} title={`${c.source} → ${c.destination}:${c.port}`} subtitle={c.reason} />

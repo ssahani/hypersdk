@@ -30,6 +30,7 @@ import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 type SettingsSection =
   | 'general'
@@ -381,7 +382,7 @@ export default function PlatformSettingsHub() {
               <p className="text-sm text-slate-500">Firewall overview unavailable — agent may be offline.</p>
             )}
             {firewallOverview && firewallOverview.critical_count > 0 && (
-              <p className="text-xs text-amber-400 px-1 mt-2">
+              <p className={`text-xs px-1 mt-2 ${statusToneClass('warn')}`}>
                 {firewallOverview.critical_count} machine(s) need attention — open Zeus Firewall for detail.
               </p>
             )}
@@ -423,7 +424,7 @@ export default function PlatformSettingsHub() {
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
                   <p className="text-[10px] uppercase text-slate-500">Deny east-west</p>
-                  <p className="text-lg font-semibold text-amber-400">{fleetNetwork.deny_east_west_count}</p>
+                  <p className={`text-lg font-semibold ${statusToneClass('warn')}`}>{fleetNetwork.deny_east_west_count}</p>
                 </div>
               </div>
             </>
@@ -469,11 +470,11 @@ export default function PlatformSettingsHub() {
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
                   <p className="text-[10px] uppercase text-slate-500">Critical</p>
-                  <p className="text-lg font-semibold text-red-400">{firewallOverview.critical_count}</p>
+                  <p className={`text-lg font-semibold ${statusToneClass('error')}`}>{firewallOverview.critical_count}</p>
                 </div>
                 <div className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
                   <p className="text-[10px] uppercase text-slate-500">Warnings</p>
-                  <p className="text-lg font-semibold text-amber-400">{firewallOverview.warning_count}</p>
+                  <p className={`text-lg font-semibold ${statusToneClass('warn')}`}>{firewallOverview.warning_count}</p>
                 </div>
               </div>
             )}

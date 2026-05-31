@@ -104,3 +104,40 @@ export function integrationPhaseTone(phase: IntegrationPhase): 'ok' | 'warn' | '
   if (phase === 'off') return 'neutral'
   return 'neutral'
 }
+
+export function httpStatusTone(code: number): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (code >= 500) return 'error'
+  if (code >= 400) return 'warn'
+  if (code >= 200) return 'ok'
+  return 'neutral'
+}
+
+export function riskTone(risk: string): 'ok' | 'warn' | 'error' {
+  const r = risk.toLowerCase()
+  if (r === 'critical') return 'error'
+  if (r === 'warning' || r === 'warn') return 'warn'
+  return 'ok'
+}
+
+export function migrationReadinessTone(status: string): 'ok' | 'warn' | 'error' {
+  if (status === 'ready') return 'ok'
+  if (status === 'check') return 'warn'
+  return 'error'
+}
+
+export function webhookDeliveryTone(status: string): 'ok' | 'warn' | 'error' {
+  if (status === 'delivered') return 'ok'
+  if (status === 'failed') return 'error'
+  return 'warn'
+}
+
+export function statusPillClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral'): string {
+  const varName = {
+    ok: '--machina-status-ok',
+    warn: '--machina-status-warn',
+    error: '--machina-status-error',
+    info: '--machina-status-info',
+    neutral: '--machina-status-neutral',
+  }[tone]
+  return `px-2 py-1 rounded-md border ${statusBadgeClasses(tone)} border-[color-mix(in_srgb,var(${varName})_40%,transparent)]`
+}

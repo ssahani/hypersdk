@@ -13,6 +13,7 @@ import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { getFleetSpaces, type FleetSpacesOverview } from '../../api/platform'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 function SpaceCard({
   name,
@@ -163,7 +164,7 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
                 <tr key={s.name} className="border-b border-slate-900">
                   <td className="p-3 font-medium">{s.name}</td>
                   <td className="p-3 text-center">{s.vm_count}</td>
-                  <td className="p-3 text-center text-emerald-400">{s.running_count}</td>
+                  <td className={`p-3 text-center ${statusToneClass('ok')}`}>{s.running_count}</td>
                   <td className="p-3 text-center">
                     <span className="inline-flex items-center gap-1 justify-center">
                       <Server className="w-3 h-3 text-slate-500" />

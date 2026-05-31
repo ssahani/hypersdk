@@ -23,6 +23,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 const CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance'] as const
 const PLUGIN_CATEGORIES = ['All', 'automation', 'observability', 'migration', 'security', 'kubernetes', 'networking'] as const
@@ -284,7 +285,7 @@ export default function PlatformTemplates() {
       {featuredRows.length > 0 && (
         <section>
           <h2 className="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-amber-400" /> Featured
+            <Sparkles className={`w-4 h-4 ${statusToneClass('warn')}`} /> Featured
           </h2>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {featuredRows.map((t) => (
@@ -449,7 +450,7 @@ export default function PlatformTemplates() {
                         </p>
                         <p className="text-xs text-slate-500 mt-0.5">{p.author} · v{p.version} · {p.category}</p>
                       </div>
-                      {p.featured && <Star className="w-4 h-4 text-amber-400 shrink-0" />}
+                      {p.featured && <Star className={`w-4 h-4 shrink-0 ${statusToneClass('warn')}`} />}
                     </div>
                     <p className="text-sm text-slate-400 flex-1">{p.description}</p>
                     <button
@@ -490,7 +491,7 @@ function MarketplaceCard({ template: t, onDeploy }: { template: PlatformTemplate
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 flex-wrap">
             <h3 className="font-semibold text-slate-100 truncate">{t.name}</h3>
-            {t.featured && <Star className="w-3 h-3 text-amber-400 shrink-0 fill-amber-400" />}
+            {t.featured && <Star className={`w-3 h-3 shrink-0 ${statusToneClass('warn')} fill-[var(--machina-status-warn)]`} />}
             {needsImage && (
               <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 border border-white/[0.06]">Catalog</span>
             )}

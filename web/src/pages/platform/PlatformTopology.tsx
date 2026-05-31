@@ -8,6 +8,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
 import { getClusterTopology, type TopologyGraph } from '../../api/platform'
@@ -216,7 +217,7 @@ export default function PlatformTopology() {
                 {graph.edges.filter((e) => e.from === h.id && e.label === 'runs').map((e) => {
                   const vm = graph.nodes.find((n) => n.id === e.to)
                   return vm ? (
-                    <p key={e.to} className="ml-6 text-emerald-400/90">
+                    <p key={e.to} className={`ml-6 ${statusToneClass('ok')} opacity-90`}>
                       → <Link to={`/platform/vms/${vm.id}`} className="hover:underline">{vm.name}</Link>
                       <span className="text-slate-600"> ({vm.state})</span>
                     </p>

@@ -61,6 +61,7 @@ import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFir
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
@@ -295,7 +296,7 @@ export default function PlatformVmDetail() {
           {vm.managed === false && (
             <MacGlassPanel title="Discovered VM">
               <div className="flex items-center justify-between gap-3">
-                <p className="text-sm text-amber-400">Discovered on a host — adopt to manage lifecycle from the platform.</p>
+                <p className={`text-sm ${statusToneClass('warn')}`}>Discovered on a host — adopt to manage lifecycle from the platform.</p>
                 <button type="button" className="btn-primary" onClick={() => void act('VM adopted', () => adoptPlatformVm(id))}>Adopt VM</button>
               </div>
             </MacGlassPanel>
@@ -372,7 +373,7 @@ export default function PlatformVmDetail() {
                   </div>
                   {precheck && (
                     <ul className="text-xs mt-2 space-y-1">{precheck.checks.map((c) => (
-                      <li key={c.name} className={c.passed ? 'text-emerald-400' : 'text-red-400'}>
+                      <li key={c.name} className={statusToneClass(c.passed ? 'ok' : 'error')}>
                         {c.name}: {c.message}
                         {c.remediation && !c.passed && (
                           <p className="text-slate-400 pl-2 mt-1">
@@ -474,7 +475,7 @@ export default function PlatformVmDetail() {
                       <div>OS: {guestHealth.os_pretty_name || '—'}</div>
                       <div>IP: {guestHealth.guest_ip || '—'}</div>
                       <div>Hostname: {guestHealth.guest_hostname || '—'}</div>
-                      <div className={guestHealth.healthy ? 'text-emerald-400' : 'text-amber-400'}>
+                      <div className={statusToneClass(guestHealth.healthy ? 'ok' : 'warn')}>
                         {guestHealth.healthy ? 'Healthy' : 'Needs attention'}
                       </div>
                     </div>

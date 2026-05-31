@@ -15,6 +15,7 @@ import {
 import { fleetPrometheusAggregateUrl } from '../../api/fleet'
 import { getControllerBase } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 function sloBadge(status: string) {
   if (status === 'ok') return 'bg-emerald-900/60 text-emerald-300'
@@ -116,7 +117,7 @@ export default function PlatformObservability() {
                         <td className="py-2 pr-4 text-slate-500 text-xs whitespace-nowrap">{t.recorded_at}</td>
                         <td className="py-2 pr-4 text-slate-300 font-mono text-xs">{t.method}</td>
                         <td className="py-2 pr-4 text-slate-400 font-mono text-xs max-w-md truncate">{t.path}</td>
-                        <td className={`py-2 pr-4 text-xs ${t.status_code >= 500 ? 'text-rose-400' : t.status_code >= 400 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        <td className={`py-2 pr-4 text-xs ${statusToneClass(httpStatusTone(t.status_code))}`}>
                           {t.status_code}
                         </td>
                         <td className="py-2 text-slate-400 text-xs">{t.duration_ms} ms</td>

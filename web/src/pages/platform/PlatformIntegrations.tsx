@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { Link } from 'react-router'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { ExternalLink, Puzzle, Sparkles, Boxes } from 'lucide-react'
 import { LaunchpadAppIcon, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
@@ -67,7 +68,7 @@ export default function PlatformIntegrations({ embedded }: { embedded?: boolean 
               </div>
               <p className="text-sm text-slate-400 mt-2 leading-relaxed">{c.description}</p>
               {c.enabled && c.configured === false && (
-                <p className="text-xs text-amber-400 mt-2">Configured but needs clouds.yaml or auth — open to finish setup.</p>
+                <p className={`text-xs mt-2 ${statusToneClass('warn')}`}>Configured but needs clouds.yaml or auth — open to finish setup.</p>
               )}
             </Link>
           ))}

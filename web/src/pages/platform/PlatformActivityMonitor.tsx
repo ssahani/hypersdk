@@ -7,6 +7,7 @@ import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import { getFleetActivity, type FleetActivityOverview } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 
 type Tab = 'vms' | 'hosts'
 
@@ -58,7 +59,7 @@ export default function PlatformActivityMonitor() {
         <Link to="/platform/integrations" className="text-blue-400">Classic tools →</Link>
       </div>
       {data && <p className="text-sm text-slate-400">{data.summary}</p>}
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className={`text-sm ${statusToneClass('error')}`}>{error}</p>}
 
       <div className="flex flex-wrap gap-2">
         {([
@@ -113,7 +114,7 @@ export default function PlatformActivityMonitor() {
                   subtitle={`${h.vm_count} VM(s) · ${h.state} · ${h.status}`}
                   badge={
                     h.status !== 'ok' && h.status !== 'offline' ? (
-                      <span className="text-[10px] text-amber-400">{h.status}</span>
+                      <span className={`text-[10px] ${statusToneClass('warn')}`}>{h.status}</span>
                     ) : undefined
                   }
                   href={`/platform/hosts/${h.host_id}`}

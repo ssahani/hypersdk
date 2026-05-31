@@ -22,6 +22,7 @@ import {
   type VaultProvider,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 type TabId = 'keychain' | 'vault' | 'mfa' | 'fips' | 'tenants'
@@ -247,7 +248,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
                     <td className="py-2 pr-4 text-slate-200">{u.username}</td>
                     <td className="py-2 pr-4 text-slate-400">{u.role}</td>
                     <td className="py-2 pr-4 text-slate-400">{u.required_method}</td>
-                    <td className={`py-2 text-xs ${u.compliant ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    <td className={`py-2 text-xs ${statusToneClass(u.compliant ? 'ok' : 'warn')}`}>
                       {u.compliant ? 'compliant' : 'needs enrollment'}
                     </td>
                   </tr>
@@ -295,7 +296,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
                   <td className="py-2 pr-4 text-slate-400">{p.vm_count}{p.max_vms > 0 ? ` / ${p.max_vms}` : ''}</td>
                   <td className="py-2 pr-4 text-slate-400">{p.network_isolation}</td>
                   <td className="py-2 pr-4 text-slate-400">{p.enforce_quotas ? 'enforced' : 'off'}</td>
-                  <td className={`py-2 text-xs ${p.quota_status.includes('exceeded') ? 'text-rose-400' : 'text-emerald-400'}`}>{p.quota_status}</td>
+                  <td className={`py-2 text-xs ${statusToneClass(p.quota_status.includes('exceeded') ? 'error' : 'ok')}`}>{p.quota_status}</td>
                 </tr>
               ))}
             </tbody>

@@ -13,6 +13,7 @@ import { useOpenStackConnection } from '../../hooks/useOpenStackConnection'
 import OpenStackUnreachablePanel from '../../components/OpenStackUnreachablePanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import PageSkeleton from '../../components/PageSkeleton'
@@ -349,7 +350,7 @@ export default function PlatformMigration() {
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs flex items-center gap-1 ${vm.status === 'ready' ? 'text-emerald-400' : vm.status === 'check' ? 'text-amber-400' : 'text-red-400'}`}>
+                  <span className={`text-xs flex items-center gap-1 ${statusToneClass(migrationReadinessTone(vm.status))}`}>
                     {vm.status === 'ready' ? <CheckCircle2 className="w-3 h-3" /> : vm.status === 'check' ? <AlertTriangle className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
                     {vm.status}
                   </span>

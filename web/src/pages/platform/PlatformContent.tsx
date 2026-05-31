@@ -15,6 +15,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 const CATEGORIES = [
   'Operating Systems',
@@ -35,10 +36,10 @@ function guessCategory(name: string): string {
 }
 
 function lifecycleBadge(status: string) {
-  if (status === 'available') return { label: 'Approved', tone: 'text-emerald-400', icon: ShieldCheck }
-  if (status === 'pending') return { label: 'Pending approval', tone: 'text-amber-400', icon: ShieldAlert }
-  if (status === 'rejected') return { label: 'Rejected', tone: 'text-red-400', icon: ShieldAlert }
-  return { label: status, tone: 'text-slate-400', icon: ShieldAlert }
+  if (status === 'available') return { label: 'Approved', tone: statusToneClass('ok'), icon: ShieldCheck }
+  if (status === 'pending') return { label: 'Pending approval', tone: statusToneClass('warn'), icon: ShieldAlert }
+  if (status === 'rejected') return { label: 'Rejected', tone: statusToneClass('error'), icon: ShieldAlert }
+  return { label: status, tone: statusToneClass('neutral'), icon: ShieldAlert }
 }
 
 export default function PlatformContent() {

@@ -20,6 +20,7 @@ import {
   type PlacementRecommendation,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 export default function PlatformPlacement() {
   const [rows, setRows] = useState<PlacementRecommendation[]>([])
@@ -124,7 +125,7 @@ export default function PlatformPlacement() {
       {ha && (
         <div className="grid gap-4 md:grid-cols-3">
           <div className="card p-4"><div className="text-slate-400 text-sm">HA-enabled VMs</div><div className="text-2xl font-semibold">{ha.status.enabled_vms}</div></div>
-          <div className="card p-4"><div className="text-slate-400 text-sm">Offline hosts</div><div className="text-2xl font-semibold text-amber-400">{ha.status.offline_hosts}</div></div>
+          <div className="card p-4"><div className="text-slate-400 text-sm">Offline hosts</div><div className={`text-2xl font-semibold ${statusToneClass('warn')}`}>{ha.status.offline_hosts}</div></div>
           <div className="card p-4"><div className="text-slate-400 text-sm">HA events (24h)</div><div className="text-2xl font-semibold">{ha.status.recent_events}</div></div>
         </div>
       )}
@@ -159,7 +160,7 @@ export default function PlatformPlacement() {
         <section className="card p-4">
           <h2 className="font-semibold mb-3">Fence events</h2>
           <ul className="space-y-2 text-sm text-slate-400">{fences.slice(0, 10).map((f) => (
-            <li key={f.id} className={f.success ? 'text-emerald-400' : 'text-red-400'}>
+            <li key={f.id} className={statusToneClass(f.success ? 'ok' : 'error')}>
               host {f.host_id.slice(0, 8)} — {f.message || f.action}
             </li>
           ))}</ul>

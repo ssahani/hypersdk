@@ -22,6 +22,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 import { getAiSettings, patchAiSettings, type AiSettings } from '../../api/ai'
 import { useAi } from '../../contexts/AiContext'
 
@@ -86,7 +87,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           <p className="text-slate-400">
             This instance: <span className="text-slate-200">{leadership.controller_id}</span>
             {' · '}
-            {leadership.is_leader ? <span className="text-emerald-400">leader</span> : <span className="text-amber-400">follower</span>}
+            {leadership.is_leader ? <span className={statusToneClass('ok')}>leader</span> : <span className={statusToneClass('warn')}>follower</span>}
           </p>
           <p className="text-slate-500">Holder: {leadership.holder_id || 'none'} · lease until {new Date(leadership.lease_until).toLocaleString()}</p>
           </div>

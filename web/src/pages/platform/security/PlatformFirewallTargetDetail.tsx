@@ -37,6 +37,7 @@ import {
 } from '../../../api/zeusFirewall'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
 
 type StealthLevel = 'off' | 'standard' | 'strict'
 type PaneId = 'firewall' | 'connections' | 'advanced'
@@ -344,7 +345,7 @@ export default function PlatformFirewallTargetDetail() {
                   <MacListRow
                     title="Lock Down Machine"
                     subtitle="Emergency Isolation — blocks all traffic except management"
-                    trailing={<Lock className="w-4 h-4 text-red-400" />}
+                    trailing={<Lock className={`w-4 h-4 ${statusToneClass('error')}`} />}
                     onClick={async () => {
                       if (!confirm('Enable Emergency Isolation lockdown?')) return
                       try {

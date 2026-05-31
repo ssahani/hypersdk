@@ -7,6 +7,7 @@ import CopyButton from '../../components/CopyButton'
 import { createEnrollmentToken, listEnrollmentTokens, revokeEnrollmentToken, type EnrollmentToken, type EnrollmentTokenRow } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusActionLinkClasses } from '../../utils/semanticColors'
 
 export default function PlatformEnroll() {
   const toast = useToastContext()
@@ -62,7 +63,7 @@ export default function PlatformEnroll() {
             <li key={t.token} className="flex justify-between gap-2">
               <span><code>{t.token.slice(0, 20)}…</code> {t.used_at ? 'used' : 'open'}</span>
               {!t.used_at && (
-                <button type="button" className="text-red-400 hover:underline" onClick={async () => {
+                <button type="button" className={statusActionLinkClasses('error')} onClick={async () => {
                   try { await revokeEnrollmentToken(t.token); toast.success('Revoked'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }
                 }}>Revoke</button>
               )}

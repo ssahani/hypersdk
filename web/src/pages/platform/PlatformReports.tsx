@@ -139,7 +139,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           </button>
         ))}
       </div>
-      {error && <ErrorBanner message={error} />}
+      {error && <ErrorBanner message={error} onRetry={() => void load()} />}
       {loading && <PageSkeleton />}
 
       {!loading && tab === 'runbooks' && (
@@ -222,6 +222,18 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             </div>
           </MacGlassPanel>
         </>
+      )}
+
+      {!loading && tab === 'reports' && !error && !cap && (
+        <PlatformEmptyState
+          title="Reports unavailable"
+          subtitle="Capacity and FinOps reports load from the controller — check connectivity and retry."
+          action={
+            <button type="button" className="btn-secondary text-xs" onClick={() => void load()}>
+              Retry
+            </button>
+          }
+        />
       )}
 
       {!loading && tab === 'reports' && cap && (

@@ -28,6 +28,7 @@ import {
   type ZeusSecurityStatus,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 function threatTone(score: number): 'ok' | 'warn' | 'default' {
@@ -136,10 +137,10 @@ export default function PlatformSecurityCenter() {
       )}
 
       {status?.packetwolf?.storage?.clickhouse?.reachable && (
-        <p className="text-xs text-emerald-400/90">ClickHouse hot storage connected</p>
+        <p className={`text-xs ${statusToneClass('ok')} opacity-90`}>ClickHouse hot storage connected</p>
       )}
       {status?.packetwolf?.storage?.opensearch?.reachable && (
-        <p className="text-xs text-emerald-400/90">
+        <p className={`text-xs ${statusToneClass('ok')} opacity-90`}>
           OpenSearch hunt index connected
           {status.packetwolf.storage.opensearch.document_count != null
             ? ` · ${status.packetwolf.storage.opensearch.document_count} documents`
@@ -201,7 +202,7 @@ export default function PlatformSecurityCenter() {
               <ul className="space-y-2">
                 {critical.slice(0, 8).map((ev, i) => (
                   <li key={i} className="text-sm text-red-200/90 flex items-start gap-2">
-                    <span className="text-red-400 shrink-0">•</span>
+                    <span className={`shrink-0 ${statusToneClass('error')}`}>•</span>
                     <span>
                       {String(ev.summary ?? ev.kind ?? 'event')}
                       {ev.host_id ? (

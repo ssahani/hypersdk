@@ -5,13 +5,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import CollapsibleCodeBlock from '../components/CollapsibleCodeBlock'
 import JsonInspector, { asArray, asRecord } from '../components/platform/JsonInspector'
 import { AlertTriangle, CheckCircle2, Download, LayoutGrid, Loader2, Puzzle, RefreshCw, ShieldAlert, Server, Package,
 } from 'lucide-react'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import EmptyState from '../components/EmptyState'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
-import { k8sPhaseTone, statusToneClass } from '../utils/semanticColors'
+import { k8sPhaseTone, statusBadgeClasses, statusPillClasses, statusToneClass } from '../utils/semanticColors'
 import {
   buildK8sAuditBundleJson,
   downloadTextAsFile,
@@ -1090,22 +1091,17 @@ export default function K8sOverviewPage() {
                   clusterInventory.extended.etcd_member_list_stdout !== '') ||
                 (clusterInventory.extended?.etcd_member_list_stderr != null &&
                   clusterInventory.extended.etcd_member_list_stderr !== '') ? (
-                  <details className="rounded-lg border border-slate-700/50 bg-slate-950/40">
-                    <summary className="cursor-pointer px-3 py-2 text-[11px] text-slate-400 hover:text-slate-300">
-                      etcdctl member list (from etcd pod exec, when available)
-                    </summary>
-                    <div className="px-3 pb-3 space-y-2">
-                      {clusterInventory.extended?.etcd_member_list_stderr &&
-                        clusterInventory.extended.etcd_member_list_stderr.trim() !== '' && (
-                          <pre className="text-[10px] text-amber-200/90 whitespace-pre-wrap break-words max-h-40 overflow-y-auto">
-                            {clusterInventory.extended.etcd_member_list_stderr}
-                          </pre>
-                        )}
-                      <pre className="text-[10px] text-slate-400 whitespace-pre-wrap break-words max-h-56 overflow-y-auto">
-                        {clusterInventory.extended?.etcd_member_list_stdout ?? '—'}
-                      </pre>
-                    </div>
-                  </details>
+                  <CollapsibleCodeBlock
+                    title="etcdctl member list (from etcd pod exec, when available)"
+                    content={[
+                      clusterInventory.extended?.etcd_member_list_stderr?.trim()
+                        ? `stderr:\n${clusterInventory.extended.etcd_member_list_stderr}`
+                        : '',
+                      clusterInventory.extended?.etcd_member_list_stdout?.trim()
+                        ? `stdout:\n${clusterInventory.extended.etcd_member_list_stdout}`
+                        : '',
+                    ].filter(Boolean).join('\n\n') || '—'}
+                  />
                 ) : null}
                 {(clusterInventory.extended?.operator_alerts?.length ?? 0) > 0 && (
                   <div>
@@ -1138,7 +1134,7 @@ export default function K8sOverviewPage() {
               >
                 {invHistLoading ? 'Loading…' : 'Load recent snapshots'}
               </button>
-              {invHistErr && <div className="text-[11px] text-rose-300">{invHistErr}</div>}
+              {invHistErr && <div className={`text-[11px] ${statusToneClass('error')}`}>{invHistErr}</div>}
               {invHist && (
                 <div className="space-y-2">
                   <div className="text-[11px] text-slate-500">
@@ -1178,10 +1174,10 @@ export default function K8sOverviewPage() {
         <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-5 space-y-4">
           <h2 className="text-lg font-semibold text-white">Detection &amp; host</h2>
           <div className="flex flex-wrap gap-2 text-xs">
-            <span className={`px-2 py-1 rounded-md border ${environment.kubectl_on_path ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/15 border-amber-500/40 text-amber-200'}`}>
+            <span className={statusPillClasses(environment.kubectl_on_path ? 'ok' : 'warn')}>
               kubectl {environment.kubectl_on_path ? 'available' : 'missing / failing'}
             </span>
-            <span className={`px-2 py-1 rounded-md border ${environment.kubectl_server_reachable ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-300'}`}>
+            <span className={statusPillClasses(environment.kubectl_server_reachable ? 'ok' : 'neutral')}>
               API {environment.kubectl_server_reachable ? 'reachable' : 'unreachable'}
             </span>
             <span className="px-2 py-1 rounded-md bg-blue-500/15 border border-blue-500/40 text-blue-200">

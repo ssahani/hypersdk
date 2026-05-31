@@ -4,6 +4,7 @@
 
 import type { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 type Tone = 'amber' | 'red'
 
@@ -21,18 +22,20 @@ type Props = {
   actions?: ReactNode
 }
 
-const toneStyles: Record<Tone, { border: string; bg: string; title: string; text: string }> = {
+const toneStyles: Record<Tone, { border: string; bg: string; title: string; text: string; semantic: 'warn' | 'error' }> = {
   amber: {
-    border: 'border-amber-500/40',
-    bg: 'bg-amber-950/40',
-    title: 'text-amber-100',
-    text: 'text-amber-50/95',
+    border: 'border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)]',
+    bg: 'bg-[color-mix(in_srgb,var(--machina-status-warn)_10%,transparent)]',
+    title: 'text-[color-mix(in_srgb,var(--machina-status-warn)_85%,white)]',
+    text: 'text-[color-mix(in_srgb,var(--machina-status-warn)_70%,white)]',
+    semantic: 'warn',
   },
   red: {
-    border: 'border-red-500/40',
-    bg: 'bg-red-950/35',
-    title: 'text-red-100',
-    text: 'text-red-50/95',
+    border: 'border-[color-mix(in_srgb,var(--machina-status-error)_40%,transparent)]',
+    bg: 'bg-[color-mix(in_srgb,var(--machina-status-error)_10%,transparent)]',
+    title: 'text-[color-mix(in_srgb,var(--machina-status-error)_85%,white)]',
+    text: 'text-[color-mix(in_srgb,var(--machina-status-error)_70%,white)]',
+    semantic: 'error',
   },
 }
 
@@ -59,7 +62,7 @@ export default function ErrorBanner({
       className={`rounded-xl border ${s.border} ${s.bg} px-4 py-3 space-y-3`}
     >
       <div className="flex items-start gap-2">
-        <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${tone === 'red' ? 'text-red-400' : 'text-amber-400'}`} />
+        <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${statusToneClass(s.semantic)}`} />
         <div className="min-w-0 flex-1 space-y-1">
           <h3 className={`text-sm font-semibold ${s.title}`}>{title}</h3>
           <p className={`text-sm ${s.text} leading-relaxed`}>{headline}</p>
@@ -69,7 +72,7 @@ export default function ErrorBanner({
             <button
               type="button"
               onClick={onRetry}
-              className="text-xs px-2 py-1 rounded border border-amber-500/30 text-amber-200 hover:bg-amber-500/10"
+              className={`text-xs px-2 py-1 rounded border ${statusBadgeClasses(s.semantic)}`}
             >
               {retryLabel}
             </button>
@@ -78,7 +81,7 @@ export default function ErrorBanner({
             <button
               type="button"
               onClick={onDismiss}
-              className="text-xs text-amber-200/80 hover:text-amber-50 px-2 py-1 rounded border border-amber-500/30"
+              className={`text-xs px-2 py-1 rounded border ${statusBadgeClasses(s.semantic)} opacity-90 hover:opacity-100`}
             >
               Dismiss
             </button>
@@ -88,8 +91,8 @@ export default function ErrorBanner({
 
       {hints && hints.length > 0 && (
         <div className="pl-7 space-y-1.5">
-          <p className="text-xs font-medium text-amber-200/90">What usually fixes it</p>
-          <ul className="text-xs text-amber-100/85 list-disc pl-4 space-y-1">
+          <p className={`text-xs font-medium ${statusToneClass(s.semantic)}`}>What usually fixes it</p>
+          <ul className={`text-xs list-disc pl-4 space-y-1 ${s.text}`}>
             {hints.map((h, i) => (
               <li key={i}>{h}</li>
             ))}
@@ -101,7 +104,7 @@ export default function ErrorBanner({
 
       {technicalDetail && (
         <details className="pl-7 group">
-          <summary className="text-xs text-amber-200/80 cursor-pointer hover:text-amber-100">
+          <summary className={`text-xs cursor-pointer ${statusToneClass(s.semantic)} opacity-80 hover:opacity-100`}>
             Technical details
           </summary>
           <pre className="mt-2 text-[11px] leading-snug text-slate-300 bg-slate-950/80 border border-slate-700/80 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-words max-h-56 overflow-y-auto">

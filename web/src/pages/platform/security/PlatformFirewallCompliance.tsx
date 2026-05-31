@@ -21,6 +21,7 @@ import {
 import JsonInspector, { asRecord } from '../../../components/platform/JsonInspector'
 import { ComplianceReportSummary, PacketwolfAnomalySummary } from '../../../components/platform/FirewallComplianceViews'
 import { formatUserError } from '../../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 
 const REPORTS = [
@@ -204,7 +205,7 @@ export default function PlatformFirewallCompliance() {
             })}>
               Export GitOps
             </button>
-            <button type="button" className="text-xs text-emerald-400" onClick={() => void exportFirewallGitOps().then((r) =>
+            <button type="button" className={`text-xs ${statusToneClass('ok')}`} onClick={() => void exportFirewallGitOps().then((r) =>
               syncFirewallGitOps(r.policies ?? [], false).then((s) => toast.success(`Synced ${s.upserted} policies`))
             ).catch((e: unknown) => toast.error(formatUserError(e)))}>
               Sync GitOps

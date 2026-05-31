@@ -36,6 +36,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 type TabId = 'disks' | 'pools' | 'tiers' | 'sla'
 
@@ -271,7 +272,7 @@ export default function PlatformStorage() {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 -mt-1">
                 {fleetStorage.pools.map((p) => {
                   const pct = capacityRing(p.used_gib, p.capacity_gib)
-                  const ringClass = p.status === 'critical' ? 'text-red-400' : p.status === 'warn' ? 'text-amber-400' : 'text-blue-400'
+                  const ringClass = p.status === 'critical' ? statusToneClass('error') : p.status === 'warn' ? statusToneClass('warn') : statusToneClass('info')
                   return (
                     <article key={p.id} className="platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/40 p-4 space-y-3">
                       <div className="flex items-start gap-3">
@@ -359,7 +360,7 @@ export default function PlatformStorage() {
                       <div className="relative w-14 h-14 shrink-0">
                         <svg className="w-14 h-14 -rotate-90" viewBox="0 0 36 36">
                           <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-800" />
-                          <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${pct} 100`} className={pct > 85 ? 'text-amber-400' : 'text-blue-400'} />
+                            <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${pct} 100`} className={pct > 85 ? statusToneClass('warn') : statusToneClass('info')} />
                         </svg>
                         <span className="absolute inset-0 flex items-center justify-center text-xs font-medium">{pct}%</span>
                       </div>

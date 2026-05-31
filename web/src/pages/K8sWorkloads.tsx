@@ -44,6 +44,7 @@ import EmptyState from '../components/EmptyState'
 import PageSkeleton from '../components/PageSkeleton'
 import JsonInspector, { asArray, asRecord } from '../components/platform/JsonInspector'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function K8sWorkloadsPage() {
   const toast = useToastContext()
@@ -511,8 +512,8 @@ export default function K8sWorkloadsPage() {
               }}>Check</button>
             </div>
             <div className={`rounded-lg border px-3 py-2 text-sm ${
-              caniOut === 'yes' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
-                : caniOut === 'no' ? 'border-rose-500/30 bg-rose-500/10 text-rose-200'
+              caniOut === 'yes' ? statusBadgeClasses('ok')
+                : caniOut === 'no' ? statusBadgeClasses('error')
                   : 'border-slate-700 bg-slate-900/50 text-slate-300'
             }`}>
               {caniOut ? (

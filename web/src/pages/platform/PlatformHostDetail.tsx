@@ -42,6 +42,7 @@ import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFire
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
 import { openCenterPopout } from '../../utils/platformCenterPopout'
 import { hostClassicTools } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
@@ -222,7 +223,7 @@ export default function PlatformHostDetailPage() {
                   <MacSettingsGroup title="Join validation">
                     <ul className="p-3 text-sm space-y-2">
                       {host.validation_report!.map((c) => (
-                        <li key={c.name} className={c.passed ? 'text-emerald-400' : 'text-red-400'}>
+                        <li key={c.name} className={statusToneClass(c.passed ? 'ok' : 'error')}>
                           <span className="font-mono text-xs">{c.name}</span>: {c.message}
                         </li>
                       ))}
@@ -313,8 +314,8 @@ export default function PlatformHostDetailPage() {
                 {netDiag ? (
                   <MacGlassPanel title="systemd networking">
                     <div className="grid gap-2 sm:grid-cols-2 text-sm mb-3">
-                      <div>networkd: <span className={netDiag.systemd_networkd_active ? 'text-emerald-400' : 'text-amber-400'}>{netDiag.systemd_networkd_active ? 'active' : 'inactive'}</span></div>
-                      <div>resolved: <span className={netDiag.resolved_active ? 'text-emerald-400' : 'text-amber-400'}>{netDiag.resolved_active ? 'active' : 'inactive'}</span></div>
+                      <div>networkd: <span className={statusToneClass(netDiag.systemd_networkd_active ? 'ok' : 'warn')}>{netDiag.systemd_networkd_active ? 'active' : 'inactive'}</span></div>
+                      <div>resolved: <span className={statusToneClass(netDiag.resolved_active ? 'ok' : 'warn')}>{netDiag.resolved_active ? 'active' : 'inactive'}</span></div>
                     </div>
                     {(netDiag.interfaces ?? []).slice(0, 8).map((iface) => (
                       <MacListRow key={iface.name} title={iface.name} subtitle={(iface.addresses ?? []).join(', ') || iface.state || '—'} />
@@ -368,7 +369,7 @@ export default function PlatformHostDetailPage() {
                             key={d.device}
                             title={d.device}
                             subtitle={d.summary}
-                            badge={!d.passed ? <span className="text-[10px] text-rose-400">fail</span> : undefined}
+                            badge={!d.passed ? <span className={`text-[10px] ${statusToneClass('error')}`}>fail</span> : undefined}
                           />
                         ))}
                       </MacGlassPanel>
@@ -384,7 +385,7 @@ export default function PlatformHostDetailPage() {
                                 key={p.name}
                                 title={p.name}
                                 subtitle={`${p.current} → ${p.available}`}
-                                badge={p.security ? <span className="text-[10px] text-amber-400">security</span> : undefined}
+                                badge={p.security ? <span className={`text-[10px] ${statusToneClass('warn')}`}>security</span> : undefined}
                               />
                             ))}
                           </ul>
@@ -428,7 +429,7 @@ export default function PlatformHostDetailPage() {
                         <span>Score: {firewall.target.score}</span>
                         <span>{firewall.target.open_ports} open port(s)</span>
                       </div>
-                      <p className={`text-xs ${firewall.target.risk === 'Critical' || firewall.target.risk === 'critical' ? 'text-rose-400' : firewall.target.risk === 'Warning' || firewall.target.risk === 'warning' ? 'text-amber-400' : 'text-emerald-400'}`}>
+                      <p className={`text-xs ${statusToneClass(riskTone(firewall.target.risk))}`}>
                         {firewall.target.agent_reachable ? 'Agent reachable' : 'Agent offline'} · backend {firewall.target.backend}
                       </p>
                     </div>

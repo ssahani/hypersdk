@@ -8,6 +8,7 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import CopyButton from '../../../components/CopyButton'
 import { getK8sFirewallStatus, planK8sFirewall, applyK8sFirewall } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
+import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 
 export default function PlatformFirewallK8s() {
@@ -37,9 +38,9 @@ export default function PlatformFirewallK8s() {
       <MacGlassPanel title="Cluster">
         <div className="flex items-center gap-3">
           {ready ? (
-            <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+            <CheckCircle2 className={`w-5 h-5 ${statusToneClass('ok')}`} />
           ) : (
-            <XCircle className="w-5 h-5 text-amber-400" />
+            <XCircle className={`w-5 h-5 ${statusToneClass('warn')}`} />
           )}
           <div>
             <p className="text-sm text-slate-100">{ready ? 'kubectl reachable' : 'Cluster not ready'}</p>
