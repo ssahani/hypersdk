@@ -6,10 +6,13 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import { MacGlassPanel, MacListRow, MacSectionTitle, MacSheet } from '../../../components/platform/mac/PlatformMacUi'
 import {
   createFirewallPolicy,
+  getMultisiteDrTemplates,
+  getMultisiteExport,
   listFirewallPolicies,
   simulateFirewallPolicy,
   type FirewallPolicyRow,
 } from '../../../api/zeusFirewall'
+import JsonInspector from '../../../components/platform/JsonInspector'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
 
@@ -22,6 +25,8 @@ export default function PlatformFirewallPolicies() {
   const [specYaml, setSpecYaml] = useState('profile: ProductionServer\n')
   const [simResult, setSimResult] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
+  const [drTemplates, setDrTemplates] = useState<Awaited<ReturnType<typeof getMultisiteDrTemplates>> | null>(null)
+  const [multisiteExport, setMultisiteExport] = useState<Record<string, unknown> | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -33,6 +38,19 @@ export default function PlatformFirewallPolicies() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void getMultisiteDrTemplates().then(setDrTemplates).catch(() => setDrTemplates(null))
+  }, [])
+
+  const exportMultisite = async () => {
+    try {
+      const data = await getMultisiteExport()
+      setMultisiteExport(data)
+      toast.success('Multisite export ready')
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
 
   const create = async () => {
     try {
@@ -77,6 +95,22 @@ export default function PlatformFirewallPolicies() {
           ))}
           {rows.length === 0 && <p className="text-sm text-slate-400 px-1">No policies yet.</p>}
         </ul>
+      </MacGlassPanel>
+      <MacGlassPanel title="Multi-site DR">
+        {drTemplates ? (
+          <p className="text-sm text-slate-400 mb-3">{drTemplates.summary}</p>
+        ) : (
+          <p className="text-sm text-slate-500 mb-3">Loading DR templates…</p>
+        )}
+        {drTemplates?.profiles?.length ? (
+          <ul className="text-xs space-y-1 mb-3">
+            {drTemplates.profiles.map((p) => (
+              <li key={p.primary_profile} className="text-slate-300">{p.primary_profile} → {p.dr_profile}</li>
+            ))}
+          </ul>
+        ) : null}
+        <button type="button" className="btn-secondary text-sm" onClick={() => void exportMultisite()}>Export federation bundle</button>
+        {multisiteExport ? <JsonInspector data={multisiteExport} className="mt-3" /> : null}
       </MacGlassPanel>
       <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Simulation result" wide>
         <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{simResult ?? '—'}</pre>

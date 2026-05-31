@@ -71,6 +71,17 @@ Run `rg "platformFetch" web/src/api` vs `rg "from '../../api" web/src/pages/plat
 - [x] Platform networks → Neutron network detail — network cards link to `/openstack/networks/:id`
 - [x] Migration radar → OpenStack migrations tab — migration hub cards + source routing
 
+### P10 — Full API ↔ UX parity (shipped)
+
+- [x] `scripts/api-ux-coverage.mjs` + CI gate (`npm run api-ux-coverage:check`) — 293/293 routes mapped
+- [x] Platform core: backup destinations, VM topology tab, network GitOps export, marketplace plugin publish, users/me + role edit
+- [x] Zeus Firewall: bare-metal rollup, multisite DR/export, global temporary rules
+- [x] Migration depth: GuestKit job history + capabilities, HyperSDK proxy explorer
+- [x] Integrations embeds: OpenStack + K8s preview panels
+- [x] Classic parity: CPU compare, job stats API, local firewall inventory, daemon automation mirror
+- [x] OpenAPI **API Console** on `/platform/developer` for remaining controller routes
+- [x] Observability: controller Prometheus scrape link
+
 ## How to measure progress
 
 ```bash

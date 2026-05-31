@@ -171,8 +171,30 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/hosts')) {
       return route.fulfill({ json: [sampleHost] })
     }
+    if (url.match(/\/vms\/[^/]+\/topology/)) {
+      return route.fulfill({
+        json: {
+          nodes: [{ id: 'n1', name: 'vm-1', kind: 'vm' }, { id: 'n2', name: 'host-1', kind: 'host' }],
+          edges: [{ from: 'n1', to: 'n2', label: 'runs_on' }],
+        },
+      })
+    }
+    if (url.match(/\/vms\/[^/]+(\?|$)/) || url.match(/\/vms\/[^/]+$/)) {
+      return route.fulfill({ json: sampleVm })
+    }
     if (url.includes('/vms')) {
       return route.fulfill({ json: [sampleVm] })
+    }
+    if (url.includes('/zeus-firewall/multisite/dr-templates')) {
+      return route.fulfill({
+        json: {
+          summary: '2 DR profile pairs',
+          profiles: [{ primary_profile: 'ProductionServer', dr_profile: 'DRServer' }],
+        },
+      })
+    }
+    if (url.includes('/zeus-firewall/policies')) {
+      return route.fulfill({ json: [{ id: 'p1', name: 'production-default', profile: 'ProductionServer', enabled: true }] })
     }
     if (url.includes('/tasks')) {
       return route.fulfill({ json: [] })
@@ -180,7 +202,34 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/notifications')) {
       return route.fulfill({ json: [] })
     }
-    if (url.includes('/backups')) {
+    if (url.includes('/backup-targets')) {
+      return route.fulfill({ json: [{ id: 't1', name: 'nfs-primary', kind: 'nfs', config_json: {} }] })
+    }
+    if (url.includes('/developer/overview')) {
+      return route.fulfill({
+        json: {
+          summary: 'Developer SDK',
+          openapi_url: '/api/v1/openapi.json',
+          sdk_typescript: { version: '1.0', path: 'sdk/typescript', install: 'npm install @zyvor/machina-sdk', resources: ['hosts', 'vms'] },
+          terraform: { provider_source: 'registry', examples_path: 'examples', resources: [{ name: 'machina_vm' }] },
+        },
+      })
+    }
+    if (url.includes('/openapi.json')) {
+      return route.fulfill({
+        json: {
+          openapi: '3.0.0',
+          paths: {
+            '/api/v1/health': { get: { summary: 'Health check' } },
+            '/api/v1/vms': { get: { summary: 'List VMs' } },
+          },
+        },
+      })
+    }
+    if (url.includes('/users/me')) {
+      return route.fulfill({ json: { id: 'u1', username: 'admin', role: 'admin' } })
+    }
+    if (url.includes('/backups/timeline')) {
       return route.fulfill({ json: [] })
     }
     if (url.includes('/ai/')) {

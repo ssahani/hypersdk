@@ -63,6 +63,12 @@ Multi-host VM list: configure `[libvirt] extra_uris` in daemon config; VMs from 
 
 HyperSDK: [`HypersdkStatusBanner`](../web/src/components/HypersdkStatusBanner.tsx) on migrations and push modals when enabled but unreachable.
 
+## Developer / API Console
+
+- [`PlatformDeveloper.tsx`](../web/src/pages/platform/PlatformDeveloper.tsx) — SDK tab + **API Console** (OpenAPI try-it for all controller routes)
+- [`PlatformApiConsole.tsx`](../web/src/components/platform/PlatformApiConsole.tsx) — grouped operations, path params, JsonInspector responses
+- Coverage gate: `cd web && npm run api-ux-coverage:check` (see [`docs/api-ux-coverage.json`](api-ux-coverage.json))
+
 ## Dashboard & shell
 
 - **Help** (top bar) — dropdown: **Keyboard shortcuts** (`?`) and **About** ([`HelpDialog.tsx`](../web/src/components/HelpDialog.tsx), [`ZyvorAbout.tsx`](../web/src/components/ZyvorAbout.tsx)): [zyvor.dev](https://zyvor.dev), product links, copyright © 2026, documentation hub.

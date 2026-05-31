@@ -31,6 +31,7 @@ import {
   listPlatformVms,
   simulateSegmentConnectivity,
   syncAllHosts,
+  exportNetworkSegmentsGitops,
   type FleetNetworkOverview,
   type IpamPoolRow,
   type NetworkSegmentOverview,
@@ -418,6 +419,29 @@ export default function PlatformNetworks() {
       {tab === 'segments' && (
         <>
           <MacGlassPanel title="Overlay segments" subtitle="Tier-0/Tier-1 taxonomy with east-west defaults and micro-seg grade.">
+            <div className="flex justify-end mb-3">
+              <button
+                type="button"
+                className="tahoe-btn-ghost text-xs"
+                onClick={async () => {
+                  try {
+                    const data = await exportNetworkSegmentsGitops()
+                    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+                    const url = URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = 'network-segments-gitops.json'
+                    a.click()
+                    URL.revokeObjectURL(url)
+                    toast.success('GitOps export downloaded')
+                  } catch (e: unknown) {
+                    toast.error(formatUserError(e))
+                  }
+                }}
+              >
+                Export GitOps
+              </button>
+            </div>
             {segments.length === 0 ? (
               <p className="text-sm text-slate-400">No segments yet — create one or use seeded prod-tier1 / dmz-tier0 after migration.</p>
             ) : (

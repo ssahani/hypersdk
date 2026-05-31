@@ -24,6 +24,7 @@ import { listPlatformVms } from '../api/platform'
 import { getVmDoctor, type VmDoctorReport } from '../api/ai'
 import {
   attachPciHostdev, detachPciHostdev, detachNodeDevice, reattachNodeDevice,
+  compareCpu, getVmJobStats, type VmJobStats, type CpuCompareResult,
 } from '../api/advanced'
 import { listNetworks, NetworkInfo } from '../api/network'
 import { listSnapshots, createSnapshot, deleteSnapshot, revertSnapshot, SnapshotInfo, SnapshotDiskSpec } from '../api/snapshot'
@@ -228,6 +229,8 @@ export default function VMDetailsPage() {
   const [deleteVmTypeConfirm, setDeleteVmTypeConfirm] = useState('')
   const [blockDisk, setBlockDisk] = useState('')
   const [blockJob, setBlockJob] = useState<BlockJobInfo | null | undefined>(undefined)
+  const [jobStats, setJobStats] = useState<VmJobStats | null>(null)
+  const [cpuCompare, setCpuCompare] = useState<CpuCompareResult | null>(null)
   const [blockBase, setBlockBase] = useState('')
   const [blockTop, setBlockTop] = useState('')
   const [blockShallow, setBlockShallow] = useState(true)
@@ -2066,6 +2069,22 @@ export default function VMDetailsPage() {
                 </select>
               </div>
               <button type="button" onClick={handleBlockJobRefresh} className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition">Refresh job status</button>
+              <button
+                type="button"
+                className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
+                disabled={!name}
+                onClick={async () => {
+                  if (!name) return
+                  try {
+                    setJobStats(await getVmJobStats(name))
+                    toast.success('Job stats loaded')
+                  } catch (e: unknown) {
+                    toast.error(formatUserError(e))
+                  }
+                }}
+              >
+                Job stats API
+              </button>
               <button type="button" onClick={() => openDialog('block-commit')} className="px-3 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg text-sm transition">Block commit…</button>
               <button type="button" onClick={handleBlockPull} className="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 rounded-lg text-sm transition">Block pull</button>
               <button type="button" onClick={() => handleBlockAbort(false, false)} className="px-3 py-2 bg-slate-600 hover:bg-slate-500 rounded-lg text-sm transition">Abort job</button>
@@ -2086,6 +2105,29 @@ export default function VMDetailsPage() {
                   <p className="text-xs text-slate-500">{blockJob.cur.toLocaleString()} / {blockJob.end.toLocaleString()} bytes · bandwidth {blockJob.bandwidth}</p>
                 </div>
               )
+            )}
+            {jobStats && (
+              <p className="text-xs text-slate-400 mt-2">API stats: {jobStats.cur} / {jobStats.end} · {jobStats.job_type ?? 'job'}</p>
+            )}
+          </div>
+
+          <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
+            <h3 className="text-lg font-semibold">CPU compatibility</h3>
+            <button
+              type="button"
+              className="px-3 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition"
+              onClick={async () => {
+                try {
+                  setCpuCompare(await compareCpu({ guest_arch: vm?.arch ?? 'x86_64' }))
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              Compare host CPU
+            </button>
+            {cpuCompare && (
+              <p className={`text-sm ${cpuCompare.compatible ? 'text-emerald-300' : 'text-amber-300'}`}>{cpuCompare.summary}</p>
             )}
           </div>
 

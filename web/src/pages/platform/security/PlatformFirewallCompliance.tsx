@@ -13,6 +13,7 @@ import {
   rejectFirewallChange,
   exportFirewallGitOps,
   syncFirewallGitOps,
+  createFirewallTemporaryRule,
   firewallCompliancePdfUrl,
   type FirewallApproval,
   type FirewallApprovalApplyResult,
@@ -40,6 +41,10 @@ export default function PlatformFirewallCompliance() {
   const [approvalsLoading, setApprovalsLoading] = useState(false)
   const [packetwolf, setPacketwolf] = useState<Record<string, unknown> | null>(null)
   const [packetwolfLoading, setPacketwolfLoading] = useState(false)
+  const [tempPort, setTempPort] = useState('22')
+  const [tempProtocol, setTempProtocol] = useState('tcp')
+  const [tempHours, setTempHours] = useState('4')
+  const [tempReason, setTempReason] = useState('Emergency access')
 
   const load = useCallback(async () => {
     setError(null)
@@ -141,6 +146,37 @@ export default function PlatformFirewallCompliance() {
         ) : (
           <p className="text-sm text-slate-400">No Packetwolf anomaly feed — enable Zeus Firewall deep inspection.</p>
         )}
+      </MacGlassPanel>
+      <MacGlassPanel title="Global temporary rule">
+        <p className="text-sm text-slate-400 mb-3">Fleet-wide time-boxed allow rule — audited and auto-expires.</p>
+        <div className="grid gap-3 md:grid-cols-4 max-w-2xl">
+          <input className="input text-sm" value={tempPort} onChange={(e) => setTempPort(e.target.value)} placeholder="Port" />
+          <select className="input text-sm" value={tempProtocol} onChange={(e) => setTempProtocol(e.target.value)}>
+            <option value="tcp">tcp</option>
+            <option value="udp">udp</option>
+          </select>
+          <input className="input text-sm" value={tempHours} onChange={(e) => setTempHours(e.target.value)} placeholder="Hours" />
+          <button
+            type="button"
+            className="btn-primary text-sm"
+            onClick={async () => {
+              try {
+                await createFirewallTemporaryRule({
+                  port: Number(tempPort),
+                  protocol: tempProtocol,
+                  duration_hours: Number(tempHours),
+                  reason: tempReason,
+                })
+                toast.success('Temporary rule created')
+              } catch (e: unknown) {
+                toast.error(formatUserError(e))
+              }
+            }}
+          >
+            Create rule
+          </button>
+        </div>
+        <input className="input text-sm mt-3 w-full max-w-2xl" value={tempReason} onChange={(e) => setTempReason(e.target.value)} placeholder="Reason" />
       </MacGlassPanel>
       <div className="flex flex-wrap gap-2">
         {REPORTS.map((r) => (

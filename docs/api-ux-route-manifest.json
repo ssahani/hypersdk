@@ -1,0 +1,13 @@
+{
+  "defaults": {
+    "console": true
+  },
+  "routes": {
+    "/api/v1/openapi.json": "console",
+    "/api/v1/health": "documented",
+    "/api/v1/health/ready": "documented",
+    "/api/v1/metrics/prometheus": "documented",
+    "/api/v1/install.sh": "documented",
+    "/api/v1/hosts/join": "documented"
+  }
+}

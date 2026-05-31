@@ -37,6 +37,12 @@ const NORMAL_PATHS = [
   '/platform/integrations',
 ]
 
+/** Routes that require Advanced tier even when a parent prefix is allowed at Power. */
+const ADVANCED_ONLY_PREFIXES = [
+  '/platform/developer',
+  '/platform/zeus/security/policies',
+]
+
 const POWER_PATHS = [
   ...NORMAL_PATHS,
   '/openstack',
@@ -112,8 +118,13 @@ export function savePlatformDesktopTier(tier: PlatformDesktopTier) {
   window.dispatchEvent(new CustomEvent(PLATFORM_DESKTOP_TIER_EVENT, { detail: tier }))
 }
 
+function isAdvancedOnlyPath(path: string): boolean {
+  return ADVANCED_ONLY_PREFIXES.some((p) => path === p || path.startsWith(`${p}/`))
+}
+
 export function isPathAllowedForTier(path: string, tier: PlatformDesktopTier): boolean {
   if (tier === 'advanced') return true
+  if (isAdvancedOnlyPath(path)) return false
   const allowed = pathsForTier(tier)!
   return allowed.some((p) => {
     if (path === p) return true

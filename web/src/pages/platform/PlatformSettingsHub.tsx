@@ -15,6 +15,7 @@ import { getClusterSettings, patchClusterSettings, getEnterpriseSecurityOverview
 import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
+import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
@@ -57,6 +58,8 @@ export default function PlatformSettingsHub() {
   const [fleetNetwork, setFleetNetwork] = useState<FleetNetworkOverview | null>(null)
   const [policyRules, setPolicyRules] = useState<PolicyRule[]>([])
   const [selectedBundle, setSelectedBundle] = useState<AirGapBundle | null>(null)
+  const [daemonAlerts, setDaemonAlerts] = useState<number>(0)
+  const [daemonTokens, setDaemonTokens] = useState<number>(0)
 
   const load = useCallback(async () => {
     try {
@@ -80,6 +83,11 @@ export default function PlatformSettingsHub() {
       setAirGapBundles(bundles)
       setPolicyRules(await listPolicyRules().catch(() => []))
     } catch { /* optional */ }
+    try {
+      const [alerts, tokens] = await Promise.all([listAlerts().catch(() => []), listTokens().catch(() => [])])
+      setDaemonAlerts(alerts.length)
+      setDaemonTokens(tokens.length)
+    } catch { /* single-host daemon optional */ }
   }, [])
 
   useEffect(() => { void load() }, [load])
@@ -164,6 +172,11 @@ export default function PlatformSettingsHub() {
         <div className="space-y-6">
           <PlatformAppearanceSettings />
           <PlatformSettings embedded />
+          <MacSettingsGroup title="Classic daemon automation">
+            <p className="text-xs text-slate-500 mb-2">Single-host alerts and API tokens from the libvirt daemon — mirror of Settings → Automation in classic UI.</p>
+            <p className="text-sm text-slate-300">{daemonAlerts} active alert(s) · {daemonTokens} API token(s)</p>
+            <Link to="/settings?tab=automation" className="text-sm text-blue-400 inline-block mt-2">Open classic automation →</Link>
+          </MacSettingsGroup>
           <FleetSettingsPane kind="general" />
         </div>
       )}

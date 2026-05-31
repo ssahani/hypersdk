@@ -1,0 +1,2064 @@
+{
+  "generated_at": "2026-05-31T01:02:37.469Z",
+  "total_routes": 293,
+  "counts": {
+    "openstack": 278,
+    "page": 10,
+    "documented": 4,
+    "console": 1
+  },
+  "unmapped_count": 0,
+  "routes": [
+    {
+      "path": "/api/v1/enrollment/tokens",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/hosts/sync-all",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/detail",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/validate",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/sync",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/lldp",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/linux/observability",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/linux/network-diag",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/linux/audit",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/diagnose",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/maintenance",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/enrollment/tokens/{token}",
+      "methods": [
+        "DELETE"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/fence",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/disks",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/disks/attach",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/metrics",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/adopt",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/health-check",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/guest/health",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/guest/services",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/diagnose",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/doctor",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/settings",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/spotlight",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/copilot/chat",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/copilot/stream",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/explain",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/runbook",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/blueprints/generate",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/cost",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/cost/export.csv",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/capacity",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/capacity/export.csv",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/summary",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/local",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/twin/graph",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/twin/impact",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/incidents/analyze",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/intent/environment",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/intent/environment/execute",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/sre/forecast",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/sre/remediate",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/compliance/remediate",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/zeus/summary",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/power/optimize",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/heatmap",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/ai/fleet/rebalance/propose",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/rebalance/execute",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/cost/attribution",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/compliance/frameworks",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/security/graph",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/security/attack-path",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/knowledge/search",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/services/graph",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/memory/incidents",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/mission/stack",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/mission/stack/execute",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/cost/attribution/export.csv",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/gpu-placement",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/knowledge/diagnose",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/services/impact",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/memory/similar",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/remediate/hub",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/knowledge/runbook",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/cost/budget",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/mission/stack/status",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/baremetal/servers",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/baremetal/servers/{id}/power",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/baremetal/servers/{id}/provision",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/baremetal/capacity/plan",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/security",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/policy/export",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/autopilot/propose",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/autopilot/execute",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/autopilot/run",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/autopilot/history",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/compliance",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/compliance/export",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/compliance/export.pdf",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/terminal/suggest",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/network/explain",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/migrations/advisor",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/guestkit/status",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/guestkit/doctor",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/guestkit/migrate-plan",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/guestkit/vms/{id}/doctor",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/guestkit/jobs",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/guestkit/jobs/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/status",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/profiles",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/policies",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/temporary-rules",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/simulate",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/approvals",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/approvals/{id}/approve",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/approvals/{id}/reject",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/policies/gitops/export",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/policies/gitops/sync",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/k8s/status",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/k8s/plan",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/k8s/apply",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/baremetal/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/baremetal/{id}/scan",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/baremetal/{id}/temporary",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/finops/exposure",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/finops/exposure/export.csv",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/cloud/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/vms/{id}/guest-ports",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/connectivity",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/compliance/{kind}/export.pdf",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/packetwolf/anomalies",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/compliance/{kind}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/siem/export",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/ports",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/services",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/score",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/plan",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/apply",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/timeline",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/drift",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/activity",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/lockdown",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/profile",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/checkpoints",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/targets/{id}/rollback",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/firewall/explain",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/firewall/secure-plan",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/export",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/drift",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/connectivity",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/sync",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/timeline",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/multisite/dr-templates",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/operator/plan",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/operator/execute",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/operator/execute-batch",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/zeus-firewall/operator/thresholds",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/health-check",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/recommendations",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/applications",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/applications/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/applications/{id}/actions",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/topology",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/topology",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/spec",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/start",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/stop",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/reboot",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/delete",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/guest-tools/install",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/migrate/precheck",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/migrate",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/ha",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/from-template",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/clone",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/console",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/ws-token",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/snapshots",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/snapshots/{name}",
+      "methods": [
+        "DELETE"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/snapshots/{name}/revert",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/snapshots/{name}/clone",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/backups",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/backup-targets",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/backups/timeline",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/backups/{backup_id}/restore",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/vms/{id}/migrations",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/templates",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/templates/marketplace",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/marketplace/plugins",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/marketplace/plugins/{slug}/install",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/marketplace/plugins/{slug}/uninstall",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/marketplace/plugins",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/templates/seed",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/templates/{name}/{version}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/templates/{name}/{version}/readiness",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/pools",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/pools/discover",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/pools/{id}",
+      "methods": [
+        "PATCH"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/tiers/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/pools/{pool_id}/tier/{tier_id}",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/backup-sla",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/pools/{id}/backup-sla",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/storage/pools/{id}/snapshot-policy",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/networks",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/networks/discover",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/networks/{id}",
+      "methods": [
+        "PATCH"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments/gitops/export",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/network/ipam/pools",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments/{id}/connectivity",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments/{id}/ipam/allocate",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments/{id}/emergency-unlock",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/network/segments/{id}/bind/{network_id}",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/placement/recommendations",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/placement/refresh",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/cluster",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/cluster/leadership",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/cluster/settings",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/security/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/vault/providers",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/vault/providers/{id}/sync",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/vault/sync-all",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/mfa/policies",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/mfa/compliance",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/mfa/policies/{role}",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/air-gap/bundles",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/air-gap/bundles/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/fips/matrix",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/tenants/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/enterprise/tenants/policies/{project}",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ha/status",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/migrations",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fence/events",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/audit",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/tasks",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/tasks/{id}",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/tasks/{id}/cancel",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/tasks/{id}/retry",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/events",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/events/stream",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/content/images",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/content/images/{id}/approve",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/content/images/{id}/reject",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/users",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/users/me",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/users/{id}",
+      "methods": [
+        "PATCH"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/api-keys",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/api-keys/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/webhooks",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/webhooks/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/webhooks/{id}/toggle",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/webhook-deliveries",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/webhook-deliveries/{id}/retry",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/projects",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/policy/rules",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/policy/quotas",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/support/bundle",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/upgrade/matrix",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/upgrade",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/reports/capacity",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/reports/finops",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/operations/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/operations/runbooks",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/operations/runbooks/{incident}/execute",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/operations/executions",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/operations/showback",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/desktop",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/linux-health",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/activity",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/backups",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/finder",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/network",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/storage",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/console",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/updates",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/keychain",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/users",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/shortcuts",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/spaces",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/general",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/fleet/mission",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/hosts/{id}/linux/updates",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/ai/fleet/diagnose",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/developer/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    },
+    {
+      "path": "/api/v1/developer/terraform/schema",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/observability/overview",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/observability/traces",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/blueprints",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/blueprints/{id}/run",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/blueprints/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/metrics/prometheus",
+      "methods": [
+        "GET"
+      ],
+      "surface": "documented"
+    },
+    {
+      "path": "/api/v1/maintenance/schedules",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/maintenance/schedules/{id}",
+      "methods": [
+        "DELETE"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/notifications",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/notifications/{id}/deliver",
+      "methods": [
+        "POST"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/auth/oidc",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/cpu-compat",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/health",
+      "methods": [
+        "GET"
+      ],
+      "surface": "documented"
+    },
+    {
+      "path": "/api/v1/health/ready",
+      "methods": [
+        "GET"
+      ],
+      "surface": "documented"
+    },
+    {
+      "path": "/api/v1/openapi.json",
+      "methods": [
+        "GET"
+      ],
+      "surface": "console"
+    },
+    {
+      "path": "/api/v1/auth/oidc/login",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/auth/oidc/redirect",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/auth/oidc/callback",
+      "methods": [
+        "GET"
+      ],
+      "surface": "openstack"
+    },
+    {
+      "path": "/api/v1/hosts/join",
+      "methods": [
+        "POST"
+      ],
+      "surface": "documented"
+    },
+    {
+      "path": "/install.sh",
+      "methods": [
+        "GET"
+      ],
+      "surface": "page"
+    }
+  ]
+}

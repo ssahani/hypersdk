@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Code2, Package, Terminal } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import PlatformApiConsole from '../../components/platform/PlatformApiConsole'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import {
   getDeveloperOverview,
@@ -12,7 +13,10 @@ import {
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 
+type DevTab = 'sdk' | 'console'
+
 export default function PlatformDeveloper() {
+  const [tab, setTab] = useState<DevTab>('sdk')
   const [overview, setOverview] = useState<DeveloperOverview | null>(null)
   const [schemas, setSchemas] = useState<TerraformResourceSchema[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -32,9 +36,28 @@ export default function PlatformDeveloper() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <MacSectionTitle title="Developer" subtitle="TypeScript SDK, OpenAPI, and Terraform schemas (GA v1)." />
+      <MacSectionTitle title="Developer" subtitle="TypeScript SDK, OpenAPI console, and Terraform schemas." />
+      <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
+        {([
+          ['sdk', 'SDK & Terraform', Package],
+          ['console', 'API Console', Terminal],
+        ] as const).map(([id, label, Icon]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            className={`px-4 py-2 text-sm rounded-t-lg flex items-center gap-2 transition ${
+              tab === id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Icon className="w-4 h-4" /> {label}
+          </button>
+        ))}
+      </div>
       {error && <ErrorBanner message={error} />}
-      {overview && (
+      {tab === 'console' ? (
+        <PlatformApiConsole />
+      ) : overview ? (
         <>
           <p className="text-sm text-slate-400">{overview.summary}</p>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -83,7 +106,7 @@ export default function PlatformDeveloper() {
             </div>
           </MacGlassPanel>
         </>
-      )}
+      ) : null}
     </div>
   )
 }

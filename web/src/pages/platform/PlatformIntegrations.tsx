@@ -9,6 +9,7 @@ import { integrationCards } from '../../utils/platformIntegrationsNav'
 import { CLASSIC_TOOL_CARDS } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
 import PlatformDesktopTierPicker from '../../components/platform/PlatformDesktopTierPicker'
+import PlatformIntegrationEmbeds from '../../components/platform/PlatformIntegrationEmbeds'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 
 export default function PlatformIntegrations() {
@@ -61,6 +62,8 @@ export default function PlatformIntegrations() {
             </Link>
           ))}
         </div>
+
+        <PlatformIntegrationEmbeds />
 
         <MacGlassPanel title="Classic Machina tools">
           <p className="text-sm text-slate-400 mb-4 leading-relaxed">

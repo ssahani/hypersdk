@@ -4,8 +4,9 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play, Loader2 } from 'lucide-react'
 import { MacSectionTitle, MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
-import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration } from '../../api/hypersdk'
-import { getGuestkitStatus, guestkitDoctor, guestkitMigratePlan, submitGuestkitInspectJob, getGuestkitJob } from '../../api/guestkit'
+import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration, hypersdkProxyGet } from '../../api/hypersdk'
+import { getGuestkitStatus, guestkitDoctor, guestkitMigratePlan, submitGuestkitInspectJob, getGuestkitJob, listGuestkitJobsDaemon, getGuestkitCapabilitiesDaemon, type GuestkitJobRow } from '../../api/guestkit'
+import JsonInspector from '../../components/platform/JsonInspector'
 import { getMigrationAdvisor, type MigrationAdvisorReport } from '../../api/ai'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
@@ -44,6 +45,10 @@ export default function PlatformMigration() {
   const [jobStatus, setJobStatus] = useState<string | null>(null)
   const [planSummary, setPlanSummary] = useState<string | null>(null)
   const [jobPolling, setJobPolling] = useState(false)
+  const [gkJobs, setGkJobs] = useState<GuestkitJobRow[]>([])
+  const [gkCaps, setGkCaps] = useState<string | null>(null)
+  const [hsProxyPath, setHsProxyPath] = useState('/providers')
+  const [hsProxyResult, setHsProxyResult] = useState<Record<string, unknown> | null>(null)
 
   const setTab = (next: 'radar' | 'jobs') => {
     setSearchParams(next === 'jobs' ? { tab: 'jobs' } : {})
@@ -122,6 +127,12 @@ export default function PlatformMigration() {
     return () => window.clearInterval(t)
   }, [jobId, jobPolling])
 
+  useEffect(() => {
+    if (tab !== 'jobs' || !guestkit) return
+    void listGuestkitJobsDaemon().then((rows) => setGkJobs(Array.isArray(rows) ? rows : [])).catch(() => setGkJobs([]))
+    void getGuestkitCapabilitiesDaemon().then((c) => setGkCaps(c.summary ?? c.features?.join(', ') ?? null)).catch(() => setGkCaps(null))
+  }, [tab, guestkit])
+
   return (
     <div className="space-y-8 max-w-4xl animate-fade-in">
       <MacSectionTitle title="Migration Radar" subtitle="Machina Migration Radar — HyperSDK scan + GuestKit offline assurance." />
@@ -188,6 +199,14 @@ export default function PlatformMigration() {
             />
           )}
           {planSummary && <p className="text-xs text-slate-400 mt-2">{planSummary}</p>}
+          {gkCaps && <p className="text-xs text-orange-200/80 mt-3">Capabilities: {gkCaps}</p>}
+          {gkJobs.length > 0 && (
+            <ul className="mt-4 divide-y divide-white/[0.04]">
+              {gkJobs.map((j) => (
+                <MacListRow key={j.job_id} title={j.job_id} subtitle={`${j.status}${j.summary ? ` · ${j.summary}` : ''}`} />
+              ))}
+            </ul>
+          )}
         </MacGlassPanel>
       )}
 
@@ -241,6 +260,28 @@ export default function PlatformMigration() {
           </div>
           {gkSummary && <p className="text-xs text-orange-200/80">{gkSummary}</p>}
         </div>
+      )}
+
+      {hypersdk && status?.reachable && (
+        <MacGlassPanel title="HyperSDK proxy explorer" subtitle="Provider-specific API paths via HyperSDK proxy.">
+          <div className="flex flex-wrap gap-2 items-end mb-3">
+            <input className="input text-sm flex-1 min-w-[12rem]" value={hsProxyPath} onChange={(e) => setHsProxyPath(e.target.value)} placeholder="/providers" />
+            <button
+              type="button"
+              className="btn-secondary text-xs"
+              onClick={async () => {
+                try {
+                  setHsProxyResult(await hypersdkProxyGet(hsProxyPath))
+                } catch (e: unknown) {
+                  toast.error(formatUserError(e))
+                }
+              }}
+            >
+              GET proxy
+            </button>
+          </div>
+          {hsProxyResult ? <JsonInspector data={hsProxyResult} /> : null}
+        </MacGlassPanel>
       )}
 
       {hypersdk && status?.reachable && (

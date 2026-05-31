@@ -12,6 +12,7 @@ import {
   getTemplateReadiness,
   getMarketplacePlugins,
   installMarketplacePlugin,
+  publishMarketplacePlugin,
   listMarketplaceTemplates,
   seedDefaultTemplates,
   uninstallMarketplacePlugin,
@@ -43,6 +44,12 @@ export default function PlatformTemplates() {
   const [plugins, setPlugins] = useState<MarketplacePlugin[]>([])
   const [pluginCategory, setPluginCategory] = useState<string>('All')
   const [pluginLoading, setPluginLoading] = useState(false)
+  const [pluginPublishOpen, setPluginPublishOpen] = useState(false)
+  const [pluginSlug, setPluginSlug] = useState('my-plugin')
+  const [pluginName, setPluginName] = useState('My Plugin')
+  const [pluginDesc, setPluginDesc] = useState('Integration module')
+  const [pluginVersion, setPluginVersion] = useState('1.0.0')
+  const [pluginAuthor, setPluginAuthor] = useState('Zyvor')
   const [pluginAction, setPluginAction] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -187,6 +194,24 @@ export default function PlatformTemplates() {
       toast.success('Template published')
       setPublishOpen(false)
       await load(false)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    }
+  }
+
+  const publishPlugin = async () => {
+    try {
+      await publishMarketplacePlugin({
+        slug: pluginSlug,
+        name: pluginName,
+        category: pluginCategory === 'All' ? 'automation' : pluginCategory,
+        description: pluginDesc,
+        version: pluginVersion,
+        author: pluginAuthor,
+      })
+      toast.success('Plugin published')
+      setPluginPublishOpen(false)
+      await loadPlugins()
     } catch (e: unknown) {
       toast.error(formatUserError(e))
     }
@@ -390,7 +415,10 @@ export default function PlatformTemplates() {
       )}
 
       {tab === 'plugins' && (
-        <MacGlassPanel title="Platform plugins" subtitle="Integration modules — install toggles inventory only (v1 stub).">
+        <MacGlassPanel title="Platform plugins" subtitle="Integration modules — install or publish to the marketplace.">
+          <div className="flex justify-end mb-3">
+            <button type="button" className="tahoe-btn-ghost text-xs" onClick={() => setPluginPublishOpen(true)}>Publish plugin</button>
+          </div>
           {pluginLoading && plugins.length === 0 ? (
             <p className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading plugins…</p>
           ) : (
@@ -439,6 +467,16 @@ export default function PlatformTemplates() {
           )}
         </MacGlassPanel>
       )}
+      <MacSheet open={pluginPublishOpen} onClose={() => setPluginPublishOpen(false)} title="Publish plugin" subtitle="Register a marketplace integration module.">
+        <div className="grid gap-3 md:grid-cols-2">
+          <input className="input text-sm" placeholder="slug" value={pluginSlug} onChange={(e) => setPluginSlug(e.target.value)} />
+          <input className="input text-sm" placeholder="Name" value={pluginName} onChange={(e) => setPluginName(e.target.value)} />
+          <input className="input text-sm md:col-span-2" placeholder="Description" value={pluginDesc} onChange={(e) => setPluginDesc(e.target.value)} />
+          <input className="input text-sm" placeholder="Version" value={pluginVersion} onChange={(e) => setPluginVersion(e.target.value)} />
+          <input className="input text-sm" placeholder="Author" value={pluginAuthor} onChange={(e) => setPluginAuthor(e.target.value)} />
+          <button type="button" className="btn-primary md:col-span-2" onClick={() => void publishPlugin()}>Publish</button>
+        </div>
+      </MacSheet>
     </div>
   )
 }

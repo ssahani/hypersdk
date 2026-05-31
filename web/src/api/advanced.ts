@@ -76,3 +76,26 @@ export const detachNodeDevice = (devName: string) =>
 
 export const reattachNodeDevice = (devName: string) =>
   apiPostVoid(`${API}/host/nodedev/${encodeURIComponent(devName)}/reattach`)
+
+export interface VmJobStats {
+  cur: number
+  end: number
+  bandwidth: number
+  job_type?: string
+}
+
+export const getVmJobStats = (vmName: string) =>
+  readJsonObject<VmJobStats>(`${API}/vms/${encodeURIComponent(vmName)}/job/stats`)
+
+export interface CpuCompareResult {
+  compatible: boolean
+  summary: string
+  host_model?: string
+  guest_arch?: string
+}
+
+export const compareCpu = (body: { host_model?: string; guest_arch?: string; guest_model?: string }) =>
+  apiPost<CpuCompareResult>(`${API}/cpu/compare`, body)
+
+export const getLocalFirewallInventory = () =>
+  readJsonObject<Record<string, unknown>>(`${API}/zeus-firewall/local/inventory`)

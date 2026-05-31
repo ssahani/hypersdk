@@ -13,6 +13,8 @@ import {
 import ErrorBanner from '../../components/ErrorBanner'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import { hostErrorPresentation } from '../../utils/hostErrorPresentation'
+import { getLocalFirewallInventory } from '../../api/advanced'
+import JsonInspector from '../../components/platform/JsonInspector'
 import {
   getPlatformHostDetail,
   getHostLinuxObservability,
@@ -83,6 +85,7 @@ export default function PlatformHostDetailPage() {
   const [diagnoseLoading, setDiagnoseLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notes, setNotes] = useState('')
+  const [localFw, setLocalFw] = useState<Record<string, unknown> | null>(null)
   const [site, setSite] = useState('')
   const [rack, setRack] = useState('')
   const [rackU, setRackU] = useState('')
@@ -146,6 +149,9 @@ export default function PlatformHostDetailPage() {
 
   useEffect(() => { void load() }, [load])
   useEffect(() => { void loadOs() }, [loadOs])
+  useEffect(() => {
+    void getLocalFirewallInventory().then(setLocalFw).catch(() => setLocalFw(null))
+  }, [])
   useEffect(() => {
     setContextHostId(id ?? null)
     return () => setContextHostId(null)
@@ -273,6 +279,13 @@ export default function PlatformHostDetailPage() {
                       Deep libvirt, device passthrough, host SSH, and capability matrix — classic Machina UI on this daemon.
                     </p>
                     <PlatformClassicToolLinks tools={hostClassicTools()} />
+                    <Link to={`/node?host=${encodeURIComponent(host.hostname)}`} className="text-xs text-blue-400 inline-block mt-2">Open NodeInfo →</Link>
+                    {localFw ? (
+                      <div className="mt-3">
+                        <p className="text-xs text-slate-500 mb-2">Local firewall inventory (daemon fallback)</p>
+                        <JsonInspector data={localFw} />
+                      </div>
+                    ) : null}
                     <Link to="/platform/placement" className="text-xs text-blue-400 inline-block mt-3">
                       HA status & fence events →
                     </Link>

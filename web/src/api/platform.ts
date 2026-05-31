@@ -1737,8 +1737,11 @@ export const deleteVmSnapshot = (vmId: string, name: string) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/snapshots/${encodeURIComponent(name)}`, { method: 'DELETE' })
 
 export const listUsers = () => platformFetch<PlatformUser[]>('/api/v1/users')
+export const getCurrentUser = () => platformFetch<PlatformUser>('/api/v1/users/me')
 export const createUser = (body: { username: string; password: string; role?: string }) =>
   platformFetch<PlatformUser>('/api/v1/users', { method: 'POST', body: JSON.stringify(body) })
+export const patchUser = (id: string, body: { username?: string; role?: string }) =>
+  platformFetch<PlatformUser>(`/api/v1/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) })
 export const deleteUser = (id: string) =>
   platformFetch<{ deleted: boolean }>(`/api/v1/users/${id}`, { method: 'DELETE' })
 

@@ -82,3 +82,29 @@ test('View menu hides power-only destinations at normal tier', async ({ page }) 
   await expect(viewPanel.getByRole('button', { name: 'Activity Monitor' })).toHaveCount(0)
   await expect(viewPanel.getByRole('button', { name: 'Finder' })).toHaveCount(1)
 })
+
+test('backups destinations tab loads at normal tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform/backups?tab=destinations')
+  await expect(page.getByRole('heading', { name: 'Backup destinations' })).toBeVisible({ timeout: 15_000 })
+})
+
+test('vm detail topology tab loads at power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/vms/v1')
+  await page.getByRole('button', { name: 'Topology' }).click()
+  await expect(page.getByText('2 nodes · 1 edges')).toBeVisible({ timeout: 15_000 })
+})
+
+test('firewall policy studio multisite panel loads at advanced tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'advanced' })
+  await page.goto('/platform/zeus/security/policies')
+  await expect(page.getByRole('heading', { name: 'Multi-site DR' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('button', { name: 'Export federation bundle' })).toBeVisible()
+})
+
+test('developer route redirects at power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/developer')
+  await expect(page).toHaveURL(/\/platform\/settings/, { timeout: 15_000 })
+})

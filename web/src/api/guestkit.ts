@@ -74,3 +74,21 @@ export const getGuestkitJob = (id: string) =>
   platformFetch<{ job_id: string; status: string; progress?: number; summary?: string; result?: Record<string, unknown> }>(
     `/api/v1/guestkit/jobs/${id}`,
   )
+
+export interface GuestkitJobRow {
+  job_id: string
+  status: string
+  summary?: string
+  created_at?: string
+}
+
+export interface GuestkitCapabilities {
+  features: string[]
+  summary: string
+}
+
+export const listGuestkitJobsDaemon = () =>
+  readJsonObject<GuestkitJobRow[]>(`${DAEMON_API}/guestkit/jobs`)
+
+export const getGuestkitCapabilitiesDaemon = () =>
+  readJsonObject<GuestkitCapabilities>(`${DAEMON_API}/guestkit/capabilities`)

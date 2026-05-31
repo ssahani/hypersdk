@@ -49,6 +49,8 @@ import {
   getVmGuestHealth,
   getVmGuestServices,
   diagnoseVm,
+  getVmTopology,
+  type TopologyGraph,
   type VmGuestHealthReport,
   type VmGuestServicesReport,
   type VmOsDiagnoseReport,
@@ -96,6 +98,7 @@ export default function PlatformVmDetail() {
   const [guestHealth, setGuestHealth] = useState<VmGuestHealthReport | null>(null)
   const [guestHealthLoading, setGuestHealthLoading] = useState(false)
   const [guestServices, setGuestServices] = useState<VmGuestServicesReport | null>(null)
+  const [topology, setTopology] = useState<TopologyGraph | null>(null)
   const [guestServicesLoading, setGuestServicesLoading] = useState(false)
   const [vmDiagnose, setVmDiagnose] = useState<VmOsDiagnoseReport | null>(null)
   const [vmDiagnoseLoading, setVmDiagnoseLoading] = useState(false)
@@ -132,6 +135,11 @@ export default function PlatformVmDetail() {
       setError(formatUserError(e))
     }
   }, [id, destHost])
+
+  useEffect(() => {
+    if (tab !== 'topology' || !id) return
+    void getVmTopology(id).then(setTopology).catch(() => setTopology(null))
+  }, [tab, id])
 
   const runHealth = useCallback(async () => {
     if (!id) return
@@ -627,6 +635,27 @@ export default function PlatformVmDetail() {
                   </li>
                 ))}
               </ul>
+            </MacGlassPanel>
+          )}
+
+          {tab === 'topology' && (
+            <MacGlassPanel title="VM topology" className="pt-2">
+              {!topology ? (
+                <p className="text-sm text-slate-400">Loading topology…</p>
+              ) : (
+                <div className="space-y-3 text-sm">
+                  <p className="text-slate-400">{topology.nodes.length} nodes · {topology.edges.length} edges</p>
+                  <ul className="divide-y divide-white/[0.04] max-h-64 overflow-y-auto">
+                    {topology.nodes.map((n) => (
+                      <li key={n.id} className="py-2 flex justify-between gap-2">
+                        <span className="text-slate-200">{n.name}</span>
+                        <span className="text-xs text-slate-500 uppercase">{n.kind}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link to="/platform/topology" className="text-xs text-blue-400">Open fleet topology →</Link>
+                </div>
+              )}
             </MacGlassPanel>
           )}
 

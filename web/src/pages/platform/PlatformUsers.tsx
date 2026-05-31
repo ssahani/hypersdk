@@ -14,8 +14,10 @@ import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import {
   createUser,
   deleteUser,
+  getCurrentUser,
   getFleetUsers,
   listUsers,
+  patchUser,
   type FleetUsersOverview,
   type PlatformUser,
 } from '../../api/platform'
@@ -37,6 +39,7 @@ export default function PlatformUsers() {
 
   const [fleet, setFleet] = useState<FleetUsersOverview | null>(null)
   const [rows, setRows] = useState<PlatformUser[]>([])
+  const [me, setMe] = useState<PlatformUser | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState('')
   const [pass, setPass] = useState('')
@@ -49,9 +52,10 @@ export default function PlatformUsers() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [f, users] = await Promise.all([getFleetUsers(), listUsers()])
+      const [f, users, current] = await Promise.all([getFleetUsers(), listUsers(), getCurrentUser().catch(() => null)])
       setFleet(f)
       setRows(users)
+      setMe(current)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -74,6 +78,7 @@ export default function PlatformUsers() {
         />
       </header>
       {error && <ErrorBanner message={error} />}
+      {me && <p className="text-sm text-slate-400">Signed in as <strong className="text-slate-200">{me.username}</strong> ({me.role})</p>}
       {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}
 
       {fleet && (
@@ -132,7 +137,23 @@ export default function PlatformUsers() {
               <tbody>{rows.map((u) => (
                 <tr key={u.id} className="border-b border-slate-900">
                   <td className="p-3">{u.username}</td>
-                  <td className="p-3 capitalize">{u.role}</td>
+                  <td className="p-3">
+                    <select
+                      className="input text-xs capitalize"
+                      value={u.role}
+                      onChange={async (e) => {
+                        try {
+                          await patchUser(u.id, { role: e.target.value })
+                          toast.success('Role updated')
+                          await load()
+                        } catch (err: unknown) { toast.error(formatUserError(err)) }
+                      }}
+                    >
+                      <option value="admin">admin</option>
+                      <option value="operator">operator</option>
+                      <option value="viewer">viewer</option>
+                    </select>
+                  </td>
                   <td className="p-3 text-right">
                     <button type="button" className="btn-secondary text-xs" onClick={async () => {
                       try { await deleteUser(u.id); toast.success('Deleted'); await load() } catch (e: unknown) { toast.error(formatUserError(e)) }

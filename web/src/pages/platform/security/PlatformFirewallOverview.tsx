@@ -15,6 +15,7 @@ import PlatformFilterPills from '../../../components/platform/PlatformFilterPill
 import ErrorBanner from '../../../components/ErrorBanner'
 import {
   getFirewallOverview,
+  getBaremetalFirewallOverview,
   getMultisiteOverview,
   getMultisiteDrift,
   getMultisiteConnectivityMatrix,
@@ -55,21 +56,24 @@ export default function PlatformFirewallOverview() {
   const [multisiteTab, setMultisiteTab] = useState<'overview' | 'drift' | 'connectivity' | 'timeline'>('overview')
   const [multisiteExtra, setMultisiteExtra] = useState<Record<string, unknown> | Array<Record<string, unknown>> | null>(null)
   const [thresholds, setThresholds] = useState<Record<string, unknown> | null>(null)
+  const [baremetalFw, setBaremetalFw] = useState<Record<string, unknown> | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [ov, st, ms, op, th] = await Promise.all([
+      const [ov, st, ms, op, th, bm] = await Promise.all([
         getFirewallOverview(),
         getZeusFirewallStatus(),
         getMultisiteOverview().catch(() => null),
         getOperatorSecurePlan().catch(() => null),
         getOperatorThresholds().catch(() => null),
+        getBaremetalFirewallOverview().catch(() => null),
       ])
       setOverview(ov)
       setMultisite(ms)
       setOperatorPlan(op)
       setThresholds(th)
+      setBaremetalFw(bm as Record<string, unknown> | null)
       const pw = st.packetwolf as { summary?: string }
       setStatusLine(pw?.summary || 'Zeus Firewall active')
     } catch (e: unknown) {
@@ -258,6 +262,11 @@ export default function PlatformFirewallOverview() {
                 ))}
               </div>
               <JsonInspector data={thresholds} className="mt-3" />
+            </MacGlassPanel>
+          )}
+          {baremetalFw && (
+            <MacGlassPanel title="Bare-metal firewall rollup" subtitle="BMC-attached servers under Zeus Firewall">
+              <JsonInspector data={baremetalFw} />
             </MacGlassPanel>
           )}
           <MacGlassPanel title="Machine Security" subtitle="Open like macOS System Settings panes">

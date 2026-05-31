@@ -47,5 +47,6 @@ jobs:
       - run: npx tsc --noEmit
       - run: npm test
       - run: npm run build
+      - run: npm run api-ux-coverage:check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
