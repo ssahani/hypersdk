@@ -235,7 +235,7 @@ export default function EventsPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Activity className="w-6 h-6 text-blue-400" /> Live Metrics
+            <Activity className={`w-6 h-6 ${statusToneClass('info')}`} /> Live Metrics
           </h1>
           <p className="text-sm text-slate-400 mt-1 max-w-2xl">
             Running guests from libvirt. Throughput and CPU % use deltas between polls (~

@@ -9,6 +9,7 @@ import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
 import { useToastContext } from '../contexts/ToastContext'
 import ErrorBanner from './ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 type Props = {
   title?: string
@@ -29,7 +30,7 @@ export default function HypersdkStatusBanner({ title = 'HyperSDK unavailable', c
 
   if (compact) {
     return (
-      <p className="text-xs text-amber-200/90 border border-amber-500/30 bg-amber-950/30 rounded-lg px-3 py-2">
+      <p className={`text-xs rounded-lg px-3 py-2 ${statusSurfaceClasses('warn')}`}>
         HyperSDK is enabled but not reachable
         {status?.last_error ? `: ${status.last_error}` : ''}. Check hypervisord on the host.
       </p>
@@ -65,7 +66,7 @@ export default function HypersdkStatusBanner({ title = 'HyperSDK unavailable', c
                 setTesting(false)
               }
             }}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-xs disabled:opacity-50"
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs disabled:opacity-50 ${statusSurfaceClasses('warn', 'hover:opacity-90')}`}
           >
             <RefreshCw className={`w-3.5 h-3.5 ${testing ? 'animate-spin' : ''}`} />
             Retry

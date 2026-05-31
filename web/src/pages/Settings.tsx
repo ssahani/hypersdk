@@ -176,7 +176,7 @@ export default function SettingsPage() {
     <div className="w-full min-w-0 max-w-full space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 min-w-0 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className="w-6 h-6 shrink-0 text-blue-400" /> Settings</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Settings className={`w-6 h-6 shrink-0 ${statusToneClass('info')}`} /> Settings</h1>
           <p className="text-sm text-slate-400 mt-0.5 max-w-2xl break-words">RBAC, tokens, alerts, and schedules for the hypervisor control plane on this host.</p>
         </div>
         <button type="button" onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition self-start shrink-0" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
@@ -712,7 +712,7 @@ export default function SettingsPage() {
 
           {osUserCap && (
             <div className="card p-5 space-y-3">
-              <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className="w-4 h-4 text-blue-400" /> System users (PAM / UNIX)</h3>
+              <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2"><Shield className={`w-4 h-4 ${statusToneClass('info')}`} /> System users (PAM / UNIX)</h3>
               <p className="text-xs text-slate-500 break-words hyphens-auto">
                 Adds or removes a UNIX account on the machina host. When <strong className="text-slate-400">systemd-homed</strong> is active and <code className="bg-slate-900/80 px-1 rounded break-all">homectl</code> is available, new users are created with <code className="bg-slate-900/80 px-1 rounded break-all">homectl create</code> (directory storage, <strong className="text-slate-400">wheel</strong>/<strong className="text-slate-400">sudo</strong> membership); otherwise <code className="bg-slate-900/80 px-1 rounded break-all">useradd</code> / <code className="bg-slate-900/80 px-1 rounded break-all">usermod</code>. Password is set with <code className="bg-slate-900/80 px-1 rounded break-all">chpasswd</code>. Optionally append the <strong className="text-slate-400">libvirt</strong> group so the account can use <code className="bg-slate-900/80 px-1 rounded break-all">qemu:///system</code> after next login (or <code className="bg-slate-900/80 px-1 rounded break-all">newgrp libvirt</code>). Removal uses <code className="bg-slate-900/80 px-1 rounded break-all">homectl remove</code> for homed-managed users, else <code className="bg-slate-900/80 px-1 rounded break-all">userdel -r</code>. The signed-in user must be in <strong className="text-slate-400">wheel</strong>, <strong className="text-slate-400">sudo</strong>, or <strong className="text-slate-400">admin</strong>. Not available when using an API token.
               </p>

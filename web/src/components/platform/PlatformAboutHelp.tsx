@@ -9,6 +9,7 @@ import {
   ZYVOR_PLATFORM_HELP_LINKS,
   ZYVOR_PLATFORM_TAGLINE,
 } from '../../config/zyvorHelp'
+import { statusActionLinkClasses } from '../../utils/semanticColors'
 
 export default function PlatformAboutHelp({ compact = false }: { compact?: boolean }) {
   if (compact) {
@@ -17,7 +18,7 @@ export default function PlatformAboutHelp({ compact = false }: { compact?: boole
         <p className="font-medium text-orange-200">{ZYVOR_PLATFORM_HELP.name}</p>
         <p className="text-xs text-slate-400 mt-1">{ZYVOR_PLATFORM_HELP.tagline}</p>
         <p className="text-xs text-slate-500 mt-1.5">{ZEUS_OS_HELP.name} — {ZEUS_OS_HELP.tagline}</p>
-        <Link to="/platform/support" className="text-xs text-blue-400 inline-flex items-center gap-1 mt-2 hover:underline">
+        <Link to="/platform/support" className={`text-xs ${statusActionLinkClasses('info', 'inline-flex items-center gap-1 mt-2 hover:underline')}`}>
           <HelpCircle className="w-3 h-3" /> About & help
         </Link>
       </div>
@@ -43,11 +44,11 @@ export default function PlatformAboutHelp({ compact = false }: { compact?: boole
         {ZYVOR_PLATFORM_HELP_LINKS.map((link) => (
           <li key={link.href}>
             {link.href.startsWith('/') ? (
-              <Link to={link.href} className="text-blue-400 hover:underline inline-flex items-center gap-1">
+              <Link to={link.href} className={`${statusActionLinkClasses('info', 'hover:underline inline-flex items-center gap-1')}`}>
                 {link.label}
               </Link>
             ) : (
-              <a href={link.href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:underline inline-flex items-center gap-1">
+              <a href={link.href} target="_blank" rel="noopener noreferrer" className={`${statusActionLinkClasses('info', 'hover:underline inline-flex items-center gap-1')}`}>
                 {link.label}
                 <ExternalLink className="w-3 h-3 opacity-60" />
               </a>

@@ -1,5 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+import { statusToneClass } from '../../utils/semanticColors'
+
 export interface ContainerHierarchy {
   host_id?: string
   summary?: string
@@ -21,8 +23,8 @@ export interface ContainerHierarchy {
 }
 
 function severityClass(sev?: string): string {
-  if (sev === 'critical' || sev === 'high') return 'text-red-300'
-  if (sev === 'medium') return 'text-amber-300'
+  if (sev === 'critical' || sev === 'high') return statusToneClass('error')
+  if (sev === 'medium') return statusToneClass('warn')
   return 'text-slate-400'
 }
 

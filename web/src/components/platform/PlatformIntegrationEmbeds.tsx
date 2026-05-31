@@ -5,6 +5,7 @@ import { Cloud, Container, Loader2, RefreshCw } from 'lucide-react'
 import { MacGlassPanel, MacListRow } from './mac/PlatformMacUi'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useIntegrationPreviewStats } from '../../hooks/useIntegrationPreviewStats'
+import { statusToneClass } from '../../utils/semanticColors'
 
 function PreviewStat({ label, value }: { label: string; value: string }) {
   return (
@@ -46,7 +47,7 @@ export default function PlatformIntegrationEmbeds() {
                     : 'Enable OpenStack in daemon config to unlock the operator shell.'}
             </p>
             {openstack.connectionHint && (
-              <p className="text-xs text-amber-400">{openstack.connectionHint}</p>
+              <p className={`text-xs ${statusToneClass('warn')}`}>{openstack.connectionHint}</p>
             )}
             {openstack.phase === 'live' && (
               <div className="space-y-3">
@@ -62,7 +63,7 @@ export default function PlatformIntegrationEmbeds() {
                       <PreviewStat label="Images" value={String(osStats.images)} />
                     </>
                   ) : osError ? (
-                    <p className="text-xs text-rose-400">{osError}</p>
+                    <p className={`text-xs ${statusToneClass('error')}`}>{osError}</p>
                   ) : null}
                   <button
                     type="button"
@@ -123,7 +124,7 @@ export default function PlatformIntegrationEmbeds() {
                       <PreviewStat label="Deploy" value={String(k8sStats.deployments)} />
                     </>
                   ) : k8sError ? (
-                    <p className="text-xs text-amber-400">{k8sError}</p>
+                    <p className={`text-xs ${statusToneClass('warn')}`}>{k8sError}</p>
                   ) : null}
                   <button
                     type="button"

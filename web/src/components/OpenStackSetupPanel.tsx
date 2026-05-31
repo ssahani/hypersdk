@@ -6,6 +6,7 @@ import { Link } from 'react-router'
 import { Cloud, Terminal, Settings, AlertCircle } from 'lucide-react'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { isOpenStackNavEnabled } from '../utils/routes'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 /** Shown when OpenStack routes are visited but the daemon is not wired. */
 export default function OpenStackSetupPanel({ compact = false }: { compact?: boolean }) {
@@ -18,17 +19,15 @@ export default function OpenStackSetupPanel({ compact = false }: { compact?: boo
 
   return (
     <div
-      className={`rounded-xl border border-amber-500/35 bg-gradient-to-br from-amber-950/40 via-slate-900/60 to-slate-900/40 ${
-        compact ? 'p-4' : 'p-6'
-      }`}
+      className={`rounded-xl border ${statusSurfaceClasses('warn', compact ? 'p-4' : 'p-6')}`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center shrink-0">
-          <Cloud className="w-5 h-5 text-amber-300" />
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${statusSurfaceClasses('warn')}`}>
+          <Cloud className={`w-5 h-5 ${statusToneClass('warn')}`} />
         </div>
         <div className="min-w-0 flex-1 space-y-3">
           <div>
-            <h2 className={`font-semibold text-amber-100 ${compact ? 'text-base' : 'text-lg'}`}>
+            <h2 className={`font-semibold ${statusToneClass('warn')} ${compact ? 'text-base' : 'text-lg'}`}>
               Wire OpenStack on this host
             </h2>
             <p className="text-sm text-slate-400 mt-1">
@@ -46,7 +45,7 @@ export default function OpenStackSetupPanel({ compact = false }: { compact?: boo
               <Terminal className="w-3.5 h-3.5" />
               Packstack / RDO on this hypervisor
             </div>
-            <code className="block text-amber-100/90 whitespace-pre-wrap break-all">
+            <code className={`block whitespace-pre-wrap break-all ${statusToneClass('warn')} opacity-90`}>
               sudo /usr/local/share/machina/scripts/openstack-wire-cloud.sh /root/keystonerc_admin packstack{'\n'}
               sudo systemctl restart machina-daemon
             </code>

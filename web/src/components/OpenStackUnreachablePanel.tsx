@@ -11,6 +11,7 @@ import ErrorBanner from './ErrorBanner'
 import CopyButton from './CopyButton'
 import { VERIFY_COMMANDS, WIRE_SCRIPT, openStackErrorHints } from '../utils/openstackHints'
 import { formatUserError, sanitizeErrorText } from '../utils/apiError'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 /** Shown when OpenStack is configured in Machina but Keystone/API is not reachable. */
 export default function OpenStackUnreachablePanel() {
@@ -23,13 +24,13 @@ export default function OpenStackUnreachablePanel() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-red-500/35 bg-gradient-to-br from-red-950/30 via-slate-900/60 to-slate-900/40 p-5">
+      <div className={`rounded-xl border p-5 ${statusSurfaceClasses('error')}`}>
         <div className="flex items-start gap-3">
-          <div className="w-10 h-10 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center shrink-0">
-            <Cloud className="w-5 h-5 text-red-300" />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${statusSurfaceClasses('error')}`}>
+            <Cloud className={`w-5 h-5 ${statusToneClass('error')}`} />
           </div>
           <div className="min-w-0 flex-1 space-y-2">
-            <h2 className="text-lg font-semibold text-red-100">
+            <h2 className={`text-lg font-semibold ${statusToneClass('error')}`}>
               Cloud configured but not reachable
               {cloudName ? ` (${cloudName})` : ''}
             </h2>
@@ -82,7 +83,7 @@ export default function OpenStackUnreachablePanel() {
 
       <div className="rounded-lg bg-slate-950/60 border border-slate-700/60 p-3 text-xs text-slate-400 font-mono">
         <p className="text-slate-500 mb-2">Re-wire after fixing keystonerc:</p>
-        <code className="block text-amber-100/90 whitespace-pre-wrap break-all">{WIRE_SCRIPT}</code>
+        <code className={`block whitespace-pre-wrap break-all ${statusToneClass('warn')} opacity-90`}>{WIRE_SCRIPT}</code>
         <div className="mt-2">
           <CopyButton text={WIRE_SCRIPT} label="Copy wire script" />
         </div>

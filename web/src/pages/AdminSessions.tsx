@@ -50,7 +50,7 @@ export default function AdminSessionsPage() {
     <div className="space-y-6 animate-fade-in max-w-5xl">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-2xl font-bold flex items-center gap-2">
-          <Users className="w-7 h-7 text-blue-400" />
+          <Users className={`w-7 h-7 ${statusToneClass('info')}`} />
           Web sessions
         </h1>
         <button type="button" onClick={() => void load()} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh" title="Refresh">

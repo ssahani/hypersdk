@@ -375,7 +375,7 @@ export default function HostNetworkingPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="w-6 h-6 text-blue-400" /> Host Networking</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Network className={`w-6 h-6 ${statusToneClass('info')}`} /> Host Networking</h1>
           <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{hostIfaces.length} physical interfaces, {networks.length} libvirt-defined networks — bridges, NAT, DHCP, port forwards, kernel routing tables, and firewall context on this worker host.</p>
         </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
@@ -405,7 +405,7 @@ export default function HostNetworkingPage() {
         return (
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 overflow-x-auto">
             <div className="flex items-center gap-6 mb-4 text-xs text-slate-500">
-              <span className="flex items-center gap-1"><Monitor className="w-3 h-3 text-blue-400" /> VMs</span>
+              <span className="flex items-center gap-1"><Monitor className={`w-3 h-3 ${statusToneClass('info')}`} /> VMs</span>
               <span className="flex items-center gap-1"><Wifi className="w-3 h-3 text-green-400" /> Networks</span>
               <span className="flex items-center gap-1"><Router className="w-3 h-3 text-orange-400" /> Bridges</span>
               <span className="flex items-center gap-1"><Cable className="w-3 h-3 text-purple-400" /> Host NICs</span>
@@ -460,7 +460,7 @@ export default function HostNetworkingPage() {
                 {portForwards.map(r => (
                   <tr key={r.id} className="table-row-hover">
                     <td className="px-6 py-3 text-sm font-mono">{r.protocol.toUpperCase()}</td>
-                    <td className="px-6 py-3 text-sm font-mono text-blue-400">{r.host_port}</td>
+                    <td className={`px-6 py-3 text-sm font-mono ${statusToneClass('info')}`}>{r.host_port}</td>
                     <td className="px-6 py-3 text-sm font-mono">{r.vm_ip}:{r.vm_port}</td>
                     <td className="px-6 py-3 text-sm text-slate-400">{r.description}</td>
                     <td className="px-6 py-3 text-right"><button onClick={() => handleDeletePortForward(r)} className="p-1 hover:bg-red-600/20 rounded" aria-label="Delete rule"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>

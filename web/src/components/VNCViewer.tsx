@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Keyboard, Maximize, Minimize, Monitor, RefreshCw } from 'lucide-react'
 import { getWsToken } from '../api/client'
+import { statusBgClass } from '../utils/semanticColors'
 
 function wsConnQs(libvirtConnection?: string | null): string {
   if (!libvirtConnection || libvirtConnection === 'system') return ''
@@ -170,7 +171,8 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
     )
   }
 
-  const statusColor = status === 'connected' ? 'bg-green-500' : status === 'connecting' || status === 'loading' ? 'bg-yellow-500 animate-pulse' : 'bg-red-500'
+  const vncTone = status === 'connected' ? 'ok' : status === 'connecting' || status === 'loading' ? 'warn' : 'error'
+  const statusColor = `${statusBgClass(vncTone)}${vncTone === 'warn' ? ' animate-pulse' : ''}`
   const statusText = status === 'connected' ? 'Connected' : status === 'connecting' ? 'Connecting...' : status === 'loading' ? 'Loading VNC client...' : 'Disconnected'
 
   return (

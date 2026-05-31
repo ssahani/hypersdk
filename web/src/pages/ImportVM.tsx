@@ -10,7 +10,7 @@ import { listNetworks, NetworkInfo } from '../api/network'
 import { BrowseHostPathModal, isHostDiskImageFileName } from '../components/BrowseHostPathModal'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
-import { statusSurfaceClasses } from '../utils/semanticColors'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import { ArrowLeft, Upload, HardDrive, FolderOpen } from 'lucide-react'
 import { Link } from 'react-router'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
@@ -142,7 +142,7 @@ export default function ImportVMPage() {
 
       {step === 'import' && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><HardDrive className="w-5 h-5 text-blue-400" /> Import Disk Image</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2"><HardDrive className={`w-5 h-5 ${statusToneClass('info')}`} /> Import Disk Image</h3>
           <p className="text-sm text-slate-400">Convert VMDK, VDI, VHD, RAW, or IMG disk images to qcow2 format.</p>
 
           <div>

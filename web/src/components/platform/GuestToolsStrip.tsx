@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { CheckCircle2, AlertTriangle, Download } from 'lucide-react'
+import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function GuestToolsStrip({
   status,
@@ -17,9 +18,9 @@ export default function GuestToolsStrip({
 }) {
   const healthy = status === 'healthy' || status === 'installed'
   return (
-    <div className={`rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 ${healthy ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
+    <div className={`rounded-xl border p-4 flex flex-wrap items-center justify-between gap-3 ${statusSurfaceClasses(healthy ? 'ok' : 'warn')}`}>
       <div className="flex items-center gap-3">
-        {healthy ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <AlertTriangle className="w-5 h-5 text-amber-400" />}
+        {healthy ? <CheckCircle2 className={`w-5 h-5 ${statusToneClass('ok')}`} /> : <AlertTriangle className={`w-5 h-5 ${statusToneClass('warn')}`} />}
         <div>
           <p className="font-medium text-sm">
             Zyvor Guest Tools: {status === 'healthy' ? 'Installed and healthy' : status === 'installed' ? 'Installed' : 'Not installed'}

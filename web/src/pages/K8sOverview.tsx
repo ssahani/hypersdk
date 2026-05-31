@@ -545,7 +545,7 @@ export default function K8sOverviewPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Server className="w-6 h-6 text-blue-400" /> Kubernetes Cluster</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Server className={`w-6 h-6 ${statusToneClass('info')}`} /> Kubernetes Cluster</h1>
           <p className="text-sm text-slate-400 mt-0.5">
             Auto-detects distro (k3s, RKE2, cloud, kind, …), host agents, and expands resource counts. Safe kubectl node actions below.
           </p>

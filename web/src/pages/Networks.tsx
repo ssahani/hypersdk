@@ -131,7 +131,7 @@ export default function NetworksPage() {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Network className="w-6 h-6 text-blue-400" /> Networks</h1>
+        <h1 className="text-2xl font-bold flex items-center gap-2"><Network className={`w-6 h-6 ${statusToneClass('info')}`} /> Networks</h1>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowCreate(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-lg text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create</button>
           <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
@@ -208,7 +208,7 @@ export default function NetworksPage() {
               {leases.map((l, i) => (
                 <tr key={i} className="table-row-hover">
                   <td className="px-6 py-2 text-slate-400">{l.network}</td>
-                  <td className="px-6 py-2 font-mono text-blue-400">{l.ip}</td>
+                  <td className={`px-6 py-2 font-mono ${statusToneClass('info')}`}>{l.ip}</td>
                   <td className="px-6 py-2 font-mono text-xs text-slate-400">{l.mac}</td>
                   <td className="px-6 py-2">{l.hostname || '-'}</td>
                   <td className="px-6 py-2 text-slate-400">{l.expiry}</td>
@@ -225,7 +225,7 @@ export default function NetworksPage() {
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between shrink-0">
               <div>
-                <span className="text-lg font-semibold flex items-center gap-2"><Network className="w-5 h-5 text-blue-400" /> Edit network XML</span>
+                <span className="text-lg font-semibold flex items-center gap-2"><Network className={`w-5 h-5 ${statusToneClass('info')}`} /> Edit network XML</span>
                 <p className="text-xs text-slate-500 mt-1 font-mono">{editTarget.name}</p>
               </div>
               <button type="button" onClick={() => !editXmlSaving && setEditTarget(null)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
@@ -272,7 +272,7 @@ export default function NetworksPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" role="dialog" aria-modal="true" onClick={() => setShowCreate(false)}>
           <div className="bg-slate-800 border border-slate-700/50 rounded-2xl shadow-2xl w-full max-w-md mx-4" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-700/50 flex items-center justify-between">
-              <span className="text-lg font-semibold flex items-center gap-2"><Network className="w-5 h-5 text-blue-400" /> Create Network</span>
+              <span className="text-lg font-semibold flex items-center gap-2"><Network className={`w-5 h-5 ${statusToneClass('info')}`} /> Create Network</span>
               <button onClick={() => setShowCreate(false)} className="p-1 hover:bg-slate-700 rounded"><X className="w-4 h-4 text-slate-400" /></button>
             </div>
             <div className="p-5 space-y-3">

@@ -8,6 +8,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { RefreshCw, Trash2, Maximize, Minimize } from 'lucide-react'
 import { getWsToken } from '../api/client'
+import { statusBgClass } from '../utils/semanticColors'
 
 function wsConnQs(libvirtConnection?: string | null): string {
   if (!libvirtConnection || libvirtConnection === 'system') return ''
@@ -104,7 +105,7 @@ export default function SerialConsole({ vmName, libvirtConnection }: Props) {
     <div className={fullscreen ? 'fixed inset-0 z-50 bg-slate-900 flex flex-col' : ''}>
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg">
         <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <div className={`w-2.5 h-2.5 rounded-full ${statusBgClass(connected ? 'ok' : 'error')}`} />
           <span className="text-sm text-slate-300">Serial Console — {vmName}</span>
         </div>
         <div className="flex items-center gap-1">

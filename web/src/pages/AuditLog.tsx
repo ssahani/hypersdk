@@ -54,7 +54,7 @@ export default function AuditLogPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className="w-6 h-6 text-blue-400" /> Audit Log</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className={`w-6 h-6 ${statusToneClass('info')}`} /> Audit Log</h1>
           <p className="text-sm text-slate-400 mt-0.5">{events.length} events (server-filtered)</p>
         </div>
         <div className="flex items-center gap-2">

@@ -8,6 +8,7 @@ import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
 import { Maximize, Minimize, RefreshCw, Trash2 } from 'lucide-react'
 import { getWsToken } from '../api/client'
+import { statusBgClass } from '../utils/semanticColors'
 
 interface Props {
   namespace: string
@@ -104,7 +105,7 @@ export default function KubeVirtSerialConsole({ namespace, vmName }: Props) {
     <div className={fullscreen ? 'fixed inset-0 z-[70] bg-slate-900 flex flex-col' : 'flex flex-col h-full min-h-0'}>
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg shrink-0">
         <div className="flex items-center gap-3">
-          <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
+          <div className={`w-2.5 h-2.5 rounded-full ${statusBgClass(connected ? 'ok' : 'error')}`} />
           <span className="text-sm text-slate-300">KubeVirt console — {namespace}/{vmName}</span>
         </div>
         <div className="flex items-center gap-1">

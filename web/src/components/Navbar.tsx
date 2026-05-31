@@ -738,7 +738,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                       to={path}
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium truncate no-underline ${statusToneClass('warn')} opacity-90 ${
-                        steel || aurora ? 'hover:bg-white/5' : 'hover:bg-amber-500/10'
+                        steel || aurora ? 'hover:bg-white/5' : 'hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_12%,transparent)]'
                       }`}
                     >
                       {getPageLabel(path)}

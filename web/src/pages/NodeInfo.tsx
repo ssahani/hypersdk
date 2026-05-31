@@ -526,7 +526,7 @@ export default function NodeInfoPage() {
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Server className="w-6 h-6 text-blue-400" /> Host overview</h1>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Server className={`w-6 h-6 ${statusToneClass('info')}`} /> Host overview</h1>
           <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{node.hostname} — hypervisor worker: usage, mounts, top processes, and libvirt health (read-only)</p>
         </div>
         <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh"><RefreshCw className="w-4 h-4" /></button>
@@ -845,7 +845,7 @@ export default function NodeInfoPage() {
       {/* Resource Gauges */}
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-          <ResourceGauge icon={<Gauge className="w-5 h-5 text-blue-400" />} label="CPU" value={stats.cpu_percent} subtitle={`Load: ${stats.load_1.toFixed(2)} / ${stats.load_5.toFixed(2)} / ${stats.load_15.toFixed(2)}`} />
+          <ResourceGauge icon={<Gauge className={`w-5 h-5 ${statusToneClass('info')}`} />} label="CPU" value={stats.cpu_percent} subtitle={`Load: ${stats.load_1.toFixed(2)} / ${stats.load_5.toFixed(2)} / ${stats.load_15.toFixed(2)}`} />
           <ResourceGauge icon={<MemoryStick className={`w-5 h-5 ${statusToneClass('ok')}`} />} label="Memory" value={stats.memory_percent} subtitle={`${(stats.memory_used_mb / 1024).toFixed(1)} / ${(stats.memory_total_mb / 1024).toFixed(1)} GB`} />
           <ResourceGauge icon={<Database className="w-5 h-5 text-orange-400" />} label="Disk" value={stats.disk_percent} subtitle={`${stats.disk_used_gb.toFixed(0)} / ${stats.disk_total_gb.toFixed(0)} GB`} />
           <ResourceGauge icon={<HardDrive className="w-5 h-5 text-purple-400" />} label="Swap" value={stats.swap_total_mb > 0 ? (stats.swap_used_mb / stats.swap_total_mb * 100) : 0} subtitle={`${(stats.swap_used_mb / 1024).toFixed(1)} / ${(stats.swap_total_mb / 1024).toFixed(1)} GB`} />
@@ -870,7 +870,7 @@ export default function NodeInfoPage() {
       {/* Hardware Details */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Server className="w-5 h-5 text-blue-400" /> System</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2"><Server className={`w-5 h-5 ${statusToneClass('info')}`} /> System</h3>
           <InfoRow label="Hostname" value={node.hostname} />
           <InfoRow label="Hypervisor" value={`${node.hypervisor} ${node.hypervisor_version}`} />
           <InfoRow label="Libvirt" value={node.lib_version} />

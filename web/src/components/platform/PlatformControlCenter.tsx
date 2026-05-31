@@ -118,11 +118,11 @@ export default function PlatformControlCenter() {
   const hubIcon = (id: DesktopHubTile['id']) => {
     switch (id) {
       case 'integrations':
-        return <Boxes className="w-4 h-4 text-sky-400" />
+        return <Boxes className={`w-4 h-4 ${statusToneClass('info')}`} />
       case 'resources':
-        return <FolderOpen className="w-4 h-4 text-blue-400" />
+        return <FolderOpen className={`w-4 h-4 ${statusToneClass('info')}`} />
       case 'operations':
-        return <Wrench className="w-4 h-4 text-emerald-400" />
+        return <Wrench className={`w-4 h-4 ${statusToneClass('ok')}`} />
       case 'security':
         return <Shield className="w-4 h-4 text-violet-400" />
       default:

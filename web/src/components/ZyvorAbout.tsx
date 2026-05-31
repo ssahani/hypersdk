@@ -5,6 +5,7 @@
 import { ExternalLink, Zap } from 'lucide-react'
 import { ZYVOR_URL, ZYVOR_BRAND, ZYVOR_COPY, ZYVOR_LINE } from './ZyvorBrand'
 import { MACHINA_HELP, ZEUS_OS_HELP, ZYVOR_HELP, type HelpDocLink } from '../config/zyvorHelp'
+import { statusToneClass } from '../utils/semanticColors'
 
 export const MACHINA_PRODUCT = MACHINA_HELP.name
 export const MACHINA_VERSION = MACHINA_HELP.version
@@ -56,7 +57,7 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
     <div className={`space-y-5 text-sm text-slate-300 ${className}`.trim()}>
       <div className="flex items-start gap-4">
         <div className="shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center bg-gradient-to-br from-blue-500/30 to-blue-700/50 border border-blue-400/30 shadow-lg shadow-blue-500/15">
-          <Zap className="w-8 h-8 text-blue-400" aria-hidden />
+          <Zap className={`w-8 h-8 ${statusToneClass('info')}`} aria-hidden />
         </div>
         <div className="min-w-0 pt-0.5">
           <h3 className="text-lg font-semibold text-white">{MACHINA_PRODUCT}</h3>
@@ -99,7 +100,7 @@ export default function ZyvorAbout({ className = '' }: { className?: string }) {
                 href={link.href}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 text-slate-300 hover:text-blue-400 transition-colors"
+                className="inline-flex items-center gap-1.5 text-slate-300 transition-colors hover:text-[var(--machina-status-info)]"
               >
                 <span>{link.label}</span>
                 <ExternalLink className="w-3.5 h-3.5 shrink-0 opacity-60" aria-hidden />

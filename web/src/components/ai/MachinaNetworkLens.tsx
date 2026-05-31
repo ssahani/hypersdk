@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Network } from 'lucide-react'
 import { aiNetworkExplain } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaNetworkLens({ vmNames = [] }: { vmNames?: string[] }) {
   const [vmA, setVmA] = useState(vmNames[0] ?? '')
@@ -31,7 +32,7 @@ export default function MachinaNetworkLens({ vmNames = [] }: { vmNames?: string[
   return (
     <div className="rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 space-y-3">
       <h3 className="font-semibold text-sm flex items-center gap-2">
-        <Network className="w-4 h-4 text-blue-400" /> Machina Network Lens
+        <Network className={`w-4 h-4 ${statusToneClass('info')}`} /> Machina Network Lens
       </h3>
       <p className="text-xs text-slate-500">Rule-based path analysis — why can&apos;t A reach B?</p>
       <div className="flex flex-wrap gap-2 items-end">
@@ -43,10 +44,10 @@ export default function MachinaNetworkLens({ vmNames = [] }: { vmNames?: string[
       {vmNames.length > 0 && (
         <datalist id="network-lens-vms">{vmNames.map((n) => <option key={n} value={n} />)}</datalist>
       )}
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && <p className={`text-xs ${statusToneClass('error')}`}>{error}</p>}
       {result && (
         <div className="text-sm space-y-2 border-t border-white/[0.06] pt-3">
-          <p className={result.can_reach ? 'text-emerald-400' : 'text-amber-300'}>
+          <p className={result.can_reach ? statusToneClass('ok') : statusToneClass('warn')}>
             {result.can_reach ? 'Likely reachable' : 'Blocked or unknown'}
           </p>
           <p className="text-slate-300">{result.explanation}</p>

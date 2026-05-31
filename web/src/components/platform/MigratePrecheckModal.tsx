@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { migratePrecheck, vmMigrate, type MigratePrecheckResult, type PlatformVm } from '../../api/platform'
+import { statusToneClass } from '../../utils/semanticColors'
 
 interface MigratePrecheckModalProps {
   vm: PlatformVm
@@ -47,16 +48,16 @@ export default function MigratePrecheckModal({ vm, destHostId, destHostName, onC
           <p className="text-sm text-slate-400 mt-1">Target host: {destHostName}</p>
         </div>
         <div className="p-5 space-y-3 text-sm">
-          {error && <p className="text-red-400">{error}</p>}
+          {error && <p className={statusToneClass('error')}>{error}</p>}
           {!precheck && !error && <p className="text-slate-400">Running pre-checks…</p>}
           {precheck && (
             <>
-              <p className={precheck.ok ? 'text-emerald-400' : 'text-amber-400'}>
+              <p className={precheck.ok ? statusToneClass('ok') : statusToneClass('warn')}>
                 {precheck.ok ? 'Ready to migrate with minimal downtime (<2s expected)' : 'Some checks failed — review before continuing'}
               </p>
               <ul className="space-y-2 text-xs">
                 {precheck.checks.map((c) => (
-                  <li key={c.name} className={c.passed ? 'text-emerald-400' : 'text-red-400'}>
+                  <li key={c.name} className={c.passed ? statusToneClass('ok') : statusToneClass('error')}>
                     {c.name}: {c.message}
                     {c.remediation && !c.passed && <p className="text-slate-500 mt-0.5">→ {c.remediation}</p>}
                   </li>

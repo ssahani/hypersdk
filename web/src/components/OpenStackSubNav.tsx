@@ -7,6 +7,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { Cloud, LayoutGrid, Puzzle, Settings, Server, HardDrive, Plus, GitBranch, Shield, Network, Key, Disc, Cpu, Layers, Globe, Camera, Scale, KeyRound, Map } from 'lucide-react'
 import OpenStackCloudPicker from './OpenStackCloudPicker'
+import { statusActionLinkClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 const TABS = [
   { to: '/openstack', label: 'Overview', icon: LayoutGrid, end: true },
@@ -44,7 +45,7 @@ export default function OpenStackSubNav() {
     <>
       {Boolean(info?.control_plane?.proxy_url) && (
         <div className="mb-3 flex flex-wrap items-center gap-3 text-xs">
-          <Link to="/platform" className="inline-flex items-center gap-1.5 text-sky-400 hover:text-sky-300">
+          <Link to="/platform" className={`inline-flex items-center gap-1.5 ${statusActionLinkClasses('info')}`}>
             <LayoutGrid className="w-3.5 h-3.5" />
             Platform desktop
           </Link>
@@ -61,7 +62,7 @@ export default function OpenStackSubNav() {
       {needsWire && (
         <Link
           to="/settings?openstack=1"
-          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition text-amber-300/95 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20"
+          className={statusSurfaceClasses('warn', 'inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition hover:opacity-90')}
         >
           <Settings className="w-4 h-4 shrink-0" />
           Wire cloud
@@ -86,12 +87,12 @@ export default function OpenStackSubNav() {
         )
       })}
       <span
-        className={`hidden sm:inline-flex items-center gap-1.5 ml-auto px-3 py-2 text-xs ${
+        className={`hidden sm:inline-flex items-center gap-1.5 ml-auto px-3 py-2 text-xs opacity-80 ${
           phase === 'live'
-            ? 'text-sky-300/80'
+            ? statusToneClass('info')
             : phase === 'unreachable'
-              ? 'text-red-300/80'
-              : 'text-amber-300/80'
+              ? statusToneClass('error')
+              : statusToneClass('warn')
         }`}
       >
         <Cloud className="w-3.5 h-3.5" />

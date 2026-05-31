@@ -10,7 +10,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize, ToggleLeft, ToggleRight } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
-import { poolStateBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { poolStateBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
 import PageSkeleton from '../components/PageSkeleton'
 import EmptyState from '../components/EmptyState'
@@ -137,7 +137,7 @@ export default function StoragePage() {
                     <td className="px-6 py-3 text-sm text-slate-400 truncate max-w-xs hidden lg:table-cell">{v.path}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => { setResizeTarget({ pool: selectedPool, vol: v.name }); setResizeGb(v.capacity_gb.toFixed(2)) }} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Resize"><Maximize className="w-4 h-4 text-blue-400" /></button>
+                        <button onClick={() => { setResizeTarget({ pool: selectedPool, vol: v.name }); setResizeGb(v.capacity_gb.toFixed(2)) }} className={`p-1.5 rounded transition ${statusBadgeClasses('info')} hover:opacity-80`} title="Resize"><Maximize className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
                         <button onClick={() => { setCloneTarget({ pool: selectedPool, vol: v.name }); setCloneName(`${v.name}-clone`) }} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Clone"><Copy className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
                         <button onClick={() => setDeleteTarget({ pool: selectedPool, vol: v.name })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                       </div>
@@ -270,14 +270,14 @@ export default function StoragePage() {
               {pool.state !== 'running' && <button onClick={() => poolAction(pool.name, startPool, 'Start pool')} className="p-1.5 hover:bg-green-600/20 rounded transition"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>}
               {pool.state === 'running' && (
                 <>
-                  <button onClick={() => poolAction(pool.name, refreshPool, 'Refresh pool')} className="p-1.5 hover:bg-blue-600/20 rounded transition"><RefreshCw className="w-4 h-4 text-blue-400" /></button>
+                  <button onClick={() => poolAction(pool.name, refreshPool, 'Refresh pool')} className={`p-1.5 rounded transition ${statusBadgeClasses('info')} hover:opacity-80`}><RefreshCw className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
                   <button onClick={() => poolAction(pool.name, stopPool, 'Stop pool')} className="p-1.5 hover:bg-red-600/20 rounded transition"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                 </>
               )}
               <button onClick={() => togglePoolAutostart(pool)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title={pool.autostart ? 'Disable Autostart' : 'Enable Autostart'}>
                 {pool.autostart ? <ToggleRight className={`w-4 h-4 ${statusToneClass('ok')}`} /> : <ToggleLeft className="w-4 h-4 text-slate-500" />}
               </button>
-              <button onClick={() => showPoolXml(pool.name)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="View XML"><Code className="w-4 h-4 text-blue-400" /></button>
+              <button onClick={() => showPoolXml(pool.name)} className={`p-1.5 rounded transition ${statusBadgeClasses('info')} hover:opacity-80`} title="View XML"><Code className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
               <button onClick={() => setDeletePoolTarget(pool.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete Pool"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
             </div>
           </div>
