@@ -68,7 +68,8 @@ pub use firewall::{
     OpenPort, StealthLevel,     GPU_EXPOSURE_MULTIPLIER, STORAGE_EXPOSURE_MULTIPLIER,
 };
 pub use tetragon::{
-    apply_security_bundle, security_fabric_status, SecurityBundleApplyResult, SecurityFabricStatus,
+    apply_security_bundle, render_install_script, run_tetragon_install, security_fabric_status,
+    SecurityBundleApplyResult, SecurityFabricStatus, TetragonInstallResult, TetragonInstallSpec,
 };
 pub use network::overlay::{
     compile_micro_segment_rules, default_segment_presets, ip_from_cidr_offset, segment_micro_seg_grade,

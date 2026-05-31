@@ -1078,19 +1078,31 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         &format!("planning Tetragon Helm release for {cluster_name}"),
     )
     .await?;
+    let helm = crate::engine::packetwolf_k8s::install_tetragon_helm(
+        &state.config,
+        namespace,
+        cluster_name,
+    );
     update_task_progress(
         &state.pool,
         msg.task_id,
-        60,
-        &format!("helm upgrade --install tetragon cilium/tetragon -n {namespace} (scheduled)"),
+        70,
+        if helm.ok {
+            "Tetragon Helm release applied"
+        } else {
+            &helm.message
+        },
     )
     .await?;
     let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, &format!("k8s-{cluster_id}")).await;
+    if !helm.ok {
+        anyhow::bail!(helm.message);
+    }
     update_task_progress(
         &state.pool,
         msg.task_id,
         100,
-        &format!("K8s Tetragon enrollment queued for cluster {cluster_name}"),
+        &format!("K8s Tetragon enrollment complete for cluster {cluster_name}"),
     )
     .await?;
     Ok(())

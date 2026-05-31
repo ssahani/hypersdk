@@ -2,11 +2,11 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 use serde_json::Value;
 
-use super::types::{SecurityBundleApplyResult, SecurityFabricStatus};
+use super::install::{render_install_script, run_tetragon_install};
+use super::types::{SecurityBundleApplyResult, SecurityFabricStatus, TetragonInstallSpec};
 use crate::LibvirtError;
 
 fn policy_dir() -> PathBuf {
@@ -20,10 +20,18 @@ fn policies_subdir() -> PathBuf {
 }
 
 fn tetragon_in_path() -> bool {
-    Command::new("which")
+    std::process::Command::new("which")
         .arg("tetragon")
         .output()
         .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+fn is_service_active(unit: &str) -> bool {
+    std::process::Command::new("systemctl")
+        .args(["is-active", "--quiet", unit])
+        .status()
+        .map(|s| s.success())
         .unwrap_or(false)
 }
 
@@ -68,31 +76,43 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
         policies_written += 1;
     }
 
+    let host_id = bundle
+        .get("host_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+
     let mut install_script_written = false;
+    let mut tetragon_install_attempted = false;
+    let mut tetragon_service_active = is_service_active("tetragon.service");
+    let mut tetragon_export_timer_active = is_service_active("tetragon-export.timer");
+    let mut install_message = String::new();
+
     if let Some(install) = bundle.get("tetragon_install") {
         if !install.is_null() {
             let export = install
                 .get("export_url")
                 .and_then(|v| v.as_str())
                 .unwrap_or("http://127.0.0.1:9091/api/v1/ingest");
-            let script = format!(
-                "#!/bin/sh\n# Machina Zeus Tetragon install stub — replace with package/Helm in production\nset -eu\nEXPORT_URL=\"{export}\"\nHOST_ID=\"${{MACHINA_HOST_ID:-unknown}}\"\nif command -v tetragon >/dev/null 2>&1; then\n  echo \"tetragon already installed\"\n  exit 0\nfi\necho \"Install Tetragon and point export to $EXPORT_URL/$HOST_ID\"\n"
-            );
+            let spec = TetragonInstallSpec {
+                export_url: export.to_string(),
+                host_id: host_id.clone(),
+            };
+            let script = render_install_script(&spec);
             let script_path = policy_dir().join("install-tetragon.sh");
             write_file(&script_path, &script, dry_run)?;
-            if !dry_run {
-                #[cfg(unix)]
-                {
-                    use std::os::unix::fs::PermissionsExt;
-                    if let Ok(meta) = fs::metadata(&script_path) {
-                        let mut perms = meta.permissions();
-                        perms.set_mode(0o755);
-                        let _ = fs::set_permissions(&script_path, perms);
-                    }
-                }
-            }
             operations.push(format!("write {}", script_path.display()));
             install_script_written = true;
+            tetragon_install_attempted = true;
+            match run_tetragon_install(&spec, dry_run) {
+                Ok(result) => {
+                    operations.extend(result.operations);
+                    tetragon_service_active = result.service_active;
+                    tetragon_export_timer_active = result.export_timer_active;
+                    install_message = result.message;
+                }
+                Err(e) => install_message = e.to_string(),
+            }
         }
     }
 
@@ -100,18 +120,25 @@ pub fn apply_security_bundle(bundle_json: &str, dry_run: bool) -> Result<Securit
     write_file(&manifest_path, bundle_json, dry_run)?;
     operations.push(format!("write {}", manifest_path.display()));
 
+    let message = if dry_run {
+        "Dry run — no files written".into()
+    } else if !install_message.is_empty() {
+        format!("Applied {policies_written} TracingPolicy file(s); {install_message}")
+    } else {
+        format!("Applied {policies_written} TracingPolicy file(s)")
+    };
+
     Ok(SecurityBundleApplyResult {
         ok: true,
         policy_dir: dir.display().to_string(),
         policies_written,
         install_script_written,
         tetragon_binary_found: tetragon_in_path(),
+        tetragon_install_attempted,
+        tetragon_service_active,
+        tetragon_export_timer_active,
         operations,
-        message: if dry_run {
-            "Dry run — no files written".into()
-        } else {
-            format!("Applied {policies_written} TracingPolicy file(s)")
-        },
+        message,
     })
 }
 
@@ -141,6 +168,8 @@ pub fn security_fabric_status() -> Result<SecurityFabricStatus, LibvirtError> {
         policy_files,
         install_script_present: install_script.is_file(),
         tetragon_binary_found: tetragon_in_path(),
+        tetragon_service_active: is_service_active("tetragon.service"),
+        tetragon_export_timer_active: is_service_active("tetragon-export.timer"),
         export_url,
     })
 }

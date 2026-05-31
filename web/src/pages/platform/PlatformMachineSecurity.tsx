@@ -131,9 +131,18 @@ export default function PlatformMachineSecurity() {
   const sensor = (summary?.sensor as Record<string, unknown>) ?? {}
   const threatScore = summary?.threat_score ?? '—'
   const policyCount = fabricStatus?.fabric?.policy_files?.length ?? 0
-  const tetragonInstalled = fabricStatus?.fabric?.tetragon_binary_found === true
+  const tetragonRunning = fabricStatus?.fabric?.tetragon_service_active === true
+  const exportActive = fabricStatus?.fabric?.tetragon_export_timer_active === true
   const fabricLine = fabricStatus?.agent_reachable
-    ? `${policyCount} TracingPolicy file(s) on agent${tetragonInstalled ? ' · Tetragon installed' : ' · Tetragon pending'}`
+    ? `${policyCount} TracingPolicy file(s) on agent · ${
+        tetragonRunning
+          ? exportActive
+            ? 'Tetragon running · exporting to PacketWolf'
+            : 'Tetragon running · export pending'
+          : fabricStatus?.fabric?.tetragon_binary_found
+            ? 'Tetragon installed · service stopped'
+            : 'Tetragon pending install'
+      }`
     : 'Agent fabric status unavailable'
 
   return (

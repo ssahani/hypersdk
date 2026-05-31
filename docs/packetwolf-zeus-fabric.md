@@ -54,6 +54,7 @@ insecure_tls = true
 | `GET /api/v1/zeus-security/hosts/{id}/containers` | K8s namespace/pod/container hierarchy |
 | `GET /api/v1/zeus-security/hosts/{id}/timeline` | Security flight recorder |
 | `GET /api/v1/zeus-security/hosts/{id}/process-graph` | Process ancestry |
+| `GET /api/v1/zeus-security/hosts/{id}/fabric-status` | Live agent TracingPolicy + Tetragon service state |
 | `POST /api/v1/zeus-security/hosts/{id}/tetragon/install` | Enroll Tetragon sensor |
 | `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` | Enroll Tetragon via Helm on cluster |
 | `POST /api/v1/ai/security/explain-event` | AI event explanation |
@@ -109,6 +110,14 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 - **Controller:** `packetwolf_sync` pulls bundle from PacketWolf during `host.inventory`, `host.tetragon.install`, and `host.enforcement.apply`; acks via `POST /api/v1/agents/{id}/bundle/ack`
 - **Machina API:** `GET /api/v1/zeus-security/hosts/{id}/fabric-status` — live agent TracingPolicy inventory
 - **UI:** Machine Security header shows applied policy count and Tetragon install state
+
+## Phase 9 — Production Tetragon install (PW-28–PW-30)
+
+- **Host install:** `core/tetragon/install.rs` — package manager or GitHub release download, `tetragon.service`, `tetragon-export.timer` forwarding JSONL export to `POST /api/v1/ingest/{hostId}`
+- **Bundle apply:** `apply_security_bundle` runs install when `tetragon_install` is present in the agent bundle
+- **K8s:** `packetwolf_k8s` runs `helm upgrade --install tetragon cilium/tetragon` from `k8s.tetragon.install` task
+- **Fabric status:** `tetragon_service_active`, `tetragon_export_timer_active` on agent and Machine Security header
+- **Env:** `MACHINA_TETRAGON_VERSION` (default `1.0.0`), `MACHINA_TETRAGON_DIR`, `MACHINA_TETRAGON_EXPORT_BATCH`
 
 ## UI routes
 

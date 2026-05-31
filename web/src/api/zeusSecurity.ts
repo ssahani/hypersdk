@@ -117,6 +117,8 @@ export interface SecurityFabricStatus {
   policy_files?: string[]
   install_script_present?: boolean
   tetragon_binary_found?: boolean
+  tetragon_service_active?: boolean
+  tetragon_export_timer_active?: boolean
   export_url?: string | null
 }
 
