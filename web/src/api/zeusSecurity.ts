@@ -140,3 +140,49 @@ export const getSecurityHuntSummary = (hours = 48) =>
     '/api/v1/ai/security/hunt-summary',
     { method: 'POST', body: JSON.stringify({ hours }) },
   )
+
+export interface EnforcementPolicy {
+  id?: string
+  name: string
+  kind: string
+  match: string
+  enabled?: boolean
+  scope?: string
+  applied_hosts?: string[]
+  description?: string
+}
+
+export interface EnforcementStatus {
+  mode?: string
+  policies_total?: number
+  policies_enabled?: number
+  applied_hosts?: string[]
+  blocked_events?: number
+  summary?: string
+}
+
+export const getEnforcementStatus = () =>
+  platformFetch<EnforcementStatus>('/api/v1/zeus-security/enforcement/status')
+
+export const getEnforcementPolicies = () =>
+  platformFetch<{ policies: EnforcementPolicy[] }>('/api/v1/zeus-security/enforcement/policies')
+
+export const createEnforcementPolicy = (body: {
+  name: string
+  kind: string
+  match: string
+  description?: string
+}) =>
+  platformFetch<{ policy: EnforcementPolicy }>('/api/v1/zeus-security/enforcement/policies', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+
+export const applyEnforcementPolicy = (policyId: string, hostIds: string[]) =>
+  platformFetch<{ summary: string }>(`/api/v1/zeus-security/enforcement/policies/${encodeURIComponent(policyId)}/apply`, {
+    method: 'POST',
+    body: JSON.stringify({ host_ids: hostIds }),
+  })
+
+export const getHostEnforcement = (hostId: string) =>
+  platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/enforcement`)

@@ -61,6 +61,7 @@ const POWER_PATHS = [
   '/platform/zeus',
   '/platform/zeus/security',
   '/platform/zeus/security/hunt',
+  '/platform/zeus/security/enforcement',
   '/platform/zeus/security/firewall',
   '/platform/maintenance',
   '/platform/recommendations',

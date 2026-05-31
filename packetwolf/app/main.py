@@ -6,6 +6,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 
 from .models import CaptureRequest, IngestBatch, SearchRequest, SecurityEvent
+from . import enforcer
 from . import store
 
 app = FastAPI(title="PacketWolf Security Fabric", version="0.1.0")
@@ -189,3 +190,39 @@ def correlations() -> dict:
 @app.get("/api/v1/asset-inventory")
 def asset_inventory() -> dict:
     return store.asset_inventory()
+
+
+@app.get("/api/v1/enforcement/status")
+def enforcement_status() -> dict:
+    return store.enforcement_status()
+
+
+@app.get("/api/v1/enforcement/policies")
+def enforcement_policies() -> dict:
+    return {"policies": store.list_enforcement_policies()}
+
+
+@app.get("/api/v1/enforcement/policies/{policy_id}")
+def enforcement_policy(policy_id: str) -> dict:
+    pol = store.get_enforcement_policy(policy_id)
+    if not pol:
+        raise HTTPException(status_code=404, detail="policy not found")
+    from . import enforcer
+
+    return {"policy": pol, "tetragon_policy": enforcer.to_tetragon_policy(enforcer.EnforcementPolicy(**pol))}
+
+
+@app.post("/api/v1/enforcement/policies")
+def create_enforcement_policy(body: enforcer.CreatePolicyRequest) -> dict:
+    pol = store.create_enforcement_policy(body)
+    return {"policy": pol}
+
+
+@app.post("/api/v1/enforcement/policies/{policy_id}/apply")
+def apply_enforcement_policy(policy_id: str, body: enforcer.ApplyPolicyRequest) -> dict:
+    return store.apply_enforcement_policy(policy_id, body.host_ids)
+
+
+@app.get("/api/v1/hosts/{host_id}/enforcement")
+def host_enforcement(host_id: str) -> dict:
+    return store.host_enforcement(host_id)

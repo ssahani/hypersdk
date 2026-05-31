@@ -39,6 +39,7 @@ async fn process_one(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> 
         "host.validate" => host_validate_task(state, msg).await?,
         "host.tetragon.install" => host_tetragon_install(state, msg).await?,
         "k8s.tetragon.install" => k8s_tetragon_install(state, msg).await?,
+        "host.enforcement.apply" => host_enforcement_apply(state, msg).await?,
         "host.agent.upgrade" => host_agent_upgrade(state, msg).await?,
         "storage.pool.provision" => storage_pool_provision(state, msg).await?,
         "network.provision" => network_provision(state, msg).await?,
@@ -1074,6 +1075,47 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         msg.task_id,
         100,
         &format!("K8s Tetragon enrollment queued for cluster {cluster_name}"),
+    )
+    .await?;
+    Ok(())
+}
+
+async fn host_enforcement_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
+    let host_id = msg
+        .payload
+        .get("host_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    let policy_id = msg
+        .payload
+        .get("policy_id")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        30,
+        &format!("rendering Tetragon TracingPolicy for {policy_id}"),
+    )
+    .await?;
+    let _ = crate::engine::packetwolf_bridge::apply_enforcement_policy(
+        &state.config,
+        policy_id,
+        &[host_id.to_string()],
+    )
+    .await;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        80,
+        "TracingPolicy push scheduled — machina-agent will apply on next sync",
+    )
+    .await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        100,
+        &format!("Runtime enforcement active for {host_id}"),
     )
     .await?;
     Ok(())

@@ -299,3 +299,28 @@ pub async fn fleet_timeline(cfg: &ControllerConfig, hours: u32) -> serde_json::V
 pub async fn correlations(cfg: &ControllerConfig) -> serde_json::Value {
     fabric_get(cfg, "/api/v1/correlations").await
 }
+
+pub async fn enforcement_status(cfg: &ControllerConfig) -> serde_json::Value {
+    fabric_get(cfg, "/api/v1/enforcement/status").await
+}
+
+pub async fn enforcement_policies(cfg: &ControllerConfig) -> serde_json::Value {
+    fabric_get(cfg, "/api/v1/enforcement/policies").await
+}
+
+pub async fn create_enforcement_policy(cfg: &ControllerConfig, body: serde_json::Value) -> serde_json::Value {
+    fabric_post(cfg, "/api/v1/enforcement/policies", body).await
+}
+
+pub async fn apply_enforcement_policy(
+    cfg: &ControllerConfig,
+    policy_id: &str,
+    host_ids: &[String],
+) -> serde_json::Value {
+    let body = serde_json::json!({ "host_ids": host_ids });
+    fabric_post(cfg, &format!("/api/v1/enforcement/policies/{policy_id}/apply"), body).await
+}
+
+pub async fn host_enforcement(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
+    fabric_get(cfg, &format!("/api/v1/hosts/{host_id}/enforcement")).await
+}

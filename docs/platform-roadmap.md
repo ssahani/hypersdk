@@ -292,7 +292,8 @@ Full batch table: [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md)
 | 19 | PW-10–PW-12 | **PacketWolf Phase 3** — threat correlation, fleet timeline, alert sync, threat hunting, OpenSearch hook | **Shipped (v1)** |
 | 20 | PW-13–PW-15 | **PacketWolf Phase 4** — K8s container hierarchy, Tetragon Helm enrollment task | **Shipped (v1)** |
 | 21 | PW-16–PW-18 | **PacketWolf Phase 5** — LLM-backed explain, attack reconstruct, NL search, hunt summary | **Shipped (v1)** |
-| 22 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
+| 22 | PW-19–PW-21 | **PacketWolf Phase 6** — runtime eBPF enforcement (deny process/DNS/port/IP) | **Shipped (v1)** |
+| 23 | 212–231 | Cloud edge — AWS/Azure/GCP SG read | **Shipped (v1)** |
 | 19 | 232–251 | Guest in-guest QEMU-agent port scan | **Shipped (v1)** |
 | 20 | 252–271 | Connectivity matrix simulation GA | **Shipped (v1)** |
 | 21 | 272–291 | Enterprise — PDF export, approval SLA | **Shipped (v1)** |

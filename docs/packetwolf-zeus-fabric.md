@@ -90,12 +90,19 @@ When cluster AI is configured (Settings → AI provider + API key), security end
 
 Responses include `llm_powered: true` when the model was used. Threat Hunting workspace surfaces AI summary, translated search hits, and attack reconstruction badges.
 
+## Phase 6 — Runtime eBPF enforcement (PW-19–PW-21)
+
+- **PacketWolf:** `enforcer.py` — deny process/DNS/port/IP policies, TracingPolicy generation, ingest-time verdict blocking
+- **Machina:** `/api/v1/zeus-security/enforcement/*`, `host.enforcement.apply` task pushes TracingPolicy to agents
+- **UI:** Runtime Enforcement (`/platform/zeus/security/enforcement`) — policy list, create, apply-to-host
+
 ## UI routes
 
 | Route | Page |
 |-------|------|
 | `/platform/zeus/security` | Security Center hub |
 | `/platform/zeus/security/hunt` | Threat hunting workspace |
+| `/platform/zeus/security/enforcement` | Runtime eBPF enforcement |
 | `/platform/zeus/machines/:hostId` | Machine security drill-down |
 | `/platform/zeus/security/firewall` | Machine Security (firewall) |
 | `/platform/zeus/security/activity` | Firewall activity (PacketWolf flows) |

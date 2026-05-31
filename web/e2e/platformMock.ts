@@ -198,6 +198,40 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
           json: { correlations: [{ severity: 'high', summary: 'Suspicious DNS cluster', host_id: 'h2' }] },
         })
       }
+      if (url.includes('/enforcement/status')) {
+        return route.fulfill({
+          json: {
+            mode: 'enforce',
+            policies_total: 4,
+            policies_enabled: 4,
+            applied_hosts: ['h1'],
+            blocked_events: 2,
+            summary: '4 active policy(ies) · 2 blocked event(s) in store',
+          },
+        })
+      }
+      if (url.includes('/enforcement/policies') && url.includes('/apply')) {
+        return route.fulfill({
+          json: { ok: true, summary: 'Applied Block reverse-shell listeners to 1 host(s)' },
+        })
+      }
+      if (url.includes('/enforcement/policies') && route.request().method() === 'POST') {
+        return route.fulfill({
+          json: { policy: { id: 'pol-new', name: 'test', kind: 'deny_process', match: '/bin/sh', enabled: true } },
+        })
+      }
+      if (url.includes('/enforcement/policies')) {
+        return route.fulfill({
+          json: {
+            policies: [
+              { id: 'pol-deny-nc', name: 'Block reverse-shell listeners', kind: 'deny_process', match: '/usr/bin/nc', enabled: true },
+            ],
+          },
+        })
+      }
+      if (url.includes('/enforcement')) {
+        return route.fulfill({ json: { mode: 'observe', policies: [] } })
+      }
       if (url.includes('/alerts/sync')) {
         return route.fulfill({ json: { inserted: 1, summary: 'Synced 1 security alert(s) to notification outbox' } })
       }

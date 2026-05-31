@@ -11,11 +11,14 @@ from typing import Any
 
 from .models import DnsInfo, EventKind, FileInfo, K8sInfo, NetworkInfo, ProcessInfo, SecurityEvent, Severity
 from . import correlator
+from . import enforcer
 from . import search_index
 
 _events: list[SecurityEvent] = []
 _correlations: list[dict] = []
 _sensors: dict[str, dict[str, Any]] = {}
+_policies: dict[str, enforcer.EnforcementPolicy] = {}
+_enforcement_stats: dict[str, int] = {"blocked_total": 0, "by_policy": {}}
 _process_edges: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
 _seeded = False
 
@@ -34,6 +37,8 @@ def _seed_demo() -> None:
             "tetragon_version": "1.0.0",
             "last_event_at": now.isoformat(),
         }
+    for pol in enforcer.default_policies():
+        _policies[pol.id] = pol
     demo: list[SecurityEvent] = [
         SecurityEvent(
             host_id="h1",
@@ -176,6 +181,16 @@ def _seed_demo() -> None:
 
 def ingest(event: SecurityEvent) -> SecurityEvent:
     _seed_demo()
+    doc = event.model_dump(mode="json")
+    policy_id = enforcer.evaluate_event(doc, list(_policies.values()), event.host_id)
+    if policy_id:
+        event.verdict = "blocked"
+        event.severity = Severity.HIGH
+        if not event.summary.endswith("(enforced)"):
+            event.summary = f"{event.summary} (enforced)"
+        _enforcement_stats["blocked_total"] = _enforcement_stats.get("blocked_total", 0) + 1
+        by_pol = _enforcement_stats.setdefault("by_policy", {})
+        by_pol[policy_id] = by_pol.get(policy_id, 0) + 1
     _events.append(event)
     if event.process.ppid and event.process.pid:
         _process_edges[event.host_id].append(
@@ -439,3 +454,80 @@ def asset_inventory() -> dict[str, Any]:
 
 
 CLICKHOUSE_URL = os.environ.get("CLICKHOUSE_URL", "")
+
+
+def list_enforcement_policies() -> list[dict[str, Any]]:
+    _seed_demo()
+    return [p.model_dump(mode="json") for p in _policies.values()]
+
+
+def get_enforcement_policy(policy_id: str) -> dict[str, Any] | None:
+    _seed_demo()
+    pol = _policies.get(policy_id)
+    return pol.model_dump(mode="json") if pol else None
+
+
+def create_enforcement_policy(req: enforcer.CreatePolicyRequest) -> dict[str, Any]:
+    _seed_demo()
+    pol = enforcer.EnforcementPolicy(
+        name=req.name,
+        kind=req.kind,
+        match=req.match,
+        enabled=req.enabled,
+        scope=req.scope,
+        host_ids=req.host_ids,
+        description=req.description,
+    )
+    _policies[pol.id] = pol
+    return pol.model_dump(mode="json")
+
+
+def apply_enforcement_policy(policy_id: str, host_ids: list[str]) -> dict[str, Any]:
+    _seed_demo()
+    pol = _policies.get(policy_id)
+    if not pol:
+        return {"ok": False, "error": "policy not found"}
+    applied = list(dict.fromkeys(pol.applied_hosts + host_ids))
+    pol.applied_hosts = applied
+    tetragon = enforcer.to_tetragon_policy(pol)
+    return {
+        "ok": True,
+        "policy_id": policy_id,
+        "applied_hosts": applied,
+        "tetragon_policy": tetragon,
+        "summary": f"Applied {pol.name} to {len(host_ids)} host(s) — agent will push TracingPolicy",
+    }
+
+
+def enforcement_status() -> dict[str, Any]:
+    _seed_demo()
+    enabled = sum(1 for p in _policies.values() if p.enabled)
+    applied_hosts = sorted({h for p in _policies.values() for h in p.applied_hosts})
+    blocked_events = sum(1 for e in _events if e.verdict == "blocked")
+    return {
+        "mode": "enforce",
+        "policies_total": len(_policies),
+        "policies_enabled": enabled,
+        "applied_hosts": applied_hosts,
+        "blocked_events": blocked_events,
+        "blocked_total": _enforcement_stats.get("blocked_total", blocked_events),
+        "by_policy": _enforcement_stats.get("by_policy", {}),
+        "summary": f"{enabled} active policy(ies) · {blocked_events} blocked event(s) in store",
+    }
+
+
+def host_enforcement(host_id: str) -> dict[str, Any]:
+    _seed_demo()
+    active = [
+        p.model_dump(mode="json")
+        for p in _policies.values()
+        if p.enabled and (not p.applied_hosts or host_id in p.applied_hosts)
+    ]
+    blocked = sum(1 for e in _events if e.host_id == host_id and e.verdict == "blocked")
+    return {
+        "host_id": host_id,
+        "mode": "enforce" if active else "observe",
+        "policies": active,
+        "blocked_events": blocked,
+    }
+

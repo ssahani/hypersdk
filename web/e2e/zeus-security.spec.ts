@@ -20,6 +20,13 @@ test('Machine Security view shows process tabs', async ({ page }) => {
   await expect(page.getByText('ns/zeus')).toBeVisible({ timeout: 15_000 })
 })
 
+test('Runtime enforcement workspace loads', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus/security/enforcement')
+  await expect(page.getByRole('heading', { name: 'Runtime enforcement' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Block reverse-shell listeners')).toBeVisible()
+})
+
 test('Threat hunting workspace loads', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/zeus/security/hunt')

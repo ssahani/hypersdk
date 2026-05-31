@@ -209,6 +209,7 @@ export default function PlatformSecurityCenter() {
 
           <div className="flex flex-wrap gap-2">
             <Link to="/platform/zeus/security/hunt" className="btn-secondary text-sm">Threat hunting workspace</Link>
+            <Link to="/platform/zeus/security/enforcement" className="btn-secondary text-sm">Runtime enforcement</Link>
             <button
               type="button"
               className="btn-secondary text-sm"

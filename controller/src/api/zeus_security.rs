@@ -300,3 +300,80 @@ pub async fn hunt_summary(
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
+
+pub async fn enforcement_status(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::enforcement_status(&state.config).await)
+}
+
+pub async fn enforcement_policies(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::enforcement_policies(&state.config).await)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CreateEnforcementPolicyBody {
+    pub name: String,
+    pub kind: String,
+    pub r#match: String,
+    pub enabled: Option<bool>,
+    pub scope: Option<String>,
+    pub host_ids: Option<Vec<String>>,
+    pub description: Option<String>,
+}
+
+pub async fn create_enforcement_policy(
+    State(state): State<AppState>,
+    Json(body): Json<CreateEnforcementPolicyBody>,
+) -> Json<serde_json::Value> {
+    let payload = serde_json::json!({
+        "name": body.name,
+        "kind": body.kind,
+        "match": body.r#match,
+        "enabled": body.enabled.unwrap_or(true),
+        "scope": body.scope.unwrap_or_else(|| "fleet".into()),
+        "host_ids": body.host_ids.unwrap_or_default(),
+        "description": body.description.unwrap_or_default(),
+    });
+    Json(packetwolf_bridge::create_enforcement_policy(&state.config, payload).await)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApplyEnforcementBody {
+    pub host_ids: Vec<String>,
+}
+
+pub async fn apply_enforcement_policy(
+    State(state): State<AppState>,
+    Path(policy_id): Path<String>,
+    Json(body): Json<ApplyEnforcementBody>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    use crate::tasks::enqueue::enqueue_task;
+    use uuid::Uuid;
+
+    let pw = packetwolf_bridge::apply_enforcement_policy(&state.config, &policy_id, &body.host_ids).await;
+    for host_id in &body.host_ids {
+        let host_uuid = Uuid::parse_str(host_id).ok();
+        let _ = enqueue_task(
+            &state,
+            "host.enforcement.apply",
+            serde_json::json!({
+                "host_id": host_id,
+                "policy_id": policy_id,
+            }),
+            Some("host"),
+            host_uuid,
+            host_uuid,
+        )
+        .await;
+    }
+    Ok(Json(serde_json::json!({
+        "packetwolf": pw,
+        "summary": format!("Enforcement policy {policy_id} queued for {} host(s)", body.host_ids.len())
+    })))
+}
+
+pub async fn host_enforcement(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::host_enforcement(&state.config, &id).await)
+}
