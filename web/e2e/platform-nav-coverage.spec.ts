@@ -54,3 +54,12 @@ test('security context bar collapses overflow into More menu', async ({ page }) 
   await page.locator('.tahoe-context-more').click()
   await expect(page.locator('.tahoe-context-overflow-item', { hasText: 'Threat Hunting' })).toBeVisible()
 })
+
+test('mobile jump nav stays visible when sidebar is hidden', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/platform')
+  await expect(page.locator('#platform-mobile-jump')).toBeVisible()
+  await page.keyboard.press('Meta+Alt+s')
+  await expect(page.locator('#platform-mobile-jump')).toBeVisible()
+})

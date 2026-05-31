@@ -22,7 +22,7 @@ function actionForKind(kind: string, payload: Record<string, unknown>): { label:
     return vmId ? { label: 'Open VM', href: `/platform/vms/${vmId}` } : null
   }
   if (kind.includes('task') && kind.includes('fail')) {
-    return { label: 'View tasks', href: '/platform/tasks' }
+    return { label: 'View tasks', href: '/platform/operations' }
   }
   return null
 }

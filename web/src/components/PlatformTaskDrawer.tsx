@@ -48,10 +48,10 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
   return (
     <div className="fixed inset-0 z-[90] flex justify-end">
       <button type="button" className="absolute inset-0 bg-black/50" aria-label="Close task drawer" onClick={onClose} />
-      <aside className="relative w-full max-w-md bg-slate-950 border-l border-slate-800 shadow-xl flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-slate-800">
+      <aside className="relative w-full max-w-md bg-slate-950/95 backdrop-blur-xl border-l border-white/[0.08] shadow-xl flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-white/[0.08]">
           <h2 className="font-semibold flex items-center gap-2">
-            <ListTodo className="w-5 h-5" /> Platform tasks
+            <ListTodo className="w-5 h-5" /> Active tasks
           </h2>
           <div className="flex gap-2">
             <button type="button" className="btn-secondary p-2" onClick={() => void load()} disabled={loading}>
@@ -64,10 +64,15 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {tasks.length === 0 && (
-            <p className="text-sm text-slate-500">No active tasks. <Link to="/platform/tasks" className="text-blue-400" onClick={onClose}>View all</Link></p>
+            <p className="text-sm text-slate-500">
+              No active tasks.{' '}
+              <Link to="/platform/operations" className="text-blue-400" onClick={onClose}>
+                Open Operations hub
+              </Link>
+            </p>
           )}
           {tasks.map((t) => (
-            <div key={t.id} className="rounded-lg border border-slate-800 p-3 text-sm">
+            <div key={t.id} className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 text-sm">
               <div className="flex justify-between gap-2">
                 <span className="font-mono text-xs text-slate-400">{t.operation}</span>
                 <span className="text-xs uppercase">{t.status}</span>
@@ -79,9 +84,9 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
             </div>
           ))}
         </div>
-        <div className="p-4 border-t border-slate-800">
-          <Link to="/platform/tasks" className="text-sm text-blue-400 hover:underline" onClick={onClose}>
-            Open full task list →
+        <div className="p-4 border-t border-white/[0.08]">
+          <Link to="/platform/operations" className="text-sm text-blue-400 hover:underline" onClick={onClose}>
+            Open Operations hub →
           </Link>
         </div>
       </aside>

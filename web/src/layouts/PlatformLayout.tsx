@@ -5,6 +5,7 @@ import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import PlatformSidebar from '../components/platform/PlatformSidebar'
 import PlatformControlCenter from '../components/platform/PlatformControlCenter'
 import PlatformContextBar from '../components/platform/tahoe/PlatformContextBar'
+import PlatformMobileJumpNav from '../components/platform/tahoe/PlatformMobileJumpNav'
 import PlatformMacDock from '../components/platform/PlatformMacDock'
 import { PlatformMacDesktopProvider, usePlatformMacDesktop } from '../components/platform/mac/PlatformMacDesktopContext'
 import PlatformMacAppMenus from '../components/platform/mac/PlatformMacAppMenus'
@@ -136,6 +137,7 @@ function PlatformDesktopShell() {
       </header>
 
       <PlatformContextBar />
+      <PlatformMobileJumpNav />
 
       <div className="flex flex-1 min-h-0">
         {sidebarVisible ? <PlatformSidebar /> : null}

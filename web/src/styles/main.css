@@ -309,10 +309,28 @@ a.tahoe-context-app-title:hover {
 
 .tahoe-context-pills {
   scrollbar-width: none;
+  overflow-x: auto;
 }
 
 .tahoe-context-pills::-webkit-scrollbar {
   display: none;
+}
+
+.tahoe-mobile-jump-select {
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 0.8125rem;
+  padding: 0.45rem 0.75rem;
+  outline: none;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.tahoe-mobile-jump-select:focus {
+  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(56, 189, 248, 0.06);
 }
 
 .tahoe-context-pill {

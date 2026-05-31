@@ -31,7 +31,10 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
 
   useEffect(() => { void load() }, [load])
 
-  const items = [...sre, ...compliance]
+  const items = [
+    ...sre.map((r) => ({ ...r, hub: '/platform/zeus' as const })),
+    ...compliance.map((r) => ({ ...r, hub: '/platform/zeus/security/compliance' as const })),
+  ]
   if (items.length === 0 && !summary) return null
 
   const visibleCount = compact ? (expanded ? items.length : VISIBLE_COMPACT) : 12
@@ -40,15 +43,16 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
   const chipList = (
     <div className="tahoe-remediate-chips flex flex-wrap items-center gap-2">
       {items.slice(0, visibleCount).map((r, i) => (
-        <span
+        <Link
           key={`${r.label}-${i}`}
+          to={r.hub}
           className="tahoe-remediate-chip group"
           title={r.review}
         >
           <Sparkles className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-70 transition-opacity" />
           <span className="truncate max-w-[14rem]">{r.label}</span>
           {r.framework ? <span className="text-white/35 text-[10px]">({r.framework})</span> : null}
-        </span>
+        </Link>
       ))}
       {compact && hiddenCount > 0 && !expanded ? (
         <button

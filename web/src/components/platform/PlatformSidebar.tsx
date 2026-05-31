@@ -91,21 +91,6 @@ export default function PlatformSidebar() {
           </button>
         </div>
       </aside>
-      <div className="lg:hidden mb-4">
-        <label className="text-xs text-slate-500 block mb-1">Navigate</label>
-        <select
-          className="input w-full text-sm"
-          defaultValue=""
-          onChange={(e) => {
-            if (e.target.value) window.location.href = e.target.value
-          }}
-        >
-          <option value="" disabled>Jump to…</option>
-          {sections.flatMap((s) => s.items).map((item) => (
-            <option key={item.to} value={item.to}>{item.label}</option>
-          ))}
-        </select>
-      </div>
     </>
   )
 }

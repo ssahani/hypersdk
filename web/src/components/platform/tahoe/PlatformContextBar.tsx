@@ -100,7 +100,7 @@ export default function PlatformContextBar() {
         </div>
 
         {ctx.items.length > 1 ? (
-          <nav className="tahoe-context-pills flex-1 min-w-0 flex items-center gap-1.5" aria-label={`${ctx.appLabel} sections`}>
+          <nav className="tahoe-context-pills flex-1 min-w-0 flex items-center gap-1.5 overflow-x-auto" aria-label={`${ctx.appLabel} sections`}>
             {visible.map((item) => (
               <ContextPill key={item.to} item={item} pathname={location.pathname} search={location.search} />
             ))}
