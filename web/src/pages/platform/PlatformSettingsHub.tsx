@@ -1,10 +1,21 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
 import { Settings, Shield, Users, HardDrive, Network, RefreshCw, Key, LifeBuoy, Info, LayoutGrid, Lock, FileBarChart, Terminal, Plug, Workflow } from 'lucide-react'
 import PlatformSettings from './PlatformSettings'
 import PlatformAppearanceSettings from '../../components/platform/PlatformAppearanceSettings'
+import PlatformUsers from './PlatformUsers'
+import PlatformPolicy from './PlatformPolicy'
+import PlatformApiKeys from './PlatformApiKeys'
+import PlatformWebhooks from './PlatformWebhooks'
+import PlatformReports from './PlatformReports'
+import PlatformEvents from './PlatformEvents'
+import PlatformProjects from './PlatformProjects'
+import PlatformResourcesHub from './PlatformResourcesHub'
+import PlatformIntegrations from './PlatformIntegrations'
+import PlatformSupport from './PlatformSupport'
+import PlatformEnterprise from './PlatformEnterprise'
 import {
   MacSettingsPane,
   MacSettingsGroup,
@@ -38,36 +49,61 @@ type SettingsSection =
   | 'integrations'
   | 'support'
 
-const SECTIONS: Array<{ id: SettingsSection; label: string; icon: React.ReactNode; href?: string }> = [
+const SETTINGS_SECTIONS: SettingsSection[] = [
+  'general',
+  'security',
+  'network',
+  'users',
+  'stage-manager',
+  'keychain',
+  'policy',
+  'api-keys',
+  'webhooks',
+  'reports',
+  'console',
+  'resources',
+  'updates',
+  'integrations',
+  'support',
+  'about',
+]
+
+function parseSettingsSection(raw: string | null): SettingsSection {
+  return SETTINGS_SECTIONS.includes(raw as SettingsSection) ? (raw as SettingsSection) : 'general'
+}
+
+function SettingsWorkspaceLink({ to, label }: { to: string; label: string }) {
+  return (
+    <p className="text-sm pb-2 border-b border-white/[0.06] mb-4">
+      <Link to={to} className="text-blue-400 hover:text-blue-300">{label} →</Link>
+    </p>
+  )
+}
+
+const SECTIONS: Array<{ id: SettingsSection; label: string; icon: React.ReactNode; fullPath?: string }> = [
   { id: 'general', label: 'General', icon: <Settings className="w-4 h-4" /> },
   { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
   { id: 'network', label: 'Network', icon: <Network className="w-4 h-4" /> },
-  { id: 'users', label: 'Users & Groups', icon: <Users className="w-4 h-4" />, href: '/platform/users' },
-  { id: 'stage-manager', label: 'Stage Manager', icon: <LayoutGrid className="w-4 h-4" />, href: '/platform/projects' },
-  { id: 'keychain', label: 'Keychain', icon: <Lock className="w-4 h-4" />, href: '/platform/enterprise' },
-  { id: 'policy', label: 'Policy & Quotas', icon: <Shield className="w-4 h-4" />, href: '/platform/policy' },
-  { id: 'api-keys', label: 'API Keys', icon: <Key className="w-4 h-4" />, href: '/platform/api-keys' },
-  { id: 'webhooks', label: 'Webhooks', icon: <Workflow className="w-4 h-4" />, href: '/platform/webhooks' },
-  { id: 'reports', label: 'Reports', icon: <FileBarChart className="w-4 h-4" />, href: '/platform/reports' },
-  { id: 'console', label: 'Console', icon: <Terminal className="w-4 h-4" />, href: '/platform/events' },
-  { id: 'resources', label: 'Resources', icon: <HardDrive className="w-4 h-4" />, href: '/platform/resources' },
+  { id: 'users', label: 'Users & Groups', icon: <Users className="w-4 h-4" />, fullPath: '/platform/users' },
+  { id: 'stage-manager', label: 'Stage Manager', icon: <LayoutGrid className="w-4 h-4" />, fullPath: '/platform/projects' },
+  { id: 'keychain', label: 'Keychain', icon: <Lock className="w-4 h-4" />, fullPath: '/platform/enterprise' },
+  { id: 'policy', label: 'Policy & Quotas', icon: <Shield className="w-4 h-4" />, fullPath: '/platform/policy' },
+  { id: 'api-keys', label: 'API Keys', icon: <Key className="w-4 h-4" />, fullPath: '/platform/api-keys' },
+  { id: 'webhooks', label: 'Webhooks', icon: <Workflow className="w-4 h-4" />, fullPath: '/platform/webhooks' },
+  { id: 'reports', label: 'Reports', icon: <FileBarChart className="w-4 h-4" />, fullPath: '/platform/reports' },
+  { id: 'console', label: 'Console', icon: <Terminal className="w-4 h-4" />, fullPath: '/platform/events' },
+  { id: 'resources', label: 'Resources', icon: <HardDrive className="w-4 h-4" />, fullPath: '/platform/resources' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" /> },
-  { id: 'integrations', label: 'Apps & Integrations', icon: <Plug className="w-4 h-4" />, href: '/platform/integrations' },
-  { id: 'support', label: 'Support', icon: <LifeBuoy className="w-4 h-4" />, href: '/platform/support' },
+  { id: 'integrations', label: 'Apps & Integrations', icon: <Plug className="w-4 h-4" />, fullPath: '/platform/integrations' },
+  { id: 'support', label: 'Support', icon: <LifeBuoy className="w-4 h-4" />, fullPath: '/platform/support' },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" /> },
 ]
 
 export default function PlatformSettingsHub() {
   const toast = useToastContext()
-  const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const [searchParams, setSearchParams] = useSearchParams()
   const initialSection = searchParams.get('section')
-  const [section, setSection] = useState<SettingsSection>(
-    initialSection === 'network' || initialSection === 'security' || initialSection === 'general'
-      || initialSection === 'updates' || initialSection === 'about'
-      ? (initialSection as SettingsSection)
-      : 'general',
-  )
+  const [section, setSection] = useState<SettingsSection>(parseSettingsSection(initialSection))
   const [deleteApproval, setDeleteApproval] = useState(false)
   const [approvalSlaHours, setApprovalSlaHours] = useState(72)
   const [saving, setSaving] = useState(false)
@@ -117,17 +153,19 @@ export default function PlatformSettingsHub() {
   useEffect(() => { void load() }, [load])
 
   useEffect(() => {
+    const next = parseSettingsSection(searchParams.get('section'))
+    setSection(next)
+  }, [searchParams])
+
+  useEffect(() => {
     if (section !== 'network') return
     void getFleetNetwork().then(setFleetNetwork).catch(() => setFleetNetwork(null))
   }, [section])
 
   const selectSection = (id: string) => {
-    const match = SECTIONS.find((s) => s.id === id)
-    if (match?.href) {
-      navigate(match.href)
-      return
-    }
-    setSection(id as SettingsSection)
+    const next = id as SettingsSection
+    setSection(next)
+    setSearchParams(next === 'general' ? {} : { section: next }, { replace: true })
   }
 
   const toggleDeleteApproval = async (checked: boolean) => {
@@ -474,6 +512,83 @@ export default function PlatformSettingsHub() {
           <p className="text-xs text-slate-500 mt-2">UX batches 49–56 · Zeus Firewall macOS Security pane (AI-372–391)</p>
           <Link to="/platform/support" className="text-sm text-blue-400 inline-block mt-3">Support & diagnostics →</Link>
         </MacSettingsGroup>
+      )}
+
+      {section === 'users' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/users" label="Open full Users workspace" />
+          <PlatformUsers embedded />
+        </div>
+      )}
+
+      {section === 'stage-manager' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/projects" label="Open full Stage Manager workspace" />
+          <PlatformProjects embedded />
+        </div>
+      )}
+
+      {section === 'keychain' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/enterprise" label="Open full Keychain workspace" />
+          <PlatformEnterprise embedded />
+        </div>
+      )}
+
+      {section === 'policy' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/policy" label="Open full Policy workspace" />
+          <PlatformPolicy embedded />
+        </div>
+      )}
+
+      {section === 'api-keys' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/api-keys" label="Open full API Keys workspace" />
+          <PlatformApiKeys embedded />
+        </div>
+      )}
+
+      {section === 'webhooks' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/webhooks" label="Open full Webhooks workspace" />
+          <PlatformWebhooks embedded />
+        </div>
+      )}
+
+      {section === 'reports' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/reports" label="Open full Reports workspace" />
+          <PlatformReports embedded />
+        </div>
+      )}
+
+      {section === 'console' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/events" label="Open full Console workspace" />
+          <PlatformEvents embedded />
+        </div>
+      )}
+
+      {section === 'resources' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/resources" label="Open full Resources hub" />
+          <PlatformResourcesHub embedded />
+        </div>
+      )}
+
+      {section === 'integrations' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/integrations" label="Open full Integrations hub" />
+          <PlatformIntegrations embedded />
+        </div>
+      )}
+
+      {section === 'support' && (
+        <div>
+          <SettingsWorkspaceLink to="/platform/support" label="Open full Support workspace" />
+          <PlatformSupport embedded />
+        </div>
       )}
     </MacSettingsPane>
   )

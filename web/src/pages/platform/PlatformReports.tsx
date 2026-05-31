@@ -31,7 +31,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 
 type TabId = 'reports' | 'runbooks' | 'showback'
 
-export default function PlatformReports() {
+export default function PlatformReports({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = (searchParams.get('tab') as TabId) || 'reports'
@@ -118,8 +118,8 @@ export default function PlatformReports() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <MacSectionTitle title="Reports" subtitle="Cost Guardian, FinOps, operations runbooks, and compliance showback." />
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
+      {!embedded && <MacSectionTitle title="Reports" subtitle="Cost Guardian, FinOps, operations runbooks, and compliance showback." />}
       <div className="flex flex-wrap gap-2">
         {([
           ['reports', 'Reports', PieChart],

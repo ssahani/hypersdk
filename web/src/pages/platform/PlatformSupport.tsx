@@ -17,7 +17,7 @@ const TIPS = [
   { q: 'HyperSDK unreachable', a: 'Ensure hypervisord is running on :5080 and [hypersdk] is enabled in machina config.' },
 ]
 
-export default function PlatformSupport() {
+export default function PlatformSupport({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [bundle, setBundle] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(false)
@@ -43,8 +43,8 @@ export default function PlatformSupport() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl">
-      <MacSectionTitle title="Support Assistant" subtitle="About Zyvor Platform, troubleshooting, and support bundle export." />
+    <div className={`space-y-6 ${embedded ? 'max-w-none' : 'max-w-3xl'}`}>
+      {!embedded && <MacSectionTitle title="Support Assistant" subtitle="About Zyvor Platform, troubleshooting, and support bundle export." />}
 
       <PlatformAboutHelp />
       <div className="card p-5 flex flex-wrap gap-3 items-center justify-between">

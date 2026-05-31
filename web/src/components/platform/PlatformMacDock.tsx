@@ -1,9 +1,10 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { Link, useLocation } from 'react-router'
+import { Link, useLocation, useNavigate } from 'react-router'
 import { Search, Sparkles } from 'lucide-react'
 import { useAi } from '../../contexts/AiContext'
-import { usePlatformDockItems } from '../../utils/platformDockPins'
+import { unlockDockPreviewPath, usePlatformDockItems } from '../../utils/platformDockPins'
+import { useToastContext } from '../../contexts/ToastContext'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -11,6 +12,8 @@ function openSpotlight() {
 
 export default function PlatformMacDock() {
   const location = useLocation()
+  const navigate = useNavigate()
+  const toast = useToastContext()
   const { openCopilot } = useAi()
   const dockItems = usePlatformDockItems()
 
@@ -24,14 +27,35 @@ export default function PlatformMacDock() {
       <div className="mac-dock-inner mac-dock-inner-scroll">
         {dockItems.map((item) => {
           const Icon = item.icon
-          const active = isActive(item.path)
+          const active = !item.preview && isActive(item.path)
+          const cls = `mac-dock-item ${active ? 'mac-dock-item-active' : ''} ${item.preview ? 'mac-dock-item-preview' : ''}`
+          if (item.preview) {
+            return (
+              <button
+                key={`preview-${item.path}`}
+                type="button"
+                title={`${item.label} — Power user`}
+                aria-label={`${item.label} preview`}
+                className={cls}
+                onClick={() => {
+                  if (unlockDockPreviewPath(item.path)) {
+                    toast.success('Switched to Power user — hub unlocked')
+                    navigate(item.path)
+                  }
+                }}
+              >
+                <Icon className="h-6 w-6" strokeWidth={1.75} />
+                <span className="mac-dock-tooltip">{item.label}</span>
+              </button>
+            )
+          }
           return (
             <Link
               key={item.path}
               to={item.path}
               title={item.label}
               aria-label={item.label}
-              className={`mac-dock-item ${active ? 'mac-dock-item-active' : ''}`}
+              className={cls}
               aria-current={active ? 'page' : undefined}
             >
               <Icon className="h-6 w-6" strokeWidth={1.75} />

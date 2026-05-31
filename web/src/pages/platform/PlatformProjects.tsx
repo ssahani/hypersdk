@@ -53,7 +53,7 @@ function SpaceCard({
   )
 }
 
-export default function PlatformProjects() {
+export default function PlatformProjects({ embedded }: { embedded?: boolean } = {}) {
   const navigate = useNavigate()
   const { workspace, setWorkspace } = useActiveWorkspace()
   const [fleet, setFleet] = useState<FleetSpacesOverview | null>(null)
@@ -83,14 +83,16 @@ export default function PlatformProjects() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-wider text-violet-400/80">Stage Manager</p>
-        <MacSectionTitle
-          title="Workspace Spaces"
-          subtitle="macOS Stage Manager metaphor — each project is a space grouping fleet VMs. Click a space to focus the active workspace."
-        />
-      </header>
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
+      {!embedded && (
+        <header>
+          <p className="text-xs font-semibold uppercase tracking-wider text-violet-400/80">Stage Manager</p>
+          <MacSectionTitle
+            title="Workspace Spaces"
+            subtitle="macOS Stage Manager metaphor — each project is a space grouping fleet VMs. Click a space to focus the active workspace."
+          />
+        </header>
+      )}
       {error && <ErrorBanner message={error} />}
       {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}
 

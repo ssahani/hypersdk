@@ -55,7 +55,7 @@ function LogLine({ entry }: { entry: FleetConsoleEntry }) {
   )
 }
 
-export default function PlatformEvents() {
+export default function PlatformEvents({ embedded }: { embedded?: boolean } = {}) {
   const [fleet, setFleet] = useState<FleetConsoleOverview | null>(null)
   const [controllerAudit, setControllerAudit] = useState<AuditLog[]>([])
   const [source, setSource] = useState<SourceFilter>('all')
@@ -94,15 +94,17 @@ export default function PlatformEvents() {
   }, [fleet, source, query])
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
       <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Console</p>
-          <MacSectionTitle
-            title="Logs & Audit"
-            subtitle="Unified fleet log tail — audit trail, platform events, and task failures in one stream."
-          />
-        </div>
+        {!embedded && (
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Console</p>
+            <MacSectionTitle
+              title="Logs & Audit"
+              subtitle="Unified fleet log tail — audit trail, platform events, and task failures in one stream."
+            />
+          </div>
+        )}
         <button type="button" className="btn-secondary flex items-center gap-2" onClick={() => void load()}>
           <RefreshCw className="w-4 h-4" /> Refresh
         </button>

@@ -6,7 +6,7 @@ import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero
 import PlatformHubLaunchpad from '../../components/platform/tahoe/PlatformHubLaunchpad'
 import { getNetworkSegmentsOverview, getStorageTiersOverview } from '../../api/platform'
 
-export default function PlatformResourcesHub() {
+export default function PlatformResourcesHub({ embedded }: { embedded?: boolean } = {}) {
   const [poolCount, setPoolCount] = useState<number | null>(null)
   const [segmentCount, setSegmentCount] = useState<number | null>(null)
 
@@ -21,18 +21,20 @@ export default function PlatformResourcesHub() {
   }, [])
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PlatformTahoeHero
-        compact
-        eyebrow="Platform"
-        title="Resources"
-        subtitle="Storage, networks, images, and templates — macOS Utility folder for your fleet."
-        icon={HardDrive}
-        stats={[
-          { label: 'Storage tiers', value: poolCount != null ? String(poolCount) : '—', tone: 'sky' },
-          { label: 'Network segments', value: segmentCount != null ? String(segmentCount) : '—', tone: 'violet' },
-        ]}
-      />
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
+      {!embedded && (
+        <PlatformTahoeHero
+          compact
+          eyebrow="Platform"
+          title="Resources"
+          subtitle="Storage, networks, images, and templates — macOS Utility folder for your fleet."
+          icon={HardDrive}
+          stats={[
+            { label: 'Storage tiers', value: poolCount != null ? String(poolCount) : '—', tone: 'sky' },
+            { label: 'Network segments', value: segmentCount != null ? String(segmentCount) : '—', tone: 'violet' },
+          ]}
+        />
+      )}
 
       <div className="tahoe-content">
         <PlatformHubLaunchpad

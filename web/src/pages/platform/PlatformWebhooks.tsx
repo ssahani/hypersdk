@@ -17,7 +17,7 @@ import {
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-export default function PlatformWebhooks() {
+export default function PlatformWebhooks({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [rows, setRows] = useState<WebhookRow[]>([])
   const [deliveries, setDeliveries] = useState<WebhookDeliveryRow[]>([])
@@ -42,8 +42,8 @@ export default function PlatformWebhooks() {
   useEffect(() => { void load() }, [load])
 
   return (
-    <div className="space-y-6">
-      <MacSectionTitle title="Webhooks" subtitle="Event notifications" />
+    <div className={embedded ? 'space-y-4' : 'space-y-6'}>
+      {!embedded && <MacSectionTitle title="Webhooks" subtitle="Event notifications" />}
       {error && <ErrorBanner message={error} />}
       <div className="card p-4 flex gap-3">
         <input className="input flex-1" value={url} onChange={(e) => setUrl(e.target.value)} />

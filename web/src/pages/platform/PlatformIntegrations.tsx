@@ -12,25 +12,27 @@ import PlatformDesktopTierPicker from '../../components/platform/PlatformDesktop
 import PlatformIntegrationEmbeds from '../../components/platform/PlatformIntegrationEmbeds'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 
-export default function PlatformIntegrations() {
+export default function PlatformIntegrations({ embedded }: { embedded?: boolean } = {}) {
   const { info } = usePlatformInfo()
   const [tier, setTier] = usePlatformDesktopTier()
   const cards = integrationCards(info)
   const enabledCount = cards.filter((c) => c.enabled).length
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl">
-      <PlatformTahoeHero
-        eyebrow="Platform"
-        title="Apps & Integrations"
-        subtitle="Everything the daemon exposes beyond the simple desktop — OpenStack, K8s, migration tools, and classic UI."
-        icon={Puzzle}
-        stats={[
-          { label: 'Available', value: String(cards.length), tone: 'sky' },
-          { label: 'Enabled', value: String(enabledCount), tone: 'emerald' },
-          { label: 'Desktop tier', value: tier.charAt(0).toUpperCase() + tier.slice(1), tone: 'violet' },
-        ]}
-      />
+    <div className={`space-y-6 ${embedded ? '' : 'animate-fade-in max-w-4xl'}`}>
+      {!embedded && (
+        <PlatformTahoeHero
+          eyebrow="Platform"
+          title="Apps & Integrations"
+          subtitle="Everything the daemon exposes beyond the simple desktop — OpenStack, K8s, migration tools, and classic UI."
+          icon={Puzzle}
+          stats={[
+            { label: 'Available', value: String(cards.length), tone: 'sky' },
+            { label: 'Enabled', value: String(enabledCount), tone: 'emerald' },
+            { label: 'Desktop tier', value: tier.charAt(0).toUpperCase() + tier.slice(1), tone: 'violet' },
+          ]}
+        />
+      )}
 
       <div className="tahoe-content space-y-6">
         <MacGlassPanel title="Fleet apps" subtitle="Launchpad and connected platforms">

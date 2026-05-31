@@ -43,11 +43,15 @@ function entryHref(kind: string): string | undefined {
   return undefined
 }
 
-export default function PlatformEnterprise() {
+export default function PlatformEnterprise({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const rawTab = searchParams.get('tab')
-  const tab: TabId = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : 'keychain'
+  const tab: TabId = embedded
+    ? 'keychain'
+    : TAB_IDS.includes(rawTab as TabId)
+      ? (rawTab as TabId)
+      : 'keychain'
   const setTab = (next: TabId) => setSearchParams(next === 'keychain' ? {} : { tab: next })
 
   const [keychain, setKeychain] = useState<FleetKeychainOverview | null>(null)
@@ -117,14 +121,16 @@ export default function PlatformEnterprise() {
   ]
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Keychain Access</p>
-        <MacSectionTitle
-          title="Enterprise Security"
-          subtitle="Secrets inventory and link-out — vault, MFA, API keys, air-gap bundles (no live secret export)."
-        />
-      </header>
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
+      {!embedded && (
+        <header>
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Keychain Access</p>
+          <MacSectionTitle
+            title="Enterprise Security"
+            subtitle="Secrets inventory and link-out — vault, MFA, API keys, air-gap bundles (no live secret export)."
+          />
+        </header>
+      )}
       {error && <ErrorBanner message={error} />}
       {(keychain?.summary || overview?.summary) && tab !== 'keychain' && (
         <p className="text-sm text-slate-400">{overview?.summary}</p>
@@ -147,20 +153,22 @@ export default function PlatformEnterprise() {
           <MacStatWidget label="Tenant policies" value={overview ? String(overview.tenant_policies) : '—'} icon={<Users className="w-4 h-4" />} />
         </div>
       )}
-      <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm rounded-t-lg transition ${
-              tab === t.id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {!embedded && (
+        <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
+          {tabs.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 text-sm rounded-t-lg transition ${
+                tab === t.id ? 'bg-slate-800/80 text-orange-300 border-b-2 border-orange-400' : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {tab === 'keychain' && (
         <MacGlassPanel title="Secrets inventory" subtitle="Metadata only — manage credentials in linked panes.">

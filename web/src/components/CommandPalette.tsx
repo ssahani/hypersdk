@@ -33,6 +33,8 @@ import {
 } from '../utils/platformCommands'
 import { aiSpotlight, type SpotlightIntent, type SpotlightResult } from '../api/ai'
 import { isInputFocused } from '../hooks/useKeyboardShortcut'
+import { loadPlatformDesktopTier } from '../utils/platformDesktopTier'
+import { groupSpotlightByZone, spotlightNavForTier, spotlightZoneOrder } from '../utils/platformSpotlightNav'
 
 interface CommandPaletteProps {
   onOpenHelp?: (tab?: HelpTab) => void
@@ -128,6 +130,11 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const close = useCallback(() => { setOpen(false); setQuery(''); setReviewCommand(null); setSpotlightIntents([]) }, [])
 
   const platformConnected = Boolean(info?.control_plane?.proxy_url)
+  const onPlatformDesktop = location.pathname.startsWith('/platform')
+  const platformTier = loadPlatformDesktopTier()
+  const platformSpotlightPaths = onPlatformDesktop
+    ? new Set(spotlightNavForTier(platformTier, info).map((entry) => entry.path))
+    : new Set<string>()
 
   useEffect(() => {
     if (!open || !platformConnected || !query.trim() || query.length < 3) {
@@ -219,35 +226,70 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     category: 'Quick Actions',
   })
 
-  // Platform spotlight actions
-  items.push(
+  if (onPlatformDesktop) {
+    for (const { zone, items: zoneItems } of groupSpotlightByZone(spotlightNavForTier(platformTier, info))) {
+      for (const entry of zoneItems) {
+        items.push({
+          id: entry.id,
+          icon: entry.kind === 'hub' ? <Boxes className="w-4 h-4 text-sky-400" /> : <ArrowRight className="w-4 h-4" />,
+          label: entry.label,
+          sublabel: entry.description ?? entry.zone,
+          action: () => go(entry.path),
+          category: zone,
+        })
+      }
+    }
+  }
+
+  // Platform quick actions (deduped when already in hub zone nav)
+  const platformActions: PaletteItem[] = [
     { id: 'plat-create-vm', icon: <Plus className="w-4 h-4" />, label: 'Create VM', sublabel: 'Platform wizard', action: () => go('/platform/vms'), category: 'Platform Actions' },
     { id: 'plat-migrate', icon: <Upload className="w-4 h-4" />, label: 'Import VMware VM', sublabel: 'Migration Assistant', action: () => go('/platform/migration'), category: 'Platform Actions' },
     { id: 'plat-iso', icon: <HardDrive className="w-4 h-4" />, label: 'Upload ISO', action: () => go('/platform/content'), category: 'Platform Actions' },
-    { id: 'plat-tasks', icon: <ClipboardList className="w-4 h-4" />, label: 'Show running tasks', action: () => go('/platform/tasks'), category: 'Platform Actions' },
-    { id: 'plat-alerts', icon: <Bell className="w-4 h-4" />, label: 'Show alerts', action: () => go('/platform/notifications'), category: 'Platform Actions' },
+    { id: 'plat-tasks', icon: <ClipboardList className="w-4 h-4" />, label: 'Show running tasks', action: () => go('/platform/operations'), category: 'Platform Actions' },
+    { id: 'plat-alerts', icon: <Bell className="w-4 h-4" />, label: 'Show alerts', action: () => go('/platform/operations'), category: 'Platform Actions' },
     { id: 'plat-activity', icon: <Activity className="w-4 h-4" />, label: 'Activity Monitor', action: () => go('/platform/activity'), category: 'Platform Actions' },
     { id: 'plat-settings', icon: <Settings className="w-4 h-4" />, label: 'Platform settings', action: () => go('/platform/settings'), category: 'Platform Actions' },
-  )
-  for (const pv of platformVms) {
-    items.push({
-      id: `platform-vm-${pv.id}`,
-      icon: <Boxes className="w-4 h-4" />,
-      label: pv.name,
-      sublabel: 'Platform VM',
-      action: () => go(`/platform/vms/${pv.id}`),
-      category: 'Platform',
-    })
+  ]
+  for (const action of platformActions) {
+    if (onPlatformDesktop) {
+      const pathById: Record<string, string> = {
+        'plat-create-vm': '/platform/vms',
+        'plat-migrate': '/platform/migration',
+        'plat-iso': '/platform/content',
+        'plat-tasks': '/platform/operations',
+        'plat-alerts': '/platform/operations',
+        'plat-activity': '/platform/activity',
+        'plat-settings': '/platform/settings',
+      }
+      if (platformSpotlightPaths.has(pathById[action.id] ?? '')) continue
+    }
+    items.push(action)
   }
-  for (const ph of platformHosts) {
-    items.push({
-      id: `platform-host-${ph.id}`,
-      icon: <Server className="w-4 h-4" />,
-      label: ph.hostname,
-      sublabel: 'Platform host',
-      action: () => go(`/platform/hosts/${ph.id}`),
-      category: 'Platform',
-    })
+
+  if (onPlatformDesktop) {
+    for (const pv of platformVms) {
+      if (platformSpotlightPaths.has(`/platform/vms/${pv.id}`)) continue
+      items.push({
+        id: `platform-vm-${pv.id}`,
+        icon: <Boxes className="w-4 h-4" />,
+        label: pv.name,
+        sublabel: 'Platform VM',
+        action: () => go(`/platform/vms/${pv.id}`),
+        category: 'Fleet',
+      })
+    }
+    for (const ph of platformHosts) {
+      if (platformSpotlightPaths.has(`/platform/hosts/${ph.id}`)) continue
+      items.push({
+        id: `platform-host-${ph.id}`,
+        icon: <Server className="w-4 h-4" />,
+        label: ph.hostname,
+        sublabel: 'Platform host',
+        action: () => go(`/platform/hosts/${ph.id}`),
+        category: 'Fleet',
+      })
+    }
   }
 
   // Recent VMs
@@ -491,8 +533,8 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     'Pinned',
     'Machina Spotlight',
     'Platform Commands',
+    ...spotlightZoneOrder(),
     'Platform Actions',
-    'Platform',
     'Quick Actions',
     'Help',
     'Setup',

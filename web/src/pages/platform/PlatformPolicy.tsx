@@ -9,7 +9,7 @@ import { listPolicyRules, listProjectQuotas, upsertProjectQuota, type PolicyRule
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-export default function PlatformPolicy() {
+export default function PlatformPolicy({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [rules, setRules] = useState<PolicyRule[]>([])
   const [quotas, setQuotas] = useState<Awaited<ReturnType<typeof listProjectQuotas>>>([])
@@ -47,8 +47,8 @@ export default function PlatformPolicy() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <MacSectionTitle title="Policy & Quotas" subtitle="Controller policy rules and per-project resource limits." />
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
+      {!embedded && <MacSectionTitle title="Policy & Quotas" subtitle="Controller policy rules and per-project resource limits." />}
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Policy rules">
         {rules.length === 0 ? (
@@ -90,7 +90,7 @@ export default function PlatformPolicy() {
           ))}
         </ul>
       </MacGlassPanel>
-      <FleetSettingsPane kind="general" />
+      {!embedded && <FleetSettingsPane kind="general" />}
     </div>
   )
 }

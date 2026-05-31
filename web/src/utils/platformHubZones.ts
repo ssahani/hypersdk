@@ -50,3 +50,10 @@ export function hubTilesForTier(tier: PlatformDesktopTier): DesktopHubTile[] {
 export function showPlatformHubsForTier(tier: PlatformDesktopTier): boolean {
   return tierAtLeast(tier, 'power')
 }
+
+/** Shown on Normal tier as muted dock previews until Power user is enabled. */
+export const DOCK_PREVIEW_HUB_PATHS: string[] = ['/platform/resources', '/platform/operations']
+
+export function dockPreviewPathsForTier(tier: PlatformDesktopTier): string[] {
+  return tier === 'normal' ? DOCK_PREVIEW_HUB_PATHS : []
+}

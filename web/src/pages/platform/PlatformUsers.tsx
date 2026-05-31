@@ -29,7 +29,7 @@ type TabId = 'users' | 'workspaces'
 
 const TAB_IDS: TabId[] = ['users', 'workspaces']
 
-export default function PlatformUsers() {
+export default function PlatformUsers({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -69,14 +69,16 @@ export default function PlatformUsers() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <header>
-        <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Users & Groups</p>
-        <MacSectionTitle
-          title="Access & Workspaces"
-          subtitle="Platform RBAC accounts and tenant workspaces — switch active workspace from the menu bar."
-        />
-      </header>
+    <div className={embedded ? 'space-y-4' : 'space-y-6 animate-fade-in'}>
+      {!embedded && (
+        <header>
+          <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Users & Groups</p>
+          <MacSectionTitle
+            title="Access & Workspaces"
+            subtitle="Platform RBAC accounts and tenant workspaces — switch active workspace from the menu bar."
+          />
+        </header>
+      )}
       {error && <ErrorBanner message={error} />}
       {me && <p className="text-sm text-slate-400">Signed in as <strong className="text-slate-200">{me.username}</strong> ({me.role})</p>}
       {fleet && <p className="text-sm text-slate-400">{fleet.summary}</p>}

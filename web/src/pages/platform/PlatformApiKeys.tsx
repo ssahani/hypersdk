@@ -8,7 +8,7 @@ import { createApiKey, deleteApiKey, listApiKeys, type ApiKeyRow } from '../../a
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-export default function PlatformApiKeys() {
+export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
   const [rows, setRows] = useState<ApiKeyRow[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -24,8 +24,8 @@ export default function PlatformApiKeys() {
   useEffect(() => { void load() }, [load])
 
   return (
-    <div className="space-y-6">
-      <MacSectionTitle title="API keys" subtitle="Bearer tokens for automation (machina_*)" />
+    <div className={embedded ? 'space-y-4' : 'space-y-6'}>
+      {!embedded && <MacSectionTitle title="API keys" subtitle="Bearer tokens for automation (machina_*)" />}
       {error && <ErrorBanner message={error} />}
       {newToken && (
         <div className="card p-4 border border-amber-800/50 bg-amber-950/20 text-sm">

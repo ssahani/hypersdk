@@ -7,6 +7,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/pla
 import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
 import { formatUserError } from '../../utils/apiError'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
 import {
@@ -148,7 +149,7 @@ export default function PlatformZeusOs() {
   }, [])
 
   useEffect(() => {
-    void getZeusSummary().then((z) => setZeusSummary(`${z.status} · ${z.highlights[0] ?? z.tagline}`)).catch(() => {})
+    void getZeusSummary().then((z) => setZeusSummary(`${z.status} · ${z.highlights?.[0] ?? z.tagline}`)).catch(() => {})
     void getRemediateHub().then((h) => {
       setHubSummary(h.summary)
       setHubItems(h.items.slice(0, 6))
@@ -206,6 +207,7 @@ export default function PlatformZeusOs() {
           )}
         </MacGlassPanel>
       )}
+      <PlatformZeusHubLaunchpad activeTab={tab} />
       <div className="flex flex-wrap gap-2">
         {tabs.map((t) => (
           <button
@@ -220,7 +222,6 @@ export default function PlatformZeusOs() {
           </button>
         ))}
         <Link to="/mission-control" className="text-xs text-blue-400 self-center ml-2">Mission Control →</Link>
-        <Link to="/platform/topology" className="text-xs text-blue-400 self-center">Digital Twin →</Link>
       </div>
 
       {tab === 'fleet' && heatmap && (
