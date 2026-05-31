@@ -231,6 +231,29 @@ pub async fn k8s_export_status(
     ))
 }
 
+pub async fn fabric_health(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::fabric_health(&state.config).await)
+}
+
+pub async fn hunt_queries(State(state): State<AppState>) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::hunt_queries(&state.config).await)
+}
+
+pub async fn run_hunt_query(
+    State(state): State<AppState>,
+    Path(query_id): Path<String>,
+    Query(q): Query<HuntRunQuery>,
+) -> Json<serde_json::Value> {
+    Json(
+        packetwolf_bridge::run_hunt_query(&state.config, &query_id, q.host_id.as_deref()).await,
+    )
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HuntRunQuery {
+    pub host_id: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct ExplainEventBody {
     pub event: serde_json::Value,
@@ -289,16 +312,17 @@ pub async fn nl_search(
     )
     .await;
     let hits = results
-        .get("results")
-        .and_then(|v| v.as_array())
-        .map(|a| a.len())
-        .or_else(|| results.as_array().map(|a| a.len()))
+        .get("hit_count")
+        .and_then(|v| v.as_u64())
+        .or_else(|| results.get("results").and_then(|v| v.as_array()).map(|a| a.len() as u64))
         .unwrap_or(0);
+    let backend = results.get("backend").and_then(|v| v.as_str()).unwrap_or("memory");
     Json(serde_json::json!({
         "original_query": body.query,
         "search_query": translated,
         "results": results,
         "hit_count": hits,
+        "search_backend": backend,
         "llm_powered": llm_powered
     }))
 }

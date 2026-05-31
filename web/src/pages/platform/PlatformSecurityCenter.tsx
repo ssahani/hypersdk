@@ -15,12 +15,14 @@ import SecurityTimelinePanel from '../../components/platform/SecurityTimelinePan
 import {
   getFleetSecurityTimeline,
   getFleetThreatSummary,
+  getFabricHealth,
   getZeusSecurityGraph,
   getZeusSecuritySensors,
   getZeusSecurityStatus,
   nlSecuritySearch,
   syncSecurityAlerts,
   type FleetThreatSummary,
+  type FabricHealth,
   type SecurityEvent,
   type SecurityGraph,
   type ZeusSecurityStatus,
@@ -64,6 +66,7 @@ export default function PlatformSecurityCenter() {
   const [graph, setGraph] = useState<SecurityGraph | null>(null)
   const [sensorCount, setSensorCount] = useState(0)
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
+  const [fabricHealth, setFabricHealth] = useState<FabricHealth | null>(null)
   const [nlQuery, setNlQuery] = useState('')
   const [nlResults, setNlResults] = useState<string | null>(null)
   const [nlLlm, setNlLlm] = useState(false)
@@ -74,18 +77,20 @@ export default function PlatformSecurityCenter() {
     setError(null)
     setLoading(true)
     try {
-      const [st, th, gr, sensors, tl] = await Promise.all([
+      const [st, th, gr, sensors, tl, health] = await Promise.all([
         getZeusSecurityStatus(),
         getFleetThreatSummary(),
         getZeusSecurityGraph(),
         getZeusSecuritySensors(),
         getFleetSecurityTimeline(24),
+        getFabricHealth(),
       ])
       setStatus(st)
       setThreat(th)
       setGraph(gr)
       setSensorCount(sensors.sensors?.length ?? 0)
       setTimeline(tl.events ?? [])
+      setFabricHealth(health)
     } catch (e: unknown) {
       setError(formatUserError(e))
     } finally {
@@ -132,6 +137,34 @@ export default function PlatformSecurityCenter() {
 
       {status?.packetwolf?.storage?.clickhouse?.reachable && (
         <p className="text-xs text-emerald-400/90">ClickHouse hot storage connected</p>
+      )}
+      {status?.packetwolf?.storage?.opensearch?.reachable && (
+        <p className="text-xs text-emerald-400/90">
+          OpenSearch hunt index connected
+          {status.packetwolf.storage.opensearch.document_count != null
+            ? ` · ${status.packetwolf.storage.opensearch.document_count} documents`
+            : ''}
+        </p>
+      )}
+
+      {fabricHealth && (fabricHealth.issues?.length ?? 0) > 0 && (
+        <MacGlassPanel title="Fabric health" subtitle={fabricHealth.summary ?? fabricHealth.status}>
+          <ul className="text-sm text-slate-300 space-y-1">
+            {fabricHealth.issues?.slice(0, 5).map((issue, i) => (
+              <li key={i} className="text-amber-200/90">
+                {issue.summary}
+                {issue.host_id ? (
+                  <>
+                    {' '}
+                    <Link to={`/platform/zeus/machines/${issue.host_id}`} className="text-blue-400 text-xs">
+                      {issue.host_id}
+                    </Link>
+                  </>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </MacGlassPanel>
       )}
 
       {threat && (

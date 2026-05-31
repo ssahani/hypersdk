@@ -58,6 +58,9 @@ insecure_tls = true
 | `POST /api/v1/zeus-security/hosts/{id}/tetragon/install` | Enroll Tetragon sensor |
 | `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` | Enroll Tetragon via Helm on cluster |
 | `GET /api/v1/zeus-security/k8s/{cluster_id}/export-status` | PacketWolf export forwarder readiness |
+| `GET /api/v1/zeus-security/fabric/health` | Fabric health — sensors, storage, hunt index |
+| `GET /api/v1/zeus-security/hunt/queries` | Saved OpenSearch hunt playbooks |
+| `POST /api/v1/zeus-security/hunt/run/{query_id}` | Run saved hunt query |
 | `POST /api/v1/ai/security/explain-event` | AI event explanation |
 | `POST /api/v1/ai/security/attack-reconstruct` | Attack chain from timeline |
 | `POST /api/v1/ai/security/nl-search` | Natural language search |
@@ -126,6 +129,14 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 - **Controller:** `packetwolf_k8s` applies forwarder after Helm install; `GET /api/v1/zeus-security/k8s/{cluster_id}/export-status`
 - **Ingest host id:** `k8s-{clusterId}` matches cluster sensor registration
 - **Requires:** `helm` + `kubectl` with cluster context on the controller (or bastion)
+
+## Phase 11 — OpenSearch hunt + fabric health (PW-34–PW-36)
+
+- **OpenSearch:** index bootstrap on startup (`ensure_index`), ping + document counts, merged search (OpenSearch + in-memory)
+- **Hunt playbooks:** `GET /api/v1/hunt/queries`, `POST /api/v1/hunt/run/{id}` — six built-in SOC queries
+- **Fabric health:** `GET /api/v1/fabric/health` — sensor staleness, storage reachability, hunt index stats
+- **Machina:** `/api/v1/zeus-security/fabric/health`, `/hunt/queries`, `/hunt/run/{id}`; alert sync includes fabric issues
+- **UI:** Threat Hunting saved queries + search backend badge; Security Center fabric health panel
 
 ## UI routes
 

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .models import CaptureRequest, IngestBatch, SearchRequest, SecurityEvent
 from . import enforcer
+from . import hunt
 from . import store
 
 app = FastAPI(title="PacketWolf Security Fabric", version="0.1.0")
@@ -16,6 +17,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+def startup() -> None:
+    from . import search_index
+
+    search_index.ensure_index()
 
 
 @app.get("/health")
@@ -153,7 +161,22 @@ def anomalies(limit: int = Query(25)) -> dict:
 
 @app.post("/api/v1/search")
 def search(body: SearchRequest) -> dict:
-    return {"results": store.search(body.query, body.host_id, body.limit)}
+    return store.search(body.query, body.host_id, body.limit)
+
+
+@app.get("/api/v1/hunt/queries")
+def hunt_queries() -> dict:
+    return {"queries": hunt.list_queries()}
+
+
+@app.post("/api/v1/hunt/run/{query_id}")
+def hunt_run(query_id: str, host_id: str | None = Query(None), limit: int = Query(50)) -> dict:
+    return hunt.run_query(query_id, host_id, limit)
+
+
+@app.get("/api/v1/fabric/health")
+def fabric_health() -> dict:
+    return store.fabric_health()
 
 
 @app.get("/api/v1/fleet/threat-summary")

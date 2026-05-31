@@ -172,7 +172,11 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
               reachable: true,
               summary: 'PacketWolf connected',
               base_url: 'http://127.0.0.1:9091',
-              storage: { clickhouse: { configured: true, reachable: true }, demo_mode: true },
+              storage: {
+                clickhouse: { configured: true, reachable: true },
+                opensearch: { configured: true, reachable: true, document_count: 128 },
+                demo_mode: true,
+              },
             },
             zeus_firewall: { ready: true },
           },
@@ -196,6 +200,39 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
               { summary: 'curl started', host_id: 'h1', severity: 'info', timestamp: new Date().toISOString() },
               { summary: 'Privilege escalation chain', host_id: 'h1', severity: 'high', kind: 'correlation' },
             ],
+          },
+        })
+      }
+      if (url.includes('/fabric/health')) {
+        return route.fulfill({
+          json: {
+            status: 'healthy',
+            sensors_total: 1,
+            sensors_healthy: 1,
+            summary: '1 sensor(s) · 128 OpenSearch doc(s)',
+            hunt_index: { configured: true, reachable: true, document_count: 128 },
+            issues: [],
+          },
+        })
+      }
+      if (url.includes('/hunt/queries')) {
+        return route.fulfill({
+          json: {
+            queries: [
+              { id: 'reverse-shell', name: 'Reverse shell listeners', query: 'nc OR netcat', severity: 'critical' },
+            ],
+          },
+        })
+      }
+      if (url.includes('/hunt/run/')) {
+        return route.fulfill({
+          json: {
+            ok: true,
+            query_id: 'reverse-shell',
+            query_name: 'Reverse shell listeners',
+            backend: 'opensearch',
+            hit_count: 1,
+            results: [{ summary: 'nc listener on 4444', host_id: 'h1', severity: 'critical' }],
           },
         })
       }
@@ -447,6 +484,7 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
           original_query: 'curl',
           search_query: 'curl',
           hit_count: 1,
+          search_backend: 'opensearch',
           llm_powered: false,
           results: { results: [{ summary: 'curl started', host_id: 'h1', severity: 'info' }] },
         },

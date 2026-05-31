@@ -10,7 +10,7 @@ export interface ZeusSecurityStatus {
     base_url: string
     storage?: {
       clickhouse?: { configured?: boolean; reachable?: boolean }
-      opensearch?: { configured?: boolean }
+      opensearch?: { configured?: boolean; reachable?: boolean; document_count?: number }
       demo_mode?: boolean
     }
   }
@@ -64,6 +64,48 @@ export const getFleetSecurityTimeline = (hours = 24) =>
 
 export const getSecurityCorrelations = () =>
   platformFetch<{ correlations: Array<Record<string, unknown>> }>('/api/v1/zeus-security/correlations')
+
+export interface FabricHealthIssue {
+  severity?: string
+  kind?: string
+  summary?: string
+  host_id?: string
+}
+
+export interface FabricHealth {
+  status?: string
+  sensors_total?: number
+  sensors_healthy?: number
+  summary?: string
+  issues?: FabricHealthIssue[]
+  hunt_index?: { configured?: boolean; reachable?: boolean; document_count?: number }
+}
+
+export const getFabricHealth = () =>
+  platformFetch<FabricHealth>('/api/v1/zeus-security/fabric/health')
+
+export interface HuntQuery {
+  id: string
+  name: string
+  query: string
+  description?: string
+  severity?: string
+}
+
+export const getHuntQueries = () =>
+  platformFetch<{ queries: HuntQuery[] }>('/api/v1/zeus-security/hunt/queries')
+
+export const runHuntQuery = (queryId: string, hostId?: string) => {
+  const q = hostId ? `?host_id=${encodeURIComponent(hostId)}` : ''
+  return platformFetch<{
+    ok?: boolean
+    query_id?: string
+    query_name?: string
+    results?: Array<Record<string, unknown>>
+    hit_count?: number
+    backend?: string
+  }>(`/api/v1/zeus-security/hunt/run/${encodeURIComponent(queryId)}${q}`, { method: 'POST' })
+}
 
 export const syncSecurityAlerts = () =>
   platformFetch<{ inserted: number; summary: string }>('/api/v1/zeus-security/alerts/sync', { method: 'POST' })
@@ -177,6 +219,7 @@ export const nlSecuritySearch = (query: string, hostId?: string) =>
     search_query: string
     results: Record<string, unknown>
     hit_count?: number
+    search_backend?: string
     llm_powered?: boolean
   }>('/api/v1/ai/security/nl-search', { method: 'POST', body: JSON.stringify({ query, host_id: hostId }) })
 

@@ -100,34 +100,63 @@ pub async fn sync_security_alerts(pool: &PgPool, cfg: &ControllerConfig) -> anyh
     }) {
         let summary = a.get("summary").and_then(|v| v.as_str()).unwrap_or("Security alert");
         let host_id = a.get("host_id").and_then(|v| v.as_str()).unwrap_or("");
-        let id = uuid::Uuid::new_v4();
-        let payload = serde_json::json!({
-            "title": summary,
-            "host_id": host_id,
-            "severity": a.get("severity"),
-            "kind": a.get("kind"),
-            "source": "packetwolf",
-        });
-        let exists: bool = sqlx::query_scalar(
-            "SELECT EXISTS(
-                SELECT 1 FROM notification_outbox
-                WHERE kind = 'security.alert' AND payload->>'title' = $1 AND created_at > NOW() - INTERVAL '1 hour'
-            )",
-        )
-        .bind(summary)
-        .fetch_one(pool)
-        .await
-        .unwrap_or(false);
-        if exists {
-            continue;
+        if insert_security_alert(pool, summary, host_id, a).await? {
+            inserted += 1;
         }
-        sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES ($1, $2, $3)")
-            .bind(id)
-            .bind("security.alert")
-            .bind(payload)
-            .execute(pool)
-            .await?;
-        inserted += 1;
+    }
+
+    let health = packetwolf_bridge::fabric_health(cfg).await;
+    if let Some(issues) = health.get("issues").and_then(|v| v.as_array()) {
+        for issue in issues.iter().filter(|x| {
+            x.get("severity")
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| s == "critical" || s == "high" || s == "warning")
+        }) {
+            let summary = issue
+                .get("summary")
+                .and_then(|v| v.as_str())
+                .unwrap_or("Fabric health issue");
+            let host_id = issue.get("host_id").and_then(|v| v.as_str()).unwrap_or("");
+            if insert_security_alert(pool, summary, host_id, issue).await? {
+                inserted += 1;
+            }
+        }
     }
     Ok(inserted)
+}
+
+async fn insert_security_alert(
+    pool: &PgPool,
+    summary: &str,
+    host_id: &str,
+    detail: &serde_json::Value,
+) -> anyhow::Result<bool> {
+    let id = uuid::Uuid::new_v4();
+    let payload = serde_json::json!({
+        "title": summary,
+        "host_id": host_id,
+        "severity": detail.get("severity"),
+        "kind": detail.get("kind"),
+        "source": "packetwolf",
+    });
+    let exists: bool = sqlx::query_scalar(
+        "SELECT EXISTS(
+            SELECT 1 FROM notification_outbox
+            WHERE kind = 'security.alert' AND payload->>'title' = $1 AND created_at > NOW() - INTERVAL '1 hour'
+        )",
+    )
+    .bind(summary)
+    .fetch_one(pool)
+    .await
+    .unwrap_or(false);
+    if exists {
+        return Ok(false);
+    }
+    sqlx::query("INSERT INTO notification_outbox (id, kind, payload) VALUES ($1, $2, $3)")
+        .bind(id)
+        .bind("security.alert")
+        .bind(payload)
+        .execute(pool)
+        .await?;
+    Ok(true)
 }

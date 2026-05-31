@@ -8,10 +8,13 @@ import ErrorBanner from '../../components/ErrorBanner'
 import SecurityTimelinePanel from '../../components/platform/SecurityTimelinePanel'
 import {
   getFleetSecurityTimeline,
+  getHuntQueries,
   getSecurityCorrelations,
   getSecurityHuntSummary,
   nlSecuritySearch,
   reconstructAttack,
+  runHuntQuery,
+  type HuntQuery,
   type SecurityEvent,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
@@ -25,9 +28,13 @@ function LlmBadge({ powered }: { powered?: boolean }) {
   )
 }
 
-function extractSearchHits(results: Record<string, unknown>): Array<{ summary: string; host_id?: string }> {
-  const raw = results.results
-  const list = Array.isArray(raw) ? raw : Array.isArray(results) ? results : []
+function extractSearchHits(payload: Record<string, unknown>): Array<{ summary: string; host_id?: string }> {
+  const nested = payload.results
+  const list = Array.isArray(nested)
+    ? nested
+    : nested && typeof nested === 'object' && Array.isArray((nested as { results?: unknown[] }).results)
+      ? (nested as { results: unknown[] }).results
+      : Array.isArray(payload) ? payload : []
   return list.slice(0, 12).map((item) => {
     const row = item as Record<string, unknown>
     return {
@@ -40,9 +47,10 @@ function extractSearchHits(results: Record<string, unknown>): Array<{ summary: s
 export default function PlatformThreatHunting() {
   const [timeline, setTimeline] = useState<SecurityEvent[]>([])
   const [correlations, setCorrelations] = useState<Array<Record<string, unknown>>>([])
+  const [huntQueries, setHuntQueries] = useState<HuntQuery[]>([])
   const [query, setQuery] = useState('')
   const [searchHits, setSearchHits] = useState<Array<{ summary: string; host_id?: string }>>([])
-  const [searchMeta, setSearchMeta] = useState<{ query: string; llm?: boolean; count?: number } | null>(null)
+  const [searchMeta, setSearchMeta] = useState<{ query: string; llm?: boolean; count?: number; backend?: string } | null>(null)
   const [attackChain, setAttackChain] = useState<string[] | null>(null)
   const [attackSummary, setAttackSummary] = useState<string | null>(null)
   const [attackLlm, setAttackLlm] = useState(false)
@@ -52,18 +60,53 @@ export default function PlatformThreatHunting() {
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [tl, corr] = await Promise.all([
+      const [tl, corr, hunts] = await Promise.all([
         getFleetSecurityTimeline(48),
         getSecurityCorrelations(),
+        getHuntQueries(),
       ])
       setTimeline(tl.events ?? [])
       setCorrelations(corr.correlations ?? [])
+      setHuntQueries(hunts.queries ?? [])
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  const applySearchResponse = (r: {
+    search_query: string
+    results: Record<string, unknown>
+    hit_count?: number
+    llm_powered?: boolean
+    search_backend?: string
+  }) => {
+    setSearchHits(extractSearchHits(r.results))
+    setSearchMeta({
+      query: r.search_query,
+      llm: r.llm_powered,
+      count: r.hit_count,
+      backend: r.search_backend,
+    })
+  }
+
+  const runHunt = (queryId: string) => {
+    void runHuntQuery(queryId)
+      .then((r) => {
+        const hits = (r.results ?? []).slice(0, 12).map((row) => ({
+          summary: String(row.summary ?? row.kind ?? 'event'),
+          host_id: row.host_id ? String(row.host_id) : undefined,
+        }))
+        setSearchHits(hits)
+        setSearchMeta({
+          query: r.query_name ?? queryId,
+          count: r.hit_count ?? hits.length,
+          backend: r.backend,
+        })
+      })
+      .catch((e: unknown) => setError(formatUserError(e)))
+  }
 
   const runHuntSummary = () => {
     void getSecurityHuntSummary(48)
@@ -80,6 +123,23 @@ export default function PlatformThreatHunting() {
       <MacSectionTitle title="Threat hunting" subtitle="Search · timeline · graph · evidence · AI summary" />
       <Link to="/platform/zeus/security" className="text-sm text-blue-400">← Security Center</Link>
       {error && <ErrorBanner message={error} />}
+      {huntQueries.length > 0 && (
+        <MacGlassPanel title="Saved hunt queries" subtitle="OpenSearch-backed SOC playbooks">
+          <div className="flex flex-wrap gap-2">
+            {huntQueries.map((q) => (
+              <button
+                key={q.id}
+                type="button"
+                className="btn-secondary text-xs"
+                title={q.description}
+                onClick={() => runHunt(q.id)}
+              >
+                {q.name}
+              </button>
+            ))}
+          </div>
+        </MacGlassPanel>
+      )}
 
       <MacGlassPanel
         title="AI hunt summary"
@@ -116,18 +176,12 @@ export default function PlatformThreatHunting() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Find every sudo event last week"
-            onKeyDown={(e) => e.key === 'Enter' && void nlSecuritySearch(query).then((r) => {
-              setSearchHits(extractSearchHits(r.results))
-              setSearchMeta({ query: r.search_query, llm: r.llm_powered, count: r.hit_count })
-            }).catch((err: unknown) => setError(formatUserError(err)))}
+            onKeyDown={(e) => e.key === 'Enter' && void nlSecuritySearch(query).then(applySearchResponse).catch((err: unknown) => setError(formatUserError(err)))}
           />
           <button
             type="button"
             className="btn-secondary text-sm"
-            onClick={() => void nlSecuritySearch(query).then((r) => {
-              setSearchHits(extractSearchHits(r.results))
-              setSearchMeta({ query: r.search_query, llm: r.llm_powered, count: r.hit_count })
-            }).catch((e: unknown) => setError(formatUserError(e)))}
+            onClick={() => void nlSecuritySearch(query).then(applySearchResponse).catch((e: unknown) => setError(formatUserError(e)))}
           >
             Search
           </button>
@@ -147,7 +201,12 @@ export default function PlatformThreatHunting() {
           <p className="text-xs text-slate-500 mt-2 flex items-center gap-2">
             <LlmBadge powered={searchMeta.llm} />
             <span>
-              Translated: &quot;{searchMeta.query}&quot; · {searchMeta.count ?? searchHits.length} hit(s)
+              {searchMeta.query.startsWith('reverse') || huntQueries.some((q) => q.name === searchMeta.query)
+                ? `Hunt: "${searchMeta.query}"`
+                : `Translated: "${searchMeta.query}"`}
+              {' · '}
+              {searchMeta.count ?? searchHits.length} hit(s)
+              {searchMeta.backend ? ` · ${searchMeta.backend} index` : ''}
             </span>
           </p>
         )}

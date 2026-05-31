@@ -38,6 +38,14 @@ pub fn status(cfg: &ControllerConfig) -> PacketwolfStatus {
         {
             summary = format!("{summary} · ClickHouse hot storage");
         }
+        if st
+            .get("opensearch")
+            .and_then(|c| c.get("reachable"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
+            summary = format!("{summary} · OpenSearch hunt index");
+        }
     }
     PacketwolfStatus {
         enabled: cfg.packetwolf_enabled,
@@ -281,6 +289,27 @@ pub async fn search(cfg: &ControllerConfig, query: &str, host_id: Option<&str>) 
         "limit": 50
     });
     fabric_post(cfg, "/api/v1/search", body).await
+}
+
+pub async fn fabric_health(cfg: &ControllerConfig) -> serde_json::Value {
+    fabric_get(cfg, "/api/v1/fabric/health").await
+}
+
+pub async fn hunt_queries(cfg: &ControllerConfig) -> serde_json::Value {
+    fabric_get(cfg, "/api/v1/hunt/queries").await
+}
+
+pub async fn run_hunt_query(
+    cfg: &ControllerConfig,
+    query_id: &str,
+    host_id: Option<&str>,
+) -> serde_json::Value {
+    let path = if let Some(h) = host_id {
+        format!("/api/v1/hunt/run/{query_id}?host_id={h}")
+    } else {
+        format!("/api/v1/hunt/run/{query_id}")
+    };
+    fabric_post(cfg, &path, serde_json::json!({})).await
 }
 
 pub async fn sensors(cfg: &ControllerConfig) -> serde_json::Value {

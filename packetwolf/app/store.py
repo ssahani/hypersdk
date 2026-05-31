@@ -391,19 +391,57 @@ def open_ports(host_id: str) -> list[dict[str, Any]]:
     return [{"host_id": host_id, **p} for p in ports]
 
 
-def search(query: str, host_id: str | None = None, limit: int = 50) -> list[dict[str, Any]]:
+def search(query: str, host_id: str | None = None, limit: int = 50) -> dict[str, Any]:
     _seed_demo()
-    os_hits = search_index.search(query, host_id, limit)
-    if os_hits:
-        return os_hits
+    os_hits = search_index.search(query, host_id, limit) if search_index.configured() else []
+    mem_hits = _memory_search(query, host_id, limit)
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for hit in os_hits:
+        doc_id = str(hit.get("id", ""))
+        if doc_id and doc_id in seen:
+            continue
+        if doc_id:
+            seen.add(doc_id)
+        merged.append(hit)
+    for hit in mem_hits:
+        doc_id = str(hit.get("id", ""))
+        if doc_id and doc_id in seen:
+            continue
+        if doc_id:
+            seen.add(doc_id)
+        hit = dict(hit)
+        hit["search_source"] = hit.get("search_source", "memory")
+        merged.append(hit)
+        if len(merged) >= limit:
+            break
+    os_count = sum(1 for h in merged if h.get("search_source") == "opensearch")
+    mem_count = len(merged) - os_count
+    if os_count and mem_count:
+        backend = "merged"
+    elif os_count:
+        backend = "opensearch"
+    else:
+        backend = "memory"
+    return {
+        "results": merged[:limit],
+        "hit_count": len(merged[:limit]),
+        "backend": backend,
+        "sources": {"opensearch": os_count, "memory": mem_count},
+    }
+
+
+def _memory_search(query: str, host_id: str | None, limit: int) -> list[dict[str, Any]]:
     q = query.lower()
-    out = []
+    out: list[dict[str, Any]] = []
     for e in _events:
         if host_id and e.host_id != host_id:
             continue
         blob = f"{e.summary} {e.process.binary} {e.process.args} {e.dns.query} {e.file.path}".lower()
-        if q in blob or not q.strip():
-            out.append(e.model_dump(mode="json"))
+        if q in blob or not q.strip() or q == "*":
+            doc = e.model_dump(mode="json")
+            doc["search_source"] = "memory"
+            out.append(doc)
         if len(out) >= limit:
             break
     return out
@@ -543,15 +581,80 @@ def host_enforcement(host_id: str) -> dict[str, Any]:
 
 
 def storage_status() -> dict[str, Any]:
+    os_stats = search_index.index_stats()
     return {
         "clickhouse": {
             "configured": clickhouse_store.enabled(),
             "reachable": clickhouse_store.ping(),
         },
-        "opensearch": {
-            "configured": bool(search_index.OPENSEARCH_URL),
-        },
+        "opensearch": os_stats,
         "demo_mode": os.environ.get("PACKETWOLF_DEMO", "1") != "0",
+    }
+
+
+def fabric_health() -> dict[str, Any]:
+    _seed_demo()
+    storage = storage_status()
+    sensors = list_sensors()
+    healthy = sum(1 for s in sensors if s.get("status") == "healthy")
+    issues: list[dict[str, Any]] = []
+    if storage["opensearch"].get("configured") and not storage["opensearch"].get("reachable"):
+        issues.append(
+            {
+                "severity": "warning",
+                "kind": "opensearch_unreachable",
+                "summary": "OpenSearch configured but unreachable — hunt queries fall back to in-memory index",
+            }
+        )
+    if storage["clickhouse"].get("configured") and not storage["clickhouse"].get("reachable"):
+        issues.append(
+            {
+                "severity": "warning",
+                "kind": "clickhouse_unreachable",
+                "summary": "ClickHouse configured but unreachable — using in-memory hot cache",
+            }
+        )
+    stale_cutoff = datetime.now(timezone.utc) - timedelta(minutes=30)
+    for s in sensors:
+        last = s.get("last_event_at")
+        if not last:
+            continue
+        try:
+            ts = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if ts < stale_cutoff:
+            issues.append(
+                {
+                    "severity": "medium",
+                    "kind": "sensor_stale",
+                    "host_id": s.get("host_id"),
+                    "summary": f"Sensor {s.get('host_id')} has no events in 30+ minutes",
+                }
+            )
+    if not sensors:
+        issues.append(
+            {
+                "severity": "info",
+                "kind": "no_sensors",
+                "summary": "No Tetragon sensors enrolled — install sensors on hosts or K8s clusters",
+            }
+        )
+    status = "healthy"
+    if any(i.get("severity") in ("critical", "high") for i in issues):
+        status = "degraded"
+    elif issues:
+        status = "degraded" if len(issues) > 1 else "healthy"
+    if not storage["opensearch"].get("configured") and not storage["clickhouse"].get("configured"):
+        status = "degraded" if sensors else "offline"
+    return {
+        "status": status,
+        "sensors_total": len(sensors),
+        "sensors_healthy": healthy,
+        "storage": storage,
+        "hunt_index": storage["opensearch"],
+        "issues": issues,
+        "summary": f"{len(sensors)} sensor(s) · {storage['opensearch'].get('document_count', 0)} OpenSearch doc(s)",
     }
 
 
