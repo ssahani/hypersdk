@@ -13,6 +13,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackIdentityUserDetailPage() {
   return (
@@ -63,7 +64,7 @@ function OpenStackIdentityUserDetailContent() {
         <ArrowLeft className="w-4 h-4" /> Identity
       </Link>
       <h1 className="text-2xl font-semibold flex items-center gap-2">
-        <Users className="w-7 h-7 text-amber-400" /> {user.name}
+        <Users className={`w-7 h-7 ${statusToneClass('warn')}`} /> {user.name}
       </h1>
       <dl className="grid sm:grid-cols-2 gap-4 rounded-xl border border-slate-700 p-4 text-sm">
         <div><dt className="text-xs text-slate-500 uppercase">ID</dt><dd className="font-mono mt-1 break-all">{user.id}</dd></div>

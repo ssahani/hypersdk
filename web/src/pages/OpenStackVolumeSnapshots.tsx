@@ -13,6 +13,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { Camera, Loader2, RefreshCw } from 'lucide-react'
 
 export default function OpenStackVolumeSnapshotsPage() {
@@ -89,7 +90,7 @@ function OpenStackVolumeSnapshotsContent() {
                         toast.success('Volume created from snapshot')
                       } catch (e: unknown) { toast.error(formatUserError(e)) }
                     }}>Restore</button>
-                    <button type="button" className="text-red-400 hover:underline" onClick={async () => {
+                    <button type="button" className={statusActionLinkClasses('error')} onClick={async () => {
                       if (!confirm(`Delete snapshot ${s.name || s.id}?`)) return
                       try {
                         await deleteOpenStackVolumeSnapshot(s.id)

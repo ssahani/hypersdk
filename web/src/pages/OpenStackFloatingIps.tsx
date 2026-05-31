@@ -17,6 +17,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { Globe, Loader2, RefreshCw } from 'lucide-react'
 
 export default function OpenStackFloatingIpsPage() {
@@ -152,7 +153,7 @@ function OpenStackFloatingIpsContent() {
                   <td className="px-3 py-2 flex flex-wrap gap-2">
                     <Link to={`/openstack/floating-ips/${fip.id}`} className="text-xs text-violet-400 hover:underline">Detail</Link>
                     {fip.instance_id && (
-                      <button type="button" className="text-xs text-amber-400 hover:underline"
+                      <button type="button" className={statusActionLinkClasses('warn', 'text-xs')}
                         onClick={async () => {
                           try {
                             await dissociateOpenStackFloatingIp(fip.id)
@@ -161,7 +162,7 @@ function OpenStackFloatingIpsContent() {
                           } catch (e: unknown) { toast.error(formatUserError(e)) }
                         }}>Dissociate</button>
                     )}
-                    <button type="button" className="text-xs text-red-400 hover:underline"
+                    <button type="button" className={statusActionLinkClasses('error', 'text-xs')}
                       onClick={async () => {
                         if (!confirm(`Release ${fip.address}?`)) return
                         try {

@@ -30,6 +30,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackLoadBalancerDetailPage() {
   return (
@@ -121,7 +122,7 @@ function OpenStackLoadBalancerDetailContent() {
         <ArrowLeft className="w-4 h-4" /> Load balancers
       </Link>
       <h1 className="text-2xl font-semibold flex items-center gap-2">
-        <Scale className="w-7 h-7 text-emerald-400" /> {lb.name}
+        <Scale className={`w-7 h-7 ${statusToneClass('ok')}`} /> {lb.name}
       </h1>
       <dl className="grid sm:grid-cols-2 gap-4 rounded-xl border border-slate-700 p-4 text-sm">
         <div><dt className="text-xs text-slate-500 uppercase">VIP</dt><dd className="font-mono mt-1">{lb.vip_address || '—'}</dd></div>
@@ -156,7 +157,7 @@ function OpenStackLoadBalancerDetailContent() {
         {(listeners ?? []).map((l) => (
           <div key={l.id} className="flex justify-between items-center text-sm border-t border-slate-800 pt-2">
             <span>{l.name} · {l.protocol}:{l.protocol_port} · {l.operating_status}</span>
-            <button type="button" className="text-red-400 text-xs" onClick={async () => {
+            <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
               if (!confirm(`Delete listener ${l.name}?`)) return
               try {
                 await deleteOpenStackLbListener(l.id)
@@ -203,7 +204,7 @@ function OpenStackLoadBalancerDetailContent() {
             {expandedPool === p.id && (
               <div className="mt-2 ml-3 space-y-2 text-sm">
                 <div className="flex justify-end">
-                  <button type="button" className="text-red-400 text-xs" onClick={async () => {
+                  <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                     if (!confirm(`Delete pool ${p.name}?`)) return
                     try {
                       await deleteOpenStackLbPool(p.id)
@@ -216,7 +217,7 @@ function OpenStackLoadBalancerDetailContent() {
                 {(members[p.id] ?? []).map((m) => (
                   <div key={m.id} className="flex justify-between">
                     <span>{m.address}:{m.protocol_port}</span>
-                    <button type="button" className="text-red-400 text-xs" onClick={async () => {
+                    <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                       try {
                         await deleteOpenStackLbMember(p.id, m.id)
                         toast.success('Member removed')
@@ -229,7 +230,7 @@ function OpenStackLoadBalancerDetailContent() {
                 {(monitors[p.id] ?? []).map((h) => (
                   <div key={h.id} className="flex justify-between">
                     <span>{h.name} · {h.type}</span>
-                    <button type="button" className="text-red-400 text-xs" onClick={async () => {
+                    <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                       try {
                         await deleteOpenStackLbHealthMonitor(h.id)
                         toast.success('Monitor removed')

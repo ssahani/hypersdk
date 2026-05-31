@@ -19,6 +19,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 type Tab = 'overview' | 'resources' | 'events' | 'template' | 'outputs'
 
@@ -200,7 +201,7 @@ function OpenStackHeatDetailContent() {
             <Save className="w-4 h-4" /> Update stack
           </button>
           {template && editTemplate !== template && (
-            <p className="text-amber-400/80 text-xs">Unsaved template changes</p>
+            <p className={`text-xs ${statusToneClass('warn')}`}>Unsaved template changes</p>
           )}
         </div>
       ) : (

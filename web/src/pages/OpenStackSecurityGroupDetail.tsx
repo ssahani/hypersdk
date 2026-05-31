@@ -17,6 +17,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackSecurityGroupDetailPage() {
   return (
@@ -112,7 +113,7 @@ function OpenStackSecurityGroupDetailContent() {
                   <span>{r.port_range_min ?? '—'}–{r.port_range_max ?? '—'}</span>
                 )}
                 {r.remote_ip_prefix && <span>{r.remote_ip_prefix}</span>}
-                <button type="button" className="text-red-400 hover:underline ml-auto"
+                <button type="button" className={statusActionLinkClasses('error', 'ml-auto')}
                   onClick={async () => {
                     try {
                       await deleteOpenStackSecurityGroupRule(r.id)

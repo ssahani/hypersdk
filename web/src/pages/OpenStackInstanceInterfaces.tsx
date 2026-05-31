@@ -15,6 +15,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackInstanceInterfacesPage() {
   return (
@@ -99,7 +100,7 @@ function OpenStackInstanceInterfacesContent() {
                 <span className="text-slate-500 text-xs">MAC {i.mac_addr}</span>
                 <Link to={`/openstack/ports/${i.port_id}`} className="text-sky-400 text-xs hover:underline">Port</Link>
                 <Link to={`/openstack/networks/${i.net_id}`} className="text-sky-400 text-xs hover:underline">Network</Link>
-                <button type="button" className="text-red-400 text-xs hover:underline ml-auto"
+                <button type="button" className={statusActionLinkClasses('error', 'text-xs ml-auto')}
                   onClick={() => void run(() => detachOpenStackInterface(inst.id, i.port_id), 'Interface detached')}>
                   Detach
                 </button>

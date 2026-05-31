@@ -37,6 +37,7 @@ import OpenStackFooter from '../components/OpenStackFooter'
 import PageSkeleton from '../components/PageSkeleton'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { HardDrive, Loader2, RefreshCw } from 'lucide-react'
 
 export default function OpenStackVolumesPage() {
@@ -273,7 +274,7 @@ function OpenStackVolumesContent() {
               <li key={t.id} className="flex flex-wrap items-center gap-2">
                 <Link to={`/openstack/volume-transfers/${t.id}`} className="text-sky-300 hover:underline">{t.name}</Link>
                 <span>· vol {t.volume_id.slice(0, 8)} · {t.id.slice(0, 8)}</span>
-                <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
+                <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                   if (!confirm(`Cancel transfer ${t.name}?`)) return
                   try { await deleteOpenStackVolumeTransfer(t.id); toast.success('Transfer deleted'); void load() }
                   catch (e: unknown) { toast.error(formatUserError(e)) }
@@ -417,7 +418,7 @@ function OpenStackVolumesContent() {
                       {v.server_id && (
                         <button
                           type="button"
-                          className="text-xs text-amber-400 hover:underline"
+                          className={statusActionLinkClasses('warn', 'text-xs')}
                           onClick={async () => {
                             try {
                               await detachOpenStackVolume(v.server_id!, v.id)
@@ -465,7 +466,7 @@ function OpenStackVolumesContent() {
                             toast.error(formatUserError(e))
                           }
                         }}>Retype</button>
-                      <button type="button" className="text-xs text-amber-400 hover:underline"
+                      <button type="button" className={statusActionLinkClasses('warn', 'text-xs')}
                         onClick={async () => {
                           const n = prompt('New size (GB)', String(v.size_gb + 1))
                           if (!n) return
@@ -477,7 +478,7 @@ function OpenStackVolumesContent() {
                             toast.error(formatUserError(e))
                           }
                         }}>Extend</button>
-                      <button type="button" className="text-xs text-red-400 hover:underline"
+                      <button type="button" className={statusActionLinkClasses('error', 'text-xs')}
                         onClick={async () => {
                           if (!confirm(`Delete volume ${v.name || v.id}?`)) return
                           try {
@@ -523,7 +524,7 @@ function OpenStackVolumesContent() {
                         <span className="text-slate-400">{s.status}</span>
                         <button
                           type="button"
-                          className="ml-2 text-red-400 hover:underline"
+                          className={statusActionLinkClasses('error', 'ml-2')}
                           onClick={async () => {
                             if (!confirm(`Delete snapshot ${s.name || s.id}?`)) return
                             try {

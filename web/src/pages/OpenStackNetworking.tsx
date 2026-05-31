@@ -36,6 +36,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import PageSkeleton from '../components/PageSkeleton'
 import { Loader2, Network, Plus, RefreshCw } from 'lucide-react'
 
@@ -403,14 +404,14 @@ function OpenStackNetworkingContent() {
               {networks.map((n) => (
                 <li key={n.id} className="text-slate-300 flex items-center gap-2">
                   <Link to={`/openstack/networks/${n.id}`} className="text-sky-300 hover:underline">{n.name}</Link>
-                  {n.external && <span className="text-amber-400 text-xs">external</span>}
+                  {n.external && <span className={`text-xs ${statusToneClass('warn')}`}>external</span>}
                   <button type="button" className="text-sky-400 text-xs hover:underline" onClick={async () => {
                     const nn = prompt('Network name', n.name)
                     if (nn === null || !nn.trim()) return
                     try { await updateOpenStackNetwork(n.id, { name: nn.trim() }); toast.success('Renamed'); void load() }
                     catch (e: unknown) { toast.error(formatUserError(e)) }
                   }}>Rename</button>
-                  <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
+                  <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                     if (!confirm(`Delete network ${n.name}?`)) return
                     try { await deleteOpenStackNetwork(n.id); toast.success('Network deleted'); void load() }
                     catch (e: unknown) { toast.error(formatUserError(e)) }
@@ -425,7 +426,7 @@ function OpenStackNetworkingContent() {
                 <li key={s.id} className="flex items-center gap-2">
                   <Link to={`/openstack/subnets/${s.id}`} className="text-sky-300 hover:underline">{s.name}</Link>
                   <span> · {s.cidr}</span>
-                  <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
+                  <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                     if (!confirm(`Delete subnet ${s.name}?`)) return
                     try { await deleteOpenStackSubnet(s.id); toast.success('Subnet deleted'); void load() }
                     catch (e: unknown) { toast.error(formatUserError(e)) }
@@ -446,7 +447,7 @@ function OpenStackNetworkingContent() {
                     try { await updateOpenStackRouter(r.id, { name: nn.trim() }); toast.success('Renamed'); void load() }
                     catch (e: unknown) { toast.error(formatUserError(e)) }
                   }}>Rename</button>
-                  <button type="button" className="text-red-400 text-xs hover:underline" onClick={async () => {
+                  <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                     if (!confirm(`Delete router ${r.name}?`)) return
                     try { await deleteOpenStackRouter(r.id); toast.success('Router deleted'); void load() }
                     catch (e: unknown) { toast.error(formatUserError(e)) }
@@ -479,7 +480,7 @@ function OpenStackNetworkingContent() {
                   {!p.device_id && (
                     <button
                       type="button"
-                      className="text-red-400 text-xs hover:underline"
+                      className={statusActionLinkClasses('error', 'text-xs')}
                       onClick={async () => {
                         if (!confirm(`Delete port ${p.name || p.id}?`)) return
                         try {
@@ -510,7 +511,7 @@ function OpenStackNetworkingContent() {
                   {fip.instance_id && (
                     <button
                       type="button"
-                      className="text-amber-400 text-xs hover:underline"
+                      className={statusActionLinkClasses('warn', 'text-xs')}
                       onClick={async () => {
                         try {
                           await dissociateOpenStackFloatingIp(fip.id)
@@ -526,7 +527,7 @@ function OpenStackNetworkingContent() {
                   )}
                   <button
                     type="button"
-                    className="text-red-400 text-xs hover:underline"
+                    className={statusActionLinkClasses('error', 'text-xs')}
                     onClick={async () => {
                       if (!confirm(`Release floating IP ${fip.address}?`)) return
                       try {

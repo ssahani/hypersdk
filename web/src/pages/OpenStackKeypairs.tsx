@@ -8,6 +8,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { Key, Loader2, RefreshCw } from 'lucide-react'
 
 export default function OpenStackKeypairsPage() {
@@ -87,7 +88,7 @@ function OpenStackKeypairsContent() {
             <li key={k.name} className="px-4 py-3 flex justify-between items-center text-sm">
               <span className="font-mono text-slate-200">{k.name}</span>
               <span className="text-slate-500 text-xs">{k.fingerprint || '—'}</span>
-              <button type="button" className="text-red-400 text-xs hover:underline"
+              <button type="button" className={statusActionLinkClasses('error', 'text-xs')}
                 onClick={async () => {
                   if (!confirm(`Delete keypair ${k.name}?`)) return
                   try {

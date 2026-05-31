@@ -20,6 +20,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackIdentityProjectDetailPage() {
   return (
@@ -81,7 +82,7 @@ function OpenStackIdentityProjectDetailContent() {
         <ArrowLeft className="w-4 h-4" /> Identity
       </Link>
       <h1 className="text-2xl font-semibold flex items-center gap-2">
-        <KeyRound className="w-7 h-7 text-amber-400" /> {project.name}
+        <KeyRound className={`w-7 h-7 ${statusToneClass('warn')}`} /> {project.name}
       </h1>
       <dl className="grid sm:grid-cols-2 gap-4 rounded-xl border border-slate-700 p-4 text-sm">
         <div><dt className="text-xs text-slate-500 uppercase">ID</dt><dd className="font-mono mt-1 break-all">{project.id}</dd></div>
@@ -128,7 +129,7 @@ function OpenStackIdentityProjectDetailContent() {
                   <td className="py-2">{a.role_name || a.role_id}</td>
                   <td className="py-2 text-right">
                     {a.user_id && (
-                      <button type="button" className="text-red-400 text-xs" onClick={async () => {
+                      <button type="button" className={statusActionLinkClasses('error', 'text-xs')} onClick={async () => {
                         try {
                           await revokeOpenStackRoleAssignment({
                             project_id: project.id,

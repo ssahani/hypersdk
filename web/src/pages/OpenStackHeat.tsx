@@ -15,6 +15,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 const MINIMAL_TEMPLATE = `heat_template_version: 2016-10-14
 description: Minimal Heat stack (Machina)
@@ -133,7 +134,7 @@ function OpenStackHeatContent() {
                   <td className="px-3 py-2">{s.stack_status}</td>
                   <td className="px-3 py-2 text-slate-500">{s.creation_time || '—'}</td>
                   <td className="px-3 py-2 text-right">
-                    <button type="button" className="text-red-400 hover:underline inline-flex items-center gap-1"
+                    <button type="button" className={statusActionLinkClasses('error', 'inline-flex items-center gap-1')}
                       onClick={async () => {
                         if (!confirm(`Delete stack ${s.stack_name}?`)) return
                         try {

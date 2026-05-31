@@ -17,6 +17,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { openStackErrorHints } from '../utils/openstackHints'
 
 function formatBytes(n?: number) {
@@ -189,7 +190,7 @@ function OpenStackImagesContent() {
                       type="button"
                       title="Delete image"
                       onClick={() => setDeleteTarget(img)}
-                      className="p-2 rounded hover:bg-red-500/20 text-red-400"
+                      className={`p-2 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

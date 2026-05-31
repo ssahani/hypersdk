@@ -61,6 +61,14 @@ export function sessionBadgeClasses(extra = ''): string {
   return `px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_20%,transparent)] ${extra}`.trim()
 }
 
+export function statusActionLinkClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral', extra = ''): string {
+  return `${statusToneClass(tone)} hover:underline ${extra}`.trim()
+}
+
+export function statusDestructiveButtonClasses(extra = ''): string {
+  return `inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm ${statusBadgeClasses('error')} ${extra}`.trim()
+}
+
 export function vmStateTone(state: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
   const s = state.toLowerCase()
   if (s === 'running' || s === 'active') return 'ok'

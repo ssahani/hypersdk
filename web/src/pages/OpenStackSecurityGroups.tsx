@@ -23,6 +23,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { openStackErrorHints } from '../utils/openstackHints'
 import { Loader2, RefreshCw, Shield } from 'lucide-react'
 
@@ -177,7 +178,7 @@ function OpenStackSecurityGroupsContent() {
                   </h2>
                   <button
                     type="button"
-                    className="text-xs text-red-400 hover:underline"
+                    className={statusActionLinkClasses('error', 'text-xs')}
                     onClick={() => setDeleteGroupTarget(active)}
                   >
                     Delete group
@@ -245,7 +246,7 @@ function OpenStackSecurityGroupsContent() {
                             </td>
                             <td className="px-3 py-2">{r.ethertype || '—'}</td>
                             <td className="px-3 py-2">
-                              <button type="button" className="text-red-400 hover:underline"
+                              <button type="button" className={statusActionLinkClasses('error')}
                                 onClick={async () => {
                                   try {
                                     await deleteOpenStackSecurityGroupRule(r.id)

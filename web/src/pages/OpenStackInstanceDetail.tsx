@@ -31,6 +31,7 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { openStackErrorHints } from '../utils/openstackHints'
 import ErrorBanner from '../components/ErrorBanner'
 
@@ -288,7 +289,7 @@ function OpenStackInstanceDetailContent() {
             </button>
           )}
           <button type="button" onClick={() => setDeleteOpen(true)}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500/10 text-sm">
+            className={statusDestructiveButtonClasses('hover:opacity-90')}>
             <Trash2 className="w-4 h-4" /> Delete
           </button>
           <button type="button" onClick={() => setForceDeleteOpen(true)}

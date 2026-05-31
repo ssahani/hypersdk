@@ -13,6 +13,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { Layers, Loader2, RefreshCw } from 'lucide-react'
 
 const POLICIES = ['affinity', 'anti-affinity', 'soft-affinity', 'soft-anti-affinity'] as const
@@ -103,7 +104,7 @@ function OpenStackServerGroupsContent() {
                   <span className="block text-xs text-slate-400 mt-1">{g.members.length} member(s)</span>
                 )}
               </div>
-              <button type="button" className="text-red-400 text-xs hover:underline self-start"
+              <button type="button" className={statusActionLinkClasses('error', 'text-xs self-start')}
                 onClick={async () => {
                   if (!confirm(`Delete server group ${g.name}?`)) return
                   try {

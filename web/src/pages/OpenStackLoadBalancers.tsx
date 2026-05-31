@@ -16,6 +16,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackLoadBalancersPage() {
   return (
@@ -56,7 +57,7 @@ function OpenStackLoadBalancersContent() {
     <div className="space-y-6">
       <OpenStackSubNav />
       <h1 className="text-2xl font-semibold flex items-center gap-2">
-        <Scale className="w-7 h-7 text-emerald-400" /> Octavia load balancers
+        <Scale className={`w-7 h-7 ${statusToneClass('ok')}`} /> Octavia load balancers
       </h1>
       <p className="text-slate-400 text-sm">Requires Octavia (load-balancer) in the service catalog.</p>
 
@@ -115,7 +116,7 @@ function OpenStackLoadBalancersContent() {
                   <td className="px-3 py-2">{lb.provisioning_status}</td>
                   <td className="px-3 py-2">{lb.operating_status}</td>
                   <td className="px-3 py-2 text-right">
-                    <button type="button" className="text-red-400 hover:underline inline-flex items-center gap-1"
+                    <button type="button" className={statusActionLinkClasses('error', 'inline-flex items-center gap-1')}
                       onClick={async () => {
                         if (!confirm(`Delete ${lb.name}?`)) return
                         try {

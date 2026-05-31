@@ -9,6 +9,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackServerGroupDetailPage() {
   return (
@@ -74,7 +75,7 @@ function OpenStackServerGroupDetailContent() {
           </ul>
         </div>
       </dl>
-      <button type="button" className="px-3 py-1.5 rounded-lg border border-red-500/50 text-red-400 text-sm"
+      <button type="button" className={statusDestructiveButtonClasses('px-3 py-1.5 text-sm')}
         onClick={async () => {
           if (!confirm(`Delete server group ${group.name}?`)) return
           try {

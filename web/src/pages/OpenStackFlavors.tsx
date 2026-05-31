@@ -13,6 +13,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
 import { Cpu, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react'
 
 export default function OpenStackFlavorsPage() {
@@ -128,7 +129,7 @@ function OpenStackFlavorsContent() {
                   <td className="px-3 py-2">{f.disk_gb} GB</td>
                   <td className="px-3 py-2 flex gap-2">
                     <Link to={`/openstack/flavors/${f.id}`} className="text-xs text-sky-400 hover:underline">Open</Link>
-                    <button type="button" className="text-xs text-red-400 hover:underline inline-flex items-center gap-0.5"
+                    <button type="button" className={statusActionLinkClasses('error', 'text-xs inline-flex items-center gap-0.5')}
                       onClick={async () => {
                         if (!confirm(`Delete flavor ${f.name}?`)) return
                         try {
