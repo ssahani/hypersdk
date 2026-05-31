@@ -191,3 +191,80 @@ test('normal tier hub preview unlocks operations', async ({ page }) => {
   await page.locator('.tahoe-hub-preview-card').filter({ hasText: 'Operations' }).click()
   await expect(page).toHaveURL(/\/platform\/operations/)
 })
+
+test('spotlight lists resources workspaces on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await expect(
+    spotlight.getByRole('button', { name: 'Networks Resources workspace' }),
+  ).toBeVisible()
+})
+
+test('spotlight lists security workspaces on advanced tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'advanced' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await expect(
+    spotlight.locator('button').filter({ hasText: 'Policy Studio' }).filter({ hasNotText: /Hub ·/ }),
+  ).toBeVisible()
+})
+
+test('spotlight lists zeus workspaces on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await expect(
+    spotlight.locator('button').filter({ hasText: 'Knowledge' }).filter({ hasNotText: /Hub ·/ }),
+  ).toBeVisible()
+})
+
+test('mobile jump nav navigates security context on advanced tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'advanced' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/platform/zeus/security')
+  await expect(page.locator('#platform-mobile-jump')).toBeVisible()
+  const jump = page.getByRole('combobox', { name: 'Navigate platform' })
+  await expect(jump).toHaveValue('/platform/zeus/security')
+  await jump.selectOption({ label: 'Policy Studio' })
+  await expect(page).toHaveURL(/\/platform\/zeus\/security\/policies/)
+})
+
+test('normal tier zeus route tier bounces to settings', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform/zeus')
+  await expect(page).toHaveURL(/\/platform\/settings/, { timeout: 15_000 })
+})
+
+test('spotlight hides legacy Pages category on platform desktop', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await expect(spotlight.getByText('Infrastructure', { exact: true })).toHaveCount(0)
+  await expect(spotlight.getByText('Pages', { exact: true })).toHaveCount(0)
+})
+
+test('Go menu operations navigates without tier bounce on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  const menubar = page.locator('.mac-menubar-inner')
+  await menubar.getByRole('button', { name: 'Go', exact: true }).click()
+  await page.locator('.mac-menu-panel').getByRole('button', { name: 'Operations' }).click()
+  await expect(page).toHaveURL(/\/platform\/operations/)
+})

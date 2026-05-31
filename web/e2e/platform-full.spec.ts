@@ -28,6 +28,7 @@ const POWER_ROUTES: Array<{ path: string; text: RegExp }> = [
   { path: '/platform/placement', text: /Placement & HA/i },
   { path: '/platform/policy', text: /Policy & Quotas/i },
   { path: '/platform/api-keys', text: /API Keys/i },
+  { path: '/platform/resources', text: /Resources/i },
 ]
 
 test.describe('power tier platform routes', () => {

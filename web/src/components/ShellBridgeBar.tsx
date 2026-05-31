@@ -20,7 +20,7 @@ export default function ShellBridgeBar() {
   }, [fleetMode])
 
   if (!label) return null
-  if (!stickyFleet && !loading) return null
+  if (!stickyFleet && !fleetMode && !loading) return null
 
   return (
     <div

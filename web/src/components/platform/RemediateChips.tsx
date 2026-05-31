@@ -5,12 +5,15 @@ import { Link } from 'react-router'
 import { Sparkles } from 'lucide-react'
 import { getComplianceRemediate, getSreRemediate } from '../../api/ai'
 import { MacGlassPanel } from './mac/PlatformMacUi'
+import { isPathAllowedForTier } from '../../utils/platformDesktopTier'
+import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 
 type Remediation = { label: string; review: string; action?: string; framework?: string }
 
 const VISIBLE_COMPACT = 3
 
 export default function RemediateChips({ compact = false }: { compact?: boolean }) {
+  const [tier] = usePlatformDesktopTier()
   const [sre, setSre] = useState<Remediation[]>([])
   const [compliance, setCompliance] = useState<Remediation[]>([])
   const [summary, setSummary] = useState<string | null>(null)
@@ -34,7 +37,7 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
   const items = [
     ...sre.map((r) => ({ ...r, hub: '/platform/zeus' as const })),
     ...compliance.map((r) => ({ ...r, hub: '/platform/zeus/security/compliance' as const })),
-  ]
+  ].filter((r) => isPathAllowedForTier(r.hub, tier))
   if (items.length === 0 && !summary) return null
 
   const visibleCount = compact ? (expanded ? items.length : VISIBLE_COMPACT) : 12
@@ -68,7 +71,7 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
           Show less
         </button>
       ) : null}
-      {compact ? (
+      {compact && isPathAllowedForTier('/platform/zeus', tier) ? (
         <Link to="/platform/zeus" className="tahoe-remediate-more ml-auto shrink-0">
           Remediation hub →
         </Link>

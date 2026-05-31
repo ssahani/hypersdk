@@ -149,7 +149,3 @@ export function defaultSidebarVisibleForTier(_tier: PlatformDesktopTier): boolea
 export function showPlatformMenuBarForTier(tier: PlatformDesktopTier): boolean {
   return tier !== 'normal'
 }
-
-export function showPlatformMenuBarFullForTier(tier: PlatformDesktopTier): boolean {
-  return tier === 'advanced'
-}

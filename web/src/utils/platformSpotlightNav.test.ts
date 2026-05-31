@@ -31,4 +31,23 @@ describe('spotlightNavForTier', () => {
     expect(ops.some((entry) => entry.label === 'Tasks')).toBe(true)
     expect(ops.some((entry) => entry.label === 'Observability')).toBe(true)
   })
+
+  it('includes resources workspaces on power tier', () => {
+    const entries = spotlightNavForTier('power')
+    const resources = entries.filter((entry) => entry.zone === 'Resources')
+    expect(resources.some((entry) => entry.label === 'Networks')).toBe(true)
+  })
+
+  it('includes security workspaces on advanced tier', () => {
+    const entries = spotlightNavForTier('advanced')
+    const security = entries.filter((entry) => entry.zone === 'Security')
+    expect(security.some((entry) => entry.label === 'Policy Studio')).toBe(true)
+  })
+
+  it('includes zeus workspaces on power tier', () => {
+    const entries = spotlightNavForTier('power')
+    const zeus = entries.filter((entry) => entry.zone === 'Zeus')
+    expect(zeus.some((entry) => entry.label === 'Knowledge')).toBe(true)
+    expect(zeus.some((entry) => entry.path.includes('tab=knowledge'))).toBe(true)
+  })
 })

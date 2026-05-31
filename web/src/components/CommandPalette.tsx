@@ -35,7 +35,7 @@ import { aiSpotlight, type SpotlightIntent, type SpotlightResult } from '../api/
 import { isInputFocused } from '../hooks/useKeyboardShortcut'
 import { loadPlatformDesktopTier } from '../utils/platformDesktopTier'
 import { operationsHubHref, tasksHubHref, activityHubHref } from '../utils/platformHubLinks'
-import { groupSpotlightByZone, spotlightNavForTier, spotlightZoneOrder } from '../utils/platformSpotlightNav'
+import { groupSpotlightByZone, spotlightNavForTier, spotlightPathSetForTier, spotlightZoneOrder } from '../utils/platformSpotlightNav'
 
 interface CommandPaletteProps {
   onOpenHelp?: (tab?: HelpTab) => void
@@ -134,7 +134,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const onPlatformDesktop = location.pathname.startsWith('/platform')
   const platformTier = loadPlatformDesktopTier()
   const platformSpotlightPaths = onPlatformDesktop
-    ? new Set(spotlightNavForTier(platformTier, info).map((entry) => entry.path))
+    ? spotlightPathSetForTier(platformTier, info)
     : new Set<string>()
 
   useEffect(() => {
@@ -387,29 +387,31 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     )
   }
 
-  // Navigation pages
-  for (const group of navGroups) {
-    for (const item of navGroupItems(group)) {
-      if (!navItemVisible(item, username, openstackConfigured, hypersdkEnabled)) continue
+  // Classic Machina nav — hidden on Platform desktop (Spotlight registry covers platform routes).
+  if (!onPlatformDesktop) {
+    for (const group of navGroups) {
+      for (const item of navGroupItems(group)) {
+        if (!navItemVisible(item, username, openstackConfigured, hypersdkEnabled)) continue
+        items.push({
+          id: `nav-${item.to}`,
+          icon: item.icon,
+          label: item.label,
+          sublabel: group.label,
+          action: () => go(item.to),
+          category: 'Pages',
+        })
+      }
+    }
+    for (const item of TOP_BAR_QUICK_LINKS) {
       items.push({
-        id: `nav-${item.to}`,
+        id: `quick-${item.to}`,
         icon: item.icon,
         label: item.label,
-        sublabel: group.label,
+        sublabel: 'Shortcuts',
         action: () => go(item.to),
         category: 'Pages',
       })
     }
-  }
-  for (const item of TOP_BAR_QUICK_LINKS) {
-    items.push({
-      id: `quick-${item.to}`,
-      icon: item.icon,
-      label: item.label,
-      sublabel: 'Shortcuts',
-      action: () => go(item.to),
-      category: 'Pages',
-    })
   }
 
   // VMs

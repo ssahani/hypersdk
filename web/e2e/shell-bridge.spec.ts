@@ -17,8 +17,11 @@ test('platform to K8s and back via shell bridge', async ({ page }) => {
   await page.goto('/k8s')
   const bar = page.locator('.shell-bridge-bar')
   await expect(bar).toBeVisible({ timeout: 15_000 })
-  await bar.getByRole('link', { name: /Back to Platform/i }).click()
-  await expect(page).toHaveURL(/\/platform/, { timeout: 15_000 })
+  const backLink = bar.getByRole('link', { name: /Back to Platform/i })
+  await Promise.all([
+    page.waitForURL(/\/platform/),
+    backLink.click(),
+  ])
 })
 
 test('OpenStack subnav links to platform when fleet mode', async ({ page }) => {

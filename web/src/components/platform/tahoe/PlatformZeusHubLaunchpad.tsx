@@ -38,7 +38,8 @@ function tileIcon(tile: ZeusHubTile) {
 function tileHref(tile: ZeusHubTile, tier: PlatformDesktopTier) {
   if (tile.id === 'operations') return operationsHubHref(tier)
   if (!tile.tab) return tile.to
-  return `${tile.to}?tab=${tile.tab}`
+  if (tile.to === '/platform/zeus') return `${tile.to}?tab=${tile.tab}`
+  return tile.to
 }
 
 export default function PlatformZeusHubLaunchpad({

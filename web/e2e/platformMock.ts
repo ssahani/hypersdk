@@ -134,6 +134,34 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/observability/traces')) {
       return route.fulfill({ json: [] })
     }
+    if (url.includes('/placement/recommendations') || url.includes('/placement/refresh')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/ha/status')) {
+      return route.fulfill({
+        json: {
+          status: { enabled_vms: 0, offline_hosts: 0, recent_events: 0 },
+          events: [],
+        },
+      })
+    }
+    if (url.includes('/cluster/settings')) {
+      return route.fulfill({
+        json: {
+          drs_auto_migrate: false,
+          drs_cpu_threshold: 80,
+          ha_enabled: true,
+          placement_policy: 'balanced',
+          inventory_sync_interval_secs: 60,
+        },
+      })
+    }
+    if (url.includes('/migrations')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/fence/events')) {
+      return route.fulfill({ json: [] })
+    }
     if (url.includes('/storage/pools') && !url.includes('/discover')) {
       return route.fulfill({ json: [] })
     }
