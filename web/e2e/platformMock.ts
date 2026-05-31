@@ -231,6 +231,48 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/backups/timeline')) {
       return route.fulfill({ json: [] })
     }
+    if (url.includes('/openstack/status')) {
+      return route.fulfill({
+        json: {
+          reachable: true,
+          keystone_reachable: true,
+          compute_reachable: true,
+          glance_reachable: true,
+          cloud_name: 'test',
+        },
+      })
+    }
+    if (url.includes('/openstack/instances')) {
+      return route.fulfill({
+        json: {
+          total: 2,
+          instances: [
+            { id: 'os-1', name: 'web-01', status: 'ACTIVE' },
+            { id: 'os-2', name: 'db-01', status: 'SHUTOFF' },
+          ],
+        },
+      })
+    }
+    if (url.includes('/openstack/networks')) {
+      return route.fulfill({ json: { networks: [{ id: 'n1', name: 'private' }] } })
+    }
+    if (url.includes('/openstack/images')) {
+      return route.fulfill({ json: { images: [{ id: 'i1', name: 'ubuntu-22.04' }] } })
+    }
+    if (url.includes('/k8s/overview')) {
+      return route.fulfill({
+        json: {
+          version: 'v1.29.0',
+          nodes: 3,
+          ready_nodes: 3,
+          namespaces: 8,
+          pods: 42,
+          deployments: 12,
+          services: 18,
+          distribution: 'k3s',
+        },
+      })
+    }
     if (url.includes('/ai/')) {
       return route.fulfill({
         json: { summary: 'OK', remediations: [], forecasts: [], highlights: [], status: 'idle', tagline: 'OK' },

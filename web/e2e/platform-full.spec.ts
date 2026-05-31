@@ -55,6 +55,16 @@ test('integrations hub lists OpenStack when enabled', async ({ page }) => {
   await expect(page.getByText('Kubernetes', { exact: true })).toBeVisible()
 })
 
+test('integrations hub shows live OpenStack and K8s preview stats', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform/integrations')
+  await expect(page.getByText('OpenStack preview')).toBeVisible()
+  await expect(page.getByText('Kubernetes preview')).toBeVisible()
+  await expect(page.getByText('web-01')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText('Instances').first()).toBeVisible()
+  await expect(page.getByText('k3s')).toBeVisible()
+})
+
 test('integrations hub lists classic Machina tools', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform/integrations')

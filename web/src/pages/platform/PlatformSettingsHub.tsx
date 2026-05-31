@@ -12,6 +12,7 @@ import {
   MacListRow,
 } from '../../components/platform/mac/PlatformMacUi'
 import { getClusterSettings, patchClusterSettings, getEnterpriseSecurityOverview, getFleetNetwork, listVaultProviders, listMfaPolicies, upsertMfaPolicy, listAirGapBundles, createAirGapBundle, getAirGapBundle, listPolicyRules, type EnterpriseSecurityOverview, type FleetNetworkOverview, type VaultProvider, type MfaPolicy, type AirGapBundle, type PolicyRule } from '../../api/platform'
+import JsonInspector, { asArray, asRecord } from '../../components/platform/JsonInspector'
 import { getAiPolicyExport } from '../../api/ai'
 import { getFirewallOverview, type FirewallOverview } from '../../api/zeusFirewall'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
@@ -270,7 +271,31 @@ export default function PlatformSettingsHub() {
               />
             ))}
             {selectedBundle && (
-              <pre className="text-[10px] text-slate-500 mt-2 overflow-x-auto max-h-32">{JSON.stringify(selectedBundle.manifest_json, null, 2)}</pre>
+              <JsonInspector data={selectedBundle.manifest_json} className="mt-2">
+                <dl className="grid gap-2 sm:grid-cols-2 text-sm">
+                  <div className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2">
+                    <dt className="text-xs text-slate-500">Bundle</dt>
+                    <dd className="text-slate-200 mt-0.5">{selectedBundle.name}</dd>
+                  </div>
+                  <div className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2">
+                    <dt className="text-xs text-slate-500">Size</dt>
+                    <dd className="text-slate-200 mt-0.5">{Math.round(selectedBundle.size_bytes / 1024)} KB</dd>
+                  </div>
+                  <div className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2 sm:col-span-2">
+                    <dt className="text-xs text-slate-500">Checksum</dt>
+                    <dd className="text-slate-200 mt-0.5 font-mono text-xs break-all">{selectedBundle.checksum}</dd>
+                  </div>
+                  {asArray(asRecord(selectedBundle.manifest_json)?.artifacts).slice(0, 6).map((item, i) => {
+                    const row = asRecord(item)
+                    return (
+                      <div key={i} className="rounded-lg border border-white/[0.06] bg-slate-950/30 px-3 py-2 sm:col-span-2">
+                        <dt className="text-xs text-slate-500">Artifact</dt>
+                        <dd className="text-slate-200 mt-0.5 text-xs">{String(row?.path ?? row?.name ?? JSON.stringify(item))}</dd>
+                      </div>
+                    )
+                  })}
+                </dl>
+              </JsonInspector>
             )}
           </MacSettingsGroup>
 

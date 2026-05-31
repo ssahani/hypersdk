@@ -23,7 +23,7 @@ export default function PlatformFirewallPolicies() {
   const [name, setName] = useState('production-default')
   const [profile, setProfile] = useState('ProductionServer')
   const [specYaml, setSpecYaml] = useState('profile: ProductionServer\n')
-  const [simResult, setSimResult] = useState<string | null>(null)
+  const [simResult, setSimResult] = useState<Record<string, unknown> | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [drTemplates, setDrTemplates] = useState<Awaited<ReturnType<typeof getMultisiteDrTemplates>> | null>(null)
   const [multisiteExport, setMultisiteExport] = useState<Record<string, unknown> | null>(null)
@@ -65,7 +65,7 @@ export default function PlatformFirewallPolicies() {
   const simulate = async () => {
     try {
       const r = await simulateFirewallPolicy({ name, profile, spec_yaml: specYaml })
-      setSimResult(JSON.stringify(r, null, 2))
+      setSimResult(r as Record<string, unknown>)
       setSheetOpen(true)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
@@ -113,7 +113,7 @@ export default function PlatformFirewallPolicies() {
         {multisiteExport ? <JsonInspector data={multisiteExport} className="mt-3" /> : null}
       </MacGlassPanel>
       <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Simulation result" wide>
-        <pre className="text-xs text-slate-300 whitespace-pre-wrap font-mono">{simResult ?? '—'}</pre>
+        {simResult ? <JsonInspector data={simResult} /> : <p className="text-sm text-slate-500">—</p>}
       </MacSheet>
     </div>
   )

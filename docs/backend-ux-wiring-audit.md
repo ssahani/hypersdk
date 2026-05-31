@@ -40,11 +40,11 @@ OpenStack was never deleted; it was **not linked from Platform** until the Integ
 
 ## Major gaps (next wiring phases)
 
-### P6 — Integrations bridge (in progress)
+### P6 — Integrations bridge (shipped)
 
 - [x] `/platform/integrations` hub
 - [x] Sidebar / Go menu / Control Center links when capabilities enabled
-- [ ] Embed OpenStack overview iframe/panel inside Platform (optional)
+- [x] Live OpenStack + K8s preview panels on Integrations (inventory stats + recent instances)
 - [x] Single sign-on context banner when leaving Platform shell — Integrations “Leaving the desktop” panel
 
 ### P7 — Classic → Platform parity
@@ -108,6 +108,12 @@ VSPASS='…' ./scripts/e2e-live-ux-remote.sh sus 212.8.252.194
 # or after deploy:
 VSPASS='…' ./scripts/deploy-remote.sh sus 212.8.252.194 --quick --e2e
 ```
+
+### P13 — Integrations preview + JSON humanization (shipped)
+
+- [x] [`useIntegrationPreviewStats`](../web/src/hooks/useIntegrationPreviewStats.ts) — live OpenStack instance/network/image counts + K8s cluster overview on `/platform/integrations`
+- [x] [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) — refreshable preview panels with recent Nova instances
+- [x] JsonInspector on firewall policy simulation + air-gap bundle manifests in Settings → Security
 
 ## How to measure progress
 
