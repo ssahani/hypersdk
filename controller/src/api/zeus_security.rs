@@ -160,6 +160,7 @@ pub async fn install_tetragon(
     use uuid::Uuid;
 
     let pw = packetwolf_bridge::register_sensor(&state.config, &id).await;
+    let _ = packetwolf_bridge::queue_tetragon_install(&state.config, &id).await;
     let host_uuid = Uuid::parse_str(&id).ok();
     let task_id = enqueue_task(
         &state,
@@ -376,4 +377,11 @@ pub async fn host_enforcement(
     Path(id): Path<String>,
 ) -> Json<serde_json::Value> {
     Json(packetwolf_bridge::host_enforcement(&state.config, &id).await)
+}
+
+pub async fn agent_security_bundle(
+    State(state): State<AppState>,
+    Path(id): Path<String>,
+) -> Json<serde_json::Value> {
+    Json(packetwolf_bridge::agent_bundle(&state.config, &id).await)
 }

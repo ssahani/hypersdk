@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .models import DnsInfo, EventKind, FileInfo, K8sInfo, NetworkInfo, ProcessInfo, SecurityEvent, Severity
+from . import clickhouse_store
 from . import correlator
 from . import enforcer
 from . import search_index
@@ -19,6 +20,7 @@ _correlations: list[dict] = []
 _sensors: dict[str, dict[str, Any]] = {}
 _policies: dict[str, enforcer.EnforcementPolicy] = {}
 _enforcement_stats: dict[str, int] = {"blocked_total": 0, "by_policy": {}}
+_pending_tetragon: dict[str, dict[str, Any]] = {}
 _process_edges: dict[str, list[tuple[int, int, str]]] = defaultdict(list)
 _seeded = False
 
@@ -26,6 +28,11 @@ _seeded = False
 def _seed_demo() -> None:
     global _seeded
     if _seeded:
+        return
+    if os.environ.get("PACKETWOLF_DEMO", "1") == "0":
+        _seeded = True
+        for pol in enforcer.default_policies():
+            _policies[pol.id] = pol
         return
     _seeded = True
     now = datetime.now(timezone.utc)
@@ -201,6 +208,7 @@ def ingest(event: SecurityEvent) -> SecurityEvent:
     _sensors[event.host_id]["last_event_at"] = event.timestamp.isoformat()
     doc = event.model_dump(mode="json")
     search_index.index_event(doc)
+    clickhouse_store.insert_event(event)
     _recompute_correlations()
     return event
 
@@ -228,11 +236,16 @@ def list_events(
 ) -> list[SecurityEvent]:
     _seed_demo()
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-    out = [e for e in _events if e.timestamp >= cutoff]
+    memory = [e for e in _events if e.timestamp >= cutoff]
     if host_id:
-        out = [e for e in out if e.host_id == host_id]
+        memory = [e for e in memory if e.host_id == host_id]
     if kind:
-        out = [e for e in out if e.kind == kind]
+        memory = [e for e in memory if e.kind == kind]
+    ch_events = clickhouse_store.query_events(host_id=host_id, kind=kind, hours=hours, limit=limit)
+    merged: dict[str, SecurityEvent] = {e.id: e for e in ch_events}
+    for e in memory:
+        merged[e.id] = e
+    out = list(merged.values())
     out.sort(key=lambda e: e.timestamp, reverse=True)
     return out[:limit]
 
@@ -453,9 +466,6 @@ def asset_inventory() -> dict[str, Any]:
     }
 
 
-CLICKHOUSE_URL = os.environ.get("CLICKHOUSE_URL", "")
-
-
 def list_enforcement_policies() -> list[dict[str, Any]]:
     _seed_demo()
     return [p.model_dump(mode="json") for p in _policies.values()]
@@ -530,4 +540,51 @@ def host_enforcement(host_id: str) -> dict[str, Any]:
         "policies": active,
         "blocked_events": blocked,
     }
+
+
+def storage_status() -> dict[str, Any]:
+    return {
+        "clickhouse": {
+            "configured": clickhouse_store.enabled(),
+            "reachable": clickhouse_store.ping(),
+        },
+        "opensearch": {
+            "configured": bool(search_index.OPENSEARCH_URL),
+        },
+        "demo_mode": os.environ.get("PACKETWOLF_DEMO", "1") != "0",
+    }
+
+
+def queue_tetragon_install(host_id: str) -> dict[str, Any]:
+    _seed_demo()
+    register_sensor(host_id)
+    bundle = {
+        "host_id": host_id,
+        "status": "queued",
+        "install_unit": "tetragon.service",
+        "export_url": os.environ.get("PACKETWOLF_INGEST_URL", "http://127.0.0.1:9091/api/v1/ingest"),
+    }
+    _pending_tetragon[host_id] = bundle
+    return bundle
+
+
+def agent_bundle(host_id: str) -> dict[str, Any]:
+    _seed_demo()
+    tracing = [
+        enforcer.to_tetragon_policy(p)
+        for p in _policies.values()
+        if p.enabled and (not p.applied_hosts or host_id in p.applied_hosts)
+    ]
+    return {
+        "host_id": host_id,
+        "tetragon_install": _pending_tetragon.get(host_id),
+        "tracing_policies": tracing,
+        "policy_count": len(tracing),
+        "sensor": _sensors.get(host_id),
+    }
+
+
+def ack_agent_bundle(host_id: str) -> dict[str, Any]:
+    removed = _pending_tetragon.pop(host_id, None)
+    return {"host_id": host_id, "acknowledged": removed is not None}
 

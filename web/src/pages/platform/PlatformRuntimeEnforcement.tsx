@@ -14,6 +14,7 @@ import PageSkeleton from '../../components/PageSkeleton'
 import {
   applyEnforcementPolicy,
   createEnforcementPolicy,
+  getAgentSecurityBundle,
   getEnforcementPolicies,
   getEnforcementStatus,
   type EnforcementPolicy,
@@ -38,6 +39,7 @@ export default function PlatformRuntimeEnforcement() {
   const [match, setMatch] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [agentBundle, setAgentBundle] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -140,6 +142,19 @@ export default function PlatformRuntimeEnforcement() {
             />
             <button type="button" className="btn-primary text-sm" onClick={createPolicy}>Create</button>
           </div>
+        </div>
+      </MacGlassPanel>
+
+      <MacGlassPanel title="Agent pull bundle" subtitle="machina-agent → GET /zeus-security/agents/{hostId}/bundle">
+        <div className="p-3 flex flex-wrap gap-2 items-center">
+          <button
+            type="button"
+            className="btn-secondary text-sm"
+            onClick={() => void getAgentSecurityBundle('h1').then((b) => setAgentBundle(`${b.policy_count ?? 0} TracingPolicy(ies) queued for h1`)).catch((e: unknown) => setError(formatUserError(e)))}
+          >
+            Preview bundle (h1)
+          </button>
+          {agentBundle && <p className="text-sm text-slate-400">{agentBundle}</p>}
         </div>
       </MacGlassPanel>
     </div>

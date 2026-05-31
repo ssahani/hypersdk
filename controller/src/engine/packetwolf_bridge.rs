@@ -12,35 +12,56 @@ pub struct PacketwolfStatus {
     pub base_url: String,
     pub reachable: bool,
     pub summary: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub storage: Option<Value>,
 }
 
 pub fn status(cfg: &ControllerConfig) -> PacketwolfStatus {
-    let reachable = if cfg.packetwolf_enabled {
-        probe_health(&cfg.packetwolf_base_url, cfg.packetwolf_insecure_tls)
+    let (reachable, storage) = if cfg.packetwolf_enabled {
+        fetch_health(&cfg.packetwolf_base_url, cfg.packetwolf_insecure_tls)
     } else {
-        false
+        (false, None)
     };
-    let summary = if !cfg.packetwolf_enabled {
+    let mut summary = if !cfg.packetwolf_enabled {
         "PacketWolf fabric disabled — set PACKETWOLF_ENABLED=1 and deploy the PacketWolf service".into()
     } else if reachable {
         "PacketWolf connected — eBPF security fabric live".into()
     } else {
         "PacketWolf configured but unreachable — start packetwolf service on port 9091".into()
     };
+    if let Some(st) = storage.as_ref() {
+        if st
+            .get("clickhouse")
+            .and_then(|c| c.get("reachable"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false)
+        {
+            summary = format!("{summary} · ClickHouse hot storage");
+        }
+    }
     PacketwolfStatus {
         enabled: cfg.packetwolf_enabled,
         base_url: cfg.packetwolf_base_url.clone(),
         reachable,
         summary,
+        storage,
     }
 }
 
-fn probe_health(base_url: &str, insecure_tls: bool) -> bool {
+fn fetch_health(base_url: &str, insecure_tls: bool) -> (bool, Option<Value>) {
     let Ok(client) = build_client(insecure_tls, 5) else {
-        return false;
+        return (false, None);
     };
     let url = format!("{}/health", base_url.trim_end_matches('/'));
-    client.get(&url).send().map(|r| r.status().is_success()).unwrap_or(false)
+    let Ok(resp) = client.get(&url).send() else {
+        return (false, None);
+    };
+    if !resp.status().is_success() {
+        return (false, None);
+    }
+    let body: Value = resp.json().unwrap_or(Value::Null);
+    let storage = body.get("storage").cloned();
+    (true, storage)
 }
 
 fn build_client(insecure_tls: bool, timeout_secs: u64) -> anyhow::Result<reqwest::blocking::Client> {
@@ -323,4 +344,32 @@ pub async fn apply_enforcement_policy(
 
 pub async fn host_enforcement(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
     fabric_get(cfg, &format!("/api/v1/hosts/{host_id}/enforcement")).await
+}
+
+pub async fn agent_bundle(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
+    fabric_get(cfg, &format!("/api/v1/agents/{host_id}/bundle")).await
+}
+
+pub async fn queue_tetragon_install(cfg: &ControllerConfig, host_id: &str) -> serde_json::Value {
+    let cfg = cfg.clone();
+    let host_id = host_id.to_string();
+    tokio::task::spawn_blocking(move || {
+        if !cfg.packetwolf_enabled {
+            return serde_json::json!({"ok": false});
+        }
+        let Ok(client) = build_client(cfg.packetwolf_insecure_tls, 10) else {
+            return serde_json::json!({"ok": false});
+        };
+        let url = format!(
+            "{}/api/v1/agents/{host_id}/tetragon/queue",
+            cfg.packetwolf_base_url.trim_end_matches('/')
+        );
+        auth_headers(&cfg, client.post(&url))
+            .send()
+            .ok()
+            .and_then(|r| r.json().ok())
+            .unwrap_or_else(|| serde_json::json!({"ok": false}))
+    })
+    .await
+    .unwrap_or_else(|_| serde_json::json!({"ok": false}))
 }

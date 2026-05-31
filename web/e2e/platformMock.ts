@@ -167,7 +167,13 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
         return route.fulfill({
           json: {
             fabric_reachable: true,
-            packetwolf: { enabled: true, reachable: true, summary: 'PacketWolf connected', base_url: 'http://127.0.0.1:9091' },
+            packetwolf: {
+              enabled: true,
+              reachable: true,
+              summary: 'PacketWolf connected',
+              base_url: 'http://127.0.0.1:9091',
+              storage: { clickhouse: { configured: true, reachable: true }, demo_mode: true },
+            },
             zeus_firewall: { ready: true },
           },
         })
@@ -231,6 +237,11 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
       }
       if (url.includes('/enforcement')) {
         return route.fulfill({ json: { mode: 'observe', policies: [] } })
+      }
+      if (url.includes('/agents/') && url.includes('/bundle')) {
+        return route.fulfill({
+          json: { host_id: 'h1', policy_count: 2, tracing_policies: [{ kind: 'TracingPolicy' }] },
+        })
       }
       if (url.includes('/alerts/sync')) {
         return route.fulfill({ json: { inserted: 1, summary: 'Synced 1 security alert(s) to notification outbox' } })

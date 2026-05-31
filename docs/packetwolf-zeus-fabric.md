@@ -96,6 +96,12 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 - **Machina:** `/api/v1/zeus-security/enforcement/*`, `host.enforcement.apply` task pushes TracingPolicy to agents
 - **UI:** Runtime Enforcement (`/platform/zeus/security/enforcement`) — policy list, create, apply-to-host
 
+## Phase 7 — Production hardening (PW-22–PW-24)
+
+- **ClickHouse:** write-through on ingest, merged reads with in-memory cache (`clickhouse_store.py`); disable demo seed with `PACKETWOLF_DEMO=0`
+- **Agent bundle:** `GET /api/v1/agents/{hostId}/bundle` — TracingPolicy YAML + pending Tetragon install for machina-agent pull
+- **Machina:** `/api/v1/zeus-security/agents/{id}/bundle`; Tetragon install task queues agent bundle
+
 ## UI routes
 
 | Route | Page |

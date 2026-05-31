@@ -3,7 +3,17 @@
 import { platformFetch } from './platform'
 
 export interface ZeusSecurityStatus {
-  packetwolf: { enabled: boolean; reachable: boolean; summary: string; base_url: string }
+  packetwolf: {
+    enabled: boolean
+    reachable: boolean
+    summary: string
+    base_url: string
+    storage?: {
+      clickhouse?: { configured?: boolean; reachable?: boolean }
+      opensearch?: { configured?: boolean }
+      demo_mode?: boolean
+    }
+  }
   zeus_firewall: Record<string, unknown>
   fabric_reachable: boolean
 }
@@ -186,3 +196,11 @@ export const applyEnforcementPolicy = (policyId: string, hostIds: string[]) =>
 
 export const getHostEnforcement = (hostId: string) =>
   platformFetch<Record<string, unknown>>(`/api/v1/zeus-security/hosts/${hostId}/enforcement`)
+
+export const getAgentSecurityBundle = (hostId: string) =>
+  platformFetch<{
+    host_id: string
+    tracing_policies?: unknown[]
+    policy_count?: number
+    tetragon_install?: Record<string, unknown>
+  }>(`/api/v1/zeus-security/agents/${hostId}/bundle`)

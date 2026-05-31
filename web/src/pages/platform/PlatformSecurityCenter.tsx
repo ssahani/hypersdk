@@ -130,6 +130,10 @@ export default function PlatformSecurityCenter() {
         />
       )}
 
+      {status?.packetwolf?.storage?.clickhouse?.reachable && (
+        <p className="text-xs text-emerald-400/90">ClickHouse hot storage connected</p>
+      )}
+
       {threat && (
         <>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

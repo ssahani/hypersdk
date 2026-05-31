@@ -25,6 +25,7 @@ services:
     environment:
       CLICKHOUSE_URL: http://clickhouse:8123
       OPENSEARCH_URL: http://opensearch:9200
+      PACKETWOLF_DEMO: "0"
     depends_on:
       - clickhouse
       - opensearch

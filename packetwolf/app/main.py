@@ -20,7 +20,7 @@ app.add_middleware(
 
 @app.get("/health")
 def health() -> dict:
-    return {"status": "ok", "service": "packetwolf"}
+    return {"status": "ok", "service": "packetwolf", "storage": store.storage_status()}
 
 
 @app.post("/api/v1/ingest/{host_id}")
@@ -226,3 +226,18 @@ def apply_enforcement_policy(policy_id: str, body: enforcer.ApplyPolicyRequest) 
 @app.get("/api/v1/hosts/{host_id}/enforcement")
 def host_enforcement(host_id: str) -> dict:
     return store.host_enforcement(host_id)
+
+
+@app.get("/api/v1/agents/{host_id}/bundle")
+def agent_bundle(host_id: str) -> dict:
+    return store.agent_bundle(host_id)
+
+
+@app.post("/api/v1/agents/{host_id}/bundle/ack")
+def agent_bundle_ack(host_id: str) -> dict:
+    return store.ack_agent_bundle(host_id)
+
+
+@app.post("/api/v1/agents/{host_id}/tetragon/queue")
+def queue_tetragon_install(host_id: str) -> dict:
+    return store.queue_tetragon_install(host_id)

@@ -1028,6 +1028,7 @@ async fn host_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::R
         .unwrap_or("");
     update_task_progress(&state.pool, msg.task_id, 20, "registering PacketWolf sensor").await?;
     let _ = crate::engine::packetwolf_bridge::register_sensor(&state.config, host_id_str).await;
+    let _ = crate::engine::packetwolf_bridge::queue_tetragon_install(&state.config, host_id_str).await;
     update_task_progress(
         &state.pool,
         msg.task_id,

@@ -30,7 +30,9 @@ Or env: `PACKETWOLF_ENABLED=1`, `PACKETWOLF_BASE_URL=http://127.0.0.1:9091`
 docker compose -f docker-compose.packetwolf.yml up -d
 ```
 
-Includes ClickHouse (schema in `schema/clickhouse.sql`) and OpenSearch for future indexing.
+Includes ClickHouse (schema in `schema/clickhouse.sql`) and OpenSearch for indexing.
+
+Production docker stack sets `PACKETWOLF_DEMO=0` and `CLICKHOUSE_URL` for hot storage. Local dev defaults to in-memory demo seed (`PACKETWOLF_DEMO=1`).
 
 ## Ingest Tetragon JSON
 
