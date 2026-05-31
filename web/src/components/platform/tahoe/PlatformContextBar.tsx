@@ -62,9 +62,20 @@ export default function PlatformContextBar() {
   useEffect(() => {
     if (!moreOpen) return
     const close = () => setMoreOpen(false)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close()
+    }
     window.addEventListener('click', close)
-    return () => window.removeEventListener('click', close)
+    window.addEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('click', close)
+      window.removeEventListener('keydown', onKey)
+    }
   }, [moreOpen])
+
+  useEffect(() => {
+    setMoreOpen(false)
+  }, [location.pathname, location.search])
 
   if (!ctx) return null
 

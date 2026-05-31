@@ -38,3 +38,19 @@ test('policy studio route loads', async ({ page }) => {
   await page.goto('/platform/zeus/security/policies')
   await expect(page.getByRole('heading', { name: /Policy Studio/i })).toBeVisible()
 })
+
+test('normal tier shows sidebar by default', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await expect(page.locator('.tahoe-sidebar')).toBeVisible()
+})
+
+test('security context bar collapses overflow into More menu', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'advanced' })
+  await page.goto('/platform/zeus/security/policies')
+  await expect(page.locator('.tahoe-context-bar')).toBeVisible()
+  await expect(page.locator('.tahoe-context-pill', { hasText: 'Policy Studio' })).toBeVisible()
+  await expect(page.locator('.tahoe-context-more')).toBeVisible()
+  await page.locator('.tahoe-context-more').click()
+  await expect(page.locator('.tahoe-context-overflow-item', { hasText: 'Threat Hunting' })).toBeVisible()
+})
