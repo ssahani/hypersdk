@@ -197,6 +197,9 @@ export async function mockPlatformApi(page: Page, opts?: {
       storagePools = [{ id: 'p1', name: 'default', path: '/var/lib/libvirt/images', capacity_gib: 500, used_gib: 12 }]
       return route.fulfill({ json: { imported: 1, pools: storagePools } })
     }
+    if (url.includes('/networks/discover')) {
+      return route.fulfill({ json: { imported: 1, networks: [{ id: 'n1', name: 'default', bridge: 'virbr0' }] } })
+    }
     if (url.includes('/storage/pools') && !url.includes('/discover')) {
       return route.fulfill({ json: storagePools })
     }

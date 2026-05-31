@@ -20,6 +20,7 @@ import { dispatchOpenMissionControl } from './MissionControlContext'
 import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
 import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
+import { dispatchOpenHelp } from '../../../utils/openHelp'
 import {
   loadPlatformDesktopTabs,
   PLATFORM_DESKTOP_TABS_EVENT,
@@ -167,6 +168,9 @@ export default function PlatformMacAppMenus() {
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Help" open={openMenu === 'help'} onToggle={() => toggleMenu('help')} onClose={closeMenu}>
+        <PlatformMacMenuItem label="Platform guide…" onClick={() => { dispatchOpenHelp('platform'); closeMenu() }} />
+        <PlatformMacMenuItem label="Keyboard shortcuts" onClick={() => { dispatchOpenHelp('shortcuts'); closeMenu() }} />
+        <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Spotlight Search" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />

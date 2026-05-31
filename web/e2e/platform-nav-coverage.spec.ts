@@ -284,3 +284,17 @@ test('spotlight platform command shows review before execute', async ({ page }) 
   await spotlight.getByRole('button', { name: /Confirm/i }).click()
   await expect(page.getByText(/Imported storage/i)).toBeVisible({ timeout: 10_000 })
 })
+
+test('spotlight import networks command shows review before execute', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await spotlight.getByPlaceholder(/Machina Spotlight/i).fill('import networks')
+  await spotlight.getByRole('button', { name: /Import networks/i }).click()
+  await expect(spotlight.getByText('Review command')).toBeVisible()
+  await expect(spotlight.getByText(/Import libvirt networks/i)).toBeVisible()
+})

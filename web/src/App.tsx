@@ -4,7 +4,7 @@
 
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router'
 import { ZyvorFooter } from './components/ZyvorBrand';
-import { Suspense, lazy, useState, useCallback, useMemo } from 'react'
+import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
 import { WebSocketProvider } from './contexts/WebSocketContext'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
@@ -19,6 +19,7 @@ import MachinaSpotlight from './components/ai/MachinaSpotlight'
 import MachinaCopilot from './components/ai/MachinaCopilot'
 import Breadcrumb from './components/Breadcrumb'
 import HelpDialog, { type HelpTab } from './components/HelpDialog'
+import { OPEN_HELP_EVENT } from './utils/openHelp'
 import PageSkeleton from './components/PageSkeleton'
 import { AiProvider } from './contexts/AiContext'
 import { useSequenceShortcuts } from './hooks/useSequenceShortcut'
@@ -203,6 +204,14 @@ function GlobalShortcuts({
   )
 
   useKeyboardShortcut({ key: '?', handler: toggleHelp })
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const tab = (e as CustomEvent<{ tab?: HelpTab }>).detail?.tab ?? 'shortcuts'
+      onOpenHelp(tab)
+    }
+    window.addEventListener(OPEN_HELP_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_HELP_EVENT, onOpen)
+  }, [onOpenHelp])
   useKeyboardShortcut({
     key: 'F3',
     handler: (e) => {

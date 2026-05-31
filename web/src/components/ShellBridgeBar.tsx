@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { ArrowLeft, LayoutGrid, Puzzle } from 'lucide-react'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
+import { hubHrefForTier } from '../utils/platformHubLinks'
 import { shellLabel } from './shellBridgeUtils'
 
 export { shellLabel } from './shellBridgeUtils'
@@ -11,7 +13,9 @@ export { shellLabel } from './shellBridgeUtils'
 export default function ShellBridgeBar() {
   const { pathname } = useLocation()
   const { info, loading } = usePlatformInfo()
+  const [tier] = usePlatformDesktopTier()
   const label = shellLabel(pathname)
+  const integrationsHref = hubHrefForTier('integrations', tier)
   const fleetMode = Boolean(info?.control_plane?.proxy_url)
   const [stickyFleet, setStickyFleet] = useState(false)
 
@@ -41,7 +45,7 @@ export default function ShellBridgeBar() {
             <ArrowLeft className="w-3.5 h-3.5" />
             Back to Platform
           </Link>
-          <Link to="/platform/integrations" className="platform-space-banner-link">
+          <Link to={integrationsHref} className="platform-space-banner-link">
             <Puzzle className="w-3.5 h-3.5" />
             Apps &amp; Integrations
           </Link>

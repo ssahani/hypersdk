@@ -664,7 +664,11 @@ a.tahoe-context-app-title:hover {
   --machina-status-neutral: rgb(148, 163, 184);
   --machina-accent: rgb(56, 189, 248);
   --machina-accent-ai: rgb(168, 85, 247);
+  --machina-accent-network: var(--machina-accent);
+  --machina-accent-security: var(--machina-status-error);
 }
+
+/* Usage: network/nav → --machina-accent-network; AI/copilot → --machina-accent-ai; risk → --machina-accent-security */
 
 /* Retrofit legacy platform cards/tables to glass inside desktop shell */
 .tahoe-page-root .card,

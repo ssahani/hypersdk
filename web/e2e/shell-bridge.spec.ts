@@ -36,7 +36,7 @@ test('OpenStack subnav links to platform when fleet mode', async ({ page }) => {
 })
 
 test('classic storage shows empty state when no pools', async ({ page }) => {
-  await mockPlatformApi(page, { tier: 'normal' })
+  await mockPlatformApi(page, { tier: 'normal', emptyStorage: true })
   await page.goto('/storage')
   await expect(page.getByText('No storage pools')).toBeVisible({ timeout: 15_000 })
 })

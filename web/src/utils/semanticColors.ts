@@ -45,3 +45,50 @@ export function hostStateTone(state: string, fenced?: boolean, maintenance?: boo
   if (state === 'offline' || fenced) return 'error'
   return 'neutral'
 }
+
+export function statusBadgeClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral'): string {
+  const varName = {
+    ok: '--machina-status-ok',
+    warn: '--machina-status-warn',
+    error: '--machina-status-error',
+    info: '--machina-status-info',
+    neutral: '--machina-status-neutral',
+  }[tone]
+  return `bg-[color-mix(in_srgb,var(${varName})_18%,transparent)] text-[var(${varName})]`
+}
+
+export function vmStateTone(state: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
+  const s = state.toLowerCase()
+  if (s === 'running' || s === 'active') return 'ok'
+  if (s === 'shutoff' || s === 'crashed' || s === 'error') return 'error'
+  if (s === 'paused' || s === 'shutting down') return 'warn'
+  if (s === 'suspended' || s === 'blocked') return 'info'
+  return 'neutral'
+}
+
+export function openstackStatusTone(status: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
+  const s = status.toUpperCase()
+  if (s === 'ACTIVE' || s === 'UP') return 'ok'
+  if (s === 'ERROR' || s === 'DOWN') return 'error'
+  if (s === 'BUILD' || s === 'BUILDING') return 'info'
+  return 'warn'
+}
+
+export function k8sPhaseTone(phase: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
+  const p = phase.toLowerCase()
+  if (p === 'running' || p === 'succeeded' || p === 'bound') return 'ok'
+  if (p === 'failed' || p === 'error') return 'error'
+  if (p === 'pending' || p === 'containercreating') return 'info'
+  if (p === 'warning' || p === 'unknown') return 'warn'
+  return 'neutral'
+}
+
+export type IntegrationPhase = 'off' | 'needsSetup' | 'needsWire' | 'unreachable' | 'live'
+
+export function integrationPhaseTone(phase: IntegrationPhase): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
+  if (phase === 'live') return 'ok'
+  if (phase === 'unreachable') return 'error'
+  if (phase === 'needsSetup' || phase === 'needsWire') return 'warn'
+  if (phase === 'off') return 'neutral'
+  return 'neutral'
+}

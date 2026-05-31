@@ -1,16 +1,16 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Proprietary software — see LICENSE in the repository root.
-// https://zyvor.dev · info@zyvor.dev
+
+import { statusBadgeClasses, statusBgClass, vmStateTone } from './semanticColors'
 
 export const stateColors: Record<string, string> = {
-  running: 'bg-green-500',
-  shutoff: 'bg-red-500',
-  paused: 'bg-yellow-500',
-  'shutting down': 'bg-orange-500',
-  crashed: 'bg-red-700',
-  blocked: 'bg-purple-500',
-  suspended: 'bg-blue-500',
-  unknown: 'bg-slate-500',
+  running: statusBgClass('ok'),
+  shutoff: statusBgClass('error'),
+  paused: statusBgClass('warn'),
+  'shutting down': statusBgClass('warn'),
+  crashed: statusBgClass('error'),
+  blocked: statusBgClass('info'),
+  suspended: statusBgClass('info'),
+  unknown: statusBgClass('neutral'),
 }
 
 export function getStateColor(state: string): string {
@@ -18,16 +18,7 @@ export function getStateColor(state: string): string {
 }
 
 export function getStateBadgeClasses(state: string): string {
-  const map: Record<string, string> = {
-    running: 'bg-green-500/20 text-green-400',
-    shutoff: 'bg-red-500/20 text-red-400',
-    paused: 'bg-yellow-500/20 text-yellow-400',
-    'shutting down': 'bg-orange-500/20 text-orange-400',
-    crashed: 'bg-red-700/20 text-red-400',
-    blocked: 'bg-purple-500/20 text-purple-400',
-    suspended: 'bg-blue-500/20 text-blue-400',
-  }
-  return map[state] || 'bg-slate-500/20 text-slate-400'
+  return statusBadgeClasses(vmStateTone(state))
 }
 
 export function formatBytes(bytes: number): string {
