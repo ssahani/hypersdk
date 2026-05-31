@@ -82,8 +82,8 @@ test('Go menu navigates without tier bounce on allowed route', async ({ page }) 
   await expect(page.getByText(/Production Cluster|Dashboard|Zyvor Platform/i).first()).toBeVisible({ timeout: 15_000 })
   const menubar = page.locator('.mac-menubar-inner')
   await menubar.getByRole('button', { name: 'Go', exact: true }).click()
-  await page.getByRole('button', { name: 'Apps & Integrations' }).click()
-  await expect(page).toHaveURL(/\/platform\/integrations/)
+  await page.locator('.mac-menu-panel').getByRole('button', { name: 'Finder' }).click()
+  await expect(page).toHaveURL(/\/platform\/vms/)
 })
 
 test('View menu hides power-only destinations at normal tier', async ({ page }) => {

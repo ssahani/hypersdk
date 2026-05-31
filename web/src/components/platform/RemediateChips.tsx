@@ -1,16 +1,20 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { Sparkles } from 'lucide-react'
 import { getComplianceRemediate, getSreRemediate } from '../../api/ai'
 import { MacGlassPanel } from './mac/PlatformMacUi'
 
 type Remediation = { label: string; review: string; action?: string; framework?: string }
 
+const VISIBLE_COMPACT = 3
+
 export default function RemediateChips({ compact = false }: { compact?: boolean }) {
   const [sre, setSre] = useState<Remediation[]>([])
   const [compliance, setCompliance] = useState<Remediation[]>([])
   const [summary, setSummary] = useState<string | null>(null)
+  const [expanded, setExpanded] = useState(false)
 
   const load = useCallback(async () => {
     try {
@@ -30,30 +34,57 @@ export default function RemediateChips({ compact = false }: { compact?: boolean 
   const items = [...sre, ...compliance]
   if (items.length === 0 && !summary) return null
 
-  const inner = (
-    <div className="space-y-2">
-      {summary && <p className="text-xs text-slate-400">{summary}</p>}
-      <div className="flex flex-wrap gap-2">
-        {items.slice(0, compact ? 4 : 12).map((r, i) => (
-          <span
-            key={`${r.label}-${i}`}
-            className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-violet-500/30 bg-violet-500/10 text-violet-200"
-            title={r.review}
-          >
-            <Sparkles className="w-3 h-3 shrink-0" />
-            {r.label}
-            {r.framework && <span className="text-violet-400/70">({r.framework})</span>}
-          </span>
-        ))}
-      </div>
+  const visibleCount = compact ? (expanded ? items.length : VISIBLE_COMPACT) : 12
+  const hiddenCount = items.length - VISIBLE_COMPACT
+
+  const chipList = (
+    <div className="tahoe-remediate-chips flex flex-wrap items-center gap-2">
+      {items.slice(0, visibleCount).map((r, i) => (
+        <span
+          key={`${r.label}-${i}`}
+          className="tahoe-remediate-chip group"
+          title={r.review}
+        >
+          <Sparkles className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-70 transition-opacity" />
+          <span className="truncate max-w-[14rem]">{r.label}</span>
+          {r.framework ? <span className="text-white/35 text-[10px]">({r.framework})</span> : null}
+        </span>
+      ))}
+      {compact && hiddenCount > 0 && !expanded ? (
+        <button
+          type="button"
+          className="tahoe-remediate-more"
+          onClick={() => setExpanded(true)}
+        >
+          +{hiddenCount} more
+        </button>
+      ) : null}
+      {compact && expanded && items.length > VISIBLE_COMPACT ? (
+        <button type="button" className="tahoe-remediate-more" onClick={() => setExpanded(false)}>
+          Show less
+        </button>
+      ) : null}
+      {compact ? (
+        <Link to="/platform/zeus" className="tahoe-remediate-more ml-auto shrink-0">
+          Remediation hub →
+        </Link>
+      ) : null}
     </div>
   )
 
-  if (compact) return inner
+  if (compact) {
+    return (
+      <div className="tahoe-remediate-strip">
+        {summary ? <p className="tahoe-remediate-summary">{summary}</p> : null}
+        {chipList}
+      </div>
+    )
+  }
 
   return (
     <MacGlassPanel title="AI remediations" subtitle="SRE + compliance suggestions from controller">
-      {inner}
+      {summary && <p className="text-xs text-slate-400 mb-2">{summary}</p>}
+      {chipList}
     </MacGlassPanel>
   )
 }

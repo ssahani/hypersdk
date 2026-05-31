@@ -384,6 +384,16 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
     if (url.includes('/vms')) {
       return route.fulfill({ json: [sampleVm] })
     }
+    if (url.includes('/zeus-firewall/overview')) {
+      return route.fulfill({
+        json: {
+          summary: '1 target monitored',
+          critical_count: 0,
+          warning_count: 0,
+          targets: [{ id: 'h1', hostname: 'host-1', kind: 'host', risk: 'ok', score: 92 }],
+        },
+      })
+    }
     if (url.includes('/zeus-firewall/multisite/dr-templates')) {
       return route.fulfill({
         json: {

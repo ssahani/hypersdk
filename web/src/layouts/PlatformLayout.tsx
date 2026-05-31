@@ -4,11 +4,10 @@ import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate, useSearchParams } from 'react-router'
 import PlatformSidebar from '../components/platform/PlatformSidebar'
 import PlatformControlCenter from '../components/platform/PlatformControlCenter'
-import PlatformMenuBar from '../components/platform/PlatformMenuBar'
+import PlatformContextBar from '../components/platform/tahoe/PlatformContextBar'
 import PlatformMacDock from '../components/platform/PlatformMacDock'
 import { PlatformMacDesktopProvider, usePlatformMacDesktop } from '../components/platform/mac/PlatformMacDesktopContext'
 import PlatformMacAppMenus from '../components/platform/mac/PlatformMacAppMenus'
-import PlatformMacDesktopTabs from '../components/platform/mac/PlatformMacDesktopTabs'
 import PopoutTitleBar from '../components/platform/mac/PopoutTitleBar'
 import PlatformDynamicIsland from '../components/platform/mac/PlatformDynamicIsland'
 import MissionControlOverlay from '../components/platform/MissionControlOverlay'
@@ -23,7 +22,7 @@ import {
   type PlatformWallpaper,
 } from '../utils/platformWallpaper'
 import { isCenterPopoutMode } from '../utils/platformCenterPopout'
-import { platformPageLabel } from '../utils/platformDesktopTabs'
+import { platformPageLabel, upsertPlatformDesktopTab } from '../utils/platformDesktopTabs'
 import { OPEN_PLATFORM_DOCK_EDITOR_EVENT } from '../utils/platformDockPins'
 import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
 import PlatformDockEditor from '../components/platform/mac/PlatformDockEditor'
@@ -96,7 +95,10 @@ function PlatformDesktopShell() {
     },
   })
 
-  const isDashboard = location.pathname === '/platform'
+  useEffect(() => {
+    if (!location.pathname.startsWith('/platform')) return
+    upsertPlatformDesktopTab({ path: location.pathname, label: platformPageLabel(location.pathname) })
+  }, [location.pathname])
 
   if (isPopout) {
     return (
@@ -133,14 +135,13 @@ function PlatformDesktopShell() {
         </div>
       </header>
 
-      <PlatformMacDesktopTabs />
+      <PlatformContextBar />
 
       <div className="flex flex-1 min-h-0">
         {sidebarVisible ? <PlatformSidebar /> : null}
         <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 flex flex-col relative">
           <div className="tahoe-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-3 lg:px-6 xl:px-8 pt-2 pb-20 lg:pb-24 max-w-[160rem] mx-auto w-full">
-            {!isDashboard && <PlatformMenuBar />}
+          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-4 lg:px-8 xl:px-10 pt-2 pb-20 lg:pb-24 max-w-[160rem] mx-auto w-full">
             <div className="flex-1 min-h-0 overflow-y-auto platform-readable tahoe-readable-stack py-4 pb-8">
               <Outlet />
             </div>

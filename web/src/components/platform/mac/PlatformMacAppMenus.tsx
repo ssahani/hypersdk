@@ -20,6 +20,10 @@ import { dispatchOpenMissionControl } from './MissionControlContext'
 import { macMenuSectionsForTier } from '../../../utils/platformMacMenus'
 import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
+import {
+  loadPlatformDesktopTabs,
+  PLATFORM_DESKTOP_TABS_EVENT,
+} from '../../../utils/platformDesktopTabs'
 
 function openSpotlight() {
   window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true, bubbles: true }))
@@ -33,6 +37,7 @@ export default function PlatformMacAppMenus() {
   const { toggleSidebar, toggleInspector, sidebarVisible, inspectorVisible } = usePlatformMacDesktop()
   const [tier, setTier] = usePlatformDesktopTier()
   const [openMenu, setOpenMenu] = useState<string | null>(null)
+  const [openWindows, setOpenWindows] = useState(() => loadPlatformDesktopTabs())
 
   const { info } = usePlatformInfo()
   const navSections = useMemo(() => macMenuSectionsForTier(tier, integrationNavItems(info)), [tier, info])
@@ -53,6 +58,16 @@ export default function PlatformMacAppMenus() {
     { label: 'Platform Support', path: '/platform/support' },
     { label: 'Developer / SDK', path: '/platform/developer' },
   ].filter((item) => isPathAllowedForTier(item.path, tier)), [tier])
+
+  useEffect(() => {
+    const refresh = () => setOpenWindows(loadPlatformDesktopTabs())
+    window.addEventListener(PLATFORM_DESKTOP_TABS_EVENT, refresh)
+    return () => window.removeEventListener(PLATFORM_DESKTOP_TABS_EVENT, refresh)
+  }, [])
+
+  useEffect(() => {
+    if (openMenu === 'window') setOpenWindows(loadPlatformDesktopTabs())
+  }, [openMenu, location.pathname])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -116,6 +131,8 @@ export default function PlatformMacAppMenus() {
             })}
           </div>
         ))}
+        <div className="my-1 border-t border-white/[0.08]" />
+        <PlatformMacMenuItem label="All destinations…" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="View" open={openMenu === 'view'} onToggle={() => toggleMenu('view')} onClose={closeMenu}>
@@ -130,6 +147,20 @@ export default function PlatformMacAppMenus() {
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Window" open={openMenu === 'window'} onToggle={() => toggleMenu('window')} onClose={closeMenu}>
+        {openWindows.length > 0 && (
+          <>
+            <PlatformMacMenuItem label="Open Windows" header />
+            {openWindows.map((tab) => (
+              <PlatformMacMenuItem
+                key={tab.path}
+                label={tab.label}
+                checked={location.pathname === tab.path}
+                onClick={() => go(tab.path)}
+              />
+            ))}
+            <div className="my-1 border-t border-white/[0.08]" />
+          </>
+        )}
         <PlatformMacMenuItem label="Spotlight…" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
         <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />

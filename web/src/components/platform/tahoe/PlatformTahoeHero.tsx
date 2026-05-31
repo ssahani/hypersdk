@@ -34,8 +34,8 @@ export default function PlatformTahoeHero({
 }: PlatformTahoeHeroProps) {
   return (
     <header
-      className={`tahoe-hero relative overflow-hidden rounded-3xl border border-white/[0.08] ${
-        compact ? 'px-5 py-5 sm:px-6' : 'px-6 py-7 sm:px-8 sm:py-8'
+      className={`tahoe-hero relative overflow-hidden rounded-[2rem] border border-white/[0.08] ${
+        compact ? 'px-6 py-6 sm:px-7' : 'px-7 py-8 sm:px-9 sm:py-9'
       }`}
     >
       <div className="tahoe-hero-shine" aria-hidden />
@@ -63,9 +63,9 @@ export default function PlatformTahoeHero({
       </div>
 
       {stats && stats.length > 0 ? (
-        <ul className="relative z-10 mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 sm:gap-4">
+        <ul className="relative z-10 mt-7 grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
           {stats.map((s) => (
-            <li key={s.label} className={`tahoe-stat-pill ${STAT_TONE[s.tone ?? 'sky']}`}>
+            <li key={s.label} className={`tahoe-stat-tile ${STAT_TONE[s.tone ?? 'sky']}`}>
               <span className="tahoe-stat-value">{s.value}</span>
               <span className="tahoe-stat-label">{s.label}</span>
             </li>

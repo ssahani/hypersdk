@@ -1,15 +1,15 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useState } from 'react'
 import { NavLink } from 'react-router'
 import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { sidebarForTier } from '../../utils/platformNavFilter'
 import { integrationNavItems } from '../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import { usePlatformMacDesktop } from './mac/PlatformMacDesktopContext'
 import type { PlatformNavSection } from '../../utils/platformNav'
 
-const COLLAPSE_KEY = 'machina-platform-sidebar-collapsed'
 const SECTION_COLLAPSE_PREFIX = 'machina-sidebar-section-'
 
 function sectionCollapseKey(label: string) {
@@ -32,14 +32,10 @@ export default function PlatformSidebar() {
   const [tier] = usePlatformDesktopTier()
   const { info } = usePlatformInfo()
   const sections = sidebarForTier(tier, integrationNavItems(info))
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
+  const { sidebarCollapsed: collapsed, setSidebarCollapsed: setCollapsed } = usePlatformMacDesktop()
   const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(sections.map((s) => [s.label, loadSectionCollapsed(s)])),
   )
-
-  useEffect(() => {
-    localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
-  }, [collapsed])
 
   const toggleSection = useCallback((label: string) => {
     setSectionCollapsed((prev) => {
@@ -56,15 +52,15 @@ export default function PlatformSidebar() {
   return (
     <>
       <aside
-        className={`mac-finder-sidebar tahoe-sidebar platform-sidebar glass glass-elevated hidden lg:flex flex-col shrink-0 border-r border-white/[0.06] ${
-          collapsed ? 'w-[60px]' : 'w-[240px]'
+        className={`mac-finder-sidebar tahoe-sidebar tahoe-sidebar-expanded platform-sidebar glass glass-elevated hidden lg:flex flex-col shrink-0 border-r border-white/[0.06] ${
+          collapsed ? 'w-[60px]' : 'w-[280px]'
         }`}
         aria-label="Platform Finder"
       >
         {!collapsed && (
-          <div className="px-4 py-3 border-b border-white/[0.06]">
+          <div className="px-5 py-4 border-b border-white/[0.06]">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-white/40">Desktop</p>
-            <p className="text-xs text-white/70 mt-0.5">Machina Platform</p>
+            <p className="text-sm text-white/75 mt-1">Machina Platform</p>
           </div>
         )}
         <SidebarNav
@@ -73,11 +69,11 @@ export default function PlatformSidebar() {
           sectionCollapsed={sectionCollapsed}
           onToggleSection={toggleSection}
         />
-        <div className="border-t border-white/[0.06] p-2">
+        <div className="border-t border-white/[0.06] p-3">
           <button
             type="button"
-            onClick={() => setCollapsed((c) => !c)}
-            className="flex w-full items-center justify-center gap-2 rounded-lg px-2 py-2 text-xs text-white/50 hover:bg-white/5 hover:text-white/90 transition"
+            onClick={() => setCollapsed(!collapsed)}
+            className="flex w-full items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs text-white/50 hover:bg-white/5 hover:text-white/90 transition"
             title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : (
@@ -120,7 +116,7 @@ function SidebarNav({
   onToggleSection: (label: string) => void
 }) {
   return (
-    <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-1 min-h-0">
+    <nav className="flex-1 overflow-y-auto py-3 px-3 space-y-2 min-h-0">
       {sections.map((section, sectionIdx) => {
         const isFavoritesZone = sectionIdx === 0 && section.label === 'Favorites'
         const isSectionClosed = section.collapsible && sectionCollapsed[section.label]
@@ -132,7 +128,7 @@ function SidebarNav({
                 <button
                   type="button"
                   onClick={() => onToggleSection(section.label)}
-                  className="tahoe-sidebar-section-header flex w-full items-center gap-1.5 px-2 py-1.5 mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/35 hover:text-white/55 transition"
+                  className="tahoe-sidebar-section-header flex w-full items-center gap-1.5 px-3 py-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35 hover:text-white/55 transition"
                 >
                   <ChevronDown
                     className={`h-3 w-3 shrink-0 transition-transform ${isSectionClosed ? '-rotate-90' : ''}`}
@@ -140,13 +136,13 @@ function SidebarNav({
                   <span className="truncate">{section.label}</span>
                 </button>
               ) : (
-                <p className="tahoe-sidebar-section-header px-2 py-1.5 mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                <p className="tahoe-sidebar-section-header px-3 py-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
                   {section.label}
                 </p>
               )
             )}
             {!isSectionClosed && (
-              <ul className="space-y-0.5">
+              <ul className="space-y-1">
                 {section.items.map((item) => (
                   <li key={item.to}>
                     <NavLink
@@ -154,7 +150,7 @@ function SidebarNav({
                       end={item.to === '/platform'}
                       title={collapsed ? item.label : undefined}
                       className={({ isActive }) =>
-                        `tahoe-sidebar-link flex items-center gap-2.5 px-2.5 py-1.5 text-sm transition-all duration-200 ${
+                        `tahoe-sidebar-link flex items-center gap-3 px-3 py-2.5 text-sm transition-all duration-200 ${
                           collapsed ? 'justify-center rounded-xl' : 'rounded-full'
                         } ${
                           isActive
@@ -171,7 +167,7 @@ function SidebarNav({
               </ul>
             )}
             {!collapsed && sectionIdx < sections.length - 1 && (
-              <div className="tahoe-sidebar-divider mx-2 my-2" aria-hidden />
+              <div className="tahoe-sidebar-divider mx-3 my-3" aria-hidden />
             )}
           </div>
         )

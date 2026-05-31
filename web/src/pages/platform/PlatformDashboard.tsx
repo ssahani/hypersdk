@@ -153,7 +153,7 @@ export default function PlatformDashboard() {
   }
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       {!showPower && <PlatformJarvisBriefing />}
       {showPower && <RemediateChips compact />}
 
@@ -198,37 +198,44 @@ export default function PlatformDashboard() {
 
       {showPower && zeusStrip && (
         <MacGlassPanel title="Posture" subtitle={zeusStrip.tagline}>
-          <div className="flex flex-wrap items-center gap-3 -mt-1">
-            <span className="inline-flex items-center gap-1.5 text-sm text-orange-200/90">
-              <Sparkles className="w-4 h-4 text-orange-400" />
-              {zeusStrip.status}
-            </span>
-            <Link
-              to="/platform/zeus/security/firewall"
-              className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition ${
-                zeusStrip.firewallCritical > 0
-                  ? 'border-red-500/40 bg-red-500/10 text-red-300'
-                  : zeusStrip.firewallDrift > 0
-                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-300'
-                    : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
-              }`}
-            >
-              <Shield className="w-3 h-3" />
-              {zeusStrip.firewallCritical > 0
-                ? `${zeusStrip.firewallCritical} critical firewall host(s)`
-                : zeusStrip.firewallDrift > 0
-                  ? `${zeusStrip.firewallDrift} host(s) with drift`
-                  : 'Zeus Firewall OK'}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 -mt-1">
+            <div className="space-y-2">
+              <span className="inline-flex items-center gap-1.5 text-sm text-orange-200/90">
+                <Sparkles className="w-4 h-4 text-orange-400" />
+                {zeusStrip.status}
+              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Link
+                  to="/platform/zeus/security/firewall"
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition ${
+                    zeusStrip.firewallCritical > 0
+                      ? 'border-red-500/30 bg-red-500/8 text-red-300/90'
+                      : zeusStrip.firewallDrift > 0
+                        ? 'border-amber-500/30 bg-amber-500/8 text-amber-300/90'
+                        : 'border-emerald-500/25 bg-emerald-500/8 text-emerald-300/90'
+                  }`}
+                >
+                  <Shield className="w-3 h-3" />
+                  {zeusStrip.firewallCritical > 0
+                    ? `${zeusStrip.firewallCritical} critical firewall host(s)`
+                    : zeusStrip.firewallDrift > 0
+                      ? `${zeusStrip.firewallDrift} host(s) with drift`
+                      : 'Zeus Firewall OK'}
+                </Link>
+                {securityFindings > 0 && (
+                  <Link
+                    to="/platform/zeus/security"
+                    className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-amber-500/30 bg-amber-500/8 text-amber-300/90"
+                  >
+                    <Shield className="w-3 h-3" />
+                    {securityFindings} finding{securityFindings === 1 ? '' : 's'}
+                  </Link>
+                )}
+              </div>
+            </div>
+            <Link to="/platform/zeus/security" className="tahoe-btn-primary text-sm shrink-0">
+              Open Security Center
             </Link>
-            {securityFindings > 0 && (
-              <Link
-                to="/platform/zeus/security"
-                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300"
-              >
-                <Shield className="w-3 h-3" />
-                {securityFindings} finding{securityFindings === 1 ? '' : 's'} · Security Center
-              </Link>
-            )}
           </div>
         </MacGlassPanel>
       )}

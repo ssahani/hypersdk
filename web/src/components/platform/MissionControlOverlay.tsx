@@ -27,6 +27,7 @@ import { useKeyboardShortcut } from '../../hooks/useKeyboardShortcut'
 import { formatUserError } from '../../utils/apiError'
 import { useFleetDesktop } from '../../hooks/useFleetDesktop'
 import { useMissionControl } from './mac/MissionControlContext'
+import { loadPlatformDesktopTabs } from '../../utils/platformDesktopTabs'
 
 export default function MissionControlOverlay() {
   const { open, closeMissionControl } = useMissionControl()
@@ -91,6 +92,7 @@ export default function MissionControlOverlay() {
 
   const failedTasks = tasks.filter((t) => t.status === 'failed')
   const migrations = tasks.filter((t) => t.operation.includes('migrate'))
+  const openWindows = loadPlatformDesktopTabs().filter((t) => t.path !== '/platform')
 
   return (
     <div
@@ -119,6 +121,24 @@ export default function MissionControlOverlay() {
         </header>
 
         {error && <p className="px-6 py-2 text-red-400 text-sm">{error}</p>}
+
+        {openWindows.length > 0 && (
+          <div className="px-6 py-3 border-b border-white/[0.06]">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35 mb-2">Open windows</p>
+            <div className="flex flex-wrap gap-2">
+              {openWindows.map((tab) => (
+                <Link
+                  key={tab.path}
+                  to={tab.path}
+                  className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs text-white/70 hover:text-white hover:bg-white/[0.08] transition"
+                  onClick={closeMissionControl}
+                >
+                  {tab.label}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
 
         {(aiCost || aiCap || aiComp) && (
           <div className="px-6 pb-2 flex flex-wrap gap-3 text-xs">
