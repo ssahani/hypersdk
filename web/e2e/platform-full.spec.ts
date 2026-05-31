@@ -23,6 +23,24 @@ const ADVANCED_ROUTES: Array<{ path: string; text: RegExp }> = [
   { path: '/platform/observability', text: /Observability/i },
 ]
 
+const POWER_ROUTES: Array<{ path: string; text: RegExp }> = [
+  { path: '/platform/observability', text: /Observability/i },
+  { path: '/platform/placement', text: /Placement & HA/i },
+]
+
+test.describe('power tier platform routes', () => {
+  for (const { path, text } of POWER_ROUTES) {
+    test(`${path} loads without JS crash`, async ({ page }) => {
+      const errors: string[] = []
+      page.on('pageerror', (err) => errors.push(err.message))
+      await mockPlatformApi(page, { tier: 'power' })
+      await page.goto(path)
+      await expect(page.getByText(text).first()).toBeVisible({ timeout: 15_000 })
+      expect(errors).toEqual([])
+    })
+  }
+})
+
 test.describe('normal tier platform routes', () => {
   for (const { path, text } of NORMAL_ROUTES) {
     test(`${path} loads without JS crash`, async ({ page }) => {

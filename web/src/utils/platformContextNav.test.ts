@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { isContextNavActive, splitContextNavItems, settingsItemsForTier, type ContextNavItem } from './platformContextNav'
+import { contextNavForPath, isContextNavActive, splitContextNavItems, settingsItemsForTier, type ContextNavItem } from './platformContextNav'
 
 const SAMPLE: ContextNavItem[] = [
   { to: '/platform/zeus/security', label: 'Security Center' },
@@ -64,5 +64,10 @@ describe('settingsItemsForTier', () => {
     const result = splitContextNavItems(items, '/platform/settings', '?section=policy', 6)
     expect(result.visible.some((item) => item.label === 'Policy')).toBe(true)
     expect(result.overflow.length).toBeGreaterThan(0)
+  })
+
+  it('includes observability in operations context on power tier', () => {
+    const ctx = contextNavForPath('/platform/tasks', 'power')
+    expect(ctx?.items.some((item) => item.label === 'Observability')).toBe(true)
   })
 })

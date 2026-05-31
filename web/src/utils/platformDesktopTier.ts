@@ -71,6 +71,8 @@ const POWER_PATHS = [
   '/platform/events',
   '/platform/enroll',
   '/platform/reports',
+  '/platform/observability',
+  '/platform/placement',
 ]
 
 export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {

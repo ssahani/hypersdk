@@ -10,6 +10,7 @@ import {
   showPlatformMenuBarForTier,
   showPlatformMenuBarFullForTier,
 } from '../../utils/platformDesktopTier'
+import { operationsHubHref } from '../../utils/platformHubLinks'
 
 /** Live fleet status strip — links only to aggregate views, not duplicate sidebar apps. */
 export default function PlatformMenuBar() {
@@ -73,7 +74,7 @@ export default function PlatformMenuBar() {
         {desktop.hosts_online}/{desktop.hosts_total} hosts
       </Link>
       <span className="text-slate-600">·</span>
-      <Link to="/platform/operations" className="hover:text-slate-100 transition" title="Operations">
+      <Link to={operationsHubHref(tier)} className="hover:text-slate-100 transition" title="Operations">
         {desktop.active_tasks} tasks
       </Link>
       <span className="text-slate-600">·</span>
@@ -84,7 +85,7 @@ export default function PlatformMenuBar() {
       {desktop.unread_notifications > 0 && (
         <>
           <span className="text-slate-600">·</span>
-          <Link to="/platform/operations" className="inline-flex items-center gap-1 text-amber-300" title="Alerts">
+          <Link to={operationsHubHref(tier)} className="inline-flex items-center gap-1 text-amber-300" title="Alerts">
             <Bell className="w-3 h-3" />
             {desktop.unread_notifications} alert{desktop.unread_notifications === 1 ? '' : 's'}
           </Link>

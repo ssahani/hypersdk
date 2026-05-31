@@ -99,7 +99,21 @@ test('operations context bar collapses overflow into More menu', async ({ page }
   await expect(page.locator('.tahoe-context-more')).toBeVisible()
   await page.locator('.tahoe-context-more').click()
   const opsNav = page.getByRole('navigation', { name: 'Operations sections' })
-  await expect(opsNav.getByRole('link', { name: 'Topology' })).toBeVisible()
+  await expect(opsNav.getByRole('link', { name: 'Observability' })).toBeVisible()
+})
+
+test('spotlight lists platform hubs on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  const menubar = page.locator('.mac-menubar-inner')
+  await menubar.getByRole('button', { name: 'Help', exact: true }).click()
+  await page.getByRole('button', { name: 'Spotlight Search' }).click()
+  await expect(page.getByPlaceholder(/Machina Spotlight|Search or type/i)).toBeVisible({ timeout: 5000 })
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await expect(spotlight.getByText('Platform hubs', { exact: true })).toBeVisible()
+  await expect(spotlight.getByRole('button', { name: /Operations Hub ·/i })).toBeVisible()
 })
 
 test('normal tier hub preview unlocks operations', async ({ page }) => {
