@@ -44,6 +44,7 @@ import { BrowseHostPathModal, isHostDiskImageFileName, isIsoFileName } from '../
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
 import ErrorBanner from '../components/ErrorBanner'
+import CollapsibleCodeBlock from '../components/CollapsibleCodeBlock'
 import GuacamoleConsoleLink from '../components/GuacamoleConsoleLink'
 import RdpConsoleLink from '../components/RdpConsoleLink'
 import { libvirtErrorHints } from '../utils/libvirtHints'
@@ -3171,19 +3172,15 @@ export default function VMDetailsPage() {
                     </button>
                   </div>
                   {kubevirtExecLast && (
-                    <div>
-                      <span className="text-xs text-slate-500 block mb-1">
-                        Last command: exit {kubevirtExecLast.exit_code}
-                      </span>
-                      <pre className="text-[10px] leading-snug font-mono text-slate-200 bg-black/40 border border-slate-800 rounded-lg p-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-all">
-                        {kubevirtExecLast.stderr?.trim()
-                          ? `stderr:\n${kubevirtExecLast.stderr}\n\n`
-                          : ''}
-                        {kubevirtExecLast.stdout?.trim()
-                          ? `stdout:\n${kubevirtExecLast.stdout}`
-                          : (!kubevirtExecLast.stderr?.trim() ? '(no output)' : '')}
-                      </pre>
-                    </div>
+                    <CollapsibleCodeBlock
+                      title={`Last command: exit ${kubevirtExecLast.exit_code}`}
+                      content={[
+                        kubevirtExecLast.stderr?.trim() ? `stderr:\n${kubevirtExecLast.stderr}` : '',
+                        kubevirtExecLast.stdout?.trim() ? `stdout:\n${kubevirtExecLast.stdout}` : '',
+                      ].filter(Boolean).join('\n\n') || '(no output)'}
+                      defaultOpen={kubevirtExecLast.exit_code !== 0}
+                      maxHeight="max-h-32"
+                    />
                   )}
                 </div>
               )}
@@ -3209,18 +3206,14 @@ export default function VMDetailsPage() {
                   Copy virtctl upload
                 </button>
               </div>
-              <div>
-                <span className="text-xs text-slate-500 block mb-1">virtctl image-upload (run where kubeconfig points at your cluster)</span>
-                <pre className="text-[11px] leading-snug font-mono text-slate-200 bg-black/40 border border-slate-800 rounded-lg p-3 overflow-x-auto whitespace-pre-wrap break-all">
-                  {kubevirtBundle.virtctl_image_upload_example}
-                </pre>
-              </div>
-              <div>
-                <span className="text-xs text-slate-500 block mb-1">Kubernetes manifests</span>
-                <pre className="text-[11px] leading-snug font-mono text-slate-200 bg-black/40 border border-slate-800 rounded-lg p-3 max-h-[40vh] overflow-y-auto whitespace-pre-wrap break-all">
-                  {kubevirtBundle.yaml}
-                </pre>
-              </div>
+              <CollapsibleCodeBlock
+                title="virtctl image-upload (run where kubeconfig points at your cluster)"
+                content={kubevirtBundle.virtctl_image_upload_example}
+              />
+              <CollapsibleCodeBlock
+                title="Kubernetes manifests"
+                content={kubevirtBundle.yaml}
+              />
             </div>
           </div>
         </div>

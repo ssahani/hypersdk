@@ -25,17 +25,13 @@ import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { openStackErrorHints } from '../utils/openstackHints'
+import { openstackStatusTone, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
 const PAGE_SIZE = 25
 
 function statusBadge(status: string) {
-  const s = status.toUpperCase()
-  if (s === 'ACTIVE') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-  if (s === 'SHUTOFF') return 'bg-slate-500/20 text-slate-300 border-slate-500/40'
-  if (s === 'ERROR') return 'bg-red-500/20 text-red-300 border-red-500/40'
-  if (s === 'BUILD') return 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-  return 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+  return statusBadgeClasses(openstackStatusTone(status))
 }
 
 export default function OpenStackInstancesPage() {
@@ -308,7 +304,7 @@ function OpenStackInstancesContent() {
                       type="button"
                       title="Start"
                       onClick={() => runAction(inst, startOpenStackInstance, 'Start')}
-                      className="p-2 rounded hover:bg-emerald-500/20 text-emerald-400"
+                      className={`p-2 rounded hover:bg-emerald-500/20 ${statusToneClass('ok')}`}
                     >
                       <Play className="w-4 h-4" />
                     </button>
@@ -316,7 +312,7 @@ function OpenStackInstancesContent() {
                       type="button"
                       title="Stop"
                       onClick={() => runAction(inst, stopOpenStackInstance, 'Stop')}
-                      className="p-2 rounded hover:bg-red-500/20 text-red-400"
+                      className={`p-2 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}
                     >
                       <Square className="w-4 h-4" />
                     </button>
@@ -324,7 +320,7 @@ function OpenStackInstancesContent() {
                       type="button"
                       title="Reboot"
                       onClick={() => runAction(inst, (id) => rebootOpenStackInstance(id, 'hard'), 'Reboot')}
-                      className="p-2 rounded hover:bg-amber-500/20 text-amber-400"
+                      className={`p-2 rounded hover:bg-amber-500/20 ${statusToneClass('warn')}`}
                     >
                       <RotateCcw className="w-4 h-4" />
                     </button>
@@ -340,7 +336,7 @@ function OpenStackInstancesContent() {
           <span>
             {pageLabel}
             {searchTruncated && (
-              <span className="ml-2 text-amber-400/90">Search capped at 500 matches — refine query</span>
+              <span className={`ml-2 ${statusToneClass('warn')}`}>Search capped at 500 matches — refine query</span>
             )}
           </span>
           {(canGoPrev || hasMore) && (

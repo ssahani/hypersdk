@@ -22,6 +22,7 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
 import { openStackErrorHints } from '../utils/openstackHints'
 import HypersdkStatusBanner from '../components/HypersdkStatusBanner'
@@ -289,7 +290,7 @@ function OpenStackMigrationsContent() {
             {providers.map((p) => (
               <li key={p.provider} className="px-4 py-3 flex justify-between gap-4">
                 <span className="text-slate-200">{p.name ?? p.provider}</span>
-                <span className={p.connected ? 'text-emerald-400' : 'text-slate-500'}>
+                <span className={statusToneClass(p.connected ? 'ok' : 'neutral')}>
                   {p.connected ? 'connected' : 'disconnected'}
                 </span>
               </li>

@@ -27,6 +27,7 @@ import {
 import { getAiCapacity, getAiCost, getAiCompliance, getAiComplianceExportUrl, getAiCompliancePdfUrl, getAiCostExportUrl, getAiCapacityExportUrl, getAiSecurity, getAutopilotHistory, getCostAttribution, getCostAttributionExportUrl, getCostBudget, type AutopilotHistoryEntry, type CapacityPlan, type CostAnalysis, type CostAttributionReport, type ComplianceReport, type CostBudgetReport, type SecurityReport } from '../../api/ai'
 import { getFirewallExposureFinOps, getFirewallExposureFinOpsExportUrl, type ExposureFinOpsReport } from '../../api/zeusFirewall'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 type TabId = 'reports' | 'runbooks' | 'showback'
@@ -153,7 +154,15 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           <MacGlassPanel title="Runbook catalog" subtitle="Execute incident playbooks — records steps in execution history.">
             <ul className="space-y-2 text-sm">
               {runbooks.length === 0 ? (
-                <PlatformEmptyState title="No runbooks" subtitle="Runbook catalog loads from the controller — check connectivity and retry." />
+                <PlatformEmptyState
+                  title="No runbooks"
+                  subtitle="Runbook catalog loads from the controller — check connectivity and retry."
+                  action={
+                    <button type="button" className="btn-secondary text-xs" onClick={() => void load()}>
+                      Retry catalog
+                    </button>
+                  }
+                />
               ) : runbooks.map((rb) => (
                 <li key={rb.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-white/[0.04] pb-2">
                   <div>
@@ -229,7 +238,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           <p className="text-sm text-slate-400 mt-1">{compliance.summary}</p>
           <ul className="mt-3 text-xs space-y-1">
             {compliance.checks.map((c) => (
-              <li key={c.id} className={c.passed ? 'text-emerald-400' : 'text-amber-300'}>
+              <li key={c.id} className={statusToneClass(c.passed ? 'ok' : 'warn')}>
                 {c.passed ? '✓' : '○'} {c.name} — {c.detail}
               </li>
             ))}
@@ -273,11 +282,11 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             ${budget.current_spend_usd.toFixed(0)}
             <span className="text-sm font-normal text-slate-500"> / ${budget.monthly_budget_usd.toFixed(0)} budget ({budget.utilization_pct.toFixed(0)}%)</span>
           </p>
-          <p className="text-sm text-slate-400 mt-1">Status: <span className={budget.status === 'over_budget' ? 'text-red-300' : budget.status === 'watch' ? 'text-amber-300' : 'text-emerald-300'}>{budget.status}</span></p>
+          <p className="text-sm text-slate-400 mt-1">Status: <span className={statusToneClass(budget.status === 'over_budget' ? 'error' : budget.status === 'watch' ? 'warn' : 'ok')}>{budget.status}</span></p>
           {budget.alerts.length > 0 && (
             <ul className="mt-3 text-xs space-y-1">
               {budget.alerts.map((a) => (
-                <li key={a.id} className={a.severity === 'critical' ? 'text-red-400' : a.severity === 'warning' ? 'text-amber-300' : 'text-slate-400'}>
+                <li key={a.id} className={statusToneClass(a.severity === 'critical' ? 'error' : a.severity === 'warning' ? 'warn' : 'neutral')}>
                   {a.message}
                 </li>
               ))}
@@ -378,7 +387,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           <ul className="text-sm space-y-2 -mt-2">
             {security.findings.slice(0, 8).map((f) => (
               <li key={f.id} className="border-b border-white/[0.04] pb-2">
-                <span className={f.severity === 'critical' ? 'text-red-400' : 'text-amber-300'}>{f.title}</span>
+                <span className={statusToneClass(f.severity === 'critical' ? 'error' : 'warn')}>{f.title}</span>
                 <p className="text-xs text-slate-500 mt-0.5">{f.detail}</p>
               </li>
             ))}

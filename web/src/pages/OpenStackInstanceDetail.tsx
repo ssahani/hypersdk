@@ -69,6 +69,7 @@ function OpenStackInstanceDetailContent() {
   const [inst, setInst] = useState<OpenStackInstance | null>(null)
   const [volumes, setVolumes] = useState<OpenStackAttachedVolume[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [forceDeleteOpen, setForceDeleteOpen] = useState(false)
   const [snapshotName, setSnapshotName] = useState('')
@@ -78,6 +79,7 @@ function OpenStackInstanceDetailContent() {
 
   const load = useCallback(async () => {
     if (!id) return
+    setLoadError(null)
     try {
       const [data, vols, stackR] = await Promise.all([
         getOpenStackInstance(id),
@@ -89,7 +91,10 @@ function OpenStackInstanceDetailContent() {
       setHeatStack(stackR.stack)
       if (!snapshotName) setSnapshotName(`${data.name}-snap`)
     } catch (e: unknown) {
-      toast.error(`Failed to load instance: ${formatUserError(e)}`)
+      const msg = formatUserError(e)
+      setLoadError(msg)
+      setInst(null)
+      toast.error(`Failed to load instance: ${msg}`)
     } finally {
       setLoading(false)
     }
@@ -153,6 +158,26 @@ function OpenStackInstanceDetailContent() {
 
   if (loading) {
     return <PageSkeleton />
+  }
+  if (loadError) {
+    return (
+      <div className="space-y-4 max-w-4xl">
+        <OpenStackSubNav />
+        <OpenStackStatusBar />
+        <ErrorBanner
+          title="Could not load instance"
+          headline={loadError}
+          hints={openStackErrorHints(loadError)}
+          onRetry={() => {
+            setLoading(true)
+            void load()
+          }}
+        />
+        <Link to="/openstack/instances" className="text-sky-400 hover:underline inline-flex items-center gap-1">
+          <ArrowLeft className="w-4 h-4" /> Back to instances
+        </Link>
+      </div>
+    )
   }
   if (!inst) {
     return (

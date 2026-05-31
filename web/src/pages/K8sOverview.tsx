@@ -11,6 +11,7 @@ import { AlertTriangle, CheckCircle2, Download, LayoutGrid, Loader2, Puzzle, Ref
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import EmptyState from '../components/EmptyState'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
+import { k8sPhaseTone, statusToneClass } from '../utils/semanticColors'
 import {
   buildK8sAuditBundleJson,
   downloadTextAsFile,
@@ -1507,7 +1508,7 @@ export default function K8sOverviewPage() {
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs">
                     {n.daemon_matches_this_machine === true ? (
-                      <span className="text-emerald-400/90 font-medium" title="Node system UUID matches this Machina host">
+                      <span className={`${statusToneClass('ok')} font-medium`} title="Node system UUID matches this Machina host">
                         Match
                       </span>
                     ) : (
@@ -1553,7 +1554,7 @@ export default function K8sOverviewPage() {
                         Skew
                       </span>
                     ) : n.kubelet_minor_matches_apiserver === true ? (
-                      <span className="text-emerald-400/90">Match</span>
+                      <span className={`${statusToneClass('ok')}`}>Match</span>
                     ) : (
                       <span className="text-slate-500">—</span>
                     )}
@@ -1571,7 +1572,7 @@ export default function K8sOverviewPage() {
                       : '—'}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={`inline-flex items-center gap-1.5 ${n.ready ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    <span className={`inline-flex items-center gap-1.5 ${statusToneClass(k8sPhaseTone(n.ready ? 'Running' : 'Pending'))}`}>
                       {n.ready ? <CheckCircle2 className="w-4 h-4" /> : <ShieldAlert className="w-4 h-4" />}
                       {n.ready ? 'Ready' : 'Not ready'}
                     </span>
