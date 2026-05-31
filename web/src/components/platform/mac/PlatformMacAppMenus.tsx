@@ -49,25 +49,6 @@ export default function PlatformMacAppMenus() {
     closeMenu()
   }
 
-  const viewNavItems = useMemo(() => [
-    { label: 'Stage Manager', path: '/platform/projects' },
-    { label: 'Activity Monitor', path: '/platform/activity' },
-    { label: 'Finder', path: '/platform/vms' },
-    { label: 'Disk Utility', path: '/platform/storage' },
-    { label: 'Console', path: '/platform/events' },
-    { label: 'Software Update', path: '/platform/maintenance' },
-    { label: 'Zeus OS', path: '/platform/zeus' },
-    { label: 'Zeus Firewall', path: '/platform/zeus/security/firewall' },
-  ].filter((item) => isPathAllowedForTier(item.path, tier)), [tier])
-
-  const windowNavItems = useMemo(() => [
-    { label: 'Dashboard', path: '/platform' },
-    { label: 'Hosts', path: '/platform/hosts' },
-    { label: 'Virtual Machines', path: '/platform/vms' },
-    { label: 'Notifications', path: '/platform/notifications' },
-    { label: 'Tasks', path: '/platform/tasks' },
-  ].filter((item) => isPathAllowedForTier(item.path, tier)), [tier])
-
   const helpNavItems = useMemo(() => [
     { label: 'Platform Support', path: '/platform/support' },
     { label: 'Developer / SDK', path: '/platform/developer' },
@@ -119,14 +100,20 @@ export default function PlatformMacAppMenus() {
           <div key={section.label}>
             {idx > 0 && <div className="my-1 border-t border-white/[0.08]" />}
             <PlatformMacMenuItem label={section.label} header />
-            {section.items.map((item) => (
-              <PlatformMacMenuItem
-                key={item.to}
-                label={item.label}
-                checked={location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)}
-                onClick={() => go(item.to)}
-              />
-            ))}
+            {section.items.map((item, itemIdx) => {
+              const prev = section.items[itemIdx - 1]
+              const showSubheader = item.subsection && item.subsection !== prev?.subsection
+              return (
+                <div key={item.to}>
+                  {showSubheader && <PlatformMacMenuItem label={item.subsection!} header />}
+                  <PlatformMacMenuItem
+                    label={item.label}
+                    checked={location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)}
+                    onClick={() => go(item.to)}
+                  />
+                </div>
+              )
+            })}
           </div>
         ))}
       </PlatformMacMenuDropdown>
@@ -140,19 +127,12 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.advanced} checked={tier === 'advanced'} onClick={() => pickTier('advanced')} />
         <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Mission Control" shortcut="F3" onClick={() => { dispatchOpenMissionControl(); closeMenu() }} />
-        {viewNavItems.filter((i) => i.path).map((item) => (
-          <PlatformMacMenuItem key={item.path} label={item.label} onClick={() => go(item.path!)} />
-        ))}
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Window" open={openMenu === 'window'} onToggle={() => toggleMenu('window')} onClose={closeMenu}>
         <PlatformMacMenuItem label="Spotlight…" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
         <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />
-        <div className="my-1 border-t border-white/[0.08]" />
-        {windowNavItems.map((item) => (
-          <PlatformMacMenuItem key={item.path} label={item.label} onClick={() => go(item.path)} />
-        ))}
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Help" open={openMenu === 'help'} onToggle={() => toggleMenu('help')} onClose={closeMenu}>

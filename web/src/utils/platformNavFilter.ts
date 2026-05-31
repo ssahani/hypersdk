@@ -2,14 +2,21 @@
 
 import type { PlatformDesktopTier } from './platformDesktopTier'
 import { isPathAllowedForTier } from './platformDesktopTier'
-import { PLATFORM_SIDEBAR, type PlatformNavItem, type PlatformNavSection } from './platformNav'
+import { NORMAL_FAVORITE_PATHS, PLATFORM_SIDEBAR, type PlatformNavItem, type PlatformNavSection } from './platformNav'
 
 function withIntegrations(sections: PlatformNavSection[], extra: PlatformNavItem[]): PlatformNavSection[] {
   if (extra.length === 0) return sections
-  return [...sections, { label: 'Cloud & tools', items: extra }]
+  return [...sections, { label: 'Connected platforms', items: extra, collapsible: true, defaultCollapsed: false }]
 }
 
 export function sidebarForTier(tier: PlatformDesktopTier, integrationItems: PlatformNavItem[] = []): PlatformNavSection[] {
+  if (tier === 'normal') {
+    const favorites = PLATFORM_SIDEBAR.flatMap((s) => s.items).filter((item) =>
+      (NORMAL_FAVORITE_PATHS as readonly string[]).includes(item.to),
+    )
+    return [{ label: 'Favorites', items: favorites }]
+  }
+
   if (tier === 'advanced') return withIntegrations(PLATFORM_SIDEBAR, integrationItems)
 
   const filtered = PLATFORM_SIDEBAR.map((section) => ({
@@ -17,15 +24,8 @@ export function sidebarForTier(tier: PlatformDesktopTier, integrationItems: Plat
     items: section.items.filter((item) => isPathAllowedForTier(item.to, tier)),
   })).filter((section) => section.items.length > 0)
 
-  const merged = withIntegrations(filtered, integrationItems.filter((item) => {
+  return withIntegrations(filtered, integrationItems.filter((item) => {
     if (item.to.startsWith('/platform')) return isPathAllowedForTier(item.to, tier)
-    return tier !== 'normal' || item.to === '/openstack' || item.to === '/k8s'
+    return true
   }))
-
-  if (tier === 'normal') {
-    const items = merged.flatMap((s) => s.items)
-    return [{ label: 'Favorites', items }]
-  }
-
-  return merged
 }

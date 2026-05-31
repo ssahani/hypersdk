@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
-import { Settings, Shield, Users, HardDrive, Network, Archive, RefreshCw, Key, LifeBuoy, Info } from 'lucide-react'
+import { Settings, Shield, Users, HardDrive, Network, RefreshCw, Key, LifeBuoy, Info, LayoutGrid, Lock, FileBarChart, Terminal, Plug, Workflow } from 'lucide-react'
 import PlatformSettings from './PlatformSettings'
 import PlatformAppearanceSettings from '../../components/platform/PlatformAppearanceSettings'
 import {
@@ -20,16 +20,39 @@ import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 
-type SettingsSection = 'general' | 'security' | 'network' | 'storage' | 'users' | 'updates' | 'integrations' | 'support' | 'about'
+type SettingsSection =
+  | 'general'
+  | 'security'
+  | 'network'
+  | 'updates'
+  | 'about'
+  | 'users'
+  | 'stage-manager'
+  | 'keychain'
+  | 'policy'
+  | 'api-keys'
+  | 'webhooks'
+  | 'reports'
+  | 'console'
+  | 'resources'
+  | 'integrations'
+  | 'support'
 
 const SECTIONS: Array<{ id: SettingsSection; label: string; icon: React.ReactNode; href?: string }> = [
   { id: 'general', label: 'General', icon: <Settings className="w-4 h-4" /> },
   { id: 'security', label: 'Security', icon: <Shield className="w-4 h-4" /> },
   { id: 'network', label: 'Network', icon: <Network className="w-4 h-4" /> },
-  { id: 'storage', label: 'Storage', icon: <HardDrive className="w-4 h-4" />, href: '/platform/storage' },
-  { id: 'users', label: 'Users & Access', icon: <Users className="w-4 h-4" />, href: '/platform/users' },
+  { id: 'users', label: 'Users & Groups', icon: <Users className="w-4 h-4" />, href: '/platform/users' },
+  { id: 'stage-manager', label: 'Stage Manager', icon: <LayoutGrid className="w-4 h-4" />, href: '/platform/projects' },
+  { id: 'keychain', label: 'Keychain', icon: <Lock className="w-4 h-4" />, href: '/platform/enterprise' },
+  { id: 'policy', label: 'Policy & Quotas', icon: <Shield className="w-4 h-4" />, href: '/platform/policy' },
+  { id: 'api-keys', label: 'API Keys', icon: <Key className="w-4 h-4" />, href: '/platform/api-keys' },
+  { id: 'webhooks', label: 'Webhooks', icon: <Workflow className="w-4 h-4" />, href: '/platform/webhooks' },
+  { id: 'reports', label: 'Reports', icon: <FileBarChart className="w-4 h-4" />, href: '/platform/reports' },
+  { id: 'console', label: 'Console', icon: <Terminal className="w-4 h-4" />, href: '/platform/events' },
+  { id: 'resources', label: 'Resources', icon: <HardDrive className="w-4 h-4" />, href: '/platform/resources' },
   { id: 'updates', label: 'Updates', icon: <RefreshCw className="w-4 h-4" /> },
-  { id: 'integrations', label: 'Integrations', icon: <Key className="w-4 h-4" />, href: '/platform/webhooks' },
+  { id: 'integrations', label: 'Apps & Integrations', icon: <Plug className="w-4 h-4" />, href: '/platform/integrations' },
   { id: 'support', label: 'Support', icon: <LifeBuoy className="w-4 h-4" />, href: '/platform/support' },
   { id: 'about', label: 'About', icon: <Info className="w-4 h-4" /> },
 ]
@@ -311,24 +334,19 @@ export default function PlatformSettingsHub() {
 
           <MacSettingsGroup title="Zeus Firewall">
             {firewallOverview ? (
-              <>
-                <MacListRow
-                  title="Machine Security"
-                  subtitle={`${firewallOverview.summary} · ${firewallOverview.targets.length} targets · ${firewallOverview.critical_count} critical`}
-                  href="/platform/zeus/security/firewall"
-                />
-                {firewallOverview.critical_count > 0 && (
-                  <p className="text-xs text-amber-400 px-1">
-                    {firewallOverview.critical_count} machine(s) need attention — review open ports and profiles.
-                  </p>
-                )}
-              </>
+              <MacListRow
+                title="Zeus Firewall"
+                subtitle={`${firewallOverview.summary} · ${firewallOverview.targets.length} targets · ${firewallOverview.critical_count} critical`}
+                href="/platform/zeus/security/firewall"
+              />
             ) : (
               <p className="text-sm text-slate-500">Firewall overview unavailable — agent may be offline.</p>
             )}
-            <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 inline-block mt-2">
-              Open Machine Security →
-            </Link>
+            {firewallOverview && firewallOverview.critical_count > 0 && (
+              <p className="text-xs text-amber-400 px-1 mt-2">
+                {firewallOverview.critical_count} machine(s) need attention — open Zeus Firewall for detail.
+              </p>
+            )}
           </MacSettingsGroup>
 
           <MacSettingsGroup title="Policy Generator">
@@ -436,11 +454,9 @@ export default function PlatformSettingsHub() {
             <button type="button" className="btn-secondary text-xs" disabled={saving} onClick={() => void saveApprovalSla()}>
               Save SLA
             </button>
-            <div className="pt-3 space-y-1">
-              <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 block">Machine Security overview →</Link>
-              <Link to="/platform/zeus/security/ports" className="text-sm text-blue-400 block">Open port exposure →</Link>
-              <Link to="/platform/zeus/security/compliance" className="text-sm text-blue-400 block">Compliance & approvals →</Link>
-            </div>
+            <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 block mt-3">
+              Open Zeus Firewall hub →
+            </Link>
           </MacSettingsGroup>
         </div>
       )}

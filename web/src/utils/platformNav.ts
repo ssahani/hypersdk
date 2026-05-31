@@ -4,7 +4,6 @@ import React from 'react'
 import {
   LayoutDashboard,
   Monitor,
-  Boxes,
   Server,
   HardDrive,
   Network,
@@ -18,104 +17,77 @@ import {
   Activity,
   Download,
   Workflow,
-  Users,
-  FileBarChart,
   Settings,
-  LifeBuoy,
-  Key,
   Cpu,
   GitBranch,
   ShieldAlert,
-  ShieldBan,
-  Code2,
   Gauge,
-  LayoutGrid,
-  Lock,
+  Plug,
+  UserPlus,
+  Lightbulb,
+  FolderOpen,
+  Wrench,
 } from 'lucide-react'
 
 export interface PlatformNavItem {
   to: string
   label: string
   icon: React.ReactNode
+  /** Optional Go-menu subsection header (not shown in sidebar). */
+  subsection?: string
 }
 
 export interface PlatformNavSection {
   label: string
   items: PlatformNavItem[]
+  /** macOS Finder-style collapsible section */
+  collapsible?: boolean
+  defaultCollapsed?: boolean
 }
 
 const ic = (Icon: React.ComponentType<{ className?: string }>) =>
   React.createElement(Icon, { className: 'w-4 h-4' })
 
-/** Finder-like sidebar for the platform control center. */
+/** macOS 26 Tahoe–style Finder sidebar. */
 export const PLATFORM_SIDEBAR: PlatformNavSection[] = [
   {
-    label: 'Overview',
+    label: 'Favorites',
     items: [
       { to: '/platform', label: 'Dashboard', icon: ic(LayoutDashboard) },
-      { to: '/platform/vms', label: 'Virtual Machines', icon: ic(Monitor) },
-      { to: '/platform/applications', label: 'Applications', icon: ic(Boxes) },
+      { to: '/platform/vms', label: 'Finder', icon: ic(Monitor) },
       { to: '/platform/hosts', label: 'Hosts', icon: ic(Server) },
-      { to: '/platform/integrations', label: 'Apps & Integrations', icon: ic(Boxes) },
-    ],
-  },
-  {
-    label: 'Resources',
-    items: [
-      { to: '/platform/storage', label: 'Disk Utility', icon: ic(HardDrive) },
-      { to: '/platform/networks', label: 'Networks', icon: ic(Network) },
-      { to: '/platform/content', label: 'Images & ISOs', icon: ic(Package) },
-      { to: '/platform/templates', label: 'Templates', icon: ic(Layers) },
-    ],
-  },
-  {
-    label: 'Operations',
-    items: [
-      { to: '/platform/migration', label: 'Migration Assistant', icon: ic(ArrowRightLeft) },
-      { to: '/platform/backups', label: 'Backup & Restore', icon: ic(Archive) },
-      { to: '/platform/placement', label: 'Disaster Recovery', icon: ic(Shield) },
-      { to: '/platform/tasks', label: 'Tasks', icon: ic(ClipboardList) },
-      { to: '/platform/notifications', label: 'Alerts', icon: ic(Bell) },
-      { to: '/platform/activity', label: 'Activity Monitor', icon: ic(Activity) },
-      { to: '/platform/maintenance', label: 'Software Update', icon: ic(Download) },
-      { to: '/platform/recommendations', label: 'Recommendations', icon: ic(Workflow) },
-      { to: '/platform/blueprints', label: 'Shortcuts', icon: ic(Workflow) },
-      { to: '/platform/zeus', label: 'Machina Zeus OS', icon: ic(Cpu) },
-      { to: '/platform/zeus/security', label: 'Security Center', icon: ic(ShieldAlert) },
-      { to: '/platform/zeus/security/hunt', label: 'Threat Hunting', icon: ic(ShieldAlert) },
-      { to: '/platform/zeus/security/enforcement', label: 'Runtime Enforcement', icon: ic(ShieldBan) },
-      { to: '/platform/zeus/security/firewall', label: 'Machine Security', icon: ic(ShieldAlert) },
-      { to: '/platform/zeus/security/policies', label: 'Policy Studio', icon: ic(ShieldAlert) },
-      { to: '/platform/zeus/security/k8s', label: 'K8s Policies', icon: ic(ShieldAlert) },
-      { to: '/platform/zeus/security/cloud', label: 'Cloud SGs', icon: ic(ShieldAlert) },
-      { to: '/platform/zeus/security/connectivity', label: 'Connectivity', icon: ic(ShieldAlert) },
-      { to: '/platform/topology', label: 'Topology', icon: ic(GitBranch) },
-      { to: '/platform/observability', label: 'Observability', icon: ic(Gauge) },
-    ],
-  },
-  {
-    label: 'Developer',
-    items: [
-      { to: '/platform/developer', label: 'SDK & Terraform', icon: ic(Code2) },
-    ],
-  },
-  {
-    label: 'Administration',
-    items: [
-      { to: '/platform/users', label: 'Users & Groups', icon: ic(Users) },
-      { to: '/platform/enterprise', label: 'Keychain', icon: ic(Lock) },
-      { to: '/platform/projects', label: 'Stage Manager', icon: ic(LayoutGrid) },
-      { to: '/platform/reports', label: 'Reports', icon: ic(FileBarChart) },
-      { to: '/platform/policy', label: 'Policy & Quotas', icon: ic(Shield) },
-      { to: '/platform/webhooks', label: 'Webhooks', icon: ic(Workflow) },
-      { to: '/platform/api-keys', label: 'API Keys', icon: ic(Key) },
-      { to: '/platform/support', label: 'Support', icon: ic(LifeBuoy) },
       { to: '/platform/settings', label: 'Settings', icon: ic(Settings) },
-      { to: '/platform/enroll', label: 'Add Host', icon: ic(Key) },
-      { to: '/platform/events', label: 'Console', icon: ic(LifeBuoy) },
+    ],
+  },
+  {
+    label: 'Fleet',
+    collapsible: true,
+    items: [
+      { to: '/platform/zeus', label: 'Machina Zeus OS', icon: ic(Cpu) },
+      { to: '/platform/integrations', label: 'Apps & Integrations', icon: ic(Plug) },
+      { to: '/platform/enroll', label: 'Add Host', icon: ic(UserPlus) },
+    ],
+  },
+  {
+    label: 'Platform',
+    collapsible: true,
+    items: [
+      { to: '/platform/resources', label: 'Resources', icon: ic(FolderOpen) },
+      { to: '/platform/operations', label: 'Operations', icon: ic(Wrench) },
+      { to: '/platform/zeus/security', label: 'Security Center', icon: ic(ShieldAlert) },
+      { to: '/platform/zeus/security/firewall', label: 'Zeus Firewall', icon: ic(Shield) },
     ],
   },
 ]
+
+/** Normal-tier sidebar favorites (flat list). */
+export const NORMAL_FAVORITE_PATHS = [
+  '/platform',
+  '/platform/vms',
+  '/platform/hosts',
+  '/platform/integrations',
+  '/platform/settings',
+] as const
 
 export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform': 'Dashboard',
@@ -123,12 +95,14 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/applications': 'Applications',
   '/platform/hosts': 'Hosts',
   '/platform/integrations': 'Apps & Integrations',
+  '/platform/resources': 'Resources',
+  '/platform/operations': 'Operations',
   '/platform/storage': 'Disk Utility',
   '/platform/networks': 'Networks',
   '/platform/content': 'Images & ISOs',
   '/platform/templates': 'Templates',
   '/platform/migration': 'Migration Assistant',
-  '/platform/backups': 'Backup & Restore',
+  '/platform/backups': 'Time Machine',
   '/platform/placement': 'Disaster Recovery',
   '/platform/tasks': 'Tasks',
   '/platform/notifications': 'Alerts',
@@ -140,7 +114,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/zeus/security': 'Security Center',
   '/platform/zeus/security/hunt': 'Threat Hunting',
   '/platform/zeus/security/enforcement': 'Runtime Enforcement',
-  '/platform/zeus/security/firewall': 'Machine Security',
+  '/platform/zeus/security/firewall': 'Zeus Firewall',
   '/platform/zeus/security/ports': 'Open Ports',
   '/platform/zeus/security/services': 'Allowed Apps',
   '/platform/zeus/security/activity': 'Firewall Activity',

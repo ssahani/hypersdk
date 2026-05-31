@@ -96,6 +96,8 @@ function PlatformDesktopShell() {
     },
   })
 
+  const isDashboard = location.pathname === '/platform'
+
   if (isPopout) {
     return (
       <div
@@ -137,8 +139,8 @@ function PlatformDesktopShell() {
         {sidebarVisible ? <PlatformSidebar /> : null}
         <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 flex flex-col relative">
           <div className="tahoe-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-3 lg:px-6 xl:px-8 pt-2 pb-24 lg:pb-28 max-w-[160rem] mx-auto w-full">
-            <PlatformMenuBar />
+          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-3 lg:px-6 xl:px-8 pt-2 pb-20 lg:pb-24 max-w-[160rem] mx-auto w-full">
+            {!isDashboard && <PlatformMenuBar />}
             <div className="flex-1 min-h-0 overflow-y-auto platform-readable tahoe-readable-stack py-4 pb-8">
               <Outlet />
             </div>

@@ -499,6 +499,11 @@ export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'po
         },
       })
     }
+    if (url.includes('/ai/security')) {
+      return route.fulfill({
+        json: { summary: 'OK', findings: [], remediations: [], status: 'idle' },
+      })
+    }
     if (url.includes('/ai/')) {
       return route.fulfill({
         json: { summary: 'OK', remediations: [], forecasts: [], highlights: [], status: 'idle', tagline: 'OK' },

@@ -5,14 +5,10 @@ import { Link } from 'react-router'
 import {
   Boxes,
   Plus,
-  ArrowRightLeft,
   Server,
-  Upload,
-  Terminal,
   Bell,
   CheckCircle2,
   AlertTriangle,
-  HardDrive,
   RefreshCw,
   Shield,
   Sparkles,
@@ -116,6 +112,7 @@ export default function PlatformDashboard() {
     ? (capacity.memory_used_mib / capacity.memory_total_mib) * 100
     : null
   const healthy = warnings === 0 && onlineHosts === hosts.length
+  const securityFindings = security?.findings?.length ?? 0
 
   const handleCreate = async ({ name, os, size, network }: { name: string; os: string; size: string; network: string }) => {
     const spec = sizeToSpec(size)
@@ -137,11 +134,12 @@ export default function PlatformDashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <PlatformJarvisBriefing />
+    <div className="space-y-4 animate-fade-in">
+      {!showPower && <PlatformJarvisBriefing />}
       {showPower && <RemediateChips compact />}
 
       <PlatformTahoeHero
+        compact
         eyebrow="Zyvor Platform"
         title={cluster?.name || 'Production Cluster'}
         subtitle="Control your KVM datacenter — fleet health, VMs, and integrations in one desktop."
@@ -165,7 +163,7 @@ export default function PlatformDashboard() {
         ]}
       />
 
-      <div className="tahoe-content space-y-6">
+      <div className="tahoe-content space-y-4">
       {hosts.length === 0 && (
         <PlatformTahoeEmptyState
           icon={Server}
@@ -177,45 +175,10 @@ export default function PlatformDashboard() {
         </PlatformTahoeEmptyState>
       )}
 
-      <nav className="tahoe-quick-nav">
-        {(showAdvanced
-          ? [
-              { to: '/platform/projects', label: 'Stage Manager' },
-              { to: '/platform/hosts', label: 'Hosts' },
-              { to: '/platform/vms', label: 'Finder' },
-              { to: '/platform/storage', label: 'Disk Utility' },
-              { to: '/platform/backups', label: 'Time Machine' },
-              { to: '/platform/zeus', label: 'Zeus OS' },
-              { to: '/platform/settings', label: 'Settings' },
-            ]
-          : showPower
-            ? [
-                { to: '/platform/vms', label: 'Finder' },
-                { to: '/platform/hosts', label: 'Hosts' },
-                { to: '/platform/backups', label: 'Time Machine' },
-                { to: '/platform/activity', label: 'Activity' },
-                { to: '/platform/settings', label: 'Settings' },
-              ]
-            : [
-                { to: '/platform/vms', label: 'Finder' },
-                { to: '/platform/hosts', label: 'Hosts' },
-                { to: '/platform/backups', label: 'Time Machine' },
-                { to: '/platform/settings', label: 'Settings' },
-              ]
-        ).map((item) => (
-          <Link key={item.to} to={item.to} className="tahoe-quick-nav-link">
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
       {error && <ErrorBanner message={error} />}
+
       {showPower && zeusStrip && (
-        <MacGlassPanel
-          title="Machina Zeus OS"
-          subtitle={zeusStrip.tagline}
-          action={<Link to="/platform/zeus" className="text-xs text-blue-400">Open hub →</Link>}
-        >
+        <MacGlassPanel title="Posture" subtitle={zeusStrip.tagline}>
           <div className="flex flex-wrap items-center gap-3 -mt-1">
             <span className="inline-flex items-center gap-1.5 text-sm text-orange-200/90">
               <Sparkles className="w-4 h-4 text-orange-400" />
@@ -236,8 +199,17 @@ export default function PlatformDashboard() {
                 ? `${zeusStrip.firewallCritical} critical firewall host(s)`
                 : zeusStrip.firewallDrift > 0
                   ? `${zeusStrip.firewallDrift} host(s) with drift`
-                  : 'Firewall posture OK'}
+                  : 'Zeus Firewall OK'}
             </Link>
+            {securityFindings > 0 && (
+              <Link
+                to="/platform/zeus/security"
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border border-amber-500/40 bg-amber-500/10 text-amber-300"
+              >
+                <Shield className="w-3 h-3" />
+                {securityFindings} finding{securityFindings === 1 ? '' : 's'} · Security Center
+              </Link>
+            )}
           </div>
         </MacGlassPanel>
       )}
@@ -274,69 +246,65 @@ export default function PlatformDashboard() {
         </MacGlassPanel>
       )}
 
-      {showPower && security && security.findings.length > 0 && (
-        <MacGlassPanel title="Security Sentinel" subtitle={`${security.findings.length} finding(s) · risk ${security.risk_level}`}>
-          <ul className="text-sm space-y-2">
-            {security.findings.slice(0, 4).map((f) => (
-              <li key={f.id} className="flex justify-between gap-2">
-                <span className={f.severity === 'critical' ? 'text-red-400' : 'text-amber-300'}>{f.title}</span>
-                <Link to="/platform/reports" className="text-xs text-blue-400 shrink-0">View</Link>
-              </li>
-            ))}
-          </ul>
-        </MacGlassPanel>
-      )}
-
       {showAdvanced && <PlatformAboutHelp compact />}
 
       <section>
         <h2 className="text-sm font-semibold text-slate-400 mb-3">Quick actions</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="Simple wizard — OS, size, network" onClick={() => setWizardOpen(true)} />
-          <ActionCard icon={<Terminal className="w-5 h-5" />} title="Open Finder" subtitle="Browse virtual machines" to="/platform/vms" />
-          <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
-          {showPower && (
+          {showPower ? (
             <>
-              <ActionCard icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Launchpad groups — operate stacks" to="/platform/applications" />
-              <ActionCard icon={<ArrowRightLeft className="w-5 h-5" />} title="Import VMware VM" subtitle="Migration Assistant" to="/platform/migration" />
-              <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
+              <ActionCard icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Launchpad groups — operate stacks" to="/platform/integrations" />
+              <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
+              <ActionCard icon={<Shield className="w-5 h-5" />} title="Security Center" subtitle="Threat score & hunting" to="/platform/zeus/security" />
             </>
-          )}
-          {showAdvanced && (
+          ) : (
             <>
-              <ActionCard icon={<Upload className="w-5 h-5" />} title="Upload ISO" subtitle="Images & ISO library" to="/platform/content" />
+              <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
+              <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
             </>
           )}
         </div>
       </section>
 
       {showPower && (
-      <div className="grid gap-6 lg:grid-cols-2">
-        <MacGlassPanel title="Recent tasks" subtitle="Activity Monitor preview" action={<Link to="/platform/tasks" className="text-xs text-blue-400">View all</Link>}>
-          <ul className="space-y-2 text-sm -mt-2">
-            {tasks.slice(0, 6).map((t) => (
-              <li key={t.id} className="flex justify-between border-b border-white/[0.04] pb-2 last:border-0">
-                <span className="text-slate-300">{t.operation}</span>
-                <span className={t.status === 'failed' ? 'text-red-400' : 'text-slate-500'}>{t.status} {t.progress}%</span>
-              </li>
-            ))}
-            {tasks.length === 0 && (
-              <li className="text-slate-500 text-sm py-2">No tasks yet — lifecycle actions appear here.</li>
-            )}
-          </ul>
+        <MacGlassPanel
+          title={showAdvanced ? 'Recent tasks' : 'Hosts'}
+          subtitle={showAdvanced ? 'Activity Monitor preview' : 'Hypervisors in this cluster'}
+          action={
+            <Link to={showAdvanced ? '/platform/tasks' : '/platform/hosts'} className="text-xs text-blue-400">
+              View all
+            </Link>
+          }
+        >
+          {showAdvanced ? (
+            <ul className="space-y-2 text-sm -mt-2">
+              {tasks.slice(0, 6).map((t) => (
+                <li key={t.id} className="flex justify-between border-b border-white/[0.04] pb-2 last:border-0">
+                  <span className="text-slate-300">{t.operation}</span>
+                  <span className={t.status === 'failed' ? 'text-red-400' : 'text-slate-500'}>{t.status} {t.progress}%</span>
+                </li>
+              ))}
+              {tasks.length === 0 && (
+                <li className="text-slate-500 text-sm py-2">No tasks yet — lifecycle actions appear here.</li>
+              )}
+            </ul>
+          ) : (
+            <ul className="space-y-2 text-sm -mt-2">
+              {hosts.slice(0, 6).map((h) => (
+                <li key={h.id} className="flex justify-between items-center">
+                  <Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline">{h.hostname}</Link>
+                  <span className={`text-xs capitalize ${h.state === 'online' ? 'text-emerald-400' : 'text-amber-400'}`}>{h.state} · {h.vm_count} VMs</span>
+                </li>
+              ))}
+              {hosts.length === 0 && (
+                <li className="text-slate-500 text-sm">
+                  No hosts enrolled — <Link to="/platform/enroll" className="text-blue-400">Add Host</Link>
+                </li>
+              )}
+            </ul>
+          )}
         </MacGlassPanel>
-        <MacGlassPanel title="Hosts" subtitle="Hypervisors in this cluster" action={<Link to="/platform/hosts" className="text-xs text-blue-400">Manage</Link>}>
-          <ul className="space-y-2 text-sm -mt-2">
-            {hosts.slice(0, 6).map((h) => (
-              <li key={h.id} className="flex justify-between items-center">
-                <Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline">{h.hostname}</Link>
-                <span className={`text-xs capitalize ${h.state === 'online' ? 'text-emerald-400' : 'text-amber-400'}`}>{h.state} · {h.vm_count} VMs</span>
-              </li>
-            ))}
-            {hosts.length === 0 && <li className="text-slate-500 text-sm">No hosts enrolled — <Link to="/platform/enroll" className="text-blue-400">Add Host</Link></li>}
-          </ul>
-        </MacGlassPanel>
-      </div>
       )}
 
       </div>

@@ -1,14 +1,14 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import React from 'react'
-import { Boxes, Cloud, Cpu, Import, Layers } from 'lucide-react'
+import { Boxes, Cloud, Cpu, Layers } from 'lucide-react'
 import type { PlatformInfo } from '../api/system'
 import type { PlatformNavItem } from './platformNav'
 
 const ic = (Icon: React.ComponentType<{ className?: string }>) =>
   React.createElement(Icon, { className: 'w-4 h-4' })
 
-/** Daemon capability links outside /platform/* — merged into sidebar when enabled. */
+/** External platform links — only routes not already in the sidebar. */
 export function integrationNavItems(info: PlatformInfo | null): PlatformNavItem[] {
   if (!info) return []
   const items: PlatformNavItem[] = []
@@ -22,12 +22,6 @@ export function integrationNavItems(info: PlatformInfo | null): PlatformNavItem[
   }
   if (info.kubevirt?.exec_enabled) {
     items.push({ to: '/k8s', label: 'Kubernetes', icon: ic(Layers) })
-  }
-  if (info.hypersdk?.enabled) {
-    items.push({ to: '/platform/migration', label: 'HyperSDK Migration', icon: ic(Import) })
-  }
-  if (info.guestkit?.enabled) {
-    items.push({ to: '/platform/migration?tab=jobs', label: 'GuestKit Jobs', icon: ic(Boxes) })
   }
   if (info.fleet?.enabled && (info.fleet.peer_count ?? 0) > 0) {
     items.push({ to: '/fleet', label: 'Multi-site Fleet', icon: ic(Cpu) })

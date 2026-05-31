@@ -1,24 +1,57 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { NavLink } from 'react-router'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react'
 import { sidebarForTier } from '../../utils/platformNavFilter'
 import { integrationNavItems } from '../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
+import type { PlatformNavSection } from '../../utils/platformNav'
 
 const COLLAPSE_KEY = 'machina-platform-sidebar-collapsed'
+const SECTION_COLLAPSE_PREFIX = 'machina-sidebar-section-'
+
+function sectionCollapseKey(label: string) {
+  return `${SECTION_COLLAPSE_PREFIX}${label}`
+}
+
+function loadSectionCollapsed(section: PlatformNavSection): boolean {
+  if (!section.collapsible) return false
+  try {
+    const raw = localStorage.getItem(sectionCollapseKey(section.label))
+    if (raw === '0') return false
+    if (raw === '1') return true
+  } catch {
+    /* ignore */
+  }
+  return section.defaultCollapsed ?? false
+}
 
 export default function PlatformSidebar() {
   const [tier] = usePlatformDesktopTier()
   const { info } = usePlatformInfo()
   const sections = sidebarForTier(tier, integrationNavItems(info))
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
+  const [sectionCollapsed, setSectionCollapsed] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(sections.map((s) => [s.label, loadSectionCollapsed(s)])),
+  )
 
   useEffect(() => {
     localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0')
   }, [collapsed])
+
+  const toggleSection = useCallback((label: string) => {
+    setSectionCollapsed((prev) => {
+      const next = !prev[label]
+      try {
+        localStorage.setItem(sectionCollapseKey(label), next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      return { ...prev, [label]: next }
+    })
+  }, [])
 
   return (
     <>
@@ -34,7 +67,12 @@ export default function PlatformSidebar() {
             <p className="text-xs text-white/70 mt-0.5">Fleet desktop</p>
           </div>
         )}
-        <SidebarNav collapsed={collapsed} sections={sections} />
+        <SidebarNav
+          collapsed={collapsed}
+          sections={sections}
+          sectionCollapsed={sectionCollapsed}
+          onToggleSection={toggleSection}
+        />
         <div className="border-t border-white/[0.06] p-2">
           <button
             type="button"
@@ -70,41 +108,74 @@ export default function PlatformSidebar() {
   )
 }
 
-function SidebarNav({ collapsed, sections }: { collapsed: boolean; sections: ReturnType<typeof sidebarForTier> }) {
+function SidebarNav({
+  collapsed,
+  sections,
+  sectionCollapsed,
+  onToggleSection,
+}: {
+  collapsed: boolean
+  sections: ReturnType<typeof sidebarForTier>
+  sectionCollapsed: Record<string, boolean>
+  onToggleSection: (label: string) => void
+}) {
   return (
-    <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-3 min-h-0">
-      {sections.map((section) => (
-        <div key={section.label}>
-          {!collapsed && (
-            <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
-              {section.label}
-            </p>
-          )}
-          <ul className="space-y-0.5">
-            {section.items.map((item) => (
-              <li key={item.to}>
-                <NavLink
-                  to={item.to}
-                  end={item.to === '/platform'}
-                  title={collapsed ? item.label : undefined}
-                  className={({ isActive }) =>
-                    `tahoe-sidebar-link flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all duration-200 ${
-                      collapsed ? 'justify-center' : ''
-                    } ${
-                      isActive
-                        ? 'tahoe-sidebar-link-active text-white bg-white/[0.08]'
-                        : 'text-white/55 hover:text-white/90 hover:bg-white/[0.04]'
-                    }`
-                  }
+    <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-1 min-h-0">
+      {sections.map((section, sectionIdx) => {
+        const isFavoritesZone = sectionIdx === 0 && section.label === 'Favorites'
+        const isSectionClosed = section.collapsible && sectionCollapsed[section.label]
+
+        return (
+          <div key={section.label} className="tahoe-sidebar-section">
+            {!collapsed && !isFavoritesZone && (
+              section.collapsible ? (
+                <button
+                  type="button"
+                  onClick={() => onToggleSection(section.label)}
+                  className="tahoe-sidebar-section-header flex w-full items-center gap-1.5 px-2 py-1.5 mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/35 hover:text-white/55 transition"
                 >
-                  <span className="shrink-0 opacity-80">{item.icon}</span>
-                  {!collapsed && <span className="truncate">{item.label}</span>}
-                </NavLink>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+                  <ChevronDown
+                    className={`h-3 w-3 shrink-0 transition-transform ${isSectionClosed ? '-rotate-90' : ''}`}
+                  />
+                  <span className="truncate">{section.label}</span>
+                </button>
+              ) : (
+                <p className="tahoe-sidebar-section-header px-2 py-1.5 mb-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                  {section.label}
+                </p>
+              )
+            )}
+            {!isSectionClosed && (
+              <ul className="space-y-0.5">
+                {section.items.map((item) => (
+                  <li key={item.to}>
+                    <NavLink
+                      to={item.to}
+                      end={item.to === '/platform'}
+                      title={collapsed ? item.label : undefined}
+                      className={({ isActive }) =>
+                        `tahoe-sidebar-link flex items-center gap-2.5 px-2.5 py-1.5 text-sm transition-all duration-200 ${
+                          collapsed ? 'justify-center rounded-xl' : 'rounded-full'
+                        } ${
+                          isActive
+                            ? 'tahoe-sidebar-link-active text-white'
+                            : 'text-white/55 hover:text-white/90 hover:bg-white/[0.04]'
+                        }`
+                      }
+                    >
+                      <span className="shrink-0 opacity-80">{item.icon}</span>
+                      {!collapsed && <span className="truncate">{item.label}</span>}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!collapsed && sectionIdx < sections.length - 1 && (
+              <div className="tahoe-sidebar-divider mx-2 my-2" aria-hidden />
+            )}
+          </div>
+        )
+      })}
     </nav>
   )
 }

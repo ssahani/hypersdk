@@ -14,6 +14,8 @@ const NORMAL_ROUTES: Array<{ path: string; text: RegExp }> = [
 ]
 
 const ADVANCED_ROUTES: Array<{ path: string; text: RegExp }> = [
+  { path: '/platform/resources', text: /Resources/i },
+  { path: '/platform/operations', text: /Operations/i },
   { path: '/platform/policy', text: /Policy & Quotas/i },
   { path: '/platform/events', text: /Logs|Console|Audit/i },
   { path: '/platform/zeus/security/policies', text: /Policy Studio/i },
@@ -77,7 +79,9 @@ test('integrations hub lists classic Machina tools', async ({ page }) => {
 test('Go menu navigates without tier bounce on allowed route', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await page.getByRole('button', { name: /^Go$/i }).click()
+  await expect(page.getByText(/Production Cluster|Dashboard|Zyvor Platform/i).first()).toBeVisible({ timeout: 15_000 })
+  const menubar = page.locator('.mac-menubar-inner')
+  await menubar.getByRole('button', { name: 'Go', exact: true }).click()
   await page.getByRole('button', { name: 'Apps & Integrations' }).click()
   await expect(page).toHaveURL(/\/platform\/integrations/)
 })
@@ -85,12 +89,14 @@ test('Go menu navigates without tier bounce on allowed route', async ({ page }) 
 test('View menu hides power-only destinations at normal tier', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await page.getByRole('button', { name: /^View$/i }).click()
+  await expect(page.getByText(/Production Cluster|Dashboard|Zyvor Platform/i).first()).toBeVisible({ timeout: 15_000 })
+  const menubar = page.locator('.mac-menubar-inner')
+  await menubar.getByRole('button', { name: 'View', exact: true }).click()
   const viewPanel = page.locator('.mac-menu-panel').filter({ has: page.getByText('Mission Control') })
   await expect(viewPanel).toBeVisible()
   await expect(viewPanel.getByRole('button', { name: 'Zeus OS' })).toHaveCount(0)
   await expect(viewPanel.getByRole('button', { name: 'Activity Monitor' })).toHaveCount(0)
-  await expect(viewPanel.getByRole('button', { name: 'Finder' })).toHaveCount(1)
+  await expect(viewPanel.getByRole('button', { name: 'Finder' })).toHaveCount(0)
 })
 
 test('backups destinations tab loads at normal tier', async ({ page }) => {
