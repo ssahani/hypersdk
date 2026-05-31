@@ -234,7 +234,9 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
           id: entry.id,
           icon: entry.kind === 'hub' ? <Boxes className="w-4 h-4 text-sky-400" /> : <ArrowRight className="w-4 h-4" />,
           label: entry.label,
-          sublabel: entry.description ?? entry.zone,
+          sublabel: entry.kind === 'hub'
+            ? `Hub · ${entry.description ?? entry.zone}`
+            : entry.description ?? entry.zone,
           action: () => go(entry.path),
           category: zone,
         })

@@ -4,6 +4,9 @@ import { Link } from 'react-router'
 import { Cpu, GitBranch, Search, Server, Shield, ShieldAlert, Wrench, Workflow, LayoutGrid } from 'lucide-react'
 import { MacGlassPanel, LaunchpadAppIcon } from '../mac/PlatformMacUi'
 import { ZEUS_HUB_GROUPS, type ZeusHubTile } from '../../../utils/platformZeusHubZones'
+import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
+import type { PlatformDesktopTier } from '../../../utils/platformDesktopTier'
+import { operationsHubHref } from '../../../utils/platformHubLinks'
 
 function tileIcon(tile: ZeusHubTile) {
   switch (tile.id) {
@@ -32,7 +35,8 @@ function tileIcon(tile: ZeusHubTile) {
   }
 }
 
-function tileHref(tile: ZeusHubTile) {
+function tileHref(tile: ZeusHubTile, tier: PlatformDesktopTier) {
+  if (tile.id === 'operations') return operationsHubHref(tier)
   if (!tile.tab) return tile.to
   return `${tile.to}?tab=${tile.tab}`
 }
@@ -42,13 +46,14 @@ export default function PlatformZeusHubLaunchpad({
 }: {
   activeTab?: string
 }) {
+  const [tier] = usePlatformDesktopTier()
   return (
     <div className="space-y-5">
       {ZEUS_HUB_GROUPS.map((group) => (
         <MacGlassPanel key={group.label} title={group.label} subtitle={group.subtitle}>
           <div className="platform-launchpad-grid grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-x-4 gap-y-8 -mt-1">
             {group.tiles.map((tile) => {
-              const href = tileHref(tile)
+              const href = tileHref(tile, tier)
               const selected = tile.tab ? activeTab === tile.tab : false
               return (
                 <Link key={tile.id} to={href} className="block">

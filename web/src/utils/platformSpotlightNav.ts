@@ -33,7 +33,7 @@ export function spotlightNavForTier(tier: PlatformDesktopTier, info: PlatformInf
       id: `hub-${hub.id}`,
       label: hub.label,
       path: hub.href,
-      zone: hub.zone,
+      zone: 'Platform hubs',
       description: hub.description,
       kind: 'hub',
     })
@@ -56,7 +56,7 @@ export function spotlightNavForTier(tier: PlatformDesktopTier, info: PlatformInf
 }
 
 export function spotlightZoneOrder(): string[] {
-  return ['Favorites', 'Fleet', 'Platform', 'Connected platforms']
+  return ['Platform hubs', 'Favorites', 'Fleet', 'Platform', 'Connected platforms']
 }
 
 export function groupSpotlightByZone(entries: SpotlightNavEntry[]): Array<{ zone: string; items: SpotlightNavEntry[] }> {

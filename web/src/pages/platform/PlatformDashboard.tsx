@@ -343,7 +343,7 @@ export default function PlatformDashboard() {
           title={showAdvanced ? 'Recent tasks' : 'Hosts'}
           subtitle={showAdvanced ? 'Activity Monitor preview' : 'Hypervisors in this cluster'}
           action={
-            <Link to={showAdvanced ? '/platform/operations' : '/platform/hosts'} className="text-xs text-blue-400">
+            <Link to={showAdvanced ? operationsHubHref(tier) : '/platform/hosts'} className="text-xs text-blue-400">
               View all
             </Link>
           }

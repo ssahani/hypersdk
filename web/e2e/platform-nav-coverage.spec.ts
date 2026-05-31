@@ -80,3 +80,31 @@ test('settings context bar collapses overflow into More menu', async ({ page }) 
   await page.locator('.tahoe-context-more').click()
   await expect(page.locator('.tahoe-context-overflow-item', { hasText: 'About' })).toBeVisible()
 })
+
+test('zeus context bar collapses overflow into More menu', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/zeus?tab=knowledge')
+  await expect(page.locator('.tahoe-context-bar')).toBeVisible()
+  await expect(page.locator('.tahoe-context-pill', { hasText: 'Knowledge' })).toBeVisible()
+  await expect(page.locator('.tahoe-context-more')).toBeVisible()
+  await page.locator('.tahoe-context-more').click()
+  await expect(page.locator('.tahoe-context-overflow-item', { hasText: 'Security Center' })).toBeVisible()
+})
+
+test('operations context bar collapses overflow into More menu', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform/tasks')
+  await expect(page.locator('.tahoe-context-bar')).toBeVisible()
+  await expect(page.locator('.tahoe-context-pill', { hasText: 'Tasks' })).toBeVisible()
+  await expect(page.locator('.tahoe-context-more')).toBeVisible()
+  await page.locator('.tahoe-context-more').click()
+  const opsNav = page.getByRole('navigation', { name: 'Operations sections' })
+  await expect(opsNav.getByRole('link', { name: 'Topology' })).toBeVisible()
+})
+
+test('normal tier hub preview unlocks operations', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-hub-preview-card').filter({ hasText: 'Operations' }).click()
+  await expect(page).toHaveURL(/\/platform\/operations/)
+})
