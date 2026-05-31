@@ -27,6 +27,16 @@ test('template deploy sheet shows readiness traffic light', async ({ page }) => 
   await expect(page.getByText(/Disk present on/i)).toBeVisible()
 })
 
+test('template deploy sheet shows not-ready remediation', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal', templateNotReady: true })
+  await page.goto('/platform/templates')
+  await expect(page.getByText('ubuntu-24.04').first()).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: /Get · Deploy VM/i }).first().click()
+  await expect(page.getByText('Missing disk image')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/Upload the golden image/i)).toBeVisible()
+  await expect(page.getByRole('link', { name: /Upload image in Content Library/i })).toBeVisible()
+})
+
 test('platform support shows Zyvor guidance', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform/support')

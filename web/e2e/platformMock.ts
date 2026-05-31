@@ -100,6 +100,7 @@ export async function mockPlatformApi(page: Page, opts?: {
   tier?: 'normal' | 'power' | 'advanced'
   staleHost?: boolean
   emptyStorage?: boolean
+  templateNotReady?: boolean
 }) {
   const tier = opts?.tier ?? 'normal'
   let storagePools: Array<{ id: string; name: string; path: string; capacity_gib: number; used_gib: number }> =
@@ -431,6 +432,18 @@ export async function mockPlatformApi(page: Page, opts?: {
       return route.fulfill({ json: { name: 'e2e-cluster', hosts: 1, vms: 2, offline_hosts: 0 } })
     }
     if (url.includes('/templates/') && url.includes('/readiness')) {
+      if (opts?.templateNotReady) {
+        return route.fulfill({
+          json: {
+            disk_exists: false,
+            host_online: 1,
+            cloud_init: true,
+            ready: false,
+            remediation: 'Upload the golden image to Content Library.',
+            source_disk: sampleTemplate.source_disk,
+          },
+        })
+      }
       return route.fulfill({
         json: {
           disk_exists: true,

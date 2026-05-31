@@ -5,7 +5,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router'
 import { Server, RefreshCw, Play, Square, Power, BarChart3 } from 'lucide-react'
-import PageHeader from '../components/PageHeader'
 import ErrorBanner from '../components/ErrorBanner'
 import PageSkeleton from '../components/PageSkeleton'
 import EmptyState from '../components/EmptyState'
@@ -27,6 +26,7 @@ import {
 } from '../api/fleet'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 import { useTranslation } from 'react-i18next'
 
 export default function FleetPage() {
@@ -97,22 +97,24 @@ export default function FleetPage() {
       {loading && <PageSkeleton />}
       {!loading && (
       <>
-      <PageHeader
-        title={t('fleet.title')}
-        subtitle={t('fleet.subtitle')}
-        icon={<Server className="w-8 h-8" />}
-        actions={
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="btn-secondary flex items-center gap-2"
-            aria-label={t('common.refresh')}
-          >
-            <RefreshCw className="w-4 h-4" />
-            {t('common.refresh')}
-          </button>
-        }
-      />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold flex items-center gap-2">
+            <Server className="w-8 h-8" />
+            {t('fleet.title')}
+          </h1>
+          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">{t('fleet.subtitle')}</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          className="btn-secondary flex items-center gap-2"
+          aria-label={t('common.refresh')}
+        >
+          <RefreshCw className="w-4 h-4" />
+          {t('common.refresh')}
+        </button>
+      </div>
 
       {loadError ? (
         <ErrorBanner
@@ -146,11 +148,7 @@ export default function FleetPage() {
                 {p.url}
               </div>
               <div className="mt-2 text-sm">
-                <span
-                  className={
-                    p.reachable ? 'text-emerald-400' : 'text-amber-400'
-                  }
-                >
+                <span className={statusToneClass(p.reachable ? 'ok' : 'warn')}>
                   {p.reachable ? t('fleet.reachable') : t('fleet.unreachable')}
                 </span>
                 {p.version ? (
@@ -172,7 +170,7 @@ export default function FleetPage() {
                 </div>
               ) : null}
               {p.error ? (
-                <p className="text-xs text-amber-400/90 mt-1">{p.error}</p>
+                <p className={`text-xs mt-1 ${statusToneClass('warn')}`}>{p.error}</p>
               ) : null}
             </div>
           ))}
@@ -316,7 +314,7 @@ export default function FleetPage() {
           <ul className="text-xs text-slate-400 space-y-1">
             {placement.map((c) => (
               <li key={c.peer}>
-                <span className={c.recommended ? 'text-emerald-400 font-medium' : ''}>
+                <span className={c.recommended ? `${statusToneClass('ok')} font-medium` : ''}>
                   {c.peer}
                   {c.recommended ? ' ← recommended' : ''}
                 </span>
@@ -389,7 +387,7 @@ export default function FleetPage() {
           <h2 className="text-lg font-semibold mb-2">
             Fleet alerts
             {fleetAlertsTotal > 0 ? (
-              <span className="ml-2 text-sm font-normal text-amber-400">
+              <span className={`ml-2 text-sm font-normal ${statusToneClass('warn')}`}>
                 {fleetAlertsTotal} unacknowledged
               </span>
             ) : null}
@@ -399,7 +397,7 @@ export default function FleetPage() {
               <div key={row.peer}>
                 <div className="font-medium text-slate-200">{row.peer}</div>
                 {row.error ? (
-                  <p className="text-xs text-amber-400/90">{row.error}</p>
+                  <p className={`text-xs ${statusToneClass('warn')}`}>{row.error}</p>
                 ) : row.alerts.length === 0 ? (
                   <p className="text-xs text-slate-500">No alerts</p>
                 ) : (

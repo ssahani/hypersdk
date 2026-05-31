@@ -18,7 +18,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone } from '../../utils/semanticColors'
+import { hostStateTone, statusToneClass } from '../../utils/semanticColors'
 
 function hostTone(h: PlatformHost): 'ok' | 'warn' | 'default' {
   const tone = hostStateTone(h.state, h.fenced, h.maintenance_mode)
@@ -137,7 +137,9 @@ export default function PlatformHosts() {
             </div>
             <div className="min-w-0 flex-1">
               <span className="font-semibold text-white truncate block">{h.hostname}</span>
-              <p className={`text-xs capitalize mt-0.5 ${hostTone(h) === 'ok' ? 'text-emerald-400' : hostTone(h) === 'warn' ? 'text-amber-400' : 'text-slate-500'}`}>
+              <p className={`text-xs capitalize mt-0.5 ${
+                hostTone(h) === 'default' ? 'text-slate-500' : statusToneClass(hostTone(h) === 'ok' ? 'ok' : 'warn')
+              }`}>
                 {h.maintenance_mode ? 'maintenance' : h.state}
               </p>
             </div>
