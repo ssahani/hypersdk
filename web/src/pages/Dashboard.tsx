@@ -26,6 +26,7 @@ import Hero from '../components/Hero'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
+import { integrationPhaseTone, sessionBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 interface MetricsPoint { time: string; memory: number }
 
@@ -240,7 +241,7 @@ export default function Dashboard() {
       {!virtBannerDismissed && virtHost && (!virtHost.cpu_virt_supported || !virtHost.kvm_device_present || (!virtHost.libvirt_system_socket_present && !virtHost.libvirt_session_socket_present)) && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex gap-3 min-w-0">
-            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" aria-hidden />
+            <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${statusToneClass('warn')}`} aria-hidden />
             <div className="min-w-0 text-sm text-amber-100/95">
               <p className="font-medium text-amber-50">Virtualization readiness</p>
               <p className="mt-1 text-amber-100/80">{virtHost.hint}</p>
@@ -287,10 +288,10 @@ export default function Dashboard() {
           >
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-          <button onClick={() => setShowRebootConfirm(true)} className="flex items-center gap-1.5 px-3 py-2 bg-yellow-600/20 hover:bg-yellow-600/30 border border-yellow-600/30 rounded-lg text-sm font-medium text-yellow-400 transition-all" title="Reboot host">
+          <button onClick={() => setShowRebootConfirm(true)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${statusBadgeClasses('warn')}`} title="Reboot host">
             <RotateCcw className="w-4 h-4" /> Reboot
           </button>
-          <button onClick={() => setShowShutdownConfirm(true)} className="flex items-center gap-1.5 px-3 py-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/30 rounded-lg text-sm font-medium text-red-400 transition-all" title="Shutdown host">
+          <button onClick={() => setShowShutdownConfirm(true)} className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-all border ${statusBadgeClasses('error')}`} title="Shutdown host">
             <Power className="w-4 h-4" /> Shutdown
           </button>
           <Link to="/create" className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-500 hover:to-blue-600 rounded-lg text-sm font-medium shadow-lg shadow-blue-600/20 transition-all">
@@ -301,17 +302,17 @@ export default function Dashboard() {
 
       {/* Stat cards — auto-fit minmax grid */}
       <div className={METRIC_GRID}>
-        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Guests" value={vms.length} badge={<span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">{running} running</span>} />
+        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Guests" value={vms.length} badge={<span className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClasses('ok')}`}>{running} running</span>} />
         <StatCard gradient="stat-card-purple" icon={<Cpu className="w-6 h-6" />} iconColor="text-purple-400" title="Total vCPUs" value={totalVcpus} badge={node ? <span className="text-xs text-slate-500">{node.cpu_cores}c / {node.cpu_threads}t host</span> : undefined} />
         <StatCard gradient="stat-card-orange" icon={<HardDrive className="w-6 h-6" />} iconColor="text-orange-400" title="Allocated Memory" value={`${totalMemGB} GB`} badge={node ? <span className="text-xs text-slate-500">{(node.memory_mb / 1024).toFixed(0)} GB host</span> : undefined} />
-        <StatCard gradient="stat-card-green" icon={<Network className="w-6 h-6" />} iconColor="text-emerald-400" title="Networks" value={networks.length} badge={<span className="text-xs text-slate-500">{activeNets} active</span>} />
+        <StatCard gradient="stat-card-green" icon={<Network className="w-6 h-6" />} iconColor="text-[var(--machina-accent-network)]" title="Networks" value={networks.length} badge={<span className="text-xs text-slate-500">{activeNets} active</span>} />
       </div>
 
       {/* Host Resource Usage */}
       {hostStats && (
         <div className={METRIC_GRID}>
           <ResourceBar icon={<Gauge className="w-4 h-4 text-blue-400 shrink-0" />} label="Host CPU" value={hostStats.cpu_percent} extra={`Load: ${hostStats.load_1.toFixed(1)}`} />
-          <ResourceBar icon={<HardDrive className="w-4 h-4 text-emerald-400 shrink-0" />} label="Host Memory" value={hostStats.memory_percent} extra={`${(hostStats.memory_used_mb / 1024).toFixed(1)} / ${(hostStats.memory_total_mb / 1024).toFixed(1)} GB`} />
+          <ResourceBar icon={<HardDrive className={`w-4 h-4 shrink-0 ${statusToneClass('ok')}`} />} label="Host Memory" value={hostStats.memory_percent} extra={`${(hostStats.memory_used_mb / 1024).toFixed(1)} / ${(hostStats.memory_total_mb / 1024).toFixed(1)} GB`} />
           <ResourceBar icon={<Database className="w-4 h-4 text-orange-400 shrink-0" />} label="Host Disk" value={hostStats.disk_percent} extra={`${hostStats.disk_used_gb.toFixed(0)} / ${hostStats.disk_total_gb.toFixed(0)} GB`} />
           <MiniStat icon={<Clock className="w-4 h-4 text-purple-400" />} label="Uptime" value={formatUptime(hostStats.uptime_secs)} extra={`${hostStats.processes} procs`} />
         </div>
@@ -320,9 +321,9 @@ export default function Dashboard() {
       {/* Secondary stats row */}
       <div className={METRIC_GRID}>
         <MiniStat icon={<Database className="w-4 h-4 text-cyan-400" />} label="Storage Pools" value={`${activePools}/${pools.length}`} />
-        <MiniStat icon={<Camera className="w-4 h-4 text-yellow-400" />} label="Running" value={running} extra={stopped > 0 ? `${stopped} stopped` : undefined} />
+        <MiniStat icon={<Camera className={`w-4 h-4 ${statusToneClass('warn')}`} />} label="Running" value={running} extra={stopped > 0 ? `${stopped} stopped` : undefined} />
         <MiniStat icon={<MonitorPlay className="w-4 h-4 text-pink-400" />} label="Paused" value={paused} />
-        <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
+        <MiniStat icon={<Activity className={`w-4 h-4 ${statusToneClass('ok')}`} />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
 
       {platformEnabled && (
@@ -341,7 +342,7 @@ export default function Dashboard() {
       {(osPhase === 'off' || osPhase === 'needsWire') && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
-            <Cloud className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+            <Cloud className={`w-6 h-6 shrink-0 mt-0.5 ${statusToneClass(integrationPhaseTone(osPhase === 'off' ? 'off' : 'needsWire'))}`} />
             <div>
               <h2 className="font-semibold text-slate-100">OpenStack not wired</h2>
               <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
@@ -363,7 +364,7 @@ export default function Dashboard() {
       {osPhase === 'unreachable' && openstackStatus && (
         <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
-            <Cloud className="w-6 h-6 text-red-400 shrink-0 mt-0.5" />
+            <Cloud className={`w-6 h-6 shrink-0 mt-0.5 ${statusToneClass(integrationPhaseTone('unreachable'))}`} />
             <div>
               <h2 className="font-semibold text-slate-100">OpenStack unreachable</h2>
               <p className="text-sm text-slate-400 mt-0.5">
@@ -400,7 +401,7 @@ export default function Dashboard() {
           }`}
         >
           <div className="flex items-start gap-3 min-w-0">
-            <Boxes className={`w-6 h-6 shrink-0 mt-0.5 ${k8sOverview ? 'text-violet-400' : 'text-amber-400'}`} />
+            <Boxes className={`w-6 h-6 shrink-0 mt-0.5 ${k8sOverview ? 'text-violet-400' : statusToneClass('warn')}`} />
             <div>
               <h2 className="font-semibold text-slate-100">Kubernetes</h2>
               {k8sOverview ? (
@@ -432,7 +433,7 @@ export default function Dashboard() {
       {hsPhase === 'unreachable' && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
-            <Boxes className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+            <Boxes className={`w-6 h-6 shrink-0 mt-0.5 ${statusToneClass(integrationPhaseTone('unreachable'))}`} />
             <div>
               <h2 className="font-semibold text-slate-100">HyperSDK unreachable</h2>
               <p className="text-sm text-slate-400 mt-0.5">
@@ -507,7 +508,7 @@ export default function Dashboard() {
 
       {/* Charts — isolate stacking so tooltips stay below sticky navbar */}
       <div className="grid grid-cols-1 gap-6 min-w-0 relative z-0">
-        <ChartCard title="Memory Usage" icon={<HardDrive className="w-4 h-4 text-emerald-400" />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].memory}%` : '-'}>
+        <ChartCard title="Memory Usage" icon={<HardDrive className={`w-4 h-4 ${statusToneClass('ok')}`} />} current={metricsHistory.length > 0 ? `${metricsHistory[metricsHistory.length - 1].memory}%` : '-'}>
           <div className="h-[220px] w-full min-w-0 isolate">
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={metricsHistory}>
@@ -555,7 +556,7 @@ export default function Dashboard() {
                     <div className="font-medium text-white group-hover:text-blue-400 transition truncate flex items-center gap-2">
                       {vm.name}
                       {vm.libvirt_connection === 'session' && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/20 font-normal">session</span>
+                        <span className={sessionBadgeClasses('font-normal')}>session</span>
                       )}
                     </div>
                     <div className="text-xs text-slate-500 mt-0.5">{vm.vcpus} vCPU · {vm.memory_mb} MB</div>
@@ -568,13 +569,13 @@ export default function Dashboard() {
                         <Terminal className="w-3.5 h-3.5 text-slate-400" />
                       </Link>
                       <button onClick={() => vmAction(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
-                        <Power className="w-3.5 h-3.5 text-yellow-400" />
+                        <Power className={`w-3.5 h-3.5 ${statusToneClass('warn')}`} />
                       </button>
                     </>
                   )}
                   {vm.state === 'shutoff' && (
                     <button onClick={() => vmAction(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
-                      <Play className="w-3.5 h-3.5 text-green-400" />
+                      <Play className={`w-3.5 h-3.5 ${statusToneClass('ok')}`} />
                     </button>
                   )}
                   <span className={`px-2.5 py-1 rounded-md text-xs font-medium ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
@@ -593,7 +594,7 @@ export default function Dashboard() {
         <div className="card overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Activity className="w-5 h-5 text-green-400" /> Activity Feed
+              <Activity className={`w-5 h-5 ${statusToneClass('ok')}`} /> Activity Feed
             </h2>
           </div>
           <div className="divide-y divide-slate-700/30 max-h-64 overflow-y-auto">
@@ -601,14 +602,14 @@ export default function Dashboard() {
               <div key={i} className="px-6 py-2.5 flex items-center justify-between text-sm gap-3">
                 <div className="flex items-center gap-2 min-w-0">
                   {ev.event === 'state_change' && <ArrowRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
-                  {ev.event === 'vm_added' && <Plus className="w-3.5 h-3.5 text-green-400 shrink-0" />}
-                  {ev.event === 'vm_removed' && <Trash2 className="w-3.5 h-3.5 text-red-400 shrink-0" />}
+                  {ev.event === 'vm_added' && <Plus className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('ok')}`} />}
+                  {ev.event === 'vm_removed' && <Trash2 className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('error')}`} />}
                   <span className="text-white font-medium truncate">{ev.name}</span>
                   {ev.event === 'state_change' && (
                     <span className="text-slate-400 shrink-0">{ev.old_state} → {ev.new_state}</span>
                   )}
-                  {ev.event === 'vm_added' && <span className="text-green-400 shrink-0">created</span>}
-                  {ev.event === 'vm_removed' && <span className="text-red-400 shrink-0">removed</span>}
+                  {ev.event === 'vm_added' && <span className={`shrink-0 ${statusToneClass('ok')}`}>created</span>}
+                  {ev.event === 'vm_removed' && <span className={`shrink-0 ${statusToneClass('error')}`}>removed</span>}
                 </div>
                 <span className="text-xs text-slate-500 shrink-0">{timeAgo(ev.timestamp)}</span>
               </div>

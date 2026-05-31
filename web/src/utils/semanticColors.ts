@@ -57,6 +57,10 @@ export function statusBadgeClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neu
   return `bg-[color-mix(in_srgb,var(${varName})_18%,transparent)] text-[var(${varName})]`
 }
 
+export function sessionBadgeClasses(extra = ''): string {
+  return `px-1.5 py-0.5 rounded text-[10px] font-medium border ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_20%,transparent)] ${extra}`.trim()
+}
+
 export function vmStateTone(state: string): 'ok' | 'warn' | 'error' | 'info' | 'neutral' {
   const s = state.toLowerCase()
   if (s === 'running' || s === 'active') return 'ok'

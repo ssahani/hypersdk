@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { hostStateTone, k8sPhaseTone, openstackStatusTone, taskStatusTone, vmStateTone } from './semanticColors'
+import { hostStateTone, k8sPhaseTone, openstackStatusTone, sessionBadgeClasses, taskStatusTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -20,5 +20,9 @@ describe('semanticColors', () => {
     expect(vmStateTone('running')).toBe('ok')
     expect(openstackStatusTone('ACTIVE')).toBe('ok')
     expect(k8sPhaseTone('Failed')).toBe('error')
+  })
+
+  it('builds session badge classes', () => {
+    expect(sessionBadgeClasses()).toContain('--machina-status-warn')
   })
 })

@@ -22,6 +22,7 @@ import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
+import { sessionBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 
 export default function VMList() {
@@ -196,7 +197,7 @@ export default function VMList() {
         </div>
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
-          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
+          <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
           <ChoiceCardGrid className="max-w-[220px] sm:max-w-[240px] [&_button]:min-h-0">
             <ChoiceCard
               compact
@@ -300,11 +301,11 @@ export default function VMList() {
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 flex-wrap">
                       <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
-                        <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
+                        <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? `${statusToneClass('warn')} fill-[var(--machina-status-warn)]` : 'text-slate-500'}`} />
                       </button>
                       <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="font-medium text-blue-400 hover:text-blue-300">{vm.name}</Link>
                       {vm.libvirt_connection === 'session' && (
-                        <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20">session</span>
+                        <span className={sessionBadgeClasses()}>session</span>
                       )}
                       {(vmTagsMap[vmScopeKey(vm)] || []).map(t => (
                         <span key={t} className="px-1.5 py-0.5 bg-blue-600/20 text-blue-400 rounded-full text-[10px] font-medium">{t}</span>
@@ -325,29 +326,29 @@ export default function VMList() {
                       )}
                       {vm.state === 'shutoff' && (
                         <button onClick={() => action(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start">
-                          <Play className="w-4 h-4 text-green-400" />
+                          <Play className={`w-4 h-4 ${statusToneClass('ok')}`} />
                         </button>
                       )}
                       {vm.state === 'running' && (
                         <>
                           <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown">
-                            <Power className="w-4 h-4 text-yellow-400" />
+                            <Power className={`w-4 h-4 ${statusToneClass('warn')}`} />
                           </button>
                           <button onClick={() => action(vm, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop">
-                            <Square className="w-4 h-4 text-red-400" />
+                            <Square className={`w-4 h-4 ${statusToneClass('error')}`} />
                           </button>
                           <button onClick={() => action(vm, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause">
-                            <Pause className="w-4 h-4 text-blue-400" />
+                            <Pause className={`w-4 h-4 ${statusToneClass('info')}`} />
                           </button>
                         </>
                       )}
                       {vm.state === 'paused' && (
                         <button onClick={() => action(vm, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume">
-                          <RotateCcw className="w-4 h-4 text-green-400" />
+                          <RotateCcw className={`w-4 h-4 ${statusToneClass('ok')}`} />
                         </button>
                       )}
                       <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete">
-                        <Trash2 className="w-4 h-4 text-red-400" />
+                        <Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} />
                       </button>
                     </div>
                   </td>
@@ -364,11 +365,11 @@ export default function VMList() {
                 <div className="flex items-center gap-2 min-w-0">
                   <input type="checkbox" checked={selectedVMs.has(vmScopeKey(vm))} onChange={() => toggleSelect(vmScopeKey(vm))} className="rounded border-slate-600 bg-slate-900 shrink-0" />
                   <button onClick={(e) => { e.preventDefault(); togglePin(vmScopeKey(vm)); setPinnedRefresh(n => n + 1) }} className="p-1 hover:bg-yellow-600/20 rounded transition" title={isPinned(vmScopeKey(vm)) ? 'Unpin' : 'Pin'}>
-                    <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? 'text-yellow-400 fill-yellow-400' : 'text-slate-500'}`} />
+                    <Star className={`w-3.5 h-3.5 ${isPinned(vmScopeKey(vm)) ? `${statusToneClass('warn')} fill-[var(--machina-status-warn)]` : 'text-slate-500'}`} />
                   </button>
                   <Link to={vmDetailRoute(vm.name, vm.libvirt_connection)} className="font-semibold text-blue-400 hover:text-blue-300 truncate">{vm.name}</Link>
                   {vm.libvirt_connection === 'session' && (
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/15 text-amber-400 border border-amber-500/20 shrink-0">session</span>
+                    <span className={sessionBadgeClasses('shrink-0')}>session</span>
                   )}
                 </div>
                 <span className={`px-2 py-0.5 rounded text-xs font-medium shrink-0 ${getStateBadgeClasses(vm.state)}`}>{vm.state}</span>
@@ -388,19 +389,19 @@ export default function VMList() {
                 {vm.state === 'running' && (
                   <>
                     <Link to={vmConsoleRoute(vm.name, vm.libvirt_connection)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Console"><Terminal className="w-4 h-4 text-slate-300" /></Link>
-                    <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown"><Power className="w-4 h-4 text-yellow-400" /></button>
-                    <button onClick={() => action(vm, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop"><Square className="w-4 h-4 text-red-400" /></button>
+                    <button onClick={() => action(vm, shutdownVM, 'Shutdown')} className="p-1.5 hover:bg-yellow-600/20 rounded transition" title="Shutdown"><Power className={`w-4 h-4 ${statusToneClass('warn')}`} /></button>
+                    <button onClick={() => action(vm, stopVM, 'Stop')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Force Stop"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     <button onClick={() => action(vm, pauseVM, 'Pause')} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Pause"><Pause className="w-4 h-4 text-blue-400" /></button>
                   </>
                 )}
                 {vm.state === 'shutoff' && (
-                  <button onClick={() => action(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className="w-4 h-4 text-green-400" /></button>
+                  <button onClick={() => action(vm, startVM, 'Start')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
                 )}
                 {vm.state === 'paused' && (
-                  <button onClick={() => action(vm, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume"><RotateCcw className="w-4 h-4 text-green-400" /></button>
+                  <button onClick={() => action(vm, resumeVM, 'Resume')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Resume"><RotateCcw className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
                 )}
                 <div className="flex-1" />
-                <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                <button onClick={() => setDeleteTarget({ name: vm.name, libvirt_connection: vm.libvirt_connection })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
               </div>
             </div>
           ))}
@@ -411,10 +412,10 @@ export default function VMList() {
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-slate-800 border border-slate-700/50 rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-fade-in">
           <span className="text-sm font-medium">{selectedVMs.size} selected</span>
           <div className="w-px h-5 bg-slate-700" />
-          <button onClick={() => batchRun(startVM, 'Start')} className="px-3 py-1.5 bg-green-600/20 hover:bg-green-600/30 text-green-400 rounded-lg text-xs font-medium transition">Start</button>
-          <button onClick={() => batchRun(shutdownVM, 'Shutdown')} className="px-3 py-1.5 bg-yellow-600/20 hover:bg-yellow-600/30 text-yellow-400 rounded-lg text-xs font-medium transition">Shutdown</button>
-          <button onClick={() => batchRun(stopVM, 'Stop')} className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition">Stop</button>
-          <button onClick={() => setBatchDeleteConfirm(true)} className="px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 text-red-400 rounded-lg text-xs font-medium transition">Delete</button>
+          <button onClick={() => batchRun(startVM, 'Start')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${statusBadgeClasses('ok')}`}>Start</button>
+          <button onClick={() => batchRun(shutdownVM, 'Shutdown')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${statusBadgeClasses('warn')}`}>Shutdown</button>
+          <button onClick={() => batchRun(stopVM, 'Stop')} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${statusBadgeClasses('error')}`}>Stop</button>
+          <button onClick={() => setBatchDeleteConfirm(true)} className={`px-3 py-1.5 rounded-lg text-xs font-medium transition ${statusBadgeClasses('error')}`}>Delete</button>
           <button onClick={() => setSelectedVMs(new Set())} className="p-1.5 hover:bg-slate-700 rounded-lg transition" title="Clear selection"><X className="w-4 h-4 text-slate-400" /></button>
         </div>
       )}
