@@ -55,6 +55,7 @@ import type { LucideIcon } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import ErrorBanner from '../components/ErrorBanner'
 import { libvirtErrorHints } from '../utils/libvirtHints'
+import { statusToneClass } from '../utils/semanticColors'
 
 type InstallSource = 'iso' | 'url' | 'pxe' | 'download'
 type StorageMode = 'new' | 'volume'
@@ -739,7 +740,7 @@ export default function CreateVMPage() {
       <div id="create-vm-step-0" className="scroll-mt-28 space-y-4">
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Disc className="w-5 h-5 text-amber-400" />
+          <Disc className={`w-5 h-5 ${statusToneClass('warn')}`} />
           Installation source
         </h2>
         <ChoiceCardGrid>
@@ -1124,7 +1125,7 @@ export default function CreateVMPage() {
       <div id="create-vm-step-2" className="scroll-mt-28">
       <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Network className="w-5 h-5 text-emerald-400" />
+          <Network className={`w-5 h-5 ${statusToneClass('ok')}`} />
           Networking
         </h2>
         <div>
@@ -1328,7 +1329,7 @@ export default function CreateVMPage() {
         <div className="space-y-6">
           <div className="bg-slate-800/50 rounded-xl p-6 border border-amber-900/40 space-y-4">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Layers className="w-5 h-5 text-amber-400" />
+              <Layers className={`w-5 h-5 ${statusToneClass('warn')}`} />
               Golden image source
             </h2>
             <p className="text-sm text-slate-400">
@@ -1381,7 +1382,7 @@ export default function CreateVMPage() {
                   ))}
                 </select>
                 {savedTemplates.length === 0 && (
-                  <p className="text-xs text-amber-200/90">
+                  <p className={`text-xs ${statusToneClass('warn')} opacity-90`}>
                     No templates found. Add <code className="text-slate-300">/var/lib/machina/templates/mytmpl.json</code> with{' '}
                     <code className="text-slate-300">base_image</code> set to your Packer qcow2 path, or use <span className="text-slate-200">Save template</span> on a VM details page.
                   </p>
@@ -1414,7 +1415,7 @@ export default function CreateVMPage() {
                               . Golden: <code className="text-slate-400 break-all">{t.base_image}</code>
                             </>
                           ) : (
-                            <span className="text-amber-300/90"> — add base_image in JSON for Packer golden reuse.</span>
+                            <span className={`${statusToneClass('warn')} opacity-90`}> — add base_image in JSON for Packer golden reuse.</span>
                           )}
                         </>
                       )
@@ -1534,7 +1535,7 @@ export default function CreateVMPage() {
 
           <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-4">
             <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-              <Network className="w-5 h-5 text-emerald-400" />
+              <Network className={`w-5 h-5 ${statusToneClass('ok')}`} />
               Networking &amp; console
             </h2>
             <div>

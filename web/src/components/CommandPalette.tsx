@@ -18,7 +18,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useAuth } from '../contexts/AuthContext'
 import { getStateBadgeClasses } from '../utils/vm'
-import { poolStateBadgeClasses, statusBadgeClasses } from '../utils/semanticColors'
+import { poolStateBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 import { getRecentVMs } from '../utils/recentVMs'
 import { getPinnedVMs } from '../utils/pinnedVMs'
 import { getRecentPages, recordRecentPage } from '../utils/recentPages'
@@ -196,7 +196,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   for (const path of pinnedPages) {
     items.push({
       id: `pin-page-${path}`,
-      icon: <Star className="w-4 h-4 text-amber-400" />,
+      icon: <Star className={`w-4 h-4 ${statusToneClass('warn')}`} />,
       label: getPageLabel(path),
       action: () => go(path),
       category: 'Pinned pages',
@@ -218,7 +218,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   items.push({
     id: 'pin-current-page',
-    icon: <Pin className={`w-4 h-4 ${isPagePinned(currentPath) ? 'text-amber-400' : ''}`} />,
+    icon: <Pin className={`w-4 h-4 ${isPagePinned(currentPath) ? statusToneClass('warn') : ''}`} />,
     label: isPagePinned(currentPath) ? 'Unpin current page from navbar' : 'Pin current page to navbar',
     sublabel: getPageLabel(currentPath),
     action: () => {

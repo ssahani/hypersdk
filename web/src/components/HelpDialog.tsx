@@ -8,6 +8,7 @@ import { useFocusTrap } from '../hooks/useFocusTrap'
 import { helpShortcuts } from './helpShortcuts'
 import ZyvorAbout from './ZyvorAbout'
 import PlatformAboutHelp from './platform/PlatformAboutHelp'
+import { tabActiveClasses } from '../utils/semanticColors'
 
 export type HelpTab = 'shortcuts' | 'about' | 'platform'
 
@@ -76,7 +77,7 @@ export default function HelpDialog({ open, tab, onClose, onTabChange }: HelpDial
               onClick={() => onTabChange(t.id)}
               className={`flex items-center gap-2 px-3 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 tab === t.id
-                  ? 'border-blue-500 text-blue-400'
+                  ? tabActiveClasses()
                   : 'border-transparent text-[var(--text-muted)] hover:text-[var(--text-secondary)]'
               }`}
             >

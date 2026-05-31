@@ -7,6 +7,7 @@
  */
 import type { CSSProperties, ReactNode } from 'react';
 import { AlertCircle, Sparkles } from 'lucide-react';
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors';
 
 export type LoginOrb = {
   size: number;
@@ -211,7 +212,7 @@ export function PremiumLoginShell({
                     <div className="text-sm font-semibold text-white flex items-center gap-2">
                       {f.title}
                       {f.highlight ? (
-                        <Sparkles className="w-3.5 h-3.5 text-amber-300/90 shrink-0" aria-hidden />
+                        <Sparkles className={`w-3.5 h-3.5 ${statusToneClass('warn')} opacity-90 shrink-0`} aria-hidden />
                       ) : null}
                     </div>
                     <p className="text-xs mt-1 text-slate-400 leading-relaxed">{f.description}</p>
@@ -258,9 +259,9 @@ export function PremiumLoginShell({
 
 export function LoginError({ message }: { message: string }) {
   return (
-    <div className="flex items-center gap-2.5 bg-red-950/50 border border-red-500/40 rounded-xl p-3 mb-6 login-shake" role="alert">
-      <AlertCircle className="h-4 w-4 text-red-400 shrink-0" aria-hidden />
-      <span className="text-sm text-red-300">{message}</span>
+    <div className={`flex items-center gap-2.5 rounded-xl p-3 mb-6 login-shake ${statusSurfaceClasses('error')}`} role="alert">
+      <AlertCircle className={`h-4 w-4 ${statusToneClass('error')} shrink-0`} aria-hidden />
+      <span className={`text-sm ${statusToneClass('error')}`}>{message}</span>
     </div>
   );
 }

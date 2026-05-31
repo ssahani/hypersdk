@@ -6,6 +6,7 @@ import { useCallback, useEffect, useId, useState } from 'react'
 import { browseDir, BrowseDirResponse } from '../api/extras'
 import { FolderOpen } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 export function isIsoFileName(name: string): boolean {
   return name.toLowerCase().endsWith('.iso')
@@ -129,7 +130,7 @@ export function BrowseHostPathModal({
           </span>
         </div>
         <div className="flex-1 overflow-y-auto min-h-0 p-2 space-y-1">
-          {err ? <p className="text-xs text-red-400 px-2">{err}</p> : null}
+          {err ? <p className={`text-xs ${statusToneClass('error')} px-2`}>{err}</p> : null}
           {loading && !data?.entries?.length ? (
             <p className="text-xs text-slate-500 px-2 py-4">Loading…</p>
           ) : null}
@@ -146,12 +147,12 @@ export function BrowseHostPathModal({
                       className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm text-slate-200"
                       onClick={() => void load(entry.path)}
                     >
-                      <FolderOpen className="w-4 h-4 shrink-0 text-amber-400/90" aria-hidden />
+                      <FolderOpen className={`w-4 h-4 shrink-0 ${statusToneClass('warn')} opacity-90`} aria-hidden />
                       <span className="truncate">{entry.name}</span>
                     </button>
                     <button
                       type="button"
-                      className="shrink-0 text-xs px-2 py-1 rounded bg-emerald-700 hover:bg-emerald-600 text-white"
+                      className={statusSurfaceClasses('ok', 'shrink-0 text-xs px-2 py-1 rounded hover:opacity-90')}
                       onClick={() => {
                         onSelectPath(entry.path)
                         onClose()
@@ -166,7 +167,7 @@ export function BrowseHostPathModal({
                     className="flex-1 min-w-0 text-left text-sm text-slate-200 flex items-center gap-2"
                     onClick={() => void load(entry.path)}
                   >
-                    <FolderOpen className="w-4 h-4 shrink-0 text-amber-400/90" aria-hidden />
+                    <FolderOpen className={`w-4 h-4 shrink-0 ${statusToneClass('warn')} opacity-90`} aria-hidden />
                     <span className="truncate">{entry.name}</span>
                   </button>
                 )

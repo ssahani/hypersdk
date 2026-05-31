@@ -4,6 +4,8 @@
 
 /** Renders libvirt `<sysinfo type='smbios'>` (or similar) as readable cards. */
 
+import { statusToneClass } from '../utils/semanticColors'
+
 const SECTION_LABELS: Record<string, string> = {
   bios: 'BIOS',
   system: 'System',
@@ -51,7 +53,7 @@ export default function SysinfoDisplay({ xml }: { xml: string }) {
   if (doc.querySelector('parsererror')) {
     return (
       <div className="space-y-2">
-        <p className="text-amber-400/90 text-sm">Could not parse as XML — raw output:</p>
+        <p className={`${statusToneClass('warn')} opacity-90 text-sm`}>Could not parse as XML — raw output:</p>
         <pre className="p-4 text-xs text-slate-300 overflow-x-auto whitespace-pre-wrap font-mono bg-slate-950/50 rounded-lg border border-slate-700/50">{trimmed}</pre>
       </div>
     )

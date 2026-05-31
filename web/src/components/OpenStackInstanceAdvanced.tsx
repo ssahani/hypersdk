@@ -59,6 +59,7 @@ import {
 } from 'lucide-react'
 import { isFloatingIpAvailable } from '../utils/openstackFloatingIp'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 type Props = {
   inst: OpenStackInstance
@@ -183,13 +184,13 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           <button type="button" onClick={() => run(() => unlockOpenStackInstance(inst.id), 'Unlocked')}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Unlock</button>
           <button type="button" onClick={() => run(() => resetOpenStackInstanceState(inst.id), 'State reset')}
-            className="px-3 py-1.5 rounded-lg border border-amber-700/50 text-amber-300 text-sm hover:bg-slate-800">Reset state</button>
+            className={statusSurfaceClasses('warn', 'px-3 py-1.5 rounded-lg text-sm hover:bg-slate-800')}>Reset state</button>
           <button type="button" onClick={() => run(() => migrateOpenStackInstance(inst.id, { live: false }), 'Cold migrate')}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Migrate</button>
           <button type="button" onClick={() => run(() => migrateOpenStackInstance(inst.id, { live: true }), 'Live migrate')}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Live migrate</button>
           <button type="button" onClick={() => run(() => rescueOpenStackInstance(inst.id, {}), 'Rescue')}
-            className="px-3 py-1.5 rounded-lg border border-amber-600/50 text-amber-200 text-sm">Rescue</button>
+            className={statusSurfaceClasses('warn', 'px-3 py-1.5 rounded-lg text-sm')}>Rescue</button>
           <button type="button" onClick={() => run(() => unrescueOpenStackInstance(inst.id), 'Unrescued')}
             className="px-3 py-1.5 rounded-lg border border-slate-600 text-sm hover:bg-slate-800">Unrescue</button>
           <button type="button" onClick={() => {
@@ -203,7 +204,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           {ifaces.map((i) => (
             <li key={i.port_id} className="flex gap-2 items-center">
               {i.fixed_ips.join(', ') || i.port_id.slice(0, 8)}
-              <button type="button" className="text-red-400 hover:underline"
+              <button type="button" className={statusActionLinkClasses('error', 'hover:underline')}
                 onClick={() => run(() => detachOpenStackInterface(inst.id, i.port_id), 'Interface detached')}>Detach</button>
             </li>
           ))}
@@ -270,7 +271,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               () => resizeOpenStackInstance(inst.id, resizeFlavor, { auto_confirm: resizeAutoConfirm }),
               resizeAutoConfirm ? 'Resize confirmed' : 'Resize scheduled',
             )}
-            className="px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-sm text-white disabled:opacity-40">
+            className={statusSurfaceClasses('warn', 'px-3 py-1.5 rounded-lg text-sm disabled:opacity-40')}>
             <Maximize2 className="w-3.5 h-3.5 inline mr-1" /> Resize
           </button>
           <button type="button"
@@ -280,7 +281,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
           </button>
           <button type="button"
             onClick={() => run(() => revertResizeOpenStackInstance(inst.id), 'Resize reverted')}
-            className="px-3 py-1.5 rounded-lg border border-red-600/50 text-red-300 text-sm hover:bg-red-950/30">
+            className={statusDestructiveButtonClasses('px-3 py-1.5 text-sm hover:opacity-90')}>
             Revert resize
           </button>
         </div>
@@ -350,7 +351,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
                 {f.fixed_address && <span className="text-slate-500">→ {f.fixed_address}</span>}
                 <span className="text-xs text-slate-600">({f.status})</span>
                 <button type="button" onClick={() => run(() => dissociateOpenStackFloatingIp(f.id), 'Dissociated')}
-                  className="text-xs text-red-400 hover:underline">Dissociate</button>
+                  className={`text-xs ${statusActionLinkClasses('error', 'hover:underline')}`}>Dissociate</button>
               </li>
             ))}
           </ul>
@@ -414,7 +415,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
 
       <section className="rounded-xl border border-slate-700/80 p-4">
         <h2 className="font-medium text-slate-200 mb-3 flex items-center gap-2">
-          <RotateCcw className="w-4 h-4 text-amber-400" /> Rebuild
+          <RotateCcw className={`w-4 h-4 ${statusToneClass('warn')}`} /> Rebuild
         </h2>
         <p className="text-xs text-slate-500 mb-2">Replace the instance disk from a Glance image (destructive).</p>
         <div className="flex flex-wrap gap-2 items-end">
@@ -435,7 +436,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
               () => rebuildOpenStackInstance(inst.id, { image: rebuildImageId }),
               'Rebuild submitted',
             )}
-            className="px-3 py-1.5 rounded-lg bg-amber-600/80 hover:bg-amber-500 text-sm text-white disabled:opacity-40"
+            className={statusSurfaceClasses('warn', 'px-3 py-1.5 rounded-lg text-sm disabled:opacity-40')}
           >
             Rebuild
           </button>
@@ -547,7 +548,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
                 <span>{v.device || '—'}</span>
                 <span className="text-slate-500">· {v.name || v.id}</span>
                 <button type="button" onClick={() => run(() => detachOpenStackVolume(inst.id, v.id), 'Detached')}
-                  className="text-xs text-red-400 hover:underline">Detach</button>
+                  className={`text-xs ${statusActionLinkClasses('error', 'hover:underline')}`}>Detach</button>
               </li>
             ))}
           </ul>
@@ -573,7 +574,7 @@ export default function OpenStackInstanceAdvanced({ inst, volumes, onRefresh }: 
             {inst.security_groups.map((g) => (
               <li key={g} className="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 text-sm">
                 {g}
-                <button type="button" className="text-red-400 text-xs ml-1"
+                <button type="button" className={`${statusActionLinkClasses('error', 'text-xs ml-1')}`}
                   onClick={() => run(() => removeOpenStackSecurityGroup(inst.id, g), 'Removed')}>×</button>
               </li>
             ))}

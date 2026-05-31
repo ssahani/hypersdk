@@ -13,6 +13,7 @@ import {
 } from '../api/openstackExtras'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses } from '../utils/semanticColors'
 
 type Props = {
   image: OpenStackImage | null
@@ -74,7 +75,7 @@ export default function OpenStackImageSharingModal({ image, onClose }: Props) {
                     <span className="text-slate-500 text-xs shrink-0">{m.status}</span>
                     <button
                       type="button"
-                      className="text-red-400 text-xs hover:underline shrink-0"
+                      className={`text-xs ${statusActionLinkClasses('error', 'hover:underline shrink-0')}`}
                       onClick={async () => {
                         try {
                           await deleteOpenStackImageMember(image.id, m.member_id)

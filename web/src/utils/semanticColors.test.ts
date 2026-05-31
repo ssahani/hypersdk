@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, sessionBadgeClasses, serviceStateTone, statusBorderClass, statusChipClasses, statusSurfaceClasses, taskStatusTone, toastSemanticTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
+import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, navActiveChipClasses, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, sessionBadgeClasses, serviceStateTone, statusBorderClass, statusChipClasses, statusSurfaceClasses, tabActiveClasses, taskStatusTone, toastSemanticTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -64,5 +64,10 @@ describe('semanticColors', () => {
     expect(notificationChannelTone('email')).toBe('info')
     expect(toastSemanticTone('success')).toBe('ok')
     expect(statusBorderClass('warn')).toContain('--machina-status-warn')
+  })
+
+  it('builds nav and tab active classes', () => {
+    expect(navActiveChipClasses()).toContain('--machina-status-info')
+    expect(tabActiveClasses()).toContain('--machina-status-info')
   })
 })

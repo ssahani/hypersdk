@@ -6,6 +6,7 @@ import { ListTodo, X, RefreshCw } from 'lucide-react'
 import { listPlatformTasks, getControllerBase, type PlatformTask } from '../api/platform'
 import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
 import { operationsHubHref } from '../utils/platformHubLinks'
+import { statusActionLinkClasses, statusBadgeClasses, statusBgClass, taskStatusTone } from '../utils/semanticColors'
 
 interface PlatformTaskDrawerProps {
   open: boolean
@@ -70,7 +71,7 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
           {tasks.length === 0 && (
             <p className="text-sm text-slate-500">
               No active tasks.{' '}
-              <Link to={operationsHref} className="text-blue-400" onClick={onClose}>
+              <Link to={operationsHref} className={statusActionLinkClasses('info')} onClick={onClose}>
                 Open Operations hub
               </Link>
             </p>
@@ -79,17 +80,17 @@ export default function PlatformTaskDrawer({ open, onClose }: PlatformTaskDrawer
             <div key={t.id} className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3 text-sm">
               <div className="flex justify-between gap-2">
                 <span className="font-mono text-xs text-slate-400">{t.operation}</span>
-                <span className="text-xs uppercase">{t.status}</span>
+                <span className={`text-xs uppercase ${statusBadgeClasses(taskStatusTone(t.status))}`}>{t.status}</span>
               </div>
               <div className="mt-2 h-1.5 bg-slate-800 rounded overflow-hidden">
-                <div className="h-full bg-blue-500 transition-all" style={{ width: `${t.progress}%` }} />
+                <div className={`h-full ${statusBgClass('info')} transition-all`} style={{ width: `${t.progress}%` }} />
               </div>
               {t.message && <p className="mt-2 text-slate-400 text-xs">{t.message}</p>}
             </div>
           ))}
         </div>
         <div className="p-4 border-t border-white/[0.08]">
-          <Link to={operationsHref} className="text-sm text-blue-400 hover:underline" onClick={onClose}>
+          <Link to={operationsHref} className={`text-sm ${statusActionLinkClasses('info', 'hover:underline')}`} onClick={onClose}>
             Open Operations hub →
           </Link>
         </div>
@@ -104,7 +105,7 @@ export function PlatformTaskDrawerButton({ onClick, activeCount }: { onClick: ()
       <ListTodo className="w-4 h-4" />
       Tasks
       {activeCount != null && activeCount > 0 && (
-        <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-[10px] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center">
+        <span className={`absolute -top-1 -right-1 ${statusBgClass('info')} text-white text-[10px] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center`}>
           {activeCount > 9 ? '9+' : activeCount}
         </span>
       )}

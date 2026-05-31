@@ -6,6 +6,7 @@ import { getOpenStackQuotas, updateOpenStackQuotas } from '../api/openstackExtra
 import { parseQuotaRows, parseNeutronQuotaRows, type QuotaRow } from '../utils/openstackQuotas'
 import { formatUserError } from '../utils/apiError'
 import { useToastContext } from '../contexts/ToastContext'
+import { statusToneClass } from '../utils/semanticColors'
 
 type Props = {
   compact?: boolean
@@ -138,7 +139,7 @@ export default function OpenStackQuotasPanel({ compact }: Props) {
         </div>
       )}
       {error && !loading && (
-        <p className="text-sm text-red-400">{error}</p>
+        <p className={`text-sm ${statusToneClass('error')}`}>{error}</p>
       )}
       {!loading && !error && computeRows.length === 0 && cinderRows.length === 0 && neutronRows.length === 0 && (
         <p className="text-sm text-slate-500">No quota data returned.</p>

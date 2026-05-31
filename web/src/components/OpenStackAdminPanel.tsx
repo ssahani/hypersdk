@@ -24,6 +24,7 @@ import {
 import { formatUserError } from '../utils/apiError'
 import { useToastContext } from '../contexts/ToastContext'
 import { Loader2, Plus, Server } from 'lucide-react'
+import { statusActionLinkClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackAdminPanel() {
   const toast = useToastContext()
@@ -98,7 +99,7 @@ export default function OpenStackAdminPanel() {
         </label>
       </div>
       <p className="text-xs text-slate-500">Admin write operations — requires cloud admin role.</p>
-      {error && <p className="text-sm text-red-300">{error}</p>}
+      {error && <p className={`text-sm ${statusToneClass('error')}`}>{error}</p>}
       <div className="grid md:grid-cols-2 gap-4 text-sm">
         <div>
           <h3 className="text-xs uppercase text-slate-500 mb-2">Availability zones</h3>
@@ -162,7 +163,7 @@ export default function OpenStackAdminPanel() {
                     {a.hosts.map((h) => (
                       <li key={h} className="flex items-center gap-2">
                         {h}
-                        <button type="button" className="text-red-400 hover:underline"
+                        <button type="button" className={statusActionLinkClasses('error', 'hover:underline')}
                           onClick={() => void run(
                             () => removeOpenStackAggregateHost(a.id, h),
                             'Host removed',
@@ -183,13 +184,13 @@ export default function OpenStackAdminPanel() {
               <li key={s.id} className="flex flex-wrap items-center gap-2">
                 <span>{s.binary} @ {s.host} · {s.state}/{s.status}</span>
                 {s.status === 'enabled' ? (
-                  <button type="button" className="text-xs text-amber-400 hover:underline"
+                  <button type="button" className={`text-xs ${statusActionLinkClasses('warn', 'hover:underline')}`}
                     onClick={() => void run(
                       () => disableOpenStackComputeService({ binary: s.binary, host: s.host }),
                       'Service disabled',
                     )}>Disable</button>
                 ) : (
-                  <button type="button" className="text-xs text-emerald-400 hover:underline"
+                  <button type="button" className={`text-xs ${statusActionLinkClasses('ok', 'hover:underline')}`}
                     onClick={() => void run(
                       () => enableOpenStackComputeService({ binary: s.binary, host: s.host }),
                       'Service enabled',
@@ -207,13 +208,13 @@ export default function OpenStackAdminPanel() {
               <li key={a.id} className="flex flex-wrap items-center gap-2">
                 <span>{a.agent_type} @ {a.host} · {a.alive ? 'alive' : 'down'} · admin {a.admin_state_up ? 'up' : 'down'}</span>
                 {a.admin_state_up ? (
-                  <button type="button" className="text-xs text-amber-400 hover:underline"
+                  <button type="button" className={`text-xs ${statusActionLinkClasses('warn', 'hover:underline')}`}
                     onClick={() => void run(
                       () => setOpenStackNeutronAgentAdmin(a.id, false),
                       'Agent admin down',
                     )}>Admin down</button>
                 ) : (
-                  <button type="button" className="text-xs text-emerald-400 hover:underline"
+                  <button type="button" className={`text-xs ${statusActionLinkClasses('ok', 'hover:underline')}`}
                     onClick={() => void run(
                       () => setOpenStackNeutronAgentAdmin(a.id, true),
                       'Agent admin up',

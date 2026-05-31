@@ -17,6 +17,7 @@ import { useTheme, type AppTheme } from '../contexts/ThemeContext'
 import { useWebSocketContext, VMEvent } from '../contexts/WebSocketContext'
 import { timeAgo } from '../utils/time'
 import { navGroups, NavItem, isOpenStackNavEnabled, navItemVisible, navItemActive, navGroupHasActive, navDropdownSections, TOP_BAR_QUICK_LINKS } from '../utils/routes'
+import { navActiveChipClasses, statusActionLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useAi } from '../contexts/AiContext'
 
@@ -31,7 +32,7 @@ function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () 
         onClick={onClick}
         className={`nav-steel-link flex items-center gap-2 px-2 py-2 text-sm font-medium no-underline transition-colors duration-200 ${
           setup
-            ? 'text-amber-300/90 hover:text-amber-200'
+            ? `${statusToneClass('warn')} opacity-90 hover:opacity-100`
             : isActive
               ? 'nav-steel-link-active'
               : 'text-[#9aa8b8] hover:text-white'
@@ -50,7 +51,7 @@ function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () 
         onClick={onClick}
         className={`nav-aurora-link flex items-center gap-2 px-2 py-2 text-sm font-medium no-underline transition-colors duration-200 ${
           setup
-            ? 'text-amber-300/90 hover:text-amber-200'
+            ? `${statusToneClass('warn')} opacity-90 hover:opacity-100`
             : isActive
               ? 'nav-aurora-link-active'
               : 'text-[#a89ec8] hover:text-[#f5f3ff]'
@@ -68,7 +69,7 @@ function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () 
       onClick={onClick}
       className={`flex items-center gap-2 px-3 py-2 rounded-liquid transition-all duration-200 text-sm font-medium ${
         setup
-          ? 'text-amber-400/90 hover:bg-amber-500/10 border border-amber-500/30'
+          ? `${statusSurfaceClasses('warn', 'border flex items-center gap-2 px-3 py-2 rounded-liquid text-sm font-medium')}`
           : isActive
             ? 'glass bg-white/10 text-white border border-white/15 shadow-sm'
             : 'text-[var(--text-secondary)] hover:bg-white/5 hover:text-[var(--text-primary)]'
@@ -111,7 +112,7 @@ function DesktopNavCluster({
     }
     return `machina-nav-group machina-nav-group-icon flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
       active
-        ? 'bg-blue-600/25 text-blue-400 ring-1 ring-blue-500/35'
+        ? navActiveChipClasses('flex h-9 w-9 items-center justify-center rounded-lg')
         : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
     }`
   }
@@ -124,14 +125,14 @@ function DesktopNavCluster({
   }
 
   const linkClass = (active: boolean, setup?: boolean) => {
-    if (setup) return 'machina-nav-dd-link flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-amber-300 hover:text-amber-200'
+    if (setup) return `flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${statusActionLinkClasses('warn')}`
     if (steel || aurora) {
       return `machina-nav-dd-link flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
         active ? 'machina-nav-dd-active' : ''
       }`
     }
     return `flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-      active ? 'bg-blue-600/80 text-white' : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
+      active ? navActiveChipClasses() : 'text-slate-300 hover:bg-slate-700/60 hover:text-white'
     }`
   }
 
@@ -297,7 +298,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
         }`
       : `flex h-9 w-9 items-center justify-center rounded-lg transition-colors ${
           active
-            ? 'bg-blue-600/25 text-blue-400 ring-1 ring-blue-500/35'
+            ? navActiveChipClasses('flex h-9 w-9 items-center justify-center rounded-lg')
             : 'text-slate-400 hover:text-white hover:bg-slate-700/60'
         }`
 
@@ -458,7 +459,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
               >
                 <Bell className="w-4 h-4" />
                 {recentCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-blue-500 rounded-full text-[9px] font-bold text-white flex items-center justify-center">{recentCount > 9 ? '9+' : recentCount}</span>
+                  <span className={`absolute -top-0.5 -right-0.5 w-4 h-4 ${statusBgClass('info')} rounded-full text-[9px] font-bold text-white flex items-center justify-center`}>{recentCount > 9 ? '9+' : recentCount}</span>
                 )}
               </button>
               {bellOpen && (
@@ -678,7 +679,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                 <button
                   type="button"
                   onClick={() => void logout()}
-                  className={`flex items-center gap-1 px-2 py-1.5 rounded-lg transition shrink-0 border ${
+                  className={`group flex items-center gap-1 px-2 py-1.5 rounded-lg transition shrink-0 border ${
                     steel
                       ? 'text-[#cfd8e3] border-[rgba(140,160,190,0.25)] hover:bg-white/5 hover:text-white'
                       : aurora
@@ -688,7 +689,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                   title={username ? `Sign out (${username})` : 'Sign out'}
                   aria-label="Sign out"
                 >
-                  <LogOut className="w-4 h-4 shrink-0  text-slate-400 hover:text-red-400" />
+                  <LogOut className={`w-4 h-4 shrink-0 text-slate-400 group-hover:text-[var(--machina-status-error)]`} />
                   <span className="text-[11px] sm:text-xs font-medium leading-none">Log out</span>
                 </button>
               </div>
@@ -736,10 +737,8 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                       key={path}
                       to={path}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium truncate no-underline ${
-                        steel
-                          ? 'text-amber-300/90 hover:bg-white/5'
-                          : 'text-amber-400/90 hover:bg-amber-500/10'
+                      className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium truncate no-underline ${statusToneClass('warn')} opacity-90 ${
+                        steel || aurora ? 'hover:bg-white/5' : 'hover:bg-amber-500/10'
                       }`}
                     >
                       {getPageLabel(path)}

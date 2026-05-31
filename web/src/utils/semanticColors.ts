@@ -241,3 +241,11 @@ export function toastSemanticTone(type: 'success' | 'error' | 'warning' | 'info'
   if (type === 'warning') return 'warn'
   return 'info'
 }
+
+export function navActiveChipClasses(extra = ''): string {
+  return `${statusBadgeClasses('info')} ring-1 ring-[color-mix(in_srgb,var(--machina-status-info)_35%,transparent)] ${extra}`.trim()
+}
+
+export function tabActiveClasses(extra = ''): string {
+  return `border-[var(--machina-status-info)] ${statusToneClass('info')} ${extra}`.trim()
+}
