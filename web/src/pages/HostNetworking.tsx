@@ -25,7 +25,7 @@ import {
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { formatUserError } from '../utils/apiError'
-import { statusBgClass, statusToneClass } from '../utils/semanticColors'
+import { statusBgClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 type Tab = 'topology' | 'portforward' | 'bridges' | 'firewall' | 'routing' | 'sysctl' | 'systemd'
 type Dialog = null | 'bridge' | 'portforward' | 'firewall'
@@ -653,7 +653,7 @@ export default function HostNetworkingPage() {
             </div>
           </div>
           {routesError && (
-            <div className="rounded-lg border border-amber-500/35 bg-amber-950/30 px-4 py-2 text-sm text-amber-100/90">
+            <div className={`rounded-lg px-4 py-2 text-sm ${statusSurfaceClasses('warn')}`}>
               Could not load routing tables: {routesError}
             </div>
           )}
@@ -703,7 +703,7 @@ export default function HostNetworkingPage() {
           </div>
 
           {sysctlData && (
-            <ul className="text-xs text-amber-200/90 space-y-1 list-disc list-inside bg-amber-950/20 border border-amber-900/40 rounded-lg px-4 py-3">
+            <ul className={`text-xs space-y-1 list-disc list-inside rounded-lg px-4 py-3 ${statusSurfaceClasses('warn')}`}>
               {sysctlData.notes.map((n, i) => <li key={i}>{n}</li>)}
             </ul>
           )}
@@ -853,7 +853,7 @@ export default function HostNetworkingPage() {
                     value={ifaceFilter}
                     onChange={(e) => setIfaceFilter(e.target.value)}
                     placeholder="Filter by name, type, master, or IP…"
-                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    className="w-full pl-10 pr-3 py-2 text-sm bg-slate-800/80 border border-slate-600 rounded-lg text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)]"
                     aria-label="Filter interfaces"
                   />
                 </div>

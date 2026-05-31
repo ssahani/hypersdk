@@ -7,20 +7,19 @@ import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import { getFleetActivity, type FleetActivityOverview } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 type Tab = 'vms' | 'hosts'
 
 function bar(label: string, pct: number, tone: 'cpu' | 'mem' | 'io' | 'thermal') {
-  const color =
-    tone === 'io' || tone === 'thermal'
-      ? pct > 50 ? 'bg-rose-500' : pct > 20 ? 'bg-amber-500' : 'bg-emerald-500'
-      : pct > 85 ? 'bg-rose-500' : pct > 60 ? 'bg-amber-500' : 'bg-blue-500'
+  const thresholds = tone === 'io' || tone === 'thermal'
+    ? { warn: 20, error: 50 }
+    : { warn: 60, error: 85 }
   return (
     <div className="flex items-center gap-2 text-[10px] text-slate-500">
       <span className="w-14 shrink-0">{label}</span>
       <div className="flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden">
-        <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+        <div className={`h-full rounded-full ${utilizationBarClass(pct, thresholds)}`} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
       </div>
       <span className="w-10 text-right">{pct.toFixed(0)}%</span>
     </div>

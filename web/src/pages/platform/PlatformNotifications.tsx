@@ -11,6 +11,7 @@ import { aiRunbook } from '../../api/ai'
 import ExplainButton from '../../components/ai/ExplainButton'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import type { PlatformDesktopTier } from '../../utils/platformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
@@ -57,7 +58,7 @@ export default function PlatformNotifications() {
         <MacSectionTitle title="Alerts" subtitle="Notification Center — actionable alerts, not just log lines." />
         {unread > 0 && (
           <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full bg-amber-500/15 text-amber-300 text-sm border border-amber-500/30">
+            <span className={`px-3 py-1 rounded-full text-sm border ${statusBadgeClasses('warn')}`}>
               {unread} unread
             </span>
             <button
@@ -88,10 +89,10 @@ export default function PlatformNotifications() {
             const act = actionForKind(n.kind, n.payload, tier)
             return (
               <li key={n.id} className={`rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition ${
-                n.delivered ? 'border-white/[0.04] bg-slate-900/30 opacity-70' : 'border-amber-500/20 bg-amber-500/5'
+                n.delivered ? 'border-white/[0.04] bg-slate-900/30 opacity-70' : statusSurfaceClasses('warn')
               }`}>
                 <div>
-                  <span className={n.delivered ? 'text-slate-500' : 'text-amber-200 font-medium'}>{n.kind}</span>
+                  <span className={n.delivered ? 'text-slate-500' : `${statusToneClass('warn')} font-medium`}>{n.kind}</span>
                   <div className="text-xs text-slate-500 mt-1">{new Date(n.created_at).toLocaleString()}</div>
                   {typeof n.payload.message === 'string' && <p className="text-sm text-slate-400 mt-1">{n.payload.message}</p>}
                 </div>

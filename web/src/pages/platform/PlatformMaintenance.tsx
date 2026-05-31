@@ -26,7 +26,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hubLinkClasses } from '../../utils/semanticColors'
+import { hubLinkClasses, statusChipClasses } from '../../utils/semanticColors'
 
 type TabId = 'updates' | 'schedules'
 
@@ -185,10 +185,10 @@ export default function PlatformMaintenance() {
                       badge={
                         <span className={`text-[10px] uppercase px-2 py-0.5 rounded border ${
                           h.status === 'ok'
-                            ? 'text-emerald-300 border-emerald-500/30 bg-emerald-500/10'
+                            ? statusChipClasses('ok', 'border')
                             : h.status === 'unreachable'
                               ? 'text-slate-400 border-white/[0.08]'
-                              : 'text-amber-300 border-amber-500/30 bg-amber-500/10'
+                              : statusChipClasses('warn', 'border')
                         }`}>
                           {h.reboot_required ? 'reboot' : h.status}
                         </span>

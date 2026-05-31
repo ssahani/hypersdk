@@ -88,8 +88,8 @@ export default function PlatformControlCenter() {
       setUnreadAlerts(alerts.length)
       setZeus(zs)
       setOperatorSummary(op?.summary ?? null)
-      setSegmentCount(segs.segments.length)
-      setStorageTierCount(storageTiers.tiers.length)
+      setSegmentCount(segs.segments?.length ?? 0)
+      setStorageTierCount(storageTiers.tiers?.length ?? 0)
     } catch {
       /* optional panel */
     }

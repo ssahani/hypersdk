@@ -15,7 +15,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { statusToneClass } from '../../utils/semanticColors'
+import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 
 const CATEGORIES = [
   'Operating Systems',
@@ -117,7 +117,7 @@ export default function PlatformContent() {
         <MacSectionTitle title="Content Library" subtitle="ISO grid with approval inbox — upload golden images for templates." />
         <div className="flex gap-2 items-center">
           {pending.length > 0 && (
-            <span className="px-2 py-1 rounded-full text-xs bg-amber-500/15 text-amber-300 border border-amber-500/30">{pending.length} pending</span>
+            <span className={`px-2 py-1 rounded-full text-xs border ${statusBadgeClasses('warn')}`}>{pending.length} pending</span>
           )}
           <button type="button" onClick={() => void load()} className="btn-secondary"><RefreshCw className="w-4 h-4" /></button>
           <button type="button" className="btn-primary flex items-center gap-2" onClick={() => setSheetOpen(true)}><Plus className="w-4 h-4" /> Upload</button>
@@ -126,8 +126,8 @@ export default function PlatformContent() {
       {error && <ErrorBanner message={error} />}
 
       {pending.length > 0 && (
-        <section className="card p-4 border-amber-500/30 bg-amber-500/5">
-          <h2 className="text-sm font-semibold text-amber-300 mb-3">Approval queue ({pending.length})</h2>
+        <section className={`card p-4 ${statusSurfaceClasses('warn')}`}>
+          <h2 className={`text-sm font-semibold mb-3 ${statusToneClass('warn')}`}>Approval queue ({pending.length})</h2>
           <div className="space-y-2">
             {pending.map((r) => (
               <div key={r.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-3">

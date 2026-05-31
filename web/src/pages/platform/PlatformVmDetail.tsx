@@ -480,7 +480,7 @@ export default function PlatformVmDetail() {
                       </div>
                     </div>
                     {guestHealth.issues.length > 0 && (
-                      <ul className="text-sm space-y-1 text-amber-200">
+                      <ul className={`text-sm space-y-1 ${statusToneClass('warn')}`}>
                         {guestHealth.issues.map((issue) => (
                           <li key={issue}>• {issue}</li>
                         ))}
@@ -589,9 +589,9 @@ export default function PlatformVmDetail() {
                             subtitle={[p.service_name || p.process, String(p.risk)].filter(Boolean).join(' · ')}
                             badge={
                               (p.risk === 'Critical' || p.risk === 'critical') ? (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-red-500/20 text-red-300">critical</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusBadgeClasses('error')}`}>critical</span>
                               ) : (p.risk === 'Warning' || p.risk === 'warning') ? (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">warning</span>
+                                <span className={`text-[10px] px-2 py-0.5 rounded-full ${statusBadgeClasses('warn')}`}>warning</span>
                               ) : undefined
                             }
                           />

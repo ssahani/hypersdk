@@ -91,6 +91,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **Shared primitives:** GlassButton danger, PlatformFilterPills active chip, BuildStepTimeline complete step, KubeVirtExposeServiceModal warn callouts, AI panel severity/result lines
 - **Deferred:** `ChoiceCards` selection accent palette (documented in [`ux.md`](ux.md))
 
+## Batch 59 deliverables (platform color tail — shipped)
+
+- **Platform pages:** Events severity badges, Security Center graph/critical lists, VM detail guest health, Observability SLO chips, Activity/Host detail utilization bars, Maintenance host badges, Migration HyperSDK readiness, Content approval queue, Notifications unread styling, API key token banner, Threat Hunting severity, Reports cost highlights
+- **Classic:** Settings OpenStack unreachable hints, HostNetworking route/sysctl warn callouts + focus ring token
+- **Helper:** `utilizationBarClass()` in [`semanticColors.ts`](../web/src/utils/semanticColors.ts)
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

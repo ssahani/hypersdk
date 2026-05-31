@@ -41,6 +41,7 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 | `hubLinkClasses()` | Platform hub links and cross-shell navigation accents (info tone) |
 | `navActiveChipClasses()` | Active filter pills / segmented nav chips |
 | `riskTone(risk)` | Firewall / security risk strings → critical/high → error, warning/medium → warn, low/info → ok |
+| `utilizationBarClass(percent, thresholds?)` | Gauge/progress bars for CPU, memory, PSI, thermal |
 
 **Intentionally unchanged:** primary CTAs (`bg-blue-600`), [`ChoiceCards`](../web/src/components/ChoiceCards.tsx) selection accents (wizard tone palette, not operational status), ApiDocs HTTP method colors, orange Zeus branding in Help.
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |

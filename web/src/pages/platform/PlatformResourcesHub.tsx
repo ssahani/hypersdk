@@ -15,8 +15,8 @@ export default function PlatformResourcesHub({ embedded }: { embedded?: boolean 
       getStorageTiersOverview().catch(() => ({ tiers: [] })),
       getNetworkSegmentsOverview().catch(() => ({ segments: [] })),
     ]).then(([storage, segments]) => {
-      setPoolCount(storage.tiers.length)
-      setSegmentCount(segments.segments.length)
+      setPoolCount(storage.tiers?.length ?? 0)
+      setSegmentCount(segments.segments?.length ?? 0)
     })
   }, [])
 

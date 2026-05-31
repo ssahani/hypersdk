@@ -259,7 +259,7 @@ export default function SettingsPage() {
           <CopyButton text={VERIFY_COMMANDS} label="Copy verify commands" />
         </div>
         {openstackStatus?.configured && !openstackStatus.reachable && (
-          <ul className="text-xs text-amber-200/90 list-disc pl-4 space-y-1">
+          <ul className={`text-xs list-disc pl-4 space-y-1 ${statusToneClass('warn')}`}>
             {openStackErrorHints(openstackStatus.error).map((h, i) => (
               <li key={i}>{h}</li>
             ))}

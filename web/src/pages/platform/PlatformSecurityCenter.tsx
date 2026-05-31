@@ -28,7 +28,7 @@ import {
   type ZeusSecurityStatus,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 function threatTone(score: number): 'ok' | 'warn' | 'default' {
@@ -48,7 +48,7 @@ function SecurityGraphViz({ graph }: { graph: SecurityGraph | null }) {
           key={n.id}
           className={`rounded-lg border px-3 py-2 text-sm ${
             n.risk === 'high'
-              ? 'border-red-500/40 bg-red-950/20 text-red-100'
+              ? statusSurfaceClasses('error')
               : 'border-white/[0.08] bg-slate-900/40 text-slate-200'
           }`}
         >
@@ -152,7 +152,7 @@ export default function PlatformSecurityCenter() {
         <MacGlassPanel title="Fabric health" subtitle={fabricHealth.summary ?? fabricHealth.status}>
           <ul className="text-sm text-slate-300 space-y-1">
             {fabricHealth.issues?.slice(0, 5).map((issue, i) => (
-              <li key={i} className="text-amber-200/90">
+              <li key={i} className={statusToneClass('warn')}>
                 {issue.summary}
                 {issue.host_id ? (
                   <>
@@ -201,8 +201,8 @@ export default function PlatformSecurityCenter() {
             ) : (
               <ul className="space-y-2">
                 {critical.slice(0, 8).map((ev, i) => (
-                  <li key={i} className="text-sm text-red-200/90 flex items-start gap-2">
-                    <span className={`shrink-0 ${statusToneClass('error')}`}>•</span>
+                  <li key={i} className={`text-sm flex items-start gap-2 ${statusToneClass('error')}`}>
+                    <span className="shrink-0">•</span>
                     <span>
                       {String(ev.summary ?? ev.kind ?? 'event')}
                       {ev.host_id ? (

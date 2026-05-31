@@ -194,7 +194,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       {!loading && tab === 'showback' && showback && (
         <>
           <MacGlassPanel title="Compliance showback" subtitle={showback.summary}>
-            <p className="text-2xl font-bold text-emerald-300 -mt-2">
+            <p className={`text-2xl font-bold -mt-2 ${statusToneClass('ok')}`}>
               ${showback.total_cost_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> / mo</span>
             </p>
             <p className="text-sm text-slate-400 mt-1">Fleet compliance grade: {showback.fleet_grade}</p>
@@ -332,10 +332,10 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       )}
       {!loading && tab === 'reports' && cost && (
         <MacGlassPanel title="Machina Cost Guardian" subtitle="Idle, oversized, and snapshot-heavy VMs.">
-          <p className="text-2xl font-bold text-emerald-300 -mt-2">${cost.estimated_monthly_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> est. / month</span></p>
+          <p className={`text-2xl font-bold -mt-2 ${statusToneClass('ok')}`}>${cost.estimated_monthly_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> est. / month</span></p>
           {cost.predicted_next_month_usd != null && (
             <p className="text-sm text-slate-400 mt-1">
-              Predicted next month: <span className="text-emerald-200 font-medium">${cost.predicted_next_month_usd.toFixed(0)}</span>
+              Predicted next month: <span className={`font-medium ${statusToneClass('ok')}`}>${cost.predicted_next_month_usd.toFixed(0)}</span>
             </p>
           )}
           <div className="grid gap-2 sm:grid-cols-3 text-sm text-slate-400 mt-3">
@@ -357,7 +357,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
             {attribution.teams.slice(0, 8).map((t) => (
               <li key={t.team} className="flex justify-between gap-2">
                 <span>{t.team} ({t.vm_count} VMs)</span>
-                <span className="text-emerald-300">${t.estimated_monthly_usd.toFixed(0)}/mo · {t.share_pct.toFixed(0)}%</span>
+                <span className={statusToneClass('ok')}>${t.estimated_monthly_usd.toFixed(0)}/mo · {t.share_pct.toFixed(0)}%</span>
               </li>
             ))}
           </ul>
@@ -408,7 +408,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       )}
       {!loading && tab === 'reports' && finops && (
         <MacGlassPanel title="FinOps estimate" subtitle="Rough monthly cost from vCPU and memory rates.">
-          <p className="text-3xl font-bold text-emerald-300 -mt-2">${finops.estimated_monthly_usd.toFixed(2)}<span className="text-sm font-normal text-slate-500"> / month</span></p>
+          <p className={`text-3xl font-bold -mt-2 ${statusToneClass('ok')}`}>${finops.estimated_monthly_usd.toFixed(2)}<span className="text-sm font-normal text-slate-500"> / month</span></p>
           <div className="grid gap-3 sm:grid-cols-3 text-sm text-slate-400 mt-3">
             <p>{finops.total_vcpu} vCPU @ ${finops.vcpu_hour_usd}/hr</p>
             <p>{finops.total_memory_gib.toFixed(1)} GiB @ ${finops.gib_hour_usd}/hr</p>

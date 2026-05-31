@@ -42,7 +42,7 @@ import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFire
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { openCenterPopout } from '../../utils/platformCenterPopout'
 import { hostClassicTools } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
@@ -65,7 +65,7 @@ function psiBar(label: string, pct: number) {
         <span>{pct.toFixed(1)}%</span>
       </div>
       <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
-        <div className={`h-full rounded-full ${pct > 50 ? 'bg-rose-500' : pct > 20 ? 'bg-amber-500' : 'bg-emerald-500'}`} style={{ width: `${Math.min(100, pct)}%` }} />
+        <div className={`h-full rounded-full ${utilizationBarClass(pct, { warn: 20, error: 50 })}`} style={{ width: `${Math.min(100, pct)}%` }} />
       </div>
     </div>
   )

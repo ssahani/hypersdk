@@ -18,7 +18,7 @@ import {
   type SecurityEvent,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
-import { hubLinkClasses } from '../../utils/semanticColors'
+import { hubLinkClasses, riskTone, statusToneClass } from '../../utils/semanticColors'
 
 function LlmBadge({ powered }: { powered?: boolean }) {
   if (!powered) return null
@@ -237,7 +237,7 @@ export default function PlatformThreatHunting() {
           <ul className="text-sm text-slate-300 space-y-2">
             {correlations.map((c, i) => (
               <li key={i}>
-                <span className="text-amber-300">{String(c.severity)}</span> · {String(c.summary)}
+                <span className={statusToneClass(riskTone(String(c.severity)))}>{String(c.severity)}</span> · {String(c.summary)}
                 {c.host_id ? (
                   <>
                     {' '}

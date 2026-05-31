@@ -10,6 +10,7 @@ import {
 import ErrorBanner from '../../components/ErrorBanner'
 import { getFleetConsole, listAuditLogs, type AuditLog, type FleetConsoleEntry, type FleetConsoleOverview } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import { statusBadgeClasses, statusBorderClass } from '../../utils/semanticColors'
 
 type SourceFilter = 'all' | 'audit' | 'event' | 'task'
 
@@ -21,9 +22,8 @@ const SOURCE_FILTERS: { id: SourceFilter; label: string }[] = [
 ]
 
 function severityClass(severity: string) {
-  if (severity === 'error') return 'text-red-300 bg-red-500/15 border-red-500/30'
-  if (severity === 'warn') return 'text-amber-300 bg-amber-500/15 border-amber-500/30'
-  return 'text-slate-300 bg-slate-500/10 border-white/[0.08]'
+  const tone = severity === 'error' ? 'error' : severity === 'warn' ? 'warn' : 'neutral'
+  return `border uppercase ${statusBadgeClasses(tone)} ${statusBorderClass(tone)}`
 }
 
 function formatTime(iso: string) {

@@ -149,6 +149,15 @@ export function utilizationTone(percent: number): 'ok' | 'warn' | 'error' {
   return 'ok'
 }
 
+export function utilizationBarClass(
+  percent: number,
+  thresholds: { warn: number; error: number } = { warn: 70, error: 90 },
+): string {
+  if (percent > thresholds.error) return statusBgClass('error')
+  if (percent > thresholds.warn) return statusBgClass('warn')
+  return statusBgClass('ok')
+}
+
 export function poolStateBadgeClasses(state: string): string {
   return statusBadgeClasses(state === 'running' ? 'ok' : 'neutral')
 }

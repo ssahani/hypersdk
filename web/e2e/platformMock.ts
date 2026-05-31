@@ -207,6 +207,9 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/storage/tiers')) {
       return route.fulfill({ json: { tiers: [], pools: [] } })
     }
+    if (url.includes('/network/segments/overview')) {
+      return route.fulfill({ json: { segments: [], summary: 'No segments' } })
+    }
     if (url.includes('/storage/backup-sla')) {
       return route.fulfill({ json: { policies: [], summary: 'No SLA configured' } })
     }

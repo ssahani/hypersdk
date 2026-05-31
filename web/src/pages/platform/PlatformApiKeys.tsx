@@ -7,6 +7,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import { createApiKey, deleteApiKey, listApiKeys, type ApiKeyRow } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {}) {
   const toast = useToastContext()
@@ -28,8 +29,8 @@ export default function PlatformApiKeys({ embedded }: { embedded?: boolean } = {
       {!embedded && <MacSectionTitle title="API keys" subtitle="Bearer tokens for automation (machina_*)" />}
       {error && <ErrorBanner message={error} />}
       {newToken && (
-        <div className="card p-4 border border-amber-800/50 bg-amber-950/20 text-sm">
-          <p className="text-amber-200 mb-2">Copy this token now — it will not be shown again:</p>
+        <div className={`card p-4 text-sm ${statusSurfaceClasses('warn')}`}>
+          <p className={`mb-2 ${statusToneClass('warn')}`}>Copy this token now — it will not be shown again:</p>
           <code className="block break-all text-xs text-slate-300">{newToken}</code>
         </div>
       )}

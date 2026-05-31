@@ -15,12 +15,12 @@ import {
 import { fleetPrometheusAggregateUrl } from '../../api/fleet'
 import { getControllerBase } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusBgClass, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
-function sloBadge(status: string) {
-  if (status === 'ok') return 'bg-emerald-900/60 text-emerald-300'
-  if (status === 'warn') return 'bg-amber-900/60 text-amber-300'
-  return 'bg-rose-900/60 text-rose-300'
+function sloTone(status: string): 'ok' | 'warn' | 'error' {
+  if (status === 'ok') return 'ok'
+  if (status === 'warn') return 'warn'
+  return 'error'
 }
 
 function SloRow({ slo }: { slo: SloStatusItem }) {
@@ -32,7 +32,7 @@ function SloRow({ slo }: { slo: SloStatusItem }) {
           <p className="font-medium text-slate-200">{slo.name}</p>
           <p className="text-xs text-slate-500">{slo.target}</p>
         </div>
-        <span className={`text-xs px-2 py-0.5 rounded ${sloBadge(slo.status)}`}>{slo.status}</span>
+        <span className={`text-xs px-2 py-0.5 rounded ${statusBadgeClasses(sloTone(slo.status))}`}>{slo.status}</span>
       </div>
       <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
         <span>{pct.toFixed(2)}%</span>
@@ -43,7 +43,7 @@ function SloRow({ slo }: { slo: SloStatusItem }) {
       </div>
       <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
         <div
-          className={`h-full rounded-full ${slo.status === 'breach' ? 'bg-rose-500' : slo.status === 'warn' ? 'bg-amber-500' : 'bg-emerald-500'}`}
+          className={`h-full rounded-full ${statusBgClass(sloTone(slo.status))}`}
           style={{ width: `${pct}%` }}
         />
       </div>

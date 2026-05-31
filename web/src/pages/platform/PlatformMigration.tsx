@@ -13,7 +13,7 @@ import { useOpenStackConnection } from '../../hooks/useOpenStackConnection'
 import OpenStackUnreachablePanel from '../../components/OpenStackUnreachablePanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import PageSkeleton from '../../components/PageSkeleton'
@@ -233,9 +233,9 @@ export default function PlatformMigration() {
           </Link>
         )}
         {hypersdk && (
-          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
-            <p className="font-semibold text-emerald-100">HyperSDK</p>
-            <p className="text-xs text-emerald-200/70 mt-1">{status?.reachable ? 'Connected — scan VMware below.' : 'Enable connectivity in Integrations.'}</p>
+          <div className={`rounded-xl p-4 text-sm ${statusSurfaceClasses(status?.reachable ? 'ok' : 'warn')}`}>
+            <p className="font-semibold">HyperSDK</p>
+            <p className="text-xs mt-1 opacity-90">{status?.reachable ? 'Connected — scan VMware below.' : 'Enable connectivity in Integrations.'}</p>
           </div>
         )}
         {guestkit && (
@@ -297,7 +297,7 @@ export default function PlatformMigration() {
       )}
 
       {hypersdk && status?.reachable && (
-        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+        <div className={`rounded-xl p-4 text-sm ${statusSurfaceClasses('ok')}`}>
           HyperSDK is connected. Select a VM and click Migrate to submit a conversion job.
         </div>
       )}
@@ -336,7 +336,7 @@ export default function PlatformMigration() {
                   <p className="text-xs text-slate-500">{vm.os} · {vm.note}</p>
                   {vm.advisor && (
                     <div className="mt-2 text-xs space-y-1">
-                      <p className="text-slate-400">Readiness: <span className="text-emerald-300">{vm.advisor.readiness_percent}%</span></p>
+                      <p className="text-slate-400">Readiness: <span className={statusToneClass('ok')}>{vm.advisor.readiness_percent}%</span></p>
                       {vm.advisor.guestkit_summary && (
                         <p className="text-orange-200/90">GuestKit: {vm.advisor.guestkit_summary}</p>
                       )}
@@ -344,7 +344,7 @@ export default function PlatformMigration() {
                         <p className="text-blue-200/90">Firewall: {vm.advisor.firewall_migration_summary}</p>
                       )}
                       {vm.advisor.risks.length > 0 && (
-                        <ul className="text-amber-300/90 list-disc pl-4">{vm.advisor.risks.slice(0, 3).map((r, i) => <li key={i}>{r}</li>)}</ul>
+                        <ul className={`list-disc pl-4 ${statusToneClass('warn')}`}>{vm.advisor.risks.slice(0, 3).map((r, i) => <li key={i}>{r}</li>)}</ul>
                       )}
                     </div>
                   )}

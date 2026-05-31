@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, hubLinkClasses, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, navActiveChipClasses, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, riskTone, sessionBadgeClasses, serviceStateTone, statusBorderClass, statusChipClasses, statusSurfaceClasses, tabActiveClasses, taskStatusTone, toastSemanticTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
+import { checkStatusTone, connectionStatusTone, hostStateTone, httpStatusTone, hubLinkClasses, jobStatusTone, journalPriorityTone, k8sPhaseTone, migrationReadinessTone, navActiveChipClasses, notificationChannelTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, riskTone, sessionBadgeClasses, serviceStateTone, statusBorderClass, statusChipClasses, statusSurfaceClasses, tabActiveClasses, taskStatusTone, toastSemanticTone, utilizationBarClass, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -31,6 +31,8 @@ describe('semanticColors', () => {
     expect(utilizationTone(70)).toBe('ok')
     expect(utilizationTone(71)).toBe('warn')
     expect(utilizationTone(95)).toBe('error')
+    expect(utilizationBarClass(95)).toContain('--machina-status-error')
+    expect(utilizationBarClass(15, { warn: 20, error: 50 })).toContain('--machina-status-ok')
   })
 
   it('builds pool state badge classes', () => {
