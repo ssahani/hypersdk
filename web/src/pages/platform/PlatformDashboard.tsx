@@ -13,6 +13,8 @@ import {
   Shield,
   Sparkles,
   LayoutGrid,
+  FolderOpen,
+  Wrench,
 } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import ActionCard from '../../components/platform/ActionCard'
@@ -43,6 +45,7 @@ import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
+import { hubTilesForTier, showPlatformHubsForTier } from '../../utils/platformHubZones'
 
 export default function PlatformDashboard() {
   const toast = useToastContext()
@@ -113,6 +116,22 @@ export default function PlatformDashboard() {
     : null
   const healthy = warnings === 0 && onlineHosts === hosts.length
   const securityFindings = security?.findings?.length ?? 0
+  const hubTiles = hubTilesForTier(tier)
+
+  const hubActionIcon = (id: string) => {
+    switch (id) {
+      case 'integrations':
+        return <Boxes className="w-5 h-5" />
+      case 'resources':
+        return <FolderOpen className="w-5 h-5" />
+      case 'operations':
+        return <Wrench className="w-5 h-5" />
+      case 'security':
+        return <Shield className="w-5 h-5" />
+      default:
+        return <Boxes className="w-5 h-5" />
+    }
+  }
 
   const handleCreate = async ({ name, os, size, network }: { name: string; os: string; size: string; network: string }) => {
     const spec = sizeToSpec(size)
@@ -248,23 +267,37 @@ export default function PlatformDashboard() {
 
       {showAdvanced && <PlatformAboutHelp compact />}
 
-      <section>
-        <h2 className="text-sm font-semibold text-slate-400 mb-3">Quick actions</h2>
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-400 mb-1">Quick actions</h2>
+          <p className="text-xs text-slate-500">Create workloads or open a desktop hub — no duplicate app lists.</p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <ActionCard icon={<Plus className="w-5 h-5" />} title="Create VM" subtitle="Simple wizard — OS, size, network" onClick={() => setWizardOpen(true)} />
-          {showPower ? (
+          {!showPlatformHubsForTier(tier) && (
             <>
-              <ActionCard icon={<Boxes className="w-5 h-5" />} title="Applications" subtitle="Launchpad groups — operate stacks" to="/platform/integrations" />
-              <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
-              <ActionCard icon={<Shield className="w-5 h-5" />} title="Security Center" subtitle="Threat score & hunting" to="/platform/zeus/security" />
-            </>
-          ) : (
-            <>
+              <ActionCard icon={<Boxes className="w-5 h-5" />} title="Apps & Integrations" subtitle="OpenStack, K8s, classic tools" to="/platform/integrations" />
               <ActionCard icon={<Server className="w-5 h-5" />} title="Add Host" subtitle="Enroll a hypervisor" to="/platform/enroll" />
-              <ActionCard icon={<Bell className="w-5 h-5" />} title="View Alerts" subtitle={`${warnings} need attention`} to="/platform/notifications" />
+              <ActionCard icon={<Bell className="w-5 h-5" />} title="Alerts" subtitle={`${warnings} need attention`} to="/platform/operations" />
             </>
           )}
         </div>
+        {showPlatformHubsForTier(tier) && hubTiles.length > 0 && (
+          <div className="space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-white/35">Platform hubs</p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {hubTiles.map((hub) => (
+                <ActionCard
+                  key={hub.id}
+                  icon={hubActionIcon(hub.id)}
+                  title={hub.label}
+                  subtitle={hub.description}
+                  to={hub.href}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       {showPower && (
@@ -272,7 +305,7 @@ export default function PlatformDashboard() {
           title={showAdvanced ? 'Recent tasks' : 'Hosts'}
           subtitle={showAdvanced ? 'Activity Monitor preview' : 'Hypervisors in this cluster'}
           action={
-            <Link to={showAdvanced ? '/platform/tasks' : '/platform/hosts'} className="text-xs text-blue-400">
+            <Link to={showAdvanced ? '/platform/operations' : '/platform/hosts'} className="text-xs text-blue-400">
               View all
             </Link>
           }

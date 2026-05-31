@@ -79,7 +79,8 @@ export const DOCK_PATHS_BY_TIER: Record<PlatformDesktopTier, string[]> = {
     '/platform',
     '/platform/hosts',
     '/platform/vms',
-    '/platform/zeus',
+    '/platform/integrations',
+    '/platform/operations',
     '/platform/settings',
   ],
   advanced: [

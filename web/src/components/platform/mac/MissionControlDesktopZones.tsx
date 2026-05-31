@@ -2,7 +2,6 @@
 
 import { cloneElement, isValidElement, useMemo, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router'
-import { PLATFORM_SIDEBAR } from '../../../utils/platformNav'
 import { sidebarForTier } from '../../../utils/platformNavFilter'
 import { integrationNavItems } from '../../../utils/platformIntegrationsNav'
 import { usePlatformInfo } from '../../../contexts/PlatformInfoContext'
@@ -36,11 +35,10 @@ export default function MissionControlDesktopZones({ onNavigate }: { onNavigate:
   const [tier] = usePlatformDesktopTier()
   const { info } = usePlatformInfo()
   const location = useLocation()
-  const sections = useMemo(() => {
-    const next = sidebarForTier(tier, integrationNavItems(info))
-    if (next.some((section) => section.items.length > 0)) return next
-    return PLATFORM_SIDEBAR.slice(0, 1)
-  }, [tier, info])
+  const sections = useMemo(
+    () => sidebarForTier(tier, integrationNavItems(info)),
+    [tier, info],
+  )
   const tabs = loadPlatformDesktopTabs()
 
   return (

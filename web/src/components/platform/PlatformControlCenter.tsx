@@ -7,8 +7,6 @@ import {
   X,
   CheckCircle2,
   AlertTriangle,
-  HardDrive,
-  Layers,
   Loader2,
   HelpCircle,
   Bot,
@@ -18,6 +16,8 @@ import {
   Sparkles,
   Activity,
   Boxes,
+  FolderOpen,
+  Wrench,
 } from 'lucide-react'
 import {
   getCapacityReport,
@@ -43,6 +43,7 @@ import { formatUserError } from '../../utils/apiError'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
+import { hubTilesForTier, type DesktopHubTile } from '../../utils/platformHubZones'
 
 export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()
@@ -110,6 +111,57 @@ export default function PlatformControlCenter() {
   const metalCritical = zeus?.baremetal_critical_count ?? 0
   const showPower = tierAtLeast(tier, 'power')
   const showAdvanced = tier === 'advanced'
+  const hubTiles = hubTilesForTier(tier)
+
+  const hubIcon = (id: DesktopHubTile['id']) => {
+    switch (id) {
+      case 'integrations':
+        return <Boxes className="w-4 h-4 text-sky-400" />
+      case 'resources':
+        return <FolderOpen className="w-4 h-4 text-blue-400" />
+      case 'operations':
+        return <Wrench className="w-4 h-4 text-emerald-400" />
+      case 'security':
+        return <Shield className="w-4 h-4 text-violet-400" />
+      default:
+        return <Boxes className="w-4 h-4 text-slate-400" />
+    }
+  }
+
+  const hubValue = (id: DesktopHubTile['id']): { value: string; tone?: 'ok' | 'warn'; spark?: string } => {
+    switch (id) {
+      case 'integrations':
+        return {
+          value: info?.openstack?.enabled
+            ? (info.openstack.configured ? 'OpenStack ready' : 'OpenStack setup')
+            : 'Fleet apps',
+        }
+      case 'resources':
+        return {
+          value: storageTierCount || segmentCount ? 'Infrastructure libraries' : 'Open hub',
+          spark: [storageTierCount ? `${storageTierCount} tier(s)` : null, segmentCount ? `${segmentCount} segment(s)` : null]
+            .filter(Boolean)
+            .join(' · ') || undefined,
+          tone: storageTierCount || segmentCount ? 'ok' : undefined,
+        }
+      case 'operations':
+        return {
+          value: `${activeTasks} active task${activeTasks === 1 ? '' : 's'}`,
+          spark: [unreadAlerts ? `${unreadAlerts} alert(s)` : null, failedTasks ? `${failedTasks} failed` : null]
+            .filter(Boolean)
+            .join(' · ') || undefined,
+          tone: unreadAlerts || failedTasks ? 'warn' : 'ok',
+        }
+      case 'security':
+        return {
+          value: fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : 'Posture OK',
+          spark: fwDrift ? `${fwDrift} firewall drift` : operatorSummary ?? undefined,
+          tone: fwCritical || metalCritical || fwDrift ? 'warn' : 'ok',
+        }
+      default:
+        return { value: 'Open' }
+    }
+  }
 
   const syncHosts = async () => {
     setSyncing(true)
@@ -149,7 +201,7 @@ export default function PlatformControlCenter() {
               </button>
             </div>
             <div className="p-4 space-y-4 text-sm">
-              <div className={`grid gap-2 ${showPower ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <div className="grid gap-2 grid-cols-2">
                 <ModuleTile
                   icon={<Server className="w-4 h-4 text-blue-400" />}
                   label="Cluster"
@@ -158,66 +210,36 @@ export default function PlatformControlCenter() {
                   tone={offlineCount === 0 ? 'ok' : 'warn'}
                   spark={memPct != null ? `${memPct}% mem` : undefined}
                 />
-                <ModuleTile
-                  icon={<Loader2 className={`w-4 h-4 text-emerald-400 ${activeTasks ? 'animate-spin' : ''}`} />}
-                  label="Tasks"
-                  value={String(activeTasks)}
-                  href="/platform/tasks"
-                  spark={failedTasks ? `${failedTasks} failed` : undefined}
-                  tone={failedTasks ? 'warn' : undefined}
-                />
-                <ModuleTile
-                  icon={<Boxes className="w-4 h-4 text-sky-400" />}
-                  label="Apps"
-                  value={
-                    info?.openstack?.enabled
-                      ? (info.openstack.configured ? 'OpenStack ready' : 'OpenStack setup')
-                      : 'Integrations'
-                  }
-                  href="/platform/integrations"
-                />
                 {showPower && (
                   <ModuleTile
-                    icon={<Shield className="w-4 h-4 text-violet-400" />}
-                    label="Security Center"
-                    value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : 'Posture OK'}
-                    href="/platform/zeus/security"
-                    tone={fwCritical || metalCritical ? 'warn' : 'ok'}
+                    icon={<Loader2 className={`w-4 h-4 text-emerald-400 ${activeTasks ? 'animate-spin' : ''}`} />}
+                    label="Tasks"
+                    value={String(activeTasks)}
+                    href="/platform/operations"
+                    spark={failedTasks ? `${failedTasks} failed` : undefined}
+                    tone={failedTasks ? 'warn' : undefined}
                   />
                 )}
-                {showPower && (
-                  <ModuleTile
-                    icon={<Shield className="w-4 h-4 text-orange-400" />}
-                    label="Zeus Firewall"
-                    value={fwCritical || metalCritical ? `${fwCritical + metalCritical} critical` : fwDrift ? `${fwDrift} drift` : 'All clear'}
-                    href="/platform/zeus/security/firewall"
-                    tone={fwCritical || fwDrift ? 'warn' : 'ok'}
-                  />
-                )}
+                {hubTiles.map((hub) => {
+                  const meta = hubValue(hub.id)
+                  return (
+                    <ModuleTile
+                      key={hub.id}
+                      icon={hubIcon(hub.id)}
+                      label={hub.label}
+                      value={meta.value}
+                      href={hub.href}
+                      tone={meta.tone}
+                      spark={meta.spark}
+                    />
+                  )
+                })}
                 {showPower && (
                   <ModuleTile
                     icon={<Bot className="w-4 h-4 text-violet-400" />}
                     label="Copilot"
                     value={mode === 'off' ? 'Off' : mode === 'autopilot' ? 'Autopilot' : 'Advisor'}
                     onClick={() => { openCopilot(); setOpen(false) }}
-                  />
-                )}
-                {showAdvanced && (
-                  <ModuleTile
-                    icon={<Layers className="w-4 h-4 text-violet-400" />}
-                    label="Overlays"
-                    value={segmentCount ? `${segmentCount} segment(s)` : 'None'}
-                    href="/platform/networks?tab=segments"
-                    tone={segmentCount > 0 ? 'ok' : undefined}
-                  />
-                )}
-                {showAdvanced && (
-                  <ModuleTile
-                    icon={<HardDrive className="w-4 h-4 text-blue-400" />}
-                    label="Storage tiers"
-                    value={storageTierCount ? `${storageTierCount} tier(s)` : 'None'}
-                    href="/platform/storage?tab=tiers"
-                    tone={storageTierCount > 0 ? 'ok' : undefined}
                   />
                 )}
               </div>
@@ -242,7 +264,7 @@ export default function PlatformControlCenter() {
                   icon={<Sparkles className="w-4 h-4 text-violet-400" />}
                   label="AI operator"
                   value={operatorSummary}
-                  href="/platform/zeus/security/firewall"
+                  href="/platform/zeus/security"
                   tone="warn"
                 />
               )}
@@ -268,7 +290,7 @@ export default function PlatformControlCenter() {
                 icon={<AlertTriangle className="w-4 h-4 text-amber-400" />}
                 label="Alerts"
                 value={unreadAlerts ? `${unreadAlerts} unread` : warnings ? `${warnings} item(s)` : 'None'}
-                href="/platform/notifications"
+                href="/platform/operations"
                 tone={unreadAlerts || warnings ? 'warn' : 'ok'}
               />
             </div>
@@ -290,7 +312,7 @@ export default function PlatformControlCenter() {
               </Link>
               <Link to="/platform/settings?section=general" className="btn-secondary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Settings</Link>
               {showPower && (
-              <Link to="/platform/recommendations" className="btn-primary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Tips</Link>
+              <Link to="/platform/operations" className="btn-primary text-xs flex-1 text-center" onClick={() => setOpen(false)}>Operations</Link>
               )}
             </div>
             <div className="px-4 pb-3 text-xs text-slate-500">

@@ -73,7 +73,7 @@ export default function PlatformMenuBar() {
         {desktop.hosts_online}/{desktop.hosts_total} hosts
       </Link>
       <span className="text-slate-600">·</span>
-      <Link to="/platform/tasks" className="hover:text-slate-100 transition" title="Tasks">
+      <Link to="/platform/operations" className="hover:text-slate-100 transition" title="Operations">
         {desktop.active_tasks} tasks
       </Link>
       <span className="text-slate-600">·</span>
@@ -84,7 +84,7 @@ export default function PlatformMenuBar() {
       {desktop.unread_notifications > 0 && (
         <>
           <span className="text-slate-600">·</span>
-          <Link to="/platform/notifications" className="inline-flex items-center gap-1 text-amber-300" title="Alerts">
+          <Link to="/platform/operations" className="inline-flex items-center gap-1 text-amber-300" title="Alerts">
             <Bell className="w-3 h-3" />
             {desktop.unread_notifications} alert{desktop.unread_notifications === 1 ? '' : 's'}
           </Link>
