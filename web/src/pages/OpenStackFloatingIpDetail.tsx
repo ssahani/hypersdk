@@ -14,6 +14,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusDestructiveButtonClasses } from '../utils/semanticColors'
 
 export default function OpenStackFloatingIpDetailPage() {
   return (
@@ -80,7 +81,7 @@ function OpenStackFloatingIpDetailContent() {
       </dl>
       <div className="flex flex-wrap gap-2">
         {fip.instance_id && (
-          <button type="button" className="px-3 py-1.5 rounded-lg border border-amber-500/50 text-amber-200 text-sm"
+          <button type="button" className={`px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)]`}
             onClick={async () => {
               try {
                 await dissociateOpenStackFloatingIp(fip.id)
@@ -89,7 +90,7 @@ function OpenStackFloatingIpDetailContent() {
               } catch (e: unknown) { toast.error(formatUserError(e)) }
             }}>Dissociate</button>
         )}
-        <button type="button" className="px-3 py-1.5 rounded-lg border border-red-500/50 text-red-300 text-sm"
+        <button type="button" className={statusDestructiveButtonClasses()}
           onClick={async () => {
             if (!confirm(`Release floating IP ${fip.address}?`)) return
             try {

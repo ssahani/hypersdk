@@ -28,6 +28,7 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import ErrorBanner from '../components/ErrorBanner'
+import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import {
   createOpenStackVolumeFromSnapshot,
   listOpenStackServerGroups,
@@ -313,7 +314,7 @@ function OpenStackCreateInstanceContent() {
       <OpenStackStatusBar />
 
       {!computeLive && connectionHint && (
-        <div className="rounded-xl border border-amber-500/35 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+        <div className={`rounded-xl px-4 py-3 text-sm ${statusSurfaceClasses('warn')}`}>
           {connectionHint}
         </div>
       )}
@@ -419,10 +420,10 @@ function OpenStackCreateInstanceContent() {
                 </ChoiceCardGrid>
               )}
               {!catalogErrors.images && images.length === 0 && (
-                <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-3 text-sm text-amber-100/90 space-y-2">
+                <div className={`rounded-xl px-4 py-3 text-sm space-y-2 ${statusSurfaceClasses('warn')}`}>
                   <p>No ACTIVE images in this project.</p>
                   {allImages.length > 0 && (
-                    <p className="text-xs text-amber-200/70">
+                    <p className={`text-xs opacity-80 ${statusToneClass('warn')}`}>
                       {allImages.length} image(s) exist but none are ACTIVE yet — wait for upload/import to finish.
                     </p>
                   )}
@@ -624,7 +625,7 @@ function OpenStackCreateInstanceContent() {
           <div>
             <label className="block text-sm text-slate-400 mb-1">SSH key pair (optional)</label>
             {catalogErrors.keypairs && (
-              <p className="text-xs text-amber-300/80 mb-1">Keypairs unavailable: {catalogErrors.keypairs}</p>
+              <p className={`text-xs mb-1 ${statusToneClass('warn')}`}>Keypairs unavailable: {catalogErrors.keypairs}</p>
             )}
             <select
               value={keyName}

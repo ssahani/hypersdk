@@ -52,7 +52,7 @@ import { getSession, type SessionRole } from '../api/auth'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { serviceAction } from '../api/extras'
 import { formatUserError } from '../utils/apiError'
-import { statusBgClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
+import { statusBadgeClasses, statusBgClass, statusBorderClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import ErrorBanner from '../components/ErrorBanner'
 import PageSkeleton from '../components/PageSkeleton'
@@ -533,17 +533,17 @@ export default function NodeInfoPage() {
       </div>
 
       {libvirtBoot?.needs_attention && libvirtBoot.detail && (
-        <div className="rounded-xl border border-amber-500/35 bg-amber-950/25 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className={`rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${statusSurfaceClasses('warn')}`}>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-amber-100">Libvirt at host boot</p>
-            <p className="text-xs text-amber-100/85 mt-1 leading-relaxed">{libvirtBoot.detail}</p>
+            <p className={`text-sm font-medium ${statusToneClass('warn')}`}>Libvirt at host boot</p>
+            <p className={`text-xs mt-1 leading-relaxed opacity-90 ${statusToneClass('warn')}`}>{libvirtBoot.detail}</p>
           </div>
           {libvirtBoot.systemd_unit ? (
             <button
               type="button"
               disabled={libvirtBootBusy}
               onClick={() => void enableLibvirtBootUnit()}
-              className="shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/25 text-amber-100 border border-amber-500/40 hover:bg-amber-600/40 disabled:opacity-50 transition"
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 transition ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_15%,transparent)]`}
             >
               {libvirtBootBusy ? 'Running…' : `Enable at boot (${libvirtBoot.systemd_unit})`}
             </button>
@@ -618,7 +618,7 @@ export default function NodeInfoPage() {
                   try { await setHostname(hostnameInput); load() } catch (e) { console.error(e) }
                   setEditingHostname(false)
                 }} className={`p-1 rounded hover:bg-green-500/20 ${statusToneClass('ok')}`}><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditingHostname(false)} className={`p-1 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
+                <button onClick={() => setEditingHostname(false)} className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -645,7 +645,7 @@ export default function NodeInfoPage() {
                   try { await setTimezone(timezoneInput); load() } catch (e) { console.error(e) }
                   setEditingTimezone(false)
                 }} className={`p-1 rounded hover:bg-green-500/20 ${statusToneClass('ok')}`}><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditingTimezone(false)} className={`p-1 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
+                <button onClick={() => setEditingTimezone(false)} className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -923,7 +923,7 @@ export default function NodeInfoPage() {
           </div>
 
           {hardwareInventory.consistency_notes.length > 0 && (
-            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100 space-y-1">
+            <div className={`rounded-lg px-4 py-3 text-sm space-y-1 ${statusSurfaceClasses('warn')}`}>
               {hardwareInventory.consistency_notes.map((note, i) => (
                 <p key={i}>{note}</p>
               ))}
@@ -1086,7 +1086,7 @@ export default function NodeInfoPage() {
                       </td>
                       <td className="px-4 py-2 text-xs">
                         {e.consistency_notes.length > 0 ? (
-                          <span className="text-amber-300/95" title={e.consistency_notes.join('\n')}>
+                          <span className={statusToneClass('warn')} title={e.consistency_notes.join('\n')}>
                             {e.consistency_notes.length} note{e.consistency_notes.length === 1 ? '' : 's'}
                           </span>
                         ) : (
@@ -1201,12 +1201,12 @@ export default function NodeInfoPage() {
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2"><Package className={`w-5 h-5 ${statusToneClass('ok')}`} /> Package updates</h3>
           <div className="text-sm text-slate-300 space-y-1">
-            <div><span className="text-slate-500">Backend:</span> <code className="text-amber-300/90">{pkgUpdates.backend}</code></div>
+            <div><span className="text-slate-500">Backend:</span> <code className={statusToneClass('warn')}>{pkgUpdates.backend}</code></div>
             {pkgUpdates.summary && <div>{pkgUpdates.summary}</div>}
             {pkgUpdates.pending_count != null && <div><span className="text-slate-500">Pending count:</span> {pkgUpdates.pending_count}</div>}
             {pkgUpdates.reboot_required && (
-              <div className="rounded-md border border-amber-600/40 bg-amber-950/25 px-3 py-2 text-amber-100/95 text-sm">
-                A reboot appears to be required on this host (e.g. Debian/Ubuntu <code className="text-amber-200/90">/var/run/reboot-required</code> is present). Plan maintenance before applying kernel or libc upgrades.
+              <div className={`rounded-md px-3 py-2 text-sm ${statusSurfaceClasses('warn')}`}>
+                A reboot appears to be required on this host (e.g. Debian/Ubuntu <code className="opacity-90">/var/run/reboot-required</code> is present). Plan maintenance before applying kernel or libc upgrades.
               </div>
             )}
             {pkgUpdates.hint && <div className="text-slate-500 text-xs">{pkgUpdates.hint}</div>}
@@ -1222,7 +1222,7 @@ export default function NodeInfoPage() {
                   type="button"
                   onClick={() => void runPackageUpgrade()}
                   disabled={pkgMutBusy}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium bg-amber-600/20 text-amber-200 border border-amber-600/35 hover:bg-amber-600/30 disabled:opacity-50 transition"
+                  className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 transition ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_15%,transparent)]`}
                 >
                   <ArrowUpCircle className="w-4 h-4 shrink-0" />
                   {pkgMutBusy ? 'Running…' : 'Upgrade all packages'}
@@ -1532,7 +1532,7 @@ export default function NodeInfoPage() {
               type="button"
               onClick={() => void measureNetRates()}
               disabled={netRatesLoading}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium bg-emerald-600/25 text-emerald-300 border border-emerald-600/40 hover:bg-emerald-600/35 disabled:opacity-50 transition"
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border disabled:opacity-50 transition ${statusBadgeClasses('ok')} border-[color-mix(in_srgb,var(--machina-status-ok)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_15%,transparent)]`}
             >
               {netRatesLoading ? 'Sampling…' : 'Sample now'}
             </button>

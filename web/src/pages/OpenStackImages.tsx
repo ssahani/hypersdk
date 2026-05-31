@@ -190,7 +190,7 @@ function OpenStackImagesContent() {
                       type="button"
                       title="Delete image"
                       onClick={() => setDeleteTarget(img)}
-                      className={`p-2 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}
+                      className={`p-2 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>

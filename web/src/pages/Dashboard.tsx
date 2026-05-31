@@ -26,7 +26,7 @@ import Hero from '../components/Hero'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
-import { integrationPhaseTone, sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
+import { integrationPhaseTone, sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusBorderClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
 
 interface MetricsPoint { time: string; memory: number }
 
@@ -202,18 +202,18 @@ export default function Dashboard() {
       )}
 
       {healthProblems.length > 0 && (
-        <div className="rounded-xl border border-rose-500/35 bg-rose-950/25 px-4 py-3 space-y-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-rose-100">
-            <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0" aria-hidden />
+        <div className={`rounded-xl px-4 py-3 space-y-2 ${statusSurfaceClasses('error')}`}>
+          <div className={`flex items-center gap-2 text-sm font-medium ${statusToneClass('error')}`}>
+            <AlertTriangle className="w-5 h-5 shrink-0" aria-hidden />
             Host checklist ({healthProblems.length})
           </div>
-          <ul className="space-y-2 text-sm text-rose-50/95">
+          <ul className="space-y-2 text-sm">
             {healthProblems.map((p) => (
-              <li key={p.id} className="border-l-2 border-rose-500/40 pl-3">
-                <span className={p.severity === 'critical' ? 'text-red-300 font-medium' : 'text-amber-100/95'}>
+              <li key={p.id} className={`border-l-2 pl-3 ${statusBorderClass(p.severity === 'critical' ? 'error' : 'warn')}`}>
+                <span className={`${statusToneClass(p.severity === 'critical' ? 'error' : 'warn')} font-medium`}>
                   {p.title}
                 </span>
-                {p.detail ? <p className="text-xs text-rose-200/75 mt-0.5">{p.detail}</p> : null}
+                {p.detail ? <p className={`text-xs mt-0.5 opacity-80 ${statusToneClass('error')}`}>{p.detail}</p> : null}
                 {p.doc_url ? (
                   <a
                     href={p.doc_url}
@@ -239,18 +239,18 @@ export default function Dashboard() {
       )}
 
       {!virtBannerDismissed && virtHost && (!virtHost.cpu_virt_supported || !virtHost.kvm_device_present || (!virtHost.libvirt_system_socket_present && !virtHost.libvirt_session_socket_present)) && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+        <div className={`rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 ${statusSurfaceClasses('warn')}`}>
           <div className="flex gap-3 min-w-0">
             <AlertTriangle className={`w-5 h-5 shrink-0 mt-0.5 ${statusToneClass('warn')}`} aria-hidden />
-            <div className="min-w-0 text-sm text-amber-100/95">
-              <p className="font-medium text-amber-50">Virtualization readiness</p>
-              <p className="mt-1 text-amber-100/80">{virtHost.hint}</p>
+            <div className="min-w-0 text-sm">
+              <p className={`font-medium ${statusToneClass('warn')}`}>Virtualization readiness</p>
+              <p className="mt-1 opacity-90">{virtHost.hint}</p>
               {libSummary?.dual_connection ? (
-                <p className="mt-2 text-xs text-amber-200/70">
+                <p className="mt-2 text-xs opacity-75">
                   Dual libvirt: system {libSummary.qemu_system_connected ? 'connected' : 'down'}, session {libSummary.qemu_session_connected ? 'connected' : 'down'} ({libSummary.configured_uri}).
                 </p>
               ) : libSummary?.configured_uri ? (
-                <p className="mt-2 text-xs text-amber-200/70">
+                <p className="mt-2 text-xs opacity-75">
                   Libvirt URI: {libSummary.configured_uri}
                 </p>
               ) : null}
@@ -262,7 +262,7 @@ export default function Dashboard() {
               localStorage.setItem('machina_virt_banner_dismiss', '1')
               setVirtBannerDismissed(true)
             }}
-            className="shrink-0 self-start p-1.5 rounded-lg hover:bg-amber-500/20 text-amber-200/90"
+            className={`shrink-0 self-start p-1.5 rounded-lg hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_20%,transparent)] ${statusToneClass('warn')}`}
             aria-label="Dismiss"
           >
             <X className="w-4 h-4" />
@@ -340,7 +340,7 @@ export default function Dashboard() {
       )}
 
       {(osPhase === 'off' || osPhase === 'needsWire') && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+        <div className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 ${statusSurfaceClasses('warn')}`}>
           <div className="flex items-start gap-3 min-w-0">
             <Cloud className={`w-6 h-6 shrink-0 mt-0.5 ${statusToneClass(integrationPhaseTone(osPhase === 'off' ? 'off' : 'needsWire'))}`} />
             <div>
@@ -354,7 +354,7 @@ export default function Dashboard() {
           </div>
           <Link
             to="/openstack"
-            className="shrink-0 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-sm"
+            className={`shrink-0 px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('warn')}`}
           >
             Wire OpenStack
           </Link>
@@ -362,7 +362,7 @@ export default function Dashboard() {
       )}
 
       {osPhase === 'unreachable' && openstackStatus && (
-        <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${statusSurfaceClasses('error')}`}>
           <div className="flex items-start gap-3 min-w-0">
             <Cloud className={`w-6 h-6 shrink-0 mt-0.5 ${statusToneClass(integrationPhaseTone('unreachable'))}`} />
             <div>
@@ -371,7 +371,7 @@ export default function Dashboard() {
                 Cloud <span className="text-slate-200">{openstackStatus.cloud_name || '—'}</span> is configured but Keystone/API is down.
               </p>
               {openstackStatus.error && (
-                <p className="text-xs text-red-300/90 mt-1 truncate max-w-xl" title={openstackStatus.error}>
+                <p className={`text-xs mt-1 truncate max-w-xl ${statusToneClass('error')}`} title={openstackStatus.error}>
                   {openstackStatus.error}
                 </p>
               )}
@@ -381,7 +381,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => void testOs().then((s) => toast.success(s.reachable ? 'OpenStack OK' : 'Still unreachable'))}
-              className="px-3 py-1.5 rounded-lg border border-red-500/40 text-red-200 hover:bg-red-500/10 text-sm"
+              className={`px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('error')}`}
             >
               Test
             </button>
@@ -397,7 +397,7 @@ export default function Dashboard() {
           className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${
             k8sOverview
               ? 'border border-violet-500/30 bg-violet-950/20'
-              : 'border border-amber-500/30 bg-amber-950/15'
+              : statusSurfaceClasses('warn')
           }`}
         >
           <div className="flex items-start gap-3 min-w-0">
@@ -431,7 +431,7 @@ export default function Dashboard() {
       )}
 
       {hsPhase === 'unreachable' && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 ${statusSurfaceClasses(integrationPhaseTone('unreachable'))}`}>
           <div className="flex items-start gap-3 min-w-0">
             <Boxes className={`w-6 h-6 shrink-0 mt-0.5 ${statusToneClass(integrationPhaseTone('unreachable'))}`} />
             <div>
@@ -441,7 +441,7 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <Link to="/openstack/migrations" className="shrink-0 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-sm">
+          <Link to="/openstack/migrations" className={`shrink-0 px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('warn')}`}>
             Migrations
           </Link>
         </div>

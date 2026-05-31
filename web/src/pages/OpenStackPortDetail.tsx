@@ -9,6 +9,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses } from '../utils/semanticColors'
 
 export default function OpenStackPortDetailPage() {
   return (
@@ -88,7 +89,7 @@ function OpenStackPortDetailContent() {
             } catch (e: unknown) { toast.error(formatUserError(e)) }
           }}>Rename</button>
         {adminUp ? (
-          <button type="button" className="px-3 py-1.5 rounded-lg border border-amber-600/50 text-amber-200 text-sm"
+          <button type="button" className={`px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)]`}
             onClick={async () => {
               if (!confirm('Set port admin state down? Traffic may stop on this port.')) return
               try {

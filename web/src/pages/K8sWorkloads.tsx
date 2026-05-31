@@ -44,7 +44,7 @@ import EmptyState from '../components/EmptyState'
 import PageSkeleton from '../components/PageSkeleton'
 import JsonInspector, { asArray, asRecord } from '../components/platform/JsonInspector'
 import { formatUserError } from '../utils/apiError'
-import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { statusBadgeClasses, statusPillClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function K8sWorkloadsPage() {
   const toast = useToastContext()
@@ -481,7 +481,7 @@ export default function K8sWorkloadsPage() {
               <label className="text-xs text-slate-400">Pod <input className="ml-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 text-slate-200" value={logPod} onChange={(e) => setLogPod(e.target.value)} /></label>
               <label className="text-xs text-slate-400">NS <input className="ml-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 w-28 text-slate-200" value={logNs} onChange={(e) => setLogNs(e.target.value)} /></label>
               <label className="text-xs text-slate-400">Container <input className="ml-1 bg-slate-900 border border-slate-600 rounded px-2 py-1 w-28 text-slate-200" value={logContainer} onChange={(e) => setLogContainer(e.target.value)} placeholder="opt" /></label>
-              <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-emerald-700/40 text-emerald-100 border border-emerald-600/40" onClick={() => {
+              <button type="button" className={`text-xs px-3 py-1.5 rounded-lg border ${statusBadgeClasses('ok')} border-[color-mix(in_srgb,var(--machina-status-ok)_40%,transparent)]`} onClick={() => {
                 if (!logPod.trim()) { toast.error('Pod name required'); return }
                 void getK8sPodLogs({ pod: logPod.trim(), namespace: logNs.trim() || 'default', container: logContainer.trim() || undefined, tailLines: 500, context: ctxTrim })
                   .then((r) => setLogOut(`${r.stdout}\n${r.stderr}`.trim()))
@@ -494,7 +494,7 @@ export default function K8sWorkloadsPage() {
             <div className="text-sm font-medium text-slate-300">kubectl apply (YAML)</div>
             <label className="flex items-center gap-2 text-xs text-slate-400"><input type="checkbox" checked={applyDry} onChange={(e) => setApplyDry(e.target.checked)} /> Server dry-run</label>
             <textarea className="w-full min-h-[120px] bg-slate-900 border border-slate-600 rounded p-2 text-xs font-mono text-slate-200" value={applyYaml} onChange={(e) => setApplyYaml(e.target.value)} placeholder="apiVersion: v1&#10;kind: ConfigMap&#10;..." />
-            <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-amber-700/40 text-amber-100 border border-amber-600/40" onClick={() => {
+            <button type="button" className={`text-xs px-3 py-1.5 rounded-lg border ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)]`} onClick={() => {
               void postK8sApply(applyYaml, applyDry, ctxTrim).then((r) => setApplyOut(r)).catch((e: unknown) => setApplyOut(formatUserError(e)))
             }}>Apply</button>
             {applyOut != null && (typeof applyOut === 'object' ? <JsonInspector data={applyOut} /> : (
@@ -653,7 +653,7 @@ export default function K8sWorkloadsPage() {
                         <button
                           type="button"
                           title="Open noVNC in this browser (machina proxies to the cluster)"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-emerald-500/20 text-emerald-200 border border-emerald-500/40 hover:bg-emerald-500/30"
+                          className={`inline-flex items-center gap-1 hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_30%,transparent)] ${statusPillClasses('ok')}`}
                           onClick={() => setLiveKubeVirt({ kind: 'vnc', namespace: v.namespace, name: v.name })}
                         >
                           <ExternalLink className="w-3.5 h-3.5" /> Live VNC
@@ -661,7 +661,7 @@ export default function K8sWorkloadsPage() {
                         <button
                           type="button"
                           title="Serial console in this browser"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs bg-sky-500/20 text-sky-200 border border-sky-500/40 hover:bg-sky-500/30"
+                          className={`inline-flex items-center gap-1 text-xs hover:bg-[color-mix(in_srgb,var(--machina-status-info)_30%,transparent)] ${statusPillClasses('info')}`}
                           onClick={() => setLiveKubeVirt({ kind: 'console', namespace: v.namespace, name: v.name })}
                         >
                           <Terminal className="w-3.5 h-3.5" /> Live console
@@ -731,7 +731,7 @@ export default function K8sWorkloadsPage() {
                   <td className="px-4 py-3 text-slate-400 font-mono text-xs">{p.status?.hostIP ?? '—'}</td>
                   <td className="px-4 py-3 text-center">
                     <button
-                      className="px-2 py-1 rounded-md text-xs bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+                      className={`text-xs disabled:opacity-50 hover:bg-[color-mix(in_srgb,var(--machina-status-error)_30%,transparent)] ${statusPillClasses('error')}`}
                       disabled={acting !== null}
                       onClick={() => void runAction({
                         action: 'delete_pod',

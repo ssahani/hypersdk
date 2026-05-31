@@ -25,7 +25,7 @@ import EmptyState from '../components/EmptyState'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { openStackErrorHints } from '../utils/openstackHints'
-import { openstackStatusTone, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { openstackStatusTone, statusBadgeClasses, statusBorderClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 const STATUS_CHIPS = ['', 'ACTIVE', 'SHUTOFF', 'ERROR', 'BUILD'] as const
 const PAGE_SIZE = 25
@@ -196,7 +196,7 @@ function OpenStackInstancesContent() {
       </div>
 
       {status?.error && (
-        <div className="p-3 rounded-lg border border-amber-500/40 bg-amber-500/10 text-amber-100 text-sm">
+        <div className={`p-3 rounded-lg text-sm ${statusSurfaceClasses('warn')}`}>
           {status.error}
         </div>
       )}
@@ -280,7 +280,7 @@ function OpenStackInstancesContent() {
                   >
                     {inst.name || inst.id.slice(0, 8)}
                     {inst.locked && (
-                      <span title="Locked" className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-[10px] uppercase">
+                      <span title="Locked" className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded border text-[10px] uppercase ${statusBadgeClasses('warn')} ${statusBorderClass('warn')}`}>
                         <Lock className="w-3 h-3" /> Locked
                       </span>
                     )}
@@ -304,7 +304,7 @@ function OpenStackInstancesContent() {
                       type="button"
                       title="Start"
                       onClick={() => runAction(inst, startOpenStackInstance, 'Start')}
-                      className={`p-2 rounded hover:bg-emerald-500/20 ${statusToneClass('ok')}`}
+                      className={`p-2 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)] ${statusToneClass('ok')}`}
                     >
                       <Play className="w-4 h-4" />
                     </button>
@@ -312,7 +312,7 @@ function OpenStackInstancesContent() {
                       type="button"
                       title="Stop"
                       onClick={() => runAction(inst, stopOpenStackInstance, 'Stop')}
-                      className={`p-2 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}
+                      className={`p-2 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)] ${statusToneClass('error')}`}
                     >
                       <Square className="w-4 h-4" />
                     </button>
@@ -320,7 +320,7 @@ function OpenStackInstancesContent() {
                       type="button"
                       title="Reboot"
                       onClick={() => runAction(inst, (id) => rebootOpenStackInstance(id, 'hard'), 'Reboot')}
-                      className={`p-2 rounded hover:bg-amber-500/20 ${statusToneClass('warn')}`}
+                      className={`p-2 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)] ${statusToneClass('warn')}`}
                     >
                       <RotateCcw className="w-4 h-4" />
                     </button>

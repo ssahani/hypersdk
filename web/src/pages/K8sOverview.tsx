@@ -12,7 +12,7 @@ import { AlertTriangle, CheckCircle2, Download, LayoutGrid, Loader2, Puzzle, Ref
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import EmptyState from '../components/EmptyState'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
-import { k8sPhaseTone, statusBadgeClasses, statusPillClasses, statusToneClass } from '../utils/semanticColors'
+import { k8sPhaseTone, statusBadgeClasses, statusBorderClass, statusPillClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import {
   buildK8sAuditBundleJson,
   downloadTextAsFile,
@@ -79,7 +79,7 @@ function nodePlaneUi(plane: string | undefined): { label: string; title: string;
         label: 'Mixed',
         title:
           'Both control-plane and worker roles (e.g. k3s server). Contributes to control- and data-plane rollups below.',
-        className: 'bg-amber-500/15 text-amber-100 border-amber-500/35',
+        className: `${statusBadgeClasses('warn')} border ${statusBorderClass('warn')}`,
       }
     default:
       return {
@@ -236,7 +236,7 @@ function PressureChips({ n }: { n: K8sNodeInfo }) {
           title={c.title}
           className={`px-1 rounded text-[10px] font-bold border ${
             c.on
-              ? 'bg-rose-500/25 text-rose-200 border-rose-500/40'
+              ? `${statusBadgeClasses('error')} ${statusBorderClass('error')}`
               : 'bg-slate-800/80 text-slate-500 border-slate-600/50'
           }`}
         >
@@ -620,7 +620,7 @@ export default function K8sOverviewPage() {
             </p>
           </div>
           {!k8sMetrics.metrics_available && (
-            <p className="text-sm text-amber-200/90">
+            <p className={`text-sm ${statusToneClass('warn')}`}>
               {k8sMetrics.nodes_error || k8sMetrics.pods_error || k8sMetrics.metrics_server_hint || 'No metrics yet.'}
             </p>
           )}
@@ -693,21 +693,13 @@ export default function K8sOverviewPage() {
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
                 <span
-                  className={`px-2 py-1 rounded-md border ${
-                    clusterInventory?.cluster_livez_ok
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
-                      : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
-                  }`}
+                  className={`px-2 py-1 rounded-md border ${statusBadgeClasses(clusterInventory?.cluster_livez_ok ? 'ok' : 'error')} ${statusBorderClass(clusterInventory?.cluster_livez_ok ? 'ok' : 'error')}`}
                   title="kubectl get --raw /livez"
                 >
                   livez {clusterInventory?.cluster_livez_ok ? 'ok' : 'fail'}
                 </span>
                 <span
-                  className={`px-2 py-1 rounded-md border ${
-                    clusterInventory?.cluster_readyz_ok
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
-                      : 'bg-rose-500/15 border-rose-500/40 text-rose-200'
-                  }`}
+                  className={`px-2 py-1 rounded-md border ${statusBadgeClasses(clusterInventory?.cluster_readyz_ok ? 'ok' : 'error')} ${statusBorderClass(clusterInventory?.cluster_readyz_ok ? 'ok' : 'error')}`}
                   title="kubectl get --raw /readyz"
                 >
                   readyz {clusterInventory?.cluster_readyz_ok ? 'ok' : 'fail'}
@@ -719,7 +711,7 @@ export default function K8sOverviewPage() {
                 )}
                 {(clusterInventory?.nodes_with_kubelet_minor_skew ?? 0) > 0 && (
                   <span
-                    className="px-2 py-1 rounded-md bg-amber-500/15 border border-amber-500/35 text-amber-100 inline-flex items-center gap-1"
+                    className={`px-2 py-1 rounded-md border inline-flex items-center gap-1 ${statusBadgeClasses('warn')} ${statusBorderClass('warn')}`}
                     title="Kubelet minor version differs from API server minor (patch skew still allowed)"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" aria-hidden />
@@ -797,7 +789,7 @@ export default function K8sOverviewPage() {
                       <span className="text-slate-500">nodes </span>
                       {t.nodes_total}
                       <span className="text-slate-500"> · with harsh taints </span>
-                      <span className="text-amber-200/90">{t.nodes_with_scheduling_taints}</span>
+                      <span className={statusToneClass('warn')}>{t.nodes_with_scheduling_taints}</span>
                     </div>
                   </div>
                 ))}
@@ -869,7 +861,7 @@ export default function K8sOverviewPage() {
               </div>
               {(clusterInventory.upgrade_insights?.nodes_kubelet_newer_than_apiserver?.length ?? 0) > 0 && (
                 <div className="text-xs">
-                  <span className="text-rose-400">Kubelet newer than API server (unsupported): </span>
+                  <span className={statusToneClass('error')}>Kubelet newer than API server (unsupported): </span>
                   <span className="text-slate-300 font-mono">
                     {clusterInventory.upgrade_insights?.nodes_kubelet_newer_than_apiserver?.join(', ')}
                   </span>
@@ -877,7 +869,7 @@ export default function K8sOverviewPage() {
               )}
               {(clusterInventory.upgrade_insights?.nodes_kubelet_minor_lag_exceeds_policy?.length ?? 0) > 0 && (
                 <div className="text-xs">
-                  <span className="text-amber-300">
+                  <span className={statusToneClass('warn')}>
                     Same major, kubelet minor lag exceeds supported skew (3 minors):{' '}
                   </span>
                   <span className="text-slate-300 font-mono">
@@ -887,14 +879,14 @@ export default function K8sOverviewPage() {
               )}
               {(clusterInventory.upgrade_insights?.nodes_kubelet_major_behind_apiserver?.length ?? 0) > 0 && (
                 <div className="text-xs">
-                  <span className="text-rose-300/90">Kubelet major older than API server: </span>
+                  <span className={statusToneClass('error')}>Kubelet major older than API server: </span>
                   <span className="text-slate-300 font-mono text-[11px] break-words">
                     {clusterInventory.upgrade_insights?.nodes_kubelet_major_behind_apiserver?.join(' · ')}
                   </span>
                 </div>
               )}
               {(clusterInventory.upgrade_insights?.upgrade_warnings?.length ?? 0) > 0 && (
-                <ul className="text-[11px] text-amber-200/90 list-disc pl-5 space-y-1">
+                <ul className={`text-[11px] list-disc pl-5 space-y-1 ${statusToneClass('warn')}`}>
                   {clusterInventory.upgrade_insights?.upgrade_warnings?.map((w, i) => (
                     <li key={i}>{w}</li>
                   ))}
@@ -1106,7 +1098,7 @@ export default function K8sOverviewPage() {
                 {(clusterInventory.extended?.operator_alerts?.length ?? 0) > 0 && (
                   <div>
                     <div className="text-[11px] text-slate-500 mb-1">Operator-style alerts</div>
-                    <ul className="text-[11px] text-amber-200/90 list-disc pl-5 space-y-1">
+                    <ul className={`text-[11px] list-disc pl-5 space-y-1 ${statusToneClass('warn')}`}>
                       {clusterInventory.extended?.operator_alerts?.map((a, i) => (
                         <li key={i}>{a}</li>
                       ))}
@@ -1190,7 +1182,7 @@ export default function K8sOverviewPage() {
               <div><span className="text-slate-500">Current context:</span> {environment.current_context ?? '—'}</div>
               <div><span className="text-slate-500">Kubeconfig:</span> {environment.kubeconfig_hint ?? '—'}{environment.kubeconfig_from_env ? ' (KUBECONFIG)' : ''}</div>
               {environment.kubeconfig_auto_selected && (
-                <div className="text-emerald-200/90">
+                <div className={statusToneClass('ok')}>
                   <span className="text-slate-500">Machina auto-selected:</span>{' '}
                   <code className="text-xs bg-slate-900/80 px-1 rounded break-all">{environment.kubeconfig_auto_selected}</code>
                   <span className="text-slate-500 text-xs"> (used because default config did not reach the API)</span>
@@ -1203,8 +1195,8 @@ export default function K8sOverviewPage() {
               <div>RKE2 config / data: {environment.host.rke2_config_present ? 'yes' : 'no'} / {environment.host.rke2_data_dir_present ? 'yes' : 'no'} · server: <span className="font-mono">{environment.host.rke2_server_systemd}</span></div>
               <div>k3s binary: {environment.host.k3s_binary_version ?? '—'} · rke2 binary: {environment.host.rke2_binary_version ?? '—'}</div>
               <div>helm: {environment.host.helm_version ?? '—'} · crictl: {environment.host.crictl_version ?? '—'}</div>
-              <details className="group mt-2 rounded-lg border border-amber-500/25 bg-slate-950/50">
-                <summary className="cursor-pointer list-none px-2 py-1.5 text-[11px] text-amber-100/90 hover:bg-slate-900/60 rounded-md">
+              <details className={`group mt-2 rounded-lg border bg-slate-950/50 ${statusBorderClass('warn')}`}>
+                <summary className={`cursor-pointer list-none px-2 py-1.5 text-[11px] hover:bg-slate-900/60 rounded-md ${statusToneClass('warn')}`}>
                   <span className="font-medium">Host:</span> install / uninstall k3s (get.k3s.io and upstream scripts)
                 </summary>
                 <div className="px-2 pb-3 pt-1 space-y-2 text-[11px] text-slate-400">
@@ -1366,7 +1358,7 @@ export default function K8sOverviewPage() {
       )}
 
       <div className="bg-slate-800/50 border border-slate-700/50 rounded-xl p-4 flex flex-wrap items-center gap-3">
-        <span className="text-sm text-slate-300">API server version: <span className="font-medium text-emerald-300">{overview?.version || 'unknown'}</span></span>
+        <span className="text-sm text-slate-300">API server version: <span className={`font-medium ${statusToneClass('ok')}`}>{overview?.version || 'unknown'}</span></span>
         {overview?.distribution && (
           <span className="text-sm text-slate-400">Detected: <span className="font-mono text-slate-200">{overview.distribution}</span></span>
         )}
@@ -1533,7 +1525,7 @@ export default function K8sOverviewPage() {
                   </td>
                   <td className="px-4 py-3 hidden md:table-cell text-xs">
                     {n.unschedulable ? (
-                      <span className="text-amber-300" title="Cordoned (unschedulable)">
+                      <span className={statusToneClass('warn')} title="Cordoned (unschedulable)">
                         Cordoned
                       </span>
                     ) : (
@@ -1543,7 +1535,7 @@ export default function K8sOverviewPage() {
                   <td className="px-4 py-3 hidden xl:table-cell text-xs">
                     {n.kubelet_minor_matches_apiserver === false ? (
                       <span
-                        className="inline-flex items-center gap-1 text-amber-300"
+                        className={`inline-flex items-center gap-1 ${statusToneClass('warn')}`}
                         title="Kubelet minor differs from API server minor"
                       >
                         <AlertTriangle className="w-3.5 h-3.5 shrink-0" aria-hidden />
@@ -1578,21 +1570,21 @@ export default function K8sOverviewPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-center gap-2">
                       <button
-                        className="px-2 py-1 rounded-md text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 disabled:opacity-50"
+                        className={`text-xs disabled:opacity-50 hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_30%,transparent)] ${statusPillClasses('warn')}`}
                         onClick={() => void runNodeAction(n.name, 'node_cordon')}
                         disabled={acting !== null}
                       >
                         Cordon
                       </button>
                       <button
-                        className="px-2 py-1 rounded-md text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 disabled:opacity-50"
+                        className={`text-xs disabled:opacity-50 hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_30%,transparent)] ${statusPillClasses('ok')}`}
                         onClick={() => void runNodeAction(n.name, 'node_uncordon')}
                         disabled={acting !== null}
                       >
                         Uncordon
                       </button>
                       <button
-                        className="px-2 py-1 rounded-md text-xs bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+                        className={`text-xs disabled:opacity-50 hover:bg-[color-mix(in_srgb,var(--machina-status-error)_30%,transparent)] ${statusPillClasses('error')}`}
                         onClick={() => void runNodeAction(n.name, 'node_drain')}
                         disabled={acting !== null}
                       >
@@ -1620,7 +1612,7 @@ export default function K8sOverviewPage() {
       {lastCommand && (
         <div className="bg-slate-900/50 border border-slate-700/50 rounded-xl p-4">
           <div className="text-xs text-slate-400 mb-1">Last executed command</div>
-          <code className="text-xs text-emerald-300 break-all">{lastCommand}</code>
+          <code className={`text-xs break-all ${statusToneClass('ok')}`}>{lastCommand}</code>
         </div>
       )}
     </div>

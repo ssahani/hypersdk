@@ -456,7 +456,7 @@ export default function FleetPage() {
                           type="button"
                           disabled={busy != null}
                           onClick={() => void peerAction(vm.peer, vm.name, 'start')}
-                          className="p-1 rounded hover:bg-emerald-900/40"
+                          className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_25%,transparent)]`}
                           title={t('fleet.start')}
                           aria-label={t('fleet.start')}
                         >
@@ -466,7 +466,7 @@ export default function FleetPage() {
                           type="button"
                           disabled={busy != null}
                           onClick={() => void peerAction(vm.peer, vm.name, 'shutdown')}
-                          className="p-1 rounded hover:bg-amber-900/40"
+                          className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_25%,transparent)]`}
                           title={t('fleet.shutdown')}
                           aria-label={t('fleet.shutdown')}
                         >
@@ -476,7 +476,7 @@ export default function FleetPage() {
                           type="button"
                           disabled={busy != null}
                           onClick={() => void peerAction(vm.peer, vm.name, 'stop')}
-                          className="p-1 rounded hover:bg-red-900/40"
+                          className={`p-1 rounded hover:bg-[color-mix(in_srgb,var(--machina-status-error)_25%,transparent)]`}
                           title={t('fleet.stop')}
                           aria-label={t('fleet.stop')}
                         >

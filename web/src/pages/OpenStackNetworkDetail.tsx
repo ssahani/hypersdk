@@ -10,6 +10,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackNetworkDetailPage() {
   return (
@@ -81,14 +82,14 @@ function OpenStackNetworkDetailContent() {
               void load()
             } catch (e: unknown) { toast.error(formatUserError(e)) }
           }}>Rename</button>
-        <button type="button" className="px-3 py-1.5 rounded-lg border border-red-600/50 text-red-300 text-sm hover:bg-red-500/10 inline-flex items-center gap-1"
+        <button type="button" className={statusDestructiveButtonClasses('text-sm inline-flex items-center gap-1')}
           onClick={() => setDeleteOpen(true)}>
           <Trash2 className="w-4 h-4" /> Delete
         </button>
       </div>
       {deleteOpen && (
-        <div className="rounded-xl border border-red-500/40 bg-red-950/20 p-4 space-y-3">
-          <p className="text-sm text-red-200">Delete network <span className="font-mono">{net.name || net.id}</span>? Subnets and ports must be removed first.</p>
+        <div className={`rounded-xl p-4 space-y-3 ${statusSurfaceClasses('error')}`}>
+          <p className={`text-sm ${statusToneClass('error')}`}>Delete network <span className="font-mono">{net.name || net.id}</span>? Subnets and ports must be removed first.</p>
           <div className="flex gap-2">
             <button type="button" className="px-3 py-1.5 rounded-lg bg-red-600 text-white text-sm"
               onClick={async () => {

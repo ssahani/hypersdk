@@ -12,7 +12,8 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 48 + Tahoe classic + colors v1** | `7534747` | [`platform-batch-48.spec.ts`](../web/e2e/platform-batch-48.spec.ts), `tahoe-page-root` on classic shell, [`semanticColors.ts`](../web/src/utils/semanticColors.ts) |
 | **Batch 57 Cross-Shell Consistency** | `bea8280`–`098f4ad` + follow-up | semanticColors v2 + classic/OpenStack/K8s/Platform badge migration; Help → Platform tab + tier-aware shell bridge; CollapsibleCodeBlock operator UX; [`cross-shell.spec.ts`](../web/e2e/cross-shell.spec.ts); classic operator pages (NodeInfo, Storage, Networks, Services, SystemCheck, Events, …); hub link tokens on 37+ platform pages |
 | **Batch 58 Color Tail** | `3f3c332` | Zeus Firewall security pages + `riskTone`; platform dashboard/widget status chips; VMDetails warn/error surfaces; shared primitives (GlassButton danger, FilterPills, BuildStepTimeline, KubeVirt modal, AI panels); classic focus-ring token parity on Logs/NodeInfo/Backups |
-| **Batch 59 Platform Color Tail** | (this PR) | Remaining platform status surfaces (Events, Security Center, Observability, Notifications, Content, Migration, Reports, …); `utilizationBarClass`; Settings/HostNetworking warn callouts |
+| **Batch 59 Platform Color Tail** | `fe0646f` | Remaining platform status surfaces (Events, Security Center, Observability, Notifications, Content, Migration, Reports, …); `utilizationBarClass`; Settings/HostNetworking warn callouts |
+| **Batch 60 Classic/OpenStack/K8s Color Tail** | (this PR) | Dashboard/K8sOverview/K8sWorkloads/NodeInfo status surfaces; OpenStack warn/error banners, locked badges, secondary destructive buttons; semantic hover chips on fleet/instance actions |
 
 **Verification baseline**
 
@@ -25,7 +26,7 @@ cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-cov
 
 ## Goal of the next sweep
 
-**Batch 57–59 shipped (2026-05-30).** Color tail largely complete on platform operator pages. Remaining optional polish: `ChoiceCards` selection accents (intentional), decorative integration brand colors (OpenStack sky, GuestKit orange), macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/`.
+**Batch 57–60 shipped (2026-05-30).** Color tail largely complete across platform, classic, OpenStack, and K8s operator pages. Remaining optional polish: `ChoiceCards` selection accents (intentional), decorative integration brand colors (OpenStack sky, GuestKit orange), macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/`.
 
 One reviewable PR that makes **all four shells** (Platform, Classic, OpenStack, K8s) feel like the same product:
 

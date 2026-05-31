@@ -31,7 +31,7 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { formatUserError } from '../utils/apiError'
-import { statusActionLinkClasses, statusDestructiveButtonClasses, statusToneClass } from '../utils/semanticColors'
+import { statusActionLinkClasses, statusBadgeClasses, statusBorderClass, statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import { openStackErrorHints } from '../utils/openstackHints'
 import ErrorBanner from '../components/ErrorBanner'
 
@@ -212,7 +212,7 @@ function OpenStackInstanceDetailContent() {
       )}
 
       {inst.status.toUpperCase() === 'BUILD' && (
-        <div className="rounded-xl border border-amber-500/35 bg-amber-950/20 px-4 py-3 text-sm text-amber-100">
+        <div className={`rounded-xl px-4 py-3 text-sm ${statusSurfaceClasses('warn')}`}>
           Instance is still building — refresh in a few seconds. Neutron will assign addresses when ACTIVE.
         </div>
       )}
@@ -249,7 +249,7 @@ function OpenStackInstanceDetailContent() {
             <Cloud className="w-7 h-7 text-sky-400" />
             {inst.name}
             {inst.locked && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs font-medium uppercase">
+              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-medium uppercase ${statusBadgeClasses('warn')} ${statusBorderClass('warn')}`}>
                 <Lock className="w-3.5 h-3.5" /> Locked
               </span>
             )}
@@ -273,7 +273,7 @@ function OpenStackInstanceDetailContent() {
             <RotateCcw className="w-4 h-4" /> Soft reboot
           </button>
           <button type="button" onClick={() => runAction(() => rebootOpenStackInstance(inst.id, 'hard'), 'Hard reboot')}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-amber-600/50 text-amber-200 hover:bg-amber-500/10 text-sm">
+            className={`inline-flex items-center gap-1 px-3 py-2 rounded-lg border text-sm ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)] hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_10%,transparent)]`}>
             <RotateCcw className="w-4 h-4" /> Hard reboot
           </button>
           {canShelve && (
@@ -293,7 +293,7 @@ function OpenStackInstanceDetailContent() {
             <Trash2 className="w-4 h-4" /> Delete
           </button>
           <button type="button" onClick={() => setForceDeleteOpen(true)}
-            className="inline-flex items-center gap-1 px-3 py-2 rounded-lg border border-red-700/60 text-red-300 hover:bg-red-500/15 text-sm"
+            className={statusDestructiveButtonClasses('text-sm hover:opacity-90')}
             title="Nova forceDelete — use when normal delete is stuck">
             <Trash2 className="w-4 h-4" /> Force delete
           </button>

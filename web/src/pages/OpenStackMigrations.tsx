@@ -22,7 +22,7 @@ import OpenStackGate from '../components/OpenStackGate'
 import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackStatusBar from '../components/OpenStackStatusBar'
 import { formatUserError } from '../utils/apiError'
-import { statusToneClass } from '../utils/semanticColors'
+import { statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
 import { openStackErrorHints } from '../utils/openstackHints'
 import HypersdkStatusBanner from '../components/HypersdkStatusBanner'
@@ -197,9 +197,9 @@ function OpenStackMigrationsContent() {
       </div>
 
       {!hypersdkEnabled && (
-        <div className="rounded-xl border border-amber-500/40 bg-amber-950/20 p-4 text-sm text-amber-100">
-          Enable <code className="text-amber-50">[hypersdk] enabled = true</code> and set{' '}
-          <code className="text-amber-50">base_url</code> to hypervisord (default :5080), then restart machina-daemon.
+        <div className={`rounded-xl p-4 text-sm ${statusSurfaceClasses('warn')}`}>
+          Enable <code className="opacity-90">[hypersdk] enabled = true</code> and set{' '}
+          <code className="opacity-90">base_url</code> to hypervisord (default :5080), then restart machina-daemon.
         </div>
       )}
 
@@ -383,8 +383,8 @@ function OpenStackMigrationsContent() {
                 </div>
                 <ol className="list-decimal pl-5 text-xs text-slate-400 space-y-1">
                   <li>Submitted to HyperSDK</li>
-                  <li className={selectedJob.status === 'running' || selectedJob.status === 'completed' ? 'text-emerald-300' : ''}>Conversion in progress</li>
-                  <li className={selectedJob.status === 'completed' ? 'text-emerald-300' : ''}>Import to target hypervisor</li>
+                  <li className={selectedJob.status === 'running' || selectedJob.status === 'completed' ? statusToneClass('ok') : ''}>Conversion in progress</li>
+                  <li className={selectedJob.status === 'completed' ? statusToneClass('ok') : ''}>Import to target hypervisor</li>
                 </ol>
               </>
             )}

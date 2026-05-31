@@ -31,13 +31,15 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 | [`PlatformEmptyState`](../web/src/components/platform/PlatformEmptyState.tsx) | Platform Mac pages — glass panel empty state with CTA |
 | [`semanticColors.ts`](../web/src/utils/semanticColors.ts) | Status/task/host tone helpers — prefer over raw Tailwind green/amber/red |
 
-### Semantic color helpers (Batch 57–58)
+### Semantic color helpers (Batch 57–60)
 
 | Helper | Use when |
 |--------|----------|
 | `statusToneClass(tone)` | Inline text for ok / warn / error / info / neutral |
 | `statusBadgeClasses(tone)` | Pill/chip backgrounds (host health, compliance grades) |
+| `statusPillClasses(tone)` | Bordered action chips (K8s node ops, KubeVirt live console) |
 | `statusSurfaceClasses(tone, extra?)` | Bordered callout panels (readiness, drift, destructive hints) |
+| `statusDestructiveButtonClasses(extra?)` | Secondary destructive actions (OpenStack delete/dissociate) |
 | `hubLinkClasses()` | Platform hub links and cross-shell navigation accents (info tone) |
 | `navActiveChipClasses()` | Active filter pills / segmented nav chips |
 | `riskTone(risk)` | Firewall / security risk strings → critical/high → error, warning/medium → warn, low/info → ok |

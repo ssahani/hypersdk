@@ -13,6 +13,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusDestructiveButtonClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackVolumeTransferDetailPage() {
   return (
@@ -86,18 +87,18 @@ function OpenStackVolumeTransferDetailContent() {
           </dd>
         </div>
         {transfer.auth_key && (
-          <div className="sm:col-span-2 rounded-lg border border-amber-500/30 bg-amber-950/20 p-3">
-            <dt className="text-xs text-amber-300 uppercase mb-1">Auth key (share with recipient)</dt>
-            <dd className="font-mono text-amber-100 break-all flex items-start gap-2">
+          <div className={`sm:col-span-2 rounded-lg p-3 ${statusSurfaceClasses('warn')}`}>
+            <dt className={`text-xs uppercase mb-1 ${statusToneClass('warn')}`}>Auth key (share with recipient)</dt>
+            <dd className={`font-mono break-all flex items-start gap-2 ${statusToneClass('warn')}`}>
               {transfer.auth_key}
-              <button type="button" className="text-amber-300 hover:text-amber-100 shrink-0" onClick={() => copy('Auth key', transfer.auth_key!)}>
+              <button type="button" className={`shrink-0 hover:opacity-80 ${statusToneClass('warn')}`} onClick={() => copy('Auth key', transfer.auth_key!)}>
                 <Copy className="w-3.5 h-3.5" />
               </button>
             </dd>
           </div>
         )}
       </dl>
-      <button type="button" className="px-3 py-1.5 rounded-lg border border-red-500/50 text-red-300 text-sm"
+      <button type="button" className={statusDestructiveButtonClasses()}
         onClick={async () => {
           if (!confirm(`Cancel transfer ${transfer.name}?`)) return
           try {

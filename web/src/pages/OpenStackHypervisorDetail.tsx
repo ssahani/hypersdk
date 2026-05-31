@@ -13,6 +13,7 @@ import OpenStackSubNav from '../components/OpenStackSubNav'
 import OpenStackFooter from '../components/OpenStackFooter'
 import { useToastContext } from '../contexts/ToastContext'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function OpenStackHypervisorDetailPage() {
   return (
@@ -88,12 +89,12 @@ function OpenStackHypervisorDetailContent() {
       </dl>
       <div className="flex flex-wrap gap-2">
         {hv.status === 'disabled' ? (
-          <button type="button" className="px-3 py-1.5 rounded-lg border border-emerald-600/50 text-emerald-300 text-sm hover:bg-emerald-500/10"
+          <button type="button" className={`px-3 py-1.5 rounded-lg border text-sm hover:bg-[color-mix(in_srgb,var(--machina-status-ok)_10%,transparent)] ${statusBadgeClasses('ok')} border-[color-mix(in_srgb,var(--machina-status-ok)_40%,transparent)]`}
             onClick={() => void runMaintenance(false)}>
             Exit maintenance
           </button>
         ) : (
-          <button type="button" className="px-3 py-1.5 rounded-lg border border-amber-600/50 text-amber-300 text-sm hover:bg-amber-500/10"
+          <button type="button" className={`px-3 py-1.5 rounded-lg border text-sm hover:bg-[color-mix(in_srgb,var(--machina-status-warn)_10%,transparent)] ${statusBadgeClasses('warn')} border-[color-mix(in_srgb,var(--machina-status-warn)_40%,transparent)]`}
             onClick={() => void runMaintenance(true)}>
             Enter maintenance
           </button>

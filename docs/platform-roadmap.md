@@ -97,6 +97,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **Classic:** Settings OpenStack unreachable hints, HostNetworking route/sysctl warn callouts + focus ring token
 - **Helper:** `utilizationBarClass()` in [`semanticColors.ts`](../web/src/utils/semanticColors.ts)
 
+## Batch 60 deliverables (classic / OpenStack / K8s color tail — shipped)
+
+- **Classic:** Dashboard integration banners + HyperSDK link; K8sOverview health probes, upgrade insights, node cordon/uncordon/drain chips; K8sWorkloads operator action chips; NodeInfo libvirt boot / consistency / package-update warn surfaces
+- **OpenStack:** Instances/InstanceDetail/CreateInstance/Migrations warn banners; locked badges; hypervisor maintenance, port admin-down, floating-IP dissociate, volume-transfer auth key, network delete confirm; semantic hover on row action icons
+- **Deferred:** primary CTAs (`bg-emerald-600` start/create), `ChoiceCards` accents, Identity admin buttons (`bg-amber-700`)
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid
