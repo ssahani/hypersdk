@@ -9,6 +9,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useToastContext } from '../contexts/ToastContext'
 import { useState } from 'react'
 import { formatUserError, sanitizeErrorText } from '../utils/apiError'
+import { statusActionLinkClasses, statusChipClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 /** Live OpenStack connection summary for cloud pages. */
 export default function OpenStackStatusBar() {
@@ -20,9 +21,9 @@ export default function OpenStackStatusBar() {
 
   if (phase === 'off' || phase === 'needsWire') {
     return (
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-amber-500/35 bg-amber-950/20 px-4 py-3 text-sm">
-        <span className="inline-flex items-center gap-2 font-medium text-amber-200">
-          <AlertCircle className="w-4 h-4 text-amber-400" />
+      <div className={`mb-4 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-sm ${statusSurfaceClasses('warn')}`}>
+        <span className={`inline-flex items-center gap-2 font-medium ${statusToneClass('warn')}`}>
+          <AlertCircle className={`w-4 h-4 ${statusToneClass('warn')}`} />
           OpenStack not wired on this host
         </span>
         <span className="text-xs text-slate-400">
@@ -31,7 +32,7 @@ export default function OpenStackStatusBar() {
         </span>
         <Link
           to="/settings?openstack=1"
-          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-xs ml-auto"
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs ml-auto ${statusActionLinkClasses('warn')}`}
         >
           <Settings className="w-3.5 h-3.5" />
           Wire &amp; settings
@@ -44,20 +45,16 @@ export default function OpenStackStatusBar() {
 
   return (
     <div
-      className={`mb-4 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-sm ${
-        reachable
-          ? 'border border-sky-500/30 bg-sky-950/25'
-          : 'border border-red-500/35 bg-red-950/20'
-      }`}
+      className={`mb-4 flex flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-sm border ${statusSurfaceClasses(reachable ? 'ok' : 'error')}`}
     >
       <span className="inline-flex items-center gap-2 font-medium text-slate-200">
         {reachable ? (
-          <Wifi className="w-4 h-4 text-emerald-400" />
+          <Wifi className={`w-4 h-4 ${statusToneClass('ok')}`} />
         ) : (
-          <WifiOff className="w-4 h-4 text-red-400" />
+          <WifiOff className={`w-4 h-4 ${statusToneClass('error')}`} />
         )}
         {cloudName || 'OpenStack'}
-        {!reachable && <span className="text-xs text-red-300 font-normal">· unreachable</span>}
+        {!reachable && <span className={`text-xs font-normal ${statusToneClass('error')}`}>· unreachable</span>}
       </span>
       {reachable && (
         <span className="text-xs text-slate-400">
@@ -69,7 +66,7 @@ export default function OpenStackStatusBar() {
         </span>
       )}
       {reachable && !computeLive && connectionHint && (
-        <span className="text-xs text-amber-200/90 max-w-lg" title={connectionHint}>
+        <span className={`text-xs max-w-lg ${statusToneClass('warn')} opacity-90`} title={connectionHint}>
           {connectionHint}
         </span>
       )}
@@ -84,17 +81,17 @@ export default function OpenStackStatusBar() {
         </span>
       )}
       {info?.openstack?.upload_enabled && reachable && glanceLive && (
-        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+        <span className={statusChipClasses('ok')}>
           Glance upload on
         </span>
       )}
       {status?.error && reachable && (
-        <span className="text-xs text-amber-300/90 truncate max-w-md" title={status.error}>
+        <span className={`text-xs truncate max-w-md opacity-90 ${statusToneClass('warn')}`} title={status.error}>
           {sanitizeErrorText(status.error)}
         </span>
       )}
       {status?.error && !reachable && (
-        <span className="text-xs text-red-300 truncate max-w-md" title={status.error}>
+        <span className={`text-xs truncate max-w-md ${statusToneClass('error')}`} title={status.error}>
           {sanitizeErrorText(status.error)}
         </span>
       )}
@@ -113,11 +110,7 @@ export default function OpenStackStatusBar() {
               setTesting(false)
             }
           }}
-          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs disabled:opacity-50 ${
-            reachable
-              ? 'border-sky-500/40 text-sky-200 hover:bg-sky-500/10'
-              : 'border-red-500/40 text-red-200 hover:bg-red-500/10'
-          }`}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs disabled:opacity-50 ${statusActionLinkClasses(reachable ? 'info' : 'error')}`}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${testing ? 'animate-spin' : ''}`} />
           {testing ? 'Testing…' : 'Test'}

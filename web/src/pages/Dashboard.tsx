@@ -26,7 +26,7 @@ import Hero from '../components/Hero'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
-import { integrationPhaseTone, sessionBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
+import { integrationPhaseTone, sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
 
 interface MetricsPoint { time: string; memory: number }
 
@@ -219,7 +219,7 @@ export default function Dashboard() {
                     href={p.doc_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-blue-400 hover:underline mt-0.5 inline-block"
+                    className={`text-xs hover:underline mt-0.5 inline-block ${statusActionLinkClasses('info')}`}
                   >
                     Documentation
                   </a>
@@ -302,7 +302,7 @@ export default function Dashboard() {
 
       {/* Stat cards — auto-fit minmax grid */}
       <div className={METRIC_GRID}>
-        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor="text-blue-400" title="Guests" value={vms.length} badge={<span className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClasses('ok')}`}>{running} running</span>} />
+        <StatCard gradient="stat-card-blue" icon={<Server className="w-6 h-6" />} iconColor={statusToneClass('info')} title="Guests" value={vms.length} badge={<span className={`text-xs px-2 py-0.5 rounded-full ${statusBadgeClasses('ok')}`}>{running} running</span>} />
         <StatCard gradient="stat-card-purple" icon={<Cpu className="w-6 h-6" />} iconColor="text-purple-400" title="Total vCPUs" value={totalVcpus} badge={node ? <span className="text-xs text-slate-500">{node.cpu_cores}c / {node.cpu_threads}t host</span> : undefined} />
         <StatCard gradient="stat-card-orange" icon={<HardDrive className="w-6 h-6" />} iconColor="text-orange-400" title="Allocated Memory" value={`${totalMemGB} GB`} badge={node ? <span className="text-xs text-slate-500">{(node.memory_mb / 1024).toFixed(0)} GB host</span> : undefined} />
         <StatCard gradient="stat-card-green" icon={<Network className="w-6 h-6" />} iconColor="text-[var(--machina-accent-network)]" title="Networks" value={networks.length} badge={<span className="text-xs text-slate-500">{activeNets} active</span>} />
@@ -311,7 +311,7 @@ export default function Dashboard() {
       {/* Host Resource Usage */}
       {hostStats && (
         <div className={METRIC_GRID}>
-          <ResourceBar icon={<Gauge className="w-4 h-4 text-blue-400 shrink-0" />} label="Host CPU" value={hostStats.cpu_percent} extra={`Load: ${hostStats.load_1.toFixed(1)}`} />
+          <ResourceBar icon={<Gauge className={`w-4 h-4 shrink-0 ${statusToneClass('info')}`} />} label="Host CPU" value={hostStats.cpu_percent} extra={`Load: ${hostStats.load_1.toFixed(1)}`} />
           <ResourceBar icon={<HardDrive className={`w-4 h-4 shrink-0 ${statusToneClass('ok')}`} />} label="Host Memory" value={hostStats.memory_percent} extra={`${(hostStats.memory_used_mb / 1024).toFixed(1)} / ${(hostStats.memory_total_mb / 1024).toFixed(1)} GB`} />
           <ResourceBar icon={<Database className="w-4 h-4 text-orange-400 shrink-0" />} label="Host Disk" value={hostStats.disk_percent} extra={`${hostStats.disk_used_gb.toFixed(0)} / ${hostStats.disk_total_gb.toFixed(0)} GB`} />
           <MiniStat icon={<Clock className="w-4 h-4 text-purple-400" />} label="Uptime" value={formatUptime(hostStats.uptime_secs)} extra={`${hostStats.processes} procs`} />
@@ -498,7 +498,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-3 flex-wrap">
             <span className="text-sm text-slate-400">Recent:</span>
             {recent.map(name => (
-              <Link key={name} to={`/vms/${name}`} className="px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm text-blue-400 hover:text-blue-300 hover:border-slate-600/50 transition">
+              <Link key={name} to={`/vms/${name}`} className={`px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm hover:border-slate-600/50 transition ${statusActionLinkClasses('info')}`}>
                 {name}
               </Link>
             ))}
@@ -533,7 +533,7 @@ export default function Dashboard() {
       <div className="card overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-white">Guests (libvirt domains)</h2>
-          <Link to="/vms" className="flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 transition font-medium">
+          <Link to="/vms" className={`flex items-center gap-1 text-sm transition font-medium ${statusActionLinkClasses('info')}`}>
             View all <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
@@ -601,7 +601,7 @@ export default function Dashboard() {
             {events.map((ev, i) => (
               <div key={i} className="px-6 py-2.5 flex items-center justify-between text-sm gap-3">
                 <div className="flex items-center gap-2 min-w-0">
-                  {ev.event === 'state_change' && <ArrowRight className="w-3.5 h-3.5 text-blue-400 shrink-0" />}
+                  {ev.event === 'state_change' && <ArrowRight className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('info')}`} />}
                   {ev.event === 'vm_added' && <Plus className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('ok')}`} />}
                   {ev.event === 'vm_removed' && <Trash2 className={`w-3.5 h-3.5 shrink-0 ${statusToneClass('error')}`} />}
                   <span className="text-white font-medium truncate">{ev.name}</span>
@@ -665,7 +665,7 @@ function StatCard({ gradient, icon, iconColor, title, value, badge }: { gradient
 }
 
 function ResourceBar({ icon, label, value, extra }: { icon: React.ReactNode; label: string; value: number; extra?: string }) {
-  const color = value > 90 ? 'bg-red-500' : value > 70 ? 'bg-yellow-500' : 'bg-blue-500'
+  const color = statusBgClass(utilizationTone(value))
   return (
     <div className="bg-slate-800/40 rounded-xl px-4 py-3 border border-slate-700/30 min-w-0">
       <div className="flex items-center gap-2 mb-1.5 min-w-0">

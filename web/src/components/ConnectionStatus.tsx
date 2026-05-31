@@ -4,12 +4,14 @@
 
 import { Loader2, Wifi, WifiOff } from 'lucide-react'
 import { useWebSocketContext } from '../contexts/WebSocketContext'
+import { statusBgClass, statusSurfaceClasses } from '../utils/semanticColors'
 
 export default function ConnectionStatus() {
   const { connection } = useWebSocketContext()
 
   const isLive = connection === 'live'
   const isConnecting = connection === 'connecting'
+  const tone = isLive ? 'ok' : isConnecting ? 'warn' : 'error'
 
   const title = isLive
     ? 'Real-time VM updates connected (/ws/v1/watch)'
@@ -25,17 +27,11 @@ export default function ConnectionStatus() {
       aria-live="polite"
       aria-label={ariaLabel}
       title={title}
-      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border ${
-        isLive
-          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-          : isConnecting
-            ? 'bg-amber-500/10 text-amber-300 border-amber-500/25'
-            : 'bg-red-500/10 text-red-400 border-red-500/20'
-      }`}
+      className={statusSurfaceClasses(tone, 'flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium transition-all border')}
     >
       {isLive ? (
         <>
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse-dot" />
+          <div className={`w-1.5 h-1.5 rounded-full animate-pulse-dot ${statusBgClass('ok')}`} />
           <Wifi className="w-3 h-3 shrink-0" aria-hidden />
           <span className="whitespace-nowrap max-[520px]:sr-only">Live</span>
         </>
@@ -47,7 +43,7 @@ export default function ConnectionStatus() {
         </>
       ) : (
         <>
-          <div className="w-1.5 h-1.5 rounded-full bg-red-400" />
+          <div className={`w-1.5 h-1.5 rounded-full ${statusBgClass('error')}`} />
           <WifiOff className="w-3 h-3 shrink-0" aria-hidden />
           <span className="whitespace-nowrap max-[520px]:sr-only">Offline</span>
         </>

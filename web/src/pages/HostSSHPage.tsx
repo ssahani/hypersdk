@@ -7,6 +7,7 @@ import { Link } from 'react-router'
 import { ArrowLeft, Server, User } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import SSHConsole from '../components/SSHConsole'
+import { statusActionLinkClasses, statusToneClass } from '../utils/semanticColors'
 
 /** SSH to the machine serving this UI: target host is `window.location.hostname` (e.g. 185.165.240.5), not a guest VM. */
 export default function HostSSHPage() {
@@ -22,7 +23,7 @@ export default function HostSSHPage() {
     return (
       <div className="space-y-4 animate-fade-in text-center text-slate-500 py-12">
         <p>Could not determine a hostname from the page URL.</p>
-        <Link to="/" className="text-blue-400 hover:underline">Dashboard</Link>
+        <Link to="/" className={statusActionLinkClasses('info')}>Dashboard</Link>
       </div>
     )
   }
@@ -34,7 +35,7 @@ export default function HostSSHPage() {
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <h1 className="text-xl font-bold flex items-center gap-2">
-          <Server className="w-6 h-6 text-green-400" aria-hidden />
+          <Server className={`w-6 h-6 ${statusToneClass('ok')}`} aria-hidden />
           SSH — hypervisor
         </h1>
       </div>

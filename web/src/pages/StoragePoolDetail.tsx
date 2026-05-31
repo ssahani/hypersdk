@@ -9,7 +9,7 @@ import { getPoolXml, resizeVolume, cloneVolume } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { formatUserError } from '../utils/apiError'
-import { poolStateBadgeClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
+import { poolStateBadgeClasses, statusActionLinkClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import {
   ArrowLeft, Play, Square, RefreshCw, Trash2, HardDrive, Plus, Code,
   X, Copy, Maximize, ToggleLeft, ToggleRight, Download,
@@ -220,7 +220,7 @@ export default function StoragePoolDetail() {
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold flex items-center gap-2"><Code className="w-5 h-5 text-blue-400" /> Pool XML</h2>
-          <button onClick={() => setShowXml(!showXml)} className="text-sm text-blue-400 hover:text-blue-300 transition">
+          <button onClick={() => setShowXml(!showXml)} className={`text-sm transition ${statusActionLinkClasses('info')}`}>
             {showXml ? 'Hide' : 'Show'}
           </button>
         </div>
@@ -229,8 +229,8 @@ export default function StoragePoolDetail() {
             <div className="px-6 py-3 border-b border-slate-700/50 flex items-center justify-between">
               <span className="text-sm text-slate-400">Pool XML Configuration</span>
               <div className="flex items-center gap-3">
-                <button onClick={downloadXml} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><Download className="w-3 h-3" /> Download</button>
-                <button onClick={() => { if (poolXml) navigator.clipboard.writeText(poolXml).then(() => toast.success('XML copied')) }} className="text-xs text-blue-400 hover:text-blue-300 transition flex items-center gap-1"><Copy className="w-3 h-3" /> Copy</button>
+                <button onClick={downloadXml} className={`text-xs transition flex items-center gap-1 ${statusActionLinkClasses('info')}`}><Download className="w-3 h-3" /> Download</button>
+                <button onClick={() => { if (poolXml) navigator.clipboard.writeText(poolXml).then(() => toast.success('XML copied')) }} className={`text-xs transition flex items-center gap-1 ${statusActionLinkClasses('info')}`}><Copy className="w-3 h-3" /> Copy</button>
               </div>
             </div>
             <pre className="p-6 text-xs font-mono text-slate-300 overflow-x-auto max-h-[400px] whitespace-pre">{poolXml || 'Loading...'}</pre>

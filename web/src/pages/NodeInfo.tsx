@@ -52,7 +52,7 @@ import { getSession, type SessionRole } from '../api/auth'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { serviceAction } from '../api/extras'
 import { formatUserError } from '../utils/apiError'
-import { statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
+import { statusBgClass, statusSurfaceClasses, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import ErrorBanner from '../components/ErrorBanner'
 import PageSkeleton from '../components/PageSkeleton'
@@ -557,7 +557,7 @@ export default function NodeInfoPage() {
 
       {/* Health Status */}
       {health && (
-        <div className={`flex items-center gap-3 p-4 rounded-xl border ${health.libvirt ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+        <div className={`flex items-center gap-3 p-4 rounded-xl border ${statusSurfaceClasses(health.libvirt ? 'ok' : 'error')}`}>
           {health.libvirt ? <CheckCircle className={`w-5 h-5 ${statusToneClass('ok')}`} /> : <XCircle className={`w-5 h-5 ${statusToneClass('error')}`} />}
           <span className="text-sm">Virtualization (libvirt): <strong className={statusToneClass(health.libvirt ? 'ok' : 'error')}>{health.status}</strong></span>
           <span className="text-xs text-slate-500 ml-auto">{node.hypervisor} {node.hypervisor_version} / libvirt {node.lib_version}</span>

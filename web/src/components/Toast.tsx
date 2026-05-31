@@ -7,19 +7,13 @@ import { X, CheckCircle, AlertCircle, AlertTriangle, Info } from 'lucide-react'
 import type { Toast } from '../hooks/useToast'
 import { formatUserError } from '../utils/apiError'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
+import { statusBorderClass, statusToneClass, toastSemanticTone } from '../utils/semanticColors'
 
 const icons = {
-  success: <CheckCircle className="w-5 h-5 text-green-400" />,
-  error: <AlertCircle className="w-5 h-5 text-red-400" />,
-  warning: <AlertTriangle className="w-5 h-5 text-yellow-400" />,
-  info: <Info className="w-5 h-5 text-blue-400" />,
-}
-
-const toneBorder = {
-  success: 'border-emerald-500/30',
-  error: 'border-red-500/30',
-  warning: 'border-amber-500/30',
-  info: 'border-blue-500/30',
+  success: <CheckCircle className={`w-5 h-5 ${statusToneClass('ok')}`} />,
+  error: <AlertCircle className={`w-5 h-5 ${statusToneClass('error')}`} />,
+  warning: <AlertTriangle className={`w-5 h-5 ${statusToneClass('warn')}`} />,
+  info: <Info className={`w-5 h-5 ${statusToneClass('info')}`} />,
 }
 
 function displayErrorMessage(raw: string): string {
@@ -54,7 +48,7 @@ export function ToastContainer({ toasts, onClose }: { toasts: Toast[]; onClose: 
             animate={{ opacity: 1, x: 0, scale: 1 }}
             exit={{ opacity: 0, x: 24 }}
             transition={{ type: 'spring', stiffness: 380, damping: 28 }}
-            className={`liquid-glass-toast glass-strong flex items-start gap-3 px-4 py-3 min-w-[300px] max-w-lg border ${toneBorder[toast.type]}`}
+            className={`liquid-glass-toast glass-strong flex items-start gap-3 px-4 py-3 min-w-[300px] max-w-lg border ${statusBorderClass(toastSemanticTone(toast.type))}`}
           >
             {icons[toast.type]}
             <span

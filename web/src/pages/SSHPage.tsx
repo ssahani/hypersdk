@@ -5,6 +5,7 @@
 import { useParams, Link, useSearchParams } from 'react-router'
 import { ArrowLeft } from 'lucide-react'
 import SSHConsole from '../components/SSHConsole'
+import { statusActionLinkClasses } from '../utils/semanticColors'
 
 export default function SSHPage() {
   const { host: pathHost } = useParams<{ host?: string }>()
@@ -22,7 +23,7 @@ export default function SSHPage() {
         <p className="text-sm">
           Use <code className="text-slate-400">/ssh?host=192.168.122.10&amp;user=root</code> or open SSH from a VM details page.
         </p>
-        <Link to="/vms" className="text-blue-400 hover:underline">Back to VMs</Link>
+        <Link to="/vms" className={statusActionLinkClasses('info')}>Back to VMs</Link>
       </div>
     )
   }

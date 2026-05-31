@@ -6,6 +6,7 @@ import { useState } from 'react'
 import { Check, Copy } from 'lucide-react'
 import { copyText } from '../utils/copyText'
 import { useToastContext } from '../contexts/ToastContext'
+import { statusToneClass } from '../utils/semanticColors'
 
 type Props = {
   text: string
@@ -38,7 +39,7 @@ export default function CopyButton({
       }}
       className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-600 text-slate-300 hover:bg-slate-800 text-xs transition ${className}`}
     >
-      {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      {copied ? <Check className={`w-3.5 h-3.5 ${statusToneClass('ok')}`} /> : <Copy className="w-3.5 h-3.5" />}
       {label}
     </button>
   )

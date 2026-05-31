@@ -337,7 +337,7 @@ export default function EventsPage() {
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 min-w-0">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <h2 className="text-sm font-semibold text-white flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-blue-400" /> Memory % (per VM)
+                  <Activity className={`w-4 h-4 ${statusToneClass('info')}`} /> Memory % (per VM)
                 </h2>
                 {vmLineOverflow > 0 && (
                   <span className="text-[10px] text-slate-500">
@@ -388,7 +388,7 @@ export default function EventsPage() {
 
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 min-w-0">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-                <Cpu className="w-4 h-4 text-amber-400" /> Guest CPU % (estimated)
+                <Cpu className={`w-4 h-4 ${statusToneClass('warn')}`} /> Guest CPU % (estimated)
               </h2>
               <div className="h-[260px] w-full min-w-0 isolate">
                 {timeline.length > 1 ? (
@@ -433,7 +433,7 @@ export default function EventsPage() {
 
             <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-5 min-w-0 xl:col-span-1">
               <h2 className="text-sm font-semibold text-white flex items-center gap-2 mb-3">
-                <HardDrive className="w-4 h-4 text-emerald-400" /> Disk throughput (all VMs)
+                <HardDrive className={`w-4 h-4 ${statusToneClass('ok')}`} /> Disk throughput (all VMs)
               </h2>
               <div className="h-[220px] w-full min-w-0">
                 {timeline.length > 1 ? (

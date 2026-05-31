@@ -14,7 +14,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import PageSkeleton from '../components/PageSkeleton'
 import EmptyState from '../components/EmptyState'
 import { formatUserError } from '../utils/apiError'
-import { statusToneClass } from '../utils/semanticColors'
+import { statusBgClass, statusToneClass } from '../utils/semanticColors'
 import {
   Archive, Trash2, RotateCcw, RefreshCw, Play, HardDrive, Server,
   Download, ShieldCheck, Clock, ToggleLeft, ToggleRight, CheckCircle,
@@ -307,7 +307,7 @@ export default function BackupsPage() {
                     <StatusBadge status={b.status} />
                     {b.status === 'running' && b.progress !== '' && (
                       <div className="mt-1 w-20 bg-slate-700 rounded-full h-1.5">
-                        <div className="bg-blue-500 h-1.5 rounded-full transition-all" style={{ width: `${parseInt(b.progress) || 0}%` }} />
+                        <div className={`h-1.5 rounded-full transition-all ${statusBgClass('info')}`} style={{ width: `${parseInt(b.progress) || 0}%` }} />
                       </div>
                     )}
                   </td>

@@ -32,7 +32,7 @@ import {
 } from 'lucide-react'
 import { ChoiceCard, ChoiceCardDenseGrid } from '../components/ChoiceCards'
 import { formatUserError } from '../utils/apiError'
-import { notificationChannelTone, statusBadgeClasses, statusSurfaceClasses, statusToneClass, userRoleTone } from '../utils/semanticColors'
+import { notificationChannelTone, statusActionLinkClasses, statusBadgeClasses, statusSurfaceClasses, statusToneClass, userRoleTone } from '../utils/semanticColors'
 import {
   getObservabilitySettings,
   putObservabilitySettings,
@@ -183,7 +183,7 @@ export default function SettingsPage() {
       </div>
       <p className="text-xs text-slate-500 break-words">
         Libvirt secrets (Ceph, iSCSI, TLS, …) are managed on the{' '}
-        <Link to="/secrets" className="text-blue-400 hover:text-blue-300 underline">Secrets</Link> page (define XML + optional base64 value).
+        <Link to="/secrets" className={`underline ${statusActionLinkClasses('info')}`}>Secrets</Link> page (define XML + optional base64 value).
       </p>
 
       <section id="openstack-connection" className="rounded-xl border border-slate-700/50 bg-slate-800/40 p-4 space-y-3 scroll-mt-24">
@@ -893,7 +893,7 @@ export default function SettingsPage() {
               <tbody className="divide-y divide-slate-700/30">
                 {webhooks.map((h, i) => (
                   <tr key={h.id} className="table-row-hover">
-                    <td className="px-6 py-3 text-sm font-mono text-blue-400 truncate max-w-xs">{h.url}</td>
+                    <td className={`px-6 py-3 text-sm font-mono truncate max-w-xs ${statusToneClass('info')}`}>{h.url}</td>
                     <td className="px-6 py-3 text-xs text-slate-400">{h.events.join(', ')}</td>
                     <td className="px-6 py-3"><input type="checkbox" checked={h.enabled} onChange={e => { const next = [...webhooks]; next[i].enabled = e.target.checked; setWebhooks(next); saveWebhooks(next) }} /></td>
                     <td className="px-6 py-3 text-right"><button onClick={() => { const next = webhooks.filter((_, j) => j !== i); setWebhooks(next); saveWebhooks(next) }} className="p-1 hover:bg-red-600/20 rounded"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button></td>

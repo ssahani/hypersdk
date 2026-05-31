@@ -8,7 +8,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Trash2, RotateCcw, RefreshCw, Camera } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
-import { statusToneClass } from '../utils/semanticColors'
+import { statusActionLinkClasses, statusToneClass } from '../utils/semanticColors'
 
 export default function SnapshotsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
@@ -48,7 +48,7 @@ export default function SnapshotsPage() {
               {snapshots.map((s) => (
                 <tr key={`${s.vm_name}/${s.name}`} className="hover:bg-slate-700/50">
                   <td className="px-6 py-3 font-medium">{s.name}</td>
-                  <td className="px-6 py-3 text-sm text-blue-400">{s.vm_name}</td>
+                  <td className={`px-6 py-3 text-sm ${statusActionLinkClasses('info')}`}>{s.vm_name}</td>
                   <td className="px-6 py-3 text-sm text-slate-400">{s.state}</td>
                   <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
                   <td className="px-6 py-3">{s.is_current && <span className={`text-xs font-medium ${statusToneClass('ok')}`}>● Current</span>}</td>

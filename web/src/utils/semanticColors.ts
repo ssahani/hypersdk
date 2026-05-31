@@ -223,3 +223,21 @@ export function notificationChannelTone(type: string): 'info' | 'neutral' {
   if (type === 'email' || type === 'webhook' || type === 'telegram') return 'info'
   return 'neutral'
 }
+
+export function statusBorderClass(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral'): string {
+  const varName = {
+    ok: '--machina-status-ok',
+    warn: '--machina-status-warn',
+    error: '--machina-status-error',
+    info: '--machina-status-info',
+    neutral: '--machina-status-neutral',
+  }[tone]
+  return `border-[color-mix(in_srgb,var(${varName})_30%,transparent)]`
+}
+
+export function toastSemanticTone(type: 'success' | 'error' | 'warning' | 'info'): 'ok' | 'warn' | 'error' | 'info' {
+  if (type === 'success') return 'ok'
+  if (type === 'error') return 'error'
+  if (type === 'warning') return 'warn'
+  return 'info'
+}
