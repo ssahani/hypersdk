@@ -11,6 +11,8 @@ import {
   MacListRow,
 } from '../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../components/ErrorBanner'
+import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
+import { hostErrorPresentation } from '../../utils/hostErrorPresentation'
 import {
   getPlatformHostDetail,
   getHostLinuxObservability,
@@ -37,6 +39,8 @@ import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { openCenterPopout } from '../../utils/platformCenterPopout'
+import { hostClassicTools } from '../../utils/platformClassicTools'
+import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
 
 type HostSection = 'general' | 'network' | 'linux' | 'security' | 'audit'
 
@@ -158,7 +162,11 @@ export default function PlatformHostDetailPage() {
       <Link to="/platform/hosts" className="text-sm text-blue-400 flex items-center gap-1">
         <ArrowLeft className="w-4 h-4" /> Hosts
       </Link>
-      {error && <ErrorBanner message={error} />}
+      {error && (hostErrorPresentation(error) ? (
+        <StructuredErrorBanner error={hostErrorPresentation(error)!} />
+      ) : (
+        <ErrorBanner message={error} />
+      ))}
       {host && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -257,6 +265,17 @@ export default function PlatformHostDetailPage() {
                   <div className="p-3 space-y-2">
                     <textarea className="input min-h-20 text-sm w-full" value={notes} onChange={(e) => setNotes(e.target.value)} />
                     <button type="button" className="btn-secondary text-sm" onClick={() => void patchHost(id, { notes }).then(() => { toast.success('Notes saved'); return load() })}>Save</button>
+                  </div>
+                </MacSettingsGroup>
+                <MacSettingsGroup title="Classic hypervisor tools">
+                  <div className="p-3">
+                    <p className="text-xs text-slate-500 mb-3 leading-relaxed">
+                      Deep libvirt, device passthrough, host SSH, and capability matrix — classic Machina UI on this daemon.
+                    </p>
+                    <PlatformClassicToolLinks tools={hostClassicTools()} />
+                    <Link to="/platform/placement" className="text-xs text-blue-400 inline-block mt-3">
+                      HA status & fence events →
+                    </Link>
                   </div>
                 </MacSettingsGroup>
               </div>
@@ -370,9 +389,17 @@ export default function PlatformHostDetailPage() {
                     <p className="text-sm text-slate-500 mb-3">Firewall summary unavailable.</p>
                   )}
                   <p className="text-sm text-slate-400 mb-3">Zeus Firewall profiles, stealth mode, and port exposure for this hypervisor.</p>
-                  <Link to={`/platform/zeus/security/firewall/${id}`} className="btn-secondary text-sm inline-flex items-center gap-2">
-                    <Shield className="w-4 h-4" /> Open Zeus Firewall
-                  </Link>
+                  <div className="flex flex-wrap gap-2">
+                    <Link to={`/platform/zeus/security/firewall/${id}`} className="btn-secondary text-sm inline-flex items-center gap-2">
+                      <Shield className="w-4 h-4" /> Open Zeus Firewall
+                    </Link>
+                    <Link to="/platform/zeus/security/compliance" className="btn-secondary text-sm inline-flex items-center gap-2">
+                      Compliance & SIEM
+                    </Link>
+                    <Link to="/platform/placement" className="text-sm text-blue-400 self-center">
+                      Fence events →
+                    </Link>
+                  </div>
                 </MacGlassPanel>
                 <OsDiagnosePanel
                   resourceId={id}

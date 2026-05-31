@@ -26,18 +26,18 @@ export default function FleetSettingsPane({ kind, enabled = true }: { kind: Flee
     : null
 
   return (
-    <MacGlassPanel title={TITLES[kind]} subtitle="Aggregate from /api/v1/fleet/*">
+    <MacGlassPanel title={TITLES[kind]} subtitle="Fleet-wide summary">
       {loading && (
         <p className="text-sm text-slate-400 flex items-center gap-2">
-          <Loader2 className="w-4 h-4 animate-spin" /> Loading…
+          <Loader2 className="w-4 h-4 animate-spin" /> Loading fleet summary…
         </p>
       )}
-      {error && <p className="text-sm text-rose-300">{error}</p>}
-      {!loading && !error && summary && <p className="text-sm text-slate-300">{summary}</p>}
-      {!loading && !error && data && (
-        <pre className="mt-3 text-[10px] text-slate-500 overflow-x-auto max-h-32">
-          {JSON.stringify(data, null, 2)}
-        </pre>
+      {error && !loading && (
+        <p className="text-sm text-slate-400">Fleet summary is temporarily unavailable. Page data above may still be current.</p>
+      )}
+      {!loading && !error && summary && <p className="text-sm text-slate-300 leading-relaxed">{summary}</p>}
+      {!loading && !error && !summary && data && (
+        <p className="text-sm text-slate-500">Fleet aggregate loaded.</p>
       )}
     </MacGlassPanel>
   )

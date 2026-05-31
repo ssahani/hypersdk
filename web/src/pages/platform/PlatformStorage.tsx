@@ -1,9 +1,11 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { useSearchParams } from 'react-router'
+import { useSearchParams, Link } from 'react-router'
 import { AlertTriangle, Clock, HardDrive, Layers, Loader2, Plus, RefreshCw, Shield } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
+import { storageErrorPresentation } from '../../utils/storageErrorPresentation'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import {
@@ -85,15 +87,16 @@ export default function PlatformStorage() {
         getStorageBackupSla().catch(() => ({ policies: [], summary: '' })),
       ])
       setTiers(tierOverview.tiers)
-      setSlaPolicies(sla.policies)
+      setSlaPolicies(sla.policies ?? [])
       setHostCount(hosts.filter((h) => h.state === 'online').length)
       if (pools.length === 0 && autoDiscover && hosts.some((h) => h.state === 'online')) {
         setDiscovering(true)
         try {
           const r = await discoverStoragePools()
-          setRows(r.pools)
-          if (r.pools.length > 0) {
-            toast.success(`Imported ${r.pools.length} storage pool(s) from libvirt`)
+          const imported = r.pools ?? []
+          setRows(imported)
+          if (imported.length > 0) {
+            toast.success(`Imported ${imported.length} storage pool(s) from libvirt`)
           }
         } catch (e: unknown) {
           setError(formatUserError(e))
@@ -120,8 +123,9 @@ export default function PlatformStorage() {
     setError(null)
     try {
       const r = await discoverStoragePools()
-      setRows(r.pools)
-      toast.success(r.pools.length ? `Found ${r.pools.length} pool(s)` : 'No libvirt pools on online hosts')
+      const found = r.pools ?? []
+      setRows(found)
+      toast.success(found.length ? `Found ${found.length} pool(s)` : 'No libvirt pools on online hosts')
       await load(false)
     } catch (e: unknown) {
       toast.error(formatUserError(e))
@@ -173,7 +177,7 @@ export default function PlatformStorage() {
   const totalUsed = rows.reduce((s, p) => s + p.used_gib, 0)
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-6 animate-fade-in platform-readable">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Disk Utility</p>
@@ -215,7 +219,18 @@ export default function PlatformStorage() {
         ))}
       </div>
 
-      {error && <ErrorBanner message={error} />}
+      {error && (storageErrorPresentation(error) ? (
+        <StructuredErrorBanner error={storageErrorPresentation(error)!} />
+      ) : (
+        <ErrorBanner message={error} />
+      ))}
+      {error && storageErrorPresentation(error) && (
+        <p className="text-xs text-slate-500">
+          <Link to="/platform/hosts" className="text-blue-400">Hosts</Link>
+          {' · '}
+          <Link to="/node" className="text-blue-400">Classic node tools</Link>
+        </p>
+      )}
 
       {tab === 'disks' && (
         <div className="space-y-4">
@@ -249,7 +264,7 @@ export default function PlatformStorage() {
               <Loader2 className="w-4 h-4 animate-spin" /> Loading fleet storage…
             </div>
           )}
-          {fleetStorage && fleetStorage.pools.length > 0 && (
+          {fleetStorage && (fleetStorage.pools?.length ?? 0) > 0 && (
             <MacGlassPanel title="Pool health" subtitle="Capacity rings across all registered storage pools.">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 -mt-1">
                 {fleetStorage.pools.map((p) => {
@@ -287,11 +302,11 @@ export default function PlatformStorage() {
           )}
           {fleetStorage && (
             <MacGlassPanel title="SMART status" subtitle="Failed disks reported by online hypervisors (linux-obs).">
-              {fleetStorage.smart_disks.length === 0 ? (
+              {(fleetStorage.smart_disks ?? []).length === 0 ? (
                 <p className="text-sm text-slate-400">No SMART failures detected on sampled hosts.</p>
               ) : (
                 <div className="divide-y divide-white/[0.04] -mx-1">
-                  {fleetStorage.smart_disks.map((d) => (
+                  {(fleetStorage.smart_disks ?? []).map((d) => (
                     <MacListRow
                       key={`${d.host_id}-${d.device}`}
                       title={`${d.hostname} · ${d.device}`}

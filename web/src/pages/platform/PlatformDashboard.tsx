@@ -16,6 +16,7 @@ import {
   RefreshCw,
   Shield,
   Sparkles,
+  LayoutGrid,
 } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import ActionCard from '../../components/platform/ActionCard'
@@ -23,7 +24,9 @@ import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
 import PlatformJarvisBriefing from '../../components/platform/PlatformJarvisBriefing'
 import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
-import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
+import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
+import PlatformTahoeEmptyState from '../../components/platform/tahoe/PlatformTahoeEmptyState'
+import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import SimpleCreateVmWizard, { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
 import {
   createPlatformVm,
@@ -134,36 +137,47 @@ export default function PlatformDashboard() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 animate-fade-in">
       <PlatformJarvisBriefing />
       {showPower && <RemediateChips compact />}
 
-      <header className="space-y-4">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Zyvor Platform</p>
-            <p className="text-xs text-slate-500 mt-0.5">Control your KVM datacenter</p>
-            <h1 className="text-3xl font-bold text-slate-50 mt-1">{cluster?.name || 'Production Cluster'}</h1>
-          </div>
-          <button type="button" onClick={() => void load()} className="btn-secondary flex items-center gap-2">
+      <PlatformTahoeHero
+        eyebrow="Zyvor Platform"
+        title={cluster?.name || 'Production Cluster'}
+        subtitle="Control your KVM datacenter — fleet health, VMs, and integrations in one desktop."
+        icon={LayoutGrid}
+        badge={
+          <span className={`tahoe-health-badge ${healthy ? 'tahoe-health-badge-ok' : 'tahoe-health-badge-warn'}`}>
+            {healthy ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertTriangle className="w-3.5 h-3.5" />}
+            {healthy ? 'Healthy' : `${warnings} warning${warnings === 1 ? '' : 's'}`}
+          </span>
+        }
+        actions={
+          <button type="button" onClick={() => void load()} className="tahoe-btn-ghost">
             <RefreshCw className="w-4 h-4" /> Refresh
           </button>
-        </div>
-        <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium ${
-          healthy ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
-        }`}>
-          {healthy ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-          {healthy ? 'Healthy' : `${warnings} warning${warnings === 1 ? '' : 's'} need attention`}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MacStatWidget label="VMs running" value={String(running)} icon={<Terminal className="w-4 h-4" />} href="/platform/vms" tone={running > 0 ? 'ok' : 'default'} />
-          <MacStatWidget label="Hosts online" value={`${onlineHosts} / ${hosts.length}`} icon={<Server className="w-4 h-4" />} href="/platform/hosts" tone={onlineHosts === hosts.length ? 'ok' : 'warn'} />
-          <MacStatWidget label="Memory used" value={storagePct != null ? `${Math.round(storagePct)}%` : '—'} icon={<HardDrive className="w-4 h-4" />} href="/platform/reports" />
-          <MacStatWidget label="Alerts" value={warnings ? String(warnings) : 'None'} icon={<Bell className="w-4 h-4" />} href="/platform/notifications" tone={warnings ? 'warn' : 'ok'} />
-        </div>
-      </header>
+        }
+        stats={[
+          { label: 'VMs running', value: String(running), tone: running > 0 ? 'emerald' : 'sky' },
+          { label: 'Hosts online', value: `${onlineHosts} / ${hosts.length}`, tone: onlineHosts === hosts.length ? 'emerald' : 'amber' },
+          { label: 'Memory used', value: storagePct != null ? `${Math.round(storagePct)}%` : '—', tone: 'violet' },
+          { label: 'Alerts', value: warnings ? String(warnings) : 'None', tone: warnings ? 'amber' : 'emerald' },
+        ]}
+      />
 
-      <nav className="flex flex-wrap gap-2 px-1">
+      <div className="tahoe-content space-y-6">
+      {hosts.length === 0 && (
+        <PlatformTahoeEmptyState
+          icon={Server}
+          title="Get started"
+          description="Enroll your first hypervisor to import storage, networks, and VMs."
+        >
+          <Link to="/platform/enroll" className="tahoe-btn-primary text-sm">Add host</Link>
+          <Link to="/platform/integrations" className="tahoe-btn-ghost text-sm">Apps &amp; Integrations</Link>
+        </PlatformTahoeEmptyState>
+      )}
+
+      <nav className="tahoe-quick-nav">
         {(showAdvanced
           ? [
               { to: '/platform/projects', label: 'Stage Manager' },
@@ -189,11 +203,7 @@ export default function PlatformDashboard() {
                 { to: '/platform/settings', label: 'Settings' },
               ]
         ).map((item) => (
-          <Link
-            key={item.to}
-            to={item.to}
-            className="px-3 py-1.5 rounded-xl border border-white/[0.06] bg-slate-900/50 text-xs text-slate-300 hover:bg-slate-800/60 transition"
-          >
+          <Link key={item.to} to={item.to} className="tahoe-quick-nav-link">
             {item.label}
           </Link>
         ))}
@@ -310,7 +320,9 @@ export default function PlatformDashboard() {
                 <span className={t.status === 'failed' ? 'text-red-400' : 'text-slate-500'}>{t.status} {t.progress}%</span>
               </li>
             ))}
-            {tasks.length === 0 && <li className="text-slate-500 text-sm">No tasks yet</li>}
+            {tasks.length === 0 && (
+              <li className="text-slate-500 text-sm py-2">No tasks yet — lifecycle actions appear here.</li>
+            )}
           </ul>
         </MacGlassPanel>
         <MacGlassPanel title="Hosts" subtitle="Hypervisors in this cluster" action={<Link to="/platform/hosts" className="text-xs text-blue-400">Manage</Link>}>
@@ -326,6 +338,8 @@ export default function PlatformDashboard() {
         </MacGlassPanel>
       </div>
       )}
+
+      </div>
 
       <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} />
       <PlatformWelcome vmCount={vms.length} onCreateVm={() => setWizardOpen(true)} onDone={() => void load()} />

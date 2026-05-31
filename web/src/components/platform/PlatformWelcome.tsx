@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router'
 import { CheckCircle2, Circle, Loader2, Sparkles, X } from 'lucide-react'
 import {
   discoverPlatformNetworks,
@@ -16,7 +17,7 @@ import { formatUserError } from '../../utils/apiError'
 
 const WELCOME_KEY = 'zyvor-platform-welcome-done'
 
-type StepId = 'health' | 'hosts' | 'networks' | 'storage' | 'templates' | 'vm'
+type StepId = 'health' | 'hosts' | 'networks' | 'storage' | 'templates' | 'integrations' | 'vm'
 
 const STEPS: { id: StepId; label: string; hint: string }[] = [
   { id: 'health', label: 'Check cluster health', hint: 'Verify controller and cluster summary' },
@@ -24,6 +25,7 @@ const STEPS: { id: StepId; label: string; hint: string }[] = [
   { id: 'networks', label: 'Import networks', hint: 'Pull libvirt networks from online hosts' },
   { id: 'storage', label: 'Import storage', hint: 'Discover storage pools from libvirt' },
   { id: 'templates', label: 'Seed templates', hint: 'Load the default App Store catalog' },
+  { id: 'integrations', label: 'Explore Apps & Integrations', hint: 'OpenStack, K8s, HyperSDK, and classic tools' },
   { id: 'vm', label: 'Create your first VM', hint: 'Optional — launch the VM wizard when ready' },
 ]
 
@@ -59,6 +61,7 @@ export default function PlatformWelcome({
     networks: false,
     storage: false,
     templates: false,
+    integrations: false,
     vm: false,
   })
 
@@ -110,6 +113,10 @@ export default function PlatformWelcome({
           toast.success(`Catalog: ${r.templates.length} templates`)
           break
         }
+        case 'integrations':
+          setDone((d) => ({ ...d, integrations: true }))
+          window.location.assign('/platform/integrations')
+          break
         case 'vm':
           onCreateVm()
           setDone((d) => ({ ...d, vm: true }))
@@ -167,9 +174,15 @@ export default function PlatformWelcome({
                 <p className="text-xs text-slate-500">{step.hint}</p>
               </div>
               {!done[step.id] && (
+                step.id === 'integrations' ? (
+                  <Link to="/platform/integrations" className="btn-secondary text-xs shrink-0" onClick={() => setDone((d) => ({ ...d, integrations: true }))}>
+                    Open hub
+                  </Link>
+                ) : (
                 <button type="button" className="btn-secondary text-xs shrink-0" disabled={running !== null} onClick={() => void runStep(step.id)}>
                   {step.id === 'vm' ? 'Open wizard' : 'Run'}
                 </button>
+                )
               )}
             </li>
           ))}

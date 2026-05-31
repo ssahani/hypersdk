@@ -325,6 +325,19 @@ export default function Dashboard() {
         <MiniStat icon={<Activity className="w-4 h-4 text-green-400" />} label="libvirt" value={node ? `v${node.lib_version}` : '-'} />
       </div>
 
+      {platformEnabled && (
+        <div className="rounded-xl border border-orange-500/30 bg-orange-950/20 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h2 className="font-semibold text-slate-100">Platform desktop</h2>
+            <p className="text-sm text-slate-400 mt-0.5">Manage your fleet with the macOS-style Machina desktop — Finder, Time Machine, Integrations hub.</p>
+          </div>
+          <div className="flex flex-wrap gap-2 shrink-0">
+            <Link to="/platform" className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-sm">Open Platform</Link>
+            <Link to="/platform/integrations" className="px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-sm">Integrations</Link>
+          </div>
+        </div>
+      )}
+
       {(osPhase === 'off' || osPhase === 'needsWire') && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
@@ -419,7 +432,7 @@ export default function Dashboard() {
       {hsPhase === 'unreachable' && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-950/15 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div className="flex items-start gap-3 min-w-0">
-            <Cloud className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
+            <Boxes className="w-6 h-6 text-amber-400 shrink-0 mt-0.5" />
             <div>
               <h2 className="font-semibold text-slate-100">HyperSDK unreachable</h2>
               <p className="text-sm text-slate-400 mt-0.5">
@@ -429,6 +442,21 @@ export default function Dashboard() {
           </div>
           <Link to="/openstack/migrations" className="shrink-0 px-3 py-1.5 rounded-lg border border-amber-500/40 text-amber-200 hover:bg-amber-500/10 text-sm">
             Migrations
+          </Link>
+        </div>
+      )}
+
+      {Boolean(info?.guestkit?.enabled) && (
+        <div className="rounded-xl border border-orange-500/30 bg-orange-950/15 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Stethoscope className="w-6 h-6 text-orange-400 shrink-0 mt-0.5" />
+            <div>
+              <h2 className="font-semibold text-slate-100">GuestKit</h2>
+              <p className="text-sm text-slate-400 mt-0.5">Offline disk inspect and migrate planning for lift-and-shift assurance.</p>
+            </div>
+          </div>
+          <Link to="/platform/migration?tab=jobs" className="shrink-0 px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-sm">
+            GuestKit jobs
           </Link>
         </div>
       )}

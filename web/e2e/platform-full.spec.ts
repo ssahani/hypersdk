@@ -1,0 +1,84 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { test, expect } from '@playwright/test'
+import { mockPlatformApi } from './platformMock'
+
+const NORMAL_ROUTES: Array<{ path: string; text: RegExp }> = [
+  { path: '/platform', text: /Production Cluster|Dashboard|Zyvor Platform/i },
+  { path: '/platform/vms', text: /Finder/i },
+  { path: '/platform/hosts', text: /Hosts/i },
+  { path: '/platform/integrations', text: /Apps & Integrations/i },
+  { path: '/platform/settings', text: /Settings|General/i },
+  { path: '/platform/backups', text: /Backup|Time Machine/i },
+  { path: '/platform/storage', text: /Storage|Disk/i },
+]
+
+const ADVANCED_ROUTES: Array<{ path: string; text: RegExp }> = [
+  { path: '/platform/policy', text: /Policy & Quotas/i },
+  { path: '/platform/events', text: /Logs|Console|Audit/i },
+  { path: '/platform/zeus/security/policies', text: /Policy Studio/i },
+  { path: '/platform/recommendations', text: /Recommendations/i },
+  { path: '/platform/observability', text: /Observability/i },
+]
+
+test.describe('normal tier platform routes', () => {
+  for (const { path, text } of NORMAL_ROUTES) {
+    test(`${path} loads without JS crash`, async ({ page }) => {
+      const errors: string[] = []
+      page.on('pageerror', (err) => errors.push(err.message))
+      await mockPlatformApi(page, { tier: 'normal' })
+      await page.goto(path)
+      await expect(page.getByText(text).first()).toBeVisible({ timeout: 15_000 })
+      expect(errors).toEqual([])
+    })
+  }
+})
+
+test.describe('advanced tier platform routes', () => {
+  for (const { path, text } of ADVANCED_ROUTES) {
+    test(`${path} loads without JS crash`, async ({ page }) => {
+      const errors: string[] = []
+      page.on('pageerror', (err) => errors.push(err.message))
+      await mockPlatformApi(page, { tier: 'advanced' })
+      await page.goto(path)
+      await expect(page.getByText(text).first()).toBeVisible({ timeout: 15_000 })
+      expect(errors).toEqual([])
+    })
+  }
+})
+
+test('integrations hub lists OpenStack when enabled', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform/integrations')
+  await expect(page.getByRole('heading', { name: 'Apps & Integrations' })).toBeVisible()
+  await expect(page.locator('a[href="/openstack"]').getByText('OpenStack', { exact: true })).toBeVisible()
+  await expect(page.getByText('Kubernetes', { exact: true })).toBeVisible()
+})
+
+test('integrations hub lists classic Machina tools', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform/integrations')
+  await expect(page.getByText('Classic Machina tools')).toBeVisible()
+  await expect(page.locator('a[href="/import"]').getByText('Import VM')).toBeVisible()
+  await expect(page.locator('a[href="/node"]').getByText('Node & libvirt')).toBeVisible()
+  await expect(page.getByText('Leaving the desktop')).toBeVisible()
+})
+
+test('Go menu navigates without tier bounce on allowed route', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await page.getByRole('button', { name: /^Go$/i }).click()
+  await page.getByRole('button', { name: 'Apps & Integrations' }).click()
+  await expect(page).toHaveURL(/\/platform\/integrations/)
+})
+
+test('View menu hides power-only destinations at normal tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await page.getByRole('button', { name: /^View$/i }).click()
+  const viewPanel = page.locator('.mac-menu-panel').filter({ has: page.getByText('Mission Control') })
+  await expect(viewPanel).toBeVisible()
+  await expect(viewPanel.getByRole('button', { name: 'Zeus OS' })).toHaveCount(0)
+  await expect(viewPanel.getByRole('button', { name: 'Activity Monitor' })).toHaveCount(0)
+  await expect(viewPanel.getByRole('button', { name: 'Finder' })).toHaveCount(1)
+})

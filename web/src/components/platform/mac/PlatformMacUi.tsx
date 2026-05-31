@@ -36,9 +36,9 @@ export function MacGlassPanel({
 
 export function MacSectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
   return (
-    <div className="mb-4">
-      <h2 className="text-lg font-semibold text-slate-100 tracking-tight">{title}</h2>
-      {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
+    <div className="mb-4 platform-readable">
+      <h2 className="text-xl font-semibold text-slate-50 tracking-tight leading-snug">{title}</h2>
+      {subtitle && <p className="text-[15px] text-slate-400 mt-1 leading-relaxed">{subtitle}</p>}
     </div>
   )
 }

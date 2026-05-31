@@ -11,6 +11,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { ThemeProvider, useTheme } from './contexts/ThemeContext'
 import { PlatformInfoProvider } from './contexts/PlatformInfoContext'
 import Navbar from './components/Navbar'
+import ShellBridgeBar from './components/ShellBridgeBar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
 import CommandPalette from './components/CommandPalette'
@@ -279,6 +280,7 @@ function AuthenticatedShellRoutes() {
           <RouteRecorder />
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
+            {!isPlatformRoute && <ShellBridgeBar />}
             <MachinaSpotlight onOpenHelp={openHelp} />
             <MachinaCopilot />
             <GlobalShortcuts
@@ -426,7 +428,7 @@ function AuthenticatedShellRoutes() {
               </Routes>
             </Suspense>
           </main>
-          <AppZyvorFooter />
+          {!isPlatformRoute && <AppZyvorFooter />}
         </div>
     </>
   )

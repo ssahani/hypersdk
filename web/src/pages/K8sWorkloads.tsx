@@ -41,6 +41,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
 import Hero from '../components/Hero'
 import EmptyState from '../components/EmptyState'
+import JsonInspector, { asArray, asRecord } from '../components/platform/JsonInspector'
 import { formatUserError } from '../utils/apiError'
 
 export default function K8sWorkloadsPage() {
@@ -65,6 +66,7 @@ export default function K8sWorkloadsPage() {
   const [daemonsets, setDaemonsets] = useState<K8sDeployment[]>([])
   const [jobs, setJobs] = useState<K8sMetadataName[]>([])
   const [eventsText, setEventsText] = useState('')
+  const [eventsItems, setEventsItems] = useState<unknown[]>([])
   const [logPod, setLogPod] = useState('')
   const [logNs, setLogNs] = useState('default')
   const [logContainer, setLogContainer] = useState('')
@@ -436,10 +438,40 @@ export default function K8sWorkloadsPage() {
             <div className="text-sm font-medium text-slate-300">Events</div>
             <button type="button" className="text-xs px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600" onClick={() => {
               void getK8sEvents({ allNamespaces: namespace === 'all', namespace: namespace === 'all' ? undefined : namespace, context: ctxTrim })
-                .then((ev) => setEventsText(JSON.stringify(ev.items ?? [], null, 2)))
-                .catch((e: unknown) => setEventsText(formatUserError(e)))
-            }}>Load events JSON</button>
-            <pre className="text-xs bg-slate-950/80 border border-slate-700 rounded p-2 max-h-48 overflow-auto text-slate-300">{eventsText || '—'}</pre>
+                .then((ev) => {
+                  setEventsItems(ev.items ?? [])
+                  setEventsText('')
+                })
+                .catch((e: unknown) => {
+                  setEventsItems([])
+                  setEventsText(formatUserError(e))
+                })
+            }}>Load events</button>
+            {eventsItems.length > 0 ? (
+              <div className="overflow-x-auto rounded border border-slate-700">
+                <table className="w-full text-xs text-left">
+                  <thead className="text-slate-500 border-b border-slate-700">
+                    <tr><th className="px-2 py-1">Type</th><th className="px-2 py-1">Reason</th><th className="px-2 py-1">Message</th></tr>
+                  </thead>
+                  <tbody>
+                    {asArray(eventsItems).slice(0, 15).map((item, i) => {
+                      const row = asRecord(item) ?? {}
+                      const meta = asRecord(row.metadata) ?? {}
+                      return (
+                        <tr key={i} className="border-b border-slate-800/60">
+                          <td className="px-2 py-1 text-slate-400">{String(row.type ?? '—')}</td>
+                          <td className="px-2 py-1 text-slate-300">{String(row.reason ?? '—')}</td>
+                          <td className="px-2 py-1 text-slate-500">{String(row.message ?? meta.name ?? '—')}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="text-xs text-slate-500">{eventsText || 'Click Load events to fetch cluster events.'}</p>
+            )}
+            {eventsItems.length > 0 && <JsonInspector data={eventsItems} />}
           </div>
           <div className="space-y-2">
             <div className="text-sm font-medium text-slate-300">Pod logs</div>

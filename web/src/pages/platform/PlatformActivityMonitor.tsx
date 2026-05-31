@@ -6,6 +6,7 @@ import { Activity, Server, Terminal } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import { getFleetActivity, type FleetActivityOverview } from '../../api/platform'
+import { formatUserError } from '../../utils/apiError'
 
 type Tab = 'vms' | 'hosts'
 
@@ -35,7 +36,7 @@ export default function PlatformActivityMonitor() {
     try {
       setData(await getFleetActivity())
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Activity load failed')
+      setError(formatUserError(e))
       setData(null)
     }
   }, [])
@@ -50,6 +51,12 @@ export default function PlatformActivityMonitor() {
         title="Activity Monitor"
         subtitle="Fleet-wide CPU, memory, and Linux PSI — macOS Activity Monitor for your hypervisors."
       />
+      <div className="flex flex-wrap gap-3 text-xs">
+        <Link to="/platform/placement" className="text-blue-400">HA status & fence events →</Link>
+        <Link to="/platform/developer" className="text-blue-400">Developer SDK →</Link>
+        <Link to="/platform/reports?tab=runbooks" className="text-blue-400">Ops runbooks →</Link>
+        <Link to="/platform/integrations" className="text-blue-400">Classic tools →</Link>
+      </div>
       {data && <p className="text-sm text-slate-400">{data.summary}</p>}
       {error && <p className="text-sm text-red-400">{error}</p>}
 

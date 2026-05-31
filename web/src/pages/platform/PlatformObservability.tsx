@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Activity, Gauge, Timer } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
+import PageSkeleton from '../../components/PageSkeleton'
 import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
 import {
   getObservabilityOverview,
@@ -34,9 +35,9 @@ function SloRow({ slo }: { slo: SloStatusItem }) {
       <div className="flex items-center gap-2 text-xs text-slate-400 mb-1">
         <span>{pct.toFixed(2)}%</span>
         <span className="text-slate-600">/</span>
-        <span>{slo.objective_pct}% objective</span>
+        <span>{slo.objective_pct ?? 100}% objective</span>
         <span className="text-slate-600">·</span>
-        <span>burn {slo.burn_rate.toFixed(3)}</span>
+        <span>burn {(slo.burn_rate ?? 0).toFixed(3)}</span>
       </div>
       <div className="h-1.5 rounded-full bg-slate-800 overflow-hidden">
         <div
@@ -50,18 +51,22 @@ function SloRow({ slo }: { slo: SloStatusItem }) {
 }
 
 export default function PlatformObservability() {
+  const [loading, setLoading] = useState(true)
   const [overview, setOverview] = useState<ObservabilityOverview | null>(null)
   const [traces, setTraces] = useState<ApiTraceSpan[]>([])
   const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
+    setLoading(true)
     try {
       const [o, t] = await Promise.all([getObservabilityOverview(), listApiTraces(50)])
       setOverview(o)
       setTraces(t)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -70,12 +75,13 @@ export default function PlatformObservability() {
   return (
     <div className="space-y-6 animate-fade-in">
       <MacSectionTitle title="Observability" subtitle="SLO dashboards and API trace inventory." />
+      {loading && !overview && !error && <PageSkeleton />}
       {error && <ErrorBanner message={error} />}
       {overview && (
         <>
           <p className="text-sm text-slate-400">{overview.summary}</p>
           <div className="grid gap-4 sm:grid-cols-3">
-            <MacStatWidget label="SLO policies" value={String(overview.slos.length)} icon={<Gauge className="w-4 h-4" />} />
+            <MacStatWidget label="SLO policies" value={String((overview.slos ?? []).length)} icon={<Gauge className="w-4 h-4" />} />
             <MacStatWidget label="Traces (1h)" value={String(overview.trace_count_1h)} icon={<Activity className="w-4 h-4" />} />
             <MacStatWidget label="p95 latency" value={`${overview.p95_latency_ms} ms`} icon={<Timer className="w-4 h-4" />} />
           </div>
@@ -83,7 +89,7 @@ export default function PlatformObservability() {
             <button type="button" className="text-xs text-blue-400" onClick={() => void load()}>Refresh</button>
           }>
             <ul className="space-y-3">
-              {overview.slos.map((slo) => (
+              {(overview.slos ?? []).map((slo) => (
                 <SloRow key={slo.name} slo={slo} />
               ))}
             </ul>

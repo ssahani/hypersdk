@@ -105,7 +105,7 @@ function PlatformDesktopShell() {
         <PopoutTitleBar title={platformPageLabel(location.pathname)} />
         <div className="tahoe-canvas flex-1 min-h-0 overflow-auto relative">
           <div className="tahoe-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-[1] p-3 lg:p-4">
+          <div className="relative z-[1] p-3 lg:p-4 platform-readable tahoe-readable-stack py-4">
             <Outlet />
           </div>
         </div>
@@ -139,7 +139,7 @@ function PlatformDesktopShell() {
           <div className="tahoe-mesh pointer-events-none" aria-hidden />
           <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-3 lg:px-6 xl:px-8 pt-2 pb-24 lg:pb-28 max-w-[160rem] mx-auto w-full">
             <PlatformMenuBar />
-            <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="flex-1 min-h-0 overflow-y-auto platform-readable tahoe-readable-stack py-4 pb-8">
               <Outlet />
             </div>
           </div>

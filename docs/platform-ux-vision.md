@@ -95,3 +95,10 @@ Implemented in [`web/src/layouts/PlatformLayout.tsx`](../web/src/layouts/Platfor
 - *Manage your entire virtual datacenter like a modern operating system — not like a pile of scripts.*
 
 See also [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadmap.md) for Phases 38–237 (macOS OS Manager horizon).
+
+## UX polish waves (2026-05)
+
+| Wave | Theme | Status |
+|------|--------|--------|
+| W1 | Global `platform-readable`, ShellBridgeBar, empty/loading sweep, Welcome + tier hints | Shipped |
+| W2 | JsonInspector human views, block job / migration job cards, error remediation hints | Shipped |

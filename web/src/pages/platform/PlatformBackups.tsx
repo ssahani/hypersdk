@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import { Archive, Clock, RotateCcw, ShieldCheck } from 'lucide-react'
-import { MacGlassPanel, MacSectionTitle, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
-import ErrorBanner from '../../components/ErrorBanner'
+import { Archive, Clock, RotateCcw } from 'lucide-react'
+import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
+import PlatformStandardView from '../../components/platform/tahoe/PlatformStandardView'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import {
   getFleetBackups,
   listBackupTimeline,
@@ -31,6 +32,7 @@ export default function PlatformBackups() {
   const [timeline, setTimeline] = useState<BackupTimelineEntry[]>([])
   const [fleet, setFleet] = useState<FleetBackupOverview | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
   const [restoring, setRestoring] = useState<string | null>(null)
 
   const load = useCallback(async () => {
@@ -41,6 +43,8 @@ export default function PlatformBackups() {
       setFleet(f)
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [])
 
@@ -70,30 +74,44 @@ export default function PlatformBackups() {
   }
 
   return (
-    <div className="space-y-6 max-w-3xl animate-fade-in">
-      <MacSectionTitle title="Time Machine" subtitle="Fleet backup timeline — macOS-style restore points for every VM." />
-      {error && <ErrorBanner message={error} />}
-      {fleet && (
-        <>
-          <p className="text-sm text-slate-400">{fleet.summary}</p>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <MacStatWidget label="Today" value={String(fleet.backups_completed_24h)} icon={<Archive className="w-4 h-4" />} tone="ok" />
-            <MacStatWidget label="Failed 24h" value={String(fleet.backups_failed_24h)} icon={<Clock className="w-4 h-4" />} tone={fleet.backups_failed_24h ? 'warn' : 'default'} />
-            <MacStatWidget label="Snapshots" value={String(fleet.snapshots_total)} icon={<ShieldCheck className="w-4 h-4" />} />
-            <MacStatWidget label="Protected 7d" value={String(fleet.vms_with_backup_7d)} icon={<ShieldCheck className="w-4 h-4" />} tone="ok" href="/platform/vms" />
-          </div>
-        </>
-      )}
+    <PlatformStandardView
+      className="space-y-6 max-w-3xl"
+      title="Time Machine"
+      description="Fleet backup timeline — macOS-style restore points for every VM."
+      icon={Archive}
+      loading={loading}
+      error={error}
+      stats={
+        fleet
+          ? [
+              { label: 'Today', value: String(fleet.backups_completed_24h), tone: 'emerald' },
+              { label: 'Failed 24h', value: String(fleet.backups_failed_24h), tone: fleet.backups_failed_24h ? 'amber' : 'sky' },
+              { label: 'Snapshots', value: String(fleet.snapshots_total), tone: 'violet' },
+              { label: 'Protected 7d', value: String(fleet.vms_with_backup_7d), tone: 'emerald' },
+            ]
+          : undefined
+      }
+    >
+      <p className="text-sm text-slate-500">
+        Need per-VM legacy jobs? <Link to="/backups" className="text-blue-400">Open classic backups UI →</Link>
+      </p>
+      {fleet?.summary ? <p className="text-sm text-slate-400">{fleet.summary}</p> : null}
       <div className="space-y-6">
         {grouped.length === 0 && !error && (
-          <p className="text-sm text-slate-500">No backup or snapshot events yet. Create backups from VM detail pages.</p>
+          <PlatformEmptyState
+            icon={Archive}
+            title="No backup events yet"
+            subtitle="Create backups from VM detail pages or run fleet backup jobs."
+          >
+            <Link to="/platform/vms" className="tahoe-btn-ghost text-sm">Browse VMs</Link>
+          </PlatformEmptyState>
         )}
         {grouped.map(([day, entries]) => (
           <section key={day}>
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-3">{day}</h2>
             <div className="relative pl-4 border-l border-slate-700/60 space-y-3">
               {entries.map((e) => (
-                <article key={`${e.kind}-${e.id}`} className="relative platform-mac-stat rounded-2xl border border-white/[0.06] bg-slate-900/50 p-4 flex gap-4">
+                <article key={`${e.kind}-${e.id}`} className="relative tahoe-glass-card p-4 flex gap-4">
                   <span className="absolute -left-[1.35rem] top-5 w-2.5 h-2.5 rounded-full bg-slate-600 border-2 border-slate-900" />
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${e.status === 'completed' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
                     <Archive className="w-5 h-5" />
@@ -110,7 +128,7 @@ export default function PlatformBackups() {
                     {e.kind === 'backup' && e.status === 'completed' && (
                       <button
                         type="button"
-                        className="btn-primary text-xs flex items-center gap-1"
+                        className="tahoe-btn-primary text-xs flex items-center gap-1"
                         disabled={restoring === e.id}
                         onClick={() => void restore(e)}
                       >
@@ -118,7 +136,7 @@ export default function PlatformBackups() {
                       </button>
                     )}
                     {e.kind === 'snapshot' && (
-                      <Link to={`/platform/vms/${e.vm_id}`} className="btn-secondary text-xs text-center">Snapshots</Link>
+                      <Link to={`/platform/vms/${e.vm_id}`} className="tahoe-btn-ghost text-xs text-center">Snapshots</Link>
                     )}
                   </div>
                 </article>
@@ -130,6 +148,6 @@ export default function PlatformBackups() {
       <MacGlassPanel title="Per-VM backups" subtitle="Full backup history and restore live on each VM detail page.">
         <Link to="/platform/vms" className="text-sm text-blue-400 hover:underline">Browse VMs →</Link>
       </MacGlassPanel>
-    </div>
+    </PlatformStandardView>
   )
 }

@@ -14,6 +14,7 @@ import {
   MacToggle,
 } from '../../../components/platform/mac/PlatformMacUi'
 import ErrorBanner from '../../../components/ErrorBanner'
+import { formatAllowedFrom } from '../../../utils/firewallDisplay'
 import {
   applyFirewall,
   applyFirewallProfile,
@@ -252,7 +253,7 @@ export default function PlatformFirewallTargetDetail() {
                       <MacListRow
                         key={`${s.name}-${s.port}`}
                         title={s.name}
-                        subtitle={`${s.protocol}/${s.port} · Allowed from ${s.allowed_from}`}
+                        subtitle={`${s.protocol}/${s.port} · Allowed from ${formatAllowedFrom(s.allowed_from)}`}
                         badge={
                           <span className="text-xs px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
                             {String(s.status)}
@@ -263,7 +264,7 @@ export default function PlatformFirewallTargetDetail() {
                       <MacListRow
                         key={`${p.port}-${p.protocol}`}
                         title={`${p.service_name} (${p.port}/${p.protocol})`}
-                        subtitle={`Bind ${p.bind_address} · ${p.allowed_from.join(', ') || 'any'}`}
+                        subtitle={`Bind ${p.bind_address} · ${formatAllowedFrom(p.allowed_from)}`}
                         badge={
                           <span className={`text-xs px-2 py-0.5 rounded-full ${
                             String(p.risk).toLowerCase() === 'critical' ? 'bg-red-500/20 text-red-300' : 'bg-slate-800 text-slate-400'

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./platform-tahoe.css";
 
 @theme inline {
   --radius-liquid: 22px;
@@ -549,6 +550,31 @@ code {
   flex-direction: column;
   min-height: 0;
   flex: 1;
+}
+
+.platform-mac-desktop,
+.platform-readable {
+  font-feature-settings: 'kern' 1, 'liga' 1;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.platform-mac-desktop .text-xs,
+.platform-readable .text-xs {
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+}
+
+.platform-mac-desktop .text-sm,
+.platform-readable .text-sm {
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.platform-mac-desktop .mac-menu-panel button,
+.platform-mac-desktop .mac-dock-tooltip {
+  font-size: 0.8125rem;
 }
 
 .mac-menu-item {

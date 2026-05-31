@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Link, useSearchParams } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { ArrowRightLeft, CheckCircle2, AlertTriangle, XCircle, ExternalLink, Play, Loader2 } from 'lucide-react'
 import { MacSectionTitle, MacGlassPanel, MacListRow } from '../../components/platform/mac/PlatformMacUi'
 import { getHypersdkStatus, listHypersdkProviders, listHypersdkProviderVms, submitHypersdkMigration } from '../../api/hypersdk'
@@ -10,6 +10,7 @@ import { getMigrationAdvisor, type MigrationAdvisorReport } from '../../api/ai'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import PageSkeleton from '../../components/PageSkeleton'
 
 const SOURCES = [
   { id: 'vcenter', label: 'VMware vCenter', desc: 'Scan via HyperSDK when enabled' },
@@ -24,11 +25,13 @@ type ScanVm = { name: string; status: string; os: string; note: string; provider
 
 export default function PlatformMigration() {
   const { info } = usePlatformInfo()
+  const navigate = useNavigate()
   const toast = useToastContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = searchParams.get('tab') === 'jobs' ? 'jobs' : 'radar'
   const hypersdk = Boolean(info?.hypersdk?.enabled)
   const guestkit = Boolean(info?.guestkit?.enabled)
+  const openstack = Boolean(info?.openstack?.enabled)
   const [gkStatus, setGkStatus] = useState<Awaited<ReturnType<typeof getGuestkitStatus>> | null>(null)
   const [diskPath, setDiskPath] = useState('')
   const [gkSummary, setGkSummary] = useState<string | null>(null)
@@ -190,6 +193,28 @@ export default function PlatformMigration() {
 
       {tab === 'radar' && (
       <>
+      {loading && scan.length === 0 && <PageSkeleton />}
+      <div className="grid gap-3 sm:grid-cols-3">
+        {openstack && (
+          <Link to="/openstack/migrations" className="rounded-xl border border-sky-500/30 bg-sky-500/10 p-4 text-sm hover:border-sky-400/50 transition">
+            <p className="font-semibold text-sky-100 flex items-center gap-2">OpenStack migrations <ExternalLink className="w-3.5 h-3.5" /></p>
+            <p className="text-xs text-sky-200/70 mt-1">Glance import, instance export, and cross-cloud lift-and-shift.</p>
+          </Link>
+        )}
+        {hypersdk && (
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+            <p className="font-semibold text-emerald-100">HyperSDK</p>
+            <p className="text-xs text-emerald-200/70 mt-1">{status?.reachable ? 'Connected — scan VMware below.' : 'Enable connectivity in Integrations.'}</p>
+          </div>
+        )}
+        {guestkit && (
+          <Link to="/platform/migration?tab=jobs" className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm hover:border-orange-400/50 transition">
+            <p className="font-semibold text-orange-100">GuestKit jobs</p>
+            <p className="text-xs text-orange-200/70 mt-1">Offline disk inspect and migrate planning.</p>
+          </Link>
+        )}
+      </div>
+
       {guestkit && gkStatus && (
         <div className="rounded-xl border border-orange-500/30 bg-orange-500/10 p-4 text-sm text-orange-100 space-y-2">
           <p>GuestKit {gkStatus.library_version ?? 'linked'} — {gkStatus.summary}</p>
@@ -232,7 +257,11 @@ export default function PlatformMigration() {
               key={s.id}
               type="button"
               disabled={loading || (s.id === 'vcenter' && !hypersdk)}
-              onClick={() => s.id === 'vcenter' && void scanSource('vmware')}
+              onClick={() => {
+                if (s.id === 'vcenter') void scanSource('vmware')
+                else if (s.id === 'openstack') navigate('/openstack/migrations')
+                else if (s.id === 'ova' || s.id === 'vmdk' || s.id === 'cloud') navigate('/import')
+              }}
               className="text-left p-4 rounded-2xl border border-white/[0.06] bg-slate-900/50 hover:border-white/10 transition disabled:opacity-50"
             >
               <p className="font-semibold text-slate-100">{s.label}</p>
@@ -284,7 +313,8 @@ export default function PlatformMigration() {
         )}
         <p className="text-xs text-slate-600 flex flex-wrap gap-3">
           <Link to="/import" className="text-blue-400 inline-flex items-center gap-1">Single-VM import <ExternalLink className="w-3 h-3" /></Link>
-          {hypersdk && <Link to="/openstack/migrations" className="text-blue-400">OpenStack migrations →</Link>}
+          {openstack && <Link to="/openstack/migrations" className="text-blue-400 inline-flex items-center gap-1">OpenStack migrations <ExternalLink className="w-3 h-3" /></Link>}
+          <Link to="/platform/integrations" className="text-blue-400">All migration tools →</Link>
           <Link to="/platform/tasks" className="text-blue-400">View migration tasks →</Link>
         </p>
       </section>

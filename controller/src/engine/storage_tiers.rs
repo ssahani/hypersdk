@@ -90,7 +90,7 @@ pub async fn tiers_overview(pool: &PgPool) -> anyhow::Result<TiersOverview> {
     let mut tiers = Vec::new();
     for row in rows {
         let stats: (i64, i64, i64) = match sqlx::query_as(
-            "SELECT COUNT(*), COALESCE(SUM(capacity_gib), 0), COALESCE(SUM(used_gib), 0)
+            "SELECT COUNT(*)::bigint, COALESCE(SUM(capacity_gib), 0)::bigint, COALESCE(SUM(used_gib), 0)::bigint
              FROM storage_pools WHERE tier_id = $1",
         )
         .bind(row.id)

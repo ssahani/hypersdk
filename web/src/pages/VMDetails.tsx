@@ -2072,7 +2072,20 @@ export default function VMDetailsPage() {
               <button type="button" onClick={() => handleBlockAbort(true, true)} className="px-3 py-2 bg-orange-700 hover:bg-orange-600 rounded-lg text-sm transition">Abort (async + pivot)</button>
             </div>
             {blockJob !== undefined && (
-              <pre className="text-xs font-mono bg-slate-900/80 p-3 rounded border border-slate-700 overflow-x-auto">{blockJob === null ? 'No active block job on this disk.' : JSON.stringify(blockJob, null, 2)}</pre>
+              blockJob === null ? (
+                <p className="text-sm text-slate-400">No active block job on this disk.</p>
+              ) : (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-4 space-y-3">
+                  <div className="flex flex-wrap gap-3 text-sm">
+                    <span className="text-slate-300">Operation type: <strong className="text-slate-100">{blockJob.job_type}</strong></span>
+                    <span className="text-slate-300">Progress: <strong className="text-emerald-300">{blockJob.end > 0 ? Math.round((blockJob.cur / blockJob.end) * 100) : 0}%</strong></span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-800 overflow-hidden">
+                    <div className="h-full bg-blue-500 rounded-full transition-all" style={{ width: `${blockJob.end > 0 ? Math.min(100, (blockJob.cur / blockJob.end) * 100) : 0}%` }} />
+                  </div>
+                  <p className="text-xs text-slate-500">{blockJob.cur.toLocaleString()} / {blockJob.end.toLocaleString()} bytes · bandwidth {blockJob.bandwidth}</p>
+                </div>
+              )
             )}
           </div>
 

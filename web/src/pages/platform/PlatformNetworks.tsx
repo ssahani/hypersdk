@@ -5,6 +5,7 @@ import { Link, useSearchParams } from 'react-router'
 import { Cable, Layers, Link2, Loader2, Network, Plus, RefreshCw, Router, Shield, Wifi } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
+import { PlatformOpenStackNetworkLink } from '../../components/platform/PlatformCrossLinks'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import {
   MacGlassPanel,
@@ -54,6 +55,7 @@ export default function PlatformNetworks() {
   const rawTab = searchParams.get('tab')
   const tab: TabId = TAB_IDS.includes(rawTab as TabId) ? (rawTab as TabId) : 'networks'
 
+  const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<PlatformNetwork[]>([])
   const [segments, setSegments] = useState<NetworkSegmentOverview[]>([])
   const [ipamPools, setIpamPools] = useState<IpamPoolRow[]>([])
@@ -90,6 +92,7 @@ export default function PlatformNetworks() {
 
   const load = useCallback(async (autoDiscover = false) => {
     setError(null)
+    setLoading(true)
     try {
       const [nets, hosts, overview, pools] = await Promise.all([
         listPlatformNetworks(),
@@ -118,6 +121,8 @@ export default function PlatformNetworks() {
       }
     } catch (e: unknown) {
       setError(formatUserError(e))
+    } finally {
+      setLoading(false)
     }
   }, [toast])
 
@@ -286,6 +291,11 @@ export default function PlatformNetworks() {
       </div>
 
       {error && <ErrorBanner message={error} />}
+      {loading && rows.length === 0 && !discovering && !error && (
+        <div className="flex items-center justify-center gap-2 text-sm text-slate-400 py-12">
+          <Loader2 className="w-5 h-5 animate-spin" /> Loading networks…
+        </div>
+      )}
 
       {tab === 'networks' && (
         <>
@@ -331,6 +341,7 @@ export default function PlatformNetworks() {
                     <div className="min-w-0 flex-1">
                       <h3 className="font-semibold text-slate-100 truncate">{n.name}</h3>
                       <p className="text-xs text-slate-500 mt-0.5 capitalize">{n.backend.replace('-', ' ')}</p>
+                      <PlatformOpenStackNetworkLink networkName={n.name} />
                     </div>
                   </div>
                   <dl className="grid grid-cols-2 gap-2 text-xs">

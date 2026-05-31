@@ -153,6 +153,8 @@ pub fn enrich_port_exposure(ports: &mut [OpenPort], rules: &[FirewallRule]) {
             .filter(|r| r.action == "allow" && rule_matches_port(r, port.port, &port.protocol))
             .flat_map(|r| r.sources.clone())
             .collect();
+        port.allowed_from.sort();
+        port.allowed_from.dedup();
         port.risk = classify_port_risk(port.port, public_bind, allowed_any);
         if port.risk == ExposureRisk::Critical {
             port.evidence.push(format!(
@@ -190,12 +192,25 @@ pub fn ports_to_services(ports: &[OpenPort]) -> Vec<super::types::AllowedService
         .map(|p| {
             let allowed_from = if p.allowed_from.is_empty() {
                 if p.bind_address == "0.0.0.0" || p.bind_address == "*" {
-                    "internet".into()
+                    "Anywhere".into()
                 } else {
-                    "internal".into()
+                    "Internal".into()
                 }
             } else {
-                p.allowed_from.join(", ")
+                let mut uniq: Vec<String> = Vec::new();
+                for s in &p.allowed_from {
+                    if !uniq.iter().any(|u| u.eq_ignore_ascii_case(s)) {
+                        uniq.push(s.clone());
+                    }
+                }
+                let any_only = uniq.iter().all(|s| {
+                    matches!(s.as_str(), "any" | "0.0.0.0/0" | "Anywhere" | "*")
+                });
+                if any_only {
+                    "Anywhere".into()
+                } else {
+                    uniq.join(", ")
+                }
             };
             super::types::AllowedService {
                 name: p.service_name.clone(),

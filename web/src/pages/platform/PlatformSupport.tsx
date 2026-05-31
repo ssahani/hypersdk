@@ -7,6 +7,8 @@ import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
 import { getSupportBundle } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import JsonInspector from '../../components/platform/JsonInspector'
+import { SupportBundleSummary } from '../../components/platform/FirewallComplianceViews'
 
 const TIPS = [
   { q: 'VM won\'t start', a: 'Run a health check on the VM detail page. Check Tasks for failed vm.start operations.' },
@@ -55,7 +57,13 @@ export default function PlatformSupport() {
           Download bundle
         </button>
       </div>
-      {bundle && <pre className="card p-4 text-xs overflow-auto max-h-48 text-slate-500">{JSON.stringify(bundle, null, 2).slice(0, 800)}…</pre>}
+      {bundle && (
+        <div className="card p-4 space-y-3">
+          <p className="text-sm font-medium text-slate-200">Latest bundle summary</p>
+          <SupportBundleSummary bundle={bundle} />
+          <JsonInspector data={bundle} />
+        </div>
+      )}
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-slate-400">Common fixes</h2>
         {TIPS.map((t) => (

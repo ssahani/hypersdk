@@ -13,6 +13,7 @@ import { openPlatformDockEditor } from '../../../utils/platformDockPins'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import {
   PLATFORM_DESKTOP_TIER_LABELS,
+  isPathAllowedForTier,
   type PlatformDesktopTier,
 } from '../../../utils/platformDesktopTier'
 import { dispatchOpenMissionControl } from './MissionControlContext'
@@ -47,6 +48,30 @@ export default function PlatformMacAppMenus() {
     setTier(next)
     closeMenu()
   }
+
+  const viewNavItems = useMemo(() => [
+    { label: 'Stage Manager', path: '/platform/projects' },
+    { label: 'Activity Monitor', path: '/platform/activity' },
+    { label: 'Finder', path: '/platform/vms' },
+    { label: 'Disk Utility', path: '/platform/storage' },
+    { label: 'Console', path: '/platform/events' },
+    { label: 'Software Update', path: '/platform/maintenance' },
+    { label: 'Zeus OS', path: '/platform/zeus' },
+    { label: 'Zeus Firewall', path: '/platform/zeus/security/firewall' },
+  ].filter((item) => isPathAllowedForTier(item.path, tier)), [tier])
+
+  const windowNavItems = useMemo(() => [
+    { label: 'Dashboard', path: '/platform' },
+    { label: 'Hosts', path: '/platform/hosts' },
+    { label: 'Virtual Machines', path: '/platform/vms' },
+    { label: 'Notifications', path: '/platform/notifications' },
+    { label: 'Tasks', path: '/platform/tasks' },
+  ].filter((item) => isPathAllowedForTier(item.path, tier)), [tier])
+
+  const helpNavItems = useMemo(() => [
+    { label: 'Platform Support', path: '/platform/support' },
+    { label: 'Developer / SDK', path: '/platform/developer' },
+  ].filter((item) => isPathAllowedForTier(item.path, tier)), [tier])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -115,14 +140,9 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label={PLATFORM_DESKTOP_TIER_LABELS.advanced} checked={tier === 'advanced'} onClick={() => pickTier('advanced')} />
         <div className="my-1 border-t border-white/[0.08]" />
         <PlatformMacMenuItem label="Mission Control" shortcut="F3" onClick={() => { dispatchOpenMissionControl(); closeMenu() }} />
-        <PlatformMacMenuItem label="Stage Manager" onClick={() => go('/platform/projects')} />
-        <PlatformMacMenuItem label="Activity Monitor" onClick={() => go('/platform/activity')} />
-        <PlatformMacMenuItem label="Finder" onClick={() => go('/platform/vms')} />
-        <PlatformMacMenuItem label="Disk Utility" onClick={() => go('/platform/storage')} />
-        <PlatformMacMenuItem label="Console" onClick={() => go('/platform/events')} />
-        <PlatformMacMenuItem label="Software Update" onClick={() => go('/platform/maintenance')} />
-        <PlatformMacMenuItem label="Zeus OS" onClick={() => go('/platform/zeus')} />
-        <PlatformMacMenuItem label="Zeus Firewall" onClick={() => go('/platform/zeus/security/firewall')} />
+        {viewNavItems.filter((i) => i.path).map((item) => (
+          <PlatformMacMenuItem key={item.path} label={item.label} onClick={() => go(item.path!)} />
+        ))}
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Window" open={openMenu === 'window'} onToggle={() => toggleMenu('window')} onClose={closeMenu}>
@@ -130,19 +150,18 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label="Dashboard" onClick={() => go('/platform')} />
-        <PlatformMacMenuItem label="Hosts" onClick={() => go('/platform/hosts')} />
-        <PlatformMacMenuItem label="Virtual Machines" onClick={() => go('/platform/vms')} />
-        <PlatformMacMenuItem label="Notifications" onClick={() => go('/platform/notifications')} />
-        <PlatformMacMenuItem label="Tasks" onClick={() => go('/platform/tasks')} />
+        {windowNavItems.map((item) => (
+          <PlatformMacMenuItem key={item.path} label={item.label} onClick={() => go(item.path)} />
+        ))}
       </PlatformMacMenuDropdown>
 
       <PlatformMacMenuDropdown label="Help" open={openMenu === 'help'} onToggle={() => toggleMenu('help')} onClose={closeMenu}>
         <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Spotlight Search" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label="Platform Support" onClick={() => go('/platform/support')} />
-        <PlatformMacMenuItem label="Developer / SDK" onClick={() => go('/platform/developer')} />
+        {helpNavItems.map((item) => (
+          <PlatformMacMenuItem key={item.path} label={item.label} onClick={() => go(item.path)} />
+        ))}
         <PlatformMacMenuItem label="OpenAPI Reference" onClick={() => { window.open('/api/v1/openapi.json', '_blank'); closeMenu() }} />
       </PlatformMacMenuDropdown>
 

@@ -34,7 +34,7 @@ pub async fn plan(pool: &PgPool) -> anyhow::Result<CapacityPlan> {
     let memory_headroom_mib = mem.0.saturating_sub(mem.1);
 
     let (storage_used, storage_cap): (i64, i64) = sqlx::query_as(
-        "SELECT COALESCE(SUM(used_gib), 0), COALESCE(SUM(capacity_gib), 0) FROM storage_pools",
+        "SELECT COALESCE(SUM(used_gib), 0)::bigint, COALESCE(SUM(capacity_gib), 0)::bigint FROM storage_pools",
     )
     .fetch_one(pool)
     .await

@@ -59,7 +59,7 @@ const LABEL_BY_PATH: Record<string, string> = {
   '/platform/vms': 'VMs',
   '/platform/storage': 'Storage',
   '/platform/networks': 'Network',
-  '/platform/zeus': 'GPU',
+  '/platform/zeus': 'Zeus',
   '/platform/events': 'Terminal',
   '/platform/activity': 'Activity',
   '/platform/reports': 'Reports',

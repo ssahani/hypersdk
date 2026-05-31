@@ -19,6 +19,8 @@ import { listOpenStackClouds, selectOpenStackCloud } from '../api/openstackExtra
 import OpenStackQuotasPanel from '../components/OpenStackQuotasPanel'
 import { getIntegrationsStatus, type IntegrationsStatus } from '../api/integrations'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import { useHypersdkConnection } from '../hooks/useHypersdkConnection'
+import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { isOpenStackConfigured } from '../utils/routes'
 import CopyButton from '../components/CopyButton'
 import { WIRE_SCRIPT, VERIFY_COMMANDS, openStackErrorHints } from '../utils/openstackHints'
@@ -44,6 +46,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const toast = useToastContext()
   const { info } = usePlatformInfo()
+  const { phase: osPhase } = useOpenStackConnection()
+  const { phase: hsPhase } = useHypersdkConnection()
 
   // Data
   const [roles, setRoles] = useState<UserRole[]>([])
@@ -315,8 +319,31 @@ export default function SettingsPage() {
             Integrations
           </h2>
           <p className="text-xs text-slate-500">
-            Summary from <code className="text-slate-400">GET /api/v1/integrations/status</code>.
+            Capability phases mirror the Platform Integrations hub — wire each backend before using operator UIs.
           </p>
+          <div className="flex flex-wrap gap-2 text-xs">
+            {info?.openstack?.enabled && (
+              <span className={`px-2 py-1 rounded border ${osPhase === 'live' ? 'border-emerald-500/40 text-emerald-300' : 'border-amber-500/40 text-amber-300'}`}>
+                OpenStack · {osPhase}
+              </span>
+            )}
+            {info?.kubevirt?.exec_enabled && (
+              <span className="px-2 py-1 rounded border border-violet-500/40 text-violet-300">Kubernetes · exec enabled</span>
+            )}
+            {info?.hypersdk?.enabled && (
+              <span className={`px-2 py-1 rounded border ${hsPhase === 'live' ? 'border-emerald-500/40 text-emerald-300' : 'border-amber-500/40 text-amber-300'}`}>
+                HyperSDK · {hsPhase}
+              </span>
+            )}
+            {info?.guestkit?.enabled && (
+              <span className="px-2 py-1 rounded border border-orange-500/40 text-orange-300">GuestKit · enabled</span>
+            )}
+            {info?.control_plane?.proxy_url && (
+              <Link to="/platform/integrations" className="px-2 py-1 rounded border border-sky-500/40 text-sky-300 hover:bg-sky-500/10">
+                Platform Integrations →
+              </Link>
+            )}
+          </div>
           <dl className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
             <div>
               <dt className="text-slate-500 text-xs">Automation worker</dt>

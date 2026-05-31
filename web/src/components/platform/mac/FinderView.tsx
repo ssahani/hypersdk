@@ -88,7 +88,7 @@ export default function FinderView({
 
   return (
     <div className="mac-finder flex flex-col min-h-[min(70vh,720px)] -mx-1">
-      <div className="mac-finder-toolbar flex flex-wrap items-center gap-2 px-1 sm:px-2 py-2 border-b border-white/[0.06] rounded-t-xl">
+      <div className="mac-finder-toolbar tahoe-toolbar flex flex-wrap items-center gap-2 px-1 sm:px-2 py-2 mx-1 sm:mx-2 mt-2">
         <div className="flex items-center gap-1">
           <button type="button" className="mac-finder-nav-btn" onClick={handleBack} title="Back">
             <ChevronLeft className="h-4 w-4" />

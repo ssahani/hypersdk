@@ -115,7 +115,12 @@ export function savePlatformDesktopTier(tier: PlatformDesktopTier) {
 export function isPathAllowedForTier(path: string, tier: PlatformDesktopTier): boolean {
   if (tier === 'advanced') return true
   const allowed = pathsForTier(tier)!
-  return allowed.some((p) => path === p || path.startsWith(`${p}/`))
+  return allowed.some((p) => {
+    if (path === p) return true
+    // Dashboard root only — must not unlock every /platform/* child route.
+    if (p === '/platform') return false
+    return path.startsWith(`${p}/`)
+  })
 }
 
 export function tierAtLeast(current: PlatformDesktopTier, min: PlatformDesktopTier): boolean {

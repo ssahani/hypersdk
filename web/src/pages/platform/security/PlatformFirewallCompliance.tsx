@@ -7,6 +7,7 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import {
   getFirewallCompliance,
   exportFirewallSiem,
+  getPacketwolfAnomalies,
   listFirewallApprovals,
   approveFirewallChange,
   rejectFirewallChange,
@@ -16,6 +17,8 @@ import {
   type FirewallApproval,
   type FirewallApprovalApplyResult,
 } from '../../../api/zeusFirewall'
+import JsonInspector, { asRecord } from '../../../components/platform/JsonInspector'
+import { ComplianceReportSummary, PacketwolfAnomalySummary } from '../../../components/platform/FirewallComplianceViews'
 import { formatUserError } from '../../../utils/apiError'
 import { useToastContext } from '../../../contexts/ToastContext'
 
@@ -35,6 +38,8 @@ export default function PlatformFirewallCompliance() {
   const [error, setError] = useState<string | null>(null)
   const [approvals, setApprovals] = useState<FirewallApproval[]>([])
   const [approvalsLoading, setApprovalsLoading] = useState(false)
+  const [packetwolf, setPacketwolf] = useState<Record<string, unknown> | null>(null)
+  const [packetwolfLoading, setPacketwolfLoading] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -58,13 +63,28 @@ export default function PlatformFirewallCompliance() {
     }
   }, [])
 
+  const loadPacketwolf = useCallback(async () => {
+    setPacketwolfLoading(true)
+    try {
+      setPacketwolf(await getPacketwolfAnomalies())
+    } catch (e: unknown) {
+      setError(formatUserError(e))
+    } finally {
+      setPacketwolfLoading(false)
+    }
+  }, [])
+
   useEffect(() => { void load() }, [load])
   useEffect(() => { void loadApprovals() }, [loadApprovals])
+  useEffect(() => { void loadPacketwolf() }, [loadPacketwolf])
 
   return (
     <div className="space-y-6">
-      <MacSectionTitle title="Firewall Compliance" subtitle="Production exposure, approvals, and GitOps policy sync" />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <MacSectionTitle title="Firewall Compliance" subtitle="Production exposure, approvals, Packetwolf anomalies, and GitOps policy sync" />
+      <div className="flex flex-wrap gap-3 text-sm">
+        <Link to="/platform/zeus/security/firewall" className="text-blue-400">← Firewall overview</Link>
+        <Link to="/platform/placement" className="text-blue-400">HA & fence events →</Link>
+      </div>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Pending approvals" action={
         <button type="button" className="text-xs text-blue-400" onClick={() => void loadApprovals()}>
@@ -105,6 +125,21 @@ export default function PlatformFirewallCompliance() {
               </li>
             ))}
           </ul>
+        )}
+      </MacGlassPanel>
+      <MacGlassPanel title="Packetwolf anomalies" action={
+        <button type="button" className="text-xs text-blue-400" onClick={() => void loadPacketwolf()}>
+          Refresh
+        </button>
+      }>
+        {packetwolfLoading ? (
+          <p className="text-sm text-slate-400">Loading…</p>
+        ) : packetwolf ? (
+          <JsonInspector data={packetwolf} emptyMessage="No Packetwolf data.">
+            {asRecord(packetwolf) && <PacketwolfAnomalySummary data={asRecord(packetwolf)!} />}
+          </JsonInspector>
+        ) : (
+          <p className="text-sm text-slate-400">No Packetwolf anomaly feed — enable Zeus Firewall deep inspection.</p>
         )}
       </MacGlassPanel>
       <div className="flex flex-wrap gap-2">
@@ -154,7 +189,9 @@ export default function PlatformFirewallCompliance() {
             </button>
           </div>
         }>
-          <pre className="text-xs text-slate-300 whitespace-pre-wrap overflow-x-auto">{JSON.stringify(report, null, 2)}</pre>
+          <JsonInspector data={report}>
+            {asRecord(report) && <ComplianceReportSummary report={asRecord(report)!} />}
+          </JsonInspector>
         </MacGlassPanel>
       )}
     </div>

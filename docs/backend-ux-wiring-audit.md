@@ -44,32 +44,32 @@ OpenStack was never deleted; it was **not linked from Platform** until the Integ
 - [x] `/platform/integrations` hub
 - [x] Sidebar / Go menu / Control Center links when capabilities enabled
 - [ ] Embed OpenStack overview iframe/panel inside Platform (optional)
-- [ ] Single sign-on context banner when leaving Platform shell
+- [x] Single sign-on context banner when leaving Platform shell — Integrations “Leaving the desktop” panel
 
 ### P7 — Classic → Platform parity
 
 Routes heavily used in classic UI but thin in Platform:
 
-- Node/host deep tools (`/node/*`, libvirt filters, NW filters)
-- Import wizard (`/import`) — link from Integrations only today
-- Marketplace / plugins
-- Full backup timeline vs Platform backups page
+- [x] Node/host deep tools (`/node/*`, libvirt filters, NW filters) — Integrations hub + host detail classic tools
+- [x] Import wizard (`/import`) — Integrations + Migration radar source cards
+- [x] Marketplace / plugins — Templates plugins tab + Integrations link
+- [x] Full backup timeline vs Platform backups page — `listBackupTimeline()` on Platform Backups + classic link
 
 ### P8 — Controller domains with clients but no page
 
 Run `rg "platformFetch" web/src/api` vs `rg "from '../../api" web/src/pages/platform` to find orphans. Known clusters:
 
-- Developer / Terraform schema (`/api/v1/developer/*`)
-- HA status aggregate
-- Fence events detail beyond Activity
-- Full ops runbook execute flows (partial on Reports)
-- Packetwolf / SIEM deep dives
+- [x] Developer / Terraform schema (`/api/v1/developer/*`) — `/platform/developer`
+- [x] HA status aggregate — `/platform/placement`
+- [x] Fence events detail beyond Activity — Placement + Activity/Compliance cross-links
+- [x] Full ops runbook execute flows (partial on Reports) — `/platform/reports?tab=runbooks`
+- [x] Packetwolf / SIEM deep dives — Compliance page (Packetwolf + SIEM export)
 
 ### P9 — OpenStack ↔ Platform cross-links
 
-- Platform host/VM rows → OpenStack instance when linked
-- Platform networks → Neutron network detail
-- Migration radar → OpenStack migrations tab
+- [x] Platform host/VM rows → OpenStack instance when linked — VM detail OpenStack link (name/metadata match)
+- [x] Platform networks → Neutron network detail — network cards link to `/openstack/networks/:id`
+- [x] Migration radar → OpenStack migrations tab — migration hub cards + source routing
 
 ## How to measure progress
 

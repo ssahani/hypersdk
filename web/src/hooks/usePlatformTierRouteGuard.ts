@@ -19,7 +19,7 @@ export function usePlatformTierRouteGuard() {
     if (path === '/platform') return
     if (isPathAllowedForTier(path, tier)) return
 
-    toast.info('That area is hidden in your desktop tier — switch to Power or Advanced in Settings → Appearance.')
-    navigate('/platform', { replace: true })
+    toast.info('That area is hidden in your desktop tier — open Settings → Appearance to switch to Power or Advanced.')
+    navigate('/platform/settings?section=general', { replace: true })
   }, [location.pathname, tier, navigate, toast])
 }

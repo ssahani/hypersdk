@@ -389,7 +389,9 @@ export default function PlatformZeusOs() {
                   }
                 />
               ))}
-              {baremetal.length === 0 && <p className="text-sm text-slate-500 px-4 py-2">No bare-metal servers registered.</p>}
+              {baremetal.length === 0 && (
+                <p className="text-sm text-slate-500 px-4 py-2">No bare-metal servers registered — enroll BMC targets from Machine Security.</p>
+              )}
             </div>
             <Link to="/platform/zeus/security/firewall" className="text-xs text-blue-400 mt-3 inline-block">
               Open Machine Security fleet →

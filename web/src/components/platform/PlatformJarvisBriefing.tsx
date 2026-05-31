@@ -34,7 +34,8 @@ export default function PlatformJarvisBriefing() {
 
   const hosts = desktop?.hosts_total ?? 0
   const vms = desktop?.vm_count ?? 0
-  const risks = (desktop?.failed_tasks_24h ?? 0) + (desktop?.slo_breach_count ?? 0) + (desktop?.pressure_hosts ?? 0)
+  const failedTasks = desktop?.failed_tasks_24h ?? 0
+  const openIssues = (desktop?.slo_breach_count ?? 0) + (desktop?.pressure_hosts ?? 0)
   const alerts = desktop?.unread_notifications ?? 0
 
   return (
@@ -45,7 +46,8 @@ export default function PlatformJarvisBriefing() {
         <p className="text-sm text-slate-400 mt-2">
           {hosts} host{hosts === 1 ? '' : 's'} · {vms} VM{vms === 1 ? '' : 's'}
           {healthPct != null && <> · Infrastructure health {healthPct}%</>}
-          {risks > 0 && <> · {risks} risk{risks === 1 ? '' : 's'}</>}
+          {failedTasks > 0 && <> · {failedTasks > 999 ? '999+' : failedTasks} failed task{failedTasks === 1 ? '' : 's'}</>}
+          {openIssues > 0 && <> · {openIssues} open issue{openIssues === 1 ? '' : 's'}</>}
           {alerts > 0 && <> · {alerts > 999 ? '999+' : alerts} alert{alerts === 1 ? '' : 's'}</>}
           {recommendations > 0 && <> · {recommendations} recommendation{recommendations === 1 ? '' : 's'}</>}
         </p>

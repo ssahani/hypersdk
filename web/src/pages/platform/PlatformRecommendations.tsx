@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { Workflow } from 'lucide-react'
+import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import RemediateChips from '../../components/platform/RemediateChips'
 import ErrorBanner from '../../components/ErrorBanner'
@@ -64,7 +65,9 @@ export default function PlatformRecommendations() {
             </div>
           </li>
         ))}
-        {rows.length === 0 && !error && <li className="text-slate-500 text-sm">No recommendations right now — your estate looks good.</li>}
+        {rows.length === 0 && !error && (
+          <PlatformEmptyState title="No recommendations" subtitle="Your estate looks good — check back after changes to hosts or VMs." />
+        )}
       </ul>
     </div>
   )

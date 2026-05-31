@@ -4,15 +4,9 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Download,
-  Loader2,
-  RefreshCw,
-  ShieldAlert,
-  Server,
-  Package,
+import { usePlatformInfo } from '../contexts/PlatformInfoContext'
+import JsonInspector, { asArray, asRecord } from '../components/platform/JsonInspector'
+import { AlertTriangle, CheckCircle2, Download, LayoutGrid, Loader2, Puzzle, RefreshCw, ShieldAlert, Server, Package,
 } from 'lucide-react'
 import K8sConnectionErrorBanner from '../components/K8sConnectionErrorBanner'
 import { summarizeK8sClientError } from '../utils/k8sErrors'
@@ -279,6 +273,8 @@ function RollupStrip({ title, r }: { title: string; r: K8sPlaneRollup }) {
 }
 
 export default function K8sOverviewPage() {
+  const { info } = usePlatformInfo()
+  const fleetMode = Boolean(info?.control_plane?.proxy_url)
   const toast = useToastContext()
   const { context, setContext, choices: contextChoices, ctxTrim } = useK8sContext()
   const [loading, setLoading] = useState(true)
@@ -552,6 +548,16 @@ export default function K8sOverviewPage() {
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {fleetMode && (
+            <>
+              <Link to="/platform" className="px-3 py-2 rounded-lg text-xs font-medium border border-orange-500/40 text-orange-200 hover:bg-orange-500/10 inline-flex items-center gap-1.5">
+                <LayoutGrid className="w-3.5 h-3.5" /> Platform
+              </Link>
+              <Link to="/platform/integrations" className="px-3 py-2 rounded-lg text-xs font-medium border border-slate-600 text-slate-300 hover:bg-slate-800 inline-flex items-center gap-1.5">
+                <Puzzle className="w-3.5 h-3.5" /> Integrations
+              </Link>
+            </>
+          )}
           <select
             value={context}
             onChange={(e) => setContext(e.target.value)}
@@ -1132,9 +1138,28 @@ export default function K8sOverviewPage() {
                     Path: <code className="text-slate-400 break-all">{invHist.path}</code>
                   </div>
                   <div className="text-[11px] text-slate-400">{invHist.entries.length} snapshot(s)</div>
-                  <pre className="text-[10px] text-slate-400 bg-slate-950/60 border border-slate-700/50 rounded-lg p-3 max-h-[28rem] overflow-auto whitespace-pre-wrap break-words">
-                    {JSON.stringify(invHist.entries, null, 2)}
-                  </pre>
+                  <div className="overflow-x-auto rounded-lg border border-slate-700/50">
+                    <table className="w-full text-[11px] text-left">
+                      <thead className="text-slate-500 border-b border-slate-700/50">
+                        <tr>
+                          <th className="px-3 py-2">Snapshot</th>
+                          <th className="px-3 py-2">When</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {asArray(invHist.entries).slice(0, 12).map((entry, i) => {
+                          const row = asRecord(entry) ?? {}
+                          return (
+                            <tr key={i} className="border-b border-slate-800/60">
+                              <td className="px-3 py-2 text-slate-300">{String(row.id ?? row.name ?? i + 1)}</td>
+                              <td className="px-3 py-2 text-slate-500">{String(row.timestamp ?? row.created_at ?? '—')}</td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <JsonInspector data={invHist.entries} />
                 </div>
               )}
             </div>

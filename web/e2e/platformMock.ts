@@ -1,0 +1,193 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import type { Page } from '@playwright/test'
+
+export const platformInfo = {
+  version: '0.1.0-test',
+  tls: { enabled: false },
+  auth: { pam_service: 'sshd', oidc_enabled: false },
+  control_plane: {
+    proxy_url: '/api/v1/platform/controller',
+    direct_url: 'http://127.0.0.1:5093',
+  },
+  kubevirt: { exec_enabled: true },
+  openstack: {
+    enabled: true,
+    configured: true,
+    cloud_name: 'test',
+    upload_enabled: false,
+    upload_timeout_secs: 300,
+    default_os_cloud: 'test',
+    default_boot_instance: false,
+  },
+  hypersdk: { enabled: true, base_url: 'http://127.0.0.1:8787', insecure_tls: true },
+  guestkit: { enabled: true, base_url: 'http://127.0.0.1:8790', insecure_tls: true },
+  fleet: { enabled: false, peer_count: 0 },
+}
+
+const fleetFinder = {
+  summary: '2 VM(s) · 1 running',
+  smart_folders: [
+    { id: 'all', label: 'All VMs', count: 2, icon: 'all' },
+    { id: 'running', label: 'Running', count: 1, icon: 'running' },
+  ],
+  tags: [],
+  projects: [],
+}
+
+const fleetDesktop = {
+  hosts_online: 1,
+  hosts_total: 1,
+  active_tasks: 0,
+  slo_breach_count: 0,
+  slo_count: 1,
+  pressure_hosts: 0,
+  zeus_status: 'idle',
+  unread_notifications: 0,
+  linux_summary: 'OK',
+}
+
+const sampleHost = {
+  id: 'h1',
+  hostname: 'host-1',
+  address: '127.0.0.1',
+  state: 'online',
+  maintenance_mode: false,
+  vm_count: 2,
+}
+
+const sampleVm = {
+  id: 'v1',
+  name: 'vm-1',
+  host_id: 'h1',
+  observed_state: 'running',
+  desired_state: 'running',
+  lifecycle_phase: 'ready',
+  managed: true,
+  vcpus: 2,
+  memory_mib: 2048,
+  ha_enabled: false,
+  project: null,
+  tags: [],
+}
+
+export async function mockPlatformApi(page: Page, opts?: { tier?: 'normal' | 'power' | 'advanced' }) {
+  const tier = opts?.tier ?? 'normal'
+  await page.addInitScript((t) => {
+    localStorage.setItem('zyvor-platform-welcome-done', '1')
+    localStorage.setItem('machina-platform-desktop-tier', t)
+  }, tier)
+
+  await page.route('**/api/v1/**', async (route) => {
+    const url = route.request().url()
+    if (url.includes('/auth/session')) {
+      return route.fulfill({
+        json: { authenticated: true, username: 'admin', role: 'admin', auth_source: 'pam' },
+      })
+    }
+    if (url.includes('/auth/providers')) {
+      return route.fulfill({
+        json: { pam: { enabled: true }, ldap: { enabled: false }, oidc: { enabled: false } },
+      })
+    }
+    if (url.includes('/system/platform-info')) {
+      return route.fulfill({ json: platformInfo })
+    }
+    if (url.includes('/events/stream') || url.includes('/ws/')) {
+      return route.abort()
+    }
+    if (url.includes('/fleet/finder')) {
+      return route.fulfill({ json: fleetFinder })
+    }
+    if (url.includes('/fleet/desktop')) {
+      return route.fulfill({ json: fleetDesktop })
+    }
+    if (url.includes('/policy/rules')) {
+      return route.fulfill({ json: [{ id: '1', name: 'default', enabled: true, rule_json: {} }] })
+    }
+    if (url.includes('/policy/quotas')) {
+      return route.fulfill({
+        json: [{ project: 'default', max_vms: 50, max_vcpu: 200, max_memory_mib: 409600, max_storage_gib: 5000 }],
+      })
+    }
+    if (url.includes('/audit')) {
+      return route.fulfill({ json: [{ id: 'a1', actor: 'admin', action: 'login', created_at: new Date().toISOString() }] })
+    }
+    if (url.includes('/observability/overview')) {
+      return route.fulfill({
+        json: {
+          summary: 'SLOs OK',
+          slos: [{
+            name: 'API latency',
+            target: 'p99 < 500ms',
+            objective_pct: 99,
+            current_pct: 99.2,
+            burn_rate: 0.01,
+            status: 'ok',
+            description: 'Within SLO',
+          }],
+          trace_count_1h: 12,
+          p95_latency_ms: 45,
+        },
+      })
+    }
+    if (url.includes('/observability/traces')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/storage/pools') && !url.includes('/discover')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/storage/tiers')) {
+      return route.fulfill({ json: { tiers: [], pools: [] } })
+    }
+    if (url.includes('/storage/backup-sla')) {
+      return route.fulfill({ json: { policies: [], summary: 'No SLA configured' } })
+    }
+    if (url.includes('/storage/pools/discover')) {
+      return route.fulfill({ json: { imported: 0, pools: [] } })
+    }
+    if (url.includes('/fleet/storage')) {
+      return route.fulfill({
+        json: {
+          summary: 'OK',
+          pool_count: 0,
+          tier_count: 0,
+          total_capacity_gib: 0,
+          total_used_gib: 0,
+          pools_over_85_pct: 0,
+          smart_failure_count: 0,
+          smart_hosts_affected: 0,
+          pools: [],
+          smart_disks: [],
+        },
+      })
+    }
+    if (url.includes('/fleet/')) {
+      return route.fulfill({ json: { summary: 'Fleet aggregate OK', hosts: [], entries: [] } })
+    }
+    if (url.includes('/cluster')) {
+      return route.fulfill({ json: { name: 'e2e-cluster', hosts: 1, vms: 2, offline_hosts: 0 } })
+    }
+    if (url.includes('/hosts')) {
+      return route.fulfill({ json: [sampleHost] })
+    }
+    if (url.includes('/vms')) {
+      return route.fulfill({ json: [sampleVm] })
+    }
+    if (url.includes('/tasks')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/notifications')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/backups')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/ai/')) {
+      return route.fulfill({
+        json: { summary: 'OK', remediations: [], forecasts: [], highlights: [], status: 'idle', tagline: 'OK' },
+      })
+    }
+    return route.fulfill({ json: [] })
+  })
+}

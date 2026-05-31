@@ -5,8 +5,9 @@ import { Link, useNavigate, useSearchParams } from 'react-router'
 import { RefreshCw, Server, Wrench } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
 import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
-import { MacStatWidget, gradientForName } from '../../components/platform/mac/PlatformMacUi'
+import { gradientForName } from '../../components/platform/mac/PlatformMacUi'
 import {
   enqueueValidateHost,
   hostMaintenance,
@@ -189,13 +190,19 @@ export default function PlatformHosts() {
   )
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      <div className="grid gap-3 sm:grid-cols-3">
-        <MacStatWidget label="Hosts" value={String(hosts.length)} icon={<Server className="w-4 h-4" />} />
-        <MacStatWidget label="Online" value={String(online)} icon={<Server className="w-4 h-4" />} tone={online === hosts.length ? 'ok' : 'warn'} />
-        <MacStatWidget label="Total VMs" value={String(hosts.reduce((s, h) => s + h.vm_count, 0))} icon={<Server className="w-4 h-4" />} />
-      </div>
+    <div className="space-y-6 animate-fade-in">
+      <PlatformTahoeHero
+        title={filterOffline ? 'Offline hosts' : 'Hosts'}
+        subtitle="Hypervisors enrolled in this fleet — sync, validate, and open host detail."
+        icon={Server}
+        stats={[
+          { label: 'Total', value: String(hosts.length), tone: 'sky' },
+          { label: 'Online', value: String(online), tone: online === hosts.length ? 'emerald' : 'amber' },
+          { label: 'VMs', value: String(hosts.reduce((s, h) => s + h.vm_count, 0)), tone: 'violet' },
+        ]}
+      />
 
+      <div className="tahoe-content space-y-4">
       {error && <ErrorBanner message={error} />}
 
       <FinderView
@@ -215,11 +222,16 @@ export default function PlatformHosts() {
         inspector={inspector}
         isEmpty={visibleHosts.length === 0 && !error}
         emptyState={
-          <PlatformEmptyState title={filterOffline ? 'No offline hosts' : 'No hosts enrolled'} subtitle={filterOffline ? 'All hypervisors are reporting heartbeats.' : 'Add a hypervisor to start managing VMs.'}>
-            <Link to="/platform/enroll" className="btn-primary inline-block mt-3">Add Host</Link>
+          <PlatformEmptyState
+            icon={Server}
+            title={filterOffline ? 'No offline hosts' : 'No hosts enrolled'}
+            subtitle={filterOffline ? 'All hypervisors are reporting heartbeats.' : 'Add a hypervisor to start managing VMs.'}
+          >
+            {!filterOffline ? <Link to="/platform/enroll" className="tahoe-btn-primary text-sm">Add Host</Link> : null}
           </PlatformEmptyState>
         }
       />
+      </div>
     </div>
   )
 }

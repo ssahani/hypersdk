@@ -17,23 +17,28 @@ export default function PlatformDynamicIsland() {
   }, [])
 
   const pressure = linuxHealth?.pressure_hosts ?? desktop?.pressure_hosts ?? 0
-  const actionableRisks = (desktop?.failed_tasks_24h ?? 0) + (desktop?.slo_breach_count ?? 0) + pressure
-  const alertBacklog = desktop?.unread_notifications ?? 0
   const criticalForecast = forecasts.find((f) => f.severity === 'critical')
+  const failedTasks = desktop?.failed_tasks_24h ?? 0
+  const actionableIssues = (desktop?.slo_breach_count ?? 0) + pressure
+  const alertBacklog = desktop?.unread_notifications ?? 0
 
   const state = useMemo(() => {
     if (pressure > 0 || criticalForecast) return 'alert' as const
-    if (actionableRisks > 0) return 'warn' as const
+    if (actionableIssues > 0 || failedTasks > 0) return 'warn' as const
     if (alertBacklog > 0) return 'notify' as const
     return 'ok' as const
-  }, [pressure, criticalForecast, actionableRisks, alertBacklog])
+  }, [pressure, criticalForecast, actionableIssues, failedTasks, alertBacklog])
+
+  const formatCount = (n: number) => (n > 999 ? '999+' : String(n))
 
   const label = state === 'ok'
     ? `Healthy · ${desktop?.hosts_online ?? 0}/${desktop?.hosts_total ?? 0} hosts`
     : state === 'warn'
-      ? `${actionableRisks} risk${actionableRisks === 1 ? '' : 's'}`
+      ? failedTasks > 0 && actionableIssues === 0
+        ? `${formatCount(failedTasks)} failed task${failedTasks === 1 ? '' : 's'}`
+        : `${formatCount(actionableIssues + (failedTasks > 0 ? 1 : 0))} issue${actionableIssues + (failedTasks > 0 ? 1 : 0) === 1 ? '' : 's'}`
       : state === 'notify'
-        ? `${alertBacklog > 999 ? '999+' : alertBacklog} alert${alertBacklog === 1 ? '' : 's'}`
+        ? `${formatCount(alertBacklog)} alert${alertBacklog === 1 ? '' : 's'}`
         : pressure > 0
           ? `${pressure} host(s) under pressure`
           : 'Critical alert'
@@ -66,9 +71,15 @@ export default function PlatformDynamicIsland() {
               {alertBacklog.toLocaleString()} unread notification{alertBacklog === 1 ? '' : 's'} in backlog
             </p>
           )}
-          {actionableRisks > 0 && (
+          {failedTasks > 0 && (
             <p className="text-xs text-amber-300/90 mb-2">
-              {actionableRisks} actionable risk{actionableRisks === 1 ? '' : 's'} (tasks, SLO, pressure)
+              {formatCount(failedTasks)} failed task{failedTasks === 1 ? '' : 's'} in the last 24 hours —{' '}
+              <Link to="/platform/tasks" className="text-sky-400 hover:underline" onClick={() => setExpanded(false)}>review Tasks</Link>
+            </p>
+          )}
+          {actionableIssues > 0 && (
+            <p className="text-xs text-amber-300/90 mb-2">
+              {actionableIssues} open issue{actionableIssues === 1 ? '' : 's'} (SLO breaches, host pressure)
             </p>
           )}
           {criticalForecast ? (

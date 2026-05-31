@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
 import { getPinnedPages } from '../utils/pinnedPages'
 import { getPageLabel } from '../utils/pageLabels'
-import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sparkles, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink, Bot } from 'lucide-react'
+import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sparkles, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink, Bot, LayoutGrid } from 'lucide-react'
 import { ZYVOR_HELP } from '../config/zyvorHelp'
 import type { HelpTab } from './HelpDialog'
 import ConnectionStatus from './ConnectionStatus'
@@ -399,6 +399,16 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
               }`}
               aria-label="Toolbar shortcuts"
             >
+              {platformEnabled && (
+                <Link
+                  to="/platform"
+                  title="Platform desktop"
+                  aria-label="Platform desktop"
+                  className={quickLinkClass(location.pathname.startsWith('/platform'))}
+                >
+                  <LayoutGrid className="w-4 h-4" />
+                </Link>
+              )}
               {TOP_BAR_QUICK_LINKS.map((item) => (
                 <Link
                   key={item.to}

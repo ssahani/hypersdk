@@ -10,6 +10,7 @@ import {
   MacStatWidget,
   gradientForName,
 } from '../../../components/platform/mac/PlatformMacUi'
+import JsonInspector, { asRecord, recordEntries } from '../../../components/platform/JsonInspector'
 import PlatformFilterPills from '../../../components/platform/PlatformFilterPills'
 import ErrorBanner from '../../../components/ErrorBanner'
 import {
@@ -245,13 +246,18 @@ export default function PlatformFirewallOverview() {
               </>
               )}
               {multisiteTab !== 'overview' && multisiteExtra && (
-                <pre className="text-[10px] text-slate-500 overflow-x-auto max-h-40 mt-3">{JSON.stringify(multisiteExtra, null, 2)}</pre>
+                <JsonInspector data={multisiteExtra} className="mt-3" />
               )}
             </MacGlassPanel>
           )}
           {thresholds && (
             <MacGlassPanel title="Operator thresholds" subtitle={String(thresholds.summary ?? 'Auto-secure eligibility rules')}>
-              <pre className="text-[10px] text-slate-500 overflow-x-auto max-h-24">{JSON.stringify(thresholds, null, 2)}</pre>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 -mt-1">
+                {recordEntries(asRecord(thresholds) ?? {}, 8).map(([k, v]) => (
+                  <MacStatWidget key={k} label={k.replace(/_/g, ' ')} value={String(v)} icon={<Shield className="w-4 h-4" />} />
+                ))}
+              </div>
+              <JsonInspector data={thresholds} className="mt-3" />
             </MacGlassPanel>
           )}
           <MacGlassPanel title="Machine Security" subtitle="Open like macOS System Settings panes">

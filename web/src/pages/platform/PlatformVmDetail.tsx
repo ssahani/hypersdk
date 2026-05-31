@@ -58,7 +58,9 @@ import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFir
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
+import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
 
 export default function PlatformVmDetail() {
   const location = useLocation()
@@ -264,6 +266,7 @@ export default function PlatformVmDetail() {
                 Machine Security → Zeus Firewall
               </Link>
             )}
+            <PlatformOpenStackVmLink vm={vm} />
             <div className="flex flex-wrap gap-2">
               <button type="button" className="btn-primary" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
               <button type="button" className="btn-secondary" onClick={() => void act('Stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Stop</button>
@@ -284,7 +287,22 @@ export default function PlatformVmDetail() {
             </MacGlassPanel>
           )}
           {vm.last_error && (
-            <StructuredErrorBanner error={{ message: vm.last_error, error_code: 'vm_error', remediation: 'Check Tasks for the failed operation and retry after fixing the root cause.' }} />
+            <StructuredErrorBanner error={vmErrorPresentation(vm.last_error)} />
+          )}
+          {vm.last_error && /nodomain|domain not found|no domain with matching name/i.test(vm.last_error) && (
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                className="btn-danger text-sm"
+                onClick={() => {
+                  if (!window.confirm('Remove this stale VM record from the platform?')) return
+                  void act('Stale VM removed', () => vmDelete(id, true))
+                }}
+              >
+                <Trash2 className="w-4 h-4" /> Remove stale record
+              </button>
+              <Link to="/platform/hosts" className="btn-secondary text-sm inline-flex items-center">Sync hosts →</Link>
+            </div>
           )}
 
           <VmDetailTabs active={tab} onChange={setTab} />

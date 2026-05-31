@@ -371,10 +371,23 @@ function OpenStackMigrationsContent() {
           })}
         </ul>
         {selectedJobId && (
-          <div className="border-t border-slate-700/80 px-4 py-3 text-xs font-mono text-slate-400 whitespace-pre-wrap break-all">
-            {jobDetailLoading && 'Loading job detail…'}
-            {!jobDetailLoading && selectedJob && JSON.stringify(selectedJob, null, 2)}
-            {!jobDetailLoading && !selectedJob && 'No detail returned.'}
+          <div className="border-t border-slate-700/80 px-4 py-3 text-sm text-slate-300 space-y-2">
+            {jobDetailLoading && <p className="text-slate-400">Loading job detail…</p>}
+            {!jobDetailLoading && selectedJob && (
+              <>
+                <div className="flex flex-wrap gap-3 text-xs">
+                  <span className="px-2 py-1 rounded bg-slate-800">Status: {selectedJob.status ?? '—'}</span>
+                  {selectedJob.vm_name && <span className="px-2 py-1 rounded bg-slate-800">VM: {selectedJob.vm_name}</span>}
+                  {selectedJob.created_at && <span className="px-2 py-1 rounded bg-slate-800">Created: {selectedJob.created_at}</span>}
+                </div>
+                <ol className="list-decimal pl-5 text-xs text-slate-400 space-y-1">
+                  <li>Submitted to HyperSDK</li>
+                  <li className={selectedJob.status === 'running' || selectedJob.status === 'completed' ? 'text-emerald-300' : ''}>Conversion in progress</li>
+                  <li className={selectedJob.status === 'completed' ? 'text-emerald-300' : ''}>Import to target hypervisor</li>
+                </ol>
+              </>
+            )}
+            {!jobDetailLoading && !selectedJob && <p className="text-slate-500">No detail returned.</p>}
           </div>
         )}
       </section>
