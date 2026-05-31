@@ -177,3 +177,23 @@ export function statusSurfaceClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'n
 export function statusChipClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neutral', extra = ''): string {
   return statusSurfaceClasses(tone, `rounded-full px-3 py-1 ${extra}`.trim())
 }
+
+export function checkStatusTone(status: string): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (status === 'pass') return 'ok'
+  if (status === 'warn') return 'warn'
+  if (status === 'fail') return 'error'
+  return 'neutral'
+}
+
+export function serviceStateTone(state: string): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (state === 'active') return 'ok'
+  if (state === 'failed') return 'error'
+  if (state === 'activating' || state === 'deactivating') return 'warn'
+  return 'neutral'
+}
+
+export function prereqTone(ok: boolean | null, missing: 'warn' | 'error' | 'neutral' = 'warn'): 'ok' | 'warn' | 'error' | 'neutral' {
+  if (ok === null) return 'neutral'
+  if (ok) return 'ok'
+  return missing
+}

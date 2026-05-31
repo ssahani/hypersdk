@@ -10,6 +10,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, Trash2, ToggleLeft, ToggleRight, RefreshCw, Plus, Network, Wifi, X, Pencil } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 
@@ -174,20 +175,20 @@ export default function NetworksPage() {
           <tbody className="divide-y divide-slate-700/50">
             {networks.map((net) => (
               <tr key={net.name} className="hover:bg-slate-700/50">
-                <td className="px-6 py-3 font-medium"><Wifi className="w-4 h-4 inline -mt-0.5 mr-1 text-green-400" />{net.name}</td>
-                <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${net.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{net.active ? 'Active' : 'Inactive'}</span></td>
+                <td className="px-6 py-3 font-medium"><Wifi className={`w-4 h-4 inline -mt-0.5 mr-1 ${statusToneClass('ok')}`} />{net.name}</td>
+                <td className="px-6 py-3"><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClasses(net.active ? 'ok' : 'error')}`}>{net.active ? 'Active' : 'Inactive'}</span></td>
                 <td className="px-6 py-3 hidden md:table-cell text-sm text-slate-400 font-mono">{net.bridge || '-'}</td>
                 <td className="px-6 py-3 hidden md:table-cell">
                   <button onClick={() => toggleAutostart(net)} className="flex items-center gap-1">
-                    {net.autostart ? <ToggleRight className="w-5 h-5 text-green-400" /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
+                    {net.autostart ? <ToggleRight className={`w-5 h-5 ${statusToneClass('ok')}`} /> : <ToggleLeft className="w-5 h-5 text-slate-500" />}
                   </button>
                 </td>
                 <td className="px-6 py-3">
                   <div className="flex items-center justify-end gap-1">
                     <button type="button" onClick={() => void openEditXml(net)} className="p-1.5 hover:bg-slate-600/30 rounded transition" title="Edit XML"><Pencil className="w-4 h-4 text-slate-300" /></button>
-                    {!net.active && <button onClick={() => action(net.name, startNetwork, 'Start network')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className="w-4 h-4 text-green-400" /></button>}
-                    {net.active && <button onClick={() => action(net.name, stopNetwork, 'Stop network')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Stop"><Square className="w-4 h-4 text-red-400" /></button>}
-                    <button onClick={() => setDeleteTarget(net.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                    {!net.active && <button onClick={() => action(net.name, startNetwork, 'Start network')} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Start"><Play className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>}
+                    {net.active && <button onClick={() => action(net.name, stopNetwork, 'Stop network')} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Stop"><Square className={`w-4 h-4 ${statusToneClass('error')}`} /></button>}
+                    <button onClick={() => setDeleteTarget(net.name)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                   </div>
                 </td>
               </tr>

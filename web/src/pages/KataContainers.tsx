@@ -19,6 +19,11 @@ import { getSession, type SessionRole } from '../api/auth'
 import { getK8sEnvironment, postKataDeploy, type KataDeployAction, type K8sActionResult } from '../api/k8s'
 import { useK8sContext } from '../hooks/useK8sContext'
 import { formatUserError } from '../utils/apiError'
+import { prereqTone, statusActionLinkClasses, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
+
+function prereqChip(ok: boolean | null, missing: 'warn' | 'error' | 'neutral' = 'warn') {
+  return statusSurfaceClasses(prereqTone(ok, missing), 'px-2 py-1 rounded-md border')
+}
 
 const KATA_EXAMPLES =
   'https://raw.githubusercontent.com/kata-containers/kata-containers/main/tools/packaging/kata-deploy/examples'
@@ -51,7 +56,7 @@ function CopyBlock({ label, text }: { label: string; text: string }) {
               () => toast.error('Copy failed'),
             )
           }
-          className="text-xs flex items-center gap-1 text-blue-400 hover:text-blue-300"
+          className={`text-xs flex items-center gap-1 ${statusActionLinkClasses('info')}`}
         >
           <Copy className="w-3 h-3" /> Copy
         </button>
@@ -146,30 +151,22 @@ function KataAutomateSection() {
       </div>
 
       <div className="flex flex-wrap gap-2 text-xs">
-        <span
-          className={`px-2 py-1 rounded-md border ${kubectlOk ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/15 border-amber-500/40 text-amber-200'}`}
-        >
+        <span className={prereqChip(kubectlOk)}>
           kubectl {kubectlOk === null ? '…' : kubectlOk ? 'found' : 'missing'}
         </span>
-        <span
-          className={`px-2 py-1 rounded-md border ${helmOk ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-amber-500/15 border-amber-500/40 text-amber-200'}`}
-        >
+        <span className={prereqChip(helmOk)}>
           helm {helmOk === null ? '…' : helmOk ? 'found' : 'missing'}
         </span>
-        <span
-          className={`px-2 py-1 rounded-md border ${kubeReachable ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-slate-700 border-slate-600 text-slate-400'}`}
-        >
+        <span className={prereqChip(kubeReachable, 'neutral')}>
           API {kubeReachable === null ? '…' : kubeReachable ? 'reachable' : 'unreachable'}
         </span>
-        <span
-          className={`px-2 py-1 rounded-md border ${canWrite ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300' : 'bg-rose-500/15 border-rose-500/35 text-rose-200'}`}
-        >
+        <span className={prereqChip(canWrite, 'error')}>
           Role {sessionRole ?? '…'} {!canWrite ? '(need operator/admin)' : ''}
         </span>
       </div>
 
       {!canWrite && sessionRole !== null && (
-        <p className="text-xs text-amber-200/90">Read-only users can copy commands below but cannot run automation.</p>
+        <p className={`text-xs opacity-90 ${statusToneClass('warn')}`}>Read-only users can copy commands below but cannot run automation.</p>
       )}
 
       <div className="flex flex-wrap items-end gap-3">
@@ -265,12 +262,12 @@ function KataAutomateSection() {
           <summary className="px-3 py-2 text-xs text-slate-400 cursor-pointer select-none">Last command result</summary>
           <div className="px-3 pb-3 space-y-2 text-xs">
             <div className="font-mono text-slate-500 break-all">{lastOut.command}</div>
-            <div className={lastOut.ok ? 'text-emerald-400' : 'text-rose-400'}>exit {lastOut.exit_code}</div>
+            <div className={statusToneClass(lastOut.ok ? 'ok' : 'error')}>exit {lastOut.exit_code}</div>
             {lastOut.stdout.trim() ? (
               <pre className="text-slate-300 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">{lastOut.stdout}</pre>
             ) : null}
             {lastOut.stderr.trim() ? (
-              <pre className="text-amber-200/90 whitespace-pre-wrap break-words max-h-48 overflow-y-auto">{lastOut.stderr}</pre>
+              <pre className={`whitespace-pre-wrap break-words max-h-48 overflow-y-auto opacity-90 ${statusToneClass('warn')}`}>{lastOut.stderr}</pre>
             ) : null}
           </div>
         </details>
@@ -288,7 +285,7 @@ export default function KataContainersPage() {
         </h1>
         <p className="text-sm text-slate-400 mt-1">
           Install <strong className="text-slate-300">kata-deploy</strong> with the{' '}
-          <a href="https://kata-containers.github.io/kata-containers/installation/" className="text-blue-400 hover:underline" target="_blank" rel="noreferrer">
+          <a href="https://kata-containers.github.io/kata-containers/installation/" className={statusActionLinkClasses('info')} target="_blank" rel="noreferrer">
             upstream Helm chart
           </a>
           , then run pods with <code className="text-slate-300">runtimeClassName</code> — for example <code className="text-slate-300">kata-clh</code> for{' '}
@@ -296,7 +293,7 @@ export default function KataContainersPage() {
             href="https://github.com/cloud-hypervisor/cloud-hypervisor"
             target="_blank"
             rel="noreferrer"
-            className="text-blue-400 hover:underline inline-flex items-center gap-0.5"
+            className={`${statusActionLinkClasses('info')} inline-flex items-center gap-0.5`}
           >
             Cloud Hypervisor <ExternalLink className="w-3 h-3" />
           </a>
@@ -308,12 +305,12 @@ export default function KataContainersPage() {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-          <Server className="w-5 h-5 text-emerald-400" /> 1. Helm — install or upgrade kata-deploy
+          <Server className={`w-5 h-5 ${statusToneClass('ok')}`} /> 1. Helm — install or upgrade kata-deploy
         </h2>
         <p className="text-sm text-slate-400">
           Installs RBAC, DaemonSet, RuntimeClasses, and related objects via the OCI chart on <code className="text-slate-400">ghcr.io</code>. Requires Helm 3.8+, <code className="text-slate-400">curl</code> (to read the latest release tag), and cluster pull access to the registry.
         </p>
-        <p className="text-xs text-amber-200/85 rounded-lg border border-amber-900/40 bg-amber-950/25 px-3 py-2">
+        <p className={`text-xs rounded-lg border px-3 py-2 ${statusSurfaceClasses('warn')}`}>
           <strong className="text-amber-100">k3s / RKE2:</strong> If kata-deploy logs say it cannot read{' '}
           <code className="text-amber-100/90">/etc/containerd/config.toml</code>, reinstall with{' '}
           <code className="text-amber-100/90">--set k8sDistribution=k3s</code> (or <code className="text-amber-100/90">rke2</code>). Plain Kubernetes keeps config under{' '}
@@ -382,23 +379,23 @@ export default function KataContainersPage() {
         <h2 className="text-lg font-semibold text-white">5. Example workloads (upstream YAML)</h2>
         <ul className="text-sm text-slate-400 space-y-2 list-disc list-inside">
           <li>
-            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-clh.yaml`} target="_blank" rel="noreferrer">
+            <a className={statusActionLinkClasses('info')} href={`${KATA_EXAMPLES}/test-deploy-kata-clh.yaml`} target="_blank" rel="noreferrer">
               test-deploy-kata-clh.yaml
             </a>{' '}
             — sample Deployment + Service using <code className="text-slate-400">kata-clh</code>
           </li>
           <li>
-            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-dragonball.yaml`} target="_blank" rel="noreferrer">
+            <a className={statusActionLinkClasses('info')} href={`${KATA_EXAMPLES}/test-deploy-kata-dragonball.yaml`} target="_blank" rel="noreferrer">
               test-deploy-kata-dragonball.yaml
             </a>
           </li>
           <li>
-            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-stratovirt.yaml`} target="_blank" rel="noreferrer">
+            <a className={statusActionLinkClasses('info')} href={`${KATA_EXAMPLES}/test-deploy-kata-stratovirt.yaml`} target="_blank" rel="noreferrer">
               test-deploy-kata-stratovirt.yaml
             </a>
           </li>
           <li>
-            <a className="text-blue-400 hover:underline" href={`${KATA_EXAMPLES}/test-deploy-kata-qemu.yaml`} target="_blank" rel="noreferrer">
+            <a className={statusActionLinkClasses('info')} href={`${KATA_EXAMPLES}/test-deploy-kata-qemu.yaml`} target="_blank" rel="noreferrer">
               test-deploy-kata-qemu.yaml
             </a>
           </li>
@@ -424,10 +421,10 @@ export default function KataContainersPage() {
       </section>
 
       <div className="flex flex-wrap gap-3 text-sm">
-        <Link to="/k8s" className="text-blue-400 hover:text-blue-300">
+        <Link to="/k8s" className={statusActionLinkClasses('info')}>
           ← Kubernetes overview
         </Link>
-        <Link to="/k8s/workloads" className="text-blue-400 hover:text-blue-300">
+        <Link to="/k8s/workloads" className={statusActionLinkClasses('info')}>
           K8s workloads
         </Link>
       </div>

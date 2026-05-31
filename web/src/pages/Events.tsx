@@ -18,6 +18,7 @@ import {
 import { downloadJSON, downloadCSV } from '../utils/export'
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { statusActionLinkClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import { formatBytes, formatThroughput } from '../utils/vm'
 import {
@@ -256,7 +257,7 @@ export default function EventsPage() {
             className="p-2 hover:bg-slate-700 rounded transition"
             title="Export CSV"
           >
-            <Download className="w-4 h-4 text-green-400" />
+            <Download className={`w-4 h-4 ${statusToneClass('ok')}`} />
           </button>
           <button type="button" onClick={load} className="p-2 hover:bg-slate-700 rounded transition">
             <RefreshCw className="w-4 h-4" />
@@ -292,7 +293,7 @@ export default function EventsPage() {
               <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wide">
                 <Activity className="w-3.5 h-3.5" /> Avg memory
               </div>
-              <div className="text-2xl font-semibold text-emerald-400 mt-1">
+              <div className={`text-2xl font-semibold mt-1 ${latest ? statusToneClass(utilizationTone(Number(latest.avgMem))) : 'text-white'}`}>
                 {latest ? `${Number(latest.avgMem).toFixed(1)}%` : '—'}
               </div>
               <div className="text-xs text-slate-500 mt-0.5">balloon / RSS derived</div>
@@ -301,7 +302,7 @@ export default function EventsPage() {
               <div className="flex items-center gap-2 text-slate-400 text-xs uppercase tracking-wide">
                 <Cpu className="w-3.5 h-3.5" /> Avg guest CPU
               </div>
-              <div className="text-2xl font-semibold text-amber-400 mt-1">
+              <div className={`text-2xl font-semibold mt-1 ${latest ? statusToneClass(utilizationTone(Number(latest.avgCpu))) : 'text-white'}`}>
                 {latest ? `${Number(latest.avgCpu).toFixed(1)}%` : '—'}
               </div>
               <div className="text-xs text-slate-500 mt-0.5">from cpu_time deltas</div>
@@ -601,7 +602,7 @@ export default function EventsPage() {
                           <td className="px-4 py-2.5">
                             <Link
                               to={vmDetailRoute(m.name, m.libvirt_connection)}
-                              className="font-medium text-blue-400 hover:text-blue-300 truncate block max-w-[220px] md:max-w-xs"
+                              className={`font-medium truncate block max-w-[220px] md:max-w-xs ${statusActionLinkClasses('info')}`}
                               title={m.name}
                             >
                               {m.name}
@@ -614,7 +615,7 @@ export default function EventsPage() {
                             <div className="flex items-center gap-2">
                               <div className="w-20 bg-slate-700 rounded-full h-2 shrink-0">
                                 <div
-                                  className="bg-blue-500 h-2 rounded-full transition-all"
+                                  className={`h-2 rounded-full transition-all ${statusBgClass(utilizationTone(m.memory_pct))}`}
                                   style={{ width: `${Math.min(100, m.memory_pct)}%` }}
                                 />
                               </div>

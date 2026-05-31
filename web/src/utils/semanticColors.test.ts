@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { hostStateTone, httpStatusTone, k8sPhaseTone, migrationReadinessTone, openstackStatusTone, poolStateBadgeClasses, sessionBadgeClasses, statusChipClasses, statusSurfaceClasses, taskStatusTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
+import { checkStatusTone, hostStateTone, httpStatusTone, k8sPhaseTone, migrationReadinessTone, openstackStatusTone, poolStateBadgeClasses, prereqTone, sessionBadgeClasses, serviceStateTone, statusChipClasses, statusSurfaceClasses, taskStatusTone, utilizationTone, userRoleTone, vmStateTone } from './semanticColors'
 
 describe('semanticColors', () => {
   it('maps task statuses', () => {
@@ -43,5 +43,15 @@ describe('semanticColors', () => {
     expect(userRoleTone('operator')).toBe('info')
     expect(statusChipClasses('warn')).toContain('--machina-status-warn')
     expect(statusSurfaceClasses('ok')).toContain('--machina-status-ok')
+  })
+
+  it('maps check and service states', () => {
+    expect(checkStatusTone('pass')).toBe('ok')
+    expect(checkStatusTone('fail')).toBe('error')
+    expect(serviceStateTone('active')).toBe('ok')
+    expect(serviceStateTone('failed')).toBe('error')
+    expect(prereqTone(true)).toBe('ok')
+    expect(prereqTone(false)).toBe('warn')
+    expect(prereqTone(false, 'error')).toBe('error')
   })
 })

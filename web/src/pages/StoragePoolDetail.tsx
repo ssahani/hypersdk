@@ -9,6 +9,7 @@ import { getPoolXml, resizeVolume, cloneVolume } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { formatUserError } from '../utils/apiError'
+import { poolStateBadgeClasses, statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import {
   ArrowLeft, Play, Square, RefreshCw, Trash2, HardDrive, Plus, Code,
   X, Copy, Maximize, ToggleLeft, ToggleRight, Download,
@@ -120,7 +121,7 @@ export default function StoragePoolDetail() {
           <div className="flex items-center gap-3">
             <HardDrive className="w-6 h-6 text-cyan-500" />
             <h1 className="text-2xl font-bold">{pool.name}</h1>
-            <span className={`px-2 py-0.5 rounded text-xs font-medium ${pool.state === 'running' ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>{pool.state}</span>
+            <span className={`px-2 py-0.5 rounded text-xs font-medium ${poolStateBadgeClasses(pool.state)}`}>{pool.state}</span>
           </div>
           <div className="flex items-center gap-2 mt-1 text-sm text-slate-500">
             <span className="font-mono">{pool.uuid}</span>
@@ -137,7 +138,7 @@ export default function StoragePoolDetail() {
             </>
           )}
           <button onClick={toggleAutostart} className="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition flex items-center gap-1">
-            {pool.autostart ? <ToggleRight className="w-4 h-4 text-green-400" /> : <ToggleLeft className="w-4 h-4 text-slate-500" />}
+            {pool.autostart ? <ToggleRight className={`w-4 h-4 ${statusToneClass('ok')}`} /> : <ToggleLeft className="w-4 h-4 text-slate-500" />}
             Autostart
           </button>
           <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Reload"><RefreshCw className="w-4 h-4" /></button>
@@ -156,7 +157,7 @@ export default function StoragePoolDetail() {
         </div>
         <div className="bg-slate-800/50 rounded-xl p-5 border border-slate-700/50 text-center">
           <div className="text-sm text-slate-400 mb-1">Available</div>
-          <div className="text-2xl font-bold text-green-400">{pool.available_gb.toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
+          <div className={`text-2xl font-bold ${statusToneClass('ok')}`}>{pool.available_gb.toFixed(1)} <span className="text-sm text-slate-400 font-normal">GB</span></div>
         </div>
       </div>
 
@@ -169,7 +170,7 @@ export default function StoragePoolDetail() {
           </div>
           <div className="w-full bg-slate-700 rounded-full h-3">
             <div
-              className={`h-3 rounded-full transition-all ${usagePct > 90 ? 'bg-red-500' : usagePct > 70 ? 'bg-yellow-500' : 'bg-cyan-500'}`}
+              className={`h-3 rounded-full transition-all ${statusBgClass(utilizationTone(usagePct))}`}
               style={{ width: `${Math.min(usagePct, 100)}%` }}
             />
           </div>
@@ -202,9 +203,9 @@ export default function StoragePoolDetail() {
                     <td className="px-6 py-3 text-sm text-slate-400 truncate max-w-xs hidden lg:table-cell">{v.path}</td>
                     <td className="px-6 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <button onClick={() => { setResizeTarget({ pool: pool.name, vol: v.name }); setResizeGb(v.capacity_gb.toFixed(2)) }} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Resize"><Maximize className="w-4 h-4 text-blue-400" /></button>
-                        <button onClick={() => { setCloneTarget({ pool: pool.name, vol: v.name }); setCloneName(`${v.name}-clone`) }} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Clone"><Copy className="w-4 h-4 text-green-400" /></button>
-                        <button onClick={() => setDeleteTarget({ pool: pool.name, vol: v.name })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                        <button onClick={() => { setResizeTarget({ pool: pool.name, vol: v.name }); setResizeGb(v.capacity_gb.toFixed(2)) }} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Resize"><Maximize className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                        <button onClick={() => { setCloneTarget({ pool: pool.name, vol: v.name }); setCloneName(`${v.name}-clone`) }} className="p-1.5 hover:bg-green-600/20 rounded transition" title="Clone"><Copy className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
+                        <button onClick={() => setDeleteTarget({ pool: pool.name, vol: v.name })} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                       </div>
                     </td>
                   </tr>

@@ -8,6 +8,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import { Trash2, RotateCcw, RefreshCw, Camera } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 
 export default function SnapshotsPage() {
   const [snapshots, setSnapshots] = useState<SnapshotInfo[]>([])
@@ -50,11 +51,11 @@ export default function SnapshotsPage() {
                   <td className="px-6 py-3 text-sm text-blue-400">{s.vm_name}</td>
                   <td className="px-6 py-3 text-sm text-slate-400">{s.state}</td>
                   <td className="px-6 py-3 text-sm text-slate-400 hidden md:table-cell">{s.creation_time ? new Date(s.creation_time * 1000).toLocaleString() : '-'}</td>
-                  <td className="px-6 py-3">{s.is_current && <span className="text-green-400 text-xs font-medium">● Current</span>}</td>
+                  <td className="px-6 py-3">{s.is_current && <span className={`text-xs font-medium ${statusToneClass('ok')}`}>● Current</span>}</td>
                   <td className="px-6 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      <button onClick={() => handleRevert(s)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Revert"><RotateCcw className="w-4 h-4 text-blue-400" /></button>
-                      <button onClick={() => setDeleteTarget(s)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className="w-4 h-4 text-red-400" /></button>
+                      <button onClick={() => handleRevert(s)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Revert"><RotateCcw className={`w-4 h-4 ${statusToneClass('info')}`} /></button>
+                      <button onClick={() => setDeleteTarget(s)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete"><Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} /></button>
                     </div>
                   </td>
                 </tr>

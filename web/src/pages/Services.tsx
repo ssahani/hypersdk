@@ -4,6 +4,7 @@
 
 import ErrorBanner from '../components/ErrorBanner'
 import { formatUserError } from '../utils/apiError'
+import { serviceStateTone, statusBgClass, statusToneClass } from '../utils/semanticColors'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import { useEffect, useState, useCallback } from 'react'
 import { listServices, serviceAction, SystemdService } from '../api/extras'
@@ -107,8 +108,8 @@ export default function ServicesPage() {
                   <td className="px-4 py-3 text-slate-400 hidden lg:table-cell max-w-xs truncate">{svc.description}</td>
                   <td className="px-4 py-3 text-center">
                     <span className="inline-flex items-center gap-1.5">
-                      <span className={`w-2 h-2 rounded-full ${svc.active_state === 'active' ? 'bg-green-500' : svc.active_state === 'failed' ? 'bg-red-500' : 'bg-slate-500'}`} />
-                      <span className={svc.active_state === 'active' ? 'text-green-400' : svc.active_state === 'failed' ? 'text-red-400' : 'text-slate-400'}>
+                      <span className={`w-2 h-2 rounded-full ${statusBgClass(serviceStateTone(svc.active_state))}`} />
+                      <span className={statusToneClass(serviceStateTone(svc.active_state))}>
                         {svc.active_state}
                       </span>
                     </span>
@@ -122,11 +123,11 @@ export default function ServicesPage() {
                       title={svc.enabled === 'enabled' ? 'Click to disable' : 'Click to enable'}
                     >
                       {svc.enabled === 'enabled' ? (
-                        <ToggleRight className="w-5 h-5 text-green-400" />
+                        <ToggleRight className={`w-5 h-5 ${statusToneClass('ok')}`} />
                       ) : (
                         <ToggleLeft className="w-5 h-5 text-slate-500" />
                       )}
-                      <span className={svc.enabled === 'enabled' ? 'text-green-400' : 'text-slate-500'}>{svc.enabled || 'n/a'}</span>
+                      <span className={statusToneClass(svc.enabled === 'enabled' ? 'ok' : 'neutral')}>{svc.enabled || 'n/a'}</span>
                     </button>
                   </td>
                   <td className="px-4 py-3 text-center">
@@ -134,7 +135,7 @@ export default function ServicesPage() {
                       <button
                         onClick={() => handleAction(svc.name, 'start')}
                         disabled={acting !== null}
-                        className="p-1.5 hover:bg-green-500/20 rounded-lg transition text-green-400"
+                        className={`p-1.5 hover:bg-green-500/20 rounded-lg transition ${statusToneClass('ok')}`}
                         title="Start"
                       >
                         <Play className="w-3.5 h-3.5" />
@@ -142,7 +143,7 @@ export default function ServicesPage() {
                       <button
                         onClick={() => handleAction(svc.name, 'stop')}
                         disabled={acting !== null}
-                        className="p-1.5 hover:bg-red-500/20 rounded-lg transition text-red-400"
+                        className={`p-1.5 hover:bg-red-500/20 rounded-lg transition ${statusToneClass('error')}`}
                         title="Stop"
                       >
                         <Square className="w-3.5 h-3.5" />
@@ -150,7 +151,7 @@ export default function ServicesPage() {
                       <button
                         onClick={() => handleAction(svc.name, 'restart')}
                         disabled={acting !== null}
-                        className="p-1.5 hover:bg-blue-500/20 rounded-lg transition text-blue-400"
+                        className={`p-1.5 hover:bg-blue-500/20 rounded-lg transition ${statusToneClass('info')}`}
                         title="Restart"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />

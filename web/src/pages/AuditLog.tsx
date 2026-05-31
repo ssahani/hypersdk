@@ -9,6 +9,7 @@ import { useToastContext } from '../contexts/ToastContext'
 import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'lucide-react'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
 
 export default function AuditLogPage() {
@@ -65,7 +66,7 @@ export default function AuditLogPage() {
             <RefreshCw className="w-3.5 h-3.5" /> Refresh now
           </button>
           <button type="button" onClick={() => downloadJSON(events, 'audit-log.json')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export JSON"><Download className="w-4 h-4" /></button>
-          <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className="w-4 h-4 text-green-400" /></button>
+          <button type="button" onClick={() => downloadCSV(events as unknown as Record<string, unknown>[], 'audit-log.csv')} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
           <button type="button" onClick={() => void exportAuditNdjson()} className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200" title={t('audit.exportNdjson')}>
             {t('audit.exportNdjson')}
           </button>
@@ -125,8 +126,8 @@ export default function AuditLogPage() {
                   <td className="px-6 py-2 text-sm text-slate-400 font-mono">{e.actor?.trim() ? e.actor : '—'}</td>
                   <td className="px-6 py-2 text-sm">
                     {e.result.includes('ok') || e.result.includes('success')
-                      ? <span className="flex items-center gap-1 text-green-400"><CheckCircle className="w-3 h-3" />{e.result}</span>
-                      : <span className="flex items-center gap-1 text-red-400"><XCircle className="w-3 h-3" />{e.result}</span>
+                      ? <span className={`flex items-center gap-1 ${statusToneClass('ok')}`}><CheckCircle className="w-3 h-3" />{e.result}</span>
+                      : <span className={`flex items-center gap-1 ${statusToneClass('error')}`}><XCircle className="w-3 h-3" />{e.result}</span>
                     }
                   </td>
                 </tr>

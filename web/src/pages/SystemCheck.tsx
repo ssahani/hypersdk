@@ -37,24 +37,24 @@ import {
   summarizeCheckResults,
 } from '../lib/systemCheckSuite'
 import type { PlatformInfo } from '../api/system'
+import { checkStatusTone, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
 function statusIcon(status: CheckStatus) {
   switch (status) {
     case 'pass':
-      return <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+      return <CheckCircle2 className={`w-4 h-4 shrink-0 ${statusToneClass('ok')}`} />
     case 'warn':
-      return <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+      return <AlertTriangle className={`w-4 h-4 shrink-0 ${statusToneClass('warn')}`} />
     case 'fail':
-      return <XCircle className="w-4 h-4 text-red-400 shrink-0" />
+      return <XCircle className={`w-4 h-4 shrink-0 ${statusToneClass('error')}`} />
     case 'skip':
       return <MinusCircle className="w-4 h-4 text-slate-500 shrink-0" />
   }
 }
 
 function overallBadgeClass(overall: 'pass' | 'warn' | 'fail') {
-  if (overall === 'pass') return 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-  if (overall === 'warn') return 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-  return 'bg-red-500/20 text-red-300 border-red-500/40'
+  const tone = checkStatusTone(overall)
+  return statusSurfaceClasses(tone, 'px-4 py-4 rounded-xl border')
 }
 
 function rowClass(status: CheckStatus) {
@@ -284,7 +284,7 @@ export default function SystemCheckPage() {
               type="button"
               disabled={busy}
               onClick={() => setDeepOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-amber-600/50 text-amber-200 hover:bg-amber-500/10 text-sm disabled:opacity-50"
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-sm disabled:opacity-50 ${statusSurfaceClasses('warn')}`}
             >
               <Zap className="w-4 h-4" />
               Deep smoke
@@ -306,11 +306,11 @@ export default function SystemCheckPage() {
         >
           <span className="text-lg font-semibold capitalize">{summary.overall}</span>
           <span className="text-sm">
-            <span className="text-emerald-400">{summary.pass} passed</span>
+            <span className={statusToneClass('ok')}>{summary.pass} passed</span>
             {' · '}
-            <span className="text-amber-400">{summary.warn} warnings</span>
+            <span className={statusToneClass('warn')}>{summary.warn} warnings</span>
             {' · '}
-            <span className="text-red-400">{summary.fail} failed</span>
+            <span className={statusToneClass('error')}>{summary.fail} failed</span>
             {summary.skip > 0 && (
               <>
                 {' · '}
@@ -368,7 +368,7 @@ export default function SystemCheckPage() {
       </div>
 
       {results.length > 0 && summary.fail === 0 && summary.warn === 0 && !running && (
-        <div className="flex items-center gap-2 text-emerald-400 text-sm px-4 py-3 rounded-xl border border-emerald-500/30 bg-emerald-950/20">
+        <div className={`flex items-center gap-2 text-sm px-4 py-3 rounded-xl border ${statusSurfaceClasses('ok')}`}>
           <Activity className="w-4 h-4" />
           All checks passed.
         </div>
