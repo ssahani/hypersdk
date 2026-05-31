@@ -153,6 +153,19 @@ test('spotlight lists platform hubs on power tier', async ({ page }) => {
   await expect(spotlight.getByRole('button', { name: /Operations Hub ·/i })).toBeVisible()
 })
 
+test('spotlight lists operations workspaces on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.goto('/platform')
+  await page.locator('.tahoe-context-bar').click()
+  await page.keyboard.press('Control+k')
+  const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
+    has: page.getByPlaceholder(/Machina Spotlight/i),
+  })
+  await expect(
+    spotlight.locator('button').filter({ hasText: 'Observability' }).filter({ hasNotText: /Hub ·/ }),
+  ).toBeVisible()
+})
+
 test('spotlight opens via keyboard shortcut', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform')

@@ -24,4 +24,11 @@ describe('spotlightNavForTier', () => {
     expect(settings.some((entry) => entry.label === 'Policy')).toBe(true)
     expect(settings.every((entry) => entry.path.includes('section='))).toBe(true)
   })
+
+  it('includes operations workspaces on power tier', () => {
+    const entries = spotlightNavForTier('power')
+    const ops = entries.filter((entry) => entry.zone === 'Operations')
+    expect(ops.some((entry) => entry.label === 'Tasks')).toBe(true)
+    expect(ops.some((entry) => entry.label === 'Observability')).toBe(true)
+  })
 })

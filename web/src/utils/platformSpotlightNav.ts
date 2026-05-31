@@ -5,7 +5,8 @@ import { isPathAllowedForTier } from './platformDesktopTier'
 import { DESKTOP_HUB_TILES, type DesktopHubTile } from './platformHubZones'
 import { integrationNavItems } from './platformIntegrationsNav'
 import type { PlatformInfo } from '../api/system'
-import { settingsItemsForTier } from './platformContextNav'
+import { settingsItemsForTier, operationsNavItemsForTier } from './platformContextNav'
+import { hubHrefForTier } from './platformHubLinks'
 import { sidebarForTier } from './platformNavFilter'
 
 export type SpotlightNavEntry = {
@@ -33,7 +34,7 @@ export function spotlightNavForTier(tier: PlatformDesktopTier, info: PlatformInf
     push({
       id: `hub-${hub.id}`,
       label: hub.label,
-      path: hub.href,
+      path: hubHrefForTier(hub.id, tier),
       zone: 'Platform hubs',
       description: hub.description,
       kind: 'hub',
@@ -47,6 +48,17 @@ export function spotlightNavForTier(tier: PlatformDesktopTier, info: PlatformInf
       path: item.to,
       zone: 'Settings',
       description: 'Settings workspace',
+      kind: 'destination',
+    })
+  }
+
+  for (const item of operationsNavItemsForTier(tier)) {
+    push({
+      id: `ops-${item.label}`,
+      label: item.label,
+      path: item.to,
+      zone: 'Operations',
+      description: 'Operations workspace',
       kind: 'destination',
     })
   }
@@ -68,7 +80,7 @@ export function spotlightNavForTier(tier: PlatformDesktopTier, info: PlatformInf
 }
 
 export function spotlightZoneOrder(): string[] {
-  return ['Platform hubs', 'Settings', 'Favorites', 'Fleet', 'Platform', 'Connected platforms']
+  return ['Platform hubs', 'Settings', 'Operations', 'Favorites', 'Fleet', 'Platform', 'Connected platforms']
 }
 
 export function groupSpotlightByZone(entries: SpotlightNavEntry[]): Array<{ zone: string; items: SpotlightNavEntry[] }> {

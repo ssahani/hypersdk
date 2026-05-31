@@ -2,6 +2,7 @@
 
 import type { PlatformDesktopTier } from './platformDesktopTier'
 import { tierAtLeast } from './platformDesktopTier'
+import { DESKTOP_HUB_TILES, type DesktopHubTile } from './platformHubZones'
 
 /** Primary Operations entry — hub on Power+, Notification Center on Normal. */
 export function operationsHubHref(tier: PlatformDesktopTier): string {
@@ -16,4 +17,10 @@ export function tasksHubHref(tier: PlatformDesktopTier): string {
 /** Activity monitor entry — hidden behind Power tier on Normal. */
 export function activityHubHref(tier: PlatformDesktopTier): string {
   return tierAtLeast(tier, 'power') ? '/platform/activity' : '/platform/notifications'
+}
+
+/** Tier-aware href for a desktop hub tile (Operations falls back on Normal). */
+export function hubHrefForTier(hubId: DesktopHubTile['id'], tier: PlatformDesktopTier): string {
+  if (hubId === 'operations') return operationsHubHref(tier)
+  return DESKTOP_HUB_TILES.find((hub) => hub.id === hubId)?.href ?? '/platform'
 }

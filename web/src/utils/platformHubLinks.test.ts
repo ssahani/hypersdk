@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { describe, expect, it } from 'vitest'
-import { activityHubHref, operationsHubHref, tasksHubHref } from './platformHubLinks'
+import { activityHubHref, hubHrefForTier, operationsHubHref, tasksHubHref } from './platformHubLinks'
 
 describe('platformHubLinks', () => {
   it('routes Normal tier to notification center', () => {
@@ -14,5 +14,11 @@ describe('platformHubLinks', () => {
     expect(operationsHubHref('power')).toBe('/platform/operations')
     expect(tasksHubHref('advanced')).toBe('/platform/tasks')
     expect(activityHubHref('power')).toBe('/platform/activity')
+  })
+
+  it('resolves desktop hub hrefs with tier-aware operations fallback', () => {
+    expect(hubHrefForTier('operations', 'normal')).toBe('/platform/notifications')
+    expect(hubHrefForTier('operations', 'power')).toBe('/platform/operations')
+    expect(hubHrefForTier('resources', 'power')).toBe('/platform/resources')
   })
 })

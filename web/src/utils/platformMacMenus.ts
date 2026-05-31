@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import type { PlatformDesktopTier } from './platformDesktopTier'
 import { isPathAllowedForTier } from './platformDesktopTier'
 import { DESKTOP_HUB_TILES } from './platformHubZones'
+import { hubHrefForTier } from './platformHubLinks'
 import { NORMAL_FAVORITE_PATHS, PLATFORM_SIDEBAR, type PlatformNavItem, type PlatformNavSection } from './platformNav'
 
 export type MacMenuNavItem = { to: string; label: string }
@@ -17,7 +18,7 @@ export function macMenuSectionsForTier(tier: PlatformDesktopTier, _integrationIt
   const hubItems = DESKTOP_HUB_TILES
     .filter((hub) => isPathAllowedForTier(hub.href, tier))
     .map((hub) => ({
-      to: hub.href,
+      to: hubHrefForTier(hub.id, tier),
       label: hub.label,
       icon: null as ReactNode,
     }))

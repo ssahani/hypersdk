@@ -225,6 +225,10 @@ function filterItems(items: ContextNavItem[], tier: PlatformDesktopTier): Contex
   })
 }
 
+export function operationsNavItemsForTier(tier: PlatformDesktopTier): ContextNavItem[] {
+  return filterItems(OPERATIONS_ITEMS, tier)
+}
+
 export function contextNavForPath(pathname: string, tier: PlatformDesktopTier): PlatformContextNav | null {
   let def = CONTEXT_DEFINITIONS.find((d) => d.match(pathname))
   if (isSettingsWorkspacePath(pathname)) {
