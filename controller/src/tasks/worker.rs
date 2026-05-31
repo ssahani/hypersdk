@@ -1080,17 +1080,29 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
     .await?;
     let helm = crate::engine::packetwolf_k8s::install_tetragon_helm(
         &state.config,
+        cluster_id,
         namespace,
         cluster_name,
     );
     update_task_progress(
         &state.pool,
         msg.task_id,
-        70,
-        if helm.ok {
+        55,
+        if helm.helm_output.is_empty() {
             "Tetragon Helm release applied"
         } else {
-            &helm.message
+            "Tetragon Helm release applied — deploying PacketWolf export forwarder"
+        },
+    )
+    .await?;
+    update_task_progress(
+        &state.pool,
+        msg.task_id,
+        85,
+        if helm.forwarder_applied {
+            "PacketWolf export forwarder deployed"
+        } else {
+            "PacketWolf export forwarder pending (kubectl required)"
         },
     )
     .await?;
@@ -1102,7 +1114,7 @@ async fn k8s_tetragon_install(state: &AppState, msg: &TaskMessage) -> anyhow::Re
         &state.pool,
         msg.task_id,
         100,
-        &format!("K8s Tetragon enrollment complete for cluster {cluster_name}"),
+        &helm.message,
     )
     .await?;
     Ok(())

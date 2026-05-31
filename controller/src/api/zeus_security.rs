@@ -210,8 +210,25 @@ pub async fn install_k8s_tetragon(
     Ok(Json(serde_json::json!({
         "task_id": task_id.to_string(),
         "cluster_id": cluster_id,
-        "summary": format!("Tetragon Helm install queued for cluster {cluster}")
+        "summary": format!("Tetragon Helm install + PacketWolf export forwarder queued for cluster {cluster}")
     })))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct K8sExportQuery {
+    pub namespace: Option<String>,
+}
+
+pub async fn k8s_export_status(
+    State(state): State<AppState>,
+    Path(cluster_id): Path<String>,
+    Query(q): Query<K8sExportQuery>,
+) -> Json<crate::engine::packetwolf_k8s::K8sExportForwarderStatus> {
+    Json(crate::engine::packetwolf_k8s::export_forwarder_status(
+        &state.config,
+        &cluster_id,
+        q.namespace.as_deref().unwrap_or("kube-system"),
+    ))
 }
 
 #[derive(Debug, Deserialize)]

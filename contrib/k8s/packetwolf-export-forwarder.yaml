@@ -1,0 +1,119 @@
+# Machina Zeus — PacketWolf export forwarder for Tetragon (cluster-scoped log tail → ingest)
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: packetwolf-export-forwarder
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: packetwolf-export-forwarder
+    app.kubernetes.io/managed-by: machina-zeus
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: packetwolf-export-forwarder-{{CLUSTER_TOKEN}}
+  labels:
+    app.kubernetes.io/name: packetwolf-export-forwarder
+    app.kubernetes.io/managed-by: machina-zeus
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: packetwolf-export-forwarder-{{CLUSTER_TOKEN}}
+  labels:
+    app.kubernetes.io/name: packetwolf-export-forwarder
+    app.kubernetes.io/managed-by: machina-zeus
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: packetwolf-export-forwarder-{{CLUSTER_TOKEN}}
+subjects:
+  - kind: ServiceAccount
+    name: packetwolf-export-forwarder
+    namespace: {{NAMESPACE}}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: packetwolf-export-forwarder
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: packetwolf-export-forwarder
+    app.kubernetes.io/managed-by: machina-zeus
+type: Opaque
+stringData:
+  api-key: "{{API_KEY}}"
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: packetwolf-export-forwarder
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: packetwolf-export-forwarder
+    app.kubernetes.io/managed-by: machina-zeus
+data:
+  forward.py: |
+{{FORWARD_SCRIPT}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: packetwolf-export-forwarder
+  namespace: {{NAMESPACE}}
+  labels:
+    app.kubernetes.io/name: packetwolf-export-forwarder
+    app.kubernetes.io/managed-by: machina-zeus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: packetwolf-export-forwarder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: packetwolf-export-forwarder
+    spec:
+      serviceAccountName: packetwolf-export-forwarder
+      containers:
+        - name: forwarder
+          image: python:3.12-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-eu", "-c"]
+          args:
+            - pip install -q kubernetes && exec python /config/forward.py
+          env:
+            - name: PACKETWOLF_EXPORT_URL
+              value: "{{EXPORT_URL}}"
+            - name: PACKETWOLF_HOST_ID
+              value: "{{HOST_ID}}"
+            - name: TETRAGON_NAMESPACE
+              value: "{{NAMESPACE}}"
+            - name: TETRAGON_LABEL_SELECTOR
+              value: "app.kubernetes.io/name=tetragon"
+            - name: PACKETWOLF_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: packetwolf-export-forwarder
+                  key: api-key
+                  optional: true
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: config
+          configMap:
+            name: packetwolf-export-forwarder

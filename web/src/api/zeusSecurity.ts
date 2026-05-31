@@ -101,6 +101,21 @@ export const installK8sTetragon = (clusterId: string, clusterName?: string) =>
     body: JSON.stringify({ cluster_name: clusterName ?? clusterId }),
   })
 
+export interface K8sExportForwarderStatus {
+  cluster_id: string
+  host_id: string
+  namespace: string
+  forwarder_deployed: boolean
+  ready_replicas: number
+  export_url: string
+  message: string
+}
+
+export const getK8sExportStatus = (clusterId: string, namespace = 'kube-system') =>
+  platformFetch<K8sExportForwarderStatus>(
+    `/api/v1/zeus-security/k8s/${encodeURIComponent(clusterId)}/export-status?namespace=${encodeURIComponent(namespace)}`,
+  )
+
 export const getHostSecurityTimeline = (hostId: string, hours = 24) =>
   platformFetch<{ events: SecurityEvent[] }>(`/api/v1/zeus-security/hosts/${hostId}/timeline?hours=${hours}`)
 

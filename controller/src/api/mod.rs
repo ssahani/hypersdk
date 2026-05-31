@@ -248,6 +248,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/zeus-security/hosts/{id}/process-graph", get(zeus_security::host_process_graph))
         .route("/api/v1/zeus-security/hosts/{id}/tetragon/install", post(zeus_security::install_tetragon))
         .route("/api/v1/zeus-security/k8s/{cluster_id}/tetragon/install", post(zeus_security::install_k8s_tetragon))
+        .route("/api/v1/zeus-security/k8s/{cluster_id}/export-status", get(zeus_security::k8s_export_status))
         .route("/api/v1/zeus-security/enforcement/status", get(zeus_security::enforcement_status))
         .route("/api/v1/zeus-security/enforcement/policies", get(zeus_security::enforcement_policies).post(zeus_security::create_enforcement_policy))
         .route("/api/v1/zeus-security/enforcement/policies/{id}/apply", post(zeus_security::apply_enforcement_policy))

@@ -57,6 +57,7 @@ insecure_tls = true
 | `GET /api/v1/zeus-security/hosts/{id}/fabric-status` | Live agent TracingPolicy + Tetragon service state |
 | `POST /api/v1/zeus-security/hosts/{id}/tetragon/install` | Enroll Tetragon sensor |
 | `POST /api/v1/zeus-security/k8s/{cluster_id}/tetragon/install` | Enroll Tetragon via Helm on cluster |
+| `GET /api/v1/zeus-security/k8s/{cluster_id}/export-status` | PacketWolf export forwarder readiness |
 | `POST /api/v1/ai/security/explain-event` | AI event explanation |
 | `POST /api/v1/ai/security/attack-reconstruct` | Attack chain from timeline |
 | `POST /api/v1/ai/security/nl-search` | Natural language search |
@@ -118,6 +119,13 @@ Responses include `llm_powered: true` when the model was used. Threat Hunting wo
 - **K8s:** `packetwolf_k8s` runs `helm upgrade --install tetragon cilium/tetragon` from `k8s.tetragon.install` task
 - **Fabric status:** `tetragon_service_active`, `tetragon_export_timer_active` on agent and Machine Security header
 - **Env:** `MACHINA_TETRAGON_VERSION` (default `1.0.0`), `MACHINA_TETRAGON_DIR`, `MACHINA_TETRAGON_EXPORT_BATCH`
+
+## Phase 10 — K8s export forwarder (PW-31–PW-33)
+
+- **Manifests:** `contrib/k8s/packetwolf-export-forwarder.yaml` — Deployment tails Tetragon pod stdout and POSTs JSON batches to PacketWolf
+- **Controller:** `packetwolf_k8s` applies forwarder after Helm install; `GET /api/v1/zeus-security/k8s/{cluster_id}/export-status`
+- **Ingest host id:** `k8s-{clusterId}` matches cluster sensor registration
+- **Requires:** `helm` + `kubectl` with cluster context on the controller (or bastion)
 
 ## UI routes
 
