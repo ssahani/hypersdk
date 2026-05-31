@@ -15,6 +15,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type OsDiagnoseReport = HostOsDiagnoseReport | VmOsDiagnoseReport
 
@@ -123,7 +124,7 @@ export default function OsDiagnosePanel({
             </div>
           )}
           {resourceKind === 'host' && (
-            <Link to={`/platform/hosts/${resourceId}`} className="text-xs text-blue-400">Host settings →</Link>
+            <Link to={`/platform/hosts/${resourceId}`} className={`text-xs ${hubLinkClasses()}`}>Host settings →</Link>
           )}
         </div>
       )}

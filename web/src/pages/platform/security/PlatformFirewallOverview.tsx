@@ -32,6 +32,7 @@ import {
 } from '../../../api/zeusFirewall'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
+import { hubLinkClasses } from '../../../utils/semanticColors'
 
 type KindFilter = 'all' | 'host' | 'bare_metal'
 
@@ -135,7 +136,7 @@ export default function PlatformFirewallOverview() {
       {error && <ErrorBanner message={error} />}
       {statusLine && (
         <p className="text-sm text-slate-400 flex items-center gap-2">
-          <Shield className="w-4 h-4 text-blue-400" />
+          <Shield className={`$w-4 h-4 ${hubLinkClasses()}`} />
           {statusLine}
         </p>
       )}

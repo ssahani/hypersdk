@@ -10,6 +10,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 interface MachinaDoctorPanelProps {
   vmId: string
@@ -73,13 +74,13 @@ export default function MachinaDoctorPanel({ vmId, report, loading, onRefresh, o
             <div className="relative w-16 h-16 shrink-0">
               <svg className="w-16 h-16 -rotate-90" viewBox="0 0 36 36">
                 <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" className="text-slate-800" />
-                <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${pct} 100`} className={pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'} />
+                <circle cx="18" cy="18" r="15" fill="none" stroke="currentColor" strokeWidth="3" strokeDasharray={`${pct} 100`} className={statusToneClass(pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'error')} />
               </svg>
               <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">{pct}</span>
             </div>
             <div>
               <p className="text-lg font-semibold text-slate-100">{report.score_numeric}/100</p>
-              <p className={`text-sm capitalize ${report.healthy ? 'text-emerald-400' : 'text-amber-400'}`}>{report.score_label}</p>
+              <p className={`text-sm capitalize ${statusToneClass(report.healthy ? 'ok' : 'warn')}`}>{report.score_label}</p>
               <p className="text-xs text-slate-500">{report.checks_passed}/{report.checks_total} checks passed</p>
             </div>
           </div>
@@ -89,7 +90,7 @@ export default function MachinaDoctorPanel({ vmId, report, loading, onRefresh, o
             <ul className="space-y-3 text-sm">
               {report.issues.map((issue, i) => (
                 <li key={i} className="rounded-xl border border-white/[0.06] p-3">
-                  <p className={`font-medium capitalize ${issue.severity === 'critical' ? 'text-red-400' : 'text-amber-300'}`}>{issue.message}</p>
+                  <p className={`font-medium capitalize ${statusToneClass(issue.severity === 'critical' ? 'error' : 'warn')}`}>{issue.message}</p>
                   {issue.remediation && <p className="text-xs text-slate-500 mt-1">{issue.remediation}</p>}
                   {issue.fix_action && issue.fix_label && (
                     <button type="button" className="btn-primary text-xs mt-2" onClick={() => void fix(issue)}>{issue.fix_label}</button>

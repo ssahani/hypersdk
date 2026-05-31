@@ -33,6 +33,7 @@ import {
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
 import { useAi } from '../../contexts/AiContext'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type TabId = 'processes' | 'connections' | 'dns' | 'ports' | 'files' | 'events' | 'containers' | 'users' | 'graph'
 
@@ -147,7 +148,7 @@ export default function PlatformMachineSecurity() {
 
   return (
     <div className="space-y-4">
-      <Link to="/platform/zeus/security" className="text-sm text-blue-400 flex items-center gap-1">
+      <Link to="/platform/zeus/security" className={`text-sm flex items-center gap-1 ${hubLinkClasses()}`}>
         <ArrowLeft className="w-4 h-4" /> Security Center
       </Link>
       {error && <ErrorBanner message={error} />}

@@ -36,7 +36,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { statusToneClass } from '../../utils/semanticColors'
+import {statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
 
 type TabId = 'disks' | 'pools' | 'tiers' | 'sla'
 
@@ -229,9 +229,9 @@ export default function PlatformStorage() {
       ))}
       {error && storageErrorPresentation(error) && (
         <p className="text-xs text-slate-500">
-          <Link to="/platform/hosts" className="text-blue-400">Hosts</Link>
+          <Link to="/platform/hosts" className={hubLinkClasses()}>Hosts</Link>
           {' · '}
-          <Link to="/node" className="text-blue-400">Classic node tools</Link>
+          <Link to="/node" className={hubLinkClasses()}>Classic node tools</Link>
         </p>
       )}
 
@@ -492,7 +492,7 @@ export default function PlatformStorage() {
                         }`}>{s.compliance_grade}</span>
                       </td>
                       <td className="py-2.5 px-2 text-right">
-                        <button type="button" className="text-xs text-blue-400 hover:underline" onClick={() => openSlaEdit(s)}>
+                        <button type="button" className={`text-xs hover:underline ${hubLinkClasses()}`} onClick={() => openSlaEdit(s)}>
                           Edit
                         </button>
                       </td>

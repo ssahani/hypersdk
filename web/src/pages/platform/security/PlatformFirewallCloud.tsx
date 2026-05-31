@@ -6,6 +6,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle, MacStatWidget } from '../..
 import ErrorBanner from '../../../components/ErrorBanner'
 import { getCloudFirewallOverview } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
+import { hubLinkClasses } from '../../../utils/semanticColors'
 
 export default function PlatformFirewallCloud() {
   const [summary, setSummary] = useState('')
@@ -37,7 +38,7 @@ export default function PlatformFirewallCloud() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Cloud Security Groups" subtitle="AWS · Azure · GCP edge inventory" />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <Link to="/platform/zeus/security/firewall" className={`text-sm ${hubLinkClasses()}`}>← Firewall overview</Link>
       {error && <ErrorBanner message={error} />}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <MacStatWidget label="Provider" value={provider} icon={<span className="text-lg">☁</span>} />

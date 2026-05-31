@@ -22,7 +22,7 @@ import {
   type VaultProvider,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 type TabId = 'keychain' | 'vault' | 'mfa' | 'fips' | 'tenants'
@@ -200,16 +200,16 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
             </div>
           )}
           <div className="flex flex-wrap gap-3 mt-4 pt-2 border-t border-white/[0.04]">
-            <Link to="/platform/settings?section=security" className="text-sm text-blue-400">System Settings → Security</Link>
-            <Link to="/platform/api-keys" className="text-sm text-blue-400">API keys</Link>
-            <Link to="/platform/enterprise?tab=vault" className="text-sm text-blue-400">Vault sync</Link>
+            <Link to="/platform/settings?section=security" className={`text-sm ${hubLinkClasses()}`}>System Settings → Security</Link>
+            <Link to="/platform/api-keys" className={`text-sm ${hubLinkClasses()}`}>API keys</Link>
+            <Link to="/platform/enterprise?tab=vault" className={`text-sm ${hubLinkClasses()}`}>Vault sync</Link>
           </div>
         </MacGlassPanel>
       )}
 
       {tab === 'vault' && (
         <MacGlassPanel title="Vault providers" action={
-          <button type="button" className="text-xs text-blue-400" disabled={syncBusy} onClick={() => void syncAll()}>
+          <button type="button" className={`text-xs ${hubLinkClasses()}`} disabled={syncBusy} onClick={() => void syncAll()}>
             {syncBusy ? 'Syncing…' : 'Sync all'}
           </button>
         }>
@@ -220,7 +220,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
                   <p className="text-sm text-slate-200">{v.name}</p>
                   <p className="text-xs text-slate-500">{v.provider_type} · {v.status}{v.last_sync_at ? ` · synced ${v.last_sync_at}` : ''}</p>
                 </div>
-                <button type="button" className="text-xs text-blue-400" onClick={() => void syncOne(v.id)}>Sync</button>
+                <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void syncOne(v.id)}>Sync</button>
               </li>
             ))}
           </ul>

@@ -20,7 +20,7 @@ import {
   type PlacementRecommendation,
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
-import { statusToneClass } from '../../utils/semanticColors'
+import {statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
 
 export default function PlatformPlacement() {
   const [rows, setRows] = useState<PlacementRecommendation[]>([])
@@ -138,7 +138,7 @@ export default function PlatformPlacement() {
             {rows.map((r) => (
               <li key={`${r.vm_id}-${r.to_host_id}`} className="border-b border-slate-800 pb-3">
                 <div className="flex justify-between gap-4">
-                  <Link to={`/platform/vms/${r.vm_id}`} className="text-blue-400 font-medium">{r.vm_name}</Link>
+                  <Link to={`/platform/vms/${r.vm_id}`} className={`$font-medium ${hubLinkClasses()}`}>{r.vm_name}</Link>
                   <span className="text-slate-500">score {r.score.toFixed(1)}</span>
                 </div>
                 <p className="text-slate-400 mt-1">{r.from_host_name} → {r.to_host_name}</p>

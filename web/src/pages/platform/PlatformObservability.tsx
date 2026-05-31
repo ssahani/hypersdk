@@ -15,7 +15,7 @@ import {
 import { fleetPrometheusAggregateUrl } from '../../api/fleet'
 import { getControllerBase } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 function sloBadge(status: string) {
   if (status === 'ok') return 'bg-emerald-900/60 text-emerald-300'
@@ -88,7 +88,7 @@ export default function PlatformObservability() {
             <MacStatWidget label="p95 latency" value={`${overview.p95_latency_ms} ms`} icon={<Timer className="w-4 h-4" />} />
           </div>
           <MacGlassPanel title="SLO dashboard" action={
-            <button type="button" className="text-xs text-blue-400" onClick={() => void load()}>Refresh</button>
+            <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void load()}>Refresh</button>
           }>
             <ul className="space-y-3">
               {(overview.slos ?? []).map((slo) => (
@@ -131,10 +131,10 @@ export default function PlatformObservability() {
           <MacGlassPanel title="Fleet Prometheus" subtitle="Scrape aggregate metrics from the controller">
             <p className="text-sm text-slate-400 mb-2">Text exposition format — suitable for Prometheus or Grafana data source.</p>
             <div className="flex flex-wrap gap-3">
-              <a href={fleetPrometheusAggregateUrl()} className="text-sm text-blue-400" target="_blank" rel="noreferrer">
+              <a href={fleetPrometheusAggregateUrl()} className={`text-sm ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
                 Fleet aggregate →
               </a>
-              <a href={`${getControllerBase()}/api/v1/metrics/prometheus`} className="text-sm text-blue-400" target="_blank" rel="noreferrer">
+              <a href={`${getControllerBase()}/api/v1/metrics/prometheus`} className={`text-sm ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
                 Controller /metrics/prometheus →
               </a>
             </div>

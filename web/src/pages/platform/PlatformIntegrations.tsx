@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { Link } from 'react-router'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { ExternalLink, Puzzle, Sparkles, Boxes } from 'lucide-react'
 import { LaunchpadAppIcon, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
@@ -83,22 +83,22 @@ export default function PlatformIntegrations({ embedded }: { embedded?: boolean 
           <PlatformClassicToolLinks tools={CLASSIC_TOOL_CARDS} />
           <p className="text-sm text-slate-400 mt-4 pt-4 border-t border-white/[0.06]">
             Host REST catalog:{' '}
-            <Link to="/api-docs" className="text-blue-400 hover:underline">Classic API explorer</Link>
+            <Link to="/api-docs" className={`hover:underline ${hubLinkClasses()}`}>Classic API explorer</Link>
             {' · '}
-            <Link to="/platform/developer" className="text-blue-400 hover:underline">Platform Developer console</Link>
+            <Link to="/platform/developer" className={`hover:underline ${hubLinkClasses()}`}>Platform Developer console</Link>
           </p>
         </MacGlassPanel>
 
         <MacGlassPanel title="Leaving the desktop">
           <p className="text-sm text-slate-400 leading-relaxed">
-            OpenStack, HyperSDK, GuestKit, and classic routes open outside the Platform shell. You stay signed in to the same Machina session — use the sidebar or <Link to="/platform" className="text-blue-400">Platform home</Link> to return.
+            OpenStack, HyperSDK, GuestKit, and classic routes open outside the Platform shell. You stay signed in to the same Machina session — use the sidebar or <Link to="/platform" className={hubLinkClasses()}>Platform home</Link> to return.
           </p>
         </MacGlassPanel>
 
         <MacGlassPanel title="Need more?">
           <p className="text-sm text-slate-400 flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-violet-400" />
-            Switch to <Link to="/platform/settings?section=general" className="text-blue-400">Settings → Appearance → Advanced</Link> for the full fleet sidebar, Zeus Firewall panes, and developer SDK routes.
+            Switch to <Link to="/platform/settings?section=general" className={hubLinkClasses()}>Settings → Appearance → Advanced</Link> for the full fleet sidebar, Zeus Firewall panes, and developer SDK routes.
           </p>
         </MacGlassPanel>
       </div>

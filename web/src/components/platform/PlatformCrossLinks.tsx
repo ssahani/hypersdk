@@ -7,6 +7,7 @@ import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import type { PlatformVm } from '../../api/platform'
 import { findOpenStackInstanceForVm, findOpenStackNetworkByName } from '../../utils/platformOpenStackLinks'
 import { useOpenStackConnection } from '../../hooks/useOpenStackConnection'
+import { statusActionLinkClasses } from '../../utils/semanticColors'
 
 export function PlatformOpenStackVmLink({ vm }: { vm: Pick<PlatformVm, 'id' | 'name'> }) {
   const { info } = usePlatformInfo()
@@ -30,7 +31,7 @@ export function PlatformOpenStackVmLink({ vm }: { vm: Pick<PlatformVm, 'id' | 'n
 
   if (phase !== 'live') {
     return (
-      <Link to="/openstack" className="text-xs text-amber-400 hover:text-amber-300 inline-flex items-center gap-1">
+      <Link to="/openstack" className={`text-xs inline-flex items-center gap-1 ${statusActionLinkClasses('warn', 'hover:opacity-90')}`}>
         <Cloud className="w-3 h-3" />
         OpenStack {phase} — open operator UI →
       </Link>

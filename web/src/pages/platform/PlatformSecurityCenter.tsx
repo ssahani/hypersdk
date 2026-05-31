@@ -28,7 +28,7 @@ import {
   type ZeusSecurityStatus,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { useToastContext } from '../../contexts/ToastContext'
 
 function threatTone(score: number): 'ok' | 'warn' | 'default' {
@@ -122,7 +122,7 @@ export default function PlatformSecurityCenter() {
         title="Security Center"
         subtitle="PacketWolf eBPF fabric — observe, understand, secure"
       />
-      <Link to="/platform/zeus" className="text-sm text-blue-400">← Machina Zeus OS</Link>
+      <Link to="/platform/zeus" className={`text-sm ${hubLinkClasses()}`}>← Machina Zeus OS</Link>
       {error && <ErrorBanner message={error} />}
       {loading && !threat && <PageSkeleton />}
 
@@ -157,7 +157,7 @@ export default function PlatformSecurityCenter() {
                 {issue.host_id ? (
                   <>
                     {' '}
-                    <Link to={`/platform/zeus/machines/${issue.host_id}`} className="text-blue-400 text-xs">
+                    <Link to={`/platform/zeus/machines/${issue.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
                       {issue.host_id}
                     </Link>
                   </>
@@ -208,7 +208,7 @@ export default function PlatformSecurityCenter() {
                       {ev.host_id ? (
                         <>
                           {' '}
-                          <Link to={`/platform/zeus/machines/${String(ev.host_id)}`} className="text-blue-400">
+                          <Link to={`/platform/zeus/machines/${String(ev.host_id)}`} className={hubLinkClasses()}>
                             ({String(ev.host_id)})
                           </Link>
                         </>

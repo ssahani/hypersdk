@@ -13,6 +13,7 @@ import {
 } from '../../../utils/platformContextNav'
 import { showPlatformMenuBarForTier } from '../../../utils/platformDesktopTier'
 import { operationsHubHref } from '../../../utils/platformHubLinks'
+import { statusToneClass } from '../../../utils/semanticColors'
 
 function ContextPill({ item, pathname, search }: { item: ContextNavItem; pathname: string; search: string }) {
   const hasQuery = item.to.includes('?')
@@ -154,7 +155,7 @@ export default function PlatformContextBar() {
               {desktop.zeus_status}
             </Link>
             {desktop.unread_notifications > 0 ? (
-              <Link to={operationsHubHref(tier)} className="tahoe-context-status-chip text-amber-200/90" title="Alerts">
+              <Link to={operationsHubHref(tier)} className={`tahoe-context-status-chip ${statusToneClass('warn')} opacity-90`} title="Alerts">
                 <Bell className="w-3 h-3" />
                 {desktop.unread_notifications}
               </Link>

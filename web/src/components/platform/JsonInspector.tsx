@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useState, type ReactNode } from 'react'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 export function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
@@ -50,7 +51,7 @@ export default function JsonInspector({
       )}
       <button
         type="button"
-        className="text-xs text-blue-400 hover:text-blue-300"
+        className={`text-xs hover:underline ${hubLinkClasses()}`}
         onClick={() => setRaw((v) => !v)}
       >
         {raw ? 'Hide raw JSON' : 'View raw JSON'}

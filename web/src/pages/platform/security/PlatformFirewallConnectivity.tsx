@@ -6,7 +6,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../../components/
 import ErrorBanner from '../../../components/ErrorBanner'
 import { simulateConnectivity } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
 
 type Cell = { source: string; destination: string; port: number; protocol: string; verdict: string; reason: string }
 
@@ -31,7 +31,7 @@ export default function PlatformFirewallConnectivity() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Connectivity Matrix" subtitle="Simulate paths before applying a profile" />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <Link to="/platform/zeus/security/firewall" className={`text-sm ${hubLinkClasses()}`}>← Firewall overview</Link>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Simulation">
         <div className="flex flex-wrap gap-2 mb-4 max-w-xl">

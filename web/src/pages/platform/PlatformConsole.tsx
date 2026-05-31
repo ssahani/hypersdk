@@ -8,6 +8,7 @@ import { getVmConsole, platformVncWsUrl } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import AiTerminalCompanion from '../../components/ai/AiTerminalCompanion'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 export default function PlatformConsole() {
   const { id } = useParams<{ id: string }>()
@@ -60,7 +61,7 @@ export default function PlatformConsole() {
     <div className={`space-y-4 ${isPopout ? 'h-[calc(100vh-3rem)] flex flex-col' : ''}`}>
       {!isPopout && (
         <div className="flex items-center justify-between gap-2">
-          <Link to={`/platform/vms/${id}`} className="text-sm text-blue-400 flex items-center gap-1">
+          <Link to={`/platform/vms/${id}`} className={`text-sm flex items-center gap-1 ${hubLinkClasses()}`}>
             <ArrowLeft className="w-4 h-4" /> Back to VM
           </Link>
           <button

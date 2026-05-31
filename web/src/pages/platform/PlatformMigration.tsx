@@ -13,7 +13,7 @@ import { useOpenStackConnection } from '../../hooks/useOpenStackConnection'
 import OpenStackUnreachablePanel from '../../components/OpenStackUnreachablePanel'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
 import PageSkeleton from '../../components/PageSkeleton'
@@ -365,10 +365,10 @@ export default function PlatformMigration() {
           </ul>
         )}
         <p className="text-xs text-slate-600 flex flex-wrap gap-3">
-          <Link to="/import" className="text-blue-400 inline-flex items-center gap-1">Single-VM import <ExternalLink className="w-3 h-3" /></Link>
-          {openstack && <Link to="/openstack/migrations" className="text-blue-400 inline-flex items-center gap-1">OpenStack migrations <ExternalLink className="w-3 h-3" /></Link>}
-          <Link to="/platform/integrations" className="text-blue-400">All migration tools →</Link>
-          <Link to={tasksHubHref(tier)} className="text-blue-400">View migration tasks →</Link>
+          <Link to="/import" className={`$inline-flex items-center gap-1 ${hubLinkClasses()}`}>Single-VM import <ExternalLink className="w-3 h-3" /></Link>
+          {openstack && <Link to="/openstack/migrations" className={`$inline-flex items-center gap-1 ${hubLinkClasses()}`}>OpenStack migrations <ExternalLink className="w-3 h-3" /></Link>}
+          <Link to="/platform/integrations" className={hubLinkClasses()}>All migration tools →</Link>
+          <Link to={tasksHubHref(tier)} className={hubLinkClasses()}>View migration tasks →</Link>
         </p>
       </section>
       </>

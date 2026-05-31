@@ -22,6 +22,7 @@ import {
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 const KINDS = [
   { id: 'deny_process', label: 'Deny process' },
@@ -84,7 +85,7 @@ export default function PlatformRuntimeEnforcement() {
         title="Runtime enforcement"
         subtitle="eBPF deny rules — process · DNS · port · IP via Tetragon TracingPolicy"
       />
-      <Link to="/platform/zeus/security" className="text-sm text-blue-400">← Security Center</Link>
+      <Link to="/platform/zeus/security" className={`text-sm ${hubLinkClasses()}`}>← Security Center</Link>
       {error && <ErrorBanner message={error} />}
       {loading && !status && <PageSkeleton />}
 

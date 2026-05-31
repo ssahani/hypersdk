@@ -5,6 +5,7 @@ import { Copy, Play, Search } from 'lucide-react'
 import JsonInspector from './JsonInspector'
 import { getControllerBase, platformFetch, platformHeaders } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 type ApiTarget = 'controller' | 'host'
 type HttpMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE' | 'PUT'
@@ -221,7 +222,7 @@ export default function PlatformApiConsole() {
           </button>
         ))}
       </div>
-      {loadError ? <p className="text-sm text-amber-300">{loadError}</p> : null}
+      {loadError ? <p className={`text-sm ${statusToneClass('warn')}`}>{loadError}</p> : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
         <div className="tahoe-glass-card p-4 space-y-3">
@@ -311,7 +312,7 @@ export default function PlatformApiConsole() {
                   <Copy className="w-3.5 h-3.5" /> Copy curl
                 </button>
               </div>
-              {error ? <p className="text-sm text-red-300">{error}</p> : null}
+              {error ? <p className={`text-sm ${statusToneClass('error')}`}>{error}</p> : null}
               {result != null ? <JsonInspector data={result} /> : null}
             </>
           )}

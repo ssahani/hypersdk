@@ -14,6 +14,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { statusToneClass } from '../../utils/semanticColors'
 
 const WELCOME_KEY = 'zyvor-platform-welcome-done'
 
@@ -163,9 +164,9 @@ export default function PlatformWelcome({
           {STEPS.map((step) => (
             <li key={step.id} className="flex items-center gap-3 rounded-xl border border-white/[0.06] bg-slate-800/40 px-4 py-3">
               {done[step.id] ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
+                <CheckCircle2 className={`w-5 h-5 shrink-0 ${statusToneClass('ok')}`} />
               ) : running === step.id ? (
-                <Loader2 className="w-5 h-5 text-blue-400 animate-spin shrink-0" />
+                <Loader2 className={`w-5 h-5 animate-spin shrink-0 ${statusToneClass('info')}`} />
               ) : (
                 <Circle className="w-5 h-5 text-slate-600 shrink-0" />
               )}

@@ -218,7 +218,7 @@ export default function MissionControlOverlay() {
             <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
               {hosts.map((h) => (
                 <li key={h.id}>
-                  <Link to={`/platform/hosts/${h.id}`} className="flex justify-between hover:text-blue-300" onClick={closeMissionControl}>
+                  <Link to={`/platform/hosts/${h.id}`} className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`} onClick={closeMissionControl}>
                     <span>{h.hostname}</span>
                     <span className={statusToneClass(hostStateTone(h.state))}>{h.state}</span>
                   </Link>
@@ -231,7 +231,7 @@ export default function MissionControlOverlay() {
             <ul className="space-y-2 text-sm max-h-64 overflow-y-auto">
               {vms.slice(0, 24).map((v) => (
                 <li key={v.id}>
-                  <Link to={`/platform/vms/${v.id}`} className="flex justify-between hover:text-blue-300" onClick={closeMissionControl}>
+                  <Link to={`/platform/vms/${v.id}`} className={`flex justify-between ${statusActionLinkClasses('info', 'hover:opacity-90')}`} onClick={closeMissionControl}>
                     <span className="truncate">{v.name}</span>
                     <span className="text-slate-500 shrink-0 ml-2">{v.observed_state}</span>
                   </Link>

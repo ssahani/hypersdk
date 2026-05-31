@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp } from 'lucide-react'
 import SimpleCreateVmWizard, { sizeToSpec } from './SimpleCreateVmWizard'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 interface WindowsCreateWizardProps {
   open: boolean
@@ -92,7 +93,7 @@ export default function WindowsCreateWizard({ open, onClose, onCreate }: Windows
               </select>
             </div>
           )}
-          <button type="button" className="text-xs text-blue-400" onClick={() => setMode('simple')}>Switch to Linux/simple wizard</button>
+          <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => setMode('simple')}>Switch to Linux/simple wizard</button>
         </div>
         <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-2">
           <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>

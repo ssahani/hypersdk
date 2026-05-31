@@ -18,7 +18,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, statusToneClass } from '../../utils/semanticColors'
+import {hostStateTone, statusToneClass, hubLinkClasses} from '../../utils/semanticColors'
 
 function hostTone(h: PlatformHost): 'ok' | 'warn' | 'default' {
   const tone = hostStateTone(h.state, h.fenced, h.maintenance_mode)
@@ -111,7 +111,7 @@ export default function PlatformHosts() {
               className={`border-b border-slate-900/80 cursor-pointer ${selectedId === h.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'}`}
               onClick={() => setSelectedId(h.id)}
             >
-              <td className="p-3"><Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>{h.hostname}</Link></td>
+              <td className="p-3"><Link to={`/platform/hosts/${h.id}`} className={`hover:underline ${hubLinkClasses()}`} onClick={(e) => e.stopPropagation()}>{h.hostname}</Link></td>
               <td className="p-3 capitalize text-center">{h.state}</td>
               <td className="p-3 text-center">{h.vm_count}</td>
               <td className="p-3 text-center">{h.cpu_percent != null ? `${h.cpu_percent.toFixed(0)}%` : '—'}</td>

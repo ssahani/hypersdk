@@ -21,7 +21,7 @@ import {
 import JsonInspector, { asRecord } from '../../../components/platform/JsonInspector'
 import { ComplianceReportSummary, PacketwolfAnomalySummary } from '../../../components/platform/FirewallComplianceViews'
 import { formatUserError } from '../../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 
 const REPORTS = [
@@ -88,12 +88,12 @@ export default function PlatformFirewallCompliance() {
     <div className="space-y-6">
       <MacSectionTitle title="Firewall Compliance" subtitle="Production exposure, approvals, Packetwolf anomalies, and GitOps policy sync" />
       <div className="flex flex-wrap gap-3 text-sm">
-        <Link to="/platform/zeus/security/firewall" className="text-blue-400">← Firewall overview</Link>
-        <Link to="/platform/placement" className="text-blue-400">HA & fence events →</Link>
+        <Link to="/platform/zeus/security/firewall" className={hubLinkClasses()}>← Firewall overview</Link>
+        <Link to="/platform/placement" className={hubLinkClasses()}>HA & fence events →</Link>
       </div>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Pending approvals" action={
-        <button type="button" className="text-xs text-blue-400" onClick={() => void loadApprovals()}>
+        <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void loadApprovals()}>
           Refresh
         </button>
       }>
@@ -134,7 +134,7 @@ export default function PlatformFirewallCompliance() {
         )}
       </MacGlassPanel>
       <MacGlassPanel title="Packetwolf anomalies" action={
-        <button type="button" className="text-xs text-blue-400" onClick={() => void loadPacketwolf()}>
+        <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void loadPacketwolf()}>
           Refresh
         </button>
       }>
@@ -194,7 +194,7 @@ export default function PlatformFirewallCompliance() {
       {report && (
         <MacGlassPanel title={`Report: ${kind}`} action={
           <div className="flex gap-3">
-            <button type="button" className="text-xs text-blue-400" onClick={() => void exportFirewallGitOps().then((r) => {
+            <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void exportFirewallGitOps().then((r) => {
               const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' })
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')
@@ -210,10 +210,10 @@ export default function PlatformFirewallCompliance() {
             ).catch((e: unknown) => toast.error(formatUserError(e)))}>
               Sync GitOps
             </button>
-            <a href={firewallCompliancePdfUrl(kind)} className="text-xs text-blue-400" target="_blank" rel="noreferrer">
+            <a href={firewallCompliancePdfUrl(kind)} className={`text-xs ${hubLinkClasses()}`} target="_blank" rel="noreferrer">
               Export PDF
             </a>
-            <button type="button" className="text-xs text-blue-400" onClick={() => void exportFirewallSiem(168).then((r) => {
+            <button type="button" className={`text-xs ${hubLinkClasses()}`} onClick={() => void exportFirewallSiem(168).then((r) => {
               const blob = new Blob([JSON.stringify(r, null, 2)], { type: 'application/json' })
               const url = URL.createObjectURL(blob)
               const a = document.createElement('a')

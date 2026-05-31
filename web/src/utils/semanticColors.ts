@@ -249,3 +249,8 @@ export function navActiveChipClasses(extra = ''): string {
 export function tabActiveClasses(extra = ''): string {
   return `border-[var(--machina-status-info)] ${statusToneClass('info')} ${extra}`.trim()
 }
+
+/** Platform hub / cross-link navigation (info tone). */
+export function hubLinkClasses(extra = ''): string {
+  return statusActionLinkClasses('info', extra)
+}

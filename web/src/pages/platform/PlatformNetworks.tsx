@@ -42,7 +42,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 const PRESETS = [
   { name: 'default', bridge: 'virbr0', label: 'Default NAT', desc: 'Libvirt default — VMs get DHCP' },
@@ -588,7 +588,7 @@ export default function PlatformNetworks() {
           )}
           <MachinaNetworkLens vmNames={lensVmNames} />
           <MacGlassPanel title="System Settings" subtitle="Fleet network pane — segments, firewall SLA, host systemd">
-            <Link to="/platform/settings?section=network" className="text-sm text-blue-400">
+            <Link to="/platform/settings?section=network" className={`text-sm ${hubLinkClasses()}`}>
               Open Network in System Settings →
             </Link>
           </MacGlassPanel>

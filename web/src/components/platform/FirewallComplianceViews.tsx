@@ -2,6 +2,7 @@
 
 import { Link } from 'react-router'
 import { asArray, asRecord } from './JsonInspector'
+import { hubLinkClasses, statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 
 export function ComplianceReportSummary({ report }: { report: Record<string, unknown> }) {
   const summary = typeof report.summary === 'string' ? report.summary : null
@@ -17,7 +18,7 @@ export function ComplianceReportSummary({ report }: { report: Record<string, unk
       <div className="flex flex-wrap gap-3 text-xs">
         <span className="px-2 py-1 rounded bg-slate-800 text-slate-300">{findings.length} finding(s)</span>
         {critical != null && Number(critical) > 0 && (
-          <span className="px-2 py-1 rounded bg-rose-900/40 text-rose-300">{Number(critical)} critical</span>
+          <span className={`px-2 py-1 rounded ${statusBadgeClasses('error')}`}>{Number(critical)} critical</span>
         )}
       </div>
       {findings.length > 0 && (
@@ -32,7 +33,7 @@ export function ComplianceReportSummary({ report }: { report: Record<string, unk
                 <p className="text-slate-200 font-medium">{title}</p>
                 {detail && <p className="text-xs text-slate-500 mt-0.5">{detail}</p>}
                 {target != null && target !== '' && (
-                  <Link to={`/platform/zeus/security/firewall/${String(target)}`} className="text-xs text-blue-400 mt-1 inline-block">
+                  <Link to={`/platform/zeus/security/firewall/${String(target)}`} className={`text-xs mt-1 inline-block ${hubLinkClasses()}`}>
                     Open firewall target →
                   </Link>
                 )}
@@ -59,9 +60,9 @@ export function PacketwolfAnomalySummary({ data }: { data: Record<string, unknow
           {anomalies.slice(0, 15).map((item, i) => {
             const row = asRecord(item) ?? { detail: String(item) }
             return (
-              <li key={i} className="rounded-lg border border-amber-500/20 bg-amber-950/20 px-3 py-2 text-sm">
-                <p className="text-amber-100">{String(row.type ?? row.anomaly ?? row.title ?? `Anomaly ${i + 1}`)}</p>
-                <p className="text-xs text-amber-200/70 mt-0.5">{String(row.detail ?? row.message ?? row.description ?? '')}</p>
+              <li key={i} className={`rounded-lg px-3 py-2 text-sm ${statusSurfaceClasses('warn')}`}>
+                <p className={statusToneClass('warn')}>{String(row.type ?? row.anomaly ?? row.title ?? `Anomaly ${i + 1}`)}</p>
+                <p className={`text-xs mt-0.5 opacity-70 ${statusToneClass('warn')}`}>{String(row.detail ?? row.message ?? row.description ?? '')}</p>
               </li>
             )
           })}

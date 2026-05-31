@@ -30,7 +30,7 @@ import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { listAlertRules, listAlerts, listTokens } from '../../api/automation'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 type SettingsSection =
   | 'general'
@@ -76,7 +76,7 @@ function parseSettingsSection(raw: string | null): SettingsSection {
 function SettingsWorkspaceLink({ to, label }: { to: string; label: string }) {
   return (
     <p className="text-sm pb-2 border-b border-white/[0.06] mb-4">
-      <Link to={to} className="text-blue-400 hover:text-blue-300">{label} →</Link>
+      <Link to={to} className={hubLinkClasses('hover:underline')}>{label} →</Link>
     </p>
   )
 }
@@ -238,7 +238,7 @@ export default function PlatformSettingsHub() {
           <MacSettingsGroup title="Classic daemon automation">
             <p className="text-xs text-slate-500 mb-2">Single-host alerts and API tokens from the libvirt daemon — mirror of Settings → Automation in classic UI.</p>
             <p className="text-sm text-slate-300">{daemonAlerts} active alert(s) · {daemonTokens} API token(s)</p>
-            <Link to="/settings?tab=automation" className="text-sm text-blue-400 inline-block mt-2">Open classic automation →</Link>
+            <Link to="/settings?tab=automation" className={`text-sm inline-block mt-2 ${hubLinkClasses()}`}>Open classic automation →</Link>
           </MacSettingsGroup>
           <FleetSettingsPane kind="general" />
         </div>
@@ -267,7 +267,7 @@ export default function PlatformSettingsHub() {
           {enterprise && (
             <MacSettingsGroup title="Keychain">
               <p className="text-xs text-slate-500 mb-2">Fleet secrets inventory — vault, MFA, API keys, air-gap bundles.</p>
-              <Link to="/platform/enterprise?tab=keychain" className="text-sm text-blue-400">Open Keychain →</Link>
+              <Link to="/platform/enterprise?tab=keychain" className={`text-sm ${hubLinkClasses()}`}>Open Keychain →</Link>
             </MacSettingsGroup>
           )}
 
@@ -363,7 +363,7 @@ export default function PlatformSettingsHub() {
 
           <MacSettingsGroup title="Policy rules">
             {policyRules.length === 0 ? (
-              <p className="text-sm text-slate-500">No rules — <Link to="/platform/policy" className="text-blue-400">open Policy & Quotas</Link></p>
+              <p className="text-sm text-slate-500">No rules — <Link to="/platform/policy" className={hubLinkClasses()}>open Policy & Quotas</Link></p>
             ) : (
               policyRules.slice(0, 5).map((r) => (
                 <MacListRow key={r.id} title={r.name} subtitle={r.enabled ? 'Enabled' : 'Disabled'} />
@@ -432,8 +432,8 @@ export default function PlatformSettingsHub() {
 
           <MacSettingsGroup title="Network Lens">
             <p className="text-sm text-slate-400 mb-2">macOS-style reachability explain — why can&apos;t VM A reach VM B?</p>
-            <Link to="/platform/networks?tab=lens" className="text-sm text-blue-400 block">Open Network Lens →</Link>
-            <Link to="/platform/topology" className="text-sm text-blue-400 block mt-1">Topology & digital twin →</Link>
+            <Link to="/platform/networks?tab=lens" className={`text-sm block ${hubLinkClasses()}`}>Open Network Lens →</Link>
+            <Link to="/platform/topology" className={`text-sm block mt-1 ${hubLinkClasses()}`}>Topology & digital twin →</Link>
           </MacSettingsGroup>
 
           <MacSettingsGroup title="Overlay segments">
@@ -450,7 +450,7 @@ export default function PlatformSettingsHub() {
                 />
               ))
             )}
-            <Link to="/platform/networks" className="text-sm text-blue-400 inline-block mt-2">Manage networks →</Link>
+            <Link to="/platform/networks" className={`text-sm inline-block mt-2 ${hubLinkClasses()}`}>Manage networks →</Link>
           </MacSettingsGroup>
 
           <MacSettingsGroup title="Hypervisor networking">
@@ -493,7 +493,7 @@ export default function PlatformSettingsHub() {
             <button type="button" className="btn-secondary text-xs" disabled={saving} onClick={() => void saveApprovalSla()}>
               Save SLA
             </button>
-            <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 block mt-3">
+            <Link to="/platform/zeus/security/firewall" className={`text-sm block mt-3 ${hubLinkClasses()}`}>
               Open Zeus Firewall hub →
             </Link>
           </MacSettingsGroup>
@@ -503,7 +503,7 @@ export default function PlatformSettingsHub() {
       {section === 'updates' && (
         <MacSettingsGroup title="Updates">
           <p className="text-sm text-slate-400">Controller upgrade matrix and rollout planning.</p>
-          <Link to="/platform/upgrade" className="text-sm text-blue-400 inline-block mt-2">Open upgrade matrix →</Link>
+          <Link to="/platform/upgrade" className={`text-sm inline-block mt-2 ${hubLinkClasses()}`}>Open upgrade matrix →</Link>
         </MacSettingsGroup>
       )}
 
@@ -511,7 +511,7 @@ export default function PlatformSettingsHub() {
         <MacSettingsGroup title="About Zyvor Platform">
           <p className="text-sm text-slate-400">Virtual datacenter control plane — KVM engine, macOS-inspired UX.</p>
           <p className="text-xs text-slate-500 mt-2">UX batches 49–56 · Zeus Firewall macOS Security pane (AI-372–391)</p>
-          <Link to="/platform/support" className="text-sm text-blue-400 inline-block mt-3">Support & diagnostics →</Link>
+          <Link to="/platform/support" className={`text-sm inline-block mt-3 ${hubLinkClasses()}`}>Support & diagnostics →</Link>
         </MacSettingsGroup>
       )}
 

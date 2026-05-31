@@ -7,7 +7,7 @@ import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import { getFleetActivity, type FleetActivityOverview } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 type Tab = 'vms' | 'hosts'
 
@@ -53,10 +53,10 @@ export default function PlatformActivityMonitor() {
         subtitle="Fleet-wide CPU, memory, and Linux PSI — macOS Activity Monitor for your hypervisors."
       />
       <div className="flex flex-wrap gap-3 text-xs">
-        <Link to="/platform/placement" className="text-blue-400">HA status & fence events →</Link>
-        <Link to="/platform/developer" className="text-blue-400">Developer SDK →</Link>
-        <Link to="/platform/reports?tab=runbooks" className="text-blue-400">Ops runbooks →</Link>
-        <Link to="/platform/integrations" className="text-blue-400">Classic tools →</Link>
+        <Link to="/platform/placement" className={hubLinkClasses()}>HA status & fence events →</Link>
+        <Link to="/platform/developer" className={hubLinkClasses()}>Developer SDK →</Link>
+        <Link to="/platform/reports?tab=runbooks" className={hubLinkClasses()}>Ops runbooks →</Link>
+        <Link to="/platform/integrations" className={hubLinkClasses()}>Classic tools →</Link>
       </div>
       {data && <p className="text-sm text-slate-400">{data.summary}</p>}
       {error && <p className={`text-sm ${statusToneClass('error')}`}>{error}</p>}

@@ -25,6 +25,7 @@ import {
 import { aiGenerateBlueprint } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type TabId = 'launchpad' | 'studio'
 
@@ -157,7 +158,7 @@ export default function PlatformBlueprints() {
             </div>
           )}
           <div className="flex flex-wrap gap-3 mt-4 pt-2 border-t border-white/[0.04]">
-            <Link to="/platform/reports?tab=runbooks" className="text-sm text-blue-400">Operations runbooks →</Link>
+            <Link to="/platform/reports?tab=runbooks" className={`text-sm ${hubLinkClasses()}`}>Operations runbooks →</Link>
           </div>
         </MacGlassPanel>
       )}

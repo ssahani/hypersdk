@@ -13,6 +13,7 @@ import {
 } from '../../api/platform'
 import { formatUserError } from '../../utils/apiError'
 import CopyButton from '../../components/CopyButton'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type DevTab = 'sdk' | 'console'
 
@@ -84,7 +85,7 @@ export default function PlatformDeveloper() {
               · Examples: <code className="text-blue-300">{overview.terraform.examples_path}</code>
             </p>
             <p className="text-sm text-slate-400 mb-3">
-              OpenAPI spec: <a className="text-blue-400 hover:underline" href={overview.openapi_url}>{overview.openapi_url}</a>
+              OpenAPI spec: <a className={`hover:underline ${hubLinkClasses()}`} href={overview.openapi_url}>{overview.openapi_url}</a>
             </p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-left">

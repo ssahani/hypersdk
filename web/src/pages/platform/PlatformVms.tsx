@@ -31,6 +31,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type ViewMode = 'launchpad' | 'list' | 'columns'
 
@@ -310,7 +311,7 @@ export default function PlatformVms() {
               className={`border-b border-slate-900/80 cursor-pointer ${selectedVmId === v.id ? 'bg-sky-500/10' : 'hover:bg-white/[0.02]'}`}
               onClick={() => setSelectedVmId(v.id)}
             >
-              <td className="p-3"><Link to={`/platform/vms/${v.id}`} className="text-blue-400 hover:underline" onClick={(e) => e.stopPropagation()}>{v.name}</Link></td>
+              <td className="p-3"><Link to={`/platform/vms/${v.id}`} className={`hover:underline ${hubLinkClasses()}`} onClick={(e) => e.stopPropagation()}>{v.name}</Link></td>
               <td className="p-3 capitalize">{v.observed_state}</td>
               <td className="p-3 text-xs text-slate-500">{(v.tags ?? []).join(', ') || '—'}</td>
               <td className="p-3 text-slate-500">{v.host_id ? hostMap.get(v.host_id) : '—'}</td>

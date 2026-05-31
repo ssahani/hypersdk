@@ -8,7 +8,7 @@ import ErrorBanner from '../../../components/ErrorBanner'
 import CopyButton from '../../../components/CopyButton'
 import { getK8sFirewallStatus, planK8sFirewall, applyK8sFirewall } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
 import { useToastContext } from '../../../contexts/ToastContext'
 
 export default function PlatformFirewallK8s() {
@@ -33,7 +33,7 @@ export default function PlatformFirewallK8s() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Kubernetes Firewall" subtitle="NetworkPolicy and Cilium from Zeus profiles" />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <Link to="/platform/zeus/security/firewall" className={`text-sm ${hubLinkClasses()}`}>← Firewall overview</Link>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Cluster">
         <div className="flex items-center gap-3">

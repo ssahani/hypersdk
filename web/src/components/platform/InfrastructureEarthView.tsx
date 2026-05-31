@@ -3,6 +3,7 @@
 import { Link } from 'react-router'
 import { Server } from 'lucide-react'
 import type { FleetMissionOverview, MissionHost } from '../../api/platform'
+import { statusBgClass, statusSurfaceClasses, utilizationTone } from '../../utils/semanticColors'
 
 function LivingHostCard({ host }: { host: MissionHost }) {
   const memPct = host.memory_total_mib > 0
@@ -14,8 +15,8 @@ function LivingHostCard({ host }: { host: MissionHost }) {
   return (
     <Link
       to={`/platform/hosts/${host.id}`}
-      className={`block rounded-xl border p-3 transition hover:scale-[1.02] hover:border-sky-400/40 ${
-        online ? 'border-emerald-500/25 bg-emerald-500/5' : 'border-white/[0.08] bg-slate-900/60'
+      className={`block rounded-xl border p-3 transition hover:scale-[1.02] hover:border-[color-mix(in_srgb,var(--machina-status-info)_40%,transparent)] ${
+        online ? statusSurfaceClasses('ok') : 'border-white/[0.08] bg-slate-900/60'
       }`}
       style={{ transform: 'translateZ(0)' }}
     >
@@ -32,7 +33,7 @@ function LivingHostCard({ host }: { host: MissionHost }) {
           </div>
           <div className="h-1 rounded-full bg-slate-800 overflow-hidden">
             <div
-              className={`h-full rounded-full transition-all duration-700 ${cpuPct > 85 ? 'bg-amber-400' : 'bg-sky-400'}`}
+              className={`h-full rounded-full transition-all duration-700 ${statusBgClass(utilizationTone(cpuPct))}`}
               style={{ width: `${cpuPct}%` }}
             />
           </div>

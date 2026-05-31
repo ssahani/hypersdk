@@ -15,6 +15,7 @@ import {
 import JsonInspector from '../../../components/platform/JsonInspector'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
+import { hubLinkClasses } from '../../../utils/semanticColors'
 
 export default function PlatformFirewallPolicies() {
   const toast = useToastContext()
@@ -75,7 +76,7 @@ export default function PlatformFirewallPolicies() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Policy Studio" subtitle="Create, simulate, and manage Zeus firewall policies." />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <Link to="/platform/zeus/security/firewall" className={`text-sm ${hubLinkClasses()}`}>← Firewall overview</Link>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="New policy">
         <div className="grid gap-3 max-w-lg">

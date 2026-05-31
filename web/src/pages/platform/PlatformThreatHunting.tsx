@@ -18,6 +18,7 @@ import {
   type SecurityEvent,
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 function LlmBadge({ powered }: { powered?: boolean }) {
   if (!powered) return null
@@ -121,7 +122,7 @@ export default function PlatformThreatHunting() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Threat hunting" subtitle="Search · timeline · graph · evidence · AI summary" />
-      <Link to="/platform/zeus/security" className="text-sm text-blue-400">← Security Center</Link>
+      <Link to="/platform/zeus/security" className={`text-sm ${hubLinkClasses()}`}>← Security Center</Link>
       {error && <ErrorBanner message={error} />}
       {huntQueries.length > 0 && (
         <MacGlassPanel title="Saved hunt queries" subtitle="OpenSearch-backed SOC playbooks">
@@ -218,7 +219,7 @@ export default function PlatformThreatHunting() {
                 {h.host_id ? (
                   <>
                     {' '}
-                    <Link to={`/platform/zeus/machines/${h.host_id}`} className="text-blue-400 text-xs">
+                    <Link to={`/platform/zeus/machines/${h.host_id}`} className={`text-xs ${hubLinkClasses()}`}>
                       {h.host_id}
                     </Link>
                   </>
@@ -240,7 +241,7 @@ export default function PlatformThreatHunting() {
                 {c.host_id ? (
                   <>
                     {' '}
-                    <Link to={`/platform/zeus/machines/${String(c.host_id)}`} className="text-blue-400">
+                    <Link to={`/platform/zeus/machines/${String(c.host_id)}`} className={hubLinkClasses()}>
                       {String(c.host_id)}
                     </Link>
                   </>

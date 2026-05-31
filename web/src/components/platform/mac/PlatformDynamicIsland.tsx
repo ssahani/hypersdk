@@ -6,6 +6,14 @@ import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import { activityHubHref, operationsHubHref } from '../../../utils/platformHubLinks'
 import { getSreForecast, type SreForecast } from '../../../api/ai'
+import { hubLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
+
+function islandTone(state: 'ok' | 'warn' | 'notify' | 'alert'): 'ok' | 'warn' | 'error' | 'info' {
+  if (state === 'ok') return 'ok'
+  if (state === 'notify') return 'info'
+  if (state === 'warn') return 'warn'
+  return 'error'
+}
 
 export default function PlatformDynamicIsland() {
   const { desktop, linuxHealth } = useFleetDesktop(true, 60_000)
@@ -32,6 +40,8 @@ export default function PlatformDynamicIsland() {
     return 'ok' as const
   }, [pressure, criticalForecast, actionableIssues, failedTasks, alertBacklog])
 
+  const tone = islandTone(state)
+
   const formatCount = (n: number) => (n > 999 ? '999+' : String(n))
 
   const label = state === 'ok'
@@ -46,23 +56,15 @@ export default function PlatformDynamicIsland() {
           ? `${pressure} host(s) under pressure`
           : 'Critical alert'
 
-  const pillClass = state === 'ok'
-    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
-    : state === 'notify'
-      ? 'border-sky-500/40 bg-sky-500/10 text-sky-200'
-      : state === 'warn'
-        ? 'border-amber-500/40 bg-amber-500/10 text-amber-200'
-        : 'border-red-500/40 bg-red-500/10 text-red-200'
-
   return (
     <div className="relative pointer-events-auto">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className={`mac-dynamic-island inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-medium transition-all ${pillClass}`}
+        className={`mac-dynamic-island inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-medium transition-all ${statusSurfaceClasses(tone)}`}
         aria-expanded={expanded}
       >
-        <span className={`h-2 w-2 rounded-full ${state === 'ok' ? 'bg-emerald-400' : state === 'warn' ? 'bg-amber-400' : 'bg-red-400 animate-pulse'}`} />
+        <span className={`h-2 w-2 rounded-full ${statusBgClass(tone)}${tone === 'error' ? ' animate-pulse' : ''}`} />
         {label}
       </button>
       {expanded && (
@@ -70,37 +72,37 @@ export default function PlatformDynamicIsland() {
           <p className="text-xs font-semibold text-slate-300 mb-2">Infrastructure status</p>
           {desktop && <p className="text-xs text-slate-400 mb-3">{desktop.summary}</p>}
           {alertBacklog > 0 && (
-            <p className="text-xs text-sky-300/90 mb-2">
+            <p className={`text-xs mb-2 ${statusToneClass('info')} opacity-90`}>
               {alertBacklog.toLocaleString()} unread notification{alertBacklog === 1 ? '' : 's'} in backlog
             </p>
           )}
           {failedTasks > 0 && (
-            <p className="text-xs text-amber-300/90 mb-2">
+            <p className={`text-xs mb-2 ${statusToneClass('warn')} opacity-90`}>
               {formatCount(failedTasks)} failed task{failedTasks === 1 ? '' : 's'} in the last 24 hours —{' '}
-              <Link to={operationsHubHref(tier)} className="text-sky-400 hover:underline" onClick={() => setExpanded(false)}>Operations hub</Link>
+              <Link to={operationsHubHref(tier)} className={hubLinkClasses('hover:underline')} onClick={() => setExpanded(false)}>Operations hub</Link>
             </p>
           )}
           {actionableIssues > 0 && (
-            <p className="text-xs text-amber-300/90 mb-2">
+            <p className={`text-xs mb-2 ${statusToneClass('warn')} opacity-90`}>
               {actionableIssues} open issue{actionableIssues === 1 ? '' : 's'} (SLO breaches, host pressure)
             </p>
           )}
           {criticalForecast ? (
-            <div className="rounded-lg border border-red-500/30 bg-red-500/10 p-3 mb-3 text-xs text-red-200">
+            <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('error')}`}>
               <p className="font-medium">Action suggested</p>
-              <p className="mt-1 text-red-200/90">{criticalForecast.message}</p>
+              <p className="mt-1 opacity-90">{criticalForecast.message}</p>
             </div>
           ) : pressure > 0 ? (
-            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 mb-3 text-xs text-amber-200">
+            <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('warn')}`}>
               <p>{linuxHealth?.summary ?? desktop?.linux_summary ?? 'Hosts under resource pressure'}</p>
             </div>
           ) : (
-            <p className="text-xs text-emerald-300/90 mb-3">All monitored systems nominal.</p>
+            <p className={`text-xs mb-3 ${statusToneClass('ok')} opacity-90`}>All monitored systems nominal.</p>
           )}
           <div className="flex flex-wrap gap-2">
-            <Link to="/platform/hosts" className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Hosts</Link>
-            <Link to={operationsHubHref(tier)} className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Operations</Link>
-            <Link to={activityHubHref(tier)} className="text-xs text-blue-400 hover:underline" onClick={() => setExpanded(false)}>Activity</Link>
+            <Link to="/platform/hosts" className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Hosts</Link>
+            <Link to={operationsHubHref(tier)} className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Operations</Link>
+            <Link to={activityHubHref(tier)} className={hubLinkClasses('text-xs hover:underline')} onClick={() => setExpanded(false)}>Activity</Link>
           </div>
         </div>
       )}

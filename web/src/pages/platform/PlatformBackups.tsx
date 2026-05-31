@@ -19,7 +19,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 function dayLabel(iso: string) {
   const d = new Date(iso)
@@ -184,7 +184,7 @@ export default function PlatformBackups() {
       {tab === 'timeline' && (
         <>
           <p className="text-sm text-slate-500">
-            Need per-VM legacy jobs? <Link to="/backups" className="text-blue-400">Open classic backups UI →</Link>
+            Need per-VM legacy jobs? <Link to="/backups" className={hubLinkClasses()}>Open classic backups UI →</Link>
           </p>
           {fleet?.summary ? <p className="text-sm text-slate-400">{fleet.summary}</p> : null}
           <div className="space-y-6">
@@ -209,7 +209,7 @@ export default function PlatformBackups() {
                           <span className="text-slate-600">· {e.kind}</span>
                         </p>
                         <p className="text-sm font-medium text-slate-200 mt-0.5">{e.label}</p>
-                        <Link to={`/platform/vms/${e.vm_id}`} className="text-xs text-blue-400 hover:underline">{e.vm_name}</Link>
+                        <Link to={`/platform/vms/${e.vm_id}`} className={`text-xs hover:underline ${hubLinkClasses()}`}>{e.vm_name}</Link>
                       </div>
                       <div className="flex flex-col gap-1 shrink-0">
                         {e.kind === 'backup' && e.status === 'completed' && (
@@ -230,7 +230,7 @@ export default function PlatformBackups() {
         </>
       )}
       <MacGlassPanel title="Per-VM backups" subtitle="Full backup history and restore live on each VM detail page.">
-        <Link to="/platform/vms" className="text-sm text-blue-400 hover:underline">Browse VMs →</Link>
+        <Link to="/platform/vms" className={`text-sm hover:underline ${hubLinkClasses()}`}>Browse VMs →</Link>
       </MacGlassPanel>
     </PlatformStandardView>
   )

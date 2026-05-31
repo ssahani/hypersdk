@@ -13,7 +13,7 @@ import FleetSettingsPane from '../../components/platform/FleetSettingsPane'
 import { getFleetSpaces, type FleetSpacesOverview } from '../../api/platform'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 function SpaceCard({
   name,
@@ -176,7 +176,7 @@ export default function PlatformProjects({ embedded }: { embedded?: boolean } = 
                   <td className="p-3 text-right">
                     <Link
                       to={`/platform/vms?project=${encodeURIComponent(s.name === 'default' ? '' : s.name)}`}
-                      className="text-blue-400 text-xs"
+                      className={`text-xs ${hubLinkClasses()}`}
                       onClick={() => selectSpace(s.name)}
                     >
                       Focus space

@@ -8,7 +8,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import { formatUserError } from '../../utils/apiError'
-import { statusToneClass } from '../../utils/semanticColors'
+import { statusToneClass, hubLinkClasses } from '../../utils/semanticColors'
 import MachinaNetworkLens from '../../components/ai/MachinaNetworkLens'
 import MachinaDigitalTwin from '../../components/ai/MachinaDigitalTwin'
 import { getClusterTopology, type TopologyGraph } from '../../api/platform'
@@ -138,7 +138,7 @@ export default function PlatformTopology() {
               ))
             })}
           </ul>
-          <Link to="/platform/zeus/security" className="text-xs text-blue-400 mt-2 inline-block">Security Center</Link>
+          <Link to="/platform/zeus/security" className={`text-xs mt-2 inline-block ${hubLinkClasses()}`}>Security Center</Link>
         </MacGlassPanel>
       )}
       <MachinaNetworkLens vmNames={graph?.nodes.filter((n) => n.kind === 'vm').map((n) => n.name) ?? []} />
@@ -166,7 +166,7 @@ export default function PlatformTopology() {
             {lldpStrip.map((entry) => (
               <div key={entry.hostId} className="rounded-xl border border-white/[0.06] bg-slate-900/40 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <Link to={`/platform/hosts/${entry.hostId}`} className="text-sm font-medium text-blue-300 hover:underline">
+                  <Link to={`/platform/hosts/${entry.hostId}`} className={`text-sm font-medium hover:underline ${hubLinkClasses()}`}>
                     {entry.hostname}
                   </Link>
                   {entry.source && (
@@ -205,7 +205,7 @@ export default function PlatformTopology() {
             ))}
             {graph.nodes.filter((n) => n.kind === 'host').map((h) => (
               <div key={h.id} className="ml-4 mt-2">
-                <p className="text-blue-400">└ {h.name} <span className="text-slate-600">({h.state})</span></p>
+                <p className={hubLinkClasses()}>└ {h.name} <span className="text-slate-600">({h.state})</span></p>
                 {graph.edges.filter((e) => e.from === h.id && e.label === 'uplink').map((e) => {
                   const sw = graph.nodes.find((n) => n.id === e.to)
                   return sw ? (

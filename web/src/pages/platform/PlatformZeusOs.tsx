@@ -9,6 +9,7 @@ import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
 import {
   analyzeAttackPath,
@@ -221,7 +222,7 @@ export default function PlatformZeusOs() {
             {t.icon} {t.label}
           </button>
         ))}
-        <Link to="/mission-control" className="text-xs text-blue-400 self-center ml-2">Mission Control →</Link>
+        <Link to="/mission-control" className={`text-xs self-center ml-2 ${hubLinkClasses()}`}>Mission Control →</Link>
       </div>
 
       {tab === 'fleet' && heatmap && (
@@ -336,7 +337,7 @@ export default function PlatformZeusOs() {
           <ul className="mt-3 space-y-1.5 text-xs">
             {knowledgeHits.map((h) => (
               <li key={`${h.kind}-${h.id}`}>
-                {h.navigate ? <Link to={h.navigate} className="text-blue-400 hover:underline">{h.title}</Link> : h.title}
+                {h.navigate ? <Link to={h.navigate} className={`hover:underline ${hubLinkClasses()}`}>{h.title}</Link> : h.title}
                 <span className="text-slate-500"> — {h.snippet}</span>
               </li>
             ))}
@@ -348,7 +349,7 @@ export default function PlatformZeusOs() {
         <MacGlassPanel title="Service graph & infrastructure memory" subtitle="Application → VM dependencies + incident recall">
           <p className="text-sm text-slate-400">{serviceCount} application service(s) mapped · {memoryCount} remembered incident(s)</p>
           {serviceImpact && <p className="text-xs text-slate-400 mt-2">{serviceImpact}</p>}
-          <Link to="/platform/applications" className="text-xs text-blue-400 mt-2 inline-block">Open applications →</Link>
+          <Link to="/platform/applications" className={`text-xs mt-2 inline-block ${hubLinkClasses()}`}>Open applications →</Link>
         </MacGlassPanel>
       )}
 
@@ -394,11 +395,11 @@ export default function PlatformZeusOs() {
                   href={`/platform/zeus/security/firewall/${s.id}`}
                   trailing={
                     <span className="flex gap-2 text-[10px]">
-                      <button type="button" className="text-blue-400" onClick={(e) => {
+                      <button type="button" className={hubLinkClasses()} onClick={(e) => {
                         e.preventDefault()
                         void setBaremetalPower(s.id, 'on', true).then((r) => setCapacitySummary(r.summary))
                       }}>Power</button>
-                      <button type="button" className="text-blue-400" onClick={(e) => {
+                      <button type="button" className={hubLinkClasses()} onClick={(e) => {
                         e.preventDefault()
                         void getBaremetalProvision(s.id).then((r) => setCapacitySummary(r.summary))
                       }}>PXE</button>
@@ -415,7 +416,7 @@ export default function PlatformZeusOs() {
                 />
               )}
             </div>
-            <Link to="/platform/zeus/security/firewall" className="text-xs text-blue-400 mt-3 inline-block">
+            <Link to="/platform/zeus/security/firewall" className={`text-xs mt-3 inline-block ${hubLinkClasses()}`}>
               Open Zeus Firewall fleet →
             </Link>
           </MacGlassPanel>

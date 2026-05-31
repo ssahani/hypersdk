@@ -43,7 +43,7 @@ import { getAiSecurity, getAiSettings, getZeusSummary, runAutopilotSafe, type Ai
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { hubTilesForTier, showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS } from '../../utils/platformHubZones'
@@ -344,7 +344,7 @@ export default function PlatformDashboard() {
           title={showAdvanced ? 'Recent tasks' : 'Hosts'}
           subtitle={showAdvanced ? 'Activity Monitor preview' : 'Hypervisors in this cluster'}
           action={
-            <Link to={showAdvanced ? operationsHubHref(tier) : '/platform/hosts'} className="text-xs text-blue-400">
+            <Link to={showAdvanced ? operationsHubHref(tier) : '/platform/hosts'} className={`text-xs ${hubLinkClasses()}`}>
               View all
             </Link>
           }
@@ -365,13 +365,13 @@ export default function PlatformDashboard() {
             <ul className="space-y-2 text-sm -mt-2">
               {hosts.slice(0, 6).map((h) => (
                 <li key={h.id} className="flex justify-between items-center">
-                  <Link to={`/platform/hosts/${h.id}`} className="text-blue-400 hover:underline">{h.hostname}</Link>
+                  <Link to={`/platform/hosts/${h.id}`} className={`hover:underline ${hubLinkClasses()}`}>{h.hostname}</Link>
                   <span className={`text-xs capitalize ${statusToneClass(hostStateTone(h.state))}`}>{h.state} · {h.vm_count} VMs</span>
                 </li>
               ))}
               {hosts.length === 0 && (
                 <li className="text-slate-500 text-sm">
-                  No hosts enrolled — <Link to="/platform/enroll" className="text-blue-400">Add Host</Link>
+                  No hosts enrolled — <Link to="/platform/enroll" className={hubLinkClasses()}>Add Host</Link>
                 </li>
               )}
             </ul>

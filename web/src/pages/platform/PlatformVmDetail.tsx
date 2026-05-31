@@ -61,7 +61,7 @@ import { getVmGuestFirewallPorts, type GuestPortReport } from '../../api/zeusFir
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { vmErrorPresentation } from '../../utils/vmErrorPresentation'
 import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenterPopout'
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
@@ -252,7 +252,7 @@ export default function PlatformVmDetail() {
   return (
     <div className="space-y-6">
       {!isPopout && (
-        <Link to="/platform/vms" className="text-sm text-blue-400 flex items-center gap-1"><ArrowLeft className="w-4 h-4" /> Virtual Machines</Link>
+        <Link to="/platform/vms" className={`text-sm flex items-center gap-1 ${hubLinkClasses()}`}><ArrowLeft className="w-4 h-4" /> Virtual Machines</Link>
       )}
       {error && <ErrorBanner message={error} />}
       {vm && (
@@ -277,7 +277,7 @@ export default function PlatformVmDetail() {
               )}
             </div>
             {vm.host_id && (
-              <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className="text-sm text-blue-400 inline-block">
+              <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className={`text-sm inline-block ${hubLinkClasses()}`}>
                 Machine Security → Zeus Firewall
               </Link>
             )}
@@ -460,7 +460,7 @@ export default function PlatformVmDetail() {
           {tab === 'network' && (
             <MacGlassPanel title="Network" className="pt-2">
               <p className="text-sm text-slate-400">Network configuration is defined in the VM spec. Use migration pre-check for cross-host network validation.</p>
-              <Link to="/platform/networks" className="text-blue-400 text-sm mt-2 inline-block">Manage networks →</Link>
+              <Link to="/platform/networks" className={`text-sm mt-2 inline-block ${hubLinkClasses()}`}>Manage networks →</Link>
             </MacGlassPanel>
           )}
 
@@ -567,7 +567,7 @@ export default function PlatformVmDetail() {
                 subtitle="In-guest listening ports via QEMU guest agent · host firewall on parent machine"
               >
                 {vm.host_id && (
-                  <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className="text-sm text-blue-400 inline-flex items-center gap-1 mb-4">
+                  <Link to={`/platform/zeus/security/firewall/${vm.host_id}`} className={`text-sm inline-flex items-center gap-1 mb-4 ${hubLinkClasses()}`}>
                     <Shield className="w-4 h-4" /> Host firewall (Zeus) →
                   </Link>
                 )}
@@ -660,7 +660,7 @@ export default function PlatformVmDetail() {
                       </li>
                     ))}
                   </ul>
-                  <Link to="/platform/topology" className="text-xs text-blue-400">Open fleet topology →</Link>
+                  <Link to="/platform/topology" className={`text-xs ${hubLinkClasses()}`}>Open fleet topology →</Link>
                 </div>
               )}
             </MacGlassPanel>
@@ -684,7 +684,7 @@ export default function PlatformVmDetail() {
                 )}
               </MacGlassPanel>
               <MacGlassPanel title="Events">
-                <Link to={tasksHubHref(tier)} className="text-blue-400">View task history →</Link>
+                <Link to={tasksHubHref(tier)} className={hubLinkClasses()}>View task history →</Link>
               </MacGlassPanel>
             </div>
           )}

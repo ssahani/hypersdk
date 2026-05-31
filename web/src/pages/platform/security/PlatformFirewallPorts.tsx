@@ -7,6 +7,7 @@ import PlatformFilterPills from '../../../components/platform/PlatformFilterPill
 import ErrorBanner from '../../../components/ErrorBanner'
 import { explainFirewall, getFirewallOverview, getFirewallPorts, type OpenPort } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
+import { hubLinkClasses } from '../../../utils/semanticColors'
 
 function riskClass(risk: string) {
   const r = risk.toLowerCase()
@@ -53,7 +54,7 @@ export default function PlatformFirewallPorts() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Open Ports" subtitle="Listening services across the fleet" />
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400">← Firewall overview</Link>
+      <Link to="/platform/zeus/security/firewall" className={`text-sm ${hubLinkClasses()}`}>← Firewall overview</Link>
       {error && <ErrorBanner message={error} />}
       {explain && (
         <MacGlassPanel title="Zeus insight" subtitle="Exposure recommendation">

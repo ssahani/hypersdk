@@ -26,6 +26,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type TabId = 'updates' | 'schedules'
 
@@ -250,7 +251,7 @@ export default function PlatformMaintenance() {
               <tbody>{rows.map((s) => (
                 <tr key={s.id} className="border-b border-slate-900">
                   <td className="p-3">
-                    <Link to={`/platform/hosts/${s.host_id}`} className="text-blue-400 hover:underline">{hostName(s.host_id)}</Link>
+                    <Link to={`/platform/hosts/${s.host_id}`} className={`hover:underline ${hubLinkClasses()}`}>{hostName(s.host_id)}</Link>
                   </td>
                   <td className="p-3">{s.action}{s.evacuate ? ' (evacuate)' : ''}</td>
                   <td className="p-3 text-slate-500">{new Date(s.run_at).toLocaleString()}</td>

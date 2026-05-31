@@ -6,6 +6,7 @@ import { MacGlassPanel, MacListRow, MacSectionTitle } from '../../../components/
 import ErrorBanner from '../../../components/ErrorBanner'
 import { getFirewallActivity, getFirewallOverview } from '../../../api/zeusFirewall'
 import { formatUserError } from '../../../utils/apiError'
+import { hubLinkClasses } from '../../../utils/semanticColors'
 
 type ActivityEvent = Record<string, unknown> & { target?: string; group?: string }
 
@@ -71,7 +72,7 @@ export default function PlatformFirewallActivity() {
   return (
     <div className="space-y-6">
       <MacSectionTitle title="Firewall Activity" subtitle="macOS-style blocked and allowed connections — process, domain, IP" />
-      <Link to="/platform/zeus/security" className="text-sm text-blue-400">← Security Center</Link>
+      <Link to="/platform/zeus/security" className={`text-sm ${hubLinkClasses()}`}>← Security Center</Link>
       {error && <ErrorBanner message={error} />}
       <MacGlassPanel title="Today" subtitle={note || 'PacketWolf provides live flows when connected'}>
         {blocked.length === 0 && allowed.length === 0 ? (

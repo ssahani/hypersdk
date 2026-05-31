@@ -42,7 +42,7 @@ import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFire
 import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 import { openCenterPopout } from '../../utils/platformCenterPopout'
 import { hostClassicTools } from '../../utils/platformClassicTools'
 import { PlatformClassicToolLinks } from '../../components/platform/PlatformCrossLinks'
@@ -172,7 +172,7 @@ export default function PlatformHostDetailPage() {
 
   return (
     <div className="space-y-4">
-      <Link to="/platform/hosts" className="text-sm text-blue-400 flex items-center gap-1">
+      <Link to="/platform/hosts" className={`text-sm flex items-center gap-1 ${hubLinkClasses()}`}>
         <ArrowLeft className="w-4 h-4" /> Hosts
       </Link>
       {error && (hostErrorPresentation(error) ? (
@@ -182,9 +182,9 @@ export default function PlatformHostDetailPage() {
       ))}
       {error && hostErrorPresentation(error)?.error_code === 'host_agent_offline' && (
         <p className="text-xs text-slate-500">
-          <Link to="/platform/enroll" className="text-blue-400">Add Host / re-enroll agent</Link>
+          <Link to="/platform/enroll" className={hubLinkClasses()}>Add Host / re-enroll agent</Link>
           {' · '}
-          <Link to="/node" className="text-blue-400">Classic node tools</Link>
+          <Link to="/node" className={hubLinkClasses()}>Classic node tools</Link>
         </p>
       )}
       {loading && !host && <PageSkeleton />}
@@ -294,14 +294,14 @@ export default function PlatformHostDetailPage() {
                       Deep libvirt, device passthrough, host SSH, and capability matrix — classic Machina UI on this daemon.
                     </p>
                     <PlatformClassicToolLinks tools={hostClassicTools()} />
-                    <Link to={`/node?host=${encodeURIComponent(host.hostname)}`} className="text-xs text-blue-400 inline-block mt-2">Open NodeInfo →</Link>
+                    <Link to={`/node?host=${encodeURIComponent(host.hostname)}`} className={`text-xs inline-block mt-2 ${hubLinkClasses()}`}>Open NodeInfo →</Link>
                     {localFw ? (
                       <div className="mt-3">
                         <p className="text-xs text-slate-500 mb-2">Local firewall inventory (daemon fallback)</p>
                         <JsonInspector data={localFw} />
                       </div>
                     ) : null}
-                    <Link to="/platform/placement" className="text-xs text-blue-400 inline-block mt-3">
+                    <Link to="/platform/placement" className={`text-xs inline-block mt-3 ${hubLinkClasses()}`}>
                       HA status & fence events →
                     </Link>
                   </div>
@@ -401,7 +401,7 @@ export default function PlatformHostDetailPage() {
                     action={
                       <div className="flex flex-wrap gap-2">
                         <Link to="/platform/enroll" className="btn-primary text-sm">Enroll agent</Link>
-                        <Link to="/node" className="text-blue-400 text-sm self-center">Classic node tools →</Link>
+                        <Link to="/node" className={`text-sm self-center ${hubLinkClasses()}`}>Classic node tools →</Link>
                       </div>
                     }
                   />
@@ -444,7 +444,7 @@ export default function PlatformHostDetailPage() {
                     <Link to="/platform/zeus/security/compliance" className="btn-secondary text-sm inline-flex items-center gap-2">
                       Compliance & SIEM
                     </Link>
-                    <Link to="/platform/placement" className="text-sm text-blue-400 self-center">
+                    <Link to="/platform/placement" className={`text-sm self-center ${hubLinkClasses()}`}>
                       Fence events →
                     </Link>
                   </div>

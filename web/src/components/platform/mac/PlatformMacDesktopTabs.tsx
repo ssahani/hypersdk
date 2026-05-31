@@ -11,6 +11,7 @@ import {
   PLATFORM_DESKTOP_TABS_EVENT,
   type PlatformDesktopTab,
 } from '../../../utils/platformDesktopTabs'
+import { statusToneClass } from '../../../utils/semanticColors'
 import { openCenterPopout, useCenterPopout } from '../../../utils/platformCenterPopout'
 
 function openSpotlight() {
@@ -80,7 +81,7 @@ export default function PlatformMacDesktopTabs() {
                 <button
                   type="button"
                   onClick={(e) => closeTab(tab.path, e)}
-                  className="opacity-0 group-hover:opacity-100 hover:text-red-300 transition-opacity"
+                  className={`opacity-0 group-hover:opacity-100 transition-opacity ${statusToneClass('error')}`}
                   aria-label={`Close ${tab.label}`}
                 >
                   <X className="h-3 w-3" />

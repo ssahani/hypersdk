@@ -24,6 +24,7 @@ import {
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 type TabId = 'users' | 'workspaces'
 
@@ -192,7 +193,7 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
                   trailing={
                     <Link
                       to={`/platform/vms?project=${encodeURIComponent(w.name)}`}
-                      className="text-xs text-blue-400"
+                      className={`text-xs ${hubLinkClasses()}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       VMs →
@@ -203,8 +204,8 @@ export default function PlatformUsers({ embedded }: { embedded?: boolean } = {})
             </div>
           )}
           <div className="flex flex-wrap gap-3 mt-4 pt-2 border-t border-white/[0.04]">
-            <Link to="/platform/projects" className="text-sm text-blue-400">Projects list</Link>
-            <Link to="/platform/enterprise?tab=tenants" className="text-sm text-blue-400">Tenant isolation</Link>
+            <Link to="/platform/projects" className={`text-sm ${hubLinkClasses()}`}>Projects list</Link>
+            <Link to="/platform/enterprise?tab=tenants" className={`text-sm ${hubLinkClasses()}`}>Tenant isolation</Link>
           </div>
         </MacGlassPanel>
       )}

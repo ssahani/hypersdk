@@ -23,7 +23,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
 
 const CATEGORIES = ['All', 'Linux', 'Windows', 'Database', 'Appliance'] as const
 const PLUGIN_CATEGORIES = ['All', 'automation', 'observability', 'migration', 'security', 'kubernetes', 'networking'] as const
@@ -362,7 +362,7 @@ export default function PlatformTemplates() {
                   <p className="text-xs mt-2 font-mono text-slate-400">{readiness.source_disk}</p>
                 )}
                 {!readiness.ready && (
-                  <Link to="/platform/content" className="text-xs text-blue-400 hover:underline mt-2 inline-block">Upload image in Content Library →</Link>
+                  <Link to="/platform/content" className={`text-xs hover:underline mt-2 inline-block ${hubLinkClasses()}`}>Upload image in Content Library →</Link>
                 )}
               </div>
             )}

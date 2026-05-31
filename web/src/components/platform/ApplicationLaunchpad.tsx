@@ -34,6 +34,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
+import { hubLinkClasses } from '../../utils/semanticColors'
 
 const PRESETS = [
   { name: 'Finance Application', description: 'ERP, databases & reporting', icon: <Landmark className="w-5 h-5" />, gradient: 'from-emerald-500 to-teal-600' },
@@ -230,7 +231,7 @@ export default function ApplicationLaunchpad() {
             <p className="text-sm text-slate-400 mb-2">Include VMs ({selectedVmIds.size} selected)</p>
             {vms.length === 0 ? (
               <p className="text-sm text-slate-500 rounded-xl border border-dashed border-slate-700 p-4">
-                No VMs yet. <Link to="/platform/vms" className="text-blue-400 hover:underline">Create a VM</Link> first, then return here.
+                No VMs yet. <Link to="/platform/vms" className={`hover:underline ${hubLinkClasses()}`}>Create a VM</Link> first, then return here.
               </p>
             ) : (
               <ul className="space-y-1.5 max-h-48 overflow-y-auto rounded-xl border border-white/[0.06] bg-slate-950/40 p-2">

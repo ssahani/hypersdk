@@ -37,7 +37,7 @@ import {
 } from '../../../api/zeusFirewall'
 import { useToastContext } from '../../../contexts/ToastContext'
 import { formatUserError } from '../../../utils/apiError'
-import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone } from '../../../utils/semanticColors'
+import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../../utils/semanticColors'
 
 type StealthLevel = 'off' | 'standard' | 'strict'
 type PaneId = 'firewall' | 'connections' | 'advanced'
@@ -126,7 +126,7 @@ export default function PlatformFirewallTargetDetail() {
 
   return (
     <div className="space-y-6">
-      <Link to="/platform/zeus/security/firewall" className="text-sm text-blue-400 flex items-center gap-1">
+      <Link to="/platform/zeus/security/firewall" className={`text-sm flex items-center gap-1 ${hubLinkClasses()}`}>
         <ArrowLeft className="w-4 h-4" /> Firewall
       </Link>
       {error && <ErrorBanner message={error} />}
@@ -239,9 +239,9 @@ export default function PlatformFirewallTargetDetail() {
                   </MacGlassPanel>
                 )}
                 <div className="mt-4 flex flex-wrap gap-2 text-sm">
-                  <Link to="/platform/zeus/security/ports" className="text-blue-400">Open Ports</Link>
-                  <Link to="/platform/zeus/security/activity" className="text-blue-400">Activity</Link>
-                  <Link to="/platform/zeus/security/compliance" className="text-blue-400">Compliance</Link>
+                  <Link to="/platform/zeus/security/ports" className={hubLinkClasses()}>Open Ports</Link>
+                  <Link to="/platform/zeus/security/activity" className={hubLinkClasses()}>Activity</Link>
+                  <Link to="/platform/zeus/security/compliance" className={hubLinkClasses()}>Compliance</Link>
                 </div>
               </>
             )}
@@ -403,7 +403,7 @@ export default function PlatformFirewallTargetDetail() {
                         trailing={
                           <button
                             type="button"
-                            className="text-xs text-blue-400"
+                            className={`text-xs ${hubLinkClasses()}`}
                             onClick={async (ev) => {
                               ev.stopPropagation()
                               try {

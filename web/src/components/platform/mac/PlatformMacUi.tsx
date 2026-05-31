@@ -4,6 +4,7 @@ import { Link } from 'react-router'
 import { Plus } from 'lucide-react'
 import { GlassCard } from '../../glass/GlassCard'
 import { GlassModal } from '../../glass/GlassModal'
+import { navActiveChipClasses, statusBgClass, statusToneClass } from '../../../utils/semanticColors'
 
 export function MacGlassPanel({
   title,
@@ -57,7 +58,7 @@ export function MacStatWidget({
   tone?: 'default' | 'ok' | 'warn'
 }) {
   const toneClass =
-    tone === 'ok' ? 'text-emerald-300' : tone === 'warn' ? 'text-amber-300' : 'text-slate-100'
+    tone === 'ok' ? statusToneClass('ok') : tone === 'warn' ? statusToneClass('warn') : 'text-slate-100'
   const inner = (
     <>
       <div className="flex items-center justify-between gap-2">
@@ -227,8 +228,8 @@ export function MacToggle({
         aria-checked={checked}
         disabled={disabled}
         onClick={() => onChange(!checked)}
-        className={`platform-mac-toggle relative shrink-0 w-11 h-6 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500 ${
-          checked ? 'bg-emerald-500' : 'bg-slate-600'
+        className={`platform-mac-toggle relative shrink-0 w-11 h-6 rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--machina-status-info)] ${
+          checked ? statusBgClass('ok') : 'bg-slate-600'
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <span
@@ -349,7 +350,7 @@ export function MacSettingsPane({
               onClick={() => onSelect(s.id)}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition ${
                 active === s.id
-                  ? 'bg-blue-600/20 text-blue-200 border border-blue-500/30'
+                  ? navActiveChipClasses()
                   : 'text-slate-400 hover:bg-slate-800/60 hover:text-slate-200'
               }`}
             >
