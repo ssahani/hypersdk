@@ -102,3 +102,4 @@ See also [`machina-macos-os-manager-roadmap.md`](machina-macos-os-manager-roadma
 |------|--------|--------|
 | W1 | Global `platform-readable`, ShellBridgeBar, empty/loading sweep, Welcome + tier hints | Shipped |
 | W2 | JsonInspector human views, block job / migration job cards, error remediation hints | Shipped |
+| W3 | Cross-shell consistency — colors v2, Help/bridge parity, e2e matrix | Planned — [`next-big-sweep.md`](next-big-sweep.md) |

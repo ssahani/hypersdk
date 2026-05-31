@@ -172,5 +172,6 @@ Users upgrade in **Settings → Appearance → Desktop density**.
 
 ## Related docs
 
+- [next-big-sweep.md](./next-big-sweep.md) — planned cross-shell consistency sweep (batch 57)
 - [machina-infrastructure-vision.md](./machina-infrastructure-vision.md) — Mission Control, geography, parity phases 0–5
 - [machina-macos-os-manager-roadmap.md](./machina-macos-os-manager-roadmap.md) — shell UX roadmap

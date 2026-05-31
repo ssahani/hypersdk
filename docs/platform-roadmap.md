@@ -51,6 +51,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 54 | Zeus Firewall macOS Security pane — toggles, stealth, profiles (AI-372–378) | **Shipped (v1)** |
 | 55 | Fleet firewall views — Overview, Activity, Ports, K8s/Cloud/Connectivity (AI-379–384) | **Shipped (v1)** |
 | 56 | E2E + docs AI-372–391 / UX-49–56 | **Shipped (v1)** |
+| 57 | Cross-shell consistency sweep — semantic colors v2, bridge/Help parity, e2e matrix | **Planned** — see [`next-big-sweep.md`](next-big-sweep.md) |
 
 ## Batch 312–331 deliverables (Bare metal + Zeus Firewall — Phase 23)
 
@@ -68,7 +69,17 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **44:** `web/src/utils/platformCommands.ts`, CommandPalette review → confirm flow
 - **45–46:** Mac UI on remaining platform pages; Control Center memory/offline/alerts sparkline row
 - **47:** Help → Platform tab; `platform-ux-vision.md` / `platform-roadmap.md` updated
-- **48:** Host `last_heartbeat_at` > 2m → `offline` in API; E2E storage discover + template readiness
+- **48:** Host `last_heartbeat_at` > 2m → `offline` in API; E2E storage discover + template readiness — see [`platform-batch-48.spec.ts`](../web/e2e/platform-batch-48.spec.ts)
+
+## Batch 57 deliverables (next big sweep — planned)
+
+Cross-shell consistency pass documented in [`next-big-sweep.md`](next-big-sweep.md):
+
+- **A:** Semantic color system v2 — extend [`semanticColors.ts`](../web/src/utils/semanticColors.ts) to Classic, OpenStack, K8s
+- **B:** Platform Help → Platform tab; tier-aware shell bridge links
+- **C:** JsonInspector / operator surface tail (VMDetails, OpenStack detail)
+- **D:** E2e matrix — `cross-shell.spec.ts`, batch-48 + nav-coverage extensions
+- **E:** Small backend hooks for runbooks / discover (only if UI blocked)
 
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
