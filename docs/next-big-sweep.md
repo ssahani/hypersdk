@@ -10,17 +10,20 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Tahoe Nav Big Sweep** | `98a1410` | [`platformNavRegistry.ts`](../web/src/utils/platformNavRegistry.ts), Spotlight zones (Settings/Ops/Resources/Security/Zeus), CommandPalette platform dedupe, dead `PlatformMenuBar`, tier-aware links, nav e2e |
 | **Overall UX Polish (P14)** | `0ff5cd4` | Empty states, host/network CTAs, Fleet/NodeInfo, K8s can-i card, platform command review e2e |
 | **Batch 48 + Tahoe classic + colors v1** | `7534747` | [`platform-batch-48.spec.ts`](../web/e2e/platform-batch-48.spec.ts), `tahoe-page-root` on classic shell, [`semanticColors.ts`](../web/src/utils/semanticColors.ts) |
+| **Batch 57 Cross-Shell Consistency** | `bea8280`–`a7ce45a` + follow-up | semanticColors v2 + classic/OpenStack/K8s/Platform badge migration; Help → Platform tab + tier-aware shell bridge; CollapsibleCodeBlock operator UX; [`cross-shell.spec.ts`](../web/e2e/cross-shell.spec.ts); NodeInfo/Storage/Backups + CommandPalette palette badges |
 
 **Verification baseline**
 
 ```bash
 cd web && npm run test && npm run build
-cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/shell-bridge.spec.ts
+cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/cross-shell.spec.ts e2e/shell-bridge.spec.ts
 ```
 
 ---
 
 ## Goal of the next sweep
+
+**Batch 57 shipped (2026-05-30).** Remaining optional polish: decorative accent colors in Settings/HostNetworking, platform overlay widgets (Mission Control, Control Center), macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/`.
 
 One reviewable PR that makes **all four shells** (Platform, Classic, OpenStack, K8s) feel like the same product:
 
@@ -53,7 +56,7 @@ flowchart TB
 
 ## Track A — Color system v2 (machina)
 
-**Status:** v1 tokens + Tasks/Hosts only (`7534747`).
+**Status:** Shipped in Batch 57 — tokens, maps, classic/OpenStack/K8s/Platform status badges, NodeInfo/Storage/Backups gauges, CommandPalette network/pool badges.
 
 **Extend**
 
@@ -71,6 +74,8 @@ flowchart TB
 ---
 
 ## Track B — Shell bridge & Help parity
+
+**Status:** Shipped — Platform Help → Platform guide; tier-aware shell bridge; cross-shell e2e.
 
 **Gaps today**
 
@@ -92,6 +97,8 @@ flowchart TB
 
 ## Track C — JsonInspector & operator surfaces (P14 tail)
 
+**Status:** Shipped — VMDetails KubeVirt blocks, OpenStackInstanceDetail errors, K8sOverview etcd/inventory, PlatformReports CTAs.
+
 Most P14 targets are shipped ([`backend-ux-wiring-audit.md`](backend-ux-wiring-audit.md) P14). Remaining high-traffic gaps:
 
 | Priority | File | Change |
@@ -106,6 +113,8 @@ Most P14 targets are shipped ([`backend-ux-wiring-audit.md`](backend-ux-wiring-a
 ---
 
 ## Track D — E2E & live verification matrix
+
+**Status:** Shipped — 69 local e2e green (batch-48, nav-coverage, platform-full, cross-shell, shell-bridge).
 
 **Playwright (local CI)**
 

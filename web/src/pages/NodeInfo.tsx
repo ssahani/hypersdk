@@ -52,6 +52,7 @@ import { getSession, type SessionRole } from '../api/auth'
 import { getHostLibvirtBoot, type LibvirtBootStatus } from '../api/host'
 import { serviceAction } from '../api/extras'
 import { formatUserError } from '../utils/apiError'
+import { statusBgClass, statusToneClass, utilizationTone } from '../utils/semanticColors'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import ErrorBanner from '../components/ErrorBanner'
 import PageSkeleton from '../components/PageSkeleton'
@@ -86,7 +87,7 @@ function HostProcessTableBlock({
     variant === 'memory' ? (
       <ListOrdered className="w-5 h-5 text-cyan-400" />
     ) : (
-      <Cpu className="w-5 h-5 text-amber-400" />
+      <Cpu className={`w-5 h-5 ${statusToneClass('warn')}`} />
     )
 
   return (
@@ -557,8 +558,8 @@ export default function NodeInfoPage() {
       {/* Health Status */}
       {health && (
         <div className={`flex items-center gap-3 p-4 rounded-xl border ${health.libvirt ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-          {health.libvirt ? <CheckCircle className="w-5 h-5 text-green-400" /> : <XCircle className="w-5 h-5 text-red-400" />}
-          <span className="text-sm">Virtualization (libvirt): <strong className={health.libvirt ? 'text-green-400' : 'text-red-400'}>{health.status}</strong></span>
+          {health.libvirt ? <CheckCircle className={`w-5 h-5 ${statusToneClass('ok')}`} /> : <XCircle className={`w-5 h-5 ${statusToneClass('error')}`} />}
+          <span className="text-sm">Virtualization (libvirt): <strong className={statusToneClass(health.libvirt ? 'ok' : 'error')}>{health.status}</strong></span>
           <span className="text-xs text-slate-500 ml-auto">{node.hypervisor} {node.hypervisor_version} / libvirt {node.lib_version}</span>
         </div>
       )}
@@ -616,8 +617,8 @@ export default function NodeInfoPage() {
                 <button onClick={async () => {
                   try { await setHostname(hostnameInput); load() } catch (e) { console.error(e) }
                   setEditingHostname(false)
-                }} className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditingHostname(false)} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X className="w-4 h-4" /></button>
+                }} className={`p-1 rounded hover:bg-green-500/20 ${statusToneClass('ok')}`}><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditingHostname(false)} className={`p-1 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -643,8 +644,8 @@ export default function NodeInfoPage() {
                 <button onClick={async () => {
                   try { await setTimezone(timezoneInput); load() } catch (e) { console.error(e) }
                   setEditingTimezone(false)
-                }} className="p-1 hover:bg-green-500/20 rounded text-green-400"><Check className="w-4 h-4" /></button>
-                <button onClick={() => setEditingTimezone(false)} className="p-1 hover:bg-red-500/20 rounded text-red-400"><X className="w-4 h-4" /></button>
+                }} className={`p-1 rounded hover:bg-green-500/20 ${statusToneClass('ok')}`}><Check className="w-4 h-4" /></button>
+                <button onClick={() => setEditingTimezone(false)} className={`p-1 rounded hover:bg-red-500/20 ${statusToneClass('error')}`}><X className="w-4 h-4" /></button>
               </div>
             ) : (
               <div className="flex items-center gap-2">
@@ -659,7 +660,7 @@ export default function NodeInfoPage() {
       {sysInfo && (
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
           <h3 className="text-lg font-semibold flex items-center gap-2">
-            <Activity className="w-5 h-5 text-emerald-400" /> Raw systemd diagnostics
+            <Activity className={`w-5 h-5 ${statusToneClass('ok')}`} /> Raw systemd diagnostics
           </h3>
           <p className="text-xs text-slate-500">
             Extended snapshot: raw <code className="text-slate-400">hostnamectl</code>/<code className="text-slate-400">timedatectl</code>,{' '}
@@ -845,7 +846,7 @@ export default function NodeInfoPage() {
       {stats && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           <ResourceGauge icon={<Gauge className="w-5 h-5 text-blue-400" />} label="CPU" value={stats.cpu_percent} subtitle={`Load: ${stats.load_1.toFixed(2)} / ${stats.load_5.toFixed(2)} / ${stats.load_15.toFixed(2)}`} />
-          <ResourceGauge icon={<MemoryStick className="w-5 h-5 text-emerald-400" />} label="Memory" value={stats.memory_percent} subtitle={`${(stats.memory_used_mb / 1024).toFixed(1)} / ${(stats.memory_total_mb / 1024).toFixed(1)} GB`} />
+          <ResourceGauge icon={<MemoryStick className={`w-5 h-5 ${statusToneClass('ok')}`} />} label="Memory" value={stats.memory_percent} subtitle={`${(stats.memory_used_mb / 1024).toFixed(1)} / ${(stats.memory_total_mb / 1024).toFixed(1)} GB`} />
           <ResourceGauge icon={<Database className="w-5 h-5 text-orange-400" />} label="Disk" value={stats.disk_percent} subtitle={`${stats.disk_used_gb.toFixed(0)} / ${stats.disk_total_gb.toFixed(0)} GB`} />
           <ResourceGauge icon={<HardDrive className="w-5 h-5 text-purple-400" />} label="Swap" value={stats.swap_total_mb > 0 ? (stats.swap_used_mb / stats.swap_total_mb * 100) : 0} subtitle={`${(stats.swap_used_mb / 1024).toFixed(1)} / ${(stats.swap_total_mb / 1024).toFixed(1)} GB`} />
           <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50 flex flex-col justify-center">
@@ -890,7 +891,7 @@ export default function NodeInfoPage() {
         </div>
 
         <div className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50 space-y-3">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><MemoryStick className="w-5 h-5 text-emerald-400" /> Memory</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2"><MemoryStick className={`w-5 h-5 ${statusToneClass('ok')}`} /> Memory</h3>
           <InfoRow label="Total RAM" value={`${(node.memory_mb / 1024).toFixed(1)} GB`} />
           {stats && (
             <>
@@ -975,7 +976,7 @@ export default function NodeInfoPage() {
               ) : (
                 hardwareInventory.cpu_topology.socket_package_ids.map((pkgId, i) => (
                   <div key={`${pkgId}-${i}`} className="border-l border-slate-600 ml-1 pl-3 pb-2 last:pb-0">
-                    <span className="text-emerald-400/90">Socket</span>{' '}
+                    <span className={`${statusToneClass('ok')} opacity-90`}>Socket</span>{' '}
                     <span className="text-white">{pkgId}</span>
                     <span className="text-slate-500"> — </span>
                     <span>{hardwareInventory.cpu_topology.cores_per_socket[i] ?? 0} cores</span>
@@ -1116,7 +1117,7 @@ export default function NodeInfoPage() {
             </div>
             <div>
               <div className="text-xs text-slate-500 mb-1">Free</div>
-              <div className="text-2xl font-bold text-green-400">{(stats.disk_total_gb - stats.disk_used_gb).toFixed(0)} GB</div>
+              <div className={`text-2xl font-bold ${statusToneClass('ok')}`}>{(stats.disk_total_gb - stats.disk_used_gb).toFixed(0)} GB</div>
             </div>
           </div>
           <div className="mt-4 w-full bg-slate-700 rounded-full h-3">
@@ -1130,7 +1131,7 @@ export default function NodeInfoPage() {
       {filesystems.length > 0 && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <div className="px-6 py-4 border-b border-slate-700/50 flex items-center justify-between gap-3 flex-wrap">
-            <h3 className="text-lg font-semibold flex items-center gap-2"><FolderTree className="w-5 h-5 text-amber-400" /> Filesystems</h3>
+            <h3 className="text-lg font-semibold flex items-center gap-2"><FolderTree className={`w-5 h-5 ${statusToneClass('warn')}`} /> Filesystems</h3>
             <span className="text-xs text-slate-500">Per mount from the hypervisor (same idea as Cockpit Storage)</span>
           </div>
           <div className="overflow-x-auto">
@@ -1156,7 +1157,7 @@ export default function NodeInfoPage() {
                     <td className="px-6 py-3 text-right text-slate-300 hidden md:table-cell">{formatBytes(row.used_bytes)}</td>
                     <td className="px-6 py-3 text-right text-slate-300 hidden md:table-cell">{formatBytes(row.avail_bytes)}</td>
                     <td className="px-6 py-3 text-right">
-                      <span className={row.use_percent > 90 ? 'text-red-400 font-medium' : row.use_percent > 75 ? 'text-amber-400' : 'text-slate-200'}>
+                      <span className={`${statusToneClass(utilizationTone(row.use_percent))}${row.use_percent > 75 ? ' font-medium' : ''}`}>
                         {row.use_percent.toFixed(0)}%
                       </span>
                     </td>
@@ -1198,7 +1199,7 @@ export default function NodeInfoPage() {
 
       {!loading && pkgUpdates && (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 space-y-4">
-          <h3 className="text-lg font-semibold flex items-center gap-2"><Package className="w-5 h-5 text-green-400" /> Package updates</h3>
+          <h3 className="text-lg font-semibold flex items-center gap-2"><Package className={`w-5 h-5 ${statusToneClass('ok')}`} /> Package updates</h3>
           <div className="text-sm text-slate-300 space-y-1">
             <div><span className="text-slate-500">Backend:</span> <code className="text-amber-300/90">{pkgUpdates.backend}</code></div>
             {pkgUpdates.summary && <div>{pkgUpdates.summary}</div>}
@@ -1209,7 +1210,7 @@ export default function NodeInfoPage() {
               </div>
             )}
             {pkgUpdates.hint && <div className="text-slate-500 text-xs">{pkgUpdates.hint}</div>}
-            {pkgUpdates.error && <div className="text-red-400 text-xs break-words">{pkgUpdates.error}</div>}
+            {pkgUpdates.error && <div className={`text-xs break-words ${statusToneClass('error')}`}>{pkgUpdates.error}</div>}
           </div>
           <p className="text-xs text-slate-500 leading-relaxed">
             The probe above is read-only. Upgrade, install, and remove require a browser session (not an API token), use the same backend as the probe, and are limited to one action at a time on the daemon (commands may run up to an hour).
@@ -1304,7 +1305,7 @@ export default function NodeInfoPage() {
           {pkgActionResult && (
             <div className="space-y-2 text-xs">
               <div className="flex flex-wrap items-center gap-2">
-                <span className={pkgActionResult.ok ? 'text-emerald-400' : 'text-red-400'}>
+                <span className={statusToneClass(pkgActionResult.ok ? 'ok' : 'error')}>
                   {pkgActionResult.ok ? 'Finished successfully' : 'Finished with errors'}
                 </span>
                 <span className="text-slate-500">exit {pkgActionResult.exit_code}</span>
@@ -1368,7 +1369,7 @@ export default function NodeInfoPage() {
             <div className="pt-2 border-t border-slate-700/50 space-y-1">
               <div className="text-slate-500 text-xs">SMART (smartctl -H)</div>
               {linuxObs.smart.filter((s) => s.probed).map((s) => (
-                <div key={s.device} className={`text-xs ${s.passed ? 'text-green-400' : 'text-red-400'}`}>
+                <div key={s.device} className={`text-xs ${statusToneClass(s.passed ? 'ok' : 'error')}`}>
                   {s.device}: {s.summary || (s.passed ? 'PASSED' : 'FAILED')}
                 </div>
               ))}
@@ -1417,7 +1418,7 @@ export default function NodeInfoPage() {
               </div>
               {linuxAudit.events.slice(-12).map((ev, i) => (
                 <div key={`${ev.timestamp}-${i}`} className="text-xs text-slate-400 font-mono mb-1">
-                  <span className="text-amber-400/90">{ev.event_type}</span>{' '}
+                  <span className={`${statusToneClass('warn')} opacity-90`}>{ev.event_type}</span>{' '}
                   {ev.summary}
                 </div>
               ))}
@@ -1511,7 +1512,7 @@ export default function NodeInfoPage() {
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-700/50 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold flex items-center gap-2"><Activity className="w-5 h-5 text-emerald-400" /> Live throughput</h3>
+            <h3 className="text-lg font-semibold flex items-center gap-2"><Activity className={`w-5 h-5 ${statusToneClass('ok')}`} /> Live throughput</h3>
             <p className="text-xs text-slate-500 mt-1">Two reads of <code className="text-slate-600">/proc/net/dev</code>; excludes <code className="text-slate-600">lo</code>. Same on all Linux distros.</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1653,8 +1654,9 @@ export default function NodeInfoPage() {
 }
 
 function ResourceGauge({ icon, label, value, subtitle }: { icon: React.ReactNode; label: string; value: number; subtitle: string }) {
-  const color = value > 90 ? 'text-red-400' : value > 70 ? 'text-yellow-400' : 'text-green-400'
-  const barColor = value > 90 ? 'bg-red-500' : value > 70 ? 'bg-yellow-500' : 'bg-blue-500'
+  const tone = utilizationTone(value)
+  const color = statusToneClass(tone)
+  const barColor = statusBgClass(tone)
   return (
     <div className="bg-slate-800/50 rounded-xl p-4 border border-slate-700/50">
       <div className="flex items-center gap-2 mb-2">

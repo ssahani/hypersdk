@@ -18,6 +18,7 @@ import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useOpenStackConnection } from '../hooks/useOpenStackConnection'
 import { useAuth } from '../contexts/AuthContext'
 import { getStateBadgeClasses } from '../utils/vm'
+import { poolStateBadgeClasses, statusBadgeClasses } from '../utils/semanticColors'
 import { getRecentVMs } from '../utils/recentVMs'
 import { getPinnedVMs } from '../utils/pinnedVMs'
 import { getRecentPages, recordRecentPage } from '../utils/recentPages'
@@ -442,7 +443,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   for (const net of networks) {
     items.push({
       id: `net-${net.name}`, icon: <Network className="w-4 h-4" />, label: net.name,
-      badge: <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${net.active ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>{net.active ? 'active' : 'inactive'}</span>,
+      badge: <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${statusBadgeClasses(net.active ? 'ok' : 'error')}`}>{net.active ? 'active' : 'inactive'}</span>,
       action: () => go('/networks'), category: 'Networks',
     })
   }
@@ -451,7 +452,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   for (const pool of pools) {
     items.push({
       id: `pool-${pool.name}`, icon: <HardDrive className="w-4 h-4" />, label: pool.name,
-      badge: <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${pool.state === 'running' ? 'bg-green-500/20 text-green-400' : 'bg-slate-500/20 text-slate-400'}`}>{pool.state}</span>,
+      badge: <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${poolStateBadgeClasses(pool.state)}`}>{pool.state}</span>,
       action: () => go('/storage'), category: 'Storage Pools',
     })
   }

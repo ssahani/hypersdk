@@ -141,3 +141,13 @@ export function statusPillClasses(tone: 'ok' | 'warn' | 'error' | 'info' | 'neut
   }[tone]
   return `px-2 py-1 rounded-md border ${statusBadgeClasses(tone)} border-[color-mix(in_srgb,var(${varName})_40%,transparent)]`
 }
+
+export function utilizationTone(percent: number): 'ok' | 'warn' | 'error' {
+  if (percent > 90) return 'error'
+  if (percent > 70) return 'warn'
+  return 'ok'
+}
+
+export function poolStateBadgeClasses(state: string): string {
+  return statusBadgeClasses(state === 'running' ? 'ok' : 'neutral')
+}

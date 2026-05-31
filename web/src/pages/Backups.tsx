@@ -14,6 +14,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import PageSkeleton from '../components/PageSkeleton'
 import EmptyState from '../components/EmptyState'
 import { formatUserError } from '../utils/apiError'
+import { statusToneClass } from '../utils/semanticColors'
 import {
   Archive, Trash2, RotateCcw, RefreshCw, Play, HardDrive, Server,
   Download, ShieldCheck, Clock, ToggleLeft, ToggleRight, CheckCircle,
@@ -23,11 +24,11 @@ import {
 function StatusBadge({ status }: { status: string }) {
   switch (status) {
     case 'completed':
-      return <span className="flex items-center gap-1 text-green-400 text-xs"><CheckCircle className="w-3 h-3" /> Done</span>
+      return <span className={`flex items-center gap-1 text-xs ${statusToneClass('ok')}`}><CheckCircle className="w-3 h-3" /> Done</span>
     case 'running':
-      return <span className="flex items-center gap-1 text-blue-400 text-xs"><Loader2 className="w-3 h-3 animate-spin" /> Running</span>
+      return <span className={`flex items-center gap-1 text-xs ${statusToneClass('info')}`}><Loader2 className="w-3 h-3 animate-spin" /> Running</span>
     case 'failed':
-      return <span className="flex items-center gap-1 text-red-400 text-xs"><XCircle className="w-3 h-3" /> Failed</span>
+      return <span className={`flex items-center gap-1 text-xs ${statusToneClass('error')}`}><XCircle className="w-3 h-3" /> Failed</span>
     default:
       return <span className="flex items-center gap-1 text-slate-400 text-xs"><AlertCircle className="w-3 h-3" /> {status}</span>
   }
@@ -196,7 +197,7 @@ export default function BackupsPage() {
           </div>
           <button onClick={handleToggleSchedule} className="flex items-center gap-2 text-sm" title={schedule.enabled ? 'Disable timer' : 'Enable timer'}>
             {schedule.enabled ? (
-              <><ToggleRight className="w-6 h-6 text-green-400" /> <span className="text-green-400">Enabled</span></>
+              <><ToggleRight className={`w-6 h-6 ${statusToneClass('ok')}`} /> <span className={statusToneClass('ok')}>Enabled</span></>
             ) : (
               <><ToggleLeft className="w-6 h-6 text-slate-500" /> <span className="text-slate-500">Disabled</span></>
             )}
@@ -251,7 +252,7 @@ export default function BackupsPage() {
                   className="w-4 h-4 rounded bg-slate-900 border-slate-600 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm">Include disk images</span>
-                {withDisks && <span className="text-xs text-yellow-400">May be very large</span>}
+                {withDisks && <span className={`text-xs ${statusToneClass('warn')}`}>May be very large</span>}
               </label>
               {withDisks && (
                 <label className="flex items-center gap-2 cursor-pointer ml-6">
@@ -312,9 +313,9 @@ export default function BackupsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {b.vm_filter === 'all' ? (
-                      <span className="flex items-center gap-1 text-blue-400"><Server className="w-3 h-3" /> All</span>
+                      <span className={`flex items-center gap-1 ${statusToneClass('info')}`}><Server className="w-3 h-3" /> All</span>
                     ) : (
-                      <span className="flex items-center gap-1 text-green-400"><Server className="w-3 h-3" /> {b.vm_filter}</span>
+                      <span className={`flex items-center gap-1 ${statusToneClass('ok')}`}><Server className="w-3 h-3" /> {b.vm_filter}</span>
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-400 hidden md:table-cell">{b.vm_count}</td>
@@ -323,7 +324,7 @@ export default function BackupsPage() {
                   </td>
                   <td className="px-4 py-3 text-sm">
                     {b.with_disks ? (
-                      <span className="flex items-center gap-1 text-yellow-400"><HardDrive className="w-3 h-3" /> Yes</span>
+                      <span className={`flex items-center gap-1 ${statusToneClass('warn')}`}><HardDrive className="w-3 h-3" /> Yes</span>
                     ) : (
                       <span className="text-slate-500">No</span>
                     )}
@@ -339,9 +340,9 @@ export default function BackupsPage() {
                           title="Verify checksums"
                         >
                           {verifying === b.id ? (
-                            <Loader2 className="w-4 h-4 text-green-400 animate-spin" />
+                            <Loader2 className={`w-4 h-4 animate-spin ${statusToneClass('ok')}`} />
                           ) : (
-                            <ShieldCheck className="w-4 h-4 text-green-400" />
+                            <ShieldCheck className={`w-4 h-4 ${statusToneClass('ok')}`} />
                           )}
                         </button>
                       )}
@@ -353,10 +354,10 @@ export default function BackupsPage() {
                         <Download className="w-4 h-4 text-cyan-400" />
                       </a>
                       <button onClick={() => setRestoreTarget(b)} className="p-1.5 hover:bg-blue-600/20 rounded transition" title="Restore">
-                        <RotateCcw className="w-4 h-4 text-blue-400" />
+                        <RotateCcw className={`w-4 h-4 ${statusToneClass('info')}`} />
                       </button>
                       <button onClick={() => setDeleteTarget(b)} className="p-1.5 hover:bg-red-600/20 rounded transition" title="Delete">
-                        <Trash2 className="w-4 h-4 text-red-400" />
+                        <Trash2 className={`w-4 h-4 ${statusToneClass('error')}`} />
                       </button>
                     </div>
                   </td>
@@ -373,19 +374,19 @@ export default function BackupsPage() {
           <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 p-6 max-w-md w-full mx-4" onClick={(e) => e.stopPropagation()}>
             <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
               {verifyResult.verified ? (
-                <><CheckCircle className="w-5 h-5 text-green-400" /> Verification Passed</>
+                <><CheckCircle className={`w-5 h-5 ${statusToneClass('ok')}`} /> Verification Passed</>
               ) : (
-                <><XCircle className="w-5 h-5 text-red-400" /> Verification Failed</>
+                <><XCircle className={`w-5 h-5 ${statusToneClass('error')}`} /> Verification Failed</>
               )}
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-slate-400">Backup</span><span className="font-mono">{verifyResult.backup_id}</span></div>
               <div className="flex justify-between"><span className="text-slate-400">Files checked</span><span>{verifyResult.files_checked}</span></div>
-              <div className="flex justify-between"><span className="text-slate-400">OK</span><span className="text-green-400">{verifyResult.files_ok}</span></div>
+              <div className="flex justify-between"><span className="text-slate-400">OK</span><span className={statusToneClass('ok')}>{verifyResult.files_ok}</span></div>
               {verifyResult.files_failed > 0 && (
                 <>
-                  <div className="flex justify-between"><span className="text-slate-400">Failed</span><span className="text-red-400">{verifyResult.files_failed}</span></div>
-                  <div className="mt-2 bg-slate-900 rounded p-2 text-xs font-mono text-red-300 max-h-32 overflow-y-auto">
+                  <div className="flex justify-between"><span className="text-slate-400">Failed</span><span className={statusToneClass('error')}>{verifyResult.files_failed}</span></div>
+                  <div className={`mt-2 bg-slate-900 rounded p-2 text-xs font-mono max-h-32 overflow-y-auto ${statusToneClass('error')} opacity-80`}>
                     {verifyResult.failed_files.map((f, i) => <div key={i}>{f}</div>)}
                   </div>
                 </>
