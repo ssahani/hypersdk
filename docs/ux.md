@@ -187,6 +187,15 @@ New UI should work in **dark**, **steel**, and **aurora** themes (all dark; auro
 
 Build: `cd web && npm run build`. Deploy: `./scripts/deploy remote user@host --quick` then re-run `openstack-wire-cloud.sh` if install reset config.
 
+**Live E2E (optional):**
+
+```bash
+PLAYWRIGHT_LIVE_URL=https://HOST:5092 PLAYWRIGHT_LIVE_USER=sus PLAYWRIGHT_LIVE_PASS=… \
+  npx playwright test e2e/live-host.spec.ts
+```
+
+Includes PAM login at `/login` → dashboard when credentials are set.
+
 ## Docs
 
 - OpenStack phases: [`openstack.md`](openstack.md)
