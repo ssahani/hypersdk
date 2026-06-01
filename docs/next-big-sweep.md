@@ -74,7 +74,7 @@ Cross-shell Tracks A–E remain **shipped** (Batch 62). Next in-repo themes:
 | **D — E2E matrix** | Shipped — 71 tests in verification bundle |
 | **E — Backend ops hooks** | N/A — UI CTAs already wired; defer Vault/MFA per [`enterprise-backlog.md`](enterprise-backlog.md) |
 
-**Intentional exclusions (no change):** `ChoiceCards` wizard palette, ApiDocs HTTP badges, Login orange branding, GuestKit/Platform discovery orange panels, primary CTAs (`bg-emerald-600`, `bg-blue-600`).
+**Intentional exclusions (no change):** `ChoiceCards` wizard palette, ApiDocs HTTP badges, legacy login aurora/orb palette (Machina macOS login is intentional), GuestKit/Platform discovery orange panels, primary CTAs (`bg-emerald-600`, `bg-blue-600`).
 
 **Out of repo next:** macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/` — see [Out of repo](#out-of-repo).
 

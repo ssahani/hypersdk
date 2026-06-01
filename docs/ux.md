@@ -164,8 +164,12 @@ New UI should work in **dark**, **steel**, and **aurora** themes (all dark; auro
 
 ## Login & accessibility
 
-- [`Login.tsx`](../web/src/pages/Login.tsx) — SSO button first when OIDC is enabled; PAM form below; host label from `window.location.hostname`
-- [`usePrefersReducedMotion`](../web/src/hooks/usePrefersReducedMotion.ts) — skips login orbs/particles; CSS in `zyvor-premium-login.css` disables animations
+- [`Login.tsx`](../web/src/pages/Login.tsx) — **Machina** branding via [`PremiumLoginShell`](../web/src/components/PremiumLoginShell.tsx) `variant="macos"`; SSO button first when OIDC is enabled; PAM form below; host label from `window.location.hostname`
+- Login CSS: [`zyvor-macos-login.css`](../web/src/styles/zyvor-macos-login.css) (default Machina), [`zyvor-secure-login.css`](../web/src/styles/zyvor-secure-login.css) (optional `variant="secure"`), legacy aurora/particles in `zyvor-premium-login.css`
+- **URL behavior:** the login page renders outside `BrowserRouter` when unauthenticated. `/` and `/login` both work. After auth, [`AuthContext`](../web/src/contexts/AuthContext.tsx) replaces `/login` with `/`, and authenticated routes register `<Navigate from="/login" to="/" />` so bookmarked `/login` never shows 404
+- **Zeus AI shell:** [`AiProvider`](../web/src/contexts/AiContext.tsx) must stay **inside** `BrowserRouter` (uses `useLocation` / `useParams` for ambient route context)
+- [`usePrefersReducedMotion`](../web/src/hooks/usePrefersReducedMotion.ts) — skips login orbs/particles; macOS variant omits scanlines/particles by default
+- E2E: [`smoke.spec.ts`](../web/e2e/smoke.spec.ts) — `authenticated /login redirects to dashboard`
 - [`ConnectionStatus`](../web/src/components/ConnectionStatus.tsx) — `role="status"` + `aria-label` (not color-only)
 - [`NotFound.tsx`](../web/src/pages/NotFound.tsx) — dashboard styling + Ctrl+K hint
 
@@ -177,6 +181,7 @@ New UI should work in **dark**, **steel**, and **aurora** themes (all dark; auro
 | Zero VMs | VM list EmptyState |
 | K8s API down | K8s overview + workloads banner |
 | OIDC enabled | Login: SSO primary, password secondary |
+| Sign in at `/login` | Lands on dashboard (`/`), not 404 |
 | `prefers-reduced-motion` | Login: no orb animation |
 | Light / dark / steel | Dashboard, Login, one OpenStack page |
 

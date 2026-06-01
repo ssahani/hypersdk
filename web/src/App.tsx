@@ -2,7 +2,7 @@
 // Proprietary software — see LICENSE in the repository root.
 // https://zyvor.dev · info@zyvor.dev
 
-import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router'
+import { BrowserRouter, Routes, Route, useNavigate, useLocation, Navigate } from 'react-router'
 import { ZyvorFooter } from './components/ZyvorBrand';
 import { Suspense, lazy, useState, useCallback, useMemo, useEffect } from 'react'
 import { ToastProvider } from './contexts/ToastContext'
@@ -262,11 +262,11 @@ function AuthenticatedShell() {
   return (
     <WebSocketProvider>
       <PlatformInfoProvider>
-        <AiProvider>
-          <BrowserRouter>
+        <BrowserRouter>
+          <AiProvider>
             <AuthenticatedShellRoutes />
-          </BrowserRouter>
-        </AiProvider>
+          </AiProvider>
+        </BrowserRouter>
       </PlatformInfoProvider>
     </WebSocketProvider>
   )
@@ -321,6 +321,7 @@ function AuthenticatedShellRoutes() {
               {!isPlatformRoute && <Breadcrumb />}
               <Suspense fallback={<PageSkeleton />}>
                 <Routes>
+                <Route path="/login" element={<Navigate to="/" replace />} />
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/vms" element={<VMList />} />
                 <Route path="/vms/:name" element={<VMDetails />} />
