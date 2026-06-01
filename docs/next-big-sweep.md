@@ -15,7 +15,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 59 Platform Color Tail** | `fe0646f` | Remaining platform status surfaces (Events, Security Center, Observability, Notifications, Content, Migration, Reports, …); `utilizationBarClass`; Settings/HostNetworking warn callouts |
 | **Batch 60 Classic/OpenStack/K8s Color Tail** | `fb44a50` | Dashboard/K8sOverview/K8sWorkloads/NodeInfo status surfaces; OpenStack warn/error banners, locked badges, secondary destructive buttons; semantic hover chips on fleet/instance actions |
 | **Batch 61 Classic Operator Color Tail** | `bb53a4c` | Networks/DiskImages/Jobs/Kata/SystemCheck warn surfaces; VMList action hovers; VMDetails/Console tail; Hero capability badges; KubeVirt/OpenStack modals; BuildStepTimeline error step |
-| **Batch 62 Cross-Shell Sweep Closure** | (this PR) | Classic Navbar Platform guide; OpenStack action ErrorBanner; VMDetails KubeVirt exec tone; Fleet disabled bridge; Dashboard secondary links; +2 e2e (71 total) |
+| **Batch 62 Cross-Shell Sweep Closure** | `541740d` | Classic Navbar Platform guide; OpenStack action ErrorBanner; VMDetails KubeVirt exec tone; Fleet disabled bridge; Dashboard secondary links; +2 e2e (71 total) |
 
 **Verification baseline**
 
