@@ -22,7 +22,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 
 ```bash
 cd web && npm run test && npm run build
-cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/cross-shell.spec.ts e2e/shell-bridge.spec.ts
+cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/cross-shell.spec.ts e2e/shell-bridge.spec.ts e2e/platform-machine-finder.spec.ts e2e/platform-ops-reports.spec.ts
 ```
 
 **71 local e2e green** (batch-48, nav-coverage, platform-full, cross-shell, shell-bridge).
