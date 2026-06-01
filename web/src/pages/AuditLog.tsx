@@ -10,7 +10,7 @@ import { FileText, RefreshCw, Search, CheckCircle, XCircle, Download } from 'luc
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { formatUserError } from '../utils/apiError'
 import { statusToneClass } from '../utils/semanticColors'
-import ErrorBanner from '../components/ErrorBanner'
+import PageLayout from '../components/PageLayout'
 
 export default function AuditLogPage() {
   const [events, setEvents] = useState<AuditEvent[]>([])
@@ -51,13 +51,12 @@ export default function AuditLogPage() {
   }, [fetchLog])
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><FileText className={`w-6 h-6 ${statusToneClass('info')}`} /> Audit Log</h1>
-          <p className="text-sm text-slate-400 mt-0.5">{events.length} events (server-filtered)</p>
-        </div>
-        <div className="flex items-center gap-2">
+    <PageLayout
+      title="Audit Log"
+      icon={<FileText className={`w-6 h-6 ${statusToneClass('info')}`} />}
+      subtitle={`${events.length} events (server-filtered)`}
+      actions={
+        <>
           <button type="button" onClick={() => { setActionInp('openstack'); setQInp('') }}
             className="px-3 py-1.5 text-xs rounded-lg border border-sky-600/50 text-sky-300 hover:bg-sky-950/40">
             OpenStack only
@@ -70,13 +69,12 @@ export default function AuditLogPage() {
           <button type="button" onClick={() => void exportAuditNdjson()} className="px-3 py-1.5 text-xs rounded-lg border border-slate-600 bg-slate-800 hover:bg-slate-700 text-slate-200" title={t('audit.exportNdjson')}>
             {t('audit.exportNdjson')}
           </button>
-        </div>
-      </div>
-
-      {loadError && (
-        <ErrorBanner title="Could not load audit log" headline={loadError} onRetry={() => void fetchLog()} />
-      )}
-
+        </>
+      }
+      error={loadError}
+      errorTitle="Could not load audit log"
+      onErrorRetry={() => void fetchLog()}
+    >
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -112,7 +110,9 @@ export default function AuditLogPage() {
       <p className="text-xs text-slate-500">Filters reload after a short pause (debounced).</p>
 
       {loading ? (
-        <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading audit log">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
       ) : (
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden overflow-x-auto">
           <table className="w-full min-w-[56rem]">
@@ -137,6 +137,6 @@ export default function AuditLogPage() {
           </table>
         </div>
       )}
-    </div>
+    </PageLayout>
   )
 }
