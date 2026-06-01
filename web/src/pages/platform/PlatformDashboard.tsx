@@ -45,6 +45,7 @@ import { useAi } from '../../contexts/AiContext'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import {hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
+import { loadJarvisShell } from '../../utils/platformJarvisShell'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { hubTilesForTier, showPlatformHubsForTier, DOCK_PREVIEW_HUB_PATHS } from '../../utils/platformHubZones'
@@ -58,6 +59,8 @@ export default function PlatformDashboard() {
   const [tier] = usePlatformDesktopTier()
   const showPower = tierAtLeast(tier, 'power')
   const showAdvanced = tier === 'advanced'
+  const jarvisShell = loadJarvisShell(tier)
+  const jarvisLanding = jarvisShell && !showPower
   const [autopilotBusy, setAutopilotBusy] = useState(false)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [vms, setVms] = useState<{ observed_state: string }[]>([])
@@ -160,9 +163,10 @@ export default function PlatformDashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {!showPower && <PlatformJarvisBriefing />}
+      <PlatformJarvisBriefing />
       {showPower && <RemediateChips compact />}
 
+      {!jarvisLanding && (
       <PlatformTahoeHero
         compact
         eyebrow="Zyvor Platform"
@@ -187,6 +191,7 @@ export default function PlatformDashboard() {
           { label: 'Alerts', value: warnings ? String(warnings) : 'None', tone: warnings ? 'amber' : 'emerald' },
         ]}
       />
+      )}
 
       <div className="tahoe-content space-y-4">
       {hosts.length === 0 && (

@@ -135,6 +135,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **Infrastructure DNA:** `GET /api/v1/fleet/dna` — [`fleet_dna.rs`](../controller/src/engine/fleet_dna.rs); [`InfrastructureDnaStrip`](../web/src/components/platform/InfrastructureDnaStrip.tsx) on dashboard (power+) and Mission Control header
 - **E2e:** [`platform-maintenance-mission.spec.ts`](../web/e2e/platform-maintenance-mission.spec.ts), [`platform-infrastructure-dna.spec.ts`](../web/e2e/platform-infrastructure-dna.spec.ts); **81/81** local bundle green
 
+## Batch 66 deliverables (Full Jarvis shell — shipped)
+
+- **Backend:** `GET /api/v1/ai/jarvis/landing` — curated navigate intents via [`intent_router.rs`](../controller/src/engine/ai/intent_router.rs) `jarvis_landing_intents`
+- **UI:** [`PlatformJarvisBriefing`](../web/src/components/platform/PlatformJarvisBriefing.tsx) intent-first landing (all tiers); [`platformJarvisShell.ts`](../web/src/utils/platformJarvisShell.ts) hides sidebar on Normal tier; Control Center toggle; Spotlight open event from Jarvis search
+- **E2e:** [`platform-jarvis-shell.spec.ts`](../web/e2e/platform-jarvis-shell.spec.ts); **84/84** local bundle green
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

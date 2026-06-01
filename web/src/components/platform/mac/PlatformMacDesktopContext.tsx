@@ -6,6 +6,7 @@ import {
   loadPlatformDesktopTier,
   PLATFORM_DESKTOP_TIER_EVENT,
 } from '../../../utils/platformDesktopTier'
+import { JARVIS_SHELL_EVENT } from '../../../utils/platformJarvisShell'
 
 type PlatformMacDesktopContextValue = {
   sidebarVisible: boolean
@@ -25,12 +26,16 @@ export function PlatformMacDesktopProvider({ children }: { children: ReactNode }
   const [inspectorVisible, setInspectorVisible] = useState(true)
 
   useEffect(() => {
-    const onTier = () => {
+    const applyTier = () => {
       const tier = loadPlatformDesktopTier()
       setSidebarVisible(defaultSidebarVisibleForTier(tier))
     }
-    window.addEventListener(PLATFORM_DESKTOP_TIER_EVENT, onTier)
-    return () => window.removeEventListener(PLATFORM_DESKTOP_TIER_EVENT, onTier)
+    window.addEventListener(PLATFORM_DESKTOP_TIER_EVENT, applyTier)
+    window.addEventListener(JARVIS_SHELL_EVENT, applyTier)
+    return () => {
+      window.removeEventListener(PLATFORM_DESKTOP_TIER_EVENT, applyTier)
+      window.removeEventListener(JARVIS_SHELL_EVENT, applyTier)
+    }
   }, [])
 
   const toggleSidebar = useCallback(() => setSidebarVisible((v) => !v), [])

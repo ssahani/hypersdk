@@ -106,6 +106,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/vms/{id}/doctor", get(ai::vm_doctor))
         .route("/api/v1/ai/settings", get(ai::get_settings).patch(ai::patch_settings))
         .route("/api/v1/ai/spotlight", post(ai::spotlight))
+        .route("/api/v1/ai/jarvis/landing", get(ai::jarvis_landing))
         .route("/api/v1/ai/copilot/chat", post(ai::copilot_chat))
         .route("/api/v1/ai/copilot/stream", post(ai::copilot_stream))
         .route("/api/v1/ai/explain", post(ai::explain))

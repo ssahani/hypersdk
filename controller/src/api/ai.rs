@@ -74,6 +74,17 @@ pub async fn spotlight(
     Ok(Json(ai::intent_router::route_spotlight(&body.query, online, hits)))
 }
 
+pub async fn jarvis_landing(
+    State(state): State<AppState>,
+) -> Result<Json<ai::SpotlightResult>, ApiError> {
+    let online: i64 =
+        sqlx::query_scalar("SELECT COUNT(*) FROM hosts WHERE state = 'online'")
+            .fetch_one(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(ai::intent_router::jarvis_landing_intents(online)))
+}
+
 #[derive(Debug, Deserialize)]
 pub struct CopilotBody {
     pub message: String,

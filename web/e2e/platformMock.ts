@@ -110,6 +110,15 @@ const fleetDna = {
   ],
 }
 
+const jarvisLanding = {
+  intents: [
+    { id: 'jarvis-mission-control', label: 'Mission Control', review: 'Infrastructure Earth', action: 'navigate', navigate: '/platform?mission=1' },
+    { id: 'jarvis-maintenance-mission', label: 'Maintenance Mission', review: 'Patch timeline', action: 'navigate', navigate: '/platform/maintenance?tab=mission' },
+    { id: 'jarvis-machine-finder', label: 'Machine Finder', review: 'Geography', action: 'navigate', navigate: '/platform/hosts/finder' },
+  ],
+  search_hits: [],
+}
+
 const fleetUpdates = {
   summary: '1 host with pending updates',
   recommended_agent: '0.1.0-test',
@@ -295,6 +304,9 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.match(/\/fleet\/dna(\?|$|\/)/)) {
       return route.fulfill({ json: fleetDna })
+    }
+    if (url.includes('/ai/jarvis/landing')) {
+      return route.fulfill({ json: jarvisLanding })
     }
     if (url.includes('/fleet/updates')) {
       return route.fulfill({ json: fleetUpdates })

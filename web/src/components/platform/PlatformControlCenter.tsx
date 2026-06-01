@@ -46,6 +46,7 @@ import { tierAtLeast } from '../../utils/platformDesktopTier'
 import { usePlatformInfo } from '../../contexts/PlatformInfoContext'
 import { hubTilesForTier, type DesktopHubTile } from '../../utils/platformHubZones'
 import { operationsHubHref } from '../../utils/platformHubLinks'
+import { loadJarvisShell, saveJarvisShell } from '../../utils/platformJarvisShell'
 
 export default function PlatformControlCenter() {
   const { mode, openCopilot } = useAi()
@@ -65,6 +66,7 @@ export default function PlatformControlCenter() {
   const [segmentCount, setSegmentCount] = useState(0)
   const [storageTierCount, setStorageTierCount] = useState(0)
   const [syncing, setSyncing] = useState(false)
+  const [jarvisShell, setJarvisShell] = useState(() => loadJarvisShell(tier))
 
   const load = useCallback(async () => {
     try {
@@ -297,6 +299,22 @@ export default function PlatformControlCenter() {
               />
             </div>
             <div className="px-4 py-3 border-t border-slate-800 space-y-2">
+              <label className="flex items-center justify-between gap-3 text-xs text-slate-300 cursor-pointer">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                  Jarvis shell (minimal sidebar)
+                </span>
+                <input
+                  type="checkbox"
+                  checked={jarvisShell}
+                  onChange={(e) => {
+                    const next = e.target.checked
+                    setJarvisShell(next)
+                    saveJarvisShell(next)
+                  }}
+                  className="rounded border-slate-600"
+                />
+              </label>
               {showPower && (
               <>
               <p className="text-[10px] uppercase tracking-wider text-slate-500">Quick actions</p>

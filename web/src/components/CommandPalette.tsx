@@ -98,6 +98,16 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     enabled: spotlight,
   })
 
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const detail = (e as CustomEvent<{ prefill?: string }>).detail
+      setOpen(true)
+      if (detail?.prefill) setQuery(detail.prefill)
+    }
+    window.addEventListener('machina-open-spotlight', onOpen)
+    return () => window.removeEventListener('machina-open-spotlight', onOpen)
+  }, [])
+
   // Fetch VMs when palette opens
   useEffect(() => {
     if (!open) return

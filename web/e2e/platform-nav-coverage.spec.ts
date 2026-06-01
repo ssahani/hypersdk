@@ -39,10 +39,11 @@ test('policy studio route loads', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /Policy Studio/i })).toBeVisible()
 })
 
-test('normal tier shows sidebar by default', async ({ page }) => {
+test('normal tier hides sidebar on Jarvis landing', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform')
-  await expect(page.locator('.tahoe-sidebar')).toBeVisible()
+  await expect(page.getByTestId('platform-jarvis-shell')).toBeVisible()
+  await expect(page.locator('.platform-sidebar')).toHaveCount(0)
 })
 
 test('security context bar collapses overflow into More menu', async ({ page }) => {

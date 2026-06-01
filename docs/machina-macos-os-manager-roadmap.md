@@ -100,7 +100,7 @@ Physical infrastructure shell and Mission Control — complements the macOS meta
 | 54 | GPU Command Center — MIG, vGPU, CUDA placement | **Shipped (v1)** |
 | 55 | Maintenance Mission — guided 7-step patch timeline | **Shipped (v1)** |
 | 56 | Infrastructure DNA — fleet health score 0–100 | **Shipped (v1)** |
-| 57 | Full Jarvis — intent-first shell (minimal menus) | Planned |
+| 57 | Full Jarvis — intent-first shell (minimal menus) | **Shipped (v1)** |
 | 58 | 3D Infrastructure Earth (WebGL) | Deferred |
 
 API: `GET /api/v1/fleet/mission`, host `site`/`rack`/`rack_u`. Doc: [`machina-infrastructure-vision.md`](machina-infrastructure-vision.md).

@@ -248,6 +248,18 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("jarvis") && (ql.contains("shell") || ql.contains("landing") || ql.contains("home"))
+    {
+        intents.push(intent(
+            "jarvis-shell",
+            "Jarvis landing",
+            "Intent-first desktop — Spotlight, dock, and quick fleet intents.",
+            "navigate",
+            None,
+            Some("/platform".into()),
+            None,
+        ));
+    }
     if ql.contains("software update") || ql.contains("host patch") || ql.contains("pending update")
         || (ql.contains("package") && ql.contains("update"))
     {
@@ -1137,6 +1149,90 @@ pub fn intent(
         vm_name,
         navigate,
         prefill,
+    }
+}
+
+/// Curated navigate intents for Jarvis landing (Phase 57 v1).
+pub fn jarvis_landing_intents(online_hosts: i64) -> SpotlightResult {
+    let intents = vec![
+        intent(
+            "jarvis-mission-control",
+            "Mission Control",
+            "Open Infrastructure Earth — site, rack, and host geography.",
+            "navigate",
+            None,
+            Some("/platform?mission=1".into()),
+            None,
+        ),
+        intent(
+            "jarvis-maintenance-mission",
+            "Maintenance Mission",
+            "Guided 7-step patch timeline — scan, schedule, evacuate, verify.",
+            "navigate",
+            None,
+            Some("/platform/maintenance?tab=mission".into()),
+            None,
+        ),
+        intent(
+            "jarvis-machine-finder",
+            "Machine Finder",
+            "Browse DC → rack → host → VM geography.",
+            "navigate",
+            None,
+            Some("/platform/hosts/finder".into()),
+            None,
+        ),
+        intent(
+            "jarvis-gpu",
+            "GPU Command Center",
+            "MIG, vGPU, and CUDA inventory with placement advisor.",
+            "navigate",
+            None,
+            Some("/platform/gpu".into()),
+            None,
+        ),
+        intent(
+            "jarvis-operations",
+            "Operations hub",
+            "Runbooks, showback, tasks, and fleet alerts.",
+            "navigate",
+            None,
+            Some("/platform/operations".into()),
+            None,
+        ),
+        intent(
+            "jarvis-offline-hosts",
+            "Offline hosts",
+            "Review hypervisors that missed heartbeat.",
+            "navigate",
+            None,
+            Some("/platform/hosts?filter=offline".into()),
+            None,
+        ),
+        intent(
+            "jarvis-import-networks",
+            "Import networks",
+            &format!("Import libvirt networks from {online_hosts} online host(s)."),
+            "navigate",
+            None,
+            Some("/platform/networks".into()),
+            None,
+        ),
+        intent(
+            "jarvis-zeus",
+            "Zeus OS",
+            "Cloud layer — K8s, firewall, bare metal, and AI workloads.",
+            "navigate",
+            None,
+            Some("/platform/zeus".into()),
+            None,
+        ),
+    ];
+    let suggested_action = intents.first().cloned();
+    SpotlightResult {
+        intents,
+        search_hits: vec![],
+        suggested_action,
     }
 }
 

@@ -111,6 +111,9 @@ export const patchAiSettings = (body: Partial<AiSettings & { api_key?: string }>
 export const aiSpotlight = (query: string) =>
   platformFetch<SpotlightResult>('/api/v1/ai/spotlight', { method: 'POST', body: JSON.stringify({ query }) })
 
+export const getJarvisLanding = () =>
+  platformFetch<SpotlightResult>('/api/v1/ai/jarvis/landing')
+
 export const aiCopilotChat = (message: string, vmId?: string, hostId?: string) =>
   platformFetch<CopilotResponse>('/api/v1/ai/copilot/chat', {
     method: 'POST',

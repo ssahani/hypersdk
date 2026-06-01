@@ -82,8 +82,8 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 
 | Horizon | Feature | Notes |
 |---------|---------|-------|
-| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1, Machine Finder geography, GPU Command Center, Maintenance Mission, Infrastructure DNA | Layer 0 phases 49–56 |
-| **Next** | Full Jarvis (minimal menus) | Intent router expansion |
+| **Now** | Layer 0 phases 49–57 complete (Jarvis shell through Infrastructure DNA) | See macOS roadmap |
+| **Next** | Phase 58 WebGL Earth (deferred) or enterprise backlog | Per [`enterprise-backlog.md`](enterprise-backlog.md) |
 
 ---
 
@@ -97,6 +97,7 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 | `GET /api/v1/fleet/gpu` | GPU host/VM inventory + MIG/vGPU/CUDA profile rollup |
 | `GET /api/v1/fleet/maintenance-mission` | Per-host 7-step patch mission plan (scan → verify) |
 | `GET /api/v1/fleet/dna` | Fleet health score 0–100 + pillar breakdown |
+| `GET /api/v1/ai/jarvis/landing` | Curated navigate intents for Jarvis desktop landing |
 
 Spotlight intents: `open mission control`, `infrastructure health`, `show overheating hosts`.
 

@@ -143,7 +143,14 @@ export function tierAtLeast(current: PlatformDesktopTier, min: PlatformDesktopTi
   return TIER_RANK[current] >= TIER_RANK[min]
 }
 
-export function defaultSidebarVisibleForTier(_tier: PlatformDesktopTier): boolean {
+export function defaultSidebarVisibleForTier(tier: PlatformDesktopTier): boolean {
+  try {
+    const raw = localStorage.getItem('machina-jarvis-shell')
+    const jarvisOn = raw === '0' ? false : raw === '1' ? true : tier === 'normal'
+    if (jarvisOn && tier === 'normal') return false
+  } catch {
+    /* ignore */
+  }
   return true
 }
 

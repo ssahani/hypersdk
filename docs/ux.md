@@ -57,6 +57,8 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 
 **Infrastructure DNA:** [`InfrastructureDnaStrip`](../web/src/components/platform/InfrastructureDnaStrip.tsx) — score ring + grade + pillar chips from `GET /api/v1/fleet/dna` on Platform dashboard (power tier+) and Mission Control header.
 
+**Full Jarvis shell (Phase 57):** [`PlatformJarvisBriefing`](../web/src/components/platform/PlatformJarvisBriefing.tsx) on all tiers — landing intents from `GET /api/v1/ai/jarvis/landing`, inline search opens Spotlight (`⌘Space`), Normal tier hides sidebar when Jarvis shell is on (Control Center toggle).
+
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |
 | [`JsonInspector`](../web/src/components/platform/JsonInspector.tsx) | Power-user API payloads — human summary first, raw JSON behind toggle |
 | [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) | Integrations hub — live OpenStack/K8s inventory preview when backends are reachable |
