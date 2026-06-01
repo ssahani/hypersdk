@@ -19,7 +19,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 63 Infrastructure + Ops** | `a4b1e70` | Machine Finder geography tree; ops runbook/showback UX tail; +5 e2e (76 total) |
 | **Batch 64 GPU Command Center** | `bd4efa9` | `GET /api/v1/fleet/gpu`; `/platform/gpu` MIG/vGPU/CUDA inventory + placement advisor; +2 e2e (78 total) |
 | **Batch 65 Infrastructure OS Big Sweep** | `0a8da81` | Maintenance Mission 7-step timeline + `GET /api/v1/fleet/maintenance-mission`; Infrastructure DNA + `GET /api/v1/fleet/dna`; +3 e2e (81 total) |
-| **Batch 66 Full Jarvis shell** | `(this PR)` | `GET /api/v1/ai/jarvis/landing`; intent-first dashboard + minimal sidebar (Normal); +3 e2e (84 total) |
+| **Batch 66 Full Jarvis shell** | `46f9dd9` | `GET /api/v1/ai/jarvis/landing`; intent-first dashboard + minimal sidebar (Normal); +3 e2e (84 total) |
 
 **Verification baseline**
 
