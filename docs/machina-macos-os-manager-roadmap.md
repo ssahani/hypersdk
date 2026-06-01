@@ -97,7 +97,7 @@ Physical infrastructure shell and Mission Control — complements the macOS meta
 | **51** | **Mission Control Earth** — site/rack/host 2.5D overlay | **Shipped (v1)** |
 | **52** | **Infrastructure dock** — Machines/VMs/Storage/Network/GPU/Terminal | **Shipped (v1)** |
 | 53 | Machine Finder root — DC→Rack→Host→VM tree | **Shipped (v1)** |
-| 54 | GPU Command Center — MIG, vGPU, CUDA placement | Planned |
+| 54 | GPU Command Center — MIG, vGPU, CUDA placement | **Shipped (v1)** |
 | 55 | Maintenance Mission — autonomous 7-step patch timeline | Planned |
 | 56 | Infrastructure DNA — fleet health score 0–100 | Planned |
 | 57 | Full Jarvis — intent-first shell (minimal menus) | Planned |

@@ -53,6 +53,7 @@ const POWER_PATHS = [
   '/platform/operations',
   '/platform/storage',
   '/platform/networks',
+  '/platform/gpu',
   '/platform/templates',
   '/platform/content',
   '/platform/tasks',

@@ -51,7 +51,7 @@ The Platform shell at `/platform/*` is the **Machina Desktop**:
 | Jarvis / Siri strip | `PlatformJarvisBriefing` — morning briefing | Shipped (v1) |
 | Dynamic Island | `PlatformDynamicIsland` — health pill in menubar | Shipped (v1) |
 | Mission Control (F3) | `MissionControlOverlay` — Infrastructure Earth | Shipped (v1) |
-| Dock | Machines · VMs · Storage · Network · GPU · Terminal | Shipped (v1) |
+| Dock | Machines · VMs · Storage · Network · GPU · Terminal | Shipped (v1) — GPU at `/platform/gpu` (Batch 64) |
 | Finder | VM-centric Finder (`PlatformFinderShell`) | **Partial** — VM smart folders + **Machine Finder geography** at `/platform/hosts/finder` (Batch 63) |
 | System Settings | Host + fleet settings hub | Shipped |
 
@@ -82,8 +82,7 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 
 | Horizon | Feature | Notes |
 |---------|---------|-------|
-| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1, Machine Finder geography | Layer 0 phases 49–53 |
-| **Next** | GPU Command Center (MIG, vGPU, CUDA) | Needs GPU discovery |
+| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1, Machine Finder geography, GPU Command Center | Layer 0 phases 49–54 |
 | **Next** | Maintenance Mission (7-step autonomous patch) | Scan exists; apply orchestration TBD |
 | **Later** | Infrastructure DNA scores | VM Doctor 0–100 today; fleet aggregate TBD |
 | **Later** | Full Jarvis (minimal menus) | Intent router expansion |
@@ -97,6 +96,7 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 | `GET /api/v1/fleet/mission` | Site/rack/host geography + health summary |
 | `PATCH /api/v1/hosts/{id}` | Set `site`, `rack`, `rack_u` |
 | `GET /api/v1/fleet/desktop` | Jarvis + Dynamic Island fleet rollup |
+| `GET /api/v1/fleet/gpu` | GPU host/VM inventory + MIG/vGPU/CUDA profile rollup |
 
 Spotlight intents: `open mission control`, `infrastructure health`, `show overheating hosts`.
 

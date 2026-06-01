@@ -745,6 +745,48 @@ export type FleetMissionOverview = {
 export const getFleetMission = () =>
   platformFetch<FleetMissionOverview>('/api/v1/fleet/mission')
 
+export type GpuProfileKind = 'mig' | 'vgpu' | 'passthrough' | 'cuda' | 'unknown'
+
+export type GpuHostItem = {
+  host_id: string
+  hostname: string
+  site: string
+  rack: string
+  state: string
+  gpu_capable: boolean
+  profile: GpuProfileKind
+  model_hint: string
+  vm_count: number
+  gpu_vm_count: number
+  vgpu_slices: number
+  cuda_ready: boolean
+}
+
+export type GpuVmItem = {
+  vm_id: string
+  vm_name: string
+  host_id?: string | null
+  hostname?: string | null
+  observed_state: string
+  profile: GpuProfileKind
+  tags: string[]
+}
+
+export type FleetGpuOverview = {
+  summary: string
+  gpu_host_count: number
+  gpu_vm_count: number
+  cuda_ready_hosts: number
+  mig_hosts: number
+  vgpu_hosts: number
+  hosts: GpuHostItem[]
+  vms: GpuVmItem[]
+  profiles: Array<{ kind: GpuProfileKind; label: string; host_count: number; vm_count: number }>
+}
+
+export const getFleetGpu = () =>
+  platformFetch<FleetGpuOverview>('/api/v1/fleet/gpu')
+
 export type FleetLinuxHostItem = {
   host_id: string
   hostname: string

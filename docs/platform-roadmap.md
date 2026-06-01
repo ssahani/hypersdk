@@ -123,6 +123,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **Ops UX:** [`PlatformReports`](../web/src/pages/platform/PlatformReports.tsx) runbook execute `ErrorBanner`, showback empty/retry, compliance export links on showback tab; [`PlatformOperationsHub`](../web/src/pages/platform/PlatformOperationsHub.tsx) Reports & Runbooks tile
 - **E2e:** [`platform-machine-finder.spec.ts`](../web/e2e/platform-machine-finder.spec.ts), [`platform-ops-reports.spec.ts`](../web/e2e/platform-ops-reports.spec.ts); **76/76** local bundle green
 
+## Batch 64 deliverables (GPU Command Center — shipped)
+
+- **Backend:** `GET /api/v1/fleet/gpu` — [`fleet_gpu.rs`](../controller/src/engine/fleet_gpu.rs) host tag inventory (MIG/vGPU/CUDA/passthrough) + GPU VM rollup
+- **UI:** [`PlatformGpuCommandCenter`](../web/src/pages/platform/PlatformGpuCommandCenter.tsx) at `/platform/gpu`; Resources hub tile; CUDA placement advisor via existing `getGpuPlacement`
+- **E2e:** [`platform-gpu-command-center.spec.ts`](../web/e2e/platform-gpu-command-center.spec.ts); **78/78** local bundle green
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

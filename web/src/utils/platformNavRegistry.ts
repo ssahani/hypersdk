@@ -101,6 +101,7 @@ const SECURITY_ITEMS: ContextNavItem[] = [
 const RESOURCES_ITEMS: ContextNavItem[] = [
   { to: '/platform/resources', label: 'Overview' },
   { to: '/platform/storage', label: 'Disk Utility' },
+  { to: '/platform/gpu', label: 'GPU Command Center' },
   { to: '/platform/networks', label: 'Networks' },
   { to: '/platform/content', label: 'Images & ISOs' },
   { to: '/platform/templates', label: 'Templates' },

@@ -19,6 +19,7 @@ use crate::engine::fleet_shortcuts;
 use crate::engine::fleet_spaces;
 use crate::engine::fleet_general;
 use crate::engine::fleet_mission;
+use crate::engine::fleet_gpu;
 use crate::state::AppState;
 
 pub async fn desktop_overview(
@@ -151,6 +152,15 @@ pub async fn mission_overview(
     State(state): State<AppState>,
 ) -> Result<Json<fleet_mission::FleetMissionOverview>, ApiError> {
     fleet_mission::overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn gpu_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_gpu::FleetGpuOverview>, ApiError> {
+    fleet_gpu::overview(&state.pool)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

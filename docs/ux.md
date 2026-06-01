@@ -51,6 +51,8 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 
 **Machine Finder geography:** Mission Control ([`InfrastructureEarthView`](../web/src/components/platform/InfrastructureEarthView.tsx)) links to `/platform/hosts/finder` — four-column site → rack → host → VM browser aligned with `GET /api/v1/fleet/mission`.
 
+**GPU Command Center:** [`PlatformGpuCommandCenter`](../web/src/pages/platform/PlatformGpuCommandCenter.tsx) at `/platform/gpu` — MIG/vGPU/CUDA profile chips from host tags, GPU VM inventory, and CUDA placement advisor (`GET /api/v1/fleet/gpu` + `GET /api/v1/ai/fleet/gpu-placement`).
+
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |
 | [`JsonInspector`](../web/src/components/platform/JsonInspector.tsx) | Power-user API payloads — human summary first, raw JSON behind toggle |
 | [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) | Integrations hub — live OpenStack/K8s inventory preview when backends are reachable |

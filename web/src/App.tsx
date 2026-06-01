@@ -100,6 +100,7 @@ const PlatformLayout = lazy(() => import('./layouts/PlatformLayout'))
 const PlatformDashboard = lazy(() => import('./pages/platform/PlatformDashboard'))
 const PlatformHosts = lazy(() => import('./pages/platform/PlatformHosts'))
 const PlatformMachineFinder = lazy(() => import('./pages/platform/PlatformMachineFinder'))
+const PlatformGpuCommandCenter = lazy(() => import('./pages/platform/PlatformGpuCommandCenter'))
 const PlatformVms = lazy(() => import('./pages/platform/PlatformVms'))
 const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
 const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
@@ -369,6 +370,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="blueprints" element={<PlatformBlueprints />} />
                   <Route path="support" element={<PlatformSupport />} />
                   <Route path="storage" element={<PlatformStorage />} />
+                  <Route path="gpu" element={<PlatformGpuCommandCenter />} />
                   <Route path="networks" element={<PlatformNetworks />} />
                   <Route path="users" element={<PlatformUsers />} />
                   <Route path="webhooks" element={<PlatformWebhooks />} />

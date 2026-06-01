@@ -66,6 +66,43 @@ const fleetMission = {
   summary: { hosts: 1, vms: 1, hosts_online: 1, health_pct: 100 },
 }
 
+const fleetGpu = {
+  summary: '1 GPU host(s) · 1 GPU VM(s) · 1 CUDA-ready',
+  gpu_host_count: 1,
+  gpu_vm_count: 1,
+  cuda_ready_hosts: 1,
+  mig_hosts: 0,
+  vgpu_hosts: 0,
+  hosts: [
+    {
+      host_id: 'h1',
+      hostname: 'host-1',
+      site: 'DC-1',
+      rack: 'Rack A',
+      state: 'online',
+      gpu_capable: true,
+      profile: 'cuda',
+      model_hint: 'NVIDIA L40',
+      vm_count: 1,
+      gpu_vm_count: 1,
+      vgpu_slices: 0,
+      cuda_ready: true,
+    },
+  ],
+  vms: [
+    {
+      vm_id: 'v1',
+      vm_name: 'vm-1',
+      host_id: 'h1',
+      hostname: 'host-1',
+      observed_state: 'running',
+      profile: 'cuda',
+      tags: ['gpu', 'inference'],
+    },
+  ],
+  profiles: [{ kind: 'cuda', label: 'CUDA ready', host_count: 1, vm_count: 1 }],
+}
+
 const opsRunbooks = [
   {
     id: 'rb-1',
@@ -182,6 +219,17 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/fleet/mission')) {
       return route.fulfill({ json: fleetMission })
+    }
+    if (url.match(/\/fleet\/gpu(\?|$|\/)/)) {
+      return route.fulfill({ json: fleetGpu })
+    }
+    if (url.includes('/ai/fleet/gpu-placement')) {
+      return route.fulfill({
+        json: {
+          summary: '1 GPU-capable host(s) for inference — top: host-1',
+          candidates: [{ host_id: 'h1', hostname: 'host-1', gpu_capable: true, numa_hint: 'NUMA 0', score: 92, reason: 'GPU-tagged host · CPU 35% · 1 VMs' }],
+        },
+      })
     }
     if (url.includes('/operations/showback')) {
       return route.fulfill({ json: opsShowback })
@@ -516,7 +564,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       }
       return route.fulfill({ json: { ports: [], connections: [], dns: [], files: [] } })
     }
-    if (url.includes('/fleet/')) {
+    if (url.includes('/fleet/') && !url.match(/\/fleet\/(finder|mission|gpu|desktop|storage|network|console|updates|keychain|users|shortcuts|spaces|general|linux|backups|activity)/)) {
       return route.fulfill({ json: { summary: 'Fleet aggregate OK', hosts: [], entries: [] } })
     }
     if (url.includes('/cluster')) {

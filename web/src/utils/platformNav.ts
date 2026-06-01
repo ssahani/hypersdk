@@ -99,6 +99,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/resources': 'Resources',
   '/platform/operations': 'Operations',
   '/platform/storage': 'Disk Utility',
+  '/platform/gpu': 'GPU Command Center',
   '/platform/networks': 'Networks',
   '/platform/content': 'Images & ISOs',
   '/platform/templates': 'Templates',
