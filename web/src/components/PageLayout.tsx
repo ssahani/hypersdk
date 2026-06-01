@@ -12,17 +12,28 @@ type PageLayoutProps = {
   icon?: ReactNode
   actions?: ReactNode
   children?: ReactNode
+  /** Full-page skeleton; use for pages with no meaningful shell during load. */
   loading?: boolean
+  /** Spinner in the content area while keeping header and actions visible. */
+  contentLoading?: boolean
   error?: string | null
   errorTitle?: string
   errorHints?: string[]
-  technicalDetail?: string
+  technicalDetail?: string | null
   errorTone?: 'amber' | 'red'
   onErrorRetry?: () => void
   onErrorDismiss?: () => void
   emptyState?: ReactNode
   className?: string
   contentClassName?: string
+}
+
+function ContentSpinner() {
+  return (
+    <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+    </div>
+  )
 }
 
 export default function PageLayout({
@@ -32,6 +43,7 @@ export default function PageLayout({
   actions,
   children,
   loading,
+  contentLoading,
   error,
   errorTitle,
   errorHints,
@@ -49,6 +61,18 @@ export default function PageLayout({
 
   return (
     <div className={`space-y-6 animate-fade-in ${className ?? ''}`}>
+      {error ? (
+        <ErrorBanner
+          title={errorTitle}
+          headline={error}
+          hints={errorHints}
+          technicalDetail={technicalDetail ?? undefined}
+          tone={errorTone}
+          onRetry={onErrorRetry}
+          onDismiss={onErrorDismiss}
+        />
+      ) : null}
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -60,19 +84,9 @@ export default function PageLayout({
         {actions ? <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div> : null}
       </div>
 
-      {error ? (
-        <ErrorBanner
-          title={errorTitle}
-          headline={error}
-          hints={errorHints}
-          technicalDetail={technicalDetail}
-          tone={errorTone}
-          onRetry={onErrorRetry}
-          onDismiss={onErrorDismiss}
-        />
-      ) : null}
-
-      {emptyState ? (
+      {contentLoading ? (
+        <ContentSpinner />
+      ) : emptyState ? (
         emptyState
       ) : (
         <div className={contentClassName ?? ''}>{children}</div>

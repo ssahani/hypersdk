@@ -19,7 +19,6 @@ import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
 import EmptyState from '../components/EmptyState'
-import ErrorBanner from '../components/ErrorBanner'
 import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
@@ -184,7 +183,6 @@ export default function VMList() {
           {' '}Use VM details for optional KubeVirt bundle / cluster actions when configured.
         </>
       }
-      loading={loading}
       error={loadError}
       errorTitle="Failed to load virtual machines"
       errorTone="red"
@@ -249,7 +247,11 @@ export default function VMList() {
         )}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading virtual machines">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Server className="w-6 h-6" />}
           title={search || tagFilter ? 'No VMs match your filters' : 'No guests on this host'}

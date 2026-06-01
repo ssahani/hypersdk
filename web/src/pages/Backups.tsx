@@ -12,7 +12,6 @@ import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PageLayout from '../components/PageLayout'
-import PageSkeleton from '../components/PageSkeleton'
 import EmptyState from '../components/EmptyState'
 import { formatUserError } from '../utils/apiError'
 import { statusBgClass, statusToneClass } from '../utils/semanticColors'
@@ -60,6 +59,7 @@ export default function BackupsPage() {
 
   const load = useCallback(async () => {
     try {
+      setLoading(true)
       const [bResult, vResult, sResult] = await Promise.allSettled([fetchBackups(), listVMs(), getSchedule()])
       if (bResult.status === 'fulfilled') setBackups(bResult.value)
       else toast.error(`Failed to load backups: ${bResult.reason instanceof Error ? bResult.reason.message : bResult.reason}`)
@@ -181,7 +181,7 @@ export default function BackupsPage() {
           </button>
         </>
       }
-      loading={loading}
+      contentLoading={loading}
     >
 
       {/* Schedule card */}
