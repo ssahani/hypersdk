@@ -2,6 +2,7 @@
 
 import { Link } from 'react-router'
 import { MapPin, Server } from 'lucide-react'
+import InfrastructureEarthGlobe from './InfrastructureEarthGlobe'
 import { hubLinkClasses } from '../../utils/semanticColors'
 import type { FleetMissionOverview, MissionHost } from '../../api/platform'
 import { statusBgClass, statusSurfaceClasses, utilizationTone } from '../../utils/semanticColors'
@@ -75,6 +76,8 @@ export default function InfrastructureEarthView({ mission }: { mission: FleetMis
           Open Machine Finder
         </Link>
       </div>
+
+      <InfrastructureEarthGlobe mission={mission} />
 
       {hasSites ? (
         <div

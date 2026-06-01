@@ -141,6 +141,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **UI:** [`PlatformJarvisBriefing`](../web/src/components/platform/PlatformJarvisBriefing.tsx) intent-first landing (all tiers); [`platformJarvisShell.ts`](../web/src/utils/platformJarvisShell.ts) hides sidebar on Normal tier; Control Center toggle; Spotlight open event from Jarvis search
 - **E2e:** [`platform-jarvis-shell.spec.ts`](../web/e2e/platform-jarvis-shell.spec.ts); **84/84** local bundle green
 
+## Batch 67 deliverables (Infrastructure Earth globe + Enterprise UX — shipped)
+
+- **Phase 58 v1:** [`InfrastructureEarthGlobe`](../web/src/components/platform/InfrastructureEarthGlobe.tsx) canvas wireframe globe with site health markers in [`InfrastructureEarthView`](../web/src/components/platform/InfrastructureEarthView.tsx) / Mission Control
+- **Enterprise slice:** [`EnterpriseSecurityStrip`](../web/src/components/platform/EnterpriseSecurityStrip.tsx) on advanced dashboard; [`PlatformEnterprise`](../web/src/pages/platform/PlatformEnterprise.tsx) vault sync `ErrorBanner`; Jarvis landing Enterprise Keychain intent
+- **E2e:** [`platform-enterprise.spec.ts`](../web/e2e/platform-enterprise.spec.ts), [`platform-infrastructure-earth-globe.spec.ts`](../web/e2e/platform-infrastructure-earth-globe.spec.ts) (advanced strip); **87/87** local bundle green
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

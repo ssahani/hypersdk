@@ -23,6 +23,7 @@ import PlatformJarvisBriefing from '../../components/platform/PlatformJarvisBrie
 import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
 import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaStrip'
+import EnterpriseSecurityStrip from '../../components/platform/EnterpriseSecurityStrip'
 import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
 import PlatformTahoeEmptyState from '../../components/platform/tahoe/PlatformTahoeEmptyState'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
@@ -208,6 +209,8 @@ export default function PlatformDashboard() {
       {error && <ErrorBanner message={error} />}
 
       {showPower && <InfrastructureDnaStrip />}
+
+      {showAdvanced && <EnterpriseSecurityStrip />}
 
       {showPower && zeusStrip && (
         <MacGlassPanel title="Posture" subtitle={zeusStrip.tagline}>

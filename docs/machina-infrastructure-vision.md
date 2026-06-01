@@ -83,7 +83,7 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 | Horizon | Feature | Notes |
 |---------|---------|-------|
 | **Now** | Layer 0 phases 49–57 complete (Jarvis shell through Infrastructure DNA) | See macOS roadmap |
-| **Next** | Phase 58 WebGL Earth (deferred) or enterprise backlog | Per [`enterprise-backlog.md`](enterprise-backlog.md) |
+| **Next** | Full WebGL Earth (Phase 58 v2) or ROADMAP follow-ups | Per [`enterprise-backlog.md`](enterprise-backlog.md) — Vault/MFA live enrollment still deferred |
 
 ---
 
@@ -116,7 +116,7 @@ Spotlight intents: `open mission control`, `infrastructure health`, `show overhe
 
 ## Explicit non-goals (this cycle)
 
-- WebGL Infrastructure Earth globe
+- WebGL Infrastructure Earth globe (canvas v1 shipped Batch 67)
 - Autonomous patch apply on hypervisors (guided orchestration only; preview/link-out)
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for deferred enterprise items.

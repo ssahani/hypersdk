@@ -59,6 +59,10 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 
 **Full Jarvis shell (Phase 57):** [`PlatformJarvisBriefing`](../web/src/components/platform/PlatformJarvisBriefing.tsx) on all tiers — landing intents from `GET /api/v1/ai/jarvis/landing`, inline search opens Spotlight (`⌘Space`), Normal tier hides sidebar when Jarvis shell is on (Control Center toggle).
 
+**Infrastructure Earth globe (Phase 58 v1):** [`InfrastructureEarthGlobe`](../web/src/components/platform/InfrastructureEarthGlobe.tsx) — canvas wireframe globe with per-site health markers in Mission Control (full WebGL deferred).
+
+**Enterprise security strip:** [`EnterpriseSecurityStrip`](../web/src/components/platform/EnterpriseSecurityStrip.tsx) on advanced dashboard; vault sync failures use persistent [`ErrorBanner`](../web/src/components/ErrorBanner.tsx) on [`PlatformEnterprise`](../web/src/pages/platform/PlatformEnterprise.tsx).
+
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |
 | [`JsonInspector`](../web/src/components/platform/JsonInspector.tsx) | Power-user API payloads — human summary first, raw JSON behind toggle |
 | [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) | Integrations hub — live OpenStack/K8s inventory preview when backends are reachable |

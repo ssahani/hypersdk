@@ -1227,6 +1227,15 @@ pub fn jarvis_landing_intents(online_hosts: i64) -> SpotlightResult {
             Some("/platform/zeus".into()),
             None,
         ),
+        intent(
+            "jarvis-enterprise",
+            "Enterprise Keychain",
+            "Vault, MFA, FIPS matrix, and tenant isolation inventory.",
+            "navigate",
+            None,
+            Some("/platform/enterprise?tab=keychain".into()),
+            None,
+        ),
     ];
     let suggested_action = intents.first().cloned();
     SpotlightResult {

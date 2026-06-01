@@ -63,6 +63,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
   const [tenants, setTenants] = useState<TenantIsolationOverview | null>(null)
   const [syncBusy, setSyncBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setError(null)
@@ -91,25 +92,27 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
   useEffect(() => { void load() }, [load])
 
   const syncAll = async () => {
+    setActionError(null)
     setSyncBusy(true)
     try {
       const r = await syncAllVaultProviders()
       toast.success(r.summary)
       await load()
     } catch (e: unknown) {
-      toast.error(formatUserError(e))
+      setActionError(formatUserError(e))
     } finally {
       setSyncBusy(false)
     }
   }
 
   const syncOne = async (id: string) => {
+    setActionError(null)
     try {
       const r = await syncVaultProvider(id)
       toast.success(`${r.provider_name}: ${r.message}`)
       await load()
     } catch (e: unknown) {
-      toast.error(formatUserError(e))
+      setActionError(formatUserError(e))
     }
   }
 
@@ -133,6 +136,7 @@ export default function PlatformEnterprise({ embedded }: { embedded?: boolean } 
         </header>
       )}
       {error && <ErrorBanner message={error} />}
+      {actionError && <ErrorBanner message={actionError} />}
       {(keychain?.summary || overview?.summary) && tab !== 'keychain' && (
         <p className="text-sm text-slate-400">{overview?.summary}</p>
       )}

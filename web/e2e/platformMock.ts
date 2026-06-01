@@ -115,8 +115,56 @@ const jarvisLanding = {
     { id: 'jarvis-mission-control', label: 'Mission Control', review: 'Infrastructure Earth', action: 'navigate', navigate: '/platform?mission=1' },
     { id: 'jarvis-maintenance-mission', label: 'Maintenance Mission', review: 'Patch timeline', action: 'navigate', navigate: '/platform/maintenance?tab=mission' },
     { id: 'jarvis-machine-finder', label: 'Machine Finder', review: 'Geography', action: 'navigate', navigate: '/platform/hosts/finder' },
+    { id: 'jarvis-enterprise', label: 'Enterprise Keychain', review: 'Vault and MFA inventory', action: 'navigate', navigate: '/platform/enterprise?tab=keychain' },
   ],
   search_hits: [],
+}
+
+const enterpriseSecurity = {
+  vault_providers: 1,
+  vault_connected: 1,
+  mfa_policies: 1,
+  mfa_required_roles: 1,
+  air_gap_bundles: 0,
+  mfa_enrolled_users: 2,
+  tenant_policies: 1,
+  fips_profiles: 2,
+  summary: '1 vault · 2 MFA enrolled · 1 tenant policy',
+}
+
+const enterpriseVaults = [
+  { id: 'vault-1', name: 'corp-vault', provider_type: 'hashicorp', address: 'https://vault.local', namespace: 'machina', status: 'connected', last_sync_at: null },
+]
+
+const enterpriseMfa = {
+  summary: '1 role requires MFA',
+  users: [{ username: 'admin', role: 'admin', required_method: 'totp', compliant: true }],
+}
+
+const enterpriseFips = {
+  summary: 'OpenSSL profiles',
+  openssl_version: '3.0',
+  profiles: [{ id: 'default', name: 'Default', tls_min_version: '1.2', fips_mode: 'off', cipher_suites: 'TLS_AES_256', notes: 'Lab profile' }],
+}
+
+const enterpriseTenants = {
+  summary: '1 workspace',
+  projects: [{ project_name: 'default', vm_count: 2, max_vms: 50, network_isolation: 'shared', enforce_quotas: true, quota_status: 'ok' }],
+}
+
+const fleetKeychain = {
+  summary: '2 credential entries',
+  vault_providers: 1,
+  vault_connected: 1,
+  disconnected_vaults: 0,
+  mfa_policies: 1,
+  mfa_enrolled_users: 2,
+  api_keys: 1,
+  air_gap_bundles: 0,
+  entries: [
+    { kind: 'vault', id: 'v1', name: 'corp-vault', summary: 'HashiCorp · connected', status: 'active' },
+    { kind: 'api_key', id: 'k1', name: 'automation', summary: 'Platform API key', status: 'active' },
+  ],
 }
 
 const fleetUpdates = {
@@ -293,20 +341,44 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/fleet/finder')) {
       return route.fulfill({ json: fleetFinder })
     }
-    if (url.includes('/fleet/mission')) {
+    if (url.includes('/fleet/maintenance-mission')) {
+      return route.fulfill({ json: fleetMaintenanceMission })
+    }
+    if (url.match(/\/fleet\/mission(\?|$|\/)/)) {
       return route.fulfill({ json: fleetMission })
     }
     if (url.match(/\/fleet\/gpu(\?|$|\/)/)) {
       return route.fulfill({ json: fleetGpu })
-    }
-    if (url.includes('/fleet/maintenance-mission')) {
-      return route.fulfill({ json: fleetMaintenanceMission })
     }
     if (url.match(/\/fleet\/dna(\?|$|\/)/)) {
       return route.fulfill({ json: fleetDna })
     }
     if (url.includes('/ai/jarvis/landing')) {
       return route.fulfill({ json: jarvisLanding })
+    }
+    if (url.includes('/enterprise/security/overview')) {
+      return route.fulfill({ json: enterpriseSecurity })
+    }
+    if (url.includes('/enterprise/vault/providers') && route.request().method() === 'POST') {
+      return route.fulfill({ status: 500, json: { error: 'vault sync failed' } })
+    }
+    if (url.includes('/enterprise/vault/sync-all') && route.request().method() === 'POST') {
+      return route.fulfill({ status: 500, json: { error: 'vault sync failed' } })
+    }
+    if (url.includes('/enterprise/vault/providers')) {
+      return route.fulfill({ json: enterpriseVaults })
+    }
+    if (url.includes('/enterprise/mfa/compliance')) {
+      return route.fulfill({ json: enterpriseMfa })
+    }
+    if (url.includes('/enterprise/fips/matrix')) {
+      return route.fulfill({ json: enterpriseFips })
+    }
+    if (url.includes('/enterprise/tenants/overview')) {
+      return route.fulfill({ json: enterpriseTenants })
+    }
+    if (url.match(/\/fleet\/keychain(\?|$|\/)/)) {
+      return route.fulfill({ json: fleetKeychain })
     }
     if (url.includes('/fleet/updates')) {
       return route.fulfill({ json: fleetUpdates })
@@ -673,7 +745,7 @@ export async function mockPlatformApi(page: Page, opts?: {
       }
       return route.fulfill({ json: { ports: [], connections: [], dns: [], files: [] } })
     }
-    if (url.includes('/fleet/') && !url.match(/\/fleet\/(finder|mission|gpu|desktop|storage|network|console|updates|keychain|users|shortcuts|spaces|general|linux|backups|activity)/)) {
+    if (url.includes('/fleet/') && !url.match(/\/fleet\/(finder|mission|gpu|desktop|storage|network|console|updates|keychain|users|shortcuts|spaces|general|linux|backups|activity|dna|maintenance-mission)/)) {
       return route.fulfill({ json: { summary: 'Fleet aggregate OK', hosts: [], entries: [] } })
     }
     if (url.includes('/cluster')) {
