@@ -7,7 +7,7 @@ import ErrorBanner from './ErrorBanner'
 import PageSkeleton from './PageSkeleton'
 
 type PageLayoutProps = {
-  title: string
+  title?: string
   subtitle?: ReactNode
   icon?: ReactNode
   actions?: ReactNode
@@ -24,6 +24,8 @@ type PageLayoutProps = {
   onErrorRetry?: () => void
   onErrorDismiss?: () => void
   emptyState?: ReactNode
+  /** When set, skip the default title row (e.g. page uses `<Hero>` in children). */
+  hideHeader?: boolean
   className?: string
   contentClassName?: string
 }
@@ -52,6 +54,7 @@ export default function PageLayout({
   onErrorRetry,
   onErrorDismiss,
   emptyState,
+  hideHeader,
   className,
   contentClassName,
 }: PageLayoutProps) {
@@ -73,6 +76,7 @@ export default function PageLayout({
         />
       ) : null}
 
+      {!hideHeader ? (
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-3">
@@ -83,6 +87,7 @@ export default function PageLayout({
         </div>
         {actions ? <div className="flex flex-wrap items-center gap-2 shrink-0">{actions}</div> : null}
       </div>
+      ) : null}
 
       {contentLoading ? (
         <ContentSpinner />
