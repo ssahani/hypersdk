@@ -5,7 +5,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { getJournalBoots, getJournalLogs, JournalBootEntry, JournalEntry } from '../api/extras'
 import { RefreshCw, Search } from 'lucide-react'
-import ErrorBanner from '../components/ErrorBanner'
+import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
 import { journalPriorityTone, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 
@@ -49,6 +49,7 @@ export default function LogsPage() {
 
   const load = useCallback(async () => {
     try {
+      setLoading(true)
       setLoadError(null)
       const data = await getJournalLogs({
         lines: lineCount,
@@ -87,36 +88,23 @@ export default function LogsPage() {
     }
   }, [autoRefresh, load])
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-32">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
-    </div>
-  )
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">System Logs</h1>
-          <p className="text-sm text-slate-400 mt-0.5">journald log viewer</p>
-        </div>
-        <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" aria-label="Refresh">
+    <PageLayout
+      title="System Logs"
+      subtitle="journald log viewer"
+      actions={
+        <button onClick={load} className="p-2 hover:bg-slate-700 rounded-lg transition" title="Refresh" aria-label="Refresh">
           <RefreshCw className="w-4 h-4" />
         </button>
-      </div>
-
-      {loadError && (
-        <ErrorBanner
-          title="Could not load journal logs"
-          headline={loadError}
-          hints={[
-            'Confirm machina-daemon is running and your session is valid.',
-            'journalctl must be available on the host; check daemon logs if filters fail.',
-          ]}
-          onRetry={load}
-        />
-      )}
-
+      }
+      error={loadError}
+      errorTitle="Could not load journal logs"
+      errorHints={[
+        'Confirm machina-daemon is running and your session is valid.',
+        'journalctl must be available on the host; check daemon logs if filters fail.',
+      ]}
+      onErrorRetry={load}
+    >
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
         <button
@@ -266,6 +254,11 @@ export default function LogsPage() {
       </div>
 
       {/* Log entries */}
+      {loading ? (
+        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading log entries">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
+      ) : (
       <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
         <div className="overflow-x-auto max-h-[70vh] overflow-y-auto font-mono text-xs">
           {entries.length === 0 ? (
@@ -294,6 +287,7 @@ export default function LogsPage() {
           )}
         </div>
       </div>
-    </div>
+      )}
+    </PageLayout>
   )
 }

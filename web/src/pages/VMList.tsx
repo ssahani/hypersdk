@@ -19,7 +19,7 @@ import { ChoiceCard, ChoiceCardGrid } from '../components/ChoiceCards'
 import { downloadJSON, downloadCSV } from '../utils/export'
 import { isPinned, togglePin } from '../utils/pinnedVMs'
 import EmptyState from '../components/EmptyState'
-import ErrorBanner from '../components/ErrorBanner'
+import PageLayout from '../components/PageLayout'
 import { formatUserError } from '../utils/apiError'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 import { sessionBadgeClasses, statusActionLinkClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
@@ -172,30 +172,26 @@ export default function VMList() {
   useEffect(() => { localStorage.setItem('vmlist-view', viewMode) }, [viewMode])
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {loadError && (
-        <ErrorBanner
-          title="Failed to load virtual machines"
-          headline={loadError}
-          hints={libvirtErrorHints(loadError)}
-          technicalDetail={loadError}
-          tone="red"
-          onRetry={() => void load()}
-          onDismiss={() => setLoadError(null)}
-        />
-      )}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-2xl font-bold">Virtual machines</h1>
-          <p className="text-sm text-slate-400 mt-0.5 max-w-2xl">
-            QEMU/KVM guests on this hypervisor host (libvirt).
-            {(info?.libvirt?.extra_uris?.length ?? 0) > 0 && (
-              <> Federated read-only hosts: {info!.libvirt!.extra_uris!.join(', ')}.</>
-            )}
-            {' '}Use VM details for optional KubeVirt bundle / cluster actions when configured.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 shrink-0">
+    <PageLayout
+      title="Virtual machines"
+      subtitle={
+        <>
+          QEMU/KVM guests on this hypervisor host (libvirt).
+          {(info?.libvirt?.extra_uris?.length ?? 0) > 0 && (
+            <> Federated read-only hosts: {info!.libvirt!.extra_uris!.join(', ')}.</>
+          )}
+          {' '}Use VM details for optional KubeVirt bundle / cluster actions when configured.
+        </>
+      }
+      error={loadError}
+      errorTitle="Failed to load virtual machines"
+      errorTone="red"
+      errorHints={loadError ? libvirtErrorHints(loadError) : undefined}
+      technicalDetail={loadError}
+      onErrorRetry={() => void load()}
+      onErrorDismiss={() => setLoadError(null)}
+      actions={
+        <>
           <button onClick={() => downloadJSON(filtered, 'vms.json')} className="p-2 hover:bg-slate-700 rounded transition" title="Export JSON"><Download className="w-4 h-4" /></button>
           <button onClick={() => downloadCSV(filtered as unknown as Record<string, unknown>[], 'vms.csv')} className="p-2 hover:bg-slate-700 rounded transition" title="Export CSV"><Download className={`w-4 h-4 ${statusToneClass('ok')}`} /></button>
           <ChoiceCardGrid className="max-w-[220px] sm:max-w-[240px] [&_button]:min-h-0">
@@ -222,9 +218,9 @@ export default function VMList() {
             <RefreshCw className="w-4 h-4" />
           </button>
           <Link to="/create" className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded text-sm transition">+ Create VM</Link>
-        </div>
-      </div>
-
+        </>
+      }
+    >
       <div className="flex items-center gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -252,7 +248,9 @@ export default function VMList() {
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
+        <div className="flex items-center justify-center h-32" aria-busy="true" aria-label="Loading virtual machines">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        </div>
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={<Server className="w-6 h-6" />}
@@ -440,6 +438,6 @@ export default function VMList() {
         onConfirm={handleBatchDelete}
         onCancel={() => setBatchDeleteConfirm(false)}
       />
-    </div>
+    </PageLayout>
   )
 }

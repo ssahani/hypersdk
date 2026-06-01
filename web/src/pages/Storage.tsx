@@ -11,8 +11,7 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, Copy, Maximize, ToggleLeft, ToggleRight } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import { poolStateBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
-import ErrorBanner from '../components/ErrorBanner'
-import PageSkeleton from '../components/PageSkeleton'
+import PageLayout from '../components/PageLayout'
 import EmptyState from '../components/EmptyState'
 import { libvirtErrorHints } from '../utils/libvirtHints'
 
@@ -21,6 +20,7 @@ export default function StoragePage() {
   const [volumes, setVolumes] = useState<StorageVolumeInfo[]>([])
   const [selectedPool, setSelectedPool] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const [volumesLoading, setVolumesLoading] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ pool: string; vol: string } | null>(null)
   const [deletePoolTarget, setDeletePoolTarget] = useState<string | null>(null)
@@ -42,6 +42,7 @@ export default function StoragePage() {
 
   const loadPools = useCallback(async () => {
     try {
+      setLoading(true)
       setLoadError(null)
       setPools(await listPools())
     } catch (e: unknown) {
@@ -52,7 +53,17 @@ export default function StoragePage() {
   }, [toast])
 
   const loadVolumes = async (pool: string) => {
-    try { setVolumes(await listVolumes(pool)); setSelectedPool(pool) } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
+    try {
+      setVolumesLoading(true)
+      setSelectedPool(pool)
+      setVolumes(await listVolumes(pool))
+    } catch (e: unknown) {
+      toast.error(`${formatUserError(e)}`)
+      setSelectedPool(null)
+      setVolumes([])
+    } finally {
+      setVolumesLoading(false)
+    }
   }
 
   useEffect(() => { loadPools() }, [loadPools])
@@ -112,19 +123,36 @@ export default function StoragePage() {
     } catch (e: unknown) { toast.error(`${formatUserError(e)}`) }
   }
 
-  if (loading) return <PageSkeleton />
-
   if (selectedPool) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center gap-4">
-          <button onClick={() => { setSelectedPool(null); setVolumes([]) }} className="p-2 hover:bg-slate-700 rounded transition"><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-2xl font-bold">Volumes in '{selectedPool}'</h1>
-          <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
-          <button onClick={() => setShowCreateVol(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Volume</button>
-        </div>
-        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-          {volumes.length === 0 ? <div className="p-8 text-center text-slate-500">No volumes</div> : (
+      <PageLayout
+        title={`Volumes in '${selectedPool}'`}
+        actions={
+          <>
+            <button onClick={() => { setSelectedPool(null); setVolumes([]); setVolumesLoading(false) }} className="p-2 hover:bg-slate-700 rounded transition" title="Back"><ArrowLeft className="w-5 h-5" /></button>
+            <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
+            <button onClick={() => setShowCreateVol(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Volume</button>
+          </>
+        }
+        contentLoading={volumesLoading}
+      >
+        {volumes.length === 0 ? (
+          <EmptyState
+            icon={<HardDrive className="w-6 h-6" />}
+            title="No volumes"
+            description="Create a volume in this pool to attach to a VM."
+            primaryAction={
+              <button
+                type="button"
+                onClick={() => setShowCreateVol(true)}
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium"
+              >
+                Create volume
+              </button>
+            }
+          />
+        ) : (
+          <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
             <table className="w-full">
               <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Type</th><th className="px-6 py-3">Capacity</th><th className="px-6 py-3">Used</th><th className="px-6 py-3 hidden lg:table-cell">Path</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
               <tbody className="divide-y divide-slate-700/50">
@@ -146,8 +174,8 @@ export default function StoragePage() {
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
         <ConfirmDialog open={!!deleteTarget} title="Delete Volume" message={`Delete volume '${deleteTarget?.vol}'?`} confirmLabel="Delete" onConfirm={handleDeleteVol} onCancel={() => setDeleteTarget(null)} />
 
         {resizeTarget && (
@@ -217,34 +245,34 @@ export default function StoragePage() {
             </div>
           </div>
         )}
-      </div>
+      </PageLayout>
     )
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Storage Pools</h1>
-        <div className="flex items-center gap-2">
+    <PageLayout
+      title="Storage Pools"
+      icon={<HardDrive className="w-6 h-6" />}
+      actions={
+        <>
           <button onClick={() => setShowCreatePool(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Pool</button>
-          <button onClick={loadPools} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
-        </div>
-      </div>
-      {loadError && (
-        <ErrorBanner
-          title="Could not load storage pools"
-          headline={loadError}
-          hints={libvirtErrorHints(loadError)}
-          onRetry={loadPools}
-        />
-      )}
-      {pools.length === 0 && !loadError && (
+          <button onClick={loadPools} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
+        </>
+      }
+      contentLoading={loading}
+      error={loadError}
+      errorTitle="Could not load storage pools"
+      errorHints={loadError ? libvirtErrorHints(loadError) : undefined}
+      onErrorRetry={loadPools}
+    >
+      {pools.length === 0 && !loadError ? (
         <EmptyState
+          icon={<HardDrive className="w-6 h-6" />}
           title="No storage pools"
           description="Create a libvirt pool or import from an existing path on this host."
           primaryAction={<button type="button" className="btn-primary" onClick={() => setShowCreatePool(true)}>Create pool</button>}
         />
-      )}
+      ) : pools.length > 0 ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pools.map((pool) => (
           <div key={pool.name} className="bg-slate-800/50 rounded-xl p-6 border border-slate-700/50">
@@ -283,6 +311,7 @@ export default function StoragePage() {
           </div>
         ))}
       </div>
+      ) : null}
 
       <ConfirmDialog open={!!deletePoolTarget} title="Delete Pool" message={`Delete storage pool '${deletePoolTarget}'? This cannot be undone.`} confirmLabel="Delete" onConfirm={handleDeletePool} onCancel={() => setDeletePoolTarget(null)} />
 
@@ -331,6 +360,6 @@ export default function StoragePage() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   )
 }

@@ -5,6 +5,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { listDevices, getDeviceXml, NodeDeviceInfo } from '../api/advanced'
 import { useToastContext } from '../contexts/ToastContext'
+import EmptyState from '../components/EmptyState'
+import PageLayout from '../components/PageLayout'
 import { RefreshCw, Usb, Code, X } from 'lucide-react'
 import { formatUserError } from '../utils/apiError'
 import { statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
@@ -20,6 +22,7 @@ export default function DevicesPage() {
 
   const load = useCallback(async () => {
     try {
+      setLoading(true)
       const devs = await listDevices()
       setDevices(devs)
       setFiltered(devs)
@@ -52,23 +55,31 @@ export default function DevicesPage() {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center h-32"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" /></div>
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Usb className="w-6 h-6" /> Node Devices</h1>
-        <div className="flex items-center gap-3">
+    <PageLayout
+      title="Node Devices"
+      icon={<Usb className="w-6 h-6" />}
+      actions={
+        <>
           <select value={capFilter} onChange={(e) => setCapFilter(e.target.value)} className="px-3 py-1.5 bg-slate-800/50 border border-slate-700/50 rounded-lg text-sm">
             <option value="">All types</option>
             {capTypes.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
-          <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
-        </div>
-      </div>
-
-      <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
-        {filtered.length === 0 ? <div className="p-8 text-center text-slate-500">No devices found.</div> : (
+          <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh" aria-label="Refresh">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </>
+      }
+      contentLoading={loading}
+    >
+      {filtered.length === 0 ? (
+        <EmptyState
+          icon={<Usb className="w-6 h-6" />}
+          title="No devices found"
+          description={capFilter ? 'Try clearing the capability filter.' : 'No node devices were reported by libvirt on this host.'}
+        />
+      ) : (
+        <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           <table className="w-full">
             <thead><tr className="border-b border-slate-700/50 text-left text-sm text-slate-400"><th className="px-6 py-3">Name</th><th className="px-6 py-3">Capability</th><th className="px-6 py-3 hidden md:table-cell">Driver</th><th className="px-6 py-3 hidden md:table-cell">Parent</th><th className="px-6 py-3 text-right">Actions</th></tr></thead>
             <tbody className="divide-y divide-slate-700/50">
@@ -85,8 +96,8 @@ export default function DevicesPage() {
               ))}
             </tbody>
           </table>
-        )}
-      </div>
+        </div>
+      )}
 
       {xmlContent !== null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setXmlContent(null)}>
@@ -99,6 +110,6 @@ export default function DevicesPage() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   )
 }

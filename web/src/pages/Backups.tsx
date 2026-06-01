@@ -11,7 +11,7 @@ import {
 import { listVMs, VmInfo } from '../api/vm'
 import { useToastContext } from '../contexts/ToastContext'
 import ConfirmDialog from '../components/ConfirmDialog'
-import PageSkeleton from '../components/PageSkeleton'
+import PageLayout from '../components/PageLayout'
 import EmptyState from '../components/EmptyState'
 import { formatUserError } from '../utils/apiError'
 import { statusBgClass, statusToneClass } from '../utils/semanticColors'
@@ -59,6 +59,7 @@ export default function BackupsPage() {
 
   const load = useCallback(async () => {
     try {
+      setLoading(true)
       const [bResult, vResult, sResult] = await Promise.allSettled([fetchBackups(), listVMs(), getSchedule()])
       if (bResult.status === 'fulfilled') setBackups(bResult.value)
       else toast.error(`Failed to load backups: ${bResult.reason instanceof Error ? bResult.reason.message : bResult.reason}`)
@@ -164,13 +165,12 @@ export default function BackupsPage() {
     }
   }
 
-  if (loading) return <PageSkeleton />
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold flex items-center gap-2"><Archive className="w-6 h-6" /> Backups</h1>
-        <div className="flex items-center gap-2">
+    <PageLayout
+      title="Backups"
+      icon={<Archive className="w-6 h-6" />}
+      actions={
+        <>
           <button onClick={load} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
           <button
             onClick={() => setShowForm(!showForm)}
@@ -179,8 +179,10 @@ export default function BackupsPage() {
             <Play className="w-4 h-4" />
             New Backup
           </button>
-        </div>
-      </div>
+        </>
+      }
+      contentLoading={loading}
+    >
 
       {/* Schedule card */}
       {schedule && schedule.installed && (
@@ -413,6 +415,6 @@ export default function BackupsPage() {
         onConfirm={handleRestore}
         onCancel={() => setRestoreTarget(null)}
       />
-    </div>
+    </PageLayout>
   )
 }
