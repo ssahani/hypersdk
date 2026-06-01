@@ -1384,7 +1384,7 @@ export default function VMDetailsPage() {
 
           {platformDoctor && (
             <div className="rounded-xl p-4 border border-orange-500/30 bg-orange-950/20">
-              <div className="text-sm font-medium text-slate-100 mb-1">Machina Doctor</div>
+              <div className="text-sm font-medium text-slate-100 mb-1">Zeus SRE</div>
               <p className="text-xs text-slate-400">
                 Platform score: <span className="text-orange-300 font-semibold">{platformDoctor.score_numeric}/100</span>
                 {' · '}{platformDoctor.score_label}

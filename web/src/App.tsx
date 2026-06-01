@@ -15,8 +15,9 @@ import ShellBridgeBar from './components/ShellBridgeBar'
 import NotFound from './pages/NotFound'
 import LoginPage from './pages/Login'
 import CommandPalette from './components/CommandPalette'
-import MachinaSpotlight from './components/ai/MachinaSpotlight'
-import MachinaCopilot from './components/ai/MachinaCopilot'
+import ZeusSpotlight from './components/ai/ZeusSpotlight'
+import ZeusAssistant from './components/ai/ZeusAssistant'
+import ZeusAmbientBar from './components/ai/ZeusAmbientBar'
 import Breadcrumb from './components/Breadcrumb'
 import HelpDialog, { type HelpTab } from './components/HelpDialog'
 import { OPEN_HELP_EVENT } from './utils/openHelp'
@@ -298,8 +299,9 @@ function AuthenticatedShellRoutes() {
           <div className={`${shellClass} flex flex-col min-h-screen`}>
             {!isPlatformRoute && <Navbar onOpenHelp={openHelp} />}
             {!isPlatformRoute && <ShellBridgeBar />}
-            <MachinaSpotlight onOpenHelp={openHelp} />
-            <MachinaCopilot />
+            <ZeusSpotlight onOpenHelp={openHelp} />
+            <ZeusAssistant />
+            <ZeusAmbientBar />
             <GlobalShortcuts
               helpOpen={helpOpen}
               helpTab={helpTab}

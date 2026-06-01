@@ -802,7 +802,7 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
     if ql.contains("zeus") && (ql.contains("summary") || ql.contains("status")) {
         intents.push(intent(
             "zeus-summary",
-            "Machina Zeus OS summary",
+            "Zeus OS summary",
             "Unified infrastructure OS health strip.",
             "navigate",
             None,

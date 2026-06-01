@@ -151,10 +151,10 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save quota</button>
       </MacGlassPanel>
-      <MacGlassPanel title="Machina AI (BYOK)" subtitle="Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations.">
+      <MacGlassPanel title="Zeus AI (BYOK)" subtitle="Deterministic engines work with AI disabled. Optional LLM improves NL parsing and explanations. Configure providers under Settings → AI Providers.">
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={ai.enabled} onChange={(e) => setAi({ ...ai, enabled: e.target.checked })} />
-          Enable Machina AI
+          Enable Zeus AI
         </label>
         <label className="text-sm block">
           Mode
@@ -195,7 +195,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           </label>
         )}
         <label className="text-sm block">
-          Fleet peer controller URLs (one per line, for multi-cluster Machina AI summary)
+          Fleet peer controller URLs (one per line, for multi-cluster Zeus summary)
           <textarea
             className="input mt-1 block w-full max-w-lg min-h-20 font-mono text-xs"
             placeholder="https://controller-site-b.example.com"

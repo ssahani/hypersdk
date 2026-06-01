@@ -20,6 +20,7 @@ import ErrorBanner from '../../components/ErrorBanner'
 import ActionCard from '../../components/platform/ActionCard'
 import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
 import PlatformJarvisBriefing from '../../components/platform/PlatformJarvisBriefing'
+import ZeusApprovalQueue from '../../components/ai/ZeusApprovalQueue'
 import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
 import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaStrip'
@@ -165,6 +166,7 @@ export default function PlatformDashboard() {
   return (
     <div className="space-y-6 animate-fade-in">
       <PlatformJarvisBriefing />
+      <ZeusApprovalQueue />
       {showPower && <RemediateChips compact />}
 
       {!jarvisLanding && (
