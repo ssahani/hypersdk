@@ -26,15 +26,20 @@ export async function submitMachinaLogin(page: Page) {
   await page.getByRole('button', { name: MACHINA_LOGIN_SUBMIT }).click()
 }
 
+export async function isMachinaLoginVisible(page: Page) {
+  return page.locator('#login-username').isVisible().catch(() => false)
+}
+
 /** Sign in via the Machina login form when credentials are set. No-op if already authenticated. */
 export async function ensureLoggedIn(page: Page, baseUrl: string, entryPath = '/platform') {
   const creds = liveCredentials()
   await page.goto(`${baseUrl}${entryPath}`)
   if (!creds) return
-  if (!page.url().includes('/login')) return
+  if (!(await isMachinaLoginVisible(page))) return
   await fillMachinaLoginForm(page, creds.user, creds.pass)
   await submitMachinaLogin(page)
   await page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 30_000 })
+  await page.locator('#login-username').waitFor({ state: 'hidden', timeout: 15_000 }).catch(() => {})
 }
 
 /** PAM login starting at `/login`; expects redirect to dashboard (`/`). */
