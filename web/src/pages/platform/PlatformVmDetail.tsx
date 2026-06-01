@@ -282,10 +282,24 @@ export default function PlatformVmDetail() {
               </Link>
             )}
             <PlatformOpenStackVmLink vm={vm} />
+            {vm.inventory_source === 'kubevirt' && (
+              <MacGlassPanel title="KubeVirt guest">
+                <p className="text-sm text-slate-300">
+                  Namespace: <span className="font-mono text-sky-200">{vm.k8s_namespace ?? 'default'}</span>
+                </p>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <Link to="/platform/integrations?tab=k8s" className={`text-sm ${hubLinkClasses()}`}>K8s Workloads →</Link>
+                </div>
+              </MacGlassPanel>
+            )}
             <div className="flex flex-wrap gap-2">
-              <button type="button" className="btn-primary" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
-              <button type="button" className="btn-secondary" onClick={() => void act('Stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Stop</button>
-              <button type="button" className="btn-secondary" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}><RotateCcw className="w-4 h-4" /> Reboot</button>
+              {vm.inventory_source !== 'kubevirt' && vm.observed_state !== 'missing' && (
+                <>
+                  <button type="button" className="btn-primary" onClick={() => void act('Start queued', () => vmPower(id, 'start'))}><Play className="w-4 h-4" /> Start</button>
+                  <button type="button" className="btn-secondary" onClick={() => void act('Stop queued', () => vmPower(id, 'stop'))}><Square className="w-4 h-4" /> Stop</button>
+                  <button type="button" className="btn-secondary" onClick={() => void act('Reboot queued', () => vmPower(id, 'reboot'))}><RotateCcw className="w-4 h-4" /> Reboot</button>
+                </>
+              )}
               <button type="button" className="btn-danger" onClick={() => {
                 if (!window.confirm('Delete this VM permanently?')) return
                 void act('Delete queued', () => vmDelete(id, true))
@@ -293,10 +307,21 @@ export default function PlatformVmDetail() {
             </div>
           </header>
 
+          {vm.observed_state === 'missing' && (
+            <MacGlassPanel title="Missing from inventory">
+              <p className={`text-sm ${statusToneClass('warn')}`}>
+                This VM is no longer reported by the last inventory scan. Sync hosts or remove the stale record.
+              </p>
+            </MacGlassPanel>
+          )}
           {vm.managed === false && (
             <MacGlassPanel title="Discovered VM">
               <div className="flex items-center justify-between gap-3">
-                <p className={`text-sm ${statusToneClass('warn')}`}>Discovered on a host — adopt to manage lifecycle from the platform.</p>
+                <p className={`text-sm ${statusToneClass('warn')}`}>
+                  {vm.inventory_source === 'kubevirt'
+                    ? 'Discovered KubeVirt VM — adopt to track it in platform inventory.'
+                    : 'Discovered on a host — adopt to manage lifecycle from the platform.'}
+                </p>
                 <button type="button" className="btn-primary" onClick={() => void act('VM adopted', () => adoptPlatformVm(id))}>Adopt VM</button>
               </div>
             </MacGlassPanel>
@@ -304,7 +329,7 @@ export default function PlatformVmDetail() {
           {vm.last_error && (
             <StructuredErrorBanner error={vmErrorPresentation(vm.last_error)} />
           )}
-          {vm.last_error && /nodomain|domain not found|no domain with matching name/i.test(vm.last_error) && (
+          {(vm.observed_state === 'missing' || (vm.last_error && /nodomain|domain not found|no domain with matching name|domain_not_found|kubevirt_not_found/i.test(vm.last_error))) && (
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"

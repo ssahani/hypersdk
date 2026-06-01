@@ -135,6 +135,11 @@ export default function K8sWorkloadsPage() {
     if (lastEvent.kind.startsWith('kubevirt.')) void load(true)
   }, [refreshKey, lastEvent, load])
 
+  useEffect(() => {
+    const t = window.setInterval(() => void load(true), 30_000)
+    return () => window.clearInterval(t)
+  }, [load])
+
   const copyText = useCallback((label: string, text: string) => {
     void navigator.clipboard.writeText(text).then(() => {
       toast.success(`${label} copied`)

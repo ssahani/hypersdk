@@ -89,6 +89,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/hosts/{id}/diagnose", post(host_os::diagnose_host))
         .route("/api/v1/hosts/{id}/maintenance", post(hosts::host_maintenance))
         .route("/api/v1/vms", get(vms::list_vms).post(vms::create_vm))
+        .route("/api/v1/vms/prune-missing", post(vms::prune_missing_vms))
         .route(
             "/api/v1/enrollment/tokens/{token}",
             delete(enrollment::revoke_enrollment_token),

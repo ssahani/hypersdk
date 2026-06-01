@@ -21,7 +21,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 65 Infrastructure OS Big Sweep** | `0a8da81` | Maintenance Mission 7-step timeline + `GET /api/v1/fleet/maintenance-mission`; Infrastructure DNA + `GET /api/v1/fleet/dna`; +3 e2e (81 total) |
 | **Batch 66 Full Jarvis shell** | `46f9dd9` | `GET /api/v1/ai/jarvis/landing`; intent-first dashboard + minimal sidebar (Normal); +3 e2e (84 total) |
 | **Batch 67 Earth globe + Enterprise UX** | `8afe5cb` | Canvas Infrastructure Earth globe v1; Enterprise security strip + vault ErrorBanner; +3 e2e (87 total) |
-| **Batch 68 Infrastructure Earth v2** | `(this PR)` | Globe site legend → Machine Finder; globe on Finder; Mission Control load resilience + timeline mock fixes |
+| **Batch 68 Infrastructure Earth v2** | `05620b4` | Globe site legend → Machine Finder; globe on Finder; Mission Control load resilience + timeline mock fixes |
 
 **Verification baseline**
 

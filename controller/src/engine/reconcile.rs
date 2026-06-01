@@ -27,6 +27,8 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
     let rows: Vec<(Uuid, String, String, String)> = sqlx::query_as(
         "SELECT id, name, desired_state, observed_state FROM vms
          WHERE desired_state != observed_state
+           AND observed_state NOT IN ('missing', 'unknown')
+           AND inventory_source = 'libvirt'
            AND lifecycle_phase NOT IN ('creating', 'migrating', 'deleting', 'snapshotting', 'backing_up')
          LIMIT 20",
     )

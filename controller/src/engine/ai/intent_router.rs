@@ -119,6 +119,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if (ql.contains("kubevirt") || ql.contains("kubernetes vm"))
+        && (ql.contains("discover") || ql.contains("inventory"))
+    {
+        intents.push(intent(
+            "discovered-kubevirt-vms",
+            "Discovered KubeVirt VMs",
+            "Unmanaged KubeVirt guests in platform inventory.",
+            "navigate",
+            None,
+            Some("/platform/vms?managed=false&source=kubevirt".into()),
+            None,
+        ));
+    }
     if ql.contains("infrastructure health") || ql.contains("fleet health") {
         intents.push(intent(
             "infrastructure-health",
