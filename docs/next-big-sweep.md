@@ -15,6 +15,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 59 Platform Color Tail** | `fe0646f` | Remaining platform status surfaces (Events, Security Center, Observability, Notifications, Content, Migration, Reports, …); `utilizationBarClass`; Settings/HostNetworking warn callouts |
 | **Batch 60 Classic/OpenStack/K8s Color Tail** | `fb44a50` | Dashboard/K8sOverview/K8sWorkloads/NodeInfo status surfaces; OpenStack warn/error banners, locked badges, secondary destructive buttons; semantic hover chips on fleet/instance actions |
 | **Batch 61 Classic Operator Color Tail** | `bb53a4c` | Networks/DiskImages/Jobs/Kata/SystemCheck warn surfaces; VMList action hovers; VMDetails/Console tail; Hero capability badges; KubeVirt/OpenStack modals; BuildStepTimeline error step |
+| **Batch 62 Cross-Shell Sweep Closure** | (this PR) | Classic Navbar Platform guide; OpenStack action ErrorBanner; VMDetails KubeVirt exec tone; Fleet disabled bridge; Dashboard secondary links; +2 e2e (71 total) |
 
 **Verification baseline**
 
@@ -23,11 +24,31 @@ cd web && npm run test && npm run build
 cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/cross-shell.spec.ts e2e/shell-bridge.spec.ts
 ```
 
+**71 local e2e green** (batch-48, nav-coverage, platform-full, cross-shell, shell-bridge).
+
 ---
 
-## Goal of the next sweep
+## Cross-shell sweep status (2026-05-31)
 
-**Batch 57–60 shipped (2026-05-30).** Color tail largely complete across platform, classic, OpenStack, and K8s operator pages. Remaining optional polish: `ChoiceCards` selection accents (intentional), decorative integration brand colors (OpenStack sky, GuestKit orange), macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/`.
+**Shipped — Batches 57–62.** Tracks A–E from the original sweep plan are complete in `web/`:
+
+| Track | Status |
+|-------|--------|
+| **A — Color system v2** | Shipped (Batches 57–61); intentional exclusions documented below |
+| **B — Shell bridge & Help parity** | Shipped — tier-aware [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx); Platform + classic Help → Platform guide |
+| **C — JsonInspector / operator surfaces (P14)** | Shipped per [`backend-ux-wiring-audit.md`](backend-ux-wiring-audit.md) P14; Batch 62 adds OpenStack action ErrorBanner + KubeVirt exec tone |
+| **D — E2E matrix** | Shipped — 71 tests in verification bundle |
+| **E — Backend ops hooks** | N/A — UI CTAs already wired; defer Vault/MFA per [`enterprise-backlog.md`](enterprise-backlog.md) |
+
+**Intentional exclusions (no change):** `ChoiceCards` wizard palette, ApiDocs HTTP badges, Login orange branding, GuestKit/Platform discovery orange panels, primary CTAs (`bg-emerald-600`, `bg-blue-600`).
+
+**Out of repo next:** macOS Tahoe in `ui/`, PacketWolf tokens in `web-ui/` — see [Out of repo](#out-of-repo).
+
+---
+
+## Goal of the next sweep (archived)
+
+**Batch 57–62 shipped (2026-05-31).** The machina `web/` cross-shell consistency sweep is complete.
 
 One reviewable PR that makes **all four shells** (Platform, Classic, OpenStack, K8s) feel like the same product:
 

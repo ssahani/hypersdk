@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from 'react'
 import { Link, useLocation } from 'react-router'
 import { getPinnedPages } from '../utils/pinnedPages'
 import { getPageLabel } from '../utils/pageLabels'
-import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sparkles, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink, Bot, LayoutGrid } from 'lucide-react'
+import { Plus, Menu, X, ChevronDown, Zap, LogOut, User, Sparkles, Bell, Palette, CircleHelp, Keyboard, Info, BookOpen, ExternalLink, Bot, LayoutGrid, Layers } from 'lucide-react'
 import { ZYVOR_HELP } from '../config/zyvorHelp'
 import type { HelpTab } from './HelpDialog'
 import ConnectionStatus from './ConnectionStatus'
@@ -565,6 +565,20 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                       role="menuitem"
                       onClick={() => {
                         setHelpMenuOpen(false)
+                        onOpenHelp('platform')
+                      }}
+                      className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
+                        themed ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                      }`}
+                    >
+                      <Layers className="w-4 h-4 shrink-0" aria-hidden />
+                      Platform guide…
+                    </button>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setHelpMenuOpen(false)
                         onOpenHelp('shortcuts')
                       }}
                       className={`flex w-full items-center gap-2 px-3 py-2 text-sm ${
@@ -826,6 +840,16 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                 >
                   Help
                 </div>
+                <button
+                  type="button"
+                  onClick={() => { setMobileOpen(false); onOpenHelp('platform') }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 rounded-lg text-sm ${
+                    themed ? 'text-[#cfd8e3] hover:bg-white/5' : 'text-slate-300 hover:bg-slate-700/60'
+                  }`}
+                >
+                  <Layers className="w-4 h-4" />
+                  Platform guide…
+                </button>
                 <button
                   type="button"
                   onClick={() => { setMobileOpen(false); onOpenHelp('shortcuts') }}

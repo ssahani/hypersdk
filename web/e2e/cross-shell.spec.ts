@@ -14,6 +14,16 @@ test('classic storage empty state links back to platform via shell bridge', asyn
   ])
 })
 
+test('classic navbar help opens platform guide dialog', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/vms')
+  await expect(page.getByRole('heading', { name: /Virtual machines/i })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Help menu' }).click()
+  await page.getByRole('menuitem', { name: 'Platform guide…' }).click()
+  await expect(page.getByRole('dialog', { name: 'Help' })).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByText(/libvirt\/KVM stays the engine/i)).toBeVisible()
+})
+
 test('platform help menu opens platform guide dialog', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal' })
   await page.goto('/platform/vms')

@@ -125,7 +125,15 @@ export default function FleetPage() {
       ) : null}
 
       {!enabled ? (
-        <p className="text-slate-400 text-sm">{t('fleet.disabledHint')}</p>
+        <div className="rounded-xl border border-slate-700/50 bg-slate-800/40 px-4 py-3 space-y-2">
+          <p className="text-slate-400 text-sm">{t('fleet.disabledHint')}</p>
+          <p className="text-xs text-slate-500">
+            Enable fleet mode in machina config, or return to the{' '}
+            <Link to="/platform" className={hubLinkClasses()}>Platform desktop</Link>
+            {' · '}
+            <Link to="/platform/integrations" className={hubLinkClasses()}>Apps &amp; Integrations</Link>
+          </p>
+        </div>
       ) : (
         <p className="text-slate-400 text-sm">
           {primaryPeer ? t('fleet.primaryPeer', { name: primaryPeer }) : null}

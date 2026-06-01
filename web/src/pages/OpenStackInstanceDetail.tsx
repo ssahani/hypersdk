@@ -77,6 +77,7 @@ function OpenStackInstanceDetailContent() {
   const [snapshotBusy, setSnapshotBusy] = useState(false)
   const [exportOpen, setExportOpen] = useState(false)
   const [heatStack, setHeatStack] = useState<{ stack_id?: string; stack_name?: string } | null>(null)
+  const [actionError, setActionError] = useState<{ label: string; message: string } | null>(null)
 
   const load = useCallback(async () => {
     if (!id) return
@@ -90,6 +91,7 @@ function OpenStackInstanceDetailContent() {
       setInst(data)
       setVolumes(vols.volumes)
       setHeatStack(stackR.stack)
+      setActionError(null)
       if (!snapshotName) setSnapshotName(`${data.name}-snap`)
     } catch (e: unknown) {
       const msg = formatUserError(e)
@@ -113,10 +115,13 @@ function OpenStackInstanceDetailContent() {
   const runAction = async (fn: () => Promise<unknown>, label: string) => {
     try {
       await fn()
+      setActionError(null)
       toast.success(`${label} OK`)
       load()
     } catch (e: unknown) {
-      toast.error(`${label} failed: ${formatUserError(e)}`)
+      const message = formatUserError(e)
+      setActionError({ label, message })
+      toast.error(`${label} failed: ${message}`)
     }
   }
 
@@ -259,7 +264,16 @@ function OpenStackInstanceDetailContent() {
             <Network className="w-4 h-4" /> Manage network interfaces
           </Link>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2 min-w-0 flex-1 sm:max-w-xl">
+          {actionError && (
+            <ErrorBanner
+              title={`${actionError.label} failed`}
+              headline={actionError.message}
+              hints={openStackErrorHints(actionError.message)}
+              onDismiss={() => setActionError(null)}
+            />
+          )}
+          <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => runAction(() => startOpenStackInstance(inst.id), 'Start')}
             className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-sm text-white">
             <Play className="w-4 h-4" /> Start
@@ -297,6 +311,7 @@ function OpenStackInstanceDetailContent() {
             title="Nova forceDelete — use when normal delete is stuck">
             <Trash2 className="w-4 h-4" /> Force delete
           </button>
+          </div>
         </div>
       </div>
 

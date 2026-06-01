@@ -334,7 +334,7 @@ export default function Dashboard() {
           </div>
           <div className="flex flex-wrap gap-2 shrink-0">
             <Link to="/platform" className="px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-sm">Open Platform</Link>
-            <Link to="/platform/integrations" className="px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-sm">Integrations</Link>
+            <Link to="/platform/integrations" className={`shrink-0 px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('info')}`}>Integrations</Link>
           </div>
         </div>
       )}
@@ -456,7 +456,7 @@ export default function Dashboard() {
               <p className="text-sm text-slate-400 mt-0.5">Offline disk inspect and migrate planning for lift-and-shift assurance.</p>
             </div>
           </div>
-          <Link to="/platform/migration?tab=jobs" className="shrink-0 px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-200 hover:bg-orange-500/10 text-sm">
+          <Link to="/platform/migration?tab=jobs" className={`shrink-0 px-3 py-1.5 rounded-lg border text-sm ${statusBadgeClasses('warn')}`}>
             GuestKit jobs
           </Link>
         </div>

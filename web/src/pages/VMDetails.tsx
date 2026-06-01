@@ -3173,15 +3173,17 @@ export default function VMDetailsPage() {
                     </button>
                   </div>
                   {kubevirtExecLast && (
-                    <CollapsibleCodeBlock
-                      title={`Last command: exit ${kubevirtExecLast.exit_code}`}
-                      content={[
-                        kubevirtExecLast.stderr?.trim() ? `stderr:\n${kubevirtExecLast.stderr}` : '',
-                        kubevirtExecLast.stdout?.trim() ? `stdout:\n${kubevirtExecLast.stdout}` : '',
-                      ].filter(Boolean).join('\n\n') || '(no output)'}
-                      defaultOpen={kubevirtExecLast.exit_code !== 0}
-                      maxHeight="max-h-32"
-                    />
+                    <div className={`rounded-lg border p-2 ${statusSurfaceClasses(kubevirtExecLast.exit_code === 0 ? 'ok' : 'error')}`}>
+                      <CollapsibleCodeBlock
+                        title={`Last command: exit ${kubevirtExecLast.exit_code}`}
+                        content={[
+                          kubevirtExecLast.stderr?.trim() ? `stderr:\n${kubevirtExecLast.stderr}` : '',
+                          kubevirtExecLast.stdout?.trim() ? `stdout:\n${kubevirtExecLast.stdout}` : '',
+                        ].filter(Boolean).join('\n\n') || '(no output)'}
+                        defaultOpen={kubevirtExecLast.exit_code !== 0}
+                        maxHeight="max-h-32"
+                      />
+                    </div>
                   )}
                 </div>
               )}

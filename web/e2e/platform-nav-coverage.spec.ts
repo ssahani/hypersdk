@@ -192,6 +192,16 @@ test('normal tier hub preview unlocks operations', async ({ page }) => {
   await expect(page).toHaveURL(/\/platform\/operations/)
 })
 
+test('mobile jump nav navigates to resources on power tier', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/platform')
+  const jump = page.getByRole('combobox', { name: 'Navigate platform' })
+  await jump.selectOption('/platform/resources')
+  await expect(page).toHaveURL(/\/platform\/resources/)
+  await expect(page.getByRole('heading', { name: 'Resources' })).toBeVisible({ timeout: 15_000 })
+})
+
 test('spotlight lists resources workspaces on power tier', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform')

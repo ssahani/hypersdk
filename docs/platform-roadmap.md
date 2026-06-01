@@ -109,6 +109,14 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **VMDetails:** tune-disk hover + filesystem mount tag tone
 - **Shared:** Hero capability badges; LibvirtOpenStackPushModal running hint; KubeVirtQcow2Modal exec hint; KubeVirtExposeServiceModal command tone; BuildStepTimeline failed step
 
+## Batch 62 deliverables (cross-shell sweep closure — shipped)
+
+- **Help parity:** Classic [`Navbar`](../web/src/components/Navbar.tsx) Help menu → Platform guide tab (desktop + mobile); e2e on `/vms`
+- **Operator UX:** [`OpenStackInstanceDetail`](../web/src/pages/OpenStackInstanceDetail.tsx) persistent action `ErrorBanner` with `openStackErrorHints`; [`VMDetails`](../web/src/pages/VMDetails.tsx) KubeVirt exec result semantic exit surface
+- **Shell bridge:** [`Fleet`](../web/src/pages/Fleet.tsx) disabled-state links to Platform desktop + Integrations via `hubLinkClasses()`
+- **Dashboard:** GuestKit / Integrations secondary link chips (`statusBadgeClasses`); orange brand panels unchanged
+- **E2e:** mobile jump → Resources (power tier); **71/71** local bundle green
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

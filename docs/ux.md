@@ -46,6 +46,9 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 | `utilizationBarClass(percent, thresholds?)` | Gauge/progress bars for CPU, memory, PSI, thermal |
 
 **Intentionally unchanged:** primary CTAs (`bg-blue-600`), [`ChoiceCards`](../web/src/components/ChoiceCards.tsx) selection accents (wizard tone palette, not operational status), ApiDocs HTTP method colors, orange Zeus branding in Help.
+
+**Help — Platform guide:** Both Platform menubar ([`PlatformMacAppMenus`](../web/src/components/platform/mac/PlatformMacAppMenus.tsx)) and classic Navbar ([`Navbar`](../web/src/components/Navbar.tsx)) open the in-app Help dialog **Platform** tab via `onOpenHelp('platform')`.
+
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |
 | [`JsonInspector`](../web/src/components/platform/JsonInspector.tsx) | Power-user API payloads — human summary first, raw JSON behind toggle |
 | [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) | Integrations hub — live OpenStack/K8s inventory preview when backends are reachable |
