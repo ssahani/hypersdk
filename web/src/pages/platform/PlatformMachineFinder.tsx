@@ -6,6 +6,7 @@ import { MapPin, RefreshCw, Server } from 'lucide-react'
 import ErrorBanner from '../../components/ErrorBanner'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import InfrastructureEarthGlobe from '../../components/platform/InfrastructureEarthGlobe'
 import MachineFinderGeography, { UNASSIGNED_SITE } from '../../components/platform/MachineFinderGeography'
 import PlatformTahoeHero from '../../components/platform/tahoe/PlatformTahoeHero'
 import FinderView from '../../components/platform/mac/FinderView'
@@ -128,6 +129,10 @@ export default function PlatformMachineFinder() {
           { label: 'VMs', value: String(mission.summary.vms), tone: 'emerald' },
         ] : []}
       />
+
+      {!loading && mission && (
+        <InfrastructureEarthGlobe mission={mission} className="mx-0" />
+      )}
 
       <div className="tahoe-content space-y-4">
         {error && <ErrorBanner message={error} onRetry={() => void load()} />}

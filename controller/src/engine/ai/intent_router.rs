@@ -1158,7 +1158,7 @@ pub fn jarvis_landing_intents(online_hosts: i64) -> SpotlightResult {
         intent(
             "jarvis-mission-control",
             "Mission Control",
-            "Open Infrastructure Earth — site, rack, and host geography.",
+            "Canvas Infrastructure Earth globe, site legend, and rack geography.",
             "navigate",
             None,
             Some("/platform?mission=1".into()),
