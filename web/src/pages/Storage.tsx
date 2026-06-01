@@ -12,6 +12,7 @@ import { Play, Square, RefreshCw, Trash2, ArrowLeft, HardDrive, Plus, Code, X, C
 import { formatUserError } from '../utils/apiError'
 import { poolStateBadgeClasses, statusBadgeClasses, statusToneClass } from '../utils/semanticColors'
 import ErrorBanner from '../components/ErrorBanner'
+import PageLayout from '../components/PageLayout'
 import PageSkeleton from '../components/PageSkeleton'
 import EmptyState from '../components/EmptyState'
 import { libvirtErrorHints } from '../utils/libvirtHints'
@@ -116,13 +117,16 @@ export default function StoragePage() {
 
   if (selectedPool) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <div className="flex items-center gap-4">
-          <button onClick={() => { setSelectedPool(null); setVolumes([]) }} className="p-2 hover:bg-slate-700 rounded transition"><ArrowLeft className="w-5 h-5" /></button>
-          <h1 className="text-2xl font-bold">Volumes in '{selectedPool}'</h1>
-          <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
-          <button onClick={() => setShowCreateVol(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Volume</button>
-        </div>
+      <PageLayout
+        title={`Volumes in '${selectedPool}'`}
+        actions={
+          <>
+            <button onClick={() => { setSelectedPool(null); setVolumes([]) }} className="p-2 hover:bg-slate-700 rounded transition" title="Back"><ArrowLeft className="w-5 h-5" /></button>
+            <button onClick={() => loadVolumes(selectedPool)} className="p-2 hover:bg-slate-700 rounded transition" title="Refresh"><RefreshCw className="w-4 h-4" /></button>
+            <button onClick={() => setShowCreateVol(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Volume</button>
+          </>
+        }
+      >
         <div className="bg-slate-800/50 rounded-xl border border-slate-700/50 overflow-hidden">
           {volumes.length === 0 ? <div className="p-8 text-center text-slate-500">No volumes</div> : (
             <table className="w-full">
@@ -217,27 +221,24 @@ export default function StoragePage() {
             </div>
           </div>
         )}
-      </div>
+      </PageLayout>
     )
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Storage Pools</h1>
-        <div className="flex items-center gap-2">
+    <PageLayout
+      title="Storage Pools"
+      actions={
+        <>
           <button onClick={() => setShowCreatePool(true)} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-sm transition flex items-center gap-1"><Plus className="w-4 h-4" /> Create Pool</button>
           <button onClick={loadPools} className="p-2 hover:bg-slate-700 rounded transition"><RefreshCw className="w-4 h-4" /></button>
-        </div>
-      </div>
-      {loadError && (
-        <ErrorBanner
-          title="Could not load storage pools"
-          headline={loadError}
-          hints={libvirtErrorHints(loadError)}
-          onRetry={loadPools}
-        />
-      )}
+        </>
+      }
+      error={loadError}
+      errorTitle="Could not load storage pools"
+      errorHints={loadError ? libvirtErrorHints(loadError) : undefined}
+      onErrorRetry={loadPools}
+    >
       {pools.length === 0 && !loadError && (
         <EmptyState
           title="No storage pools"
@@ -331,6 +332,6 @@ export default function StoragePage() {
           </div>
         </div>
       )}
-    </div>
+    </PageLayout>
   )
 }
