@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import PageLayout from '../../components/PageLayout'
 import { MacGlassPanel, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import {
   createAiPrompt,
@@ -35,7 +36,7 @@ export default function PlatformZeusSettings() {
   useEffect(() => { void load() }, [load])
 
   return (
-    <div className="space-y-6">
+    <PageLayout hideHeader compact>
       <MacSectionTitle title="Zeus" subtitle="Prompt library, memory controls, and agent marketplace" />
       <MacGlassPanel title="Memory" subtitle="Enterprise controls for conversation and infrastructure recall">
         <label className="flex items-center gap-2 text-sm">
@@ -94,6 +95,6 @@ export default function PlatformZeusSettings() {
           ))}
         </div>
       </MacGlassPanel>
-    </div>
+    </PageLayout>
   )
 }

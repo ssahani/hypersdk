@@ -10,6 +10,7 @@ import {
   Server,
   Tag,
 } from 'lucide-react'
+import PageLayout from '../../components/PageLayout'
 import { StructuredErrorBanner } from '../../components/StructuredErrorBanner'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import FinderView, { type FinderViewMode } from '../../components/platform/mac/FinderView'
@@ -368,7 +369,7 @@ export default function PlatformVms() {
   ) : null
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <PageLayout hideHeader compact contentClassName="space-y-4">
       {finder && <p className="text-sm text-white/45">{finder.summary}</p>}
       {error && <StructuredErrorBanner error={error} />}
 
@@ -495,6 +496,6 @@ export default function PlatformVms() {
           onDone={() => { toast.success('Migration queued'); void load() }}
         />
       )}
-    </div>
+    </PageLayout>
   )
 }

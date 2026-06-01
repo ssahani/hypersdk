@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
 import { Settings, Shield, Users, HardDrive, Network, RefreshCw, Key, LifeBuoy, Info, LayoutGrid, Lock, FileBarChart, Terminal, Plug, Workflow, Sparkles } from 'lucide-react'
+import PageLayout from '../../components/PageLayout'
 import PlatformSettings from './PlatformSettings'
 import PlatformAiProviders from './PlatformAiProviders'
 import PlatformZeusSettings from './PlatformZeusSettings'
@@ -233,6 +234,7 @@ export default function PlatformSettingsHub() {
   const adminMfaRequired = mfaPolicies.find((p) => p.role_name === 'admin')?.required ?? false
 
   return (
+    <PageLayout hideHeader>
     <MacSettingsPane
       title="Settings"
       sections={SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon }))}
@@ -604,5 +606,6 @@ export default function PlatformSettingsHub() {
         </div>
       )}
     </MacSettingsPane>
+    </PageLayout>
   )
 }

@@ -16,7 +16,7 @@ import {
   FolderOpen,
   Wrench,
 } from 'lucide-react'
-import ErrorBanner from '../../components/ErrorBanner'
+import PageLayout from '../../components/PageLayout'
 import ActionCard from '../../components/platform/ActionCard'
 import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
 import PlatformJarvisBriefing from '../../components/platform/PlatformJarvisBriefing'
@@ -164,7 +164,7 @@ export default function PlatformDashboard() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <PageLayout hideHeader error={error}>
       <PlatformJarvisBriefing />
       <ZeusApprovalQueue />
       {showPower && <RemediateChips compact />}
@@ -207,8 +207,6 @@ export default function PlatformDashboard() {
           <Link to="/platform/integrations" className="tahoe-btn-ghost text-sm">Apps &amp; Integrations</Link>
         </PlatformTahoeEmptyState>
       )}
-
-      {error && <ErrorBanner message={error} />}
 
       {showPower && <InfrastructureDnaStrip />}
 
@@ -393,6 +391,6 @@ export default function PlatformDashboard() {
 
       <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} />
       <PlatformWelcome vmCount={vms.length} onCreateVm={() => setWizardOpen(true)} onDone={() => void load()} />
-    </div>
+    </PageLayout>
   )
 }

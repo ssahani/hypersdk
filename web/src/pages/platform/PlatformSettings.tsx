@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { Settings } from 'lucide-react'
+import PageLayout from '../../components/PageLayout'
 import { MacSectionTitle, MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
-import ErrorBanner from '../../components/ErrorBanner'
 import {
   getClusterSummary,
   getClusterLeadership,
@@ -76,11 +76,10 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
   useEffect(() => { void load() }, [load])
 
   return (
-    <div className="space-y-6">
+    <PageLayout hideHeader compact={embedded} error={error}>
       {!embedded && (
         <MacSectionTitle title="Platform settings" subtitle="Cluster name, OIDC, CPU compatibility, HA" />
       )}
-      {error && <ErrorBanner message={error} />}
       {leadership && (
         <MacGlassPanel title="Controller leadership">
           <div className="space-y-2 text-sm">
@@ -240,6 +239,6 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           } catch (e: unknown) { toast.error(formatUserError(e)) }
         }}>Save matrix ({cpuRules.length} rules)</button>
       </MacGlassPanel>
-    </div>
+    </PageLayout>
   )
 }

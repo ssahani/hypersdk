@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router'
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink } from 'lucide-react'
+import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
@@ -250,7 +251,7 @@ export default function PlatformVmDetail() {
   if (!id) return null
 
   return (
-    <div className="space-y-6">
+    <PageLayout hideHeader>
       {!isPopout && (
         <Link to="/platform/vms" className={`text-sm flex items-center gap-1 ${hubLinkClasses()}`}><ArrowLeft className="w-4 h-4" /> Virtual Machines</Link>
       )}
@@ -728,7 +729,7 @@ export default function PlatformVmDetail() {
           )}
         </>
       )}
-    </div>
+    </PageLayout>
   )
 }
 

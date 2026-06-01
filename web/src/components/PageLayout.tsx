@@ -24,6 +24,10 @@ type PageLayoutProps = {
   onErrorRetry?: () => void
   onErrorDismiss?: () => void
   emptyState?: ReactNode
+  /** Rendered before errors and header (e.g. OpenStack sub-nav). */
+  prepend?: ReactNode
+  /** Tighter vertical spacing (e.g. embedded platform panels). */
+  compact?: boolean
   /** When set, skip the default title row (e.g. page uses `<Hero>` in children). */
   hideHeader?: boolean
   className?: string
@@ -54,7 +58,9 @@ export default function PageLayout({
   onErrorRetry,
   onErrorDismiss,
   emptyState,
+  prepend,
   hideHeader,
+  compact,
   className,
   contentClassName,
 }: PageLayoutProps) {
@@ -63,7 +69,8 @@ export default function PageLayout({
   }
 
   return (
-    <div className={`space-y-6 animate-fade-in ${className ?? ''}`}>
+    <div className={`${compact ? 'space-y-4' : 'space-y-6'} animate-fade-in ${className ?? ''}`}>
+      {prepend}
       {error ? (
         <ErrorBanner
           title={errorTitle}

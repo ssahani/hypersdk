@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
+import PageLayout from '../../components/PageLayout'
 import { MacGlassPanel, MacSectionTitle } from '../../components/platform/mac/PlatformMacUi'
 import {
   createAiProvider,
@@ -48,7 +49,7 @@ export default function PlatformAiProviders() {
   }, [selected])
 
   return (
-    <div className="space-y-6">
+    <PageLayout hideHeader compact>
       <MacSectionTitle title="AI Providers" subtitle="Multi-LLM BYOK — OpenAI, Anthropic, Gemini, Ollama, vLLM, and custom endpoints" />
       <MacGlassPanel title="Add provider" subtitle="API keys are stored encrypted and never returned on GET">
         <div className="grid md:grid-cols-2 gap-3">
@@ -123,6 +124,6 @@ export default function PlatformAiProviders() {
           </div>
         )}
       </MacGlassPanel>
-    </div>
+    </PageLayout>
   )
 }
