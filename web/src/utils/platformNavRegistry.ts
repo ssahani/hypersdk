@@ -254,6 +254,7 @@ export const HUB_DEFINITIONS: ContextDefinition[] = [
     hubPath: '/platform/hosts',
     items: [
       { to: '/platform/hosts', label: 'Machines' },
+      { to: '/platform/hosts/finder', label: 'Infrastructure Finder' },
       { to: '/platform/enroll', label: 'Add Host' },
     ],
   },

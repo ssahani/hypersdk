@@ -56,6 +56,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
   const [executions, setExecutions] = useState<OpsRunbookExecution[]>([])
   const [showback, setShowback] = useState<OpsShowbackOverview | null>(null)
   const [runbookBusy, setRunbookBusy] = useState<string | null>(null)
+  const [runbookError, setRunbookError] = useState<{ label: string; message: string } | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -92,12 +93,12 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
           getOperationsOverview().catch(() => null),
           listOpsRunbooks().catch(() => []),
           listOpsRunbookExecutions(15).catch(() => []),
-          tab === 'showback' ? getOpsShowback().catch(() => null) : Promise.resolve(null),
+          getOpsShowback().catch(() => null),
         ])
         setOpsOverview(ov)
         setRunbooks(rb)
         setExecutions(ex)
-        if (sb) setShowback(sb)
+        setShowback(sb)
       }
     } catch (e: unknown) { setError(formatUserError(e)) }
     finally { setLoading(false) }
@@ -105,14 +106,17 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
 
   useEffect(() => { void load() }, [load])
 
-  const runRunbook = async (incident: string) => {
+  const runRunbook = async (incident: string, title: string) => {
     setRunbookBusy(incident)
+    setRunbookError(null)
     try {
       const r = await executeOpsRunbook(incident)
       toast.success(r.summary)
       await load()
     } catch (e: unknown) {
-      toast.error(formatUserError(e))
+      const message = formatUserError(e)
+      setRunbookError({ label: title, message })
+      toast.error(message)
     } finally {
       setRunbookBusy(null)
     }
@@ -144,6 +148,13 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
 
       {!loading && tab === 'runbooks' && (
         <>
+          {runbookError && (
+            <ErrorBanner
+              title={`${runbookError.label} failed`}
+              headline={runbookError.message}
+              onDismiss={() => setRunbookError(null)}
+            />
+          )}
           {opsOverview && (
             <div className="grid gap-3 sm:grid-cols-3">
               <MacStatWidget label="Runbooks" value={String(opsOverview.runbook_count)} icon={<BookOpen className="w-4 h-4" />} />
@@ -169,7 +180,7 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
                     <p className="text-slate-200">{rb.title}</p>
                     <p className="text-xs text-slate-500">{rb.category} · {rb.severity}{rb.auto_trigger ? ` · trigger: ${rb.auto_trigger}` : ''}</p>
                   </div>
-                  <button type="button" className="btn-secondary text-xs shrink-0" disabled={runbookBusy === rb.incident} onClick={() => void runRunbook(rb.incident)}>
+                  <button type="button" className="btn-secondary text-xs shrink-0" disabled={runbookBusy === rb.incident} onClick={() => void runRunbook(rb.incident, rb.title)}>
                     {runbookBusy === rb.incident ? 'Running…' : 'Execute'}
                   </button>
                 </li>
@@ -191,6 +202,18 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
         </>
       )}
 
+      {!loading && tab === 'showback' && !showback && (
+        <PlatformEmptyState
+          title="Showback unavailable"
+          subtitle="Compliance showback loads from the controller — check connectivity and retry."
+          action={
+            <button type="button" className="btn-secondary text-xs" onClick={() => void load()}>
+              Retry showback
+            </button>
+          }
+        />
+      )}
+
       {!loading && tab === 'showback' && showback && (
         <>
           <MacGlassPanel title="Compliance showback" subtitle={showback.summary}>
@@ -198,6 +221,20 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
               ${showback.total_cost_usd.toFixed(0)}<span className="text-sm font-normal text-slate-500"> / mo</span>
             </p>
             <p className="text-sm text-slate-400 mt-1">Fleet compliance grade: {showback.fleet_grade}</p>
+            {compliance && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                <button
+                  type="button"
+                  className="btn-secondary text-xs"
+                  onClick={() => window.open(getAiComplianceExportUrl(), '_blank', 'noopener')}
+                >
+                  Open compliance report
+                </button>
+                <a href={getAiCompliancePdfUrl()} className="btn-secondary text-xs inline-flex items-center" download="machina-compliance-report.pdf">
+                  Download compliance PDF
+                </a>
+              </div>
+            )}
             <div className="overflow-x-auto mt-4">
               <table className="w-full text-sm">
                 <thead>

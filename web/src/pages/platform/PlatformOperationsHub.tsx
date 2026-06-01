@@ -11,6 +11,7 @@ import {
   Gauge,
   GitBranch,
   Lightbulb,
+  PieChart,
   Shield,
   Wrench,
   Workflow,
@@ -77,6 +78,7 @@ export default function PlatformOperationsHub() {
                 { to: '/platform/blueprints', label: 'Shortcuts', icon: <Workflow className="w-8 h-8" strokeWidth={1.75} /> },
                 { to: '/platform/topology', label: 'Topology', icon: <GitBranch className="w-8 h-8" strokeWidth={1.75} /> },
                 { to: '/platform/observability', label: 'Observability', icon: <Gauge className="w-8 h-8" strokeWidth={1.75} /> },
+                { to: '/platform/reports?tab=runbooks', label: 'Reports & Runbooks', icon: <PieChart className="w-8 h-8" strokeWidth={1.75} /> },
               ],
             },
           ]}

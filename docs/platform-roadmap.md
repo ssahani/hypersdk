@@ -117,6 +117,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **Dashboard:** GuestKit / Integrations secondary link chips (`statusBadgeClasses`); orange brand panels unchanged
 - **E2e:** mobile jump → Resources (power tier); **71/71** local bundle green
 
+## Batch 63 deliverables (Infrastructure OS Phase 53 + Phase 7 ops — shipped)
+
+- **Machine Finder:** [`PlatformMachineFinder`](../web/src/pages/platform/PlatformMachineFinder.tsx) + [`MachineFinderGeography`](../web/src/components/platform/MachineFinderGeography.tsx) — site → rack → host → VM columns at `/platform/hosts/finder`; Mission Control → Open Machine Finder
+- **Ops UX:** [`PlatformReports`](../web/src/pages/platform/PlatformReports.tsx) runbook execute `ErrorBanner`, showback empty/retry, compliance export links on showback tab; [`PlatformOperationsHub`](../web/src/pages/platform/PlatformOperationsHub.tsx) Reports & Runbooks tile
+- **E2e:** [`platform-machine-finder.spec.ts`](../web/e2e/platform-machine-finder.spec.ts), [`platform-ops-reports.spec.ts`](../web/e2e/platform-ops-reports.spec.ts); **76/76** local bundle green
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

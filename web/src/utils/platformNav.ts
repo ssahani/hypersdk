@@ -94,6 +94,7 @@ export const PLATFORM_PAGE_LABELS: Record<string, string> = {
   '/platform/vms': 'Finder',
   '/platform/applications': 'Applications',
   '/platform/hosts': 'Hosts',
+  '/platform/hosts/finder': 'Machine Finder',
   '/platform/integrations': 'Apps & Integrations',
   '/platform/resources': 'Resources',
   '/platform/operations': 'Operations',

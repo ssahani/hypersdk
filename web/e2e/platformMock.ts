@@ -35,6 +35,55 @@ const fleetFinder = {
   projects: [],
 }
 
+const fleetMission = {
+  sites: [
+    {
+      name: 'DC-1',
+      racks: [
+        {
+          name: 'Rack A',
+          hosts: [
+            {
+              id: 'h1',
+              hostname: 'host-1',
+              address: '127.0.0.1',
+              state: 'online',
+              maintenance_mode: false,
+              vm_count: 1,
+              cpu_percent: 35,
+              memory_used_mib: 4096,
+              memory_total_mib: 16384,
+              site: 'DC-1',
+              rack: 'Rack A',
+              rack_u: 10,
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  unassigned_hosts: [],
+  summary: { hosts: 1, vms: 1, hosts_online: 1, health_pct: 100 },
+}
+
+const opsRunbooks = [
+  {
+    id: 'rb-1',
+    incident: 'host-offline',
+    title: 'Host offline recovery',
+    category: 'infra',
+    severity: 'high',
+    auto_trigger: 'host.offline',
+  },
+]
+
+const opsShowback = {
+  summary: 'Project showback rollup',
+  total_cost_usd: 850,
+  fleet_grade: 'B+',
+  lines: [{ project_name: 'default', cost_usd: 850, compliance_grade: 'B+', vm_count: 1 }],
+}
+
 const fleetDesktop = {
   hosts_online: 1,
   hosts_total: 1,
@@ -130,6 +179,45 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.includes('/fleet/finder')) {
       return route.fulfill({ json: fleetFinder })
+    }
+    if (url.includes('/fleet/mission')) {
+      return route.fulfill({ json: fleetMission })
+    }
+    if (url.includes('/operations/showback')) {
+      return route.fulfill({ json: opsShowback })
+    }
+    if (url.includes('/operations/overview')) {
+      return route.fulfill({ json: { runbook_count: 1, executions_24h: 0, compliance_grade: 'B+' } })
+    }
+    if (url.includes('/operations/executions')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/operations/runbooks') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { summary: 'Runbook steps recorded', steps: ['Verify host heartbeat', 'Restart libvirtd if needed'] } })
+    }
+    if (url.includes('/operations/runbooks')) {
+      return route.fulfill({ json: opsRunbooks })
+    }
+    if (url.includes('/reports/capacity')) {
+      return route.fulfill({
+        json: { hosts_online: 1, running_vms: 1, memory_headroom_mib: 8192, avg_cpu_percent: 35 },
+      })
+    }
+    if (url.includes('/reports/finops')) {
+      return route.fulfill({
+        json: {
+          estimated_monthly_usd: 100,
+          total_vcpu: 4,
+          vcpu_hour_usd: 0.01,
+          total_memory_gib: 8,
+          gib_hour_usd: 0.005,
+          vm_count: 1,
+          running_vms: 1,
+        },
+      })
+    }
+    if (url.includes('/projects')) {
+      return route.fulfill({ json: [{ name: 'default', vm_count: 1 }] })
     }
     if (url.includes('/fleet/desktop')) {
       return route.fulfill({ json: fleetDesktop })

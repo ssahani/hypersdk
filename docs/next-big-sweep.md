@@ -16,6 +16,7 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 60 Classic/OpenStack/K8s Color Tail** | `fb44a50` | Dashboard/K8sOverview/K8sWorkloads/NodeInfo status surfaces; OpenStack warn/error banners, locked badges, secondary destructive buttons; semantic hover chips on fleet/instance actions |
 | **Batch 61 Classic Operator Color Tail** | `bb53a4c` | Networks/DiskImages/Jobs/Kata/SystemCheck warn surfaces; VMList action hovers; VMDetails/Console tail; Hero capability badges; KubeVirt/OpenStack modals; BuildStepTimeline error step |
 | **Batch 62 Cross-Shell Sweep Closure** | `541740d` | Classic Navbar Platform guide; OpenStack action ErrorBanner; VMDetails KubeVirt exec tone; Fleet disabled bridge; Dashboard secondary links; +2 e2e (71 total) |
+| **Batch 63 Infrastructure + Ops** | (this PR) | Machine Finder geography tree; ops runbook/showback UX tail; +5 e2e (76 total) |
 
 **Verification baseline**
 
@@ -26,7 +27,20 @@ cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-cov
 
 **71 local e2e green** (batch-48, nav-coverage, platform-full, cross-shell, shell-bridge).
 
+After Batch 63: **76 local e2e** (+ machine-finder, ops-reports).
+
 ---
+
+## Post-sweep work (Batch 63+)
+
+Cross-shell Tracks A–E remain **shipped** (Batch 62). Next in-repo themes:
+
+| Theme | Status |
+|-------|--------|
+| **Phase 53 Machine Finder** | Shipped Batch 63 — `/platform/hosts/finder` DC→Rack→Host→VM columns + Mission Control link |
+| **Phase 7 ops tail** | Shipped Batch 63 — runbook ErrorBanner, showback empty/retry, Operations hub → Reports |
+| **Phase 54 GPU Command Center** | Planned — [`machina-infrastructure-vision.md`](machina-infrastructure-vision.md) |
+| **Out of repo** | `ui/` Tahoe, `web-ui/` PacketWolf tokens |
 
 ## Cross-shell sweep status (2026-05-31)
 

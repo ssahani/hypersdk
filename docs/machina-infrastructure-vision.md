@@ -52,7 +52,7 @@ The Platform shell at `/platform/*` is the **Machina Desktop**:
 | Dynamic Island | `PlatformDynamicIsland` — health pill in menubar | Shipped (v1) |
 | Mission Control (F3) | `MissionControlOverlay` — Infrastructure Earth | Shipped (v1) |
 | Dock | Machines · VMs · Storage · Network · GPU · Terminal | Shipped (v1) |
-| Finder | VM-centric Finder (`PlatformFinderShell`) | Partial |
+| Finder | VM-centric Finder (`PlatformFinderShell`) | **Partial** — VM smart folders + **Machine Finder geography** at `/platform/hosts/finder` (Batch 63) |
 | System Settings | Host + fleet settings hub | Shipped |
 
 **Normal tier:** briefing + dock only. **Power/Advanced:** stat widgets, activity, full dock.
@@ -82,8 +82,7 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 
 | Horizon | Feature | Notes |
 |---------|---------|-------|
-| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1 | Layer 0 phases 49–52 |
-| **Next** | Machine Finder (DC → Rack → Host → VM tree) | Unify with Mission geography |
+| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1, Machine Finder geography | Layer 0 phases 49–53 |
 | **Next** | GPU Command Center (MIG, vGPU, CUDA) | Needs GPU discovery |
 | **Next** | Maintenance Mission (7-step autonomous patch) | Scan exists; apply orchestration TBD |
 | **Later** | Infrastructure DNA scores | VM Doctor 0–100 today; fleet aggregate TBD |
@@ -117,7 +116,6 @@ Spotlight intents: `open mission control`, `infrastructure health`, `show overhe
 ## Explicit non-goals (this cycle)
 
 - WebGL Infrastructure Earth globe
-- Full Machine Finder hierarchy merge
 - Autonomous patch apply (Maintenance Mission execute path)
 - Infrastructure DNA fleet score
 

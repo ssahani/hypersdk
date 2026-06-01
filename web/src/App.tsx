@@ -99,6 +99,7 @@ const Fleet = lazy(() => import('./pages/Fleet'))
 const PlatformLayout = lazy(() => import('./layouts/PlatformLayout'))
 const PlatformDashboard = lazy(() => import('./pages/platform/PlatformDashboard'))
 const PlatformHosts = lazy(() => import('./pages/platform/PlatformHosts'))
+const PlatformMachineFinder = lazy(() => import('./pages/platform/PlatformMachineFinder'))
 const PlatformVms = lazy(() => import('./pages/platform/PlatformVms'))
 const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
 const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
@@ -326,6 +327,7 @@ function AuthenticatedShellRoutes() {
                 <Route path="/platform" element={<PlatformLayout />}>
                   <Route index element={<PlatformDashboard />} />
                   <Route path="hosts" element={<PlatformHosts />} />
+                  <Route path="hosts/finder" element={<PlatformMachineFinder />} />
                   <Route path="hosts/:id" element={<PlatformHostDetail />} />
                   <Route path="vms" element={<PlatformVms />} />
                   <Route path="vms/:id" element={<PlatformVmDetail />} />
