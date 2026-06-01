@@ -17,13 +17,14 @@ For Zeus CloudOS (`ui/`) and PacketWolf pro UI (`web-ui/`), see [Out of repo](#o
 | **Batch 61 Classic Operator Color Tail** | `bb53a4c` | Networks/DiskImages/Jobs/Kata/SystemCheck warn surfaces; VMList action hovers; VMDetails/Console tail; Hero capability badges; KubeVirt/OpenStack modals; BuildStepTimeline error step |
 | **Batch 62 Cross-Shell Sweep Closure** | `541740d` | Classic Navbar Platform guide; OpenStack action ErrorBanner; VMDetails KubeVirt exec tone; Fleet disabled bridge; Dashboard secondary links; +2 e2e (71 total) |
 | **Batch 63 Infrastructure + Ops** | `a4b1e70` | Machine Finder geography tree; ops runbook/showback UX tail; +5 e2e (76 total) |
-| **Batch 64 GPU Command Center** | (this PR) | `GET /api/v1/fleet/gpu`; `/platform/gpu` MIG/vGPU/CUDA inventory + placement advisor; +2 e2e (78 total) |
+| **Batch 64 GPU Command Center** | `bd4efa9` | `GET /api/v1/fleet/gpu`; `/platform/gpu` MIG/vGPU/CUDA inventory + placement advisor; +2 e2e (78 total) |
+| **Batch 65 Infrastructure OS Big Sweep** | `(this PR)` | Maintenance Mission 7-step timeline + `GET /api/v1/fleet/maintenance-mission`; Infrastructure DNA + `GET /api/v1/fleet/dna`; +3 e2e (81 total) |
 
 **Verification baseline**
 
 ```bash
 cd web && npm run test && npm run build
-cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/cross-shell.spec.ts e2e/shell-bridge.spec.ts e2e/platform-machine-finder.spec.ts e2e/platform-ops-reports.spec.ts e2e/platform-gpu-command-center.spec.ts
+cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-coverage.spec.ts e2e/platform-full.spec.ts e2e/cross-shell.spec.ts e2e/shell-bridge.spec.ts e2e/platform-machine-finder.spec.ts e2e/platform-ops-reports.spec.ts e2e/platform-gpu-command-center.spec.ts e2e/platform-maintenance-mission.spec.ts e2e/platform-infrastructure-dna.spec.ts
 ```
 
 **71 local e2e green** (batch-48, nav-coverage, platform-full, cross-shell, shell-bridge).
@@ -31,6 +32,8 @@ cd web && npm run test:e2e -- e2e/platform-batch-48.spec.ts e2e/platform-nav-cov
 After Batch 63: **76 local e2e** (+ machine-finder, ops-reports).
 
 After Batch 64: **78 local e2e** (+ gpu-command-center).
+
+After Batch 65: **81 local e2e** (+ maintenance-mission, infrastructure-dna).
 
 ---
 
@@ -43,7 +46,8 @@ Cross-shell Tracks A–E remain **shipped** (Batch 62). Next in-repo themes:
 | **Phase 53 Machine Finder** | Shipped Batch 63 — `/platform/hosts/finder` DC→Rack→Host→VM columns + Mission Control link |
 | **Phase 54 GPU Command Center** | Shipped Batch 64 — `/platform/gpu` inventory + CUDA placement advisor |
 | **Phase 7 ops tail** | Shipped Batch 63 — runbook ErrorBanner, showback empty/retry, Operations hub → Reports |
-| **Phase 55 Maintenance Mission** | Planned — [`machina-infrastructure-vision.md`](machina-infrastructure-vision.md) |
+| **Phase 55 Maintenance Mission** | Shipped Batch 65 — `/platform/maintenance?tab=mission` 7-step guided timeline |
+| **Phase 56 Infrastructure DNA** | Shipped Batch 65 — `InfrastructureDnaStrip` on dashboard + Mission Control |
 | **Out of repo** | `v9s/ui/` Tahoe breadcrumb guard (shipped); `packetwolf/web-ui/` tokens (shipped v1) |
 
 ## Cross-shell sweep status (2026-05-31)

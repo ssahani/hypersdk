@@ -235,6 +235,19 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
             None,
         ));
     }
+    if ql.contains("maintenance mission") || ql.contains("patch timeline")
+        || (ql.contains("maintenance") && ql.contains("mission"))
+    {
+        intents.push(intent(
+            "maintenance-mission",
+            "Maintenance Mission",
+            "Guided 7-step patch timeline — scan, schedule, evacuate, preview, verify.",
+            "navigate",
+            None,
+            Some("/platform/maintenance?tab=mission".into()),
+            None,
+        ));
+    }
     if ql.contains("software update") || ql.contains("host patch") || ql.contains("pending update")
         || (ql.contains("package") && ql.contains("update"))
     {

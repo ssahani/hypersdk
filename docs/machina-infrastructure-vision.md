@@ -82,10 +82,8 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 
 | Horizon | Feature | Notes |
 |---------|---------|-------|
-| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1, Machine Finder geography, GPU Command Center | Layer 0 phases 49–54 |
-| **Next** | Maintenance Mission (7-step autonomous patch) | Scan exists; apply orchestration TBD |
-| **Later** | Infrastructure DNA scores | VM Doctor 0–100 today; fleet aggregate TBD |
-| **Later** | Full Jarvis (minimal menus) | Intent router expansion |
+| **Now** | Jarvis landing, Dynamic Island, Mission Control Earth v1, Machine Finder geography, GPU Command Center, Maintenance Mission, Infrastructure DNA | Layer 0 phases 49–56 |
+| **Next** | Full Jarvis (minimal menus) | Intent router expansion |
 
 ---
 
@@ -97,6 +95,8 @@ Mission Control is an **in-shell overlay** (Exposé-style), not a separate full-
 | `PATCH /api/v1/hosts/{id}` | Set `site`, `rack`, `rack_u` |
 | `GET /api/v1/fleet/desktop` | Jarvis + Dynamic Island fleet rollup |
 | `GET /api/v1/fleet/gpu` | GPU host/VM inventory + MIG/vGPU/CUDA profile rollup |
+| `GET /api/v1/fleet/maintenance-mission` | Per-host 7-step patch mission plan (scan → verify) |
+| `GET /api/v1/fleet/dna` | Fleet health score 0–100 + pillar breakdown |
 
 Spotlight intents: `open mission control`, `infrastructure health`, `show overheating hosts`.
 
@@ -116,8 +116,7 @@ Spotlight intents: `open mission control`, `infrastructure health`, `show overhe
 ## Explicit non-goals (this cycle)
 
 - WebGL Infrastructure Earth globe
-- Autonomous patch apply (Maintenance Mission execute path)
-- Infrastructure DNA fleet score
+- Autonomous patch apply on hypervisors (guided orchestration only; preview/link-out)
 
 See [`enterprise-backlog.md`](enterprise-backlog.md) for deferred enterprise items.
 

@@ -66,6 +66,73 @@ const fleetMission = {
   summary: { hosts: 1, vms: 1, hosts_online: 1, health_pct: 100 },
 }
 
+const fleetMaintenanceMission = {
+  summary: '1 host(s) with updates · 0 in maintenance · 0 pending schedule(s)',
+  hosts_with_updates: 1,
+  hosts_in_maintenance: 0,
+  pending_schedules: 0,
+  hosts: [
+    {
+      host_id: 'h1',
+      hostname: 'host-1',
+      state: 'online',
+      maintenance_mode: false,
+      validation_status: 'ok',
+      pending_packages: 3,
+      reboot_required: false,
+      agent_drift: false,
+      update_summary: '3 packages would be upgraded',
+      recommended_step: 'schedule',
+      steps: [
+        { id: 'scan', label: 'Scan fleet', status: 'done', detail: null },
+        { id: 'assess', label: 'Assess risk', status: 'done', detail: '3 packages would be upgraded' },
+        { id: 'schedule', label: 'Schedule window', status: 'ready', detail: null },
+        { id: 'enter_maintenance', label: 'Enter maintenance', status: 'blocked', detail: null },
+        { id: 'evacuate', label: 'Evacuate VMs', status: 'skipped', detail: null },
+        { id: 'apply_preview', label: 'Apply preview', status: 'blocked', detail: 'Preview on host' },
+        { id: 'verify_exit', label: 'Verify & exit', status: 'pending', detail: null },
+      ],
+      blockers: ['Schedule a maintenance window before entering maintenance.'],
+    },
+  ],
+}
+
+const fleetDna = {
+  score: 88,
+  grade: 'B',
+  summary: 'Infrastructure DNA 88/100 (grade B)',
+  pillars: [
+    { id: 'availability', label: 'Availability', score: 100, detail: '100% fleet health · 1 hosts online' },
+    { id: 'patch_hygiene', label: 'Patch hygiene', score: 0, detail: '1 of 1 hosts need OS updates' },
+    { id: 'linux_health', label: 'Linux health', score: 100, detail: 'Linux health OK' },
+    { id: 'backup_posture', label: 'Storage posture', score: 95, detail: 'Storage OK' },
+    { id: 'compliance', label: 'Compliance', score: 82, detail: 'Fleet ops grade B+' },
+  ],
+}
+
+const fleetUpdates = {
+  summary: '1 host with pending updates',
+  recommended_agent: '0.1.0-test',
+  hosts_scanned: 1,
+  hosts_with_updates: 1,
+  hosts_reboot_required: 0,
+  agent_drift_count: 0,
+  total_pending_packages: 3,
+  hosts: [
+    {
+      host_id: 'h1',
+      hostname: 'host-1',
+      agent_version: '0.1.0-test',
+      agent_update_available: false,
+      backend: 'apt',
+      pending_count: 3,
+      summary: '3 packages would be upgraded',
+      reboot_required: false,
+      status: 'updates',
+    },
+  ],
+}
+
 const fleetGpu = {
   summary: '1 GPU host(s) · 1 GPU VM(s) · 1 CUDA-ready',
   gpu_host_count: 1,
@@ -222,6 +289,36 @@ export async function mockPlatformApi(page: Page, opts?: {
     }
     if (url.match(/\/fleet\/gpu(\?|$|\/)/)) {
       return route.fulfill({ json: fleetGpu })
+    }
+    if (url.includes('/fleet/maintenance-mission')) {
+      return route.fulfill({ json: fleetMaintenanceMission })
+    }
+    if (url.match(/\/fleet\/dna(\?|$|\/)/)) {
+      return route.fulfill({ json: fleetDna })
+    }
+    if (url.includes('/fleet/updates')) {
+      return route.fulfill({ json: fleetUpdates })
+    }
+    if (url.includes('/maintenance/schedules') && route.request().method() === 'POST') {
+      if (url.includes('fail-schedule')) {
+        return route.fulfill({ status: 500, json: { error: 'schedule failed' } })
+      }
+      return route.fulfill({
+        json: {
+          id: 'sched-1',
+          host_id: 'h1',
+          action: 'enter',
+          evacuate: true,
+          run_at: new Date().toISOString(),
+          status: 'pending',
+        },
+      })
+    }
+    if (url.includes('/maintenance/schedules')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/hosts/') && url.includes('/maintenance') && route.request().method() === 'POST') {
+      return route.fulfill({ json: { task_id: 'task-maint-1' } })
     }
     if (url.includes('/ai/fleet/gpu-placement')) {
       return route.fulfill({

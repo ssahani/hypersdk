@@ -19,6 +19,8 @@ use crate::engine::fleet_shortcuts;
 use crate::engine::fleet_spaces;
 use crate::engine::fleet_general;
 use crate::engine::fleet_mission;
+use crate::engine::fleet_maintenance_mission;
+use crate::engine::fleet_dna;
 use crate::engine::fleet_gpu;
 use crate::state::AppState;
 
@@ -161,6 +163,24 @@ pub async fn gpu_overview(
     State(state): State<AppState>,
 ) -> Result<Json<fleet_gpu::FleetGpuOverview>, ApiError> {
     fleet_gpu::overview(&state.pool)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn maintenance_mission_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_maintenance_mission::FleetMaintenanceMissionOverview>, ApiError> {
+    fleet_maintenance_mission::overview(&state.pool, &state.config)
+        .await
+        .map(Json)
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
+pub async fn dna_overview(
+    State(state): State<AppState>,
+) -> Result<Json<fleet_dna::FleetDnaOverview>, ApiError> {
+    fleet_dna::overview(&state.pool, &state.config)
         .await
         .map(Json)
         .map_err(|e| ApiError::internal(e.to_string()))

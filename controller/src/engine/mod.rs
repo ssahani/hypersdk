@@ -49,6 +49,8 @@ pub mod fleet_shortcuts;
 pub mod fleet_spaces;
 pub mod fleet_general;
 pub mod fleet_mission;
+pub mod fleet_maintenance_mission;
+pub mod fleet_dna;
 pub mod fleet_gpu;
 pub mod webhooks;
 pub mod webhook_worker;

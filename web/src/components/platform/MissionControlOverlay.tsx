@@ -20,6 +20,7 @@ import { getAiCapacity, getAiCompliance, getAiCost, getSreForecast, getZeusSumma
 import MachinaEnvironmentPlanner from '../ai/MachinaEnvironmentPlanner'
 import MachinaInfrastructureTimeline from '../ai/MachinaInfrastructureTimeline'
 import MachinaMissionStack from '../ai/MachinaMissionStack'
+import InfrastructureDnaStrip from './InfrastructureDnaStrip'
 import InfrastructureEarthView from './InfrastructureEarthView'
 import MissionControlDesktopZones from './mac/MissionControlDesktopZones'
 import { MacSectionTitle } from './mac/PlatformMacUi'
@@ -125,6 +126,10 @@ export default function MissionControlOverlay() {
         </header>
 
         {error && <p className={`px-6 py-2 text-sm ${statusToneClass('error')}`}>{error}</p>}
+
+        <div className="px-6 py-2">
+          <InfrastructureDnaStrip compact />
+        </div>
 
         {openWindows.length > 0 && (
           <div className="px-6 py-3 border-b border-white/[0.06]">

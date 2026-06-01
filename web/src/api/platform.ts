@@ -787,6 +787,67 @@ export type FleetGpuOverview = {
 export const getFleetGpu = () =>
   platformFetch<FleetGpuOverview>('/api/v1/fleet/gpu')
 
+export type MaintenanceMissionStepId =
+  | 'scan'
+  | 'assess'
+  | 'schedule'
+  | 'enter_maintenance'
+  | 'evacuate'
+  | 'apply_preview'
+  | 'verify_exit'
+
+export type MaintenanceStepStatus = 'pending' | 'ready' | 'done' | 'blocked' | 'skipped'
+
+export type MaintenanceMissionStep = {
+  id: MaintenanceMissionStepId
+  label: string
+  status: MaintenanceStepStatus
+  detail?: string | null
+}
+
+export type MaintenanceMissionHost = {
+  host_id: string
+  hostname: string
+  state: string
+  maintenance_mode: boolean
+  validation_status: string
+  pending_packages?: number | null
+  reboot_required: boolean
+  agent_drift: boolean
+  update_summary?: string | null
+  recommended_step: MaintenanceMissionStepId
+  steps: MaintenanceMissionStep[]
+  blockers: string[]
+}
+
+export type FleetMaintenanceMissionOverview = {
+  summary: string
+  hosts_with_updates: number
+  hosts_in_maintenance: number
+  pending_schedules: number
+  hosts: MaintenanceMissionHost[]
+}
+
+export const getFleetMaintenanceMission = () =>
+  platformFetch<FleetMaintenanceMissionOverview>('/api/v1/fleet/maintenance-mission')
+
+export type FleetDnaPillar = {
+  id: string
+  label: string
+  score: number
+  detail: string
+}
+
+export type FleetDnaOverview = {
+  score: number
+  grade: string
+  summary: string
+  pillars: FleetDnaPillar[]
+}
+
+export const getFleetDna = () =>
+  platformFetch<FleetDnaOverview>('/api/v1/fleet/dna')
+
 export type FleetLinuxHostItem = {
   host_id: string
   hostname: string

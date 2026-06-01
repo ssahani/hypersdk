@@ -53,6 +53,10 @@ Gate destructive or cloud-side actions on `phase === 'live'`. Nav and command pa
 
 **GPU Command Center:** [`PlatformGpuCommandCenter`](../web/src/pages/platform/PlatformGpuCommandCenter.tsx) at `/platform/gpu` — MIG/vGPU/CUDA profile chips from host tags, GPU VM inventory, and CUDA placement advisor (`GET /api/v1/fleet/gpu` + `GET /api/v1/ai/fleet/gpu-placement`).
 
+**Maintenance Mission:** [`PlatformMaintenance`](../web/src/pages/platform/PlatformMaintenance.tsx) **Mission** tab (`?tab=mission`) — 7-step [`BuildStepTimeline`](../web/src/components/BuildStepTimeline.tsx) per host from `GET /api/v1/fleet/maintenance-mission`; operator-confirmed schedule / enter / exit / agent upgrade (no autonomous package apply). Default tab when fleet has pending updates.
+
+**Infrastructure DNA:** [`InfrastructureDnaStrip`](../web/src/components/platform/InfrastructureDnaStrip.tsx) — score ring + grade + pillar chips from `GET /api/v1/fleet/dna` on Platform dashboard (power tier+) and Mission Control header.
+
 | [`ShellBridgeBar`](../web/src/components/ShellBridgeBar.tsx) | Classic / OpenStack / K8s routes — link back to Platform desktop |
 | [`JsonInspector`](../web/src/components/platform/JsonInspector.tsx) | Power-user API payloads — human summary first, raw JSON behind toggle |
 | [`PlatformIntegrationEmbeds`](../web/src/components/platform/PlatformIntegrationEmbeds.tsx) | Integrations hub — live OpenStack/K8s inventory preview when backends are reachable |

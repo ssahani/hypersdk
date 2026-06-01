@@ -129,6 +129,12 @@ Presentation-only sweep documented in [`next-big-sweep.md`](next-big-sweep.md):
 - **UI:** [`PlatformGpuCommandCenter`](../web/src/pages/platform/PlatformGpuCommandCenter.tsx) at `/platform/gpu`; Resources hub tile; CUDA placement advisor via existing `getGpuPlacement`
 - **E2e:** [`platform-gpu-command-center.spec.ts`](../web/e2e/platform-gpu-command-center.spec.ts); **78/78** local bundle green
 
+## Batch 65 deliverables (Infrastructure OS Big Sweep — shipped)
+
+- **Maintenance Mission:** `GET /api/v1/fleet/maintenance-mission` — [`fleet_maintenance_mission.rs`](../controller/src/engine/fleet_maintenance_mission.rs); [`PlatformMaintenance`](../web/src/pages/platform/PlatformMaintenance.tsx) **Mission** tab with [`BuildStepTimeline`](../web/src/components/BuildStepTimeline.tsx), operator actions (schedule / enter / exit / upgrade), Spotlight `maintenance mission` → `/platform/maintenance?tab=mission`
+- **Infrastructure DNA:** `GET /api/v1/fleet/dna` — [`fleet_dna.rs`](../controller/src/engine/fleet_dna.rs); [`InfrastructureDnaStrip`](../web/src/components/platform/InfrastructureDnaStrip.tsx) on dashboard (power+) and Mission Control header
+- **E2e:** [`platform-maintenance-mission.spec.ts`](../web/e2e/platform-maintenance-mission.spec.ts), [`platform-infrastructure-dna.spec.ts`](../web/e2e/platform-infrastructure-dna.spec.ts); **81/81** local bundle green
+
 ## Batch 49–56 deliverables (Mac UX wave 4 + Zeus Firewall macOS UX)
 
 - **49–52:** `MacGlassPanel` on VM detail, Host detail, Settings, Blueprints, Topology; `MacSettingsPane` Settings hub; Control Center 3.0 module grid

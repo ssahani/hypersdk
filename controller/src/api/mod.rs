@@ -541,6 +541,11 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/fleet/general", get(fleet::general_overview))
         .route("/api/v1/fleet/mission", get(fleet::mission_overview))
         .route("/api/v1/fleet/gpu", get(fleet::gpu_overview))
+        .route(
+            "/api/v1/fleet/maintenance-mission",
+            get(fleet::maintenance_mission_overview),
+        )
+        .route("/api/v1/fleet/dna", get(fleet::dna_overview))
         .route("/api/v1/hosts/{id}/linux/updates", get(host_os::host_linux_package_updates))
         .route("/api/v1/ai/fleet/diagnose", post(fleet::fleet_diagnose))
         .route("/api/v1/developer/overview", get(developer::overview))
