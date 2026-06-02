@@ -652,6 +652,33 @@
       "actions": []
     },
     {
+      "id": "platform:/platform/zeus?tab=brain",
+      "shell": "platform",
+      "path": "/platform/zeus?tab=brain",
+      "tier": "power",
+      "headingPattern": "Graph Brain|Infrastructure Graph",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/rightsizing",
+      "shell": "platform",
+      "path": "/platform/zeus/rightsizing",
+      "tier": "power",
+      "headingPattern": "Rightsizing|VM Rightsizing",
+      "requires": null,
+      "actions": []
+    },
+    {
+      "id": "platform:/platform/zeus/incidents",
+      "shell": "platform",
+      "path": "/platform/zeus/incidents",
+      "tier": "power",
+      "headingPattern": "Incident Commander",
+      "requires": null,
+      "actions": []
+    },
+    {
       "id": "platform:/platform/zeus/security/cloud",
       "shell": "platform",
       "path": "/platform/zeus/security/cloud",

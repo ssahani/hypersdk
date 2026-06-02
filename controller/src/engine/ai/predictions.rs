@@ -116,10 +116,69 @@ pub async fn unified(pool: &PgPool) -> anyhow::Result<PredictionsReport> {
         )
     };
 
+    promote_critical(pool, &predictions).await.ok();
+
     Ok(PredictionsReport {
         predictions,
         summary,
     })
+}
+
+/// Open ai_incidents for high/critical predictions within 72h horizon (deduped by resource).
+pub async fn promote_critical(pool: &PgPool, predictions: &[Prediction]) -> anyhow::Result<()> {
+    use super::incident_commander::{self, CreateIncidentRequest};
+
+    for p in predictions {
+        let urgent = (p.severity == "critical" || p.severity == "high")
+            && p.hours_until_critical.map(|h| h <= 72.0).unwrap_or(true);
+        if !urgent {
+            continue;
+        }
+        let exists: bool = sqlx::query_scalar(
+            "SELECT EXISTS(
+                SELECT 1 FROM ai_incidents
+                WHERE status IN ('open', 'investigating')
+                  AND (title ILIKE $1 OR summary ILIKE $1 OR affected_resources::text ILIKE $1)
+            )",
+        )
+        .bind(format!("%{}%", p.resource))
+        .fetch_one(pool)
+        .await
+        .unwrap_or(false);
+        if exists {
+            continue;
+        }
+        let id = incident_commander::create(
+            pool,
+            &CreateIncidentRequest {
+                title: format!("Predicted {} failure", p.kind),
+                summary: p.message.clone(),
+                severity: p.severity.clone(),
+                affected_resources: vec![p.resource.clone()],
+                root_cause: Some(format!(
+                    "{} (confidence {:.0}%, horizon {:.0}h)",
+                    p.evidence,
+                    p.confidence * 100.0,
+                    p.hours_until_critical.unwrap_or(72.0)
+                )),
+                window_start: None,
+                window_end: None,
+            },
+        )
+        .await?;
+        let _ = sqlx::query(
+            "INSERT INTO events (kind, severity, message, resource_type, resource_id)
+             VALUES ('prediction', $1, $2, $3, $4)",
+        )
+        .bind(&p.severity)
+        .bind(&p.message)
+        .bind(&p.resource_kind)
+        .bind(p.resource.clone())
+        .execute(pool)
+        .await;
+        let _ = id;
+    }
+    Ok(())
 }
 
 #[derive(Debug, Serialize)]

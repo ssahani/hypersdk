@@ -1359,7 +1359,17 @@ pub async fn troubleshoot_vm(
 pub async fn predictions_unified(
     State(state): State<AppState>,
 ) -> Result<Json<ai::predictions::PredictionsReport>, ApiError> {
-    ai::predictions::unified(&state.pool)
+    let report = ai::predictions::unified(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(report))
+}
+
+pub async fn incidents_active(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ai::incident_commander::ActiveIncident>>, ApiError> {
+    let _ = ai::incident_commander::correlate_and_open(&state.pool).await;
+    ai::incident_commander::list_active(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
@@ -1369,15 +1379,6 @@ pub async fn rightsizing_report(
     State(state): State<AppState>,
 ) -> Result<Json<ai::predictions::RightsizingReport>, ApiError> {
     ai::predictions::rightsizing_report(&state.pool)
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))
-        .map(Json)
-}
-
-pub async fn incidents_active(
-    State(state): State<AppState>,
-) -> Result<Json<Vec<ai::incident_commander::ActiveIncident>>, ApiError> {
-    ai::incident_commander::list_active(&state.pool)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)

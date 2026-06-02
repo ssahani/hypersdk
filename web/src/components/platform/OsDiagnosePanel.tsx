@@ -14,6 +14,7 @@ import {
   type VmOsDiagnoseReport,
   type OsDiagnoseAction,
 } from '../../api/platform'
+import { troubleshootVm, type DiagnosisReport } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -42,6 +43,26 @@ export default function OsDiagnosePanel({
   const toast = useToastContext()
   const navigate = useNavigate()
   const [query, setQuery] = useState(defaultQuery ?? '')
+  const [troubleshoot, setTroubleshoot] = useState<DiagnosisReport | null>(null)
+  const [troubleshootLoading, setTroubleshootLoading] = useState(false)
+
+  const runFullTroubleshoot = async () => {
+    if (resourceKind !== 'vm') return
+    setTroubleshootLoading(true)
+    try {
+      setTroubleshoot(await troubleshootVm({
+        vm_id: resourceId,
+        symptom: query.toLowerCase().includes('disk') ? 'disk'
+          : query.toLowerCase().includes('network') ? 'network'
+          : query.toLowerCase().includes('unreachable') ? 'unreachable'
+          : 'slow',
+      }))
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setTroubleshootLoading(false)
+    }
+  }
 
   const runFix = async (fix: OsDiagnoseAction) => {
     try {
@@ -99,6 +120,11 @@ export default function OsDiagnosePanel({
           <Sparkles className="w-4 h-4" />
           {loading ? 'Diagnosing…' : 'Diagnose'}
         </button>
+        {resourceKind === 'vm' && (
+          <button type="button" className="btn-secondary text-sm" disabled={troubleshootLoading} onClick={() => void runFullTroubleshoot()}>
+            {troubleshootLoading ? 'Running…' : 'Full troubleshoot'}
+          </button>
+        )}
       </div>
       {report && (
         <div className="space-y-3 text-sm">
@@ -125,6 +151,21 @@ export default function OsDiagnosePanel({
           {resourceKind === 'host' && (
             <Link to={`/platform/hosts/${resourceId}`} className={`text-xs ${hubLinkClasses()}`}>Host settings →</Link>
           )}
+        </div>
+      )}
+      {troubleshoot && (
+        <div className="mt-4 rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 text-xs space-y-2">
+          <p className="font-medium text-orange-200">Full troubleshoot — {troubleshoot.severity}</p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {troubleshoot.checks.map((c) => (
+              <div key={c.domain} className="text-slate-400">
+                <span className="text-slate-300 capitalize">{c.domain}</span>: {c.detail}
+              </div>
+            ))}
+          </div>
+          {troubleshoot.findings.slice(0, 3).map((f) => (
+            <p key={f.message} className="text-slate-500">[{f.domain}] {f.message}</p>
+          ))}
         </div>
       )}
     </MacGlassPanel>

@@ -13,7 +13,7 @@ export type ZeusHubTile = {
   label: string
   description: string
   to: string
-  tab?: 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal' | 'brain'
+  tab?: 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal' | 'brain' | 'memory'
 }
 
 export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
@@ -23,6 +23,7 @@ export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
     tiles: [
       { id: 'fleet', label: 'Fleet AI', description: 'Heat map · rebalance · diagnose', to: '/platform/zeus', tab: 'fleet' },
       { id: 'brain', label: 'Graph Brain', description: 'VM ↔ network path analysis', to: '/platform/zeus', tab: 'brain' },
+      { id: 'memory', label: 'Memory', description: 'Incident recall and audit delta', to: '/platform/zeus', tab: 'memory' },
       { id: 'services', label: 'Service fabric', description: 'Dependencies and blast radius', to: '/platform/zeus', tab: 'services' },
       { id: 'baremetal', label: 'Bare Metal', description: 'BMC inventory and PXE', to: '/platform/zeus', tab: 'baremetal' },
     ],

@@ -10,6 +10,7 @@ import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
 import MachinaInfraGraphBrain from '../../components/ai/MachinaInfraGraphBrain'
+import MachinaInfrastructureMemory from '../../components/ai/MachinaInfrastructureMemory'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
@@ -44,11 +45,12 @@ import {
   type RebalanceProposal,
 } from '../../api/ai'
 
-type Tab = 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal' | 'brain'
+type Tab = 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal' | 'brain' | 'memory'
 
 const ZEUS_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'fleet', label: 'Fleet' },
   { id: 'brain', label: 'Graph Brain' },
+  { id: 'memory', label: 'Memory' },
   { id: 'security', label: 'Security' },
   { id: 'knowledge', label: 'Knowledge' },
   { id: 'services', label: 'Services' },
@@ -328,6 +330,8 @@ export default function PlatformZeusOs() {
       )}
 
       {tab === 'brain' && <MachinaInfraGraphBrain />}
+
+      {tab === 'memory' && <MachinaInfrastructureMemory />}
 
       {tab === 'knowledge' && (
         <MacGlassPanel title="Infrastructure knowledge engine" subtitle="Global search + NL diagnose">

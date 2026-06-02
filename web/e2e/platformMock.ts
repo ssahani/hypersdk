@@ -441,6 +441,22 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.includes('/ai/memory/incidents')) {
+      return route.fulfill({
+        json: {
+          incidents: [{ at: new Date().toISOString(), kind: 'rca', summary: 'Network change', actor: 'admin', lesson: 'Review firewall rules' }],
+          runbook_hints: ['Check bridge state after NIC events'],
+        },
+      })
+    }
+    if (url.includes('/ai/memory/changes-before')) {
+      return route.fulfill({
+        json: {
+          summary: '1 change in the 4h before incident.',
+          changes: [{ at: new Date().toISOString(), kind: 'firewall.update', summary: 'Rule updated', actor: 'admin' }],
+        },
+      })
+    }
     if (url.includes('/ai/incidents/active')) {
       return route.fulfill({ json: [] })
     }

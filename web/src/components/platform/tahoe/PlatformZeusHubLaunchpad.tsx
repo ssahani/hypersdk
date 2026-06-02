@@ -30,6 +30,8 @@ function tileIcon(tile: ZeusHubTile) {
       return <GitBranch className="w-8 h-8" strokeWidth={1.75} />
     case 'brain':
       return <GitBranch className="w-8 h-8" strokeWidth={1.75} />
+    case 'memory':
+      return <Search className="w-8 h-8" strokeWidth={1.75} />
     case 'rightsizing':
       return <Cpu className="w-8 h-8" strokeWidth={1.75} />
     case 'incidents':

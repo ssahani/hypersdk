@@ -5,6 +5,8 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, Archive, HardDrive, Activity, Shield, ExternalLink, Monitor } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
+import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
+import MachinaVmTroubleshootPanel from '../../components/ai/MachinaVmTroubleshootPanel'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
@@ -445,6 +447,7 @@ export default function PlatformVmDetail() {
               <div className="flex justify-end">
                 <ExplainButton screen="vm_doctor" objectRef={{ vm_id: id, score: doctor?.score_numeric }} />
               </div>
+              {vm && <MachinaVmOutageRca vmId={id!} vmName={vm.name} />}
               <MachinaDoctorPanel
                 vmId={id}
                 report={doctor}
@@ -452,6 +455,7 @@ export default function PlatformVmDetail() {
                 onRefresh={() => void runDoctor()}
                 onTab={(t) => setTab(t as VmDetailTab)}
               />
+              <MachinaVmTroubleshootPanel vmId={id!} vmName={vm?.name} />
             </div>
           )}
 
