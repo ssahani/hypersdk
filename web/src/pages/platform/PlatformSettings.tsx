@@ -166,7 +166,7 @@ export default function PlatformSettings({ embedded }: { embedded?: boolean }) {
           Mode
           <select className="input mt-1 block w-full max-w-xs" value={ai.mode} onChange={(e) => setAi({ ...ai, mode: e.target.value })}>
             <option value="advisor">Advisor — recommend only</option>
-            <option value="autopilot_preview">Autopilot preview — proposed fixes in Copilot</option>
+            <option value="autopilot_preview">Autopilot preview — proposed fixes in Zeus</option>
             <option value="autopilot">Autopilot — auto-run low-risk fixes (configurable batch)</option>
           </select>
         </label>

@@ -125,7 +125,7 @@ export default function AiTerminalCompanion({
                 setBusy(false)
               }
             }}>
-              {busy ? 'Asking Copilot…' : 'Ask Copilot'}
+              {busy ? 'Asking Zeus…' : 'Ask Zeus'}
             </button>
           )}
           {reply && <p className="text-xs text-slate-300 whitespace-pre-wrap border-t border-white/[0.06] pt-2">{reply}</p>}

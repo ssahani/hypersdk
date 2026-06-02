@@ -20,6 +20,7 @@ import { navGroups, NavItem, isOpenStackNavEnabled, navItemVisible, navItemActiv
 import { navActiveChipClasses, statusActionLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../utils/semanticColors'
 import { usePlatformInfo } from '../contexts/PlatformInfoContext'
 import { useAi } from '../contexts/AiContext'
+import { ZEUS_ASSISTANT_NAME } from '../config/aiBrand'
 
 function NavLink({ item, onClick, theme, setup }: { item: NavItem; onClick?: () => void; theme: AppTheme; setup?: boolean }) {
   const location = useLocation()
@@ -522,7 +523,7 @@ export default function Navbar({ onOpenHelp }: { onOpenHelp?: (tab?: HelpTab) =>
                 aria-label="Open Zeus"
               >
                 <Bot className="w-4 h-4" />
-                <span className="hidden md:inline text-xs font-medium">Copilot</span>
+                <span className="hidden md:inline text-xs font-medium">{ZEUS_ASSISTANT_NAME}</span>
               </button>
             )}
             {onOpenHelp && (

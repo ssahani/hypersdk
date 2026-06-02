@@ -78,8 +78,8 @@ export default function PlatformMacDock() {
           type="button"
           onClick={openCopilot}
           className="mac-dock-spotlight mac-dock-ask"
-          title="Ask Zeus (Copilot)"
-          aria-label="Open Zeus Copilot"
+          title="Ask Zeus"
+          aria-label="Ask Zeus"
         >
           <Sparkles className="h-4 w-4" />
           <span className="mac-dock-spotlight-label hidden xl:inline">Zeus</span>

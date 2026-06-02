@@ -41,6 +41,7 @@ import {
 } from '../../api/platform'
 import { getFirewallTarget, type FirewallTargetDetail } from '../../api/zeusFirewall'
 import { useAi } from '../../contexts/AiContext'
+import AskZeusButton from '../../components/ai/AskZeusButton'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hostStateTone, httpStatusTone, migrationReadinessTone, riskTone, statusBadgeClasses, statusPillClasses, statusToneClass, taskStatusTone, utilizationBarClass, webhookDeliveryTone, hubLinkClasses} from '../../utils/semanticColors'
@@ -186,9 +187,7 @@ export default function PlatformHostDetailPage() {
       actions={host ? (
         <div className="flex flex-wrap gap-2">
           <button type="button" className="btn-secondary text-sm" onClick={() => void syncHost(id).then(() => toast.success('Sync queued')).catch((e: unknown) => toast.error(formatUserError(e)))}>Sync</button>
-          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => { openCopilot(); void runDiagnose('host health and pressure') }}>
-            <Bot className="w-4 h-4" /> Copilot
-          </button>
+          <AskZeusButton onClick={() => void runDiagnose('host health and pressure')} />
           <Link to={`/platform/zeus/security/firewall/${id}`} className="btn-secondary text-sm inline-flex items-center gap-1">
             <Shield className="w-4 h-4" /> Firewall
           </Link>

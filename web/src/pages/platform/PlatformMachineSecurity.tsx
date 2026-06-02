@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import PageLayout from '../../components/PageLayout'
 import { Link, useParams } from 'react-router'
-import { ArrowLeft, Bot, Radar } from 'lucide-react'
+import { ArrowLeft, Radar } from 'lucide-react'
 import {
   MacGlassPanel,
   MacListRow,
@@ -31,7 +31,7 @@ import {
 } from '../../api/zeusSecurity'
 import { formatUserError } from '../../utils/apiError'
 import { useToastContext } from '../../contexts/ToastContext'
-import { useAi } from '../../contexts/AiContext'
+import AskZeusButton from '../../components/ai/AskZeusButton'
 import DetailTabs from '../../components/platform/DetailTabs'
 import { statusPillClasses, hubLinkClasses } from '../../utils/semanticColors'
 
@@ -64,7 +64,6 @@ function eventSub(e: SecurityEvent) {
 export default function PlatformMachineSecurity() {
   const { hostId } = useParams<{ hostId: string }>()
   const toast = useToastContext()
-  const { openCopilot } = useAi()
   const [tab, setTab] = useState<TabId>('processes')
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null)
   const [items, setItems] = useState<SecurityEvent[]>([])
@@ -185,9 +184,7 @@ export default function PlatformMachineSecurity() {
           >
             Attack chain
           </button>
-          <button type="button" className="btn-secondary text-sm inline-flex items-center gap-1" onClick={() => openCopilot()}>
-            <Bot className="w-4 h-4" /> Copilot
-          </button>
+          <AskZeusButton />
         </div>
       }
       contentClassName="space-y-4"

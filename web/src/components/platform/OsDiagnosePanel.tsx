@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router'
-import { Bot, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
+import AskZeusButton from '../ai/AskZeusButton'
 import { MacGlassPanel } from './mac/PlatformMacUi'
 import {
   enqueueValidateHost,
@@ -83,9 +84,7 @@ export default function OsDiagnosePanel({
       subtitle={resourceKind === 'host' ? 'Hypervisor Linux + fleet correlation' : 'Guest health + ports context'}
       action={
         onAskCopilot ? (
-          <button type="button" className="btn-secondary text-xs flex items-center gap-1" onClick={onAskCopilot}>
-            <Bot className="w-3 h-3" /> Ask Copilot
-          </button>
+          <AskZeusButton variant="secondary" className="text-xs" onClick={onAskCopilot} />
         ) : undefined
       }
     >

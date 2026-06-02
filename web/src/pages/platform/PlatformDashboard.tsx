@@ -10,17 +10,14 @@ import {
   CheckCircle2,
   AlertTriangle,
   Shield,
-  Sparkles,
   LayoutGrid,
   FolderOpen,
   Wrench,
 } from 'lucide-react'
 import PlatformPageChrome, { PlatformRefreshButton, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
 import ActionCard from '../../components/platform/ActionCard'
-import PlatformAboutHelp from '../../components/platform/PlatformAboutHelp'
 import PlatformJarvisBriefing from '../../components/platform/PlatformJarvisBriefing'
 import PlatformFleetInsights from '../../components/platform/PlatformFleetInsights'
-import ZeusApprovalQueue from '../../components/ai/ZeusApprovalQueue'
 import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
 import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaStrip'
@@ -39,13 +36,11 @@ import {
   type ClusterSummary,
   type CreatePlatformVmBody,
   type PlatformHost,
-  type PlatformTask,
 } from '../../api/platform'
-import { getAiSecurity, getAiSettings, getZeusApprovalHub, getZeusSummary, runAutopilotSafe, type AiSettings, type SecurityReport } from '../../api/ai'
-import { useAi } from '../../contexts/AiContext'
+import { getAiSecurity } from '../../api/ai'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { hostStateTone, hubLinkClasses, statusPillClasses, statusSurfaceClasses, statusToneClass, taskStatusTone } from '../../utils/semanticColors'
+import { statusPillClasses } from '../../utils/semanticColors'
 import { loadJarvisShell } from '../../utils/platformJarvisShell'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tierAtLeast } from '../../utils/platformDesktopTier'
@@ -56,41 +51,30 @@ import { unlockDockPreviewPath } from '../../utils/platformDockPins'
 export default function PlatformDashboard() {
   const toast = useToastContext()
   const navigate = useNavigate()
-  const { mode } = useAi()
   const [tier] = usePlatformDesktopTier()
   const showPower = tierAtLeast(tier, 'power')
   const showAdvanced = tier === 'advanced'
   const jarvisShell = loadJarvisShell(tier)
   const jarvisLanding = jarvisShell && !showPower
-  const [autopilotBusy, setAutopilotBusy] = useState(false)
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [vms, setVms] = useState<{ observed_state: string }[]>([])
-  const [tasks, setTasks] = useState<PlatformTask[]>([])
+  const [tasks, setTasks] = useState<{ status: string }[]>([])
   const [cluster, setCluster] = useState<ClusterSummary | null>(null)
   const [capacity, setCapacity] = useState<CapacityReport | null>(null)
-  const [security, setSecurity] = useState<SecurityReport | null>(null)
-  const [aiSettings, setAiSettings] = useState<AiSettings | null>(null)
-  const [zeusPending, setZeusPending] = useState(0)
-  const [zeusStrip, setZeusStrip] = useState<{
-    status: string
-    tagline: string
-    firewallCritical: number
-    firewallDrift: number
-  } | null>(null)
+  const [security, setSecurity] = useState<Awaited<ReturnType<typeof getAiSecurity>> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [hosts, v, t, c, cap, sec, ai] = await Promise.all([
+      const [hosts, v, t, c, cap, sec] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
         getClusterSummary(),
         getCapacityReport().catch(() => null),
         getAiSecurity().catch(() => null),
-        getAiSettings().catch(() => null),
       ])
       setHosts(hosts)
       setVms(v)
@@ -98,29 +82,12 @@ export default function PlatformDashboard() {
       setCluster(c)
       setCapacity(cap)
       setSecurity(sec)
-      setAiSettings(ai)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
   }, [])
 
   useEffect(() => { void load() }, [load])
-
-  useEffect(() => {
-    void Promise.all([
-      getZeusSummary()
-        .then((z) => setZeusStrip({
-          status: z.status,
-          tagline: z.tagline,
-          firewallCritical: z.firewall_critical_hosts ?? 0,
-          firewallDrift: z.firewall_drift_hosts ?? 0,
-        }))
-        .catch(() => {}),
-      getZeusApprovalHub()
-        .then((h) => setZeusPending(Number(h.total_pending ?? 0)))
-        .catch(() => setZeusPending(0)),
-    ])
-  }, [])
 
   const running = vms.filter((v) => v.observed_state === 'running').length
   const onlineHosts = hosts.filter((h) => h.state !== 'offline').length
@@ -131,8 +98,7 @@ export default function PlatformDashboard() {
     : null
   const healthy = warnings === 0 && onlineHosts === hosts.length
   const securityFindings = security?.findings?.length ?? 0
-  const firewallIssues = (zeusStrip?.firewallCritical ?? 0) + (zeusStrip?.firewallDrift ?? 0)
-  const insightBadgeCount = zeusPending + securityFindings + firewallIssues + (failedTasks > 0 ? 1 : 0)
+  const insightBadgeCount = securityFindings + (failedTasks > 0 ? 1 : 0)
   const hubTiles = hubTilesForTier(tier)
   const previewHubTiles = hubTilesForTier('power').filter((hub) => DOCK_PREVIEW_HUB_PATHS.includes(hub.href))
 
@@ -204,7 +170,6 @@ export default function PlatformDashboard() {
               <span className={statusPillClasses(healthy ? 'ok' : 'warn')}>
                 {healthy ? <><CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />Healthy</> : <><AlertTriangle className="w-3.5 h-3.5 inline mr-1" />{warnings} warning{warnings === 1 ? '' : 's'}</>}
               </span>
-              <span className="text-slate-400">KVM datacenter control plane</span>
             </span>
             {platformStatSubtitle([
               { label: 'VMs running', value: String(running) },
@@ -221,7 +186,7 @@ export default function PlatformDashboard() {
       actions={<PlatformRefreshButton onClick={() => void load()} />}
       contentClassName="space-y-4"
     >
-      <PlatformJarvisBriefing compactStats={showPower} />
+      <PlatformJarvisBriefing />
 
       {hosts.length === 0 && (
         <PlatformTahoeEmptyState
@@ -234,10 +199,7 @@ export default function PlatformDashboard() {
         </PlatformTahoeEmptyState>
       )}
 
-      <MacGlassPanel
-        title="Launchpad"
-        subtitle={jarvisLanding ? 'Create workloads or open a hub' : 'Quick actions and platform hubs'}
-      >
+      <MacGlassPanel title="Launchpad" subtitle={jarvisLanding ? 'Create workloads or open a hub' : undefined}>
         {launchpadGrid}
         {tier === 'normal' && previewHubTiles.length > 0 && (
           <div className="space-y-3 mt-4 pt-4 border-t border-white/[0.04]">
@@ -270,111 +232,10 @@ export default function PlatformDashboard() {
 
       {showPower && (
         <PlatformFleetInsights badgeCount={insightBadgeCount}>
-          <ZeusApprovalQueue />
           <RemediateChips compact />
           <InfrastructureDnaStrip />
           {showAdvanced && <EnterpriseSecurityStrip />}
-          {zeusStrip && (
-            <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                <div className="space-y-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Posture</p>
-                  <span className="inline-flex items-center gap-1.5 text-sm text-orange-200/90">
-                    <Sparkles className="w-4 h-4 text-orange-400" />
-                    {zeusStrip.status}
-                  </span>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Link
-                      to="/platform/zeus/security/firewall"
-                      className={`${statusSurfaceClasses(
-                        zeusStrip.firewallCritical > 0 ? 'error' : zeusStrip.firewallDrift > 0 ? 'warn' : 'ok',
-                        'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition',
-                      )}`}
-                    >
-                      <Shield className="w-3 h-3" />
-                      {zeusStrip.firewallCritical > 0
-                        ? `${zeusStrip.firewallCritical} critical firewall host(s)`
-                        : zeusStrip.firewallDrift > 0
-                          ? `${zeusStrip.firewallDrift} host(s) with drift`
-                          : 'Zeus Firewall OK'}
-                    </Link>
-                    {securityFindings > 0 && (
-                      <Link
-                        to="/platform/zeus/security"
-                        className={`${statusSurfaceClasses('warn', 'inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border')}`}
-                      >
-                        <Shield className="w-3 h-3" />
-                        {securityFindings} finding{securityFindings === 1 ? '' : 's'}
-                      </Link>
-                    )}
-                  </div>
-                </div>
-                <Link to="/platform/zeus/security" className="tahoe-btn-primary text-sm shrink-0">
-                  Open Security Center
-                </Link>
-              </div>
-              <p className="text-xs text-slate-500">{zeusStrip.tagline}</p>
-            </div>
-          )}
         </PlatformFleetInsights>
-      )}
-
-      {showAdvanced && mode === 'autopilot' && (
-        <MacGlassPanel title="Machina Autopilot" subtitle={`Runs up to ${aiSettings?.autopilot_max_actions ?? 5} low-risk fixes per batch — audited`}>
-          <p className="text-sm text-slate-400 -mt-2">Backups, HA enable, and guest tools installs only. Destructive actions always require manual review.</p>
-          {aiSettings && aiSettings.autopilot_interval_secs > 0 && (
-            <p className="text-xs text-slate-500 mt-2">
-              Scheduled every {aiSettings.autopilot_interval_secs}s
-              {aiSettings.autopilot_last_run
-                ? ` · last run ${new Date(aiSettings.autopilot_last_run).toLocaleString()}`
-                : ' · no runs yet'}
-            </p>
-          )}
-          <button
-            type="button"
-            className="btn-primary text-sm mt-3"
-            disabled={autopilotBusy}
-            onClick={async () => {
-              setAutopilotBusy(true)
-              try {
-                const r = await runAutopilotSafe(undefined, aiSettings?.autopilot_max_actions ?? 5)
-                toast.success(`Autopilot ran ${r.executed_count} action(s), skipped ${r.skipped_count}`)
-              } catch (e: unknown) {
-                toast.error(formatUserError(e))
-              } finally {
-                setAutopilotBusy(false)
-              }
-            }}
-          >
-            {autopilotBusy ? 'Running…' : 'Run safe fixes now'}
-          </button>
-        </MacGlassPanel>
-      )}
-
-      {showAdvanced && <PlatformAboutHelp compact />}
-
-      {showAdvanced && (
-        <MacGlassPanel
-          title="Recent tasks"
-          subtitle="Activity Monitor preview"
-          action={
-            <Link to={operationsHubHref(tier)} className={`text-xs ${hubLinkClasses()}`}>
-              View all
-            </Link>
-          }
-        >
-          <ul className="space-y-2 text-sm -mt-2">
-            {tasks.slice(0, 6).map((t) => (
-              <li key={t.id} className="flex justify-between border-b border-white/[0.04] pb-2 last:border-0">
-                <span className="text-slate-300">{t.operation}</span>
-                <span className={statusToneClass(t.status === 'failed' ? 'error' : 'neutral')}>{t.status} {t.progress}%</span>
-              </li>
-            ))}
-            {tasks.length === 0 && (
-              <li className="text-slate-500 text-sm py-2">No tasks yet — lifecycle actions appear here.</li>
-            )}
-          </ul>
-        </MacGlassPanel>
       )}
 
       <SimpleCreateVmWizard open={wizardOpen} onClose={() => setWizardOpen(false)} onCreate={handleCreate} />

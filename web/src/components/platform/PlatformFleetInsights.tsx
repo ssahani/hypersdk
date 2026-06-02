@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { ChevronDown } from 'lucide-react'
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { MacGlassPanel } from './mac/PlatformMacUi'
 import { statusPillClasses } from '../../utils/semanticColors'
 
@@ -19,7 +19,6 @@ export default function PlatformFleetInsights({
   children,
 }: PlatformFleetInsightsProps) {
   const [open, setOpen] = useState(() => {
-    if (badgeCount > 0) return true
     try {
       const raw = localStorage.getItem(EXPANDED_KEY)
       if (raw === '1') return true
@@ -29,10 +28,6 @@ export default function PlatformFleetInsights({
     }
     return defaultOpen
   })
-
-  useEffect(() => {
-    if (badgeCount > 0) setOpen(true)
-  }, [badgeCount])
 
   const toggle = () => {
     setOpen((v) => {
@@ -60,7 +55,7 @@ export default function PlatformFleetInsights({
           <p className="text-xs text-slate-500 mt-0.5">
             {badgeCount > 0
               ? `${badgeCount} item${badgeCount === 1 ? '' : 's'} need attention`
-              : 'DNA, approvals, posture, and security'}
+              : 'DNA, remediations, and enterprise security'}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">

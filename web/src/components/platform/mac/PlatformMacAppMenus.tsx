@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { LogOut, User } from 'lucide-react'
 import { useAuth } from '../../../contexts/AuthContext'
 import { useAi } from '../../../contexts/AiContext'
+import { ASK_ZEUS_LABEL } from '../../../config/aiBrand'
 import ConnectionStatus from '../../ConnectionStatus'
 import PlatformMacMenuDropdown, { PlatformMacMenuItem } from './PlatformMacMenuDropdown'
 import { usePlatformMacDesktop } from './PlatformMacDesktopContext'
@@ -163,7 +164,7 @@ export default function PlatformMacAppMenus() {
           </>
         )}
         <PlatformMacMenuItem label="Spotlight…" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
-        <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
+        <PlatformMacMenuItem label={`${ASK_ZEUS_LABEL}…`} shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Move to New Window" shortcut="⌘⌥N" onClick={() => { openCenterPopout(`${location.pathname}${location.search}`); closeMenu() }} />
       </PlatformMacMenuDropdown>
 
@@ -171,7 +172,7 @@ export default function PlatformMacAppMenus() {
         <PlatformMacMenuItem label="Platform guide…" onClick={() => { dispatchOpenHelp('platform'); closeMenu() }} />
         <PlatformMacMenuItem label="Keyboard shortcuts" onClick={() => { dispatchOpenHelp('shortcuts'); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
-        <PlatformMacMenuItem label="Ask Machina…" shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
+        <PlatformMacMenuItem label={`${ASK_ZEUS_LABEL}…`} shortcut="⌘⇧A" onClick={() => { openCopilot(); closeMenu() }} />
         <PlatformMacMenuItem label="Spotlight Search" shortcut="⌘K" onClick={() => { openSpotlight(); closeMenu() }} />
         <div className="my-1 border-t border-white/[0.08]" />
         {helpNavItems.map((item) => (

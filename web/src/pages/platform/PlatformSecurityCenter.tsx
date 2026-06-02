@@ -241,7 +241,7 @@ export default function PlatformSecurityCenter() {
             <SecurityGraphViz graph={graph} />
           </MacGlassPanel>
 
-          <MacGlassPanel title="Security Copilot search" subtitle="Natural language event search">
+          <MacGlassPanel title="Zeus security search" subtitle="Natural language event search">
             <div className="flex flex-wrap gap-2 mb-2">
               <input
                 className="input text-sm flex-1 min-w-[14rem]"

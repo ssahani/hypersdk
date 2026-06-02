@@ -168,9 +168,9 @@ test('spotlight lists platform hubs on power tier', async ({ page }) => {
   const menubar = page.locator('.mac-menubar-inner')
   await menubar.getByRole('button', { name: 'Help', exact: true }).click()
   await page.getByRole('button', { name: 'Spotlight Search' }).click()
-  await expect(page.getByPlaceholder(/Zeus|Search or type/i)).toBeVisible({ timeout: 5000 })
+  await expect(page.getByPlaceholder('Zeus — search or ask…')).toBeVisible({ timeout: 5000 })
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(spotlight.getByText('Platform hubs', { exact: true })).toBeVisible()
   await expect(spotlight.getByRole('button', { name: /Operations Hub ·/i })).toBeVisible()
@@ -182,7 +182,7 @@ test('spotlight lists operations workspaces on power tier', async ({ page }) => 
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(
     spotlight.locator('button').filter({ hasText: 'Observability' }).filter({ hasNotText: /Hub ·/ }),
@@ -194,7 +194,7 @@ test('spotlight opens via keyboard shortcut', async ({ page }) => {
   await page.goto('/platform')
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
-  await expect(page.getByPlaceholder(/Zeus|Search or type/i)).toBeVisible({ timeout: 5000 })
+  await expect(page.getByPlaceholder('Zeus — search or ask…')).toBeVisible({ timeout: 5000 })
 })
 
 test('context overflow closes after navigation', async ({ page }) => {
@@ -231,7 +231,7 @@ test('spotlight lists resources workspaces on power tier', async ({ page }) => {
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(
     spotlight.getByRole('button', { name: 'Networks Resources workspace' }),
@@ -244,7 +244,7 @@ test('spotlight lists security workspaces on advanced tier', async ({ page }) =>
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(
     spotlight.locator('button').filter({ hasText: 'Policy Studio' }).filter({ hasNotText: /Hub ·/ }),
@@ -257,7 +257,7 @@ test('spotlight lists zeus workspaces on power tier', async ({ page }) => {
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(
     spotlight.locator('button').filter({ hasText: 'Knowledge' }).filter({ hasNotText: /Hub ·/ }),
@@ -287,7 +287,7 @@ test('spotlight hides legacy Pages category on platform desktop', async ({ page 
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
   await expect(spotlight.getByText('Infrastructure', { exact: true })).toHaveCount(0)
   await expect(spotlight.getByText('Pages', { exact: true })).toHaveCount(0)
@@ -308,9 +308,9 @@ test('spotlight platform command shows review before execute', async ({ page }) 
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
-  await spotlight.getByPlaceholder(/Zeus/i).fill('import storage')
+  await spotlight.getByPlaceholder('Zeus — search or ask…').fill('import storage')
   await spotlight.getByRole('button', { name: /Import storage/i }).click()
   await expect(spotlight.getByText('Review command')).toBeVisible()
   await expect(spotlight.getByText(/Discover storage pools/i)).toBeVisible()
@@ -324,9 +324,9 @@ test('spotlight import networks command shows review before execute', async ({ p
   await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
-    has: page.getByPlaceholder(/Zeus/i),
+    has: page.getByPlaceholder('Zeus — search or ask…'),
   })
-  await spotlight.getByPlaceholder(/Zeus/i).fill('import networks')
+  await spotlight.getByPlaceholder('Zeus — search or ask…').fill('import networks')
   await spotlight.getByRole('button', { name: /Import networks/i }).click()
   await expect(spotlight.getByText('Review command')).toBeVisible()
   await expect(spotlight.getByText(/Import libvirt networks/i)).toBeVisible()

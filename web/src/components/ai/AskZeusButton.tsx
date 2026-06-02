@@ -1,0 +1,48 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+import { Sparkles, Bot } from 'lucide-react'
+import { ASK_ZEUS_LABEL, ZEUS_ASSISTANT_NAME } from '../../config/aiBrand'
+import { useAi } from '../../contexts/AiContext'
+
+type AskZeusButtonProps = {
+  variant?: 'primary' | 'secondary' | 'icon'
+  className?: string
+  onClick?: () => void
+}
+
+export default function AskZeusButton({ variant = 'secondary', className = '', onClick }: AskZeusButtonProps) {
+  const { openCopilot } = useAi()
+  const handleClick = () => {
+    openCopilot()
+    onClick?.()
+  }
+
+  if (variant === 'icon') {
+    return (
+      <button
+        type="button"
+        className={`btn-secondary text-sm inline-flex items-center gap-1 ${className}`}
+        onClick={handleClick}
+        aria-label={ASK_ZEUS_LABEL}
+        title={ASK_ZEUS_LABEL}
+      >
+        <Bot className="w-4 h-4" />
+        {ZEUS_ASSISTANT_NAME}
+      </button>
+    )
+  }
+
+  if (variant === 'primary') {
+    return (
+      <button type="button" className={`btn-primary flex items-center gap-2 text-sm ${className}`} onClick={handleClick}>
+        <Sparkles className="w-4 h-4" /> {ASK_ZEUS_LABEL}
+      </button>
+    )
+  }
+
+  return (
+    <button type="button" className={`btn-secondary text-sm inline-flex items-center gap-1 ${className}`} onClick={handleClick}>
+      <Bot className="w-4 h-4" /> {ASK_ZEUS_LABEL}
+    </button>
+  )
+}
