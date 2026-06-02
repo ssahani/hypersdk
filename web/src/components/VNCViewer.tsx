@@ -19,6 +19,14 @@ interface Props {
   kubeVirtNamespace?: string
   /** `session` when the domain is on qemu:///session (dual libvirt). */
   libvirtConnection?: string | null
+  /** Pre-built WebSocket URL (platform controller proxy). Skips libvirt/KubeVirt URL construction. */
+  wsUrl?: string
+  /** Default for “Scale to fit” — on for platform desktop consoles, off for classic 1:1 installers. */
+  defaultScaledFit?: boolean
+  /** Stretch the viewer to available viewport height (platform shell). */
+  fillViewport?: boolean
+  /** CSS length subtracted from 100dvh when fillViewport is set. */
+  fillViewportOffset?: string
 }
 
 /** Apply scale vs native resolution (scroll) — affects perceived sharpness and pointer mapping. */
@@ -36,13 +44,22 @@ function applyViewportMode(
   window.dispatchEvent(new Event('resize'))
 }
 
-export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvirtConnection }: Props) {
+export default function VNCViewer({
+  vmName,
+  port = -1,
+  kubeVirtNamespace,
+  libvirtConnection,
+  wsUrl: wsUrlOverride,
+  defaultScaledFit = false,
+  fillViewport = false,
+  fillViewportOffset = '13rem',
+}: Props) {
   const [fullscreen, setFullscreen] = useState(false)
   const [status, setStatus] = useState<'loading' | 'connecting' | 'connected' | 'disconnected'>('loading')
   /** Soft cursor dot helps when the remote cursor shape is delayed (common on Windows before drivers). */
   const [showDotCursor, setShowDotCursor] = useState(true)
   /** Scaling to fit can blur and sometimes hurts pointer feel; native 1:1 + scroll is sharper/snappier. */
-  const [scaledFit, setScaledFit] = useState(false)
+  const [scaledFit, setScaledFit] = useState(defaultScaledFit)
   const containerRef = useRef<HTMLDivElement>(null)
   const rfbRef = useRef<{ disconnect: () => void; sendCtrlAltDel?: () => void; showDotCursor: boolean; clipViewport?: boolean; scaleViewport?: boolean } | null>(null)
 
@@ -53,7 +70,12 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
 
   useEffect(() => {
     const kube = Boolean(kubeVirtNamespace)
-    if ((!kube && (port == null || port <= 0)) || (kube && !kubeVirtNamespace) || !containerRef.current) return
+    const directWs = Boolean(wsUrlOverride)
+    if (
+      !directWs
+      && ((!kube && (port == null || port <= 0)) || (kube && !kubeVirtNamespace))
+    ) return
+    if (!containerRef.current) return
 
     let cancelled = false
 
@@ -63,20 +85,23 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
       // Clear container
       containerRef.current.innerHTML = ''
 
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      let token: string
-      try {
-        token = await getWsToken()
-      } catch {
-        setStatus('disconnected')
-        return
+      let wsUrl = wsUrlOverride
+      if (!wsUrl) {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+        let token: string
+        try {
+          token = await getWsToken()
+        } catch {
+          setStatus('disconnected')
+          return
+        }
+        if (cancelled) return
+        const cq = wsConnQs(libvirtConnection)
+        const encVm = encodeURIComponent(vmName)
+        wsUrl = kube && kubeVirtNamespace
+          ? `${protocol}//${window.location.host}/ws/v1/k8s-kubevirt/${encodeURIComponent(kubeVirtNamespace)}/${encVm}/vnc?token=${encodeURIComponent(token)}`
+          : `${protocol}//${window.location.host}/ws/v1/vnc/${encVm}?token=${encodeURIComponent(token)}${cq}`
       }
-      if (cancelled) return
-      const cq = wsConnQs(libvirtConnection)
-      const encVm = encodeURIComponent(vmName)
-      const wsUrl = kube && kubeVirtNamespace
-        ? `${protocol}//${window.location.host}/ws/v1/k8s-kubevirt/${encodeURIComponent(kubeVirtNamespace)}/${encVm}/vnc?token=${encodeURIComponent(token)}`
-        : `${protocol}//${window.location.host}/ws/v1/vnc/${encVm}?token=${encodeURIComponent(token)}${cq}`
 
       const wireCommon = (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -141,7 +166,14 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
       rfbRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reconnect only when VM/port changes; viewport toggled via effect below
-  }, [vmName, port, kubeVirtNamespace, libvirtConnection])
+  }, [vmName, port, kubeVirtNamespace, libvirtConnection, wsUrlOverride])
+
+  useEffect(() => {
+    if (!fillViewport || status !== 'connected') return
+    const onResize = () => window.dispatchEvent(new Event('resize'))
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [fillViewport, status])
 
   useEffect(() => {
     const rfb = rfbRef.current
@@ -159,7 +191,7 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
     rfbRef.current?.sendCtrlAltDel?.()
   }
 
-  if (!kubeVirtNamespace && (port == null || port <= 0)) {
+  if (!wsUrlOverride && !kubeVirtNamespace && (port == null || port <= 0)) {
     return (
       <div className="flex flex-col items-center justify-center bg-black rounded-lg p-12 text-center" style={{ minHeight: '500px' }}>
         <Monitor className="w-16 h-16 text-slate-600 mb-4" />
@@ -180,7 +212,9 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
       className={
         fullscreen
           ? 'fixed inset-0 z-50 bg-black flex flex-col h-screen'
-          : 'flex flex-col rounded-b-lg overflow-hidden'
+          : fillViewport
+            ? 'flex flex-col flex-1 min-h-0 rounded-lg overflow-hidden'
+            : 'flex flex-col rounded-b-lg overflow-hidden'
       }
     >
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 border-b border-slate-700 rounded-t-lg shrink-0">
@@ -244,9 +278,13 @@ export default function VNCViewer({ vmName, port = -1, kubeVirtNamespace, libvir
       </p>
       <div
         ref={containerRef}
-        className={`w-full bg-black ${fullscreen ? 'flex-1 min-h-0' : ''}`}
+        className={`w-full bg-black ${fullscreen || fillViewport ? 'flex-1 min-h-0' : ''}`}
         style={{
-          height: fullscreen ? undefined : 'min(900px, calc(100vh - 13rem))',
+          height: fullscreen
+            ? undefined
+            : fillViewport
+              ? `max(480px, calc(100dvh - ${fillViewportOffset}))`
+              : 'min(900px, calc(100vh - 13rem))',
           backgroundColor: '#000',
         }}
       />
