@@ -13,7 +13,7 @@ export type ZeusHubTile = {
   label: string
   description: string
   to: string
-  tab?: 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal'
+  tab?: 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal' | 'brain'
 }
 
 export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
@@ -22,6 +22,7 @@ export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
     subtitle: 'Heat maps, rebalance, Linux health, and service fabric',
     tiles: [
       { id: 'fleet', label: 'Fleet AI', description: 'Heat map · rebalance · diagnose', to: '/platform/zeus', tab: 'fleet' },
+      { id: 'brain', label: 'Graph Brain', description: 'VM ↔ network path analysis', to: '/platform/zeus', tab: 'brain' },
       { id: 'services', label: 'Service fabric', description: 'Dependencies and blast radius', to: '/platform/zeus', tab: 'services' },
       { id: 'baremetal', label: 'Bare Metal', description: 'BMC inventory and PXE', to: '/platform/zeus', tab: 'baremetal' },
     ],
@@ -42,6 +43,8 @@ export const ZEUS_HUB_GROUPS: ZeusHubGroup[] = [
     tiles: [
       { id: 'mission', label: 'Mission Control', description: 'Infrastructure Earth and inventory', to: '/mission-control' },
       { id: 'topology', label: 'Digital Twin', description: 'Topology and service graph', to: '/platform/topology' },
+      { id: 'rightsizing', label: 'Rightsizing', description: 'FinOps VM recommendations', to: '/platform/zeus/rightsizing' },
+      { id: 'incidents', label: 'Incidents', description: 'War room for active outages', to: '/platform/zeus/incidents' },
       { id: 'operations', label: 'Operations hub', description: 'Tasks, alerts, and lifecycle', to: '/platform/operations' },
     ],
   },

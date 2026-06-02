@@ -22,6 +22,7 @@ pub struct IncidentAnalysis {
     pub confidence: f64,
     pub contributing_factors: Vec<String>,
     pub suggested_actions: Vec<String>,
+    pub evidence: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -32,11 +33,37 @@ pub struct AnalyzeIncidentQuery {
     pub vm_name: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct AnalyzeIncidentBody {
+    #[serde(default = "default_hours")]
+    pub hours: i32,
+    pub vm_id: Option<Uuid>,
+    pub vm_name: Option<String>,
+    pub symptoms: Vec<String>,
+}
+
 fn default_hours() -> i32 {
     4
 }
 
 pub async fn analyze(pool: &PgPool, q: &AnalyzeIncidentQuery) -> anyhow::Result<IncidentAnalysis> {
+    analyze_with_symptoms(pool, q, &[]).await
+}
+
+pub async fn analyze_post(pool: &PgPool, body: &AnalyzeIncidentBody) -> anyhow::Result<IncidentAnalysis> {
+    let q = AnalyzeIncidentQuery {
+        hours: body.hours,
+        vm_id: body.vm_id,
+        vm_name: body.vm_name.clone(),
+    };
+    analyze_with_symptoms(pool, &q, &body.symptoms).await
+}
+
+async fn analyze_with_symptoms(
+    pool: &PgPool,
+    q: &AnalyzeIncidentQuery,
+    symptoms: &[String],
+) -> anyhow::Result<IncidentAnalysis> {
     let hours = q.hours.clamp(1, 72);
     let vm_id = resolve_vm(pool, q.vm_id, q.vm_name.as_deref()).await?;
 
@@ -117,7 +144,62 @@ pub async fn analyze(pool: &PgPool, q: &AnalyzeIncidentQuery) -> anyhow::Result<
     timeline.sort_by(|a, b| b.at.cmp(&a.at));
     timeline.truncate(100);
 
-    let (root_cause, confidence, factors, actions) = infer_root_cause(&timeline, vm_id.is_some());
+    // Host / NIC evidence from events
+    let mut evidence = Vec::new();
+    for e in &timeline {
+        let msg = e.message.to_lowercase();
+        if msg.contains("carrier") || msg.contains("nic") || msg.contains("bridge") || msg.contains("eno") {
+            evidence.push(format!("{}: {}", e.source, e.message));
+        }
+    }
+
+    // Fence events
+    let fences: Vec<(DateTime<Utc>, String)> = sqlx::query_as(
+        "SELECT created_at, COALESCE(message, action) FROM fence_events
+         WHERE created_at > NOW() - make_interval(hours => $1)
+         ORDER BY created_at DESC LIMIT 10",
+    )
+    .bind(hours)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    for (at, message) in fences {
+        evidence.push(format!("fence @ {at}: {message}"));
+        timeline.push(TimelineEntry {
+            at,
+            source: "fence".into(),
+            kind: "fence".into(),
+            message,
+            severity: "critical".into(),
+        });
+    }
+
+    // VM metrics spike
+    if let Some(vid) = vm_id {
+        if let Ok(cpu) = sqlx::query_scalar::<_, f64>(
+            "SELECT cpu_percent FROM vm_metrics WHERE vm_id = $1",
+        )
+        .bind(vid)
+        .fetch_optional(pool)
+        .await
+        {
+            if let Some(c) = cpu {
+                if c >= 95.0 {
+                    evidence.push(format!("VM CPU at {c:.0}% during incident window"));
+                }
+            }
+        }
+    }
+
+    for s in symptoms {
+        evidence.push(format!("Reported symptom: {s}"));
+    }
+
+    timeline.sort_by(|a, b| b.at.cmp(&a.at));
+    timeline.truncate(100);
+
+    let (root_cause, confidence, factors, actions) =
+        infer_root_cause(&timeline, vm_id.is_some(), &evidence);
     Ok(IncidentAnalysis {
         window_hours: hours,
         timeline,
@@ -125,6 +207,7 @@ pub async fn analyze(pool: &PgPool, q: &AnalyzeIncidentQuery) -> anyhow::Result<
         confidence,
         contributing_factors: factors,
         suggested_actions: actions,
+        evidence,
     })
 }
 
@@ -187,6 +270,7 @@ fn audit_severity(action: &str) -> String {
 fn infer_root_cause(
     timeline: &[TimelineEntry],
     vm_scoped: bool,
+    evidence: &[String],
 ) -> (String, f64, Vec<String>, Vec<String>) {
     let mut factors = Vec::new();
     let mut actions = Vec::new();
@@ -207,6 +291,23 @@ fn infer_root_cause(
             || e.message.to_lowercase().contains("vm.stop")
     });
     let failed_task = timeline.iter().any(|e| e.source == "task" && e.severity == "high");
+
+    let nic_hit = evidence.iter().any(|e| {
+        let el = e.to_lowercase();
+        el.contains("carrier") || el.contains("nic") || el.contains("bridge") || el.contains("eno")
+    });
+
+    if nic_hit {
+        factors.push("Host NIC or bridge state change detected.".into());
+        actions.push("Check physical link and `ip link` on hypervisor.".into());
+        actions.push("Verify bridge br0 carrier after NIC reset.".into());
+        return (
+            "VM became unreachable because bridge lost carrier after NIC reset.".into(),
+            0.85,
+            factors,
+            actions,
+        );
+    }
 
     if storage_hit && vm_restart {
         factors.push("Storage pressure correlated with VM lifecycle change.".into());

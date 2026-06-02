@@ -6,7 +6,7 @@ import { Sparkles } from 'lucide-react'
 import { useFleetDesktop } from '../../../hooks/useFleetDesktop'
 import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import { activityHubHref, operationsHubHref } from '../../../utils/platformHubLinks'
-import { getSreForecast, getZeusApprovalHub, type SreForecast } from '../../../api/ai'
+import { getSreForecast, getZeusApprovalHub, getPredictions, type SreForecast, type Prediction } from '../../../api/ai'
 import { useAi } from '../../../contexts/AiContext'
 import { hubLinkClasses, statusBgClass, statusSurfaceClasses, statusToneClass } from '../../../utils/semanticColors'
 
@@ -23,12 +23,16 @@ export default function PlatformDynamicIsland() {
   const { openCopilot } = useAi()
   const [expanded, setExpanded] = useState(false)
   const [forecasts, setForecasts] = useState<SreForecast[]>([])
+  const [topPrediction, setTopPrediction] = useState<Prediction | null>(null)
   const [zeusPending, setZeusPending] = useState(0)
 
   useEffect(() => {
     void getSreForecast()
       .then((r) => setForecasts(r.forecasts ?? []))
       .catch(() => setForecasts([]))
+    void getPredictions()
+      .then((r) => setTopPrediction(r.predictions[0] ?? null))
+      .catch(() => setTopPrediction(null))
   }, [])
 
   useEffect(() => {
@@ -110,6 +114,13 @@ export default function PlatformDynamicIsland() {
             <p className={`text-xs mb-2 ${statusToneClass('warn')} opacity-90`}>
               {actionableIssues} open issue{actionableIssues === 1 ? '' : 's'} (SLO breaches, host pressure)
             </p>
+          )}
+          {topPrediction && !criticalForecast && (
+            <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('warn')}`}>
+              <p className="font-medium">Predicted failure</p>
+              <p className="mt-1 opacity-90">{topPrediction.message}</p>
+              <Link to="/platform/zeus" className={`mt-2 inline-block ${hubLinkClasses('hover:underline')}`} onClick={() => setExpanded(false)}>Zeus predictions →</Link>
+            </div>
           )}
           {criticalForecast ? (
             <div className={`rounded-lg p-3 mb-3 text-xs ${statusSurfaceClasses('error')}`}>

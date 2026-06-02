@@ -9,6 +9,7 @@ import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../../components/platform/PlatformPageChrome'
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PlatformZeusHubLaunchpad from '../../components/platform/tahoe/PlatformZeusHubLaunchpad'
+import MachinaInfraGraphBrain from '../../components/ai/MachinaInfraGraphBrain'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 import { getFleetLinuxHealth, type FleetLinuxHealthOverview } from '../../api/platform'
@@ -43,10 +44,11 @@ import {
   type RebalanceProposal,
 } from '../../api/ai'
 
-type Tab = 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal'
+type Tab = 'fleet' | 'security' | 'knowledge' | 'services' | 'baremetal' | 'brain'
 
 const ZEUS_TABS: Array<{ id: Tab; label: string }> = [
   { id: 'fleet', label: 'Fleet' },
+  { id: 'brain', label: 'Graph Brain' },
   { id: 'security', label: 'Security' },
   { id: 'knowledge', label: 'Knowledge' },
   { id: 'services', label: 'Services' },
@@ -193,7 +195,6 @@ export default function PlatformZeusOs() {
     <PlatformPageChrome
       error={error}
       onErrorRetry={() => void load()}
-      contentLoading={loading && tab === 'fleet' && !heatmap}
       prepend={<PlatformBackLink to="/platform" label="Dashboard" />}
       title="Machina Zeus OS"
       subtitle="Fleet intelligence · security graph · knowledge · services · bare metal"
@@ -222,6 +223,9 @@ export default function PlatformZeusOs() {
       <PlatformZeusHubLaunchpad activeTab={tab} />
       <DetailTabs primary={ZEUS_TABS} active={tab} onChange={setTab} />
 
+      {tab === 'fleet' && loading && !heatmap && (
+        <p className="text-sm text-slate-500">Loading fleet intelligence…</p>
+      )}
       {tab === 'fleet' && heatmap && (
         <div className="space-y-4">
           {fleetSummaryLine && <p className="text-sm text-slate-400">{fleetSummaryLine}</p>}
@@ -322,6 +326,8 @@ export default function PlatformZeusOs() {
           )}
         </div>
       )}
+
+      {tab === 'brain' && <MachinaInfraGraphBrain />}
 
       {tab === 'knowledge' && (
         <MacGlassPanel title="Infrastructure knowledge engine" subtitle="Global search + NL diagnose">

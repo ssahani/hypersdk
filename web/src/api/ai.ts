@@ -325,6 +325,7 @@ export interface IncidentAnalysis {
   confidence: number
   contributing_factors: string[]
   suggested_actions: string[]
+  evidence?: string[]
 }
 
 export const analyzeIncident = (params?: { hours?: number; vm_id?: string; vm_name?: string }) => {
@@ -761,6 +762,16 @@ export const getMemorySettings = () => platformFetch<MemorySettings>('/api/v1/ai
 export const patchMemorySettings = (body: Partial<MemorySettings>) =>
   platformFetch<MemorySettings>('/api/v1/ai/memory/settings', { method: 'PATCH', body: JSON.stringify(body) })
 
+export const createZeusAction = (body: {
+  action_type: string
+  label: string
+  review?: string
+  risk?: string
+  object_ref?: Record<string, unknown>
+  source?: string
+}) =>
+  platformFetch<ZeusActionRow>('/api/v1/ai/actions', { method: 'POST', body: JSON.stringify(body) })
+
 export const getZeusApprovalHub = () =>
   platformFetch<{ zeus_actions: ZeusActionRow[]; total_pending: number; firewall_pending: number }>(
     '/api/v1/ai/actions/hub',
@@ -788,3 +799,163 @@ export const zeusAutonomousExecute = (goal: string, agent?: string) =>
     method: 'POST',
     body: JSON.stringify({ goal, agent }),
   })
+
+// --- Infrastructure Graph Brain (AI-138–147) ---
+
+export interface InfraGraphNode {
+  kind: string
+  id: string
+  name: string
+  state?: string
+  health_score?: number
+}
+
+export interface InfraGraph {
+  nodes: InfraGraphNode[]
+  edges: Array<{ from: string; to: string; label: string }>
+  node_count: number
+  edge_count: number
+}
+
+export interface PathResult {
+  can_reach: boolean
+  explanation: string
+  hops: string[]
+  blockers: Array<{ kind: string; message: string; remediation: string }>
+  confidence: number
+  evidence: Array<{ source: string; detail: string }>
+}
+
+export interface DiagnosisReport {
+  vm_id: string
+  vm_name: string
+  symptom: string
+  severity: string
+  checks: Array<{ domain: string; status: string; detail: string }>
+  findings: Array<{ severity: string; message: string; domain: string }>
+  recommended_actions: string[]
+}
+
+export interface Prediction {
+  resource: string
+  resource_kind: string
+  kind: string
+  severity: string
+  message: string
+  hours_until_critical?: number
+  confidence: number
+  evidence: string
+}
+
+export interface RightsizingRecommendation {
+  vm_id: string
+  vm_name: string
+  current_memory_mib: number
+  suggested_memory_mib: number
+  savings_usd: number
+  risk: string
+  action: string
+  detail: string
+}
+
+export interface ActiveIncident {
+  id: string
+  title: string
+  summary: string
+  severity: string
+  status: string
+  affected_resources: string[]
+  root_cause?: string
+  created_at: string
+}
+
+export interface NlOpsPlan {
+  intent: string
+  summary: string
+  steps: Array<{ label: string; action_type: string; review: string; risk: string }>
+  risk_score: number
+  dry_run: boolean
+  approval_required: boolean
+  action_ids: string[]
+  reply: string
+}
+
+export const getInfraGraph = (params?: { host_id?: string; vm_id?: string }) => {
+  const qs = new URLSearchParams()
+  if (params?.host_id) qs.set('host_id', params.host_id)
+  if (params?.vm_id) qs.set('vm_id', params.vm_id)
+  const q = qs.toString()
+  return platformFetch<InfraGraph>(`/api/v1/ai/graph${q ? `?${q}` : ''}`)
+}
+
+export const explainInfraPath = (body: { from: string; to: string; port?: number }) =>
+  platformFetch<PathResult>('/api/v1/ai/graph/path', { method: 'POST', body: JSON.stringify(body) })
+
+export const queryInfraGraph = (query: string) =>
+  platformFetch<{ query: string; hits: Array<{ kind: string; id: string; name: string; detail: string }> }>(
+    '/api/v1/ai/graph/query',
+    { method: 'POST', body: JSON.stringify({ query }) },
+  )
+
+export const explainInfraObject = (kind: string, id: string) =>
+  platformFetch<{ kind: string; id: string; name: string; purpose: string; risks: string[]; health_score?: number }>(
+    `/api/v1/ai/graph/object/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`,
+  )
+
+export const troubleshootVm = (body: { vm_id?: string; vm_name?: string; symptom?: string }) =>
+  platformFetch<DiagnosisReport>('/api/v1/ai/troubleshoot', { method: 'POST', body: JSON.stringify(body) })
+
+export const getPredictions = () =>
+  platformFetch<{ predictions: Prediction[]; summary: string }>('/api/v1/ai/predictions')
+
+export const getRightsizingReport = () =>
+  platformFetch<{
+    recommendations: RightsizingRecommendation[]
+    idle_vm_count: number
+    oversized_vm_count: number
+    estimated_monthly_savings_usd: number
+  }>('/api/v1/ai/rightsizing/report')
+
+export const getActiveIncidents = () => platformFetch<ActiveIncident[]>('/api/v1/ai/incidents/active')
+
+export const getIncidentRoom = (id: string) =>
+  platformFetch<{
+    incident: ActiveIncident
+    timeline: TimelineEntry[]
+    runbook_steps: string[]
+    pending_approvals: number
+    correlated_count: number
+  }>(`/api/v1/ai/incidents/${id}/room`)
+
+export const ackIncident = (id: string) =>
+  platformFetch<{ acknowledged: boolean }>(`/api/v1/ai/incidents/${id}/ack`, { method: 'POST' })
+
+export const simulateTwinBatch = (scenarios: Array<{ action: string; target_kind: string; target_id: string }>) =>
+  platformFetch<{ results: Array<ImpactAnalysis & { estimated_downtime_sec: number; vms_at_risk: number }> }>(
+    '/api/v1/ai/twin/simulate',
+    { method: 'POST', body: JSON.stringify({ scenarios }) },
+  )
+
+export const runNlOps = (query: string, dryRun = true) =>
+  platformFetch<NlOpsPlan>('/api/v1/ai/nl-ops', {
+    method: 'POST',
+    body: JSON.stringify({ query, dry_run: dryRun }),
+  })
+
+export const getMemoryChangesBefore = (params?: { incident_id?: string; hours_before?: number }) => {
+  const qs = new URLSearchParams()
+  if (params?.incident_id) qs.set('incident_id', params.incident_id)
+  if (params?.hours_before) qs.set('hours_before', String(params.hours_before))
+  const q = qs.toString()
+  return platformFetch<{ summary: string; changes: Array<{ at: string; kind: string; summary: string; actor: string }> }>(
+    `/api/v1/ai/memory/changes-before${q ? `?${q}` : ''}`,
+  )
+}
+
+export const getTimelineReplay = (from: string, to: string, resource?: string) => {
+  const qs = new URLSearchParams({ from, to })
+  if (resource) qs.set('resource', resource)
+  return platformFetch<{ entries: TimelineEntry[]; graph_changes: string[] }>(
+    `/api/v1/ai/timeline/replay?${qs}`,
+  )
+}

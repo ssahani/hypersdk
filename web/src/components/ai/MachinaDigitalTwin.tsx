@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { GitBranch, Zap } from 'lucide-react'
 import { MacGlassPanel } from '../platform/mac/PlatformMacUi'
 import {
-  analyzeTwinImpact,
   getDigitalTwinGraph,
+  simulateTwinBatch,
   type DigitalTwinGraph,
   type ImpactAnalysis,
 } from '../../api/ai'
@@ -13,10 +13,10 @@ import { hubLinkClasses, riskTone, statusBadgeClasses, statusToneClass } from '.
 
 export default function MachinaDigitalTwin() {
   const [graph, setGraph] = useState<DigitalTwinGraph | null>(null)
-  const [impact, setImpact] = useState<ImpactAnalysis | null>(null)
+  const [impact, setImpact] = useState<(ImpactAnalysis & { estimated_downtime_sec?: number; vms_at_risk?: number; storage_unavailable_gib?: number }) | null>(null)
   const [hostId, setHostId] = useState('')
-  const [simAction, setSimAction] = useState<'shutdown' | 'migrate' | 'isolate'>('shutdown')
-  const [simKind, setSimKind] = useState<'host' | 'network' | 'storage' | 'switch'>('host')
+  const [simAction, setSimAction] = useState<'shutdown' | 'migrate' | 'isolate' | 'failure'>('shutdown')
+  const [simKind, setSimKind] = useState<'host' | 'network' | 'storage' | 'switch' | 'vm'>('host')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -48,13 +48,13 @@ export default function MachinaDigitalTwin() {
     setBusy(true)
     setError(null)
     try {
-      const action = simKind === 'network' || simKind === 'switch' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction
-      const r = await analyzeTwinImpact({
+      const action = simKind === 'network' || simKind === 'switch' ? 'isolate' : simKind === 'storage' ? 'drain' : simAction === 'failure' ? 'shutdown' : simAction
+      const batch = await simulateTwinBatch([{
         action,
         target_kind: simKind,
         target_id: hostId.trim(),
-      })
-      setImpact(r)
+      }])
+      setImpact(batch.results[0] ?? null)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Impact simulation failed')
     } finally {
@@ -86,8 +86,9 @@ export default function MachinaDigitalTwin() {
         {simKind === 'host' && (
           <label className="block">
             <span className="text-xs text-slate-500">Action</span>
-            <select className="input mt-1 block text-xs" value={simAction} onChange={(e) => setSimAction(e.target.value as 'shutdown' | 'migrate' | 'isolate')}>
+            <select className="input mt-1 block text-xs" value={simAction} onChange={(e) => setSimAction(e.target.value as 'shutdown' | 'migrate' | 'isolate' | 'failure')}>
               <option value="shutdown">Shutdown</option>
+              <option value="failure">Host failure</option>
               <option value="migrate">Evacuate / migrate</option>
             </select>
           </label>
@@ -122,6 +123,12 @@ export default function MachinaDigitalTwin() {
           )}
           {impact.affected_applications.length > 0 && (
             <p className="text-slate-400 text-xs">Applications: {impact.affected_applications.join(', ')}</p>
+          )}
+          {(impact.vms_at_risk ?? 0) > 0 && (
+            <p className="text-slate-400 text-xs">VMs at risk: {impact.vms_at_risk} · est. downtime {impact.estimated_downtime_sec ?? 0}s</p>
+          )}
+          {(impact.storage_unavailable_gib ?? 0) > 0 && (
+            <p className="text-slate-400 text-xs">Storage unavailable: {impact.storage_unavailable_gib} GiB</p>
           )}
           {impact.recommendations.map((r) => (
             <p key={r} className={`text-xs ${hubLinkClasses()}`}>→ {r}</p>

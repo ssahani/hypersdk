@@ -1137,6 +1137,66 @@ pub fn route_spotlight(query: &str, online_hosts: i64, vm_hits: Vec<SearchHit>) 
         ));
     }
 
+    if ql.contains("graph") || (ql.contains("reach") && ql.contains("vm")) || ql.contains("connectivity") {
+        intents.push(intent(
+            "infra-graph",
+            "Infrastructure Graph Brain",
+            "Unified VM, network, and firewall path analysis.",
+            "navigate",
+            None,
+            Some("/platform/zeus?tab=brain".into()),
+            None,
+        ));
+    }
+    if ql.contains("rightsize") || ql.contains("oversized") || (ql.contains("idle") && ql.contains("vm")) {
+        intents.push(intent(
+            "rightsizing",
+            "VM Rightsizing",
+            "FinOps recommendations from fleet metrics.",
+            "navigate",
+            None,
+            Some("/platform/zeus/rightsizing".into()),
+            None,
+        ));
+    }
+    if ql.contains("incident") || ql.contains("war room") || ql.contains("commander") {
+        intents.push(intent(
+            "incident-commander",
+            "Incident Commander",
+            "Correlated war room for active outages.",
+            "navigate",
+            None,
+            Some("/platform/zeus/incidents".into()),
+            None,
+        ));
+    }
+    if ql.contains("troubleshoot") || (ql.contains("slow") && ql.contains("vm")) || ql.contains("vm is slow") {
+        intents.push(intent(
+            "troubleshoot-vm",
+            "Troubleshoot VM",
+            "Multi-domain diagnosis: CPU, memory, disk, network, host pressure.",
+            "nl_ops",
+            None,
+            None,
+            Some(serde_json::json!({ "query": query })),
+        ));
+    }
+    if (ql.contains("create") && (ql.contains("vm") || ql.contains("ubuntu")))
+        || (ql.contains("migrate") && ql.contains("from"))
+        || ql.contains("risky infra")
+        || (ql.contains("storage") && ql.contains("slow"))
+    {
+        intents.push(intent(
+            "nl-ops",
+            "Execute fleet operation",
+            "Dry-run plan with approval queue for mutating changes.",
+            "nl_ops",
+            None,
+            None,
+            Some(serde_json::json!({ "query": query })),
+        ));
+    }
+
     let suggested_action = intents.first().cloned();
     SpotlightResult {
         intents,

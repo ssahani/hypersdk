@@ -184,6 +184,61 @@ pub async fn build_copilot_base(
         } else {
             reply.push_str("Name two VMs to analyze connectivity, e.g. \"Why can't app-01 reach db-01 on port 5432?\"\n");
         }
+    } else if ml.contains("troubleshoot")
+        || (ml.contains("slow") && (ml.contains("vm") || ctx.vm.is_some()))
+        || ml.contains("unreachable")
+        || (ml.contains("disk") && ml.contains("vm"))
+    {
+        let req = crate::engine::ai::troubleshoot::TroubleshootRequest {
+            vm_id,
+            vm_name: ctx.vm.as_ref().map(|v| v.name.clone()),
+            symptom: if ml.contains("slow") {
+                "slow".into()
+            } else if ml.contains("unreachable") {
+                "unreachable".into()
+            } else if ml.contains("disk") {
+                "disk".into()
+            } else if ml.contains("network") {
+                "network".into()
+            } else {
+                "slow".into()
+            },
+        };
+        if req.vm_id.is_some() || req.vm_name.is_some() {
+            let report = crate::engine::ai::troubleshoot::diagnose(pool, &req).await?;
+            reply.push_str(&format!(
+                "**{}** troubleshoot ({}) — severity **{}**\n\n",
+                report.vm_name, report.symptom, report.severity
+            ));
+            for f in report.findings.iter().take(5) {
+                reply.push_str(&format!("- [{}] {}: {}\n", f.domain, f.severity, f.message));
+            }
+            for a in report.recommended_actions.iter().take(3) {
+                reply.push_str(&format!("  → {a}\n"));
+            }
+        } else {
+            reply.push_str("Open a VM detail page or name a VM for troubleshoot analysis.\n");
+        }
+    } else if (ml.contains("create") && (ml.contains("vm") || ml.contains("ubuntu")))
+        || (ml.contains("migrate") && ml.contains("from"))
+        || ml.contains("risky infra")
+        || (ml.contains("storage") && ml.contains("slow"))
+    {
+        let plan = crate::engine::ai::nl_ops::execute(
+            pool,
+            &crate::engine::ai::nl_ops::NlOpsRequest {
+                query: message.to_string(),
+                dry_run: true,
+            },
+            "copilot",
+        )
+        .await?;
+        reply.push_str(&format!("**NL Ops plan** ({}) — risk {}/10\n\n", plan.intent, plan.risk_score));
+        reply.push_str(&format!("{}\n\n", plan.summary));
+        for step in &plan.steps {
+            reply.push_str(&format!("- {} ({}) — {}\n", step.label, step.action_type, step.review));
+        }
+        reply.push_str("\nUse Ask Zeus or `/api/v1/ai/nl-ops` with `dry_run: false` to queue approvals.\n");
     } else {
         reply.push_str(&format!(
             "Zeus (advisor mode). Cluster: **{} VMs**, **{} hosts online**, **{} open recommendations**.\n\nAsk about VM health, capacity, cost, security, migrations, or network reachability.",
@@ -304,6 +359,11 @@ pub mod remediate_hub;
 pub mod knowledge_runbook;
 pub mod cost_budget;
 pub mod mission_stack_status;
+pub mod infra_graph;
+pub mod troubleshoot;
+pub mod incident_commander;
+pub mod predictions;
+pub mod nl_ops;
 
 fn parse_reach_query(message: &str) -> Option<(String, String, Option<i32>)> {
     let ml = message.to_lowercase();

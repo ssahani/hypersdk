@@ -46,11 +46,13 @@ export default function DetailTabs<T extends string>({
   let lastGroup = ''
 
   return (
-    <div className="flex flex-wrap items-center gap-1 border-b border-slate-800/80 pb-3">
+    <div role="tablist" className="flex flex-wrap items-center gap-1 border-b border-slate-800/80 pb-3">
       {primary.map((tab) => (
         <button
           key={tab.id}
           type="button"
+          role="tab"
+          aria-selected={active === tab.id}
           onClick={() => onChange(tab.id)}
           className={tabButtonClass(active === tab.id)}
         >

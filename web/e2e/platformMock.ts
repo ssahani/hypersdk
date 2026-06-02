@@ -360,11 +360,93 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/ai/incidents/analyze')) {
       return route.fulfill({
         json: {
-          root_cause: 'No critical incidents in the selected window.',
-          confidence: 0.72,
-          suggested_actions: ['Review host pressure metrics', 'Open Mission Control'],
-          events: [],
+          window_hours: 4,
+          root_cause: 'Network configuration change likely caused connectivity loss.',
+          confidence: 0.76,
+          contributing_factors: ['Firewall rule update'],
+          suggested_actions: ['Review recent network policy', 'Run graph path analysis'],
+          evidence: ['audit: firewall.update'],
+          timeline: [
+            { at: new Date().toISOString(), source: 'audit', kind: 'firewall', message: 'Rule updated', severity: 'high' },
+          ],
         },
+      })
+    }
+    if (url.includes('/ai/timeline/replay')) {
+      return route.fulfill({
+        json: {
+          entries: [{ at: new Date().toISOString(), source: 'audit', kind: 'vm', message: 'VM created', severity: 'info' }],
+          graph_changes: ['+1 vm ubuntu-desktop'],
+        },
+      })
+    }
+    if (url.match(/\/ai\/graph(\?|$)/) && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          nodes: [
+            { kind: 'host', id: 'h1', name: 'host-1', state: 'online', health_score: 88 },
+            { kind: 'vm', id: 'v1', name: 'ubuntu-desktop', state: 'running', health_score: 90 },
+            { kind: 'vm', id: 'v2', name: 'db-01', state: 'running', health_score: 85 },
+          ],
+          edges: [
+            { from: 'h1', to: 'v1', label: 'runs' },
+            { from: 'v1', to: 'network-br-default', label: 'connected_to' },
+          ],
+          node_count: 3,
+          edge_count: 2,
+        },
+      })
+    }
+    if (url.includes('/ai/graph/path') && route.request().method() === 'POST') {
+      return route.fulfill({
+        json: {
+          can_reach: false,
+          explanation: 'VMs on different segments — verify firewall for port 5432.',
+          hops: ['ubuntu-desktop', 'host h1', 'cluster network', 'db-01'],
+          blockers: [{ kind: 'segment_mismatch', message: 'Different bridges', remediation: 'Check VLAN routing' }],
+          confidence: 0.88,
+          evidence: [{ source: 'graph', detail: 'No shared bridge' }],
+        },
+      })
+    }
+    if (url.includes('/ai/predictions')) {
+      return route.fulfill({
+        json: {
+          summary: '1 prediction',
+          predictions: [{ resource: 'storage', resource_kind: 'storage', kind: 'exhaustion', severity: 'high', message: 'Pool 87% full', hours_until_critical: 72, confidence: 0.72, evidence: 'capacity' }],
+        },
+      })
+    }
+    if (url.includes('/ai/troubleshoot')) {
+      return route.fulfill({
+        json: {
+          vm_id: 'v1', vm_name: 'ubuntu-desktop', symptom: 'slow', severity: 'medium',
+          checks: [
+            { domain: 'cpu', status: 'ok', detail: 'CPU 45%' },
+            { domain: 'memory', status: 'warn', detail: '78% used' },
+            { domain: 'disk', status: 'ok', detail: '1 disk' },
+            { domain: 'host_pressure', status: 'ok', detail: 'Host OK' },
+            { domain: 'network', status: 'ok', detail: 'No symptom' },
+          ],
+          findings: [{ severity: 'medium', message: 'Memory pressure', domain: 'memory' }],
+          recommended_actions: ['Increase RAM'],
+        },
+      })
+    }
+    if (url.includes('/ai/rightsizing/report')) {
+      return route.fulfill({
+        json: {
+          recommendations: [{ vm_id: 'v1', vm_name: 'idle-vm', action: 'power_off', detail: 'Stopped 30d', savings_usd: 15, risk: 'medium', current_memory_mib: 0, suggested_memory_mib: 0 }],
+          idle_vm_count: 1, oversized_vm_count: 2, estimated_monthly_savings_usd: 45,
+        },
+      })
+    }
+    if (url.includes('/ai/incidents/active')) {
+      return route.fulfill({ json: [] })
+    }
+    if (url.includes('/ai/nl-ops')) {
+      return route.fulfill({
+        json: { intent: 'search', summary: '1 result', steps: [], risk_score: 1, dry_run: true, approval_required: false, action_ids: [], reply: 'Found 1 VM.' },
       })
     }
     if (url.includes('/ai/mission/stack/status')) {
@@ -425,6 +507,28 @@ export async function mockPlatformApi(page: Page, opts?: {
           candidates: [{ host_id: 'h1', hostname: 'host-1', gpu_capable: true, numa_hint: 'NUMA 0', score: 92, reason: 'GPU-tagged host · CPU 35% · 1 VMs' }],
         },
       })
+    }
+    if (url.includes('/ai/fleet/heatmap')) {
+      return route.fulfill({
+        json: {
+          summary: '1 hot · 0 cold hosts',
+          hosts: [{ host_id: 'h1', hostname: 'host-1', cpu_percent: 35, memory_percent: 40, classification: 'balanced' }],
+        },
+      })
+    }
+    if (url.includes('/ai/fleet/rebalance')) {
+      return route.fulfill({
+        json: { summary: 'No moves suggested', moves: [] },
+      })
+    }
+    if (url.includes('/ai/fleet/power')) {
+      return route.fulfill({ json: { summary: 'No power waste detected' } })
+    }
+    if (url.includes('/ai/fleet/summary')) {
+      return route.fulfill({ json: { summary: '1 host · 1 VM', hosts: 1, vms: 1, alerts: [] } })
+    }
+    if (url.includes('/ai/fleet/local')) {
+      return route.fulfill({ json: { summary: 'Local agent OK', local_agent: {} } })
     }
     if (url.includes('/operations/showback')) {
       return route.fulfill({ json: opsShowback })

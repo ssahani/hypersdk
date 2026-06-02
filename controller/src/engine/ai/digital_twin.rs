@@ -48,6 +48,26 @@ pub struct ImpactAnalysis {
     pub recommendations: Vec<String>,
 }
 
+#[derive(Debug, Serialize)]
+pub struct SimulatedImpact {
+    #[serde(flatten)]
+    pub impact: ImpactAnalysis,
+    pub estimated_downtime_sec: i64,
+    pub vms_at_risk: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub storage_unavailable_gib: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SimulateRequest {
+    pub scenarios: Vec<ImpactRequest>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SimulateResult {
+    pub results: Vec<SimulatedImpact>,
+}
+
 pub async fn build_graph(pool: &PgPool) -> anyhow::Result<DigitalTwinGraph> {
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
@@ -708,4 +728,35 @@ async fn resolve_vm(pool: &PgPool, target: &str) -> anyhow::Result<Uuid> {
         .fetch_optional(pool)
         .await?;
     id.ok_or_else(|| anyhow::anyhow!("vm not found: {target}"))
+}
+
+pub async fn simulate_batch(pool: &PgPool, req: &SimulateRequest) -> anyhow::Result<SimulateResult> {
+    let mut results = Vec::new();
+    for scenario in &req.scenarios {
+        let impact = analyze_impact(pool, scenario).await?;
+        let vms_at_risk = impact.affected_vms.len() as i64;
+        let estimated_downtime_sec = match scenario.action.as_str() {
+            a if a.contains("migrate") => 120,
+            a if a.contains("shutdown") || a.contains("failure") => 300,
+            _ => 60,
+        };
+        let storage_unavailable_gib = if scenario.target_kind == "storage" || !impact.storage_risks.is_empty() {
+            let used: i64 = sqlx::query_scalar(
+                "SELECT COALESCE(SUM(used_gib), 0)::bigint FROM storage_pools",
+            )
+            .fetch_one(pool)
+            .await
+            .unwrap_or(0);
+            Some(used)
+        } else {
+            None
+        };
+        results.push(SimulatedImpact {
+            impact,
+            estimated_downtime_sec,
+            vms_at_risk,
+            storage_unavailable_gib,
+        });
+    }
+    Ok(SimulateResult { results })
 }

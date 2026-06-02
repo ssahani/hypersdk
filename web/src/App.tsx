@@ -131,6 +131,8 @@ const PlatformApplications = lazy(() => import('./pages/platform/PlatformApplica
 const PlatformBackups = lazy(() => import('./pages/platform/PlatformBackups'))
 const PlatformTopology = lazy(() => import('./pages/platform/PlatformTopology'))
 const PlatformZeusOs = lazy(() => import('./pages/platform/PlatformZeusOs'))
+const PlatformRightsizing = lazy(() => import('./pages/platform/PlatformRightsizing'))
+const PlatformIncidentCommander = lazy(() => import('./pages/platform/PlatformIncidentCommander'))
 const PlatformSecurityCenter = lazy(() => import('./pages/platform/PlatformSecurityCenter'))
 const PlatformMachineSecurity = lazy(() => import('./pages/platform/PlatformMachineSecurity'))
 const PlatformThreatHunting = lazy(() => import('./pages/platform/PlatformThreatHunting'))
@@ -361,6 +363,8 @@ function AuthenticatedShellRoutes() {
                   <Route path="observability" element={<PlatformObservability />} />
                   <Route path="enterprise" element={<PlatformEnterprise />} />
                   <Route path="zeus" element={<PlatformZeusOs />} />
+                  <Route path="zeus/rightsizing" element={<PlatformRightsizing />} />
+                  <Route path="zeus/incidents" element={<PlatformIncidentCommander />} />
                   <Route path="zeus/security/hunt" element={<PlatformThreatHunting />} />
                   <Route path="zeus/security/enforcement" element={<PlatformRuntimeEnforcement />} />
                   <Route path="zeus/security" element={<PlatformSecurityCenter />} />

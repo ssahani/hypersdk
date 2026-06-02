@@ -32,7 +32,7 @@ import {
   platformCommandSuggestions,
   type PlatformCommand,
 } from '../utils/platformCommands'
-import { aiSpotlight, type SpotlightIntent, type SpotlightResult } from '../api/ai'
+import { aiSpotlight, runNlOps, type NlOpsPlan, type SpotlightIntent, type SpotlightResult } from '../api/ai'
 import { isInputFocused } from '../hooks/useKeyboardShortcut'
 import { loadPlatformDesktopTier } from '../utils/platformDesktopTier'
 import { operationsHubHref, tasksHubHref, activityHubHref } from '../utils/platformHubLinks'
@@ -66,6 +66,8 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   const [platformHosts, setPlatformHosts] = useState<{ id: string; hostname: string; state: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [reviewCommand, setReviewCommand] = useState<PlatformCommand | null>(null)
+  const [reviewNlOps, setReviewNlOps] = useState<NlOpsPlan | null>(null)
+  const [nlOpsQuery, setNlOpsQuery] = useState('')
   const [spotlightIntents, setSpotlightIntents] = useState<SpotlightIntent[]>([])
   const [executing, setExecuting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -139,7 +141,7 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
     if (open) setTimeout(() => inputRef.current?.focus(), 50)
   }, [open])
 
-  const close = useCallback(() => { setOpen(false); setQuery(''); setReviewCommand(null); setSpotlightIntents([]) }, [])
+  const close = useCallback(() => { setOpen(false); setQuery(''); setReviewCommand(null); setReviewNlOps(null); setNlOpsQuery(''); setSpotlightIntents([]) }, [])
 
   const platformConnected = Boolean(info?.control_plane?.proxy_url)
   const onPlatformDesktop = location.pathname.startsWith('/platform')
@@ -168,6 +170,33 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
   }, [close, navigate])
 
   const onlineHostCount = platformHosts.filter((h) => h.state === 'online').length
+
+  const confirmNlOps = useCallback(async () => {
+    if (!nlOpsQuery.trim()) return
+    setExecuting(true)
+    try {
+      const plan = await runNlOps(nlOpsQuery.trim(), false)
+      toast.success(plan.action_ids.length > 0 ? `Queued ${plan.action_ids.length} approval(s)` : plan.summary)
+      close()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setExecuting(false)
+    }
+  }, [close, nlOpsQuery, toast])
+
+  const openNlOpsReview = useCallback(async (q: string, label: string) => {
+    setNlOpsQuery(q)
+    setExecuting(true)
+    try {
+      const plan = await runNlOps(q, true)
+      setReviewNlOps({ ...plan, summary: label || plan.summary })
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setExecuting(false)
+    }
+  }, [toast])
 
   const confirmPlatformCommand = useCallback(async (cmd: PlatformCommand) => {
     setExecuting(true)
@@ -491,6 +520,9 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
       action: () => {
         if (intent.navigate) {
           go(intent.navigate)
+        } else if (intent.action === 'nl_ops') {
+          const q = (intent.prefill as { query?: string } | undefined)?.query ?? query.trim()
+          void openNlOpsReview(q, intent.label)
         } else if (knownCmd) {
           const prefill = intent.prefill as { name?: string; os?: string; size?: string; network?: string; target_host?: string } | undefined
           setReviewCommand({
@@ -570,8 +602,14 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
+      if (reviewNlOps) { setReviewNlOps(null); return }
       if (reviewCommand) { setReviewCommand(null); return }
       close()
+      return
+    }
+    if (reviewNlOps && e.key === 'Enter') {
+      e.preventDefault()
+      void confirmNlOps()
       return
     }
     if (reviewCommand && e.key === 'Enter') {
@@ -640,7 +678,28 @@ export default function CommandPalette({ onOpenHelp, spotlight = false }: Comman
 
           {/* Results */}
           <div ref={listRef} className="overflow-y-auto max-h-[60vh] py-1">
-            {reviewCommand ? (
+            {reviewNlOps ? (
+              <div className="p-4 space-y-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">NL Ops plan (dry-run)</p>
+                <p className="text-sm text-slate-200 font-medium">{reviewNlOps.summary}</p>
+                <p className="text-xs text-slate-500">Risk {reviewNlOps.risk_score}/10 · {reviewNlOps.intent}</p>
+                <ul className="text-xs text-slate-400 space-y-1">
+                  {reviewNlOps.steps.map((s) => (
+                    <li key={s.label}>• {s.label} ({s.action_type})</li>
+                  ))}
+                </ul>
+                {reviewNlOps.approval_required && (
+                  <button
+                    type="button"
+                    className="btn-primary w-full"
+                    disabled={executing}
+                    onClick={() => void confirmNlOps()}
+                  >
+                    {executing ? 'Queueing…' : 'Queue for approval — press Enter'}
+                  </button>
+                )}
+              </div>
+            ) : reviewCommand ? (
               <div className="p-4 space-y-4">
                 <p className="text-xs font-semibold uppercase tracking-wider text-orange-400/80">Review command</p>
                 <p className="text-sm text-slate-200 font-medium">{reviewCommand.label}</p>

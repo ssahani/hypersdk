@@ -8,7 +8,9 @@ import {
   executeAutopilotAction,
   getAutopilotProposal,
   listZeusAgents,
+  runNlOps,
   zeusChat,
+  type NlOpsPlan,
   type ProposedAction,
   type ZeusAgentInfo,
 } from '../../api/ai'
@@ -26,6 +28,7 @@ export default function ZeusAssistant() {
   const [messages, setMessages] = useState<Array<{ role: 'user' | 'assistant'; text: string }>>([])
   const [busy, setBusy] = useState(false)
   const [proposals, setProposals] = useState<ProposedAction[]>([])
+  const [nlOpsPlan, setNlOpsPlan] = useState<NlOpsPlan | null>(null)
   const [executingId, setExecutingId] = useState<string | null>(null)
   const [agents, setAgents] = useState<ZeusAgentInfo[]>([])
 
@@ -58,9 +61,28 @@ export default function ZeusAssistant() {
       return
     }
     setBusy(true)
+    setNlOpsPlan(null)
     const assistantIdx = messages.length + 1
     setMessages((m) => [...m, { role: 'assistant', text: '' }])
+    const ql = text.toLowerCase()
+    const looksLikeOps = (ql.includes('create') && (ql.includes('vm') || ql.includes('ubuntu')))
+      || (ql.includes('migrate') && ql.includes('from'))
+      || ql.includes('risky infra')
+      || (ql.includes('storage') && ql.includes('slow'))
+      || ql.includes('troubleshoot')
+      || (ql.includes('slow') && ql.includes('vm'))
     try {
+      if (looksLikeOps) {
+        const plan = await runNlOps(text, true)
+        setNlOpsPlan(plan)
+        setMessages((m) => {
+          const next = [...m]
+          next[assistantIdx] = { role: 'assistant', text: plan.reply || plan.summary }
+          return next
+        })
+        setBusy(false)
+        return
+      }
       const zeus = await zeusChat({
         message: text,
         agent: selectedAgent,
@@ -83,6 +105,22 @@ export default function ZeusAssistant() {
       setBusy(false)
     }
   }, [input, busy, platform, contextVmId, contextHostId, messages.length, selectedAgent, location.pathname])
+
+  const queueNlOps = async () => {
+    if (!nlOpsPlan) return
+    setBusy(true)
+    try {
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user')?.text ?? nlOpsPlan.summary
+      const plan = await runNlOps(lastUser, false)
+      toast.success(plan.action_ids.length > 0 ? `Queued ${plan.action_ids.length} approval(s)` : plan.summary)
+      setNlOpsPlan(null)
+      setMessages((m) => [...m, { role: 'assistant', text: `✓ ${plan.summary}` }])
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const runAction = async (action: ProposedAction) => {
     setExecutingId(action.id)
@@ -145,6 +183,15 @@ export default function ZeusAssistant() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+        {nlOpsPlan && nlOpsPlan.approval_required && (
+          <div className="px-4 py-3 border-b border-white/[0.06] space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-orange-400/80">NL Ops plan (dry-run)</p>
+            <p className="text-xs text-slate-400">Risk {nlOpsPlan.risk_score}/10 · {nlOpsPlan.steps.length} step(s)</p>
+            <button type="button" className="btn-primary text-xs w-full" disabled={busy} onClick={() => void queueNlOps()}>
+              Queue for approval
+            </button>
           </div>
         )}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">

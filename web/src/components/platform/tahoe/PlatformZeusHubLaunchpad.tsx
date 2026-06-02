@@ -28,6 +28,12 @@ function tileIcon(tile: ZeusHubTile) {
       return <LayoutGrid className="w-8 h-8" strokeWidth={1.75} />
     case 'topology':
       return <GitBranch className="w-8 h-8" strokeWidth={1.75} />
+    case 'brain':
+      return <GitBranch className="w-8 h-8" strokeWidth={1.75} />
+    case 'rightsizing':
+      return <Cpu className="w-8 h-8" strokeWidth={1.75} />
+    case 'incidents':
+      return <ShieldAlert className="w-8 h-8" strokeWidth={1.75} />
     case 'operations':
       return <Wrench className="w-8 h-8" strokeWidth={1.75} />
     default:

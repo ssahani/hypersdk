@@ -1214,3 +1214,233 @@ pub async fn zeus_autonomous_execute(
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
 }
+
+// --- Infrastructure Graph Brain (AI-138) ---
+
+#[derive(Debug, Deserialize)]
+pub struct GraphScopeQuery {
+    pub host_id: Option<Uuid>,
+    pub vm_id: Option<Uuid>,
+}
+
+pub async fn infra_graph(
+    State(state): State<AppState>,
+    Query(q): Query<GraphScopeQuery>,
+) -> Result<Json<ai::infra_graph::InfraGraph>, ApiError> {
+    ai::infra_graph::build(
+        &state.pool,
+        &ai::infra_graph::GraphScope {
+            host_id: q.host_id,
+            vm_id: q.vm_id,
+        },
+    )
+    .await
+    .map_err(|e| ApiError::internal(e.to_string()))
+    .map(Json)
+}
+
+pub async fn infra_graph_path(
+    State(state): State<AppState>,
+    Json(body): Json<ai::infra_graph::PathRequest>,
+) -> Result<Json<ai::infra_graph::PathResult>, ApiError> {
+    ai::infra_graph::explain_path(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn infra_graph_query(
+    State(state): State<AppState>,
+    Json(body): Json<ai::infra_graph::GraphQueryRequest>,
+) -> Result<Json<ai::infra_graph::GraphQueryResult>, ApiError> {
+    ai::infra_graph::query(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn infra_graph_object(
+    State(state): State<AppState>,
+    axum::extract::Path((kind, id)): axum::extract::Path<(String, String)>,
+) -> Result<Json<ai::infra_graph::ObjectExplain>, ApiError> {
+    ai::infra_graph::explain_object(&state.pool, &kind, &id)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn infra_graph_at(
+    State(state): State<AppState>,
+    axum::extract::Path(ts): axum::extract::Path<String>,
+) -> Result<Json<ai::infra_graph::GraphAtTime>, ApiError> {
+    let parsed = chrono::DateTime::parse_from_rfc3339(&ts)
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    ai::infra_graph::graph_at(&state.pool, parsed)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TimelineReplayQuery {
+    pub from: String,
+    pub to: String,
+    pub resource: Option<String>,
+}
+
+pub async fn timeline_replay(
+    State(state): State<AppState>,
+    Query(q): Query<TimelineReplayQuery>,
+) -> Result<Json<ai::infra_graph::TimelineReplay>, ApiError> {
+    let from = chrono::DateTime::parse_from_rfc3339(&q.from)
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let to = chrono::DateTime::parse_from_rfc3339(&q.to)
+        .map(|d| d.with_timezone(&chrono::Utc))
+        .map_err(|e| ApiError::bad_request(e.to_string()))?;
+    ai::infra_graph::timeline_replay(&state.pool, from, to, q.resource.as_deref())
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn analyze_incident_post(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<ai::root_cause::AnalyzeIncidentBody>,
+) -> Result<Json<ai::root_cause::IncidentAnalysis>, ApiError> {
+    let mut result = ai::root_cause::analyze_post(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    if state.config.packetwolf_enabled {
+        let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
+        ai::root_cause::merge_packetwolf(&mut result.timeline, &pw);
+    }
+    let _ = ai::memory_store::remember(
+        &state.pool,
+        &actor.username,
+        "incident",
+        &result.root_cause,
+        &format!("RCA: {}", result.root_cause),
+        None,
+    )
+    .await;
+    let _ = ai::incident_commander::create(
+        &state.pool,
+        &ai::incident_commander::CreateIncidentRequest {
+            title: "Infrastructure incident".into(),
+            summary: result.root_cause.clone(),
+            severity: if result.confidence >= 0.7 {
+                "high".into()
+            } else {
+                "medium".into()
+            },
+            affected_resources: result.contributing_factors.clone(),
+            root_cause: Some(result.root_cause.clone()),
+            window_start: Some(chrono::Utc::now() - chrono::Duration::hours(body.hours as i64)),
+            window_end: Some(chrono::Utc::now()),
+        },
+    )
+    .await;
+    Ok(Json(result))
+}
+
+pub async fn troubleshoot_vm(
+    State(state): State<AppState>,
+    Json(body): Json<ai::troubleshoot::TroubleshootRequest>,
+) -> Result<Json<ai::troubleshoot::DiagnosisReport>, ApiError> {
+    ai::troubleshoot::diagnose(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn predictions_unified(
+    State(state): State<AppState>,
+) -> Result<Json<ai::predictions::PredictionsReport>, ApiError> {
+    ai::predictions::unified(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn rightsizing_report(
+    State(state): State<AppState>,
+) -> Result<Json<ai::predictions::RightsizingReport>, ApiError> {
+    ai::predictions::rightsizing_report(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn incidents_active(
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ai::incident_commander::ActiveIncident>>, ApiError> {
+    ai::incident_commander::list_active(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
+pub async fn incident_room(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> Result<Json<ai::incident_commander::IncidentRoom>, ApiError> {
+    ai::incident_commander::open_room(&state.pool, id)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn incident_ack(
+    State(state): State<AppState>,
+    axum::extract::Path(id): axum::extract::Path<Uuid>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    ai::incident_commander::ack(&state.pool, id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    Ok(Json(serde_json::json!({ "acknowledged": true })))
+}
+
+pub async fn twin_simulate(
+    State(state): State<AppState>,
+    Json(body): Json<ai::digital_twin::SimulateRequest>,
+) -> Result<Json<ai::digital_twin::SimulateResult>, ApiError> {
+    ai::digital_twin::simulate_batch(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+pub async fn nl_ops(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<ai::nl_ops::NlOpsRequest>,
+) -> Result<Json<ai::nl_ops::NlOpsPlan>, ApiError> {
+    ai::nl_ops::execute(&state.pool, &body, &actor.username)
+        .await
+        .map_err(|e| ApiError::bad_request(e.to_string()))
+        .map(Json)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MemoryBeforeQuery {
+    pub incident_id: Option<Uuid>,
+    #[serde(default = "default_hours_before")]
+    pub hours_before: i32,
+}
+
+fn default_hours_before() -> i32 {
+    4
+}
+
+pub async fn memory_changes_before(
+    State(state): State<AppState>,
+    Query(q): Query<MemoryBeforeQuery>,
+) -> Result<Json<ai::infrastructure_memory::ChangeBeforeOutage>, ApiError> {
+    ai::infrastructure_memory::changes_before_outage(&state.pool, q.incident_id, q.hours_before)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
