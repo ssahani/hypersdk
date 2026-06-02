@@ -25,3 +25,10 @@ test('Jarvis shell visible on power tier dashboard', async ({ page }) => {
   await expect(page.getByTestId('platform-jarvis-shell')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByPlaceholder(/Ask Machina or search fleet/i)).toBeVisible()
 })
+
+test('normal tier dashboard shows launchpad without fleet insights', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'normal' })
+  await page.goto('/platform')
+  await expect(page.getByRole('heading', { name: 'Launchpad' })).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('platform-fleet-insights-toggle')).toHaveCount(0)
+})

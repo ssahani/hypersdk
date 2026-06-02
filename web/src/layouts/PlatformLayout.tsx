@@ -29,6 +29,7 @@ import { usePlatformDesktopTier } from '../hooks/usePlatformDesktopTier'
 import PlatformDockEditor from '../components/platform/mac/PlatformDockEditor'
 import { usePlatformTierRouteGuard } from '../hooks/usePlatformTierRouteGuard'
 import { useKeyboardShortcut, isInputFocused } from '../hooks/useKeyboardShortcut'
+import { suppressContextBar } from '../utils/platformNavRegistry'
 
 function PlatformDesktopShell() {
   const location = useLocation()
@@ -41,6 +42,8 @@ function PlatformDesktopShell() {
   const [tier] = usePlatformDesktopTier()
   const { openMissionControl } = useMissionControl()
   usePlatformTierRouteGuard()
+
+  const meshSubtle = location.pathname !== '/platform' && suppressContextBar(location.pathname)
 
   useEffect(() => {
     const onWallpaper = () => setWallpaper(loadPlatformWallpaper())
@@ -142,9 +145,9 @@ function PlatformDesktopShell() {
       <div className="flex flex-1 min-h-0">
         {sidebarVisible ? <PlatformSidebar /> : null}
         <div className="tahoe-canvas mac-desktop-main flex-1 min-w-0 flex flex-col relative">
-          <div className="tahoe-mesh pointer-events-none" aria-hidden />
-          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-4 lg:px-8 xl:px-10 pt-2 pb-20 lg:pb-24 max-w-[160rem] mx-auto w-full">
-            <div className="flex-1 min-h-0 overflow-y-auto platform-readable tahoe-readable-stack py-4 pb-8">
+          <div className={`tahoe-mesh pointer-events-none${meshSubtle ? ' tahoe-mesh-subtle' : ''}`} aria-hidden />
+          <div className="relative z-[1] flex flex-col flex-1 min-h-0 px-4 lg:px-6 pt-1 pb-16 lg:pb-20 max-w-[160rem] mx-auto w-full">
+            <div className="flex-1 min-h-0 overflow-y-auto platform-readable tahoe-readable-stack py-3 pb-6">
               <Outlet />
             </div>
           </div>

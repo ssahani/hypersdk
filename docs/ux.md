@@ -151,6 +151,27 @@ cd web && npm run build && npm run test:e2e -- e2e/platform-full.spec.ts e2e/she
 | K8s Workloads explorer | Table/summary default; raw JSON toggle |
 | OpenStack enabled but unreachable on Migration | OpenStackUnreachablePanel |
 
+## Platform macOS desktop (Wave 3)
+
+Navigation layers are tier-aware to avoid triple nav on tab-heavy routes:
+
+| Layer | Role | When visible |
+|-------|------|--------------|
+| **Menubar** | App menus, Dynamic Island (fleet + Zeus pending), Control Center | Always on `/platform/*` |
+| **Context bar** | Cross-links between hubs | **Normal:** hidden · **Power:** hub roots only (`/platform/operations`, `/platform/resources`, `/platform/zeus/security`, `/platform/integrations`) · **Advanced:** unless route uses in-page [`DetailTabs`](web/src/components/platform/DetailTabs.tsx) |
+| **Page header** | [`PlatformPageChrome`](web/src/components/platform/PlatformPageChrome.tsx) title, stats, actions | Every platform page |
+| **DetailTabs** | In-app sections with `?tab=` | Tab-heavy pages only |
+| **Dock** | Primary app launcher | Always (Normal + Power) |
+| **Sidebar** | Full nav tree | Advanced default; Power collapsed icon rail; Normal hidden (Jarvis shell) |
+
+Helpers: [`shouldShowContextBar`](web/src/utils/platformNavRegistry.ts), [`suppressContextBar`](web/src/utils/platformNavRegistry.ts).
+
+**Zeus status:** pending approvals surface in [`PlatformDynamicIsland`](web/src/components/platform/mac/PlatformDynamicIsland.tsx); [`ZeusAmbientBar`](web/src/components/ai/ZeusAmbientBar.tsx) is hidden on `/platform/*`.
+
+**Dashboard tiers:** [`PlatformDashboard`](web/src/pages/platform/PlatformDashboard.tsx) — Normal: Jarvis + Launchpad panel; Power/Advanced: header stats + Launchpad + collapsible [`PlatformFleetInsights`](web/src/components/platform/PlatformFleetInsights.tsx) (DNA, approvals, posture). Advanced keeps autopilot and recent tasks outside the accordion.
+
+**Glass tokens:** `--glass-panel` in `main.css` unifies [`MacGlassPanel`](web/src/components/platform/mac/PlatformMacUi.tsx), `.tahoe-glass-card`, and `.platform-mac-panel`.
+
 ## Dashboard & shell
 
 - **Help** (top bar) — dropdown: **Keyboard shortcuts** (`?`) and **About** ([`HelpDialog.tsx`](../web/src/components/HelpDialog.tsx), [`ZyvorAbout.tsx`](../web/src/components/ZyvorAbout.tsx)): [zyvor.dev](https://zyvor.dev), product links, copyright © 2026, documentation hub.

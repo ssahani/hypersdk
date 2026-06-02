@@ -19,7 +19,7 @@ function greetingName(): string {
   return 'Good evening'
 }
 
-export default function PlatformJarvisBriefing() {
+export default function PlatformJarvisBriefing({ compactStats = false }: { compactStats?: boolean } = {}) {
   const navigate = useNavigate()
   const { openCopilot } = useAi()
   const [tier] = usePlatformDesktopTier()
@@ -72,15 +72,20 @@ export default function PlatformJarvisBriefing() {
       <div>
         <p className="text-xs font-semibold uppercase tracking-wider text-sky-400/80">Machina Intelligence</p>
         <h2 className="text-2xl sm:text-3xl font-bold text-slate-50 mt-1">{greetingName()}.</h2>
-        <p className="text-sm text-slate-400 mt-2">
-          {hosts} host{hosts === 1 ? '' : 's'} · {vms} VM{vms === 1 ? '' : 's'}
-          {healthPct != null && <> · Infrastructure health {healthPct}%</>}
-          {failedTasks > 0 && <> · {failedTasks > 999 ? '999+' : failedTasks} failed task{failedTasks === 1 ? '' : 's'}</>}
-          {openIssues > 0 && <> · {openIssues} open issue{openIssues === 1 ? '' : 's'}</>}
-          {alerts > 0 && <> · {alerts > 999 ? '999+' : alerts} alert{alerts === 1 ? '' : 's'}</>}
-          {recommendations > 0 && <> · {recommendations} recommendation{recommendations === 1 ? '' : 's'}</>}
-        </p>
-        {jarvisShell && (
+        {!compactStats && (
+          <p className="text-sm text-slate-400 mt-2">
+            {hosts} host{hosts === 1 ? '' : 's'} · {vms} VM{vms === 1 ? '' : 's'}
+            {healthPct != null && <> · Infrastructure health {healthPct}%</>}
+            {failedTasks > 0 && <> · {failedTasks > 999 ? '999+' : failedTasks} failed task{failedTasks === 1 ? '' : 's'}</>}
+            {openIssues > 0 && <> · {openIssues} open issue{openIssues === 1 ? '' : 's'}</>}
+            {alerts > 0 && <> · {alerts > 999 ? '999+' : alerts} alert{alerts === 1 ? '' : 's'}</>}
+            {recommendations > 0 && <> · {recommendations} recommendation{recommendations === 1 ? '' : 's'}</>}
+          </p>
+        )}
+        {jarvisShell && compactStats && (
+          <p className="text-sm text-slate-400 mt-2">Search fleet, open Mission Control, or pick a shortcut below.</p>
+        )}
+        {jarvisShell && !compactStats && (
           <p className="text-xs text-slate-500 mt-1">Jarvis shell — dock & Spotlight first; sidebar hidden on Normal tier.</p>
         )}
       </div>

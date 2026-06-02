@@ -12,7 +12,6 @@ export default function ZeusAmbientBar() {
   const { info } = usePlatformInfo()
   const { mode, selectedAgent, openCopilot } = useAi()
   const platform = Boolean(info?.control_plane?.proxy_url)
-  const onPlatformDesktop = location.pathname.startsWith('/platform')
   const [pending, setPending] = useState(0)
 
   useEffect(() => {
@@ -23,12 +22,11 @@ export default function ZeusAmbientBar() {
   }, [platform, mode])
 
   if (!platform || mode === 'off') return null
+  if (location.pathname.startsWith('/platform')) return null
 
   return (
     <div
-      className={`fixed left-1/2 -translate-x-1/2 z-[54] flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/90 backdrop-blur px-4 py-2 shadow-xl text-xs ${
-        onPlatformDesktop ? 'bottom-[5.75rem]' : 'bottom-4'
-      }`}
+      className="fixed left-1/2 -translate-x-1/2 z-[54] flex items-center gap-2 rounded-full border border-white/10 bg-slate-900/90 backdrop-blur px-4 py-2 shadow-xl text-xs bottom-4"
     >
       <Sparkles className="w-3.5 h-3.5 text-orange-400" />
       <span className="text-slate-300">Zeus · {selectedAgent === 'auto' ? 'Auto' : selectedAgent}</span>

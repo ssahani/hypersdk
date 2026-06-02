@@ -54,7 +54,7 @@ test('platform support shows Zyvor guidance', async ({ page }) => {
 test('show offline hosts command navigates to filtered hosts', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'normal', staleHost: true })
   await page.goto('/platform')
-  await page.locator('.tahoe-context-bar').click()
+  await page.locator('.mac-menubar-inner').click()
   await page.keyboard.press('Control+k')
   const spotlight = page.locator('.liquid-glass-modal-backdrop').filter({
     has: page.getByPlaceholder(/Zeus/i),

@@ -5,6 +5,7 @@ import {
   defaultSidebarVisibleForTier,
   loadPlatformDesktopTier,
   PLATFORM_DESKTOP_TIER_EVENT,
+  type PlatformDesktopTier,
 } from '../../../utils/platformDesktopTier'
 import { JARVIS_SHELL_EVENT } from '../../../utils/platformJarvisShell'
 
@@ -20,15 +21,35 @@ type PlatformMacDesktopContextValue = {
 
 const PlatformMacDesktopContext = createContext<PlatformMacDesktopContextValue | null>(null)
 
+const SIDEBAR_COLLAPSED_KEY = 'machina-platform-sidebar-collapsed'
+
+function defaultSidebarCollapsedForTier(tier: PlatformDesktopTier): boolean {
+  try {
+    const raw = localStorage.getItem(SIDEBAR_COLLAPSED_KEY)
+    if (raw === '0') return false
+    if (raw === '1') return true
+  } catch {
+    /* ignore */
+  }
+  return tier === 'power'
+}
+
 export function PlatformMacDesktopProvider({ children }: { children: ReactNode }) {
   const [sidebarVisible, setSidebarVisible] = useState(() => defaultSidebarVisibleForTier(loadPlatformDesktopTier()))
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => localStorage.getItem('machina-platform-sidebar-collapsed') === '1')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => defaultSidebarCollapsedForTier(loadPlatformDesktopTier()))
   const [inspectorVisible, setInspectorVisible] = useState(true)
 
   useEffect(() => {
     const applyTier = () => {
       const tier = loadPlatformDesktopTier()
       setSidebarVisible(defaultSidebarVisibleForTier(tier))
+      try {
+        if (localStorage.getItem(SIDEBAR_COLLAPSED_KEY) == null && tier === 'power') {
+          setSidebarCollapsed(true)
+        }
+      } catch {
+        /* ignore */
+      }
     }
     window.addEventListener(PLATFORM_DESKTOP_TIER_EVENT, applyTier)
     window.addEventListener(JARVIS_SHELL_EVENT, applyTier)
@@ -43,7 +64,7 @@ export function PlatformMacDesktopProvider({ children }: { children: ReactNode }
 
   const setCollapsed = useCallback((v: boolean) => {
     setSidebarCollapsed(v)
-    localStorage.setItem('machina-platform-sidebar-collapsed', v ? '1' : '0')
+    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, v ? '1' : '0')
   }, [])
 
   const value = useMemo(

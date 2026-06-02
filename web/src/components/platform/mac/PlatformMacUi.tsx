@@ -22,9 +22,9 @@ export function MacGlassPanel({
   return (
     <GlassCard hover={false} className={`platform-mac-panel tahoe-glass-card p-0 ${className}`}>
       {(title || action) && (
-        <header className="flex items-start justify-between gap-3 px-4 pt-4 pb-2.5 border-b border-white/[0.04]">
+        <header className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-2 border-b border-white/[0.04]">
           <div>
-            {title && <h2 className="font-semibold text-[var(--text-primary)] text-[0.9375rem]">{title}</h2>}
+            {title && <h2 className="font-semibold text-[var(--text-primary)] text-sm">{title}</h2>}
             {subtitle && <p className="text-xs text-[var(--text-muted)] mt-0.5">{subtitle}</p>}
           </div>
           {action}
@@ -33,6 +33,11 @@ export function MacGlassPanel({
       <div className="p-4">{children}</div>
     </GlassCard>
   )
+}
+
+/** Canonical desktop panel — alias over MacGlassPanel with Wave 3 spacing. */
+export function PlatformDesktopPanel(props: Parameters<typeof MacGlassPanel>[0]) {
+  return <MacGlassPanel {...props} />
 }
 
 export function MacSectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {

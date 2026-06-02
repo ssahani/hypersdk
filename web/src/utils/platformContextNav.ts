@@ -15,5 +15,7 @@ export {
   MAX_CONTEXT_PILLS,
   operationsNavItemsForTier,
   settingsItemsForTier,
+  shouldShowContextBar,
   splitContextNavItems,
+  suppressContextBar,
 } from './platformNavRegistry'

@@ -328,6 +328,44 @@ export function hubTileById(id: DesktopHubId): DesktopHubTile | undefined {
   return DESKTOP_HUB_TILES.find((hub) => hub.id === id)
 }
 
+/** Routes that use in-page DetailTabs — context bar would duplicate section nav. */
+const DETAIL_TABS_EXACT = new Set([
+  '/platform/storage',
+  '/platform/networks',
+  '/platform/zeus',
+  '/platform/maintenance',
+  '/platform/templates',
+  '/platform/blueprints',
+  '/platform/migration',
+  '/platform/reports',
+  '/platform/enterprise',
+  '/platform/settings',
+  '/platform/backups',
+])
+
+const POWER_CONTEXT_HUB_ROOTS = new Set([
+  '/platform/operations',
+  '/platform/resources',
+  '/platform/zeus/security',
+  '/platform/integrations',
+])
+
+export function suppressContextBar(pathname: string): boolean {
+  if (DETAIL_TABS_EXACT.has(pathname)) return true
+  if (/^\/platform\/vms\/[^/]+$/.test(pathname)) return true
+  if (/^\/platform\/hosts\/[^/]+$/.test(pathname)) return true
+  if (/^\/platform\/zeus\/machines\/[^/]+$/.test(pathname)) return true
+  return false
+}
+
+/** Tier-aware visibility for the shell context bar (Wave 3). */
+export function shouldShowContextBar(pathname: string, tier: PlatformDesktopTier): boolean {
+  if (suppressContextBar(pathname)) return false
+  if (tier === 'normal') return false
+  if (tier === 'power') return POWER_CONTEXT_HUB_ROOTS.has(pathname)
+  return true
+}
+
 export function contextNavForPath(pathname: string, tier: PlatformDesktopTier): PlatformContextNav | null {
   let def = HUB_DEFINITIONS.find((d) => d.match(pathname))
   if (isSettingsWorkspacePath(pathname)) {

@@ -8,6 +8,7 @@ import { usePlatformDesktopTier } from '../../../hooks/usePlatformDesktopTier'
 import {
   contextNavForPath,
   isContextNavActive,
+  shouldShowContextBar,
   splitContextNavItems,
   type ContextNavItem,
 } from '../../../utils/platformContextNav'
@@ -79,7 +80,7 @@ export default function PlatformContextBar() {
     setMoreOpen(false)
   }, [location.pathname, location.search])
 
-  if (!ctx) return null
+  if (!ctx || !shouldShowContextBar(location.pathname, tier)) return null
 
   const overflowActive = overflow.some((item) => isContextNavActive(location.pathname, location.search, item))
 
