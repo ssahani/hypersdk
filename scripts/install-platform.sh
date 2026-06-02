@@ -177,6 +177,34 @@ install_binaries() {
   ok "Installed machina-controller + machina-agent"
 }
 
+ensure_platform_env_var() {
+  local key="$1" value="$2"
+  local file="/etc/default/machina-platform"
+  if grep -q "^${key}=" "$file" 2>/dev/null; then
+    sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+  else
+    echo "${key}=${value}" >>"$file"
+  fi
+}
+
+# When PacketWolf is installed, wire controller RCA / anomaly bridge (survives reinstall).
+merge_packetwolf_bridge_env() {
+  systemctl cat packetwolf-api.service &>/dev/null || return 0
+  local pw_tls_port="9443" pw_api_key="" pw_cfg="/etc/packetwolf/config.env"
+  if [[ -f "$pw_cfg" ]]; then
+    pw_tls_port="$(grep -E '^TLS_PORT=' "$pw_cfg" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "' || echo 9443)"
+    pw_api_key="$(grep -E '^PACKETWOLF_ADMIN_API_KEY=' "$pw_cfg" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "' || true)"
+    [[ -z "$pw_api_key" ]] && pw_api_key="$(grep -E '^PACKETWOLF_API_KEY=' "$pw_cfg" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d ' "' || true)"
+  fi
+  ensure_platform_env_var PACKETWOLF_ENABLED 1
+  ensure_platform_env_var PACKETWOLF_BASE_URL "https://127.0.0.1:${pw_tls_port}"
+  ensure_platform_env_var PACKETWOLF_INSECURE_TLS 1
+  if [[ -n "$pw_api_key" ]]; then
+    ensure_platform_env_var PACKETWOLF_API_KEY "$pw_api_key"
+  fi
+  ok "PacketWolf bridge env merged (RCA + zeus-firewall anomalies)"
+}
+
 write_platform_env() {
   step "Platform configuration"
   local ip pub
@@ -193,6 +221,7 @@ write_platform_env() {
     grep -q '^MACHINA_SKIP_AUTH=' /etc/default/machina-platform \
       || echo 'MACHINA_SKIP_AUTH=1' >>/etc/default/machina-platform
   fi
+  merge_packetwolf_bridge_env || true
   chmod 600 /etc/default/machina-platform
   ok "Config -> /etc/default/machina-platform (public URL: $pub)"
 }
