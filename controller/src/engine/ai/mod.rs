@@ -171,7 +171,7 @@ pub async fn build_copilot_base(
         }
     } else if ml.contains("reach") || ml.contains("connect") || (ml.contains("can't") && ml.contains("to")) {
         if let Some((a, b, port)) = parse_reach_query(message) {
-            let net = crate::engine::ai::network::explain_reach(pool, &a, &b, port).await?;
+            let net = crate::engine::ai::network::explain_reach(pool, cfg, &a, &b, port).await?;
             reply.push_str(&format!(
                 "Network path **{} → {}**: {}\n\nHops: {}\n\nRemediation: {}",
                 a,

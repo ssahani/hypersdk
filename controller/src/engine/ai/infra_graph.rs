@@ -110,6 +110,10 @@ pub struct GraphAtTime {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
     pub diff_summary: String,
+    pub current_node_count: usize,
+    pub node_delta: i64,
+    pub added_nodes: Vec<String>,
+    pub removed_nodes: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -373,6 +377,176 @@ pub async fn build(pool: &PgPool, scope: &GraphScope) -> anyhow::Result<InfraGra
     })
 }
 
+/// Build unified graph including Zeus Firewall connectivity matrix edges.
+pub async fn build_enriched(
+    pool: &PgPool,
+    cfg: &crate::config::ControllerConfig,
+    scope: &GraphScope,
+) -> anyhow::Result<InfraGraph> {
+    let mut graph = build(pool, scope).await?;
+    append_firewall_edges(pool, cfg, &mut graph.nodes, &mut graph.edges)
+        .await
+        .ok();
+    graph.node_count = graph.nodes.len();
+    graph.edge_count = graph.edges.len();
+    Ok(graph)
+}
+
+fn profile_rules(profile: &str) -> Vec<machina_core::ZeusFirewallRule> {
+    let prof = machina_core::profile_by_name(profile).unwrap_or_else(|| {
+        machina_core::profile_by_name("Balanced").expect("Balanced profile")
+    });
+    prof.rules
+        .iter()
+        .enumerate()
+        .map(|(i, r)| machina_core::ZeusFirewallRule {
+            id: format!("graph-{i}"),
+            direction: r.direction.clone(),
+            protocol: r.protocol.clone(),
+            ports: r.ports.clone(),
+            sources: r.sources.clone(),
+            targets: vec![],
+            action: r.action.clone(),
+            temporary: false,
+            expires_at: None,
+            description: Some(r.name.clone()),
+            scope: "host".into(),
+            backend_ref: None,
+        })
+        .collect()
+}
+
+pub async fn append_firewall_edges(
+    pool: &PgPool,
+    cfg: &crate::config::ControllerConfig,
+    nodes: &mut Vec<GraphNode>,
+    edges: &mut Vec<GraphEdge>,
+) -> anyhow::Result<()> {
+    use machina_core::simulate_connectivity;
+
+    let hosts: Vec<(Uuid, String)> = sqlx::query_as(
+        "SELECT id, hostname FROM hosts WHERE state = 'online' ORDER BY hostname LIMIT 50",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+
+    for (hid, hostname) in hosts {
+        let ft_id = format!("firewall-{hid}");
+        if !nodes.iter().any(|n| n.id == ft_id) {
+            nodes.push(GraphNode {
+                kind: "firewall_target".into(),
+                id: ft_id.clone(),
+                name: format!("Zeus FW {hostname}"),
+                state: Some("active".into()),
+                health_score: None,
+            });
+        }
+        if !edges.iter().any(|e| e.from == hid.to_string() && e.to == ft_id) {
+            edges.push(GraphEdge {
+                from: hid.to_string(),
+                to: ft_id.clone(),
+                label: "protected_by".into(),
+            });
+        }
+        let detail = match crate::engine::zeus_firewall::inventory::target_detail(
+            pool,
+            cfg,
+            &hid.to_string(),
+        )
+        .await
+        {
+            Ok(d) => d,
+            Err(_) => continue,
+        };
+        let profile = detail
+            .target
+            .profile
+            .as_deref()
+            .unwrap_or("Balanced");
+        let rules = profile_rules(profile);
+        let matrix = simulate_connectivity(&detail.inventory, &rules);
+        for cell in matrix.blocks.iter().take(5) {
+            let port_id = format!("port-{}-{}", cell.port, cell.protocol);
+            if !nodes.iter().any(|n| n.id == port_id) {
+                nodes.push(GraphNode {
+                    kind: "segment".into(),
+                    id: port_id.clone(),
+                    name: format!("{}:{}", cell.protocol, cell.port),
+                    state: Some("blocked".into()),
+                    health_score: None,
+                });
+            }
+            edges.push(GraphEdge {
+                from: ft_id.clone(),
+                to: port_id,
+                label: "blocks".into(),
+            });
+        }
+        for cell in matrix.allows.iter().take(5) {
+            let port_id = format!("port-allow-{}-{}", cell.port, cell.protocol);
+            if !nodes.iter().any(|n| n.id == port_id) {
+                nodes.push(GraphNode {
+                    kind: "segment".into(),
+                    id: port_id.clone(),
+                    name: format!("allow {}:{}", cell.protocol, cell.port),
+                    state: Some("allowed".into()),
+                    health_score: None,
+                });
+            }
+            edges.push(GraphEdge {
+                from: ft_id.clone(),
+                to: port_id,
+                label: "allows".into(),
+            });
+        }
+    }
+    Ok(())
+}
+
+async fn firewall_path_blocker(
+    pool: &PgPool,
+    cfg: &crate::config::ControllerConfig,
+    host_id: Uuid,
+    port: i32,
+) -> Option<PathBlocker> {
+    use machina_core::simulate_connectivity;
+
+    let detail = crate::engine::zeus_firewall::inventory::target_detail(
+        pool,
+        cfg,
+        &host_id.to_string(),
+    )
+    .await
+    .ok()?;
+    let profile = detail
+        .target
+        .profile
+        .as_deref()
+        .unwrap_or("Balanced");
+    let rules = profile_rules(profile);
+    let matrix = simulate_connectivity(&detail.inventory, &rules);
+    let probe_port = if port > 0 { port as u16 } else { 5432 };
+    if let Some(block) = matrix.blocks.iter().find(|c| c.port == probe_port) {
+        return Some(PathBlocker {
+            kind: "firewall_deny".into(),
+            message: format!(
+                "Zeus firewall blocks {}:{} — {}",
+                block.source, block.port, block.reason
+            ),
+            remediation: "Add inbound allow rule or use app-tier profile on destination host.".into(),
+        });
+    }
+    if matrix.allows.iter().any(|c| c.port == probe_port) {
+        return None;
+    }
+    Some(PathBlocker {
+        kind: "firewall_deny".into(),
+        message: format!("No Zeus firewall allow rule for TCP port {probe_port} (default deny)."),
+        remediation: "Apply Balanced or custom profile allowing app-tier → host traffic.".into(),
+    })
+}
+
 async fn resolve_vm(pool: &PgPool, name: &str) -> anyhow::Result<Option<(Uuid, String, Option<Uuid>, String)>> {
     let row: Option<(Uuid, String, Option<Uuid>, String)> = sqlx::query_as(
         "SELECT id, name, host_id, observed_state FROM vms WHERE name ILIKE $1 LIMIT 1",
@@ -383,7 +557,11 @@ async fn resolve_vm(pool: &PgPool, name: &str) -> anyhow::Result<Option<(Uuid, S
     Ok(row)
 }
 
-pub async fn explain_path(pool: &PgPool, req: &PathRequest) -> anyhow::Result<PathResult> {
+pub async fn explain_path(
+    pool: &PgPool,
+    cfg: &crate::config::ControllerConfig,
+    req: &PathRequest,
+) -> anyhow::Result<PathResult> {
     let from_vm = resolve_vm(pool, &req.from).await?;
     let to_vm = resolve_vm(pool, &req.to).await?;
     let port_str = req.port.map(|p| format!(":{p}")).unwrap_or_default();
@@ -483,6 +661,16 @@ pub async fn explain_path(pool: &PgPool, req: &PathRequest) -> anyhow::Result<Pa
             source: "graph".into(),
             detail: format!("A bridges={a_bridges:?} B bridges={b_bridges:?}"),
         });
+    }
+
+    if let Some(h) = b_host {
+        if let Some(fb) = firewall_path_blocker(pool, cfg, h, req.port.unwrap_or(5432)).await {
+            evidence.push(PathEvidence {
+                source: "zeus_firewall".into(),
+                detail: fb.message.clone(),
+            });
+            blockers.push(fb);
+        }
     }
 
     // Recent network/firewall audit
@@ -701,13 +889,44 @@ pub async fn graph_at(pool: &PgPool, ts: DateTime<Utc>) -> anyhow::Result<GraphA
     .fetch_one(pool)
     .await
     .unwrap_or(0);
+    let vm_names_at: Vec<String> = sqlx::query_scalar(
+        "SELECT DISTINCT COALESCE(detail->>'name', resource_id) FROM audit_logs
+         WHERE action ILIKE '%vm%' AND action ILIKE '%create%' AND created_at <= $1
+         ORDER BY 1 LIMIT 50",
+    )
+    .bind(ts)
+    .fetch_all(pool)
+    .await
+    .unwrap_or_default();
+    let current_vm_names: Vec<String> =
+        sqlx::query_scalar("SELECT name FROM vms ORDER BY name")
+            .fetch_all(pool)
+            .await
+            .unwrap_or_default();
+    let added: Vec<String> = current_vm_names
+        .iter()
+        .filter(|n| !vm_names_at.contains(n))
+        .take(10)
+        .cloned()
+        .collect();
+    let removed: Vec<String> = vm_names_at
+        .iter()
+        .filter(|n| !current_vm_names.contains(n))
+        .take(10)
+        .cloned()
+        .collect();
+    let node_delta = current.node_count as i64 - (current.node_count as i64 - added.len() as i64 + removed.len() as i64);
     Ok(GraphAtTime {
         timestamp: ts,
-        nodes: current.nodes,
-        edges: current.edges,
+        nodes: current.nodes.clone(),
+        edges: current.edges.clone(),
         diff_summary: format!(
             "Reconstructed at {ts}: {created} create events, {deleted} delete events in audit history."
         ),
+        current_node_count: current.node_count,
+        node_delta,
+        added_nodes: added,
+        removed_nodes: removed,
     })
 }
 

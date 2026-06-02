@@ -13,12 +13,14 @@ pub struct NetworkExplainResult {
 
 pub async fn explain_reach(
     pool: &PgPool,
+    cfg: &crate::config::ControllerConfig,
     vm_a_name: &str,
     vm_b_name: &str,
     port: Option<i32>,
 ) -> anyhow::Result<NetworkExplainResult> {
     let path = super::infra_graph::explain_path(
         pool,
+        cfg,
         &super::infra_graph::PathRequest {
             from: vm_a_name.into(),
             to: vm_b_name.into(),

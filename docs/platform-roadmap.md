@@ -52,6 +52,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 55 | Fleet firewall views — Overview, Activity, Ports, K8s/Cloud/Connectivity (AI-379–384) | **Shipped (v1)** |
 | 56 | E2E + docs AI-372–391 / UX-49–56 | **Shipped (v1)** |
 | 57 | Cross-shell consistency sweep — semantic colors v2, bridge/Help parity, e2e matrix | **Shipped (v1)** — see [`next-big-sweep.md`](next-big-sweep.md) |
+| 69 | Zeus Infrastructure AI Program (AI-138–147) — graph brain, RCA, twin, rightsizing, NL ops | **Shipped (v2)** — see [`zeus-infra-ai-program.md`](zeus-infra-ai-program.md) |
 
 ## Batch 312–331 deliverables (Bare metal + Zeus Firewall — Phase 23)
 
@@ -324,16 +325,19 @@ See [`zeus-os-vision.md`](zeus-os-vision.md) for the full vision.
 | AI-135 | Phase 14 UI — hub, runbook, budget, stack status, Zeus strip |
 | AI-136 | Phase 14 Spotlight intents |
 | AI-137 | Phase 14 E2E + docs |
-| AI-138 | GuestKit library bridge — doctor + migrate-plan on disk images |
-| AI-139 | GuestKit worker job submit + daemon proxy |
-| AI-140 | Migration Radar UI — offline assurance strip |
-| AI-141 | GuestKit E2E + deploy rsync sibling repo |
-| AI-142 | Zeus Firewall core adapters (firewalld/ufw/nftables/iptables) |
-| AI-143 | Agent GetFirewallInventory + open port scan |
-| AI-144 | Controller zeus-firewall overview/ports/score APIs |
-| AI-145 | Zeus OS Machine Security UI (read-only) |
-| AI-146 | Profile apply + diff/checkpoint rollback |
-| AI-147 | Temporary rules + expiry worker |
+| AI-138 | **Infrastructure AI WS1** — Unified graph brain (`GET /ai/graph`, path, query) |
+| AI-139 | **Infrastructure AI WS2** — Incident RCA + evidence (`/ai/incidents/analyze`) |
+| AI-140 | **Infrastructure AI WS3** — Infrastructure memory + pre-outage delta |
+| AI-141 | **Infrastructure AI WS4** — Digital twin what-if simulation |
+| AI-142 | **Infrastructure AI WS5** — VM troubleshoot / doctor panel |
+| AI-143 | **Infrastructure AI WS6** — Explain object + rightsizing FinOps |
+| AI-144 | **Infrastructure AI WS7** — Unified failure predictions + auto-alerts |
+| AI-145 | **Infrastructure AI WS8** — Incident commander + war room |
+| AI-146 | **Infrastructure AI WS9** — Time Machine graph-at-timestamp + timeline replay |
+| AI-147 | **Infrastructure AI WS10** — NL ops (`/ai/nl-ops`, dry-run default) |
+
+> **AI-138–147 realignment:** IDs now map to the [Zeus Infrastructure AI Program](zeus-infra-ai-program.md) (10 workstreams). Former GuestKit + early Zeus Firewall batch labels for this numeric range live under Phase 16+ in [`zeus-os-ai-172-371.md`](zeus-os-ai-172-371.md).
+
 | AI-148 | Firewall timeline + audit integration |
 | AI-149 | VM `firewall_profile` template wiring |
 | AI-150 | AI explain + secure-machine plan |

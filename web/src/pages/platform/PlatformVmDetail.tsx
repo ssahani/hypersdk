@@ -6,6 +6,7 @@ import { ArrowLeft, Copy, Play, Square, RotateCcw, Trash2, Terminal, MoveRight, 
 import PageLayout from '../../components/PageLayout'
 import GuestToolsStrip from '../../components/platform/GuestToolsStrip'
 import MachinaVmOutageRca from '../../components/ai/MachinaVmOutageRca'
+import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
 import MachinaVmTroubleshootPanel from '../../components/ai/MachinaVmTroubleshootPanel'
 import MachinaDoctorPanel from '../../components/platform/MachinaDoctorPanel'
 import ExplainButton from '../../components/ai/ExplainButton'
@@ -403,6 +404,7 @@ export default function PlatformVmDetail() {
 
           {tab === 'overview' && (
             <div className="space-y-4">
+              <MachinaExplainObjectPanel kind="vm" id={id!} name={vm.name} />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm">
                 <InfoCard label="Desired state" value={vm.desired_state} />
                 <InfoCard label="Lifecycle" value={vm.lifecycle_phase || 'idle'} />

@@ -264,7 +264,7 @@ pub async fn network_explain(
     State(state): State<AppState>,
     Json(body): Json<NetworkExplainBody>,
 ) -> Result<Json<ai::network::NetworkExplainResult>, ApiError> {
-    ai::network::explain_reach(&state.pool, &body.vm_a, &body.vm_b, body.port)
+    ai::network::explain_reach(&state.pool, &state.config, &body.vm_a, &body.vm_b, body.port)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))
         .map(Json)
@@ -589,8 +589,12 @@ pub async fn analyze_incident(
     let mut result = ai::root_cause::analyze(&state.pool, &q)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    if state.config.packetwolf_enabled {
-        let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
+    let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
+    if pw
+        .get("anomalies")
+        .and_then(|v| v.as_array())
+        .is_some_and(|a| !a.is_empty())
+    {
         ai::root_cause::merge_packetwolf(&mut result.timeline, &pw);
     }
     Ok(Json(result))
@@ -1227,8 +1231,9 @@ pub async fn infra_graph(
     State(state): State<AppState>,
     Query(q): Query<GraphScopeQuery>,
 ) -> Result<Json<ai::infra_graph::InfraGraph>, ApiError> {
-    ai::infra_graph::build(
+    ai::infra_graph::build_enriched(
         &state.pool,
+        &state.config,
         &ai::infra_graph::GraphScope {
             host_id: q.host_id,
             vm_id: q.vm_id,
@@ -1243,7 +1248,7 @@ pub async fn infra_graph_path(
     State(state): State<AppState>,
     Json(body): Json<ai::infra_graph::PathRequest>,
 ) -> Result<Json<ai::infra_graph::PathResult>, ApiError> {
-    ai::infra_graph::explain_path(&state.pool, &body)
+    ai::infra_graph::explain_path(&state.pool, &state.config, &body)
         .await
         .map_err(|e| ApiError::bad_request(e.to_string()))
         .map(Json)
@@ -1313,8 +1318,12 @@ pub async fn analyze_incident_post(
     let mut result = ai::root_cause::analyze_post(&state.pool, &body)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
-    if state.config.packetwolf_enabled {
-        let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
+    let pw = crate::engine::packetwolf_bridge::fetch_anomalies(&state.config).await;
+    if pw
+        .get("anomalies")
+        .and_then(|v| v.as_array())
+        .is_some_and(|a| !a.is_empty())
+    {
         ai::root_cause::merge_packetwolf(&mut result.timeline, &pw);
     }
     let _ = ai::memory_store::remember(

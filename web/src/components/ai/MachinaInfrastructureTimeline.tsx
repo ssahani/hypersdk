@@ -1,32 +1,46 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Clock, Sparkles } from 'lucide-react'
-import { analyzeIncident, getTimelineReplay, type IncidentAnalysis } from '../../api/ai'
+import { Clock, GitBranch, Sparkles } from 'lucide-react'
+import { analyzeIncident, getInfraGraphAt, getTimelineReplay, type IncidentAnalysis } from '../../api/ai'
 import { hubLinkClasses, statusToneClass } from '../../utils/semanticColors'
 
 export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: number }) {
   const [analysis, setAnalysis] = useState<IncidentAnalysis | null>(null)
   const [replayHours, setReplayHours] = useState(hours)
+  const [scrubPct, setScrubPct] = useState(100)
   const [graphChanges, setGraphChanges] = useState<string[]>([])
+  const [graphDiff, setGraphDiff] = useState<{ summary: string; added: string[]; removed: string[]; nodeDelta: number } | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const windowEnd = Date.now()
+  const windowStart = windowEnd - replayHours * 3600_000
+  const scrubTs = new Date(windowStart + ((windowEnd - windowStart) * scrubPct) / 100).toISOString()
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [incident, replay] = await Promise.all([
+      const fromIso = new Date(windowStart).toISOString()
+      const toIso = new Date(windowEnd).toISOString()
+      const [incident, replay, at] = await Promise.all([
         analyzeIncident({ hours: replayHours }),
-        getTimelineReplay(
-          new Date(Date.now() - replayHours * 3600_000).toISOString(),
-          new Date().toISOString(),
-        ),
+        getTimelineReplay(fromIso, toIso),
+        getInfraGraphAt(scrubTs).catch(() => null),
       ])
       setAnalysis(incident)
       setGraphChanges(replay.graph_changes ?? [])
+      if (at) {
+        setGraphDiff({
+          summary: at.diff_summary,
+          added: at.added_nodes ?? [],
+          removed: at.removed_nodes ?? [],
+          nodeDelta: at.node_delta ?? 0,
+        })
+      }
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Timeline unavailable')
     }
-  }, [replayHours])
+  }, [replayHours, scrubTs, windowStart, windowEnd])
 
   useEffect(() => { void load() }, [load])
 
@@ -35,7 +49,7 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 text-xs text-slate-500">
+      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500">
         <label className="flex items-center gap-2">
           Replay window
           <input
@@ -47,6 +61,18 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
             className="w-24"
           />
           <span>{replayHours}h</span>
+        </label>
+        <label className="flex items-center gap-2">
+          Time scrubber
+          <input
+            type="range"
+            min={0}
+            max={100}
+            value={scrubPct}
+            onChange={(e) => setScrubPct(Number(e.target.value))}
+            className="w-32"
+          />
+          <span>{new Date(scrubTs).toLocaleTimeString()}</span>
         </label>
       </div>
       <div className="rounded-xl border border-orange-500/20 bg-orange-500/5 p-3 text-sm">
@@ -61,6 +87,15 @@ export default function MachinaInfrastructureTimeline({ hours = 4 }: { hours?: n
           <p key={a} className={`text-xs mt-1 ${hubLinkClasses()}`}>→ {a}</p>
         ))}
       </div>
+      {graphDiff && (
+        <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-2 text-xs space-y-1">
+          <p className="text-cyan-200 flex items-center gap-1"><GitBranch className="w-3.5 h-3.5" /> Graph at scrubber</p>
+          <p className="text-slate-400">{graphDiff.summary}</p>
+          <p className="text-slate-500">Node delta: {graphDiff.nodeDelta >= 0 ? '+' : ''}{graphDiff.nodeDelta}</p>
+          {graphDiff.added.length > 0 && <p className="text-emerald-400/90">+ {graphDiff.added.join(', ')}</p>}
+          {graphDiff.removed.length > 0 && <p className="text-amber-400/90">− {graphDiff.removed.join(', ')}</p>}
+        </div>
+      )}
       {graphChanges.length > 0 && (
         <div className="rounded-lg border border-white/5 bg-slate-900/40 p-2 text-xs">
           <p className="text-slate-500 mb-1">Graph changes in window</p>

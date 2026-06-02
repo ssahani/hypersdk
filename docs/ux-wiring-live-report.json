@@ -1,7 +1,7 @@
 {
   "host": "212.8.252.194",
-  "generated_at": "2026-06-02T09:56:36.123Z",
-  "passed": 61,
+  "generated_at": "2026-06-02T17:02:19.830Z",
+  "passed": 64,
   "failed": 0,
   "skipped": 19,
   "results": [
@@ -410,6 +410,24 @@
     {
       "id": "platform:/platform/zeus",
       "path": "/platform/zeus",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus?tab=brain",
+      "path": "/platform/zeus?tab=brain",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/rightsizing",
+      "path": "/platform/zeus/rightsizing",
+      "status": "passed",
+      "warnings": 1
+    },
+    {
+      "id": "platform:/platform/zeus/incidents",
+      "path": "/platform/zeus/incidents",
       "status": "passed",
       "warnings": 1
     },

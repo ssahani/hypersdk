@@ -897,6 +897,18 @@ export const queryInfraGraph = (query: string) =>
     { method: 'POST', body: JSON.stringify({ query }) },
   )
 
+export const getInfraGraphAt = (timestamp: string) =>
+  platformFetch<{
+    timestamp: string
+    nodes: InfraGraphNode[]
+    edges: Array<{ from: string; to: string; label: string }>
+    diff_summary: string
+    current_node_count: number
+    node_delta: number
+    added_nodes: string[]
+    removed_nodes: string[]
+  }>(`/api/v1/ai/graph/at/${encodeURIComponent(timestamp)}`)
+
 export const explainInfraObject = (kind: string, id: string) =>
   platformFetch<{ kind: string; id: string; name: string; purpose: string; risks: string[]; health_score?: number }>(
     `/api/v1/ai/graph/object/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`,

@@ -397,6 +397,35 @@ export async function mockPlatformApi(page: Page, opts?: {
         },
       })
     }
+    if (url.match(/\/ai\/graph\/at\//) && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          timestamp: new Date().toISOString(),
+          nodes: [
+            { kind: 'host', id: 'h1', name: 'host-1', state: 'online', health_score: 88 },
+            { kind: 'vm', id: 'v1', name: 'ubuntu-desktop', state: 'running', health_score: 90 },
+          ],
+          edges: [{ from: 'h1', to: 'v1', label: 'runs' }],
+          diff_summary: '-1 vm db-01 vs now',
+          current_node_count: 3,
+          node_delta: -1,
+          added_nodes: [],
+          removed_nodes: ['vm:db-01'],
+        },
+      })
+    }
+    if (url.match(/\/ai\/graph\/object\//) && route.request().method() === 'GET') {
+      return route.fulfill({
+        json: {
+          kind: 'vm',
+          id: 'v1',
+          name: 'ubuntu-desktop',
+          purpose: 'Primary desktop VM on default bridge.',
+          risks: ['No recent backup snapshot'],
+          health_score: 90,
+        },
+      })
+    }
     if (url.includes('/ai/graph/path') && route.request().method() === 'POST') {
       return route.fulfill({
         json: {

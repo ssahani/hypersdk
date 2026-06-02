@@ -5,6 +5,7 @@ import { Link, useParams, useLocation } from 'react-router'
 import { ArrowLeft, ExternalLink, Network, Shield, Server, Activity, FileWarning, Bot } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import OsDiagnosePanel from '../../components/platform/OsDiagnosePanel'
+import MachinaExplainObjectPanel from '../../components/ai/MachinaExplainObjectPanel'
 import HostDetailTabs, { type HostDetailTab } from '../../components/platform/HostDetailTabs'
 import {
   MacSettingsGroup,
@@ -211,6 +212,8 @@ export default function PlatformHostDetailPage() {
         <>
           <HostDetailTabs active={section} onChange={setSection} />
             {section === 'general' && (
+              <>
+              <MachinaExplainObjectPanel kind="host" id={id!} name={host.hostname} />
               <MacGlassPanel title="General">
               <div className="space-y-6">
                 {(host.validation_report?.length ?? 0) > 0 && (
@@ -302,6 +305,7 @@ export default function PlatformHostDetailPage() {
                 </MacSettingsGroup>
               </div>
               </MacGlassPanel>
+              </>
             )}
 
             {section === 'network' && (
