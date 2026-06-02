@@ -47,9 +47,9 @@ async fn reconcile_once(state: &AppState) -> anyhow::Result<()> {
             continue;
         };
 
-        let action = if desired == "running" && observed != "running" {
+        let action = if desired == "running" && !matches!(observed.as_str(), "running" | "blocked") {
             "start"
-        } else if desired == "stopped" && observed == "running" {
+        } else if desired == "stopped" && matches!(observed.as_str(), "running" | "blocked" | "paused") {
             "stop"
         } else {
             continue;

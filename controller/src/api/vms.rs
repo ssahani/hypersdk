@@ -705,10 +705,16 @@ pub async fn adopt_vm(
     } else {
         "stopped"
     };
+    let lifecycle = match desired {
+        "running" => crate::engine::vm_lifecycle::PHASE_RUNNING,
+        "stopped" => crate::engine::vm_lifecycle::PHASE_STOPPED,
+        _ => crate::engine::vm_lifecycle::PHASE_IDLE,
+    };
     sqlx::query(
-        "UPDATE vms SET managed = TRUE, desired_state = $1, last_error = '', updated_at = NOW() WHERE id = $2",
+        "UPDATE vms SET managed = TRUE, desired_state = $1, lifecycle_phase = $2, last_error = '', updated_at = NOW() WHERE id = $3",
     )
     .bind(desired)
+    .bind(lifecycle)
     .bind(id)
     .execute(&state.pool)
     .await?;
