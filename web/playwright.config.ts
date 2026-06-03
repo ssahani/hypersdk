@@ -4,6 +4,13 @@
 
 import { defineConfig, devices } from '@playwright/test'
 
+const nodeOptions = [
+  process.env.NODE_OPTIONS,
+  '--disable-warning=DEP0205',
+]
+  .filter(Boolean)
+  .join(' ')
+
 export default defineConfig({
   testDir: './e2e',
   testIgnore: '**/live-ux-wiring.spec.ts',
@@ -25,5 +32,10 @@ export default defineConfig({
         url: 'http://127.0.0.1:5192',
         reuseExistingServer: false,
         timeout: 120_000,
+        env: (() => {
+          const env = { ...process.env, NODE_OPTIONS: nodeOptions }
+          delete env.NO_COLOR
+          return env
+        })(),
       },
 })

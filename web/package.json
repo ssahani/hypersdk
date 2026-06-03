@@ -8,9 +8,9 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:live-ux": "playwright test -c playwright.live-ux.config.ts",
-    "test:e2e:ui": "playwright test --ui",
+    "test:e2e": "node scripts/run-playwright.mjs",
+    "test:e2e:live-ux": "node scripts/run-playwright.mjs -c playwright.live-ux.config.ts",
+    "test:e2e:ui": "node scripts/run-playwright.mjs --ui",
     "check-ui-tokens": "node scripts/check-ui-tokens.mjs",
     "generate-openapi": "node ../scripts/generate-openapi.mjs",
     "generate-openapi:check": "node ../scripts/generate-openapi.mjs --check",
@@ -32,7 +32,7 @@
     "recharts": "^2.15.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.52.0",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.1.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
