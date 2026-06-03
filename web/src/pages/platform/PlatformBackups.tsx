@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router'
+import { Camera } from 'lucide-react'
 import { Archive, Clock, Database, RotateCcw } from 'lucide-react'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
 import PlatformStandardView from '../../components/platform/tahoe/PlatformStandardView'
@@ -48,6 +49,7 @@ export default function PlatformBackups() {
   const [targetKind, setTargetKind] = useState('nfs')
   const [backupVmId, setBackupVmId] = useState('')
   const [backupTargetId, setBackupTargetId] = useState('')
+  const [backupType, setBackupType] = useState<'full' | 'incremental'>('full')
 
   const load = useCallback(async () => {
     setError(null)
@@ -101,7 +103,10 @@ export default function PlatformBackups() {
   const queueBackup = async () => {
     if (!backupVmId.trim()) return
     try {
-      await createVmBackupWithTarget(backupVmId.trim(), backupTargetId || undefined)
+      await createVmBackupWithTarget(backupVmId.trim(), {
+        target_id: backupTargetId || undefined,
+        backup_type: backupType,
+      })
       toast.success('Backup queued')
       setBackupVmId('')
     } catch (e: unknown) {
@@ -113,7 +118,7 @@ export default function PlatformBackups() {
     <PlatformStandardView
       className="space-y-6 max-w-3xl"
       title="Time Machine"
-      description="Fleet backup timeline and backup destinations."
+      description="Fleet backup timeline, S3/MinIO destinations, and scheduled snapshots."
       icon={Archive}
       loading={loading}
       error={error}
@@ -128,6 +133,11 @@ export default function PlatformBackups() {
           : undefined
       }
     >
+      <p className="text-xs text-slate-500 flex flex-wrap gap-3">
+        <Link to="/platform/fleet-snapshots" className={`inline-flex items-center gap-1 ${hubLinkClasses()}`}>
+          <Camera className="w-3.5 h-3.5" /> Fleet snapshot schedules
+        </Link>
+      </p>
       <div className="flex flex-wrap gap-2 border-b border-white/[0.06] pb-1">
         {([
           ['timeline', 'Timeline', Archive],
@@ -168,12 +178,16 @@ export default function PlatformBackups() {
               {targets.length === 0 && <li className="text-sm text-slate-500 py-2">No destinations — add one above.</li>}
             </ul>
           </MacGlassPanel>
-          <MacGlassPanel title="Queue VM backup" subtitle="Uses selected destination when provided.">
-            <div className="grid gap-3 md:grid-cols-3">
+          <MacGlassPanel title="Queue VM backup" subtitle="Full qcow2 or incremental (chains prior completed backup on host).">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
               <input className="input text-sm" placeholder="VM id" value={backupVmId} onChange={(e) => setBackupVmId(e.target.value)} />
+              <select className="input text-sm" value={backupType} onChange={(e) => setBackupType(e.target.value as 'full' | 'incremental')}>
+                <option value="full">Full backup</option>
+                <option value="incremental">Incremental</option>
+              </select>
               <select className="input text-sm" value={backupTargetId} onChange={(e) => setBackupTargetId(e.target.value)}>
                 <option value="">Default target</option>
-                {targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                {targets.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.kind})</option>)}
               </select>
               <button type="button" className="btn-secondary text-sm" onClick={() => void queueBackup()}>Queue backup</button>
             </div>

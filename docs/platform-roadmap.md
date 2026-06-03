@@ -89,6 +89,14 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 
 **Deferred (honest):** OVS SDN, Ceph pool wizards, AI VM builder GA, browser RDP, federated marketplace, Proxmox adapter, full `platform.ts` folder split.
 
+### Batch 76 deliverables (Phase A/B UI wiring)
+
+- **Storage:** NFS/LVM backend selector on add-pool sheet; discover shows libvirt `backend` label
+- **Backups:** Incremental backup type + link to fleet snapshot schedules
+- **GPU:** PCI/IOMMU panel via `GET /hosts/{id}/gpus` on online hosts
+- **Datacenter:** KubeVirt inventory sync button
+- **Content:** Approved ISO → `/create?iso_path=…` deep link (classic virt-install wizard)
+
 ## Batch 70 deliverables (SOC Program)
 
 - **SOC-1–SOC-5:** Migration `038_soc.sql` — `soc_events`, `soc_alerts`, `soc_detection_rules`, `soc_integrations`, playbooks

@@ -3,7 +3,7 @@
 // https://zyvor.dev · info@zyvor.dev
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { Link, useNavigate } from 'react-router'
+import { Link, useNavigate, useSearchParams } from 'react-router'
 import { startPackerGoldenBuildJob, streamJobLogs } from '../api/jobs'
 import { createVMWithProgress, CreateVmRequest, VmTemplate, vmDetailRoute } from '../api/vm'
 import { getLibvirtSummary } from '../api/host'
@@ -67,6 +67,7 @@ const INSTALL_WIZARD_STEPS = ['Source & OS', 'Disk', 'Network & display', 'Cloud
 
 export default function CreateVMPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const toast = useToastContext()
   const logEndRef = useRef<HTMLDivElement>(null)
   const packerLogEndRef = useRef<HTMLDivElement>(null)
@@ -294,6 +295,15 @@ export default function CreateVMPage() {
       cancelled = true
     }
   }, [createDefaultsKey])
+
+  useEffect(() => {
+    const isoPath = searchParams.get('iso_path')
+    if (isoPath) {
+      setPageFlow('install')
+      setInstallSource('iso')
+      setIso(isoPath)
+    }
+  }, [searchParams])
 
   const setSource = (src: InstallSource) => {
     setInstallSource(src)

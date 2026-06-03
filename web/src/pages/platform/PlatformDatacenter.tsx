@@ -2,9 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router'
+import { RefreshCw } from 'lucide-react'
 import PageLayout from '../../components/PageLayout'
 import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
 import { listPlatformHosts, listPlatformVms, type PlatformHost, type PlatformVm } from '../../api/platform'
+import { syncKubevirtInventory } from '../../api/platformKubevirtSync'
+import { useToastContext } from '../../contexts/ToastContext'
+import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
 
 const SOURCE_LABELS: Record<string, string> = {
@@ -14,15 +18,34 @@ const SOURCE_LABELS: Record<string, string> = {
 }
 
 export default function PlatformDatacenter() {
+  const toast = useToastContext()
   const [vms, setVms] = useState<PlatformVm[]>([])
   const [hosts, setHosts] = useState<PlatformHost[]>([])
+  const [syncingKv, setSyncingKv] = useState(false)
 
-  useEffect(() => {
+  const reload = () => {
     void Promise.all([listPlatformVms(), listPlatformHosts()]).then(([v, h]) => {
       setVms(v)
       setHosts(h)
     })
+  }
+
+  useEffect(() => {
+    reload()
   }, [])
+
+  const syncKubevirt = async () => {
+    setSyncingKv(true)
+    try {
+      const r = await syncKubevirtInventory()
+      toast.success(r.message)
+      reload()
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSyncingKv(false)
+    }
+  }
 
   const bySource = useMemo(() => {
     const map = new Map<string, PlatformVm[]>()
@@ -41,6 +64,12 @@ export default function PlatformDatacenter() {
         <p className="text-sm text-slate-400 mb-4">
           libvirt/KVM is the system of record. VMware and KubeVirt appear as import/workload planes — not full parity with every vSphere feature.
         </p>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <button type="button" className="btn-secondary text-sm flex items-center gap-1.5" disabled={syncingKv} onClick={() => void syncKubevirt()}>
+            <RefreshCw className={`w-4 h-4 ${syncingKv ? 'animate-spin' : ''}`} />
+            {syncingKv ? 'Syncing KubeVirt…' : 'Sync KubeVirt inventory'}
+          </button>
+        </div>
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-slate-300 mb-2">Hosts ({hosts.length})</h3>
           <ul className="flex flex-wrap gap-2 text-xs">

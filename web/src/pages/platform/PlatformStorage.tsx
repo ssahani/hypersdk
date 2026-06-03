@@ -68,6 +68,7 @@ export default function PlatformStorage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [name, setName] = useState('datastore-01')
   const [path, setPath] = useState('/var/lib/libvirt/images')
+  const [poolBackend, setPoolBackend] = useState<'directory' | 'nfs' | 'lvm'>('directory')
   const [creating, setCreating] = useState(false)
   const [bindDraft, setBindDraft] = useState<Record<string, string>>({})
   const [binding, setBinding] = useState<string | null>(null)
@@ -507,11 +508,33 @@ export default function PlatformStorage() {
       <MacSheet open={sheetOpen} onClose={() => setSheetOpen(false)} title="Add storage pool">
         <div className="space-y-4">
           <label className="block text-sm"><span className="text-slate-400">Name</span><input className="input mt-1 w-full" value={name} onChange={(e) => setName(e.target.value)} /></label>
-          <label className="block text-sm"><span className="text-slate-400">Path on host</span><input className="input mt-1 w-full" value={path} onChange={(e) => setPath(e.target.value)} /></label>
+          <label className="block text-sm">
+            <span className="text-slate-400">Backend</span>
+            <select className="input mt-1 w-full" value={poolBackend} onChange={(e) => {
+              const b = e.target.value as 'directory' | 'nfs' | 'lvm'
+              setPoolBackend(b)
+              if (b === 'nfs') setPath('192.168.1.10:/export/machina')
+              else if (b === 'lvm') setPath('/dev/vg_machina/lv_data')
+              else setPath('/var/lib/libvirt/images')
+            }}>
+              <option value="directory">Directory (local path)</option>
+              <option value="nfs">NFS (netfs)</option>
+              <option value="lvm">LVM (logical volume)</option>
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-slate-400">{poolBackend === 'nfs' ? 'NFS server:export' : poolBackend === 'lvm' ? 'LV path' : 'Path on host'}</span>
+            <input className="input mt-1 w-full font-mono text-xs" value={path} onChange={(e) => setPath(e.target.value)} />
+          </label>
+          <p className="text-xs text-slate-500">
+            {poolBackend === 'directory' && 'Registers in inventory and provisions a dir pool on an online host when path is set.'}
+            {poolBackend === 'nfs' && 'Example: host:/export/path — agent runs storage.pool.provision (netfs).'}
+            {poolBackend === 'lvm' && 'Example: /dev/vg/lv — requires LVM layout on the hypervisor.'}
+          </p>
           <button type="button" className="btn-primary w-full" disabled={creating} onClick={async () => {
             setCreating(true)
             try {
-              await createStoragePool({ name, path, storage_class: 'silver' })
+              await createStoragePool({ name, path, storage_class: 'silver', backend: poolBackend })
               toast.success('Pool added')
               setSheetOpen(false)
               await load(false)

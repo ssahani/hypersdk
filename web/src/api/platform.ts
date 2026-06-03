@@ -250,7 +250,13 @@ export const listAuditLogs = (params?: { action?: string; actor?: string }) => {
   return platformFetch<AuditLog[]>(`/api/v1/audit${qs ? `?${qs}` : ''}`)
 }
 export const listStoragePools = () => platformFetch<StoragePool[]>('/api/v1/storage/pools')
-export const createStoragePool = (body: { name: string; storage_class?: string; path?: string; capacity_gib?: number }) =>
+export const createStoragePool = (body: {
+  name: string
+  storage_class?: string
+  backend?: string
+  path?: string
+  capacity_gib?: number
+}) =>
   platformFetch<StoragePool>('/api/v1/storage/pools', { method: 'POST', body: JSON.stringify(body) })
 export const deleteStoragePool = (id: string) => platformFetch(`/api/v1/storage/pools/${id}`, { method: 'DELETE' })
 export const discoverStoragePools = () =>
@@ -1848,10 +1854,16 @@ export const cloneVmSnapshot = (
     }),
   })
 
-export const createVmBackupWithTarget = (vmId: string, targetId?: string) =>
+export const createVmBackupWithTarget = (
+  vmId: string,
+  opts?: { target_id?: string; backup_type?: 'full' | 'incremental' },
+) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${vmId}/backups`, {
     method: 'POST',
-    body: JSON.stringify({ target_id: targetId || undefined }),
+    body: JSON.stringify({
+      target_id: opts?.target_id,
+      backup_type: opts?.backup_type ?? 'full',
+    }),
   })
 
 export interface BackupTarget {

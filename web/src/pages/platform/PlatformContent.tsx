@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router'
 import { Check, Disc, Plus, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformFilterPills from '../../components/platform/PlatformFilterPills'
@@ -15,7 +16,7 @@ import {
 } from '../../api/platform'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
-import { statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
+import { hubLinkClasses, statusBadgeClasses, statusSurfaceClasses, statusToneClass } from '../../utils/semanticColors'
 
 const CATEGORIES = [
   'Operating Systems',
@@ -219,6 +220,14 @@ export default function PlatformContent() {
                   <button type="button" className="btn-primary text-xs" onClick={() => void approve(r.id)}>Approve</button>
                   <button type="button" className="btn-danger text-xs" onClick={() => void reject(r.id)}>Reject</button>
                 </div>
+              )}
+              {r.status === 'available' && r.kind === 'iso' && (
+                <Link
+                  to={`/create?iso_path=${encodeURIComponent(r.path)}`}
+                  className={`btn-secondary text-xs mt-3 inline-block text-center w-full ${hubLinkClasses()}`}
+                >
+                  Create VM from ISO
+                </Link>
               )}
             </article>
           )

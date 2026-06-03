@@ -6,7 +6,8 @@ import { Cpu, Monitor, RefreshCw, Server } from 'lucide-react'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
 import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton, platformStatSubtitle } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel, MacStatWidget } from '../../components/platform/mac/PlatformMacUi'
-import { getFleetGpu, type FleetGpuOverview, type GpuProfileKind } from '../../api/platform'
+import { getFleetGpu, listPlatformHosts, type FleetGpuOverview, type GpuProfileKind } from '../../api/platform'
+import { getHostGpus, type HostGpuDevice } from '../../api/platformHostGpu'
 import { getGpuPlacement } from '../../api/ai'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses, statusBadgeClasses, statusToneClass } from '../../utils/semanticColors'
@@ -48,6 +49,8 @@ export default function PlatformGpuCommandCenter() {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [placementBusy, setPlacementBusy] = useState(false)
+  const [pciDevices, setPciDevices] = useState<Array<{ host: string; hostId: string; devices: HostGpuDevice[]; summary: string }>>([])
+  const [pciLoading, setPciLoading] = useState(false)
 
   const load = useCallback(async () => {
     setError(null)
@@ -72,8 +75,30 @@ export default function PlatformGpuCommandCenter() {
     }
   }, [workload])
 
+  const loadPci = useCallback(async () => {
+    setPciLoading(true)
+    try {
+      const hosts = (await listPlatformHosts()).filter((h) => h.state === 'online')
+      const rows: Array<{ host: string; hostId: string; devices: HostGpuDevice[]; summary: string }> = []
+      for (const h of hosts.slice(0, 8)) {
+        try {
+          const g = await getHostGpus(h.id)
+          if (g.devices.length > 0) {
+            rows.push({ host: h.hostname, hostId: h.id, devices: g.devices, summary: g.nvidia_smi_summary })
+          }
+        } catch {
+          /* host agent may be offline */
+        }
+      }
+      setPciDevices(rows)
+    } finally {
+      setPciLoading(false)
+    }
+  }, [])
+
   useEffect(() => { void load() }, [load])
   useEffect(() => { void loadPlacement() }, [loadPlacement])
+  useEffect(() => { void loadPci() }, [loadPci])
 
   return (
     <PlatformPageChrome
@@ -180,6 +205,35 @@ export default function PlatformGpuCommandCenter() {
                 </ul>
               </MacGlassPanel>
             )}
+
+            <MacGlassPanel title="PCI / IOMMU inventory" subtitle="Live discovery via host agent (passthrough & MIG hints)">
+              {pciLoading ? (
+                <p className="text-sm text-slate-500">Scanning online hosts…</p>
+              ) : pciDevices.length === 0 ? (
+                <p className="text-sm text-slate-500">No GPU PCI devices reported — check IOMMU and nvidia-smi on hosts.</p>
+              ) : (
+                <div className="space-y-4 -mt-2">
+                  {pciDevices.map((row) => (
+                    <div key={row.hostId}>
+                      <p className="text-xs font-medium text-slate-300 mb-1">
+                        <Link to={`/platform/hosts/${row.hostId}`} className={hubLinkClasses()}>{row.host}</Link>
+                      </p>
+                      <ul className="text-xs text-slate-400 space-y-1">
+                        {row.devices.map((d) => (
+                          <li key={d.pci_address}>
+                            {d.pci_address} · {d.device_name} · IOMMU {d.iommu_group}
+                            {d.mig_profile ? ` · MIG ${d.mig_profile}` : ''}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button type="button" className="btn-secondary text-xs mt-3" disabled={pciLoading} onClick={() => void loadPci()}>
+                Rescan PCI
+              </button>
+            </MacGlassPanel>
 
             <MacGlassPanel title="CUDA placement advisor" subtitle="Rank hosts for inference / training workloads">
               <div className="flex flex-wrap gap-2 items-end -mt-2 mb-3">
