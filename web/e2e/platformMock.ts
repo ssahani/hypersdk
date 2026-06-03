@@ -1150,6 +1150,18 @@ export async function mockPlatformApi(page: Page, opts?: {
     if (url.includes('/cluster')) {
       return route.fulfill({ json: { name: 'e2e-cluster', hosts: 1, vms: 2, offline_hosts: 0 } })
     }
+    if (url.includes('/templates/missing-images')) {
+      return route.fulfill({
+        json: {
+          missing: [
+            { name: 'photon-os', version: '1.0.0', source_disk: '/var/lib/libvirt/images/photon-os.qcow2', category: 'Appliance', icon: '📦', auto_fetch: true },
+          ],
+          count: 1,
+          auto_fetch_count: 1,
+          summary: '1 golden image(s) missing — 1 can auto-download on first VM create.',
+        },
+      })
+    }
     if (url.includes('/templates/') && url.includes('/readiness')) {
       if (opts?.templateNotReady) {
         return route.fulfill({
@@ -1158,6 +1170,7 @@ export async function mockPlatformApi(page: Page, opts?: {
             host_online: 1,
             cloud_init: true,
             ready: false,
+            auto_fetch: false,
             remediation: 'Upload the golden image to Content Library.',
             source_disk: sampleTemplate.source_disk,
           },
@@ -1169,6 +1182,7 @@ export async function mockPlatformApi(page: Page, opts?: {
           host_online: 1,
           cloud_init: true,
           ready: true,
+          auto_fetch: false,
           remediation: 'Disk present on 1 online host(s).',
           source_disk: sampleTemplate.source_disk,
         },

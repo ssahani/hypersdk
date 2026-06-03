@@ -24,6 +24,30 @@ test('vm detail shows lifecycle power actions and SSH when guest IP present', as
   await expect(page.getByRole('button', { name: 'SSH', exact: true }).first()).toBeVisible()
 })
 
+test('create vm wizard shows auto-fetch when golden image missing', async ({ page }) => {
+  await mockPlatformApi(page, { tier: 'power' })
+  await page.route('**/api/v1/templates/**/readiness', async (route) => {
+    await route.fulfill({
+      json: {
+        disk_exists: false,
+        host_online: 1,
+        cloud_init: true,
+        ready: true,
+        auto_fetch: true,
+        remediation: 'Golden image not on host yet — will download automatically on first create.',
+        source_disk: '/var/lib/libvirt/images/photon-os.qcow2',
+      },
+    })
+  })
+  await page.goto('/platform/vms?create=photon-test')
+  await expect(page.getByRole('heading', { name: 'Create Virtual Machine' })).toBeVisible({ timeout: 15_000 })
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.getByText('Will download on first create')).toBeVisible({ timeout: 10_000 })
+  await page.getByRole('button', { name: 'Next' }).click()
+  await page.getByRole('button', { name: 'Next' }).click()
+  await expect(page.locator('button.btn-primary.min-w-\\[7rem\\]').filter({ hasText: /^Create VM$/ })).toBeEnabled()
+})
+
 test('create vm wizard shows readiness when template selected', async ({ page }) => {
   await mockPlatformApi(page, { tier: 'power' })
   await page.goto('/platform/vms?create=test-vm')

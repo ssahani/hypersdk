@@ -7,6 +7,8 @@ struct CatalogTemplate {
     name: &'static str,
     version: &'static str,
     source_disk: &'static str,
+    /// Public cloud image URL; fetched to `source_disk` on first template deploy when missing.
+    download_url: Option<&'static str>,
     cloud_init: bool,
     os_family: &'static str,
     category: &'static str,
@@ -34,6 +36,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "ubuntu-24.04",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/ubuntu-24.04.qcow2",
+        download_url: Some(
+            "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -46,6 +51,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "ubuntu-22.04",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/ubuntu-22.04.qcow2",
+        download_url: Some(
+            "https://cloud-images.ubuntu.com/releases/22.04/release/ubuntu-22.04-server-cloudimg-amd64.img",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -58,6 +66,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "debian-12",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/debian-12.qcow2",
+        download_url: Some(
+            "https://cloud.debian.org/images/cloud/bookworm/latest/debian-12-genericcloud-amd64.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -70,6 +81,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "centos-stream-9",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/centos-stream-9.qcow2",
+        download_url: Some(
+            "https://cloud.centos.org/centos/9-stream/x86_64/images/CentOS-Stream-GenericCloud-9.latest.x86_64.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -82,6 +96,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "rocky-9",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/rocky-9.qcow2",
+        download_url: Some(
+            "https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -94,6 +111,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "alma-9",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/alma-9.qcow2",
+        download_url: Some(
+            "https://repo.almalinux.org/almalinux/9/cloud/x86_64/images/AlmaLinux-9-GenericCloud-latest.x86_64.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -106,6 +126,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "fedora-40",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/fedora-40.qcow2",
+        download_url: Some(
+            "https://download.fedoraproject.org/pub/fedora/linux/releases/40/Cloud/x86_64/images/Fedora-Cloud-Base-Generic-1.0.x86_64.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -118,6 +141,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "windows-server-2022",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/windows-server-2022.qcow2",
+        download_url: None,
         cloud_init: false,
         os_family: "windows",
         category: "Windows",
@@ -130,6 +154,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "windows-11",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/windows-11.qcow2",
+        download_url: None,
         cloud_init: false,
         os_family: "windows",
         category: "Windows",
@@ -142,6 +167,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "postgresql-16",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/postgresql-16.qcow2",
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Database",
@@ -154,6 +180,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "mysql-8",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/mysql-8.qcow2",
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Database",
@@ -166,6 +193,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "mariadb-11",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/mariadb-11.qcow2",
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Database",
@@ -178,6 +206,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "redis-7",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/redis-7.qcow2",
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Database",
@@ -190,6 +219,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "photon-os",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/photon-os.qcow2",
+        download_url: Some(
+            "https://packages.vmware.com/photon/5.0/prod/updates/x86_64/images/photon_cloud_image-5.0-c00179534-generic.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
@@ -202,6 +234,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "nginx-proxy",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/nginx-proxy.qcow2",
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
@@ -214,6 +247,7 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "wireguard-vpn",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/wireguard-vpn.qcow2",
+        download_url: None,
         cloud_init: true,
         os_family: "linux",
         category: "Appliance",
@@ -226,6 +260,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "rhel-9",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/rocky-9.qcow2",
+        download_url: Some(
+            "https://download.rockylinux.org/pub/rocky/9/images/x86_64/Rocky-9-GenericCloud-Base.latest.x86_64.qcow2",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -238,6 +275,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "gpu-worker",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/gpu-worker.qcow2",
+        download_url: Some(
+            "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -250,6 +290,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "k8s-node",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/k8s-node.qcow2",
+        download_url: Some(
+            "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -262,6 +305,9 @@ const CATALOG: &[CatalogTemplate] = &[
         name: "ai-inference-node",
         version: "1.0.0",
         source_disk: "/var/lib/libvirt/images/ai-inference-node.qcow2",
+        download_url: Some(
+            "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-amd64.img",
+        ),
         cloud_init: true,
         os_family: "linux",
         category: "Linux",
@@ -304,6 +350,19 @@ pub async fn seed_default_templates(pool: &PgPool) -> anyhow::Result<usize> {
         }
     }
     Ok(inserted)
+}
+
+/// Public download URL for a bundled template (used for auto-fetch on first deploy).
+pub fn download_url_for(name: &str, version: &str) -> Option<&'static str> {
+    CATALOG
+        .iter()
+        .find(|t| t.name == name && t.version == version)
+        .and_then(|t| t.download_url)
+}
+
+pub fn download_url_for_ref(template_ref: &str) -> Option<&'static str> {
+    let (name, version) = template_ref.split_once('@').unwrap_or((template_ref, "1.0.0"));
+    download_url_for(name, version)
 }
 
 pub async fn ensure_default_templates(pool: &PgPool) -> anyhow::Result<()> {

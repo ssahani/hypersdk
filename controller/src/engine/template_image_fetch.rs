@@ -1,0 +1,117 @@
+// Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
+
+//! Download bundled marketplace golden images to hypervisors when missing.
+
+use std::path::Path;
+use std::time::Duration;
+
+use sqlx::PgPool;
+use uuid::Uuid;
+
+use super::template_catalog;
+use super::template_readiness;
+
+const FETCH_TIMEOUT_SECS: u64 = 3600;
+
+pub async fn ensure_template_disk(
+    pool: &PgPool,
+    host_id: Uuid,
+    dest_path: &str,
+    template_name: &str,
+    template_version: &str,
+) -> anyhow::Result<bool> {
+    if template_readiness::disk_exists_at(dest_path).await
+        || template_readiness::disk_exists_on_hosts(pool, dest_path).await
+    {
+        return Ok(false);
+    }
+
+    let Some(url) = template_catalog::download_url_for(template_name, template_version) else {
+        anyhow::bail!(
+            "Golden image missing at {dest_path} — no automatic download for this template. Upload via Content Library."
+        );
+    };
+
+    let addr = host_address(pool, host_id).await?;
+    fetch_to_host(&addr, dest_path, url).await?;
+    Ok(true)
+}
+
+async fn host_address(pool: &PgPool, host_id: Uuid) -> anyhow::Result<String> {
+    let row: Option<(String, String)> = sqlx::query_as(
+        "SELECT hostname, address FROM hosts WHERE id = $1 AND state = 'online'",
+    )
+    .bind(host_id)
+    .fetch_optional(pool)
+    .await?;
+    let (hostname, address) = row.ok_or_else(|| anyhow::anyhow!("host not online"))?;
+    let addr = if address.trim().is_empty() {
+        hostname
+    } else {
+        address
+    };
+    Ok(addr)
+}
+
+async fn fetch_to_host(address: &str, dest_path: &str, url: &str) -> anyhow::Result<()> {
+    let parent = Path::new(dest_path)
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_else(|| "/var/lib/libvirt/images".into());
+    let tmp = format!("{dest_path}.machina-fetch.part");
+    let script = format!(
+        r#"set -euo pipefail
+mkdir -p '{parent}'
+if [ -f '{dest}' ]; then exit 0; fi
+command -v curl >/dev/null || command -v wget >/dev/null || {{ echo 'curl or wget required'; exit 1; }}
+rm -f '{tmp}'
+if command -v curl >/dev/null; then
+  curl -fL --retry 3 --retry-delay 5 -o '{tmp}' '{url}'
+else
+  wget -q -O '{tmp}' '{url}'
+fi
+if echo '{dest}' | grep -q '\.qcow2$' && echo '{url}' | grep -qE '\.(img|raw)$'; then
+  qemu-img convert -O qcow2 '{tmp}' '{dest}'
+  rm -f '{tmp}'
+else
+  mv '{tmp}' '{dest}'
+fi
+chmod 644 '{dest}'
+"#,
+        parent = parent.replace('\'', "'\\''"),
+        dest = dest_path.replace('\'', "'\\''"),
+        tmp = tmp.replace('\'', "'\\''"),
+        url = url.replace('\'', "'\\''"),
+    );
+
+    let output = tokio::time::timeout(
+        Duration::from_secs(FETCH_TIMEOUT_SECS),
+        tokio::process::Command::new("ssh")
+            .args([
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=15",
+                "-o",
+                "StrictHostKeyChecking=accept-new",
+                address,
+                "bash",
+                "-lc",
+                &script,
+            ])
+            .output(),
+    )
+    .await;
+
+    let out = match output {
+        Ok(Ok(o)) => o,
+        Ok(Err(e)) => anyhow::bail!("ssh: {e}"),
+        Err(_) => anyhow::bail!("template image download timed out after {FETCH_TIMEOUT_SECS}s"),
+    };
+    if !out.status.success() {
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        anyhow::bail!("template image download failed: {stderr}{stdout}");
+    }
+    Ok(())
+}

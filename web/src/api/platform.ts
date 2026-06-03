@@ -1297,15 +1297,37 @@ export const seedDefaultTemplates = () =>
     body: '{}',
   })
 
+export type TemplateReadiness = {
+  disk_exists: boolean
+  host_online: number
+  cloud_init: boolean
+  ready: boolean
+  auto_fetch: boolean
+  remediation: string
+  source_disk: string
+}
+
+export type MissingTemplateImage = {
+  name: string
+  version: string
+  source_disk: string
+  category: string
+  icon?: string | null
+  auto_fetch: boolean
+}
+
 export const getTemplateReadiness = (name: string, version: string) =>
+  platformFetch<TemplateReadiness>(
+    `/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}/readiness`,
+  )
+
+export const listMissingTemplateImages = () =>
   platformFetch<{
-    disk_exists: boolean
-    host_online: number
-    cloud_init: boolean
-    ready: boolean
-    remediation: string
-    source_disk: string
-  }>(`/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}/readiness`)
+    missing: MissingTemplateImage[]
+    count: number
+    auto_fetch_count: number
+    summary: string
+  }>('/api/v1/templates/missing-images')
 export const getPlatformHealth = () => platformFetch<{ status: string; leader?: boolean; controller_id?: string }>('/api/v1/health')
 
 export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'shutdown' | 'pause' | 'resume'

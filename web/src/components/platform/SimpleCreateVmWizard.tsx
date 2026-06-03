@@ -13,7 +13,8 @@ import {
 } from '../../api/platform'
 import { readSshPubkeyFile } from '../../utils/sshPubkeyImport'
 import PlatformStepWizard from './PlatformStepWizard'
-import VmWizardReadinessBanner, { type TemplateReadiness } from './VmWizardReadinessBanner'
+import VmWizardReadinessBanner from './VmWizardReadinessBanner'
+import type { TemplateReadiness } from '../../api/platform'
 import VmWizardSizeStep, { sizeStepValid, type VmWizardSizeState } from './VmWizardSizeStep'
 import {
   buildOsFlavorList,

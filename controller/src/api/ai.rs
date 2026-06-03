@@ -82,7 +82,10 @@ pub async fn jarvis_landing(
             .fetch_one(&state.pool)
             .await
             .map_err(|e| ApiError::internal(e.to_string()))?;
-    Ok(Json(ai::intent_router::jarvis_landing_intents(online)))
+    let missing = crate::engine::template_readiness::list_missing_marketplace_images(&state.pool)
+        .await
+        .unwrap_or_default();
+    Ok(Json(ai::intent_router::jarvis_landing_intents(online, missing)))
 }
 
 #[derive(Debug, Deserialize)]

@@ -191,6 +191,33 @@ pub async fn get_template_readiness(
     Ok(Json(readiness))
 }
 
+pub async fn list_missing_template_images(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let _ = crate::engine::template_catalog::ensure_default_templates(&state.pool)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let missing =
+        crate::engine::template_readiness::list_missing_marketplace_images(&state.pool)
+            .await
+            .map_err(|e| ApiError::internal(e.to_string()))?;
+    let auto_fetch_count = missing.iter().filter(|m| m.auto_fetch).count();
+    Ok(Json(serde_json::json!({
+        "missing": missing,
+        "count": missing.len(),
+        "auto_fetch_count": auto_fetch_count,
+        "summary": if missing.is_empty() {
+            "All marketplace golden images are present on online hosts.".to_string()
+        } else {
+            format!(
+                "{} golden image(s) missing — {} can auto-download on first VM create.",
+                missing.len(),
+                auto_fetch_count
+            )
+        },
+    })))
+}
+
 pub async fn delete_template(
     State(state): State<AppState>,
     AxumPath((name, version)): AxumPath<(String, String)>,

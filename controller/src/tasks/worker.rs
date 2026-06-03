@@ -84,10 +84,33 @@ async fn vm_apply(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let disk_path = disk_path_for(&state.config, &row.0);
 
     let template_source = if let Some(ref tr) = vm.spec.template_ref {
-        Some(
-            crate::engine::template::resolve_template_disk(&state.pool, tr)
-                .await?,
+        let disk = crate::engine::template::resolve_template_disk(&state.pool, tr).await?;
+        let (tname, tver) = crate::engine::template::parse_template_ref(tr);
+        update_task_progress(
+            &state.pool,
+            msg.task_id,
+            10,
+            "Checking golden image on host",
         )
+        .await?;
+        if crate::engine::template_image_fetch::ensure_template_disk(
+            &state.pool,
+            host_id,
+            &disk,
+            &tname,
+            &tver,
+        )
+        .await?
+        {
+            update_task_progress(
+                &state.pool,
+                msg.task_id,
+                35,
+                "Downloaded golden image",
+            )
+            .await?;
+        }
+        Some(disk)
     } else {
         None
     };
@@ -573,10 +596,17 @@ async fn ha_recover(state: &AppState, msg: &TaskMessage) -> anyhow::Result<()> {
     let vm: VirtualMachine = serde_json::from_value(row.1)?;
     let disk_path = disk_path_for(&state.config, &row.0);
     let template_source = if let Some(ref tr) = vm.spec.template_ref {
-        Some(
-            crate::engine::template::resolve_template_disk(&state.pool, tr)
-                .await?,
+        let disk = crate::engine::template::resolve_template_disk(&state.pool, tr).await?;
+        let (tname, tver) = crate::engine::template::parse_template_ref(tr);
+        let _ = crate::engine::template_image_fetch::ensure_template_disk(
+            &state.pool,
+            host_id,
+            &disk,
+            &tname,
+            &tver,
         )
+        .await?;
+        Some(disk)
     } else {
         None
     };

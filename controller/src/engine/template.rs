@@ -3,6 +3,14 @@
 use sqlx::PgPool;
 use uuid::Uuid;
 
+pub fn parse_template_ref(template_ref: &str) -> (String, String) {
+    if let Some((n, v)) = template_ref.split_once('@') {
+        (n.to_string(), v.to_string())
+    } else {
+        (template_ref.to_string(), "1.0.0".into())
+    }
+}
+
 pub async fn resolve_template_disk(pool: &PgPool, template_ref: &str) -> anyhow::Result<String> {
     let (name, version) = if let Some((n, v)) = template_ref.split_once('@') {
         (n.to_string(), Some(v.to_string()))

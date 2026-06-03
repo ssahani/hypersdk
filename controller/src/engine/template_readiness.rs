@@ -6,14 +6,28 @@ use std::time::Duration;
 use serde::Serialize;
 use sqlx::PgPool;
 
+use super::template_catalog;
+
 #[derive(Debug, Serialize)]
 pub struct TemplateReadiness {
     pub disk_exists: bool,
     pub host_online: i64,
     pub cloud_init: bool,
     pub ready: bool,
+    /// When true, controller can download the golden image on first VM create.
+    pub auto_fetch: bool,
     pub remediation: String,
     pub source_disk: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MissingTemplateImage {
+    pub name: String,
+    pub version: String,
+    pub source_disk: String,
+    pub category: String,
+    pub icon: Option<String>,
+    pub auto_fetch: bool,
 }
 
 pub async fn check_template_readiness(
@@ -36,14 +50,25 @@ pub async fn check_template_readiness(
             .fetch_one(pool)
             .await?;
 
-    let disk_exists = check_disk_exists(pool, &source_disk).await;
+    let disk_exists = disk_exists_on_hosts(pool, &source_disk).await;
+    let auto_fetch = template_catalog::download_url_for(name, version).is_some();
 
     let (ready, remediation) = if host_online == 0 {
         (
             false,
             "No online hosts — enroll a hypervisor and wait for heartbeat.".into(),
         )
-    } else if !disk_exists {
+    } else if disk_exists {
+        (true, "Ready to deploy.".into())
+    } else if auto_fetch {
+        (
+            true,
+            format!(
+                "Golden image not on host yet — will download automatically on first create to {}.",
+                source_disk
+            ),
+        )
+    } else {
         (
             false,
             format!(
@@ -51,8 +76,6 @@ pub async fn check_template_readiness(
                 source_disk
             ),
         )
-    } else {
-        (true, "Ready to deploy.".into())
     };
 
     Ok(TemplateReadiness {
@@ -60,18 +83,52 @@ pub async fn check_template_readiness(
         host_online,
         cloud_init,
         ready,
+        auto_fetch,
         remediation,
         source_disk,
     })
 }
 
-async fn check_disk_exists(pool: &PgPool, path: &str) -> bool {
-    if Path::new(path).is_file() {
+/// Marketplace templates whose golden disk is absent on all online hosts.
+pub async fn list_missing_marketplace_images(pool: &PgPool) -> anyhow::Result<Vec<MissingTemplateImage>> {
+    let rows: Vec<(String, String, String, String, Option<String>)> = sqlx::query_as(
+        "SELECT name, version, source_disk, category, icon FROM templates WHERE marketplace = TRUE ORDER BY featured DESC, name",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    let mut seen_disks = std::collections::HashSet::new();
+    let mut out = Vec::new();
+    for (name, version, source_disk, category, icon) in rows {
+        if !seen_disks.insert(source_disk.clone()) {
+            continue;
+        }
+        if disk_exists_on_hosts(pool, &source_disk).await {
+            continue;
+        }
+        let auto_fetch = template_catalog::download_url_for(&name, &version).is_some();
+        out.push(MissingTemplateImage {
+            name,
+            version,
+            source_disk,
+            category,
+            icon,
+            auto_fetch,
+        });
+    }
+    Ok(out)
+}
+
+pub async fn disk_exists_at(path: &str) -> bool {
+    Path::new(path).is_file()
+}
+
+pub async fn disk_exists_on_hosts(pool: &PgPool, path: &str) -> bool {
+    if disk_exists_at(path).await {
         return true;
     }
-
     let hosts: Vec<String> = sqlx::query_scalar(
-        "SELECT address FROM hosts WHERE state = 'online' AND address <> '' ORDER BY hostname",
+        "SELECT COALESCE(NULLIF(address, ''), hostname) FROM hosts WHERE state = 'online' ORDER BY hostname",
     )
     .fetch_all(pool)
     .await
@@ -86,7 +143,6 @@ async fn check_disk_exists(pool: &PgPool, path: &str) -> bool {
 }
 
 async fn ssh_test_file(address: &str, path: &str) -> bool {
-    let target = format!("{address}");
     let output = tokio::time::timeout(
         Duration::from_secs(6),
         tokio::process::Command::new("ssh")
@@ -97,7 +153,7 @@ async fn ssh_test_file(address: &str, path: &str) -> bool {
                 "ConnectTimeout=4",
                 "-o",
                 "StrictHostKeyChecking=accept-new",
-                &target,
+                address,
                 "test",
                 "-f",
                 path,

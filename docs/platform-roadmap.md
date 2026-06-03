@@ -129,6 +129,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Storage / Networks:** `StoragePoolWizard`, `NetworkCreateWizard` (discover CTA when empty); empty-state CTAs open wizards
 - **Onboarding:** `PlatformWelcome` “Create your first VM” opens unified wizard; Hosts empty state opens `HostEnrollWizard`
 - **E2E:** `platform-wizard-ux.spec.ts` — readiness block, storage/network wizard smoke
+- **Golden images:** Catalog `download_url` + `template_image_fetch` SSH pull on first `vm.apply`; readiness `auto_fetch` allows Create VM; `GET /templates/missing-images` + Zeus Spotlight / Fleet insights panel
 
 ### Batch 82 deliverables (PacketWolf network canvas depth)
 

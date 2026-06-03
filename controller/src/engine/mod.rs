@@ -23,6 +23,7 @@ pub mod template;
 pub mod template_catalog;
 pub mod template_git;
 pub mod template_readiness;
+pub mod template_image_fetch;
 pub mod vm_health;
 pub mod vm_lifecycle;
 pub mod network_sync;

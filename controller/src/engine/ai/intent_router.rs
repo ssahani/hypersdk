@@ -1226,8 +1226,11 @@ pub fn intent(
 }
 
 /// Curated navigate intents for Jarvis landing (Phase 57 v1).
-pub fn jarvis_landing_intents(online_hosts: i64) -> SpotlightResult {
-    let intents = vec![
+pub fn jarvis_landing_intents(
+    online_hosts: i64,
+    missing_images: Vec<crate::engine::template_readiness::MissingTemplateImage>,
+) -> SpotlightResult {
+    let mut intents = vec![
         intent(
             "jarvis-mission-control",
             "Mission Control",
@@ -1310,6 +1313,37 @@ pub fn jarvis_landing_intents(online_hosts: i64) -> SpotlightResult {
             None,
         ),
     ];
+    if !missing_images.is_empty() {
+        let auto = missing_images.iter().filter(|m| m.auto_fetch).count();
+        let names: Vec<String> = missing_images
+            .iter()
+            .take(4)
+            .map(|m| m.name.clone())
+            .collect();
+        let suffix = if missing_images.len() > 4 {
+            format!(" +{} more", missing_images.len() - 4)
+        } else {
+            String::new()
+        };
+        intents.insert(
+            0,
+            intent(
+                "jarvis-missing-images",
+                "Missing golden images",
+                &format!(
+                    "{} catalog disk(s) not on hosts ({}{}) — {} auto-download on first VM create.",
+                    missing_images.len(),
+                    names.join(", "),
+                    suffix,
+                    auto,
+                ),
+                "navigate",
+                None,
+                Some("/platform/templates".into()),
+                None,
+            ),
+        );
+    }
     let suggested_action = intents.first().cloned();
     SpotlightResult {
         intents,

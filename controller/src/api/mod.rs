@@ -478,6 +478,10 @@ pub fn router(state: AppState) -> Router {
             post(marketplace::uninstall_plugin),
         )
         .route("/api/v1/marketplace/plugins", post(marketplace::publish_plugin))
+        .route(
+            "/api/v1/templates/missing-images",
+            get(templates::list_missing_template_images),
+        )
         .route("/api/v1/templates/seed", post(templates::seed_templates))
         .route("/api/v1/templates/sync-git", post(templates::sync_git_templates))
         .route(

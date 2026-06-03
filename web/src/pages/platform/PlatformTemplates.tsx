@@ -9,6 +9,8 @@ import PlatformPageChrome, { PlatformBackLink, PlatformRefreshButton } from '../
 import { usePlatformTabState } from '../../hooks/usePlatformTabState'
 import PageSkeleton from '../../components/PageSkeleton'
 import PlatformEmptyState from '../../components/platform/PlatformEmptyState'
+import VmWizardReadinessBanner from '../../components/platform/VmWizardReadinessBanner'
+import type { TemplateReadiness } from '../../api/platform'
 import { MacGlassPanel, MacSheet } from '../../components/platform/mac/PlatformMacUi'
 import {
   createFromTemplate,
@@ -80,13 +82,7 @@ export default function PlatformTemplates() {
   const [cloudKey, setCloudKey] = useState('')
   const cloudKeyFileRef = useRef<HTMLInputElement>(null)
   const [deploying, setDeploying] = useState(false)
-  const [readiness, setReadiness] = useState<{
-    ready: boolean
-    disk_exists: boolean
-    host_online: number
-    remediation: string
-    source_disk: string
-  } | null>(null)
+  const [readiness, setReadiness] = useState<TemplateReadiness | null>(null)
   const [readinessLoading, setReadinessLoading] = useState(false)
 
   const loadReadiness = useCallback(async (t: PlatformTemplate) => {
@@ -95,7 +91,15 @@ export default function PlatformTemplates() {
     try {
       setReadiness(await getTemplateReadiness(t.name, t.version))
     } catch {
-      setReadiness({ ready: false, disk_exists: false, host_online: 0, remediation: 'Could not check readiness', source_disk: t.source_disk })
+      setReadiness({
+        ready: false,
+        disk_exists: false,
+        host_online: 0,
+        auto_fetch: false,
+        remediation: 'Could not check readiness',
+        source_disk: t.source_disk,
+        cloud_init: t.cloud_init,
+      })
     } finally {
       setReadinessLoading(false)
     }
@@ -366,23 +370,7 @@ export default function PlatformTemplates() {
                 <p className="text-xs text-slate-500">{deploySheet.category}</p>
               </div>
             </div>
-            {readinessLoading ? (
-              <p className="text-sm text-slate-500 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Checking readiness…</p>
-            ) : readiness && (
-              <div className={`rounded-xl border p-3 text-sm ${statusSurfaceClasses(readiness.ready ? 'ok' : 'warn')}`}>
-                <p className="font-medium flex items-center gap-2">
-                  {readiness.ready ? <CheckCircle2 className="w-4 h-4" /> : <AlertTriangle className="w-4 h-4" />}
-                  {readiness.ready ? 'Ready to deploy' : readiness.host_online === 0 ? 'No online hosts' : 'Missing disk image'}
-                </p>
-                <p className="text-xs mt-1 opacity-90">{readiness.remediation}</p>
-                {!readiness.disk_exists && (
-                  <p className="text-xs mt-2 font-mono text-slate-400">{readiness.source_disk}</p>
-                )}
-                {!readiness.ready && (
-                  <Link to="/platform/content" className={`text-xs hover:underline mt-2 inline-block ${hubLinkClasses()}`}>Upload image in Content Library →</Link>
-                )}
-              </div>
-            )}
+            <VmWizardReadinessBanner loading={readinessLoading} readiness={readiness} />
             <label className="block text-sm">
               <span className="text-slate-400">VM name</span>
               <input className="input w-full mt-1" value={deployName} onChange={(e) => setDeployName(e.target.value)} />

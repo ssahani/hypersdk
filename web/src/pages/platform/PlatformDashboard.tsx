@@ -21,6 +21,7 @@ import PlatformFleetInsights from '../../components/platform/PlatformFleetInsigh
 import RemediateChips from '../../components/platform/RemediateChips'
 import PlatformWelcome from '../../components/platform/PlatformWelcome'
 import InfrastructureDnaStrip from '../../components/platform/InfrastructureDnaStrip'
+import TemplateMissingImagesPanel from '../../components/platform/TemplateMissingImagesPanel'
 import EnterpriseSecurityStrip from '../../components/platform/EnterpriseSecurityStrip'
 import PlatformTahoeEmptyState from '../../components/platform/tahoe/PlatformTahoeEmptyState'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
@@ -37,7 +38,9 @@ import {
   listPlatformHosts,
   listPlatformTasks,
   listPlatformVms,
+  listMissingTemplateImages,
   type CapacityReport,
+  type MissingTemplateImage,
   type ClusterSummary,
   type CreatePlatformVmBody,
   type PlatformHost,
@@ -69,17 +72,20 @@ export default function PlatformDashboard() {
   const [security, setSecurity] = useState<Awaited<ReturnType<typeof getAiSecurity>> | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [missingImages, setMissingImages] = useState<MissingTemplateImage[]>([])
+  const [missingImagesSummary, setMissingImagesSummary] = useState('')
 
   const load = useCallback(async () => {
     setError(null)
     try {
-      const [hosts, v, t, c, cap, sec] = await Promise.all([
+      const [hosts, v, t, c, cap, sec, missing] = await Promise.all([
         listPlatformHosts(),
         listPlatformVms(),
         listPlatformTasks(),
         getClusterSummary(),
         getCapacityReport().catch(() => null),
         getAiSecurity().catch(() => null),
+        listMissingTemplateImages().catch(() => ({ missing: [], count: 0, auto_fetch_count: 0, summary: '' })),
       ])
       setHosts(hosts)
       setVms(v)
@@ -87,6 +93,8 @@ export default function PlatformDashboard() {
       setCluster(c)
       setCapacity(cap)
       setSecurity(sec)
+      setMissingImages(missing.missing)
+      setMissingImagesSummary(missing.summary)
     } catch (e: unknown) {
       setError(formatUserError(e))
     }
@@ -103,7 +111,7 @@ export default function PlatformDashboard() {
     : null
   const healthy = warnings === 0 && onlineHosts === hosts.length
   const securityFindings = security?.findings?.length ?? 0
-  const insightBadgeCount = securityFindings + (failedTasks > 0 ? 1 : 0)
+  const insightBadgeCount = securityFindings + (failedTasks > 0 ? 1 : 0) + (missingImages.length > 0 ? 1 : 0)
   const hubTiles = hubTilesForTier(tier)
   const previewHubTiles = hubTilesForTier('power').filter((hub) => DOCK_PREVIEW_HUB_PATHS.includes(hub.href))
 
@@ -257,6 +265,7 @@ export default function PlatformDashboard() {
 
       {showPower && (
         <PlatformFleetInsights badgeCount={insightBadgeCount}>
+          <TemplateMissingImagesPanel summary={missingImagesSummary} missing={missingImages} />
           <RemediateChips compact />
           <InfrastructureDnaStrip />
           {showAdvanced && <EnterpriseSecurityStrip />}
