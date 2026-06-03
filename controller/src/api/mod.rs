@@ -40,6 +40,7 @@ mod developer;
 mod fleet_automation;
 mod kubevirt;
 mod proxmox;
+mod vmware;
 mod observability;
 mod observability_middleware;
 mod oidc;
@@ -702,6 +703,7 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/api/v1/kubevirt/sync", post(kubevirt::sync_inventory))
         .route("/api/v1/proxmox/sync", post(proxmox::sync_inventory))
+        .route("/api/v1/vmware/sync", post(vmware::sync_inventory))
         .route("/api/v1/observability/overview", get(observability::overview))
         .route("/api/v1/observability/traces", get(observability::list_traces))
         .route(

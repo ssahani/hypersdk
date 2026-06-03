@@ -121,6 +121,14 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Network canvas:** `GET /api/v1/network-canvas` — topology + PacketWolf flows/stats/anomalies; enriched [`/platform/network-canvas`](/platform/network-canvas) UI
 - **Web API:** `platformNetworkCanvas.ts`
 
+### Batch 81 deliverables (storage + VMware + reports)
+
+- **Storage agent:** Ceph RBD, iSCSI (IQN), and ZFS pool provision in `agent/src/provision_ops.rs`
+- **Platform storage UI:** Pool wizard backends `ceph`, `iscsi`, `zfs` with path hints
+- **Web API:** `platformStorage.ts` (pools, tiers, SLA) re-exported from `platform.ts`
+- **VMware:** `POST /api/v1/vmware/sync` honest import + migration-advisor scope; datacenter **VMware scope** button
+- **Reports:** Fleet capacity planner panel on `/platform/reports` (storage totals, forecast, recommendations)
+
 ### Batch 80 deliverables (huge sweep)
 
 - **ISO install:** `POST /api/v1/vms/from-iso` + `install_iso` label → CDROM in domain XML; [`/platform/create-iso`](/platform/create-iso) native create

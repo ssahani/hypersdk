@@ -8,6 +8,7 @@ import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
 import { listPlatformHosts, listPlatformVms, type PlatformHost, type PlatformVm } from '../../api/platform'
 import { syncKubevirtInventory } from '../../api/platformKubevirtSync'
 import { syncProxmoxInventory } from '../../api/platformProxmoxSync'
+import { syncVmwareInventory } from '../../api/platformVmwareSync'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -16,6 +17,8 @@ const SOURCE_LABELS: Record<string, string> = {
   libvirt: 'KVM / libvirt',
   kubevirt: 'KubeVirt',
   proxmox: 'Proxmox (import)',
+  vmware: 'VMware (import)',
+  vsphere: 'vSphere (import)',
   discovered: 'Discovered',
 }
 
@@ -25,6 +28,7 @@ export default function PlatformDatacenter() {
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [syncingKv, setSyncingKv] = useState(false)
   const [syncingPve, setSyncingPve] = useState(false)
+  const [syncingVmware, setSyncingVmware] = useState(false)
 
   const reload = () => {
     void Promise.all([listPlatformVms(), listPlatformHosts()]).then(([v, h]) => {
@@ -46,6 +50,18 @@ export default function PlatformDatacenter() {
       toast.error(formatUserError(e))
     } finally {
       setSyncingPve(false)
+    }
+  }
+
+  const syncVmware = async () => {
+    setSyncingVmware(true)
+    try {
+      const r = await syncVmwareInventory()
+      toast.info(r.message)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSyncingVmware(false)
     }
   }
 
@@ -87,6 +103,10 @@ export default function PlatformDatacenter() {
           <button type="button" className="btn-secondary text-sm flex items-center gap-1.5" disabled={syncingPve} onClick={() => void syncProxmox()}>
             <RefreshCw className={`w-4 h-4 ${syncingPve ? 'animate-spin' : ''}`} />
             Proxmox scope
+          </button>
+          <button type="button" className="btn-secondary text-sm flex items-center gap-1.5" disabled={syncingVmware} onClick={() => void syncVmware()}>
+            <RefreshCw className={`w-4 h-4 ${syncingVmware ? 'animate-spin' : ''}`} />
+            VMware scope
           </button>
         </div>
         <div className="mb-6">

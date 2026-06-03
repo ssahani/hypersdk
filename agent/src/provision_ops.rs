@@ -25,6 +25,31 @@ fn local_mount_for_pool(pool_name: &str) -> String {
     format!("/var/lib/machina/nfs/{pool_name}")
 }
 
+fn parse_ceph_pool(path: &str) -> String {
+    let p = path.trim();
+    if let Some(rest) = p.strip_prefix("ceph:") {
+        return rest.to_string();
+    }
+    if let Some(rest) = p.strip_prefix("rbd:") {
+        return rest.to_string();
+    }
+    if p.starts_with("rbd/") {
+        return p.to_string();
+    }
+    format!("rbd/{p}")
+}
+
+fn parse_zfs_dataset(path: &str) -> anyhow::Result<(String, String)> {
+    let p = path.trim().trim_start_matches('/');
+    let (zpool, dataset) = p
+        .split_once('/')
+        .ok_or_else(|| anyhow::anyhow!("ZFS path must be zpool/dataset (got '{path}')"))?;
+    if zpool.is_empty() || dataset.is_empty() {
+        anyhow::bail!("ZFS zpool and dataset must be non-empty");
+    }
+    Ok((zpool.to_string(), dataset.to_string()))
+}
+
 pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> anyhow::Result<()> {
     let backend = backend.trim().to_ascii_lowercase();
     let path = path.trim();
@@ -56,6 +81,59 @@ pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> any
                 ])
                 .output()?
         }
+        "ceph" | "rbd" => {
+            let source_dev = parse_ceph_pool(path);
+            let target = if source_dev.starts_with("/dev/") {
+                source_dev.clone()
+            } else {
+                format!("/dev/{source_dev}")
+            };
+            Command::new("virsh")
+                .args([
+                    "pool-define-as",
+                    pool_name,
+                    "rbd",
+                    "--source-dev",
+                    &source_dev,
+                    "--target",
+                    &target,
+                ])
+                .output()?
+        }
+        "iscsi" => {
+            if !path.starts_with("iqn.") {
+                anyhow::bail!("iSCSI path must be a target IQN (e.g. iqn.2020-01.com.example:storage)");
+            }
+            let target = format!("/var/lib/machina/iscsi/{pool_name}");
+            std::fs::create_dir_all(&target)?;
+            Command::new("virsh")
+                .args([
+                    "pool-define-as",
+                    pool_name,
+                    "iscsi",
+                    "--source-dev",
+                    path,
+                    "--target",
+                    &target,
+                ])
+                .output()?
+        }
+        "zfs" => {
+            let (zpool, dataset) = parse_zfs_dataset(path)?;
+            let source_dev = format!("{zpool}/{dataset}");
+            let target = format!("/{zpool}/{dataset}");
+            Command::new("virsh")
+                .args([
+                    "pool-define-as",
+                    pool_name,
+                    "zfs",
+                    "--source-dev",
+                    &source_dev,
+                    "--target",
+                    &target,
+                ])
+                .output()?
+        }
         "directory" | "dir" => {
             if path.contains(':') {
                 anyhow::bail!("directory backend cannot use host:path NFS syntax — use backend nfs");
@@ -65,14 +143,10 @@ pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> any
                 .args(["pool-define-as", pool_name, "dir", "--target", path])
                 .output()?
         }
-        _ => {
-            if path.contains(':') {
-                anyhow::bail!("unknown backend '{backend}' with NFS-style path — use backend nfs");
-            }
-            std::fs::create_dir_all(path)?;
-            Command::new("virsh")
-                .args(["pool-define-as", pool_name, "dir", "--target", path])
-                .output()?
+        other => {
+            anyhow::bail!(
+                "unsupported storage backend '{other}' — use directory, nfs, lvm, ceph, iscsi, or zfs"
+            );
         }
     };
 
@@ -89,6 +163,12 @@ pub fn provision_storage_pool(pool_name: &str, backend: &str, path: &str) -> any
                 " — verify NFS export is reachable and mount options on the hypervisor"
             } else if backend == "lvm" || backend == "logical" {
                 " — verify the logical volume exists and is not in use"
+            } else if backend == "ceph" || backend == "rbd" {
+                " — verify Ceph cluster, librbd, and pool permissions on the hypervisor"
+            } else if backend == "iscsi" {
+                " — verify iSCSI target is reachable and libvirt iscsi pool prerequisites"
+            } else if backend == "zfs" {
+                " — verify ZFS pool/dataset exists and is imported on the host"
             } else {
                 ""
             };
@@ -157,5 +237,18 @@ mod tests {
     fn parse_nfs_adds_leading_slash() {
         let (_, e) = parse_nfs_source("nas.local:export").unwrap();
         assert_eq!(e, "/export");
+    }
+
+    #[test]
+    fn parse_ceph_pool_normalizes() {
+        assert_eq!(parse_ceph_pool("vms"), "rbd/vms");
+        assert_eq!(parse_ceph_pool("ceph:machina"), "machina");
+    }
+
+    #[test]
+    fn parse_zfs_dataset_splits() {
+        let (z, d) = parse_zfs_dataset("tank/machina").unwrap();
+        assert_eq!(z, "tank");
+        assert_eq!(d, "machina");
     }
 }

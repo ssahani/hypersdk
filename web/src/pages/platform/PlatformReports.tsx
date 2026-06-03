@@ -269,12 +269,50 @@ export default function PlatformReports({ embedded }: { embedded?: boolean } = {
       )}
 
       {!loading && tab === 'reports' && cap && (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <MacStatWidget label="Online hosts" value={String(cap.hosts_online)} icon={<FolderKanban className="w-4 h-4" />} />
-          <MacStatWidget label="Running VMs" value={String(cap.running_vms)} icon={<FolderKanban className="w-4 h-4" />} tone="ok" />
-          <MacStatWidget label="Memory headroom" value={`${cap.memory_headroom_mib} MiB`} icon={<FolderKanban className="w-4 h-4" />} />
-          <MacStatWidget label="Avg CPU" value={`${cap.avg_cpu_percent.toFixed(0)}%`} icon={<FolderKanban className="w-4 h-4" />} />
-        </div>
+        <>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <MacStatWidget label="Online hosts" value={String(cap.hosts_online)} icon={<FolderKanban className="w-4 h-4" />} />
+            <MacStatWidget label="Running VMs" value={String(cap.running_vms)} icon={<FolderKanban className="w-4 h-4" />} tone="ok" />
+            <MacStatWidget label="Memory headroom" value={`${cap.memory_headroom_mib} MiB`} icon={<FolderKanban className="w-4 h-4" />} />
+            <MacStatWidget label="Avg CPU" value={`${cap.avg_cpu_percent.toFixed(0)}%`} icon={<FolderKanban className="w-4 h-4" />} />
+          </div>
+          {(cap.storage_capacity_gib != null && cap.storage_capacity_gib > 0) ||
+          (cap.estimated_small_vms_addable != null && cap.estimated_small_vms_addable > 0) ||
+          (cap.planner_recommendations?.length ?? 0) > 0 ? (
+            <MacGlassPanel title="Fleet capacity planner" subtitle="Controller capacity report merged with AI planner forecasts.">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 text-sm -mt-2">
+                {cap.storage_capacity_gib != null && cap.storage_capacity_gib > 0 && (
+                  <p>
+                    Storage:{' '}
+                    <span className="text-slate-200">
+                      {cap.storage_used_gib ?? 0} / {cap.storage_capacity_gib} GiB
+                    </span>
+                  </p>
+                )}
+                {cap.estimated_small_vms_addable != null && (
+                  <p>
+                    Small VMs addable: <span className="text-slate-200">~{cap.estimated_small_vms_addable}</span>
+                  </p>
+                )}
+                {cap.forecast_30d_vms != null && (
+                  <p>
+                    30d VM forecast: <span className="text-slate-200">{cap.forecast_30d_vms}</span>
+                  </p>
+                )}
+                <p>
+                  Memory total: <span className="text-slate-200">{cap.memory_total_mib} MiB</span>
+                </p>
+              </div>
+              {cap.planner_recommendations && cap.planner_recommendations.length > 0 && (
+                <ul className="mt-3 text-xs text-slate-400 space-y-1">
+                  {cap.planner_recommendations.map((r, i) => (
+                    <li key={i}>• {r}</li>
+                  ))}
+                </ul>
+              )}
+            </MacGlassPanel>
+          ) : null}
+        </>
       )}
       {!loading && tab === 'reports' && compliance && (
         <MacGlassPanel title="Machina Compliance" subtitle={`Grade ${compliance.grade} · ${compliance.score}/100`}>

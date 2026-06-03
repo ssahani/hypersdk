@@ -68,7 +68,7 @@ export default function PlatformStorage() {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [name, setName] = useState('datastore-01')
   const [path, setPath] = useState('/var/lib/libvirt/images')
-  const [poolBackend, setPoolBackend] = useState<'directory' | 'nfs' | 'lvm'>('directory')
+  const [poolBackend, setPoolBackend] = useState<'directory' | 'nfs' | 'lvm' | 'ceph' | 'iscsi' | 'zfs'>('directory')
   const [creating, setCreating] = useState(false)
   const [bindDraft, setBindDraft] = useState<Record<string, string>>({})
   const [binding, setBinding] = useState<string | null>(null)
@@ -511,25 +511,41 @@ export default function PlatformStorage() {
           <label className="block text-sm">
             <span className="text-slate-400">Backend</span>
             <select className="input mt-1 w-full" value={poolBackend} onChange={(e) => {
-              const b = e.target.value as 'directory' | 'nfs' | 'lvm'
+              const b = e.target.value as typeof poolBackend
               setPoolBackend(b)
               if (b === 'nfs') setPath('192.168.1.10:/export/machina')
               else if (b === 'lvm') setPath('/dev/vg_machina/lv_data')
+              else if (b === 'ceph') setPath('ceph:machina')
+              else if (b === 'iscsi') setPath('iqn.2020-01.com.example:machina')
+              else if (b === 'zfs') setPath('tank/machina')
               else setPath('/var/lib/libvirt/images')
             }}>
               <option value="directory">Directory (local path)</option>
               <option value="nfs">NFS (netfs)</option>
               <option value="lvm">LVM (logical volume)</option>
+              <option value="ceph">Ceph RBD</option>
+              <option value="iscsi">iSCSI</option>
+              <option value="zfs">ZFS</option>
             </select>
           </label>
           <label className="block text-sm">
-            <span className="text-slate-400">{poolBackend === 'nfs' ? 'NFS server:export' : poolBackend === 'lvm' ? 'LV path' : 'Path on host'}</span>
+            <span className="text-slate-400">
+              {poolBackend === 'nfs' && 'NFS server:export'}
+              {poolBackend === 'lvm' && 'LV path'}
+              {poolBackend === 'ceph' && 'Ceph pool (ceph:name or rbd/pool)'}
+              {poolBackend === 'iscsi' && 'iSCSI target IQN'}
+              {poolBackend === 'zfs' && 'ZFS zpool/dataset'}
+              {poolBackend === 'directory' && 'Path on host'}
+            </span>
             <input className="input mt-1 w-full font-mono text-xs" value={path} onChange={(e) => setPath(e.target.value)} />
           </label>
           <p className="text-xs text-slate-500">
             {poolBackend === 'directory' && 'Registers in inventory and provisions a dir pool on an online host when path is set.'}
             {poolBackend === 'nfs' && 'Example: host:/export/path — agent runs storage.pool.provision (netfs).'}
             {poolBackend === 'lvm' && 'Example: /dev/vg/lv — requires LVM layout on the hypervisor.'}
+            {poolBackend === 'ceph' && 'Example: ceph:vms or rbd/machina — requires Ceph cluster and librbd on the hypervisor.'}
+            {poolBackend === 'iscsi' && 'Example: iqn.2020-01.com.example:storage — libvirt iscsi pool on the agent host.'}
+            {poolBackend === 'zfs' && 'Example: tank/machina — ZFS dataset must exist and be imported on the host.'}
           </p>
           <button type="button" className="btn-primary w-full" disabled={creating} onClick={async () => {
             setCreating(true)
