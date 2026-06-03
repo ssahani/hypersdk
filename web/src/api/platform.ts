@@ -1319,45 +1319,6 @@ export const getPlatformVmMetrics = (id: string) =>
     `/api/v1/vms/${id}/metrics`,
   )
 
-export interface ContentImage {
-  id: string
-  name: string
-  kind: string
-  path: string
-  size_gib: number
-  status: string
-  category?: string
-  description?: string
-  submitted_by?: string | null
-  approved_by?: string | null
-  approved_at?: string | null
-  rejected_reason?: string | null
-  created_at: string
-}
-
-export const listContentImages = (params?: { status?: string }) => {
-  const q = params?.status ? `?status=${encodeURIComponent(params.status)}` : ''
-  return platformFetch<ContentImage[]>(`/api/v1/content/images${q}`)
-}
-
-export const createContentImage = (body: {
-  name: string
-  kind?: string
-  path: string
-  size_gib?: number
-  category?: string
-  description?: string
-}) => platformFetch<ContentImage>('/api/v1/content/images', { method: 'POST', body: JSON.stringify(body) })
-
-export const approveContentImage = (id: string) =>
-  platformFetch<ContentImage>(`/api/v1/content/images/${id}/approve`, { method: 'POST', body: '{}' })
-
-export const rejectContentImage = (id: string, reason?: string) =>
-  platformFetch<ContentImage>(`/api/v1/content/images/${id}/reject`, {
-    method: 'POST',
-    body: JSON.stringify({ reason }),
-  })
-
 export const attachVmDisk = (id: string, body: { disk_path: string; target_dev?: string; size_gib?: number }) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/disks/attach`, {
     method: 'POST',
@@ -1382,19 +1343,6 @@ export const getTemplateReadiness = (name: string, version: string) =>
     source_disk: string
   }>(`/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}/readiness`)
 export const getPlatformHealth = () => platformFetch<{ status: string; leader?: boolean; controller_id?: string }>('/api/v1/health')
-
-export const createPlatformVm = (body: unknown) =>
-  platformFetch<{ task_id: string }>('/api/v1/vms', { method: 'POST', body: JSON.stringify(body) })
-
-export type CreatePlatformVmBody = {
-  api_version: string
-  kind: string
-  metadata: { name: string; project?: string; labels?: Record<string, string> }
-  spec: Record<string, unknown>
-  host_id?: string
-  tags?: string[]
-  desired_state?: string
-}
 
 export type VmPowerAction = 'start' | 'stop' | 'reboot' | 'shutdown' | 'pause' | 'resume'
 
@@ -2034,6 +1982,11 @@ export interface CapacityReport {
   memory_used_mib: number
   memory_headroom_mib: number
   avg_cpu_percent: number
+  storage_used_gib?: number
+  storage_capacity_gib?: number
+  estimated_small_vms_addable?: number
+  forecast_30d_vms?: number
+  planner_recommendations?: string[]
 }
 
 export interface VmDiskRow {
@@ -2186,6 +2139,18 @@ export function platformVncWsUrl(wsPath: string): string {
 }
 
 /** Roadmap APIs live in focused modules; re-exported here for backward compatibility. */
+export {
+  listContentImages,
+  createContentImage,
+  approveContentImage,
+  rejectContentImage,
+} from './platformContent'
+export type { ContentImage } from './platformContent'
+export { createPlatformVm, createVmFromIso } from './platformVmCreate'
+export type { CreatePlatformVmBody, CreateFromIsoBody } from './platformVmCreate'
+export { buildVmFromPrompt } from './platformAiVmBuilder'
+export type { VmBuilderResult } from './platformAiVmBuilder'
+export { syncProxmoxInventory } from './platformProxmoxSync'
 export { validateCloudInit } from './platformCloudInit'
 export type { CloudInitValidation } from './platformCloudInit'
 export { syncGitTemplates, approvePlatformTemplate, publishVmAsTemplate } from './platformTemplatesExtra'

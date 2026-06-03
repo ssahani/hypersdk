@@ -38,14 +38,34 @@ pub fn domain_xml_from_spec(
         .and_then(|m| m.get("tpm"))
         .is_some_and(|v| v == "true" || v == "1");
 
+    let install_iso = vm
+        .metadata
+        .labels
+        .as_ref()
+        .and_then(|m| m.get("install_iso"))
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty());
+
     let os_xml = if is_uefi {
+        let boot_cd = if install_iso.is_some() {
+            "\n    <boot dev='cdrom'/>\n    <boot dev='hd'/>"
+        } else {
+            ""
+        };
         format!(
             r#"<os>
     <type arch='x86_64' machine='q35'>hvm</type>
     <loader readonly='yes' type='pflash'>/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>
-    <nvram template='/usr/share/edk2/ovmf/OVMF_VARS.fd'>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>
+    <nvram template='/usr/share/edk2/ovmf/OVMF_VARS.fd'>/var/lib/libvirt/qemu/nvram/{name}_VARS.fd</nvram>{boot_cd}
   </os>"#
         )
+    } else if install_iso.is_some() {
+        r#"<os>
+    <type arch='x86_64' machine='q35'>hvm</type>
+    <boot dev='cdrom'/>
+    <boot dev='hd'/>
+  </os>"#
+            .into()
     } else {
         r#"<os>
     <type arch='x86_64' machine='q35'>hvm</type>
@@ -60,15 +80,31 @@ pub fn domain_xml_from_spec(
         ""
     };
 
-    let cloud_iso_xml = cloud_init_iso
-        .filter(|p| !p.is_empty())
+    let install_iso_xml = install_iso
         .map(|iso| {
             let iso_esc = esc(iso);
             format!(
                 r#"    <disk type='file' device='cdrom'>
       <driver name='qemu' type='raw'/>
       <source file='{iso_esc}'/>
-      <target dev='sda' bus='sata'/>
+      <target dev='hdc' bus='ide'/>
+      <readonly/>
+    </disk>
+"#
+            )
+        })
+        .unwrap_or_default();
+
+    let cloud_iso_xml = cloud_init_iso
+        .filter(|p| !p.is_empty())
+        .map(|iso| {
+            let iso_esc = esc(iso);
+            let target = if install_iso.is_some() { "sdb" } else { "sda" };
+            format!(
+                r#"    <disk type='file' device='cdrom'>
+      <driver name='qemu' type='raw'/>
+      <source file='{iso_esc}'/>
+      <target dev='{target}' bus='sata'/>
       <readonly/>
     </disk>
 "#
@@ -106,7 +142,7 @@ pub fn domain_xml_from_spec(
       <source file='{disk_path_esc}'/>
       <target dev='vda' bus='virtio'/>{disk_boot}
     </disk>
-{cloud_iso_xml}    <interface type='network'>
+{install_iso_xml}{cloud_iso_xml}    <interface type='network'>
       <source network='{network}'/>
       <model type='virtio'/>
     </interface>
@@ -135,5 +171,18 @@ mod tests {
         assert!(xml.contains("<name>demo</name>"));
         assert!(xml.contains("source network='default'"));
         assert!(xml.contains("type='qcow2'"));
+    }
+
+    #[test]
+    fn install_iso_adds_cdrom_boot() {
+        let mut vm = VirtualMachine::new("installer", "4Gi");
+        vm.metadata.labels = Some(std::collections::HashMap::from([(
+            "install_iso".into(),
+            "/var/lib/libvirt/images/ubuntu.iso".into(),
+        )]));
+        let xml = domain_xml_from_spec(&vm, "/var/lib/libvirt/images/installer.qcow2", "qcow2", None)
+            .unwrap();
+        assert!(xml.contains("boot dev='cdrom'"));
+        assert!(xml.contains("ubuntu.iso"));
     }
 }

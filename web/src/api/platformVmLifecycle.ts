@@ -1,7 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 // Retire, portable disk export, IaC bundle export.
 
-import { platformFetch } from './platform'
+import { getControllerBase, platformFetch, platformHeaders } from './platform'
 
 export const retirePlatformVm = (id: string, final_backup = false) =>
   platformFetch<{ task_id: string }>(`/api/v1/vms/${id}/retire`, {
@@ -22,6 +22,22 @@ export type VmIacExportBundle = {
 }
 
 export const exportVmIac = (id: string) => platformFetch<VmIacExportBundle>(`/api/v1/vms/${id}/export`)
+
+/** Download server-generated ZIP (terraform.tf, ansible, cloud-init, domain.xml, manifest.json). */
+export async function downloadVmIacZip(vmId: string, vmName: string) {
+  const url = `${getControllerBase()}/api/v1/vms/${vmId}/export.zip`
+  const res = await fetch(url, { credentials: 'same-origin', headers: platformHeaders() })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(body || `IaC zip export failed (${res.status})`)
+  }
+  const blob = await res.blob()
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${vmName}-iac.zip`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 
 /** Download Terraform, Ansible, cloud-init, and domain XML as one JSON bundle. */
 export function downloadVmIacBundle(bundle: VmIacExportBundle) {

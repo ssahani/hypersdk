@@ -1,6 +1,9 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
+use axum::body::Body;
 use axum::extract::{Path, State};
+use axum::http::{header, StatusCode};
+use axum::response::{IntoResponse, Response};
 use axum::Json;
 use uuid::Uuid;
 
@@ -35,4 +38,34 @@ pub async fn export_vm_iac(
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
     Ok(Json(bundle))
+}
+
+pub async fn export_vm_iac_zip(
+    State(state): State<AppState>,
+    Path(vm_id): Path<Uuid>,
+) -> Result<Response, ApiError> {
+    let row: (String, Option<Uuid>) =
+        sqlx::query_as("SELECT name, host_id FROM vms WHERE id = $1")
+            .bind(vm_id)
+            .fetch_one(&state.pool)
+            .await?;
+    let host_id = row
+        .1
+        .ok_or_else(|| ApiError::bad_request("VM has no host"))?;
+    let (_, agent_addr) = crate::engine::host_os::resolve_agent_addr(&state.pool, &state.config, host_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let (vm_name, bytes) = developer::export_vm_bundle_zip(&state.pool, &agent_addr, vm_id)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let disposition = format!("attachment; filename=\"{vm_name}-iac.zip\"");
+    Ok((
+        StatusCode::OK,
+        [
+            (header::CONTENT_TYPE, "application/zip"),
+            (header::CONTENT_DISPOSITION, disposition.as_str()),
+        ],
+        Body::from(bytes),
+    )
+        .into_response())
 }

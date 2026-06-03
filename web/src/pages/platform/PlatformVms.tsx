@@ -227,6 +227,10 @@ export default function PlatformVms() {
   }
 
   const handleCreate = async (payload: VmWizardPayload) => {
+    if (payload.os === 'custom-iso') {
+      navigate('/platform/create-iso')
+      return
+    }
     await createPlatformVm(buildVmBody(payload.name, payload.os, payload.size, payload.network, [], payload.cloudInitSshPubkey))
     toast.success('Create task queued')
     await load()
@@ -283,6 +287,7 @@ export default function PlatformVms() {
     <>
       <button type="button" className="btn-secondary" onClick={() => void load()}><RefreshCw className="w-4 h-4" /></button>
       <button type="button" className="btn-secondary" onClick={() => setWindowsOpen(true)}>Windows VM</button>
+      <Link to="/platform/vm-builder" className="btn-secondary flex items-center gap-2 text-sm">AI builder</Link>
       <button type="button" className="btn-primary flex items-center gap-2" onClick={() => setWizardOpen(true)}><Plus className="w-4 h-4" /> Create VM</button>
     </>
   )

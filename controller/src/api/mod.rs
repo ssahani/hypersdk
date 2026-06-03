@@ -39,6 +39,7 @@ mod operations;
 mod developer;
 mod fleet_automation;
 mod kubevirt;
+mod proxmox;
 mod observability;
 mod observability_middleware;
 mod oidc;
@@ -143,6 +144,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/ai/rightsizing/report", get(ai::rightsizing_report))
         .route("/api/v1/ai/nl-ops", post(ai::nl_ops))
         .route("/api/v1/ai/memory/changes-before", get(ai::memory_changes_before))
+        .route("/api/v1/ai/vm-builder", post(ai::vm_builder))
         .route("/api/v1/ai/intent/environment", post(ai::intent_environment))
         .route("/api/v1/ai/intent/environment/execute", post(ai::intent_environment_execute))
         .route("/api/v1/ai/sre/forecast", get(ai::sre_forecast))
@@ -408,6 +410,7 @@ pub fn router(state: AppState) -> Router {
             get(ha::get_vm_ha_policy).post(ha::set_vm_ha_policy),
         )
         .route("/api/v1/vms/from-template", post(vms::create_from_template))
+        .route("/api/v1/vms/from-iso", post(vms::create_from_iso))
         .route("/api/v1/vms/{id}/clone", post(vms::clone_vm))
         .route("/api/v1/vms/{id}/publish-template", post(vms::publish_vm_template))
         .route("/api/v1/vms/{id}/retire", post(vms::retire_vm))
@@ -415,6 +418,10 @@ pub fn router(state: AppState) -> Router {
         .route(
             "/api/v1/vms/{id}/export",
             get(developer::export_vm_iac),
+        )
+        .route(
+            "/api/v1/vms/{id}/export.zip",
+            get(developer::export_vm_iac_zip),
         )
         .route("/api/v1/vms/{id}/console", get(console::vm_console))
         .route("/api/v1/vms/{id}/ws-token", post(console::issue_ws_token))
@@ -694,6 +701,7 @@ pub fn router(state: AppState) -> Router {
             delete(fleet_automation::delete_fleet_snapshot_schedule),
         )
         .route("/api/v1/kubevirt/sync", post(kubevirt::sync_inventory))
+        .route("/api/v1/proxmox/sync", post(proxmox::sync_inventory))
         .route("/api/v1/observability/overview", get(observability::overview))
         .route("/api/v1/observability/traces", get(observability::list_traces))
         .route(

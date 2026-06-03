@@ -605,6 +605,16 @@ pub struct EnvironmentIntentBody {
     pub query: String,
 }
 
+pub async fn vm_builder(
+    State(state): State<AppState>,
+    Json(body): Json<ai::vm_builder::VmBuilderBody>,
+) -> Result<Json<ai::vm_builder::VmBuilderResult>, ApiError> {
+    ai::vm_builder::build(&state.pool, &body)
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+        .map(Json)
+}
+
 pub async fn intent_environment(
     State(state): State<AppState>,
     Json(body): Json<EnvironmentIntentBody>,

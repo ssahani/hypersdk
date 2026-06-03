@@ -369,6 +369,83 @@ pub async fn create_from_template(
     create_vm(State(state), Extension(actor), Json(create_body)).await
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CreateFromIsoBody {
+    pub name: String,
+    pub iso_path: String,
+    #[serde(default = "default_memory")]
+    pub memory: String,
+    #[serde(default)]
+    pub disk_gib: Option<u64>,
+    #[serde(default)]
+    pub host_id: Option<Uuid>,
+    #[serde(default = "default_desired")]
+    pub desired_state: String,
+    #[serde(default)]
+    pub cloud_init_user: Option<String>,
+    #[serde(default)]
+    pub cloud_init_password: Option<String>,
+    #[serde(default)]
+    pub cloud_init_ssh_pubkey: Option<String>,
+}
+
+pub async fn create_from_iso(
+    State(state): State<AppState>,
+    Extension(actor): Extension<AuthUser>,
+    Json(body): Json<CreateFromIsoBody>,
+) -> Result<Json<TaskResponse>, ApiError> {
+    machina_spec::validate_name(&body.name).map_err(|e| ApiError::bad_request(e.to_string()))?;
+    let iso_path = body.iso_path.trim();
+    if iso_path.is_empty() {
+        return Err(ApiError::bad_request("iso_path is required"));
+    }
+    if !iso_path.contains(':') && !iso_path.starts_with('/') {
+        return Err(ApiError::bad_request("iso_path must be an absolute path on the hypervisor"));
+    }
+    let approved: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM content_images WHERE path = $1 AND status = 'available'",
+    )
+    .bind(iso_path)
+    .fetch_one(&state.pool)
+    .await?;
+    if approved == 0 {
+        tracing::warn!(iso_path, "create_from_iso: ISO not in approved content library");
+    }
+
+    let disk_gib = body.disk_gib.unwrap_or(40);
+    let mut vm = VirtualMachine::new(&body.name, &body.memory);
+    vm.spec.storage = vec![machina_spec::StorageVolumeSpec {
+        name: "root".into(),
+        size: format!("{disk_gib}Gi"),
+        class: "silver".into(),
+        source: None,
+    }];
+    vm.metadata.labels = Some(std::collections::HashMap::from([(
+        "install_iso".into(),
+        iso_path.to_string(),
+    )]));
+    if body.cloud_init_user.is_some()
+        || body.cloud_init_password.is_some()
+        || body.cloud_init_ssh_pubkey.is_some()
+    {
+        vm.spec.cloud_init = Some(CloudInitSpec {
+            user: body
+                .cloud_init_user
+                .clone()
+                .unwrap_or_else(|| "ubuntu".into()),
+            password: body.cloud_init_password.clone(),
+            ssh_pubkey: body.cloud_init_ssh_pubkey.clone(),
+        });
+    }
+    let create_body = CreateVmBody {
+        vm,
+        host_id: body.host_id,
+        tags: vec!["iso-install".into()],
+        desired_state: body.desired_state,
+    };
+    create_vm(State(state), Extension(actor), Json(create_body)).await
+}
+
 pub async fn migrate_precheck(
     State(state): State<AppState>,
     Path(id): Path<Uuid>,

@@ -44,5 +44,6 @@ jsonwebtoken = "9"
 urlencoding = "2"
 hex = "0.4"
 rand = { workspace = true }
+zip = { version = "2", default-features = false, features = ["deflate"] }
 tokio-tungstenite = "0.28"
 bytes = "1"

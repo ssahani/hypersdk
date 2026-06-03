@@ -67,6 +67,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 77 | A/B | Migration bandwidth/postcopy, VM Time Machine timeline, template deploy vars, IaC bundle download | **Shipped (v1)** |
 | 78 | A | Controller compile fixes, platform ISO create wizard, template git webhook sync | **Shipped (v1)** |
 | 79 | B/C | NFS/LVM pool provision hardening, network canvas + PacketWolf flows API | **Shipped (v1)** |
+| 80 | A/D/E | Platform ISO create API, AI VM builder, IaC ZIP export, Proxmox scope, API module split | **Shipped (v1)** |
 
 ### Batch 71–72 deliverables (Phase A)
 
@@ -119,6 +120,15 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Storage:** Agent NFS `host:/export` parsing (`--source-host`, `--source-dir`, local mount under `/var/lib/machina/nfs/`); LVM skips `mkdir` on `/dev/*`; directory backend rejects NFS syntax
 - **Network canvas:** `GET /api/v1/network-canvas` — topology + PacketWolf flows/stats/anomalies; enriched [`/platform/network-canvas`](/platform/network-canvas) UI
 - **Web API:** `platformNetworkCanvas.ts`
+
+### Batch 80 deliverables (huge sweep)
+
+- **ISO install:** `POST /api/v1/vms/from-iso` + `install_iso` label → CDROM in domain XML; [`/platform/create-iso`](/platform/create-iso) native create
+- **AI VM builder:** `POST /api/v1/ai/vm-builder` + [`/platform/vm-builder`](/platform/vm-builder)
+- **IaC:** `GET /api/v1/vms/{id}/export.zip` server-side ZIP; VM detail download button
+- **Proxmox:** `POST /api/v1/proxmox/sync` honest import-only scope; datacenter UI button
+- **Capacity:** `GET /api/v1/reports/capacity` merges AI planner forecasts + recommendations
+- **Web API split:** `platformContent.ts`, `platformVmCreate.ts`, `platformAiVmBuilder.ts`, `platformProxmoxSync.ts` (re-exported from `platform.ts`)
 
 ## Batch 70 deliverables (SOC Program)
 

@@ -7,6 +7,7 @@ import PageLayout from '../../components/PageLayout'
 import PlatformPageChrome from '../../components/platform/PlatformPageChrome'
 import { listPlatformHosts, listPlatformVms, type PlatformHost, type PlatformVm } from '../../api/platform'
 import { syncKubevirtInventory } from '../../api/platformKubevirtSync'
+import { syncProxmoxInventory } from '../../api/platformProxmoxSync'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
 import { hubLinkClasses } from '../../utils/semanticColors'
@@ -14,6 +15,7 @@ import { hubLinkClasses } from '../../utils/semanticColors'
 const SOURCE_LABELS: Record<string, string> = {
   libvirt: 'KVM / libvirt',
   kubevirt: 'KubeVirt',
+  proxmox: 'Proxmox (import)',
   discovered: 'Discovered',
 }
 
@@ -22,6 +24,7 @@ export default function PlatformDatacenter() {
   const [vms, setVms] = useState<PlatformVm[]>([])
   const [hosts, setHosts] = useState<PlatformHost[]>([])
   const [syncingKv, setSyncingKv] = useState(false)
+  const [syncingPve, setSyncingPve] = useState(false)
 
   const reload = () => {
     void Promise.all([listPlatformVms(), listPlatformHosts()]).then(([v, h]) => {
@@ -33,6 +36,18 @@ export default function PlatformDatacenter() {
   useEffect(() => {
     reload()
   }, [])
+
+  const syncProxmox = async () => {
+    setSyncingPve(true)
+    try {
+      const r = await syncProxmoxInventory()
+      toast.info(r.message)
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setSyncingPve(false)
+    }
+  }
 
   const syncKubevirt = async () => {
     setSyncingKv(true)
@@ -68,6 +83,10 @@ export default function PlatformDatacenter() {
           <button type="button" className="btn-secondary text-sm flex items-center gap-1.5" disabled={syncingKv} onClick={() => void syncKubevirt()}>
             <RefreshCw className={`w-4 h-4 ${syncingKv ? 'animate-spin' : ''}`} />
             {syncingKv ? 'Syncing KubeVirt…' : 'Sync KubeVirt inventory'}
+          </button>
+          <button type="button" className="btn-secondary text-sm flex items-center gap-1.5" disabled={syncingPve} onClick={() => void syncProxmox()}>
+            <RefreshCw className={`w-4 h-4 ${syncingPve ? 'animate-spin' : ''}`} />
+            Proxmox scope
           </button>
         </div>
         <div className="mb-6">

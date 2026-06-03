@@ -1,12 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
-// Platform ISO install wizard — approved content library images → classic virt-install flow.
+// Platform ISO install — approved content library → controller vm.apply with install_iso CDROM.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router'
 import { Disc, Loader2 } from 'lucide-react'
 import PlatformPageChrome, { PlatformBackLink } from '../../components/platform/PlatformPageChrome'
 import { MacGlassPanel } from '../../components/platform/mac/PlatformMacUi'
-import { listContentImages, type ContentImage } from '../../api/platform'
+import { createVmFromIso, listContentImages, type ContentImage } from '../../api/platform'
 import { sizeToSpec } from '../../components/platform/SimpleCreateVmWizard'
 import { useToastContext } from '../../contexts/ToastContext'
 import { formatUserError } from '../../utils/apiError'
@@ -24,6 +24,7 @@ export default function PlatformIsoCreate() {
   const toast = useToastContext()
   const [images, setImages] = useState<ContentImage[]>([])
   const [loading, setLoading] = useState(true)
+  const [creating, setCreating] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isoPath, setIsoPath] = useState('')
   const [vmName, setVmName] = useState('vm-from-iso')
@@ -55,7 +56,7 @@ export default function PlatformIsoCreate() {
 
   const selected = approved.find((i) => i.path === isoPath)
 
-  const launch = () => {
+  const createOnPlatform = async () => {
     if (!isoPath.trim()) {
       toast.error('Select an approved ISO')
       return
@@ -64,6 +65,27 @@ export default function PlatformIsoCreate() {
       toast.error('Enter a VM name')
       return
     }
+    const spec = sizeToSpec(size)
+    const memoryGi = parseInt(spec.memory.replace(/Gi$/, ''), 10) || 4
+    const diskGb = parseInt(spec.disk.replace(/Gi$/, ''), 10) || 40
+    setCreating(true)
+    try {
+      await createVmFromIso({
+        name: vmName.trim(),
+        iso_path: isoPath,
+        memory: `${memoryGi}Gi`,
+        disk_gib: diskGb,
+      })
+      toast.success(`ISO install queued for ${vmName}`)
+      navigate('/platform/vms')
+    } catch (e: unknown) {
+      toast.error(formatUserError(e))
+    } finally {
+      setCreating(false)
+    }
+  }
+
+  const openClassicWizard = () => {
     const spec = sizeToSpec(size)
     const memoryMb = parseInt(spec.memory.replace(/Gi$/, ''), 10) * 1024 || 4096
     const diskGb = parseInt(spec.disk.replace(/Gi$/, ''), 10) || 40
@@ -83,7 +105,7 @@ export default function PlatformIsoCreate() {
       onErrorRetry={() => void load()}
       prepend={<PlatformBackLink to="/platform/content" label="Content Library" />}
       title="Create VM from ISO"
-      subtitle="Pick an approved ISO, name the VM, then continue in the install wizard with fields pre-filled."
+      subtitle="Platform-native install attaches the ISO at define time; classic wizard offers full virt-install options."
     >
       {loading ? (
         <p className="text-sm text-slate-400 flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Loading approved images…</p>
@@ -147,12 +169,12 @@ export default function PlatformIsoCreate() {
                 Installing from <span className="font-mono">{selected.path}</span>
               </p>
             )}
-            <button type="button" className="btn-primary w-full" disabled={!isoPath} onClick={launch}>
-              Continue to install wizard
+            <button type="button" className="btn-primary w-full mb-2" disabled={!isoPath || creating} onClick={() => void createOnPlatform()}>
+              {creating ? 'Queuing…' : 'Create on platform (ISO boot)'}
             </button>
-            <p className="text-xs text-slate-500 mt-2">
-              Opens the classic Create VM flow with ISO and sizing pre-filled. Network, cloud-init, and firmware are configured on the next screens.
-            </p>
+            <button type="button" className="btn-secondary w-full text-sm" disabled={!isoPath} onClick={openClassicWizard}>
+              Advanced: classic install wizard
+            </button>
           </MacGlassPanel>
         </div>
       )}

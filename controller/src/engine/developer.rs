@@ -1,7 +1,12 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 // Developer ecosystem — schema export for Terraform + SDK (Phase 30).
 
+use std::io::Write;
+
+use machina_spec::VirtualMachine;
 use serde::Serialize;
+use zip::write::SimpleFileOptions;
+use zip::ZipWriter;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DeveloperOverview {
@@ -79,21 +84,23 @@ pub async fn export_vm_bundle(
     .bind(vm_id)
     .fetch_one(pool)
     .await?;
-    let (name, spec) = row;
-    let vcpus = spec["spec"]["resources"]["vcpu"].as_u64().unwrap_or(2);
-    let memory_mib = spec["spec"]["resources"]["memory_mib"].as_u64().unwrap_or(4096);
-    let project = spec["metadata"]["project"].as_str().unwrap_or("default");
+    let (name, spec_val) = row;
+    let vm: VirtualMachine = serde_json::from_value(spec_val)?;
+    let vcpus = vm.total_vcpus();
+    let memory_mib = vm.memory_mib()?;
+    let project = vm.metadata.project.as_deref().unwrap_or("default");
 
     let mut client = crate::agent_client::connect(agent_addr).await?;
     let domain_xml = crate::agent_client::get_domain_xml(&mut client, &name).await?;
 
-    let cloud_init = spec["spec"]["cloud_init"]
-        .as_object()
+    let cloud_init = vm
+        .spec
+        .cloud_init
+        .as_ref()
         .map(|c| {
             format!(
                 "#cloud-config\nusers:\n  - name: {}\n    ssh_authorized_keys:\n      - {}\n",
-                c.get("user").and_then(|v| v.as_str()).unwrap_or("ubuntu"),
-                c.get("ssh_pubkey").and_then(|v| v.as_str()).unwrap_or("")
+                c.user, c.ssh_pubkey.as_deref().unwrap_or("")
             )
         })
         .unwrap_or_else(|| "#cloud-config\n# (no cloud-init in spec)\n".into());
@@ -127,6 +134,35 @@ pub async fn export_vm_bundle(
         cloud_init,
         domain_xml,
     })
+}
+
+/// Zip bundle with terraform.tf, ansible, cloud-init, domain.xml, and manifest.json.
+pub async fn export_vm_bundle_zip(
+    pool: &sqlx::PgPool,
+    agent_addr: &str,
+    vm_id: uuid::Uuid,
+) -> anyhow::Result<(String, Vec<u8>)> {
+    let bundle = export_vm_bundle(pool, agent_addr, vm_id).await?;
+    let name = bundle.vm_name.clone();
+    let mut buf = Vec::new();
+    {
+        let mut zip = ZipWriter::new(std::io::Cursor::new(&mut buf));
+        let opts = SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        let manifest = serde_json::to_string_pretty(&bundle)?;
+        let files: [(&str, &str); 5] = [
+            ("terraform.tf", &bundle.terraform),
+            ("ansible-role.txt", &bundle.ansible_role),
+            ("cloud-init.txt", &bundle.cloud_init),
+            ("domain.xml", &bundle.domain_xml),
+            ("manifest.json", &manifest),
+        ];
+        for (path, content) in files {
+            zip.start_file(path, opts)?;
+            zip.write_all(content.as_bytes())?;
+        }
+        zip.finish()?;
+    }
+    Ok((name, buf))
 }
 
 pub fn terraform_schemas() -> Vec<TerraformResourceSchema> {

@@ -94,7 +94,7 @@ export default function SimpleCreateVmWizard({ open, onClose, onCreate, initial 
               <option value="debian-12">Debian 12</option>
               <option value="rocky-9">Rocky Linux 9</option>
               <option value="windows-server-2022">Windows Server 2022</option>
-              <option value="custom-iso">Custom ISO</option>
+              <option value="custom-iso">Custom ISO (platform)</option>
             </select>
           </label>
           <fieldset className="space-y-2">

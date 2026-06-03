@@ -4,6 +4,7 @@ use serde::Serialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+pub mod vm_builder;
 pub mod context;
 pub mod intent_router;
 pub mod llm;

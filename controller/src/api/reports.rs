@@ -17,6 +17,11 @@ pub struct CapacityReport {
     pub memory_used_mib: i64,
     pub memory_headroom_mib: i64,
     pub avg_cpu_percent: f32,
+    pub storage_used_gib: i64,
+    pub storage_capacity_gib: i64,
+    pub estimated_small_vms_addable: i64,
+    pub forecast_30d_vms: i64,
+    pub planner_recommendations: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,6 +97,10 @@ pub async fn capacity_report(
     .fetch_one(&state.pool)
     .await?;
 
+    let planner = crate::engine::ai::capacity::plan(&state.pool)
+        .await
+        .ok();
+
     Ok(Json(CapacityReport {
         hosts_online,
         hosts_offline,
@@ -101,5 +110,15 @@ pub async fn capacity_report(
         memory_used_mib: mem.1,
         memory_headroom_mib: mem.0.saturating_sub(mem.1),
         avg_cpu_percent: avg_cpu,
+        storage_used_gib: planner.as_ref().map(|p| p.storage_used_gib).unwrap_or(0),
+        storage_capacity_gib: planner.as_ref().map(|p| p.storage_capacity_gib).unwrap_or(0),
+        estimated_small_vms_addable: planner
+            .as_ref()
+            .map(|p| p.estimated_small_vms_addable)
+            .unwrap_or(0),
+        forecast_30d_vms: planner.as_ref().map(|p| p.forecast_30d_vms).unwrap_or(total_vms),
+        planner_recommendations: planner
+            .map(|p| p.recommendations)
+            .unwrap_or_default(),
     }))
 }

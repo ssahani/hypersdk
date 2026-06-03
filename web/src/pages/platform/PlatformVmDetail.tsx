@@ -78,7 +78,7 @@ import { isCenterPopoutMode, openCenterPopout } from '../../utils/platformCenter
 import { PlatformOpenStackVmLink } from '../../components/platform/PlatformCrossLinks'
 import { usePlatformDesktopTier } from '../../hooks/usePlatformDesktopTier'
 import { tasksHubHref } from '../../utils/platformHubLinks'
-import { downloadVmIacBundle, exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
+import { downloadVmIacBundle, downloadVmIacZip, exportVmDisk, exportVmIac, retirePlatformVm, type VmIacExportBundle } from '../../api/platformVmLifecycle'
 import { publishVmAsTemplate } from '../../api/platformTemplatesExtra'
 
 export default function PlatformVmDetail() {
@@ -1033,8 +1033,11 @@ export default function PlatformVmDetail() {
                 </div>
                 {iacBundle && (
                   <div className="mt-3 space-y-2 text-xs">
+                    <button type="button" className="btn-secondary text-xs" onClick={() => void downloadVmIacZip(id, vm.name)}>
+                      Download ZIP (IaC)
+                    </button>
                     <button type="button" className="btn-secondary text-xs" onClick={() => downloadVmIacBundle(iacBundle)}>
-                      Download all (JSON bundle)
+                      Download JSON bundle
                     </button>
                     {(['terraform', 'ansible_role', 'cloud_init', 'domain_xml'] as const).map((key) => (
                       <button
