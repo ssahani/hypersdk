@@ -303,6 +303,23 @@ export default function CreateVMPage() {
       setInstallSource('iso')
       setIso(isoPath)
     }
+    const preName = searchParams.get('name')
+    if (preName) setVmName(preName)
+    const preVcpus = searchParams.get('vcpus')
+    if (preVcpus) {
+      const n = parseInt(preVcpus, 10)
+      if (Number.isFinite(n) && n > 0) setVcpus(n)
+    }
+    const preMem = searchParams.get('memory_mb')
+    if (preMem) {
+      const n = parseInt(preMem, 10)
+      if (Number.isFinite(n) && n > 0) setMemoryMb(n)
+    }
+    const preDisk = searchParams.get('disk_gb')
+    if (preDisk) {
+      const n = parseInt(preDisk, 10)
+      if (Number.isFinite(n) && n > 0) setDiskGb(n)
+    }
   }, [searchParams])
 
   const setSource = (src: InstallSource) => {

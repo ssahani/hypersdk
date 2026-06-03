@@ -85,8 +85,7 @@ pub async fn export_vm_bundle(
     let project = spec["metadata"]["project"].as_str().unwrap_or("default");
 
     let mut client = crate::agent_client::connect(agent_addr).await?;
-    let xml_resp = crate::agent_client::get_domain_xml(&mut client, &name).await?;
-    let domain_xml = xml_resp.xml;
+    let domain_xml = crate::agent_client::get_domain_xml(&mut client, &name).await?;
 
     let cloud_init = spec["spec"]["cloud_init"]
         .as_object()

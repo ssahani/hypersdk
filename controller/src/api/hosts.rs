@@ -137,8 +137,21 @@ pub async fn get_host_gpus(
     let resp = crate::agent_client::list_host_gpus(&mut client)
         .await
         .map_err(|e| ApiError::internal(e.to_string()))?;
+    let devices: Vec<serde_json::Value> = resp
+        .devices
+        .into_iter()
+        .map(|d| {
+            serde_json::json!({
+                "pci_address": d.pci_address,
+                "vendor": d.vendor,
+                "device_name": d.device_name,
+                "iommu_group": d.iommu_group,
+                "mig_profile": d.mig_profile,
+            })
+        })
+        .collect();
     Ok(Json(serde_json::json!({
-        "devices": resp.devices,
+        "devices": devices,
         "nvidia_smi_summary": resp.nvidia_smi_summary,
     })))
 }

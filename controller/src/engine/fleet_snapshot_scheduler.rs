@@ -99,7 +99,7 @@ async fn enqueue_snapshots_for_schedule(
         .bind(&snap_name)
         .execute(pool)
         .await?;
-        let _ = enqueue_task(
+        enqueue_task(
             app,
             "vm.snapshot",
             serde_json::json!({
@@ -115,7 +115,8 @@ async fn enqueue_snapshots_for_schedule(
             Some(vm_id),
             host_id,
         )
-        .await?;
+        .await
+        .map_err(|e| anyhow::anyhow!("enqueue vm.snapshot: {}", e.message))?;
     }
     Ok(())
 }

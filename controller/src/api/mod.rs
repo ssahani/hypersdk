@@ -471,6 +471,10 @@ pub fn router(state: AppState) -> Router {
         .route("/api/v1/templates/seed", post(templates::seed_templates))
         .route("/api/v1/templates/sync-git", post(templates::sync_git_templates))
         .route(
+            "/api/v1/templates/sync-git/webhook",
+            post(templates::sync_git_templates_webhook),
+        )
+        .route(
             "/api/v1/templates/{name}/{version}/approval",
             axum::routing::patch(templates::approve_template),
         )

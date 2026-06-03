@@ -6,6 +6,14 @@ import { platformFetch, type PlatformTemplate } from './platform'
 export const syncGitTemplates = () =>
   platformFetch<{ synced: number }>('/api/v1/templates/sync-git', { method: 'POST', body: '{}' })
 
+/** CI/Git webhook endpoint — pass token when MACHINA_TEMPLATES_SYNC_TOKEN is configured on the controller. */
+export const syncGitTemplatesWebhook = (token?: string) =>
+  platformFetch<{ synced: number; source?: string }>('/api/v1/templates/sync-git/webhook', {
+    method: 'POST',
+    body: '{}',
+    headers: token ? { 'X-Machina-Template-Sync-Token': token } : undefined,
+  })
+
 export const approvePlatformTemplate = (name: string, version: string, approval_status: string) =>
   platformFetch<PlatformTemplate>(
     `/api/v1/templates/${encodeURIComponent(name)}/${encodeURIComponent(version)}/approval`,

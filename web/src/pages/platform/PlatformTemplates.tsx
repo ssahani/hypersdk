@@ -251,6 +251,7 @@ export default function PlatformTemplates() {
               <button
                 type="button"
                 className="btn-secondary text-sm flex items-center gap-1.5"
+                title="Webhook: POST /api/v1/templates/sync-git/webhook with X-Machina-Template-Sync-Token when MACHINA_TEMPLATES_SYNC_TOKEN is set"
                 onClick={() =>
                   void syncGitTemplates()
                     .then((r) => toast.success(`Synced ${r.synced} template(s) from git`))

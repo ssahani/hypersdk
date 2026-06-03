@@ -1,6 +1,7 @@
 // Copyright (c) 2026 ZyvorAI Labs Private Limited. All rights reserved.
 
 use axum::extract::{Path as AxumPath, Query, State};
+use axum::http::HeaderMap;
 use axum::Extension;
 use axum::Json;
 use machina_spec::VmTemplate;
@@ -218,18 +219,42 @@ pub struct ApproveTemplateBody {
     pub approval_status: String,
 }
 
+async fn run_git_template_sync(pool: &sqlx::PgPool) -> Result<usize, ApiError> {
+    let dir = std::env::var("MACHINA_TEMPLATES_GIT_DIR")
+        .map_err(|_| ApiError::bad_request("MACHINA_TEMPLATES_GIT_DIR not set"))?;
+    crate::engine::template_git::sync_templates_from_git(pool, std::path::Path::new(&dir))
+        .await
+        .map_err(|e| ApiError::internal(e.to_string()))
+}
+
 pub async fn sync_git_templates(
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let dir = std::env::var("MACHINA_TEMPLATES_GIT_DIR")
-        .map_err(|_| ApiError::bad_request("MACHINA_TEMPLATES_GIT_DIR not set"))?;
-    let synced = crate::engine::template_git::sync_templates_from_git(
-        &state.pool,
-        std::path::Path::new(&dir),
-    )
-        .await
-        .map_err(|e| ApiError::internal(e.to_string()))?;
+    let synced = run_git_template_sync(&state.pool).await?;
     Ok(Json(serde_json::json!({ "synced": synced })))
+}
+
+/// GitHub/GitLab push webhook — optional `X-Machina-Template-Sync-Token` when `MACHINA_TEMPLATES_SYNC_TOKEN` is set.
+pub async fn sync_git_templates_webhook(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if let Ok(expected) = std::env::var("MACHINA_TEMPLATES_SYNC_TOKEN") {
+        if !expected.is_empty() {
+            let token = headers
+                .get("x-machina-template-sync-token")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if token != expected {
+                return Err(ApiError::policy_violation(
+                    "invalid template sync token",
+                    "Set X-Machina-Template-Sync-Token to match MACHINA_TEMPLATES_SYNC_TOKEN",
+                ));
+            }
+        }
+    }
+    let synced = run_git_template_sync(&state.pool).await?;
+    Ok(Json(serde_json::json!({ "synced": synced, "source": "webhook" })))
 }
 
 pub async fn approve_template(

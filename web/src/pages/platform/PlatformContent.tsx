@@ -126,6 +126,9 @@ export default function PlatformContent() {
             <span className={`px-2 py-1 rounded-full text-xs border ${statusBadgeClasses('warn')}`}>{pending.length} pending</span>
           )}
           <PlatformRefreshButton onClick={() => void load()} />
+          <Link to="/platform/create-iso" className="btn-secondary flex items-center gap-2 text-sm">
+            <Disc className="w-4 h-4" /> Create from ISO
+          </Link>
           <button type="button" className="btn-primary flex items-center gap-2" onClick={() => setSheetOpen(true)}><Plus className="w-4 h-4" /> Upload</button>
         </>
       }
@@ -223,7 +226,7 @@ export default function PlatformContent() {
               )}
               {r.status === 'available' && r.kind === 'iso' && (
                 <Link
-                  to={`/create?iso_path=${encodeURIComponent(r.path)}`}
+                  to={`/platform/create-iso?iso_path=${encodeURIComponent(r.path)}`}
                   className={`btn-secondary text-xs mt-3 inline-block text-center w-full ${hubLinkClasses()}`}
                 >
                   Create VM from ISO

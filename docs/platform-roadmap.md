@@ -65,6 +65,7 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 | 74 | C | Network canvas stub, host GPU inventory RPC, datacenter by `inventory_source` | **Shipped (v1)** |
 | 75 | E | KubeVirt inventory sync API; VMware/Proxmox remain import-only | **Shipped (v1)** |
 | 77 | A/B | Migration bandwidth/postcopy, VM Time Machine timeline, template deploy vars, IaC bundle download | **Shipped (v1)** |
+| 78 | A | Controller compile fixes, platform ISO create wizard, template git webhook sync | **Shipped (v1)** |
 
 ### Batch 71–72 deliverables (Phase A)
 
@@ -105,6 +106,12 @@ This document tracks the vCenter-class platform plan on libvirt/KVM. See also [`
 - **Templates:** `template_vars` on `POST /vms/from-template` with `{{ hostname }}` substitution; deploy sheet hostname field
 - **IaC:** `downloadVmIacBundle()` — single JSON export alongside per-file downloads
 - **Web API modules:** `platformVmMigrate.ts`, `platformVmTimeline.ts`
+
+### Batch 78 deliverables (ISO wizard, webhook, CI fixes)
+
+- **Controller:** Fix GPU list JSON serialization, IaC `get_domain_xml` return type, fleet snapshot `enqueue_task` error mapping
+- **ISO wizard:** [`/platform/create-iso`](/platform/create-iso) — approved ISO picker → classic `/create` with `iso_path`, `name`, `vcpus`, `memory_mb`, `disk_gb` prefilled
+- **Templates:** `POST /api/v1/templates/sync-git/webhook` + optional `X-Machina-Template-Sync-Token` / `MACHINA_TEMPLATES_SYNC_TOKEN`
 
 ## Batch 70 deliverables (SOC Program)
 

@@ -106,6 +106,7 @@ const PlatformVms = lazy(() => import('./pages/platform/PlatformVms'))
 const PlatformVmDetail = lazy(() => import('./pages/platform/PlatformVmDetail'))
 const PlatformConsole = lazy(() => import('./pages/platform/PlatformConsole'))
 const PlatformContent = lazy(() => import('./pages/platform/PlatformContent'))
+const PlatformIsoCreate = lazy(() => import('./pages/platform/PlatformIsoCreate'))
 const PlatformTemplates = lazy(() => import('./pages/platform/PlatformTemplates'))
 const CloudInitStudio = lazy(() => import('./pages/platform/CloudInitStudio'))
 const PlatformNetworkCanvas = lazy(() => import('./pages/platform/PlatformNetworkCanvas'))
@@ -354,6 +355,7 @@ function AuthenticatedShellRoutes() {
                   <Route path="vms/:id/console" element={<PlatformConsole />} />
                   <Route path="applications" element={<PlatformApplications />} />
                   <Route path="content" element={<PlatformContent />} />
+                  <Route path="create-iso" element={<PlatformIsoCreate />} />
                   <Route path="templates" element={<PlatformTemplates />} />
                   <Route path="cloud-init" element={<CloudInitStudio />} />
                   <Route path="network-canvas" element={<PlatformNetworkCanvas />} />
